@@ -96,14 +96,6 @@ tool name is `<server-key>-<tool-name>`. For `AvailableTools` and
 `mcp:<server-key>-<tool-name>`. For `CustomAgents[].Tools` and
 `DefaultAgent.ExcludedTools`, use `<server-key>-<tool-name>` directly.
 
-To mask preview and hidden model display names and related text when listing
-models, use `await client.Rpc.Models.ListAsync(streamerMode: true)`. Model IDs
-remain unchanged. The optional `streamerMode` argument follows
-`cancellationToken`, preserving existing positional cancellation calls.
-The original three-parameter overload is retained for compiled consumers and
-method-group conversions; its parameters are required to keep zero-argument calls
-unambiguous.
-
 ## API Reference
 
 ### CopilotClient
@@ -123,13 +115,13 @@ new CopilotClient(CopilotClientOptions? options = null)
 - `Environment` - Environment variables to pass to the runtime process.
 
   For the native standalone runtime, set the `Environment` dictionary entry
-  `["COPILOT_TELEMETRY_DISABLED"] = "true"` before startup to disable Copilot-owned
-  GitHub and Entra authentication telemetry process-wide, including sessionless events.
+  `["COPILOT_GITHUB_TELEMETRY_DISABLED"] = "true"` before startup to disable direct
+  GitHub telemetry uploads for the entire host, including sessionless events.
   Authentication, `OnGitHubTelemetry` forwarding, and user-configured
   OpenTelemetry export remain unchanged. This is separate from
   `EnableSessionTelemetry = false`, which disables only a session's pipeline.
-  The value must be exactly `"true"`; changing it requires a process restart.
-  The existing `COPILOT_GITHUB_TELEMETRY_DISABLED` remains native-runtime/GitHub-only. In-process connections reject
+  The value must be exactly `"true"`; changing it requires a runtime restart.
+  The Node CLI host does not use this variable. In-process connections reject
   per-client `Environment`; set the variable in the host process environment
   before starting the runtime instead.
 
@@ -214,7 +206,7 @@ await using var client = new CopilotClient(new CopilotClientOptions
 #pragma warning restore GHCP001
 ```
 
-With `KerberosAuthMode.Fallback`, native credential acquisition (including the first token) is tried first; only failure invokes the callback. With `KerberosAuthMode.Always`, native credential lookup is never attempted. Without this option, behavior is unchanged. Registration happens during `StartAsync()` (including the automatic start of `CreateSessionAsync` and `ResumeSessionAsync`), before sessions can be created; if registration fails, startup fails. Exceptions thrown by the callback, including cancellation not requested through the supplied `CancellationToken`, are returned to the runtime as JSON-RPC errors.
+With `KerberosAuthMode.Fallback`, native credential acquisition (including the first token) is tried first; only failure invokes the callback. With `KerberosAuthMode.Always`, native credential lookup is never attempted. Without this option, behavior is unchanged. Registration happens during `StartAsync()` (including the automatic start of `CreateSessionAsync` and `ResumeSessionAsync`), before sessions can be created; if registration fails, startup fails. Exceptions thrown by the callback, including cancellation not requested through the supplied `CancellationToken`, are returned to the runtime as JSON-RPC errors. The callback is started on a thread-pool thread and may block, for example while prompting for credentials; the supplied `CancellationToken` is cancelled when the runtime abandons the request or the connection closes.
 
 By default the callback authenticates only requests made for sessions this client creates or resumes. With `KerberosAuthScope.Runtime` it also authenticates the runtime's shared background traffic, such as catalog refreshes and telemetry; only one connection at a time can hold that scope, so startup fails if another client holds it. The registration ends when the connection closes. In fallback mode, if the callback cannot supply a valid token, the native credential error is reported. In always mode, a disconnected, throwing, or empty callback fails authentication. The runtime waits at most 30 seconds for the callback (less when the request's own deadline is sooner) and treats a timeout as a callback failure. Tokens are not cached and must not be logged or persisted. The callback supplies the initial SPNEGO token only; exchanges requiring continuation tokens still need native negotiation.
 
@@ -253,7 +245,7 @@ client opens admission only for the new connection.
 Cleanup of a rejected cloud creation stays on its original connection and cannot
 restart the client during shutdown.
 
-##### `CreateSessionAsync(SessionConfig config): Task<CopilotSession>`
+##### `CreateSessionAsync(SessionConfig? config = null): Task<CopilotSession>`
 
 Create a new conversation session.
 
@@ -286,7 +278,7 @@ Create a new conversation session.
   callback is still running. Their cancellation token is canceled by a per-request
   `$/cancelRequest`, when the runtime connection closes, or when the client is disposed.
 
-##### `ResumeSessionAsync(string sessionId, ResumeSessionConfig config): Task<CopilotSession>`
+##### `ResumeSessionAsync(string sessionId, ResumeSessionConfig? config = null): Task<CopilotSession>`
 
 Resume an existing session. Returns the session with `WorkspacePath` populated if infinite sessions were enabled.
 
@@ -800,7 +792,7 @@ await session.SendAsync(new MessageOptions
 });
 ```
 
-Supported image formats are PNG, JPEG, WebP, and GIF. Images in other formats, such as BMP or TIFF, are not sent to the model. The agent's `view` tool can also read images directly from the filesystem, so you can also ask questions like:
+Supported image formats include JPG, PNG, GIF, and other common image types. The agent's `view` tool can also read images directly from the filesystem, so you can also ask questions like:
 
 ```csharp
 await session.SendAsync(new MessageOptions { Prompt = "What does the most recent jpg in this directory portray?" });
@@ -922,9 +914,9 @@ When `Memory` is left unset, no memory configuration is sent and the runtime def
 ### Manual Server Control
 
 ```csharp
-var client = new CopilotClient();
+var client = new CopilotClient(new CopilotClientOptions { AutoStart = false });
 
-// Start manually; otherwise the client starts on first use
+// Start manually
 await client.StartAsync();
 
 // Use client...
@@ -1177,7 +1169,7 @@ Available section IDs are defined as static properties on the `SystemMessageSect
 
 `SystemMessageSection.LastInstructions` (`last_instructions`) includes configured subagent-model guidance when the `task` tool is available. Removing or replacing this section also removes that guidance; a `SectionOverride.Transform` callback receives the complete section, including the guidance, and its returned content is authoritative. Append, prepend, and preserve retain their usual section semantics. These overrides change prompt prose only, not configured subagent models, tool availability, or runtime dispatch policy. `SystemMessageSection.RuntimeInstructions` is a separate section: removing it does not remove `SystemMessageSection.LastInstructions`.
 
-Each section override supports five static actions: `Replace`, `Remove`, `Append`, `Prepend`, and `Preserve` (a no-op that opts an individually-addressable section out of a group-level `Remove`). A sixth operation, transform, is set through `SectionOverride.Transform`, a `Func<string, Task<string>>` that receives the section's current content and returns the new content. It takes precedence over `Action` and applies in `Customize` mode only; if the callback throws, the section keeps its current content. Unknown section IDs are handled gracefully: content is appended to additional instructions, and `Remove` overrides are silently ignored.
+Each section override supports five actions: `Replace`, `Remove`, `Append`, `Prepend`, and `Preserve` (a no-op that opts an individually-addressable section out of a group-level `Remove`). Unknown section IDs are handled gracefully: content is appended to additional instructions, and `Remove` overrides are silently ignored.
 
 #### Replace Mode
 
@@ -1262,9 +1254,9 @@ var client = new CopilotClient(new CopilotClientOptions
 - `SourceName` - Instrumentation scope name
 - `CaptureContent` - Whether to capture message content
 
-W3C trace context propagates on create, resume, send, and tool callbacks. Use `AddSource("github.copilot")` to export `copilot.tool_handler` parents under CLI spans.
+Trace context (`traceparent`/`tracestate`) is automatically propagated between the SDK and CLI on `CreateSessionAsync`, `ResumeSessionAsync`, and `SendAsync` calls, and inbound when the CLI invokes tool handlers.
 
-Without listeners, context propagates. `Telemetry` configures runtime export only. No extra dependencies.
+No extra dependencies — uses built-in `System.Diagnostics.Activity`.
 
 ## Permission Handling
 
@@ -1499,9 +1491,6 @@ var session = await client.CreateSessionAsync(new SessionConfig
 Register an `OnElicitationRequest` handler to let your client act as an elicitation provider — presenting form-based UI dialogs on behalf of the agent. When provided, the server notifies your client whenever a tool or MCP server needs structured user input.
 
 ```csharp
-await using var client = new CopilotClient();
-
-#pragma warning disable GHCP001 // The elicitation response action is experimental.
 var session = await client.CreateSessionAsync(new SessionConfig
 {
     Model = "gpt-5",
@@ -1520,7 +1509,7 @@ var session = await client.CreateSessionAsync(new SessionConfig
         // Present UI to the user and collect their response...
         return new ElicitationResult
         {
-            Action = UIElicitationResponseAction.Accept,
+            Action = SessionUiElicitationResultAction.Accept,
             Content = new Dictionary<string, object>
             {
                 ["region"] = "us-east",
@@ -1545,14 +1534,9 @@ In multi-client scenarios:
 ## Error Handling
 
 ```csharp
-await using var client = new CopilotClient();
-
 try
 {
-    var session = await client.CreateSessionAsync(new SessionConfig
-    {
-        OnPermissionRequest = PermissionHandler.ApproveAll,
-    });
+    var session = await client.CreateSessionAsync();
     await session.SendAsync(new MessageOptions { Prompt = "Hello" });
 }
 catch (IOException ex) when (ex.InnerException is RemoteRpcException)

@@ -371,6 +371,148 @@ async def test_runtime_cancel_request_cancels_async_callback(monkeypatch, kind) 
     )
 
 
+def _wire_kerberos_client(
+    monkeypatch: pytest.MonkeyPatch, callback: Callable[[KerberosAuthAcquireRequest], Any]
+) -> tuple[CopilotClient, JsonRpcClient, list[dict[str, Any]], asyncio.Event]:
+    rpc = JsonRpcClient(Mock())
+    rpc._loop = asyncio.get_running_loop()
+    sent: list[dict[str, Any]] = []
+    responded = asyncio.Event()
+
+    async def send(message: dict[str, Any]) -> None:
+        sent.append(message)
+        responded.set()
+
+    monkeypatch.setattr(rpc, "_send_message", send)
+    client = CopilotClient(
+        connection=RuntimeConnection.for_uri("localhost:1234"),
+        kerberos_auth={"mode": "always", "callback": callback},
+    )
+    client._client = rpc
+    client._register_client_global_handlers()
+    return client, rpc, sent, responded
+
+
+def _acquire_message(request_id: int) -> dict[str, Any]:
+    return {
+        "jsonrpc": "2.0",
+        "id": request_id,
+        "method": "kerberosAuth.acquire",
+        "params": {"spn": "HTTP/proxy.example"},
+    }
+
+
+@pytest.mark.parametrize("kind", ["task", "async"])
+async def test_callback_cancelled_by_itself_replies_promptly(monkeypatch, kind) -> None:
+    # A credential broker can cancel its own lookup while the request stays live; the runtime
+    # must get an answer instead of waiting for its callback deadline.
+    lookups: list[asyncio.Task[Any]] = []
+    entered = asyncio.Event()
+
+    def lookup() -> asyncio.Task[Any]:
+        lookups.append(asyncio.create_task(asyncio.Event().wait()))
+        entered.set()
+        return lookups[-1]
+
+    async def acquire(_request: KerberosAuthAcquireRequest) -> str | None:
+        await lookup()
+        return None
+
+    callbacks: dict[str, Callable[[KerberosAuthAcquireRequest], Any]] = {
+        "task": lambda _request: lookup(),
+        "async": acquire,
+    }
+    _client, rpc, sent, responded = _wire_kerberos_client(monkeypatch, callbacks[kind])
+
+    rpc._handle_request(_acquire_message(7))
+    await asyncio.wait_for(entered.wait(), timeout=5)
+    lookups[0].cancel()
+    await asyncio.wait_for(responded.wait(), timeout=5)
+
+    assert (sent, rpc._incoming_request_cancellations) == (
+        [
+            {
+                "jsonrpc": "2.0",
+                "id": 7,
+                "error": {
+                    "code": -32603,
+                    "message": "Kerberos credential callback was cancelled",
+                    "data": None,
+                },
+            }
+        ],
+        {},
+    )
+
+
+@pytest.mark.parametrize("teardown", ["connection_lost", "stop", "force_stop"])
+async def test_connection_close_cancels_pending_callback(monkeypatch, teardown) -> None:
+    calls: list[KerberosAuthAcquireRequest] = []
+    entered = asyncio.Event()
+    cancelled = asyncio.Event()
+
+    async def acquire(request: KerberosAuthAcquireRequest) -> str | None:
+        calls.append(request)
+        entered.set()
+        try:
+            await asyncio.Event().wait()
+        except asyncio.CancelledError:
+            cancelled.set()
+            raise
+        return None
+
+    client, rpc, sent, responded = _wire_kerberos_client(monkeypatch, acquire)
+    handler = rpc.request_handlers["kerberosAuth.acquire"]
+
+    rpc._handle_request(_acquire_message(7))
+    await asyncio.wait_for(entered.wait(), timeout=5)
+    if teardown == "connection_lost":
+        # The reader thread reports connection loss.
+        await asyncio.to_thread(rpc.on_close)
+    else:
+        await getattr(client, teardown)()
+    await asyncio.wait_for(cancelled.wait(), timeout=5)
+    await asyncio.wait_for(responded.wait(), timeout=5)
+    # A request that races the close fails without starting another lookup.
+    await rpc._dispatch_request(_acquire_message(8), handler, None)
+
+    closed = {"code": -32603, "message": "Kerberos auth connection closed", "data": None}
+    assert (len(calls), sent) == (
+        1,
+        [
+            {"jsonrpc": "2.0", "id": 7, "error": closed},
+            {"jsonrpc": "2.0", "id": 8, "error": closed},
+        ],
+    )
+
+
+async def test_stale_connection_close_keeps_replacement_adapter_open(monkeypatch) -> None:
+    def acquire(_request: KerberosAuthAcquireRequest) -> str | None:
+        return "token"
+
+    client, old_rpc, _sent, _responded = _wire_kerberos_client(monkeypatch, acquire)
+    old_adapter = client._kerberos_auth_adapter
+    # A reconnect installs a replacement connection and adapter before the old reader
+    # reports its close.
+    new_rpc = JsonRpcClient(Mock())
+    new_rpc._loop = asyncio.get_running_loop()
+    client._client = new_rpc
+    client._register_client_global_handlers()
+    replacement = client._kerberos_auth_adapter
+    assert old_adapter is not None and replacement is not None
+
+    await asyncio.to_thread(old_rpc.on_close)
+    for _ in range(10):
+        if old_adapter._closed:
+            break
+        await asyncio.sleep(0)
+    result = await replacement.acquire(
+        KerberosAuthAcquireRequest.from_dict({"spn": "HTTP/proxy.example"})
+    )
+
+    assert (old_adapter._closed, replacement._closed, result.token) == (True, False, "token")
+
+
 @pytest.mark.parametrize(
     ("config", "message"),
     [

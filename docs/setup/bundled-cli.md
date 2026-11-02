@@ -65,15 +65,13 @@ await client.stop();
 ```python
 from copilot import CopilotClient
 from copilot.session import PermissionHandler
-from copilot.session_events import AssistantMessageData
 
 client = CopilotClient()
 await client.start()
 
 session = await client.create_session(on_permission_request=PermissionHandler.approve_all, model="gpt-5.4")
 response = await session.send_and_wait("Hello!")
-if response and isinstance(response.data, AssistantMessageData):
-    print(response.data.content)
+print(response.data.content)
 
 await client.stop()
 ```
@@ -251,7 +249,7 @@ const session = await client.createSession({
 
 // User closes app...
 // Later, resume where they left off
-const resumed = await client.resumeSession(sessionId, {});
+const resumed = await client.resumeSession(sessionId);
 ```
 
 Session state persists at `~/.copilot/session-state/{sessionId}/`.

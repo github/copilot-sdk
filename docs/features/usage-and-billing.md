@@ -648,7 +648,7 @@ let result = session
     .context_info(MetadataContextInfoRequest {
         prompt_token_limit: 0,
         output_token_limit: 0,
-        ..Default::default()
+        selected_model: None,
     })
     .await?;
 

@@ -121,8 +121,8 @@ public delegate Task<ErrorOccurredHookOutput?> ErrorOccurredHandler(
 
 | Field | Type | Description |
 |-------|------|-------------|
-| `timestamp` | SDK timestamp type | When the error occurred |
-| `workingDirectory` | string | Current working directory |
+| `timestamp` | number | Unix timestamp when the error occurred |
+| `cwd` | string | Current working directory |
 | `error` | string | Error message |
 | `errorContext` | string | Where the error occurred: `"model_call"`, `"tool_execution"`, `"system"`, or `"user_input"` |
 | `recoverable` | boolean | Whether the error can potentially be recovered from |
@@ -164,10 +164,7 @@ const session = await client.createSession({
 <summary><strong>Python</strong></summary>
 
 ```python
-from copilot import CopilotClient
 from copilot.session import PermissionHandler
-
-client = CopilotClient()
 
 async def on_error_occurred(input_data, invocation):
     print(f"[{invocation['session_id']}] Error: {input_data['error']}")
@@ -313,7 +310,7 @@ const session = await client.createSession({
         extra: {
           error: input.error,
           recoverable: input.recoverable,
-          cwd: input.workingDirectory,
+          cwd: input.cwd,
         },
       });
       
@@ -403,7 +400,7 @@ The tool failed. Here are some recovery suggestions:
 ```typescript
 interface ErrorStats {
   count: number;
-  lastOccurred: Date;
+  lastOccurred: number;
   contexts: string[];
 }
 
@@ -416,7 +413,7 @@ const session = await client.createSession({
       
       const existing = errorStats.get(key) || {
         count: 0,
-        lastOccurred: input.timestamp,
+        lastOccurred: 0,
         contexts: [],
       };
       
@@ -451,7 +448,7 @@ const session = await client.createSession({
           message: `Critical error in session ${invocation.sessionId}`,
           error: input.error,
           context: input.errorContext,
-          timestamp: input.timestamp.toISOString(),
+          timestamp: new Date(input.timestamp).toISOString(),
         });
       }
       

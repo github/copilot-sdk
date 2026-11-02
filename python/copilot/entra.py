@@ -54,7 +54,6 @@ class EntraTokenProvider(Protocol):
 class EntraAuthOptions(EntraAuthConfig):
     """**Experimental.** Entra application and optional host-owned acquisition."""
 
-    mats_app_name: str | None = field(default=None, kw_only=True)
     token_provider: EntraTokenProvider | None = field(default=None, repr=False, compare=False)
     """**Experimental.** Host callback; omission retains built-in runtime authentication."""
 

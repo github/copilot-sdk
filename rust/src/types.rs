@@ -21,8 +21,6 @@ use crate::canvas::{CanvasDeclaration, CanvasHandler};
 pub struct EntraAuthOptions {
     /// **Experimental.** Application registration used for identity establishment.
     pub client_id: String,
-    /// **Experimental.** OneAuth MATS application name. Omission disables MATS telemetry.
-    pub mats_app_name: Option<String>,
     /// **Experimental.** Host callback. Omission retains built-in runtime authentication.
     pub token_provider: Option<Arc<dyn crate::entra::EntraTokenProvider>>,
 }
@@ -34,7 +32,6 @@ impl EntraAuthOptions {
     pub fn new(client_id: impl Into<String>) -> Self {
         Self {
             client_id: client_id.into(),
-            mats_app_name: None,
             token_provider: None,
         }
     }
@@ -50,17 +47,13 @@ impl EntraAuthOptions {
     pub(crate) fn to_wire(&self) -> crate::rpc::EntraAuthConfig {
         crate::rpc::EntraAuthConfig {
             client_id: self.client_id.clone(),
-            mats_app_name: self.mats_app_name.clone(),
         }
     }
 }
 
 impl From<crate::rpc::EntraAuthConfig> for EntraAuthOptions {
     fn from(config: crate::rpc::EntraAuthConfig) -> Self {
-        Self {
-            mats_app_name: config.mats_app_name,
-            ..Self::new(config.client_id)
-        }
+        Self::new(config.client_id)
     }
 }
 
@@ -68,7 +61,6 @@ impl std::fmt::Debug for EntraAuthOptions {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("EntraAuthOptions")
             .field("client_id", &self.client_id)
-            .field("mats_app_name", &self.mats_app_name)
             .field(
                 "token_provider",
                 &self.token_provider.as_ref().map(|_| "<provider>"),
@@ -90,9 +82,7 @@ pub use crate::generated::api_types::{
     AutopilotOptions, DiagnosticLogLevel, DiagnosticSourcesConfiguration, DiagnosticsConfiguration,
     McpDiagnosticSourceConfiguration,
 };
-use crate::generated::api_types::{
-    CurrentToolMetadata, LifecycleDiagnosticsConfiguration, OpenCanvasInstance, SandboxConfig,
-};
+use crate::generated::api_types::{CurrentToolMetadata, OpenCanvasInstance, SandboxConfig};
 /// Acknowledgement and Auto preference snapshot returned by an Auto tier switch.
 pub use crate::generated::api_types::{ModelSwitchAutoTierResult, ModelSwitchAutoTierStatus};
 pub use crate::generated::session_events::AgentModelPolicy;
@@ -112,10 +102,9 @@ use crate::handler::{
 use crate::hooks::SessionHooks;
 use crate::provider_token::BearerTokenProvider;
 pub use crate::session_fs::{
-    DirEntry, DirEntryKind, FileByteRange, FileInfo, FsError, SessionFsBinaryProvider,
-    SessionFsCapabilities, SessionFsConfig, SessionFsConventions, SessionFsProvider,
-    SessionFsReadFileRangeProvider, SessionFsSqliteProvider, SessionFsSqliteQueryResult,
-    SessionFsSqliteQueryType, SessionFsSqliteTransactionError,
+    DirEntry, DirEntryKind, FileInfo, FsError, SessionFsBinaryProvider, SessionFsCapabilities,
+    SessionFsConfig, SessionFsConventions, SessionFsProvider, SessionFsSqliteProvider,
+    SessionFsSqliteQueryResult, SessionFsSqliteQueryType, SessionFsSqliteTransactionError,
     SessionFsSqliteTransactionErrorClass, SessionFsSqliteTransactionStatement,
 };
 use crate::skill_provider::SkillProvider;
@@ -713,9 +702,7 @@ pub struct CommandContext {
 ///
 /// Returning `Err(_)` causes the SDK to forward the error message back to
 /// the CLI via `session.commands.handlePendingCommand` so the TUI can
-/// surface it. Returning `Ok(())` reports success. When panic unwinding is enabled,
-/// a panic is reported as the error `command handler panicked`. With `panic = "abort"`,
-/// a panic terminates the process instead.
+/// surface it. Returning `Ok(())` reports success.
 #[async_trait::async_trait]
 pub trait CommandHandler: Send + Sync {
     /// Called when the user invokes the command this handler is registered for.
@@ -1499,10 +1486,7 @@ pub struct ProviderConfig {
     /// Product serving the model, such as `"ollama"` or `"lm_studio"`,
     /// reported in telemetry as `model_provider`. Allowed values are
     /// `"openai"`, `"anthropic"`, `"azure_openai"`, `"ollama"`,
-    /// `"lm_studio"`, `"foundry_local"`, and `"llama_cpp"`. `"azure_openai"`
-    /// also omits explicit prompt-cache breakpoints, which limit cross-turn
-    /// cache reuse on Azure; set it for a proxy or custom domain in front of
-    /// Azure OpenAI.
+    /// `"lm_studio"`, `"foundry_local"`, and `"llama_cpp"`; only affects telemetry.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub model_provider: Option<String>,
     /// API endpoint URL.
@@ -1616,9 +1600,7 @@ impl ProviderConfig {
 
     /// Set the product serving the model. Allowed values are `"openai"`,
     /// `"anthropic"`, `"azure_openai"`, `"ollama"`, `"lm_studio"`,
-    /// `"foundry_local"`, and `"llama_cpp"`. `"azure_openai"` also omits
-    /// explicit prompt-cache breakpoints; see
-    /// [`model_provider`](Self::model_provider).
+    /// `"foundry_local"`, and `"llama_cpp"`. Only affects telemetry.
     pub fn with_model_provider(mut self, model_provider: impl Into<String>) -> Self {
         self.model_provider = Some(model_provider.into());
         self
@@ -1792,10 +1774,7 @@ pub struct NamedProviderConfig {
     /// Product serving this provider's models, such as `"ollama"` or
     /// `"lm_studio"`, reported in telemetry as `model_provider`. Allowed values
     /// are `"openai"`, `"anthropic"`, `"azure_openai"`, `"ollama"`,
-    /// `"lm_studio"`, `"foundry_local"`, and `"llama_cpp"`. `"azure_openai"`
-    /// also omits explicit prompt-cache breakpoints, which limit cross-turn
-    /// cache reuse on Azure; set it for a proxy or custom domain in front of
-    /// Azure OpenAI.
+    /// `"lm_studio"`, `"foundry_local"`, and `"llama_cpp"`; only affects telemetry.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub model_provider: Option<String>,
     /// API endpoint URL.
@@ -1867,9 +1846,7 @@ impl NamedProviderConfig {
 
     /// Set the product serving this provider's models. Allowed values are
     /// `"openai"`, `"anthropic"`, `"azure_openai"`, `"ollama"`,
-    /// `"lm_studio"`, `"foundry_local"`, and `"llama_cpp"`. `"azure_openai"`
-    /// also omits explicit prompt-cache breakpoints; see
-    /// [`model_provider`](Self::model_provider).
+    /// `"lm_studio"`, `"foundry_local"`, and `"llama_cpp"`. Only affects telemetry.
     pub fn with_model_provider(mut self, model_provider: impl Into<String>) -> Self {
         self.model_provider = Some(model_provider.into());
         self
@@ -2363,9 +2340,6 @@ pub struct SessionConfig {
     /// paths, and server stderr, so hosts must not upload or export them
     /// automatically.
     pub diagnostics: Option<DiagnosticsConfiguration>,
-    /// Configures the startup-only experimental runtime lifecycle diagnostic
-    /// read and persistence surfaces.
-    pub(crate) lifecycle_diagnostics: Option<LifecycleDiagnosticsConfiguration>,
     /// Controls how MCP OAuth tokens are stored for this session.
     ///
     /// - `"persistent"` — tokens are stored in the OS keychain (shared across sessions).
@@ -2540,9 +2514,9 @@ pub struct SessionConfig {
     /// Enables or disables internal session telemetry for this session.
     ///
     /// When `Some(false)`, disables session telemetry. When `None` or
-    /// `Some(true)`, telemetry is enabled for eligible GitHub-authenticated
-    /// sessions, including custom [`provider`](Self::provider) (BYOK) sessions.
-    /// Host and account policies still control uploads. This is
+    /// `Some(true)`, telemetry is enabled for GitHub-authenticated sessions.
+    /// When a custom [`provider`](Self::provider) is configured, session
+    /// telemetry is always disabled regardless of this setting. This is
     /// independent of [`ClientOptions::telemetry`](crate::ClientOptions::telemetry).
     pub enable_session_telemetry: Option<bool>,
     /// **Experimental.** Enables native model citations for supported providers.
@@ -2697,7 +2671,6 @@ pub struct SessionConfig {
     /// in `copilot-cli` mode, leaving this unset lets the runtime decide.
     pub enable_experimental_mode: Option<bool>,
     /// Whether to include the `Co-authored-by` trailer in commit messages.
-    /// Subagents inherit this setting.
     /// Applied via `session.options.update` after create/resume. Defaults to
     /// `false` in [`crate::ClientMode::Empty`] when unset.
     pub coauthor_enabled: Option<bool>,
@@ -2755,7 +2728,6 @@ impl std::fmt::Debug for SessionConfig {
             .field("included_builtin_skills", &self.included_builtin_skills)
             .field("mcp_servers", &self.mcp_servers)
             .field("diagnostics", &self.diagnostics)
-            .field("lifecycle_diagnostics", &self.lifecycle_diagnostics)
             .field("mcp_oauth_token_storage", &self.mcp_oauth_token_storage)
             .field(
                 "auth_client_id_metadata_url",
@@ -2925,7 +2897,6 @@ impl Default for SessionConfig {
             included_builtin_skills: None,
             mcp_servers: None,
             diagnostics: None,
-            lifecycle_diagnostics: None,
             mcp_oauth_token_storage: None,
             auth_client_id_metadata_url: None,
             enable_config_discovery: None,
@@ -3100,7 +3071,6 @@ impl SessionConfig {
             tool_filter_precedence: "excluded",
             mcp_servers: self.mcp_servers,
             diagnostics: self.diagnostics,
-            lifecycle_diagnostics: self.lifecycle_diagnostics,
             mcp_oauth_token_storage: self.mcp_oauth_token_storage,
             auth_client_id_metadata_url: self.auth_client_id_metadata_url,
             embedding_cache_storage: self.embedding_cache_storage,
@@ -4055,9 +4025,6 @@ pub struct ResumeSessionConfig {
     /// Updates session-scoped MCP diagnostics. Leave this unset on a resident
     /// resume to preserve the current diagnostic level.
     pub diagnostics: Option<DiagnosticsConfiguration>,
-    /// Must be omitted on resident resume unless it equals the active startup
-    /// lifecycle diagnostics configuration.
-    pub(crate) lifecycle_diagnostics: Option<LifecycleDiagnosticsConfiguration>,
     /// Controls how MCP OAuth tokens are stored for this session.
     /// See [`SessionConfig::mcp_oauth_token_storage`] for details.
     pub mcp_oauth_token_storage: Option<String>,
@@ -4178,10 +4145,10 @@ pub struct ResumeSessionConfig {
     pub models: Option<Vec<ProviderModelConfig>>,
     /// Enables or disables internal session telemetry for this session.
     ///
-    /// When `Some(false)`, disables session telemetry. `Some(true)` enables it
-    /// for eligible GitHub-authenticated sessions, including BYOK.
-    /// `None` preserves a resident session's choice; otherwise defaults to enabled.
-    /// Host and account policies still control uploads. This is
+    /// When `Some(false)`, disables session telemetry. When `None` or
+    /// `Some(true)`, telemetry is enabled for GitHub-authenticated sessions.
+    /// When a custom [`provider`](Self::provider) is configured, session
+    /// telemetry is always disabled regardless of this setting. This is
     /// independent of [`ClientOptions::telemetry`](crate::ClientOptions::telemetry).
     pub enable_session_telemetry: Option<bool>,
     /// **Experimental.** Enables native model citations for supported providers.
@@ -4259,11 +4226,8 @@ pub struct ResumeSessionConfig {
     /// [`ClientOptions::session_fs`](crate::ClientOptions::session_fs).
     /// See [`SessionConfig::session_fs_provider`].
     pub session_fs_provider: Option<Arc<dyn SessionFsProvider>>,
-    /// When `true`, the runtime does not emit the `session.resume` event for
-    /// this resume. Useful for reconnecting to a session without triggering
-    /// resume-related side effects. Most callers should leave this unset
-    /// (the default, same as `false`) to receive the resume notification.
-    /// Wire field name stays `disableResume`.
+    /// Force-fail resume if the session does not exist on disk, instead of
+    /// silently starting a new session. Wire field name stays `disableResume`.
     pub suppress_resume_event: Option<bool>,
     /// When `true`, instructs the runtime to continue any tool calls or
     /// permission requests that were pending when the previous connection
@@ -4273,11 +4237,6 @@ pub struct ResumeSessionConfig {
     /// When omitted or `false` (the default), work still pending on resume
     /// is treated as interrupted; completed tool results already recorded by
     /// the runtime are preserved.
-    ///
-    /// When `true`, pending permission requests and external tool calls wait for
-    /// caller-supplied results via the corresponding low-level RPC methods. Resuming
-    /// does not re-emit restored permission requests or re-invoke permission handlers
-    /// or already-dispatched external tool callbacks.
     ///
     /// [`Client::force_stop`]: crate::Client::force_stop
     pub continue_pending_work: Option<bool>,
@@ -4355,7 +4314,6 @@ impl std::fmt::Debug for ResumeSessionConfig {
             .field("included_builtin_skills", &self.included_builtin_skills)
             .field("mcp_servers", &self.mcp_servers)
             .field("diagnostics", &self.diagnostics)
-            .field("lifecycle_diagnostics", &self.lifecycle_diagnostics)
             .field("mcp_oauth_token_storage", &self.mcp_oauth_token_storage)
             .field(
                 "auth_client_id_metadata_url",
@@ -4550,7 +4508,6 @@ impl ResumeSessionConfig {
             tool_filter_precedence: "excluded",
             mcp_servers: self.mcp_servers,
             diagnostics: self.diagnostics,
-            lifecycle_diagnostics: self.lifecycle_diagnostics,
             mcp_oauth_token_storage: self.mcp_oauth_token_storage,
             auth_client_id_metadata_url: self.auth_client_id_metadata_url,
             embedding_cache_storage: self.embedding_cache_storage,
@@ -4674,7 +4631,6 @@ impl ResumeSessionConfig {
             included_builtin_skills: None,
             mcp_servers: None,
             diagnostics: None,
-            lifecycle_diagnostics: None,
             mcp_oauth_token_storage: None,
             auth_client_id_metadata_url: None,
             enable_config_discovery: None,
@@ -5382,8 +5338,8 @@ impl ResumeSessionConfig {
         self
     }
 
-    /// Skip the `session.resume` event for this resume when `suppress` is
-    /// `true`. See [`Self::suppress_resume_event`].
+    /// Force-fail resume if the session does not exist on disk, instead
+    /// of silently starting a new session.
     pub fn with_suppress_resume_event(mut self, suppress: bool) -> Self {
         self.suppress_resume_event = Some(suppress);
         self
@@ -5396,8 +5352,6 @@ impl ResumeSessionConfig {
     /// session from one process to another without losing in-flight work.
     /// When `false` (the default), pending work is treated as interrupted on
     /// resume; already-recorded tool results are preserved.
-    ///
-    /// See [`Self::continue_pending_work`] for pending-request recovery requirements.
     pub fn with_continue_pending_work(mut self, continue_pending: bool) -> Self {
         self.continue_pending_work = Some(continue_pending);
         self
@@ -6457,9 +6411,6 @@ pub struct GetStatusResponse {
     pub version: String,
     /// Protocol version for SDK compatibility.
     pub protocol_version: u32,
-    /// Cached error-reporting policy, when supplied by the runtime.
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub host_diagnostics: Option<crate::rpc::HostDiagnostics>,
 }
 
 /// Response from [`Client::get_auth_status`](crate::Client::get_auth_status).
@@ -6529,41 +6480,6 @@ pub struct SessionEvent {
     pub event_type: String,
     /// Event-specific data. Structure depends on `event_type`.
     pub data: Value,
-}
-
-/// An event-log record with optional journal replay metadata.
-///
-/// Deserialize replay-view records into this wrapper to retain their checkpoint
-/// marker without changing the construction of [`SessionEvent`] or
-/// [`TypedSessionEvent`](crate::session_events::TypedSessionEvent).
-/// `T` defaults to [`SessionEvent`] and may also be a typed event.
-#[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub struct SessionEventWithMetadata<T = SessionEvent> {
-    /// The existing event envelope and payload.
-    #[serde(flatten)]
-    pub event: T,
-    /// Whether this record is synthetic replay state in a linked journal head.
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub checkpoint: Option<bool>,
-}
-
-/// An event-log page retaining checkpoint markers on replay-view records.
-///
-/// Returned by [`read_with_options`](crate::rpc::SessionRpcEventLog::read_with_options).
-/// The legacy [`EventsReadResult`](crate::rpc::EventsReadResult) and its event
-/// struct literals remain unchanged.
-#[derive(Debug, Clone, Default, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub struct EventsReadResultWithMetadata {
-    /// Opaque cursor to pass unchanged to the next read in the same view.
-    pub cursor: String,
-    /// Whether the cursor was accepted or restarted at a retained boundary.
-    pub cursor_status: crate::rpc::EventsCursorStatus,
-    /// Events and their optional replay metadata, in creation order.
-    pub events: Vec<SessionEventWithMetadata>,
-    /// Whether more events remain in the selected direction.
-    pub has_more: bool,
 }
 
 impl SessionEvent {
@@ -7099,23 +7015,6 @@ impl PermissionRequestData {
     ) -> Result<Option<crate::session_events::PermissionPromptRequest>, serde_json::Error> {
         self.extra
             .get("promptRequest")
-            .cloned()
-            .map(serde_json::from_value)
-            .transpose()
-    }
-
-    /// Returns the canonical runtime-owned Assisted Permissions assessment.
-    ///
-    /// This explains the assisted review only; `permission.completed` remains
-    /// authoritative for the final permission result.
-    ///
-    /// `Ok(None)` indicates an older runtime or legacy direct permission
-    /// callback without the canonical assessment.
-    pub fn assisted_approval_assessment(
-        &self,
-    ) -> Result<Option<crate::session_events::AssistedApprovalAssessment>, serde_json::Error> {
-        self.extra
-            .get("assistedApprovalAssessment")
             .cloned()
             .map(serde_json::from_value)
             .transpose()

@@ -50,12 +50,7 @@ if (result.started) {
 <summary><strong>Python</strong></summary>
 
 ```python
-from copilot import CopilotClient
 from copilot.rpc import FleetStartRequest
-from copilot.session import PermissionHandler
-
-client = CopilotClient()
-session = await client.create_session(on_permission_request=PermissionHandler.approve_all)
 
 result = await session.rpc.fleet.start(
     FleetStartRequest(
@@ -159,10 +154,13 @@ if (result.Started)
 ```rust
 use github_copilot_sdk::rpc::FleetStartRequest;
 
-let mut request = FleetStartRequest::default();
-request.prompt = Some("Research each crate independently, then summarize the plan.".into());
-
-let result = session.rpc().fleet().start(request).await?;
+let result = session
+    .rpc()
+    .fleet()
+    .start(FleetStartRequest {
+        prompt: Some("Research each crate independently, then summarize the plan.".into()),
+    })
+    .await?;
 
 if result.started {
     println!("Fleet mode started");
@@ -274,7 +272,6 @@ session.on((event) => {
 import asyncio
 from copilot import CopilotClient
 from copilot.session import PermissionHandler
-from copilot.session_events import SessionEventType
 
 async def main():
     client = CopilotClient()
@@ -284,9 +281,9 @@ async def main():
     )
 
     def handle_event(event):
-        if event.type == SessionEventType.SUBAGENT_STARTED:
+        if event.type == "subagent.started":
             print(f"Started {event.data.agent_display_name}")
-        elif event.type == SessionEventType.SUBAGENT_COMPLETED:
+        elif event.type == "subagent.completed":
             print(f"Completed {event.data.agent_display_name}")
 
     unsubscribe = session.on(handle_event)
@@ -296,12 +293,10 @@ asyncio.run(main())
 <!-- /docs-validate: hidden -->
 
 ```python
-from copilot.session_events import SessionEventType
-
 def handle_event(event):
-    if event.type == SessionEventType.SUBAGENT_STARTED:
+    if event.type == "subagent.started":
         print(f"Started {event.data.agent_display_name}")
-    elif event.type == SessionEventType.SUBAGENT_COMPLETED:
+    elif event.type == "subagent.completed":
         print(f"Completed {event.data.agent_display_name}")
 
 unsubscribe = session.on(handle_event)

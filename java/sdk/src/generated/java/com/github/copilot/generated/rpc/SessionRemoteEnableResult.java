@@ -14,7 +14,7 @@ import com.github.copilot.CopilotExperimental;
 import javax.annotation.processing.Generated;
 
 /**
- * GitHub URL and remote export and steering state, with an optional warning when cloud session storage policy refuses export.
+ * GitHub URL for the session and a flag indicating whether remote steering is enabled.
  *
  * @apiNote This method is experimental and may change in a future version.
  * @since 1.0.0
@@ -27,10 +27,6 @@ public record SessionRemoteEnableResult(
     /** GitHub frontend URL for this session */
     @JsonProperty("url") String url,
     /** Whether remote steering is enabled */
-    @JsonProperty("remoteSteerable") Boolean remoteSteerable,
-    /** Whether this request accepted or retained remote export. False when export is disabled or refused; initialization may still be pending when true. */
-    @JsonProperty("started") Boolean started,
-    /** Warning explaining why cloud session storage policy prevented export. Absent when no policy warning applies. */
-    @JsonProperty("warning") String warning
+    @JsonProperty("remoteSteerable") Boolean remoteSteerable
 ) {
 }

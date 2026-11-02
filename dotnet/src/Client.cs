@@ -1294,7 +1294,6 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
                 config.IncludeSubAgentStreamingEvents,
                 config.McpServers,
                 config.Diagnostics,
-                config.LifecycleDiagnostics,
                 config.McpOAuthTokenStorage,
                 config.AuthClientIdMetadataUrl,
                 "direct",
@@ -1593,7 +1592,6 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
                 config.IncludeSubAgentStreamingEvents,
                 config.McpServers,
                 config.Diagnostics,
-                config.LifecycleDiagnostics,
                 config.McpOAuthTokenStorage,
                 config.AuthClientIdMetadataUrl,
                 "direct",
@@ -2297,11 +2295,6 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
                 "SessionFsConfig declares capabilities.binary but the provider does not implement ISessionFsBinaryProvider.");
         }
 
-        if (_options.SessionFs.Capabilities?.ReadFileRange == true && provider is not ISessionFsReadFileRangeProvider)
-        {
-            throw new InvalidOperationException(
-                "SessionFsConfig declares capabilities.readFileRange but the provider does not implement ISessionFsReadFileRangeProvider.");
-        }
         session.SetSessionFsHandler(provider);
     }
 
@@ -2406,11 +2399,7 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
         if (telemetry.FilePath is not null) environment["COPILOT_OTEL_FILE_EXPORTER_PATH"] = telemetry.FilePath;
         if (telemetry.ExporterType is not null) environment["COPILOT_OTEL_EXPORTER_TYPE"] = telemetry.ExporterType;
         if (telemetry.SourceName is not null) environment["COPILOT_OTEL_SOURCE_NAME"] = telemetry.SourceName;
-        if (telemetry.CaptureContent is { } capture)
-        {
-            environment["OTEL_INSTRUMENTATION_GENAI_CAPTURE_CONTENT"] = capture ? "SPAN_ONLY" : "NO_CONTENT";
-            environment["OTEL_INSTRUMENTATION_GENAI_CAPTURE_MESSAGE_CONTENT"] = capture ? "true" : "false";
-        }
+        if (telemetry.CaptureContent is { } capture) environment["OTEL_INSTRUMENTATION_GENAI_CAPTURE_MESSAGE_CONTENT"] = capture ? "true" : "false";
     }
 
     private async Task<(Process Process, int? DetectedLocalhostTcpPort, ProcessStderrPump StderrPump)> StartCliServerAsync(CancellationToken cancellationToken)
@@ -3312,7 +3301,6 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
         bool? IncludeSubAgentStreamingEvents,
         IDictionary<string, McpServerConfig>? McpServers,
         DiagnosticsConfiguration? Diagnostics,
-        LifecycleDiagnosticsConfiguration? LifecycleDiagnostics,
         McpOAuthTokenStorageMode? McpOAuthTokenStorage,
         string? AuthClientIdMetadataUrl,
         string? EnvValueMode,
@@ -3460,7 +3448,6 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
         bool? IncludeSubAgentStreamingEvents,
         IDictionary<string, McpServerConfig>? McpServers,
         DiagnosticsConfiguration? Diagnostics,
-        LifecycleDiagnosticsConfiguration? LifecycleDiagnostics,
         McpOAuthTokenStorageMode? McpOAuthTokenStorage,
         string? AuthClientIdMetadataUrl,
         string? EnvValueMode,

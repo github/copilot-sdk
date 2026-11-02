@@ -3,6 +3,7 @@
 package copilot
 
 import (
+	"bufio"
 	"bytes"
 	"context"
 	"encoding/json"
@@ -27,34 +28,6 @@ import (
 )
 
 // This file is for unit tests. Where relevant, prefer to add e2e tests in e2e/*.test.go instead
-
-func TestGetStatusResponseHostDiagnostics(t *testing.T) {
-	for _, state := range []string{"", "pending", "enabled", "disabled"} {
-		t.Run(state, func(t *testing.T) {
-			payload := `{"version":"1.2.3","protocolVersion":2}`
-			if state != "" {
-				payload = fmt.Sprintf(`{"version":"1.2.3","protocolVersion":2,"hostDiagnostics":{"errorReporting":%q}}`, state)
-			}
-			var response GetStatusResponse
-			if err := json.Unmarshal([]byte(payload), &response); err != nil {
-				t.Fatal(err)
-			}
-			if response.Version != "1.2.3" || response.ProtocolVersion != 2 {
-				t.Fatalf("status version fields = %s, %d", response.Version, response.ProtocolVersion)
-			}
-			if (response.HostDiagnostics == nil) != (state == "") {
-				t.Fatalf("host diagnostics = %+v, state = %q", response.HostDiagnostics, state)
-			}
-			encoded, err := json.Marshal(response)
-			if err != nil {
-				t.Fatal(err)
-			}
-			if string(encoded) != payload {
-				t.Fatalf("status round trip = %s, want %s", encoded, payload)
-			}
-		})
-	}
-}
 
 func TestResolveRuntimeExecutable(t *testing.T) {
 	t.Run("managed launch requires bundled runtime pair", func(t *testing.T) {
@@ -357,13 +330,13 @@ func TestClient_ClientInfo(t *testing.T) {
 		defer cleanup()
 		client := NewClient(&ClientOptions{
 			Connection: URIConnection{URL: url},
-			Entra:      &EntraAuthOptions{ClientID: "host-entra-client", MatsAppName: String("TestHost")},
+			Entra:      &EntraAuthOptions{ClientID: "host-entra-client"},
 		})
 		if err := client.Start(t.Context()); err != nil {
 			t.Fatalf("Start failed: %v", err)
 		}
 		defer client.ForceStop()
-		want := map[string]any{"clientId": "host-entra-client", "matsAppName": "TestHost"}
+		want := map[string]any{"clientId": "host-entra-client"}
 		if got := findConnect(requests())["entra"]; !reflect.DeepEqual(got, want) {
 			t.Fatalf("entra = %v, want %v", got, want)
 		}
@@ -873,6 +846,78 @@ func TestClient_StopDoesNotDeadlockWithLifecycleHandlerCallingClient(t *testing.
 	}
 	if err := <-handlerErr; !errors.Is(err, context.Canceled) {
 		t.Fatalf("GetSessionMetadata error = %v, want %v", err, context.Canceled)
+	}
+}
+
+func TestClient_FailedStartReleasesLifecycleHandlerWaitingForStartup(t *testing.T) {
+	listener, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		t.Fatalf("listen: %v", err)
+	}
+	t.Cleanup(func() { listener.Close() })
+	client := NewClient(&ClientOptions{Connection: URIConnection{URL: listener.Addr().String()}})
+
+	handlerEntered := make(chan struct{})
+	handlerErr := make(chan error, 1)
+	client.On(func(event SessionLifecycleEvent) {
+		close(handlerEntered)
+		_, err := client.GetSessionMetadata(context.Background(), event.SessionID)
+		handlerErr <- err
+	})
+
+	ctx, cancel := context.WithCancel(t.Context())
+	defer cancel()
+	started := make(chan error, 1)
+	go func() { started <- client.Start(ctx) }()
+	conn, err := listener.Accept()
+	if err != nil {
+		t.Fatalf("accept: %v", err)
+	}
+	t.Cleanup(func() { conn.Close() })
+	peer := &installationConfirmationPeer{t: t, conn: conn, reader: bufio.NewReader(conn)}
+	if method := peer.readMessage().Method; method != "connect" {
+		t.Fatalf("first request = %q, want connect", method)
+	}
+	// On a shared runtime, another client's session can be announced before
+	// this connection's handshake response. The handler runs on the reader and
+	// waits for startup, so the handshake response can no longer be read.
+	peer.notify("session.lifecycle", map[string]string{"type": "session.created", "sessionId": "session-1"})
+	waitForClosed(t, handlerEntered, "the lifecycle handler")
+	// Start then fails and must release the handler before joining the reader.
+	cancel()
+
+	type outcome struct {
+		StartCanceled   bool
+		HandlerCanceled bool
+		Stopped         bool
+	}
+	var got outcome
+	select {
+	case err := <-started:
+		got.StartCanceled = errors.Is(err, context.Canceled)
+	case <-time.After(5 * time.Second):
+		t.Fatal("Start deadlocked joining the reader that waits for startup")
+	}
+	select {
+	case err := <-handlerErr:
+		got.HandlerCanceled = errors.Is(err, context.Canceled)
+	case <-time.After(5 * time.Second):
+		t.Fatal("the operation waiting for startup was not released")
+	}
+	stopped := make(chan struct{})
+	go func() {
+		defer close(stopped)
+		_ = client.Stop()
+		client.ForceStop()
+	}()
+	select {
+	case <-stopped:
+		got.Stopped = true
+	case <-time.After(5 * time.Second):
+		t.Fatal("Stop or ForceStop deadlocked after the failed Start")
+	}
+	if want := (outcome{StartCanceled: true, HandlerCanceled: true, Stopped: true}); got != want {
+		t.Fatalf("got %+v, want %+v", got, want)
 	}
 }
 
@@ -2375,34 +2420,6 @@ func TestClient_ProcessFileLoggingEnvironment(t *testing.T) {
 	}
 }
 
-func TestClient_TelemetryCaptureOverridesEnvironment(t *testing.T) {
-	for _, capture := range []bool{false, true} {
-		t.Run(strconv.FormatBool(capture), func(t *testing.T) {
-			client := NewClient(&ClientOptions{
-				Connection:       StdioConnection{Path: os.Args[0]},
-				BaseDirectory:    t.TempDir(),
-				WorkingDirectory: filepath.Join(t.TempDir(), "missing"),
-				Env:              []string{"OTEL_INSTRUMENTATION_GENAI_CAPTURE_CONTENT=SPAN_AND_EVENT"},
-				Telemetry:        &TelemetryConfig{CaptureContent: Bool(capture)},
-			})
-			err := client.startCLIServer(context.Background())
-			if err == nil || !strings.Contains(err.Error(), "failed to start CLI server") {
-				t.Fatalf("expected process start to fail in missing working directory, got %v", err)
-			}
-			want := "NO_CONTENT"
-			if capture {
-				want = "SPAN_ONLY"
-			}
-			if got := getEnvValue(client.process.Env, "OTEL_INSTRUMENTATION_GENAI_CAPTURE_CONTENT"); got != want {
-				t.Errorf("content capture mode = %q, want %q", got, want)
-			}
-			if got := getEnvValue(client.process.Env, "OTEL_INSTRUMENTATION_GENAI_CAPTURE_MESSAGE_CONTENT"); got != strconv.FormatBool(capture) {
-				t.Errorf("legacy content capture = %q, want %q", got, strconv.FormatBool(capture))
-			}
-		})
-	}
-}
-
 func TestClient_InProcessConnection(t *testing.T) {
 	t.Run("requires build tag", func(t *testing.T) {
 		if inProcessAvailable {
@@ -2508,14 +2525,14 @@ func TestClient_InProcessConnection(t *testing.T) {
 	})
 
 	t.Run("forwards supported CLI login sync integrations", func(t *testing.T) {
-		t.Setenv("GITHUB_COPILOT_INTEGRATION_ID", "microsoft/vscode")
+		t.Setenv("GITHUB_COPILOT_INTEGRATION_ID", "github/github-app")
 		client := NewClient(&ClientOptions{Connection: InProcessConnection{}})
 		t.Setenv("GITHUB_COPILOT_INTEGRATION_ID", "changed/after-construction")
 
 		integrationID := getEnvValue(client.options.Env, "GITHUB_COPILOT_INTEGRATION_ID")
 		config := client.inProcessHostConfig(integrationID)
 
-		expectedArgs := []string{"--cli-login-sync-integration-id=microsoft/vscode"}
+		expectedArgs := []string{"--cli-login-sync-integration-id=github/github-app"}
 		if !reflect.DeepEqual(config.Args, expectedArgs) {
 			t.Fatalf("Expected CLI login sync arguments %v, got %v", expectedArgs, config.Args)
 		}
@@ -3057,75 +3074,6 @@ func TestSessionRequests_PluginDirectoriesAndLargeOutput(t *testing.T) {
 	})
 }
 
-func TestClient_ForwardsMCPServersPresenceToSessionRequests(t *testing.T) {
-	tests := []struct {
-		name    string
-		servers map[string]MCPServerConfig
-		want    any
-	}{
-		{"omitted", nil, nil},
-		// An explicitly empty map must reach the runtime: on resume it replaces the
-		// session's servers with none, which omitting the key cannot express.
-		{"empty", map[string]MCPServerConfig{}, map[string]any{}},
-		{"one server", map[string]MCPServerConfig{
-			"local": MCPStdioServerConfig{Command: "echo", Tools: []string{"*"}},
-		}, map[string]any{"local": map[string]any{"type": "stdio", "command": "echo", "tools": []any{"*"}}}},
-	}
-
-	assertMCPServers := func(t *testing.T, params json.RawMessage, want any) {
-		t.Helper()
-		var m map[string]any
-		if err := json.Unmarshal(params, &m); err != nil {
-			t.Fatalf("Failed to unmarshal: %v", err)
-		}
-		got, ok := m["mcpServers"]
-		if want == nil {
-			if ok {
-				t.Errorf("Expected mcpServers to be omitted, got %v", got)
-			}
-			return
-		}
-		if !ok || !reflect.DeepEqual(got, want) {
-			t.Errorf("Expected mcpServers %v, got %v (present=%v)", want, got, ok)
-		}
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			rpcClient, server, _ := newRuntimeShutdownRpcPair(t)
-			t.Cleanup(server.Stop)
-			client := &Client{
-				client:   rpcClient,
-				RPC:      rpc.NewServerRPC(rpcClient),
-				sessions: make(map[string]*Session),
-			}
-
-			createParams := make(chan json.RawMessage, 1)
-			server.SetRequestHandler("session.create", func(params json.RawMessage) (json.RawMessage, *jsonrpc2.Error) {
-				createParams <- append(json.RawMessage(nil), params...)
-				sessionID := sessionIDFromParams(t, params)
-				return []byte(`{"sessionId":"` + sessionID + `","workspacePath":"/workspace"}`), nil
-			})
-
-			if _, err := client.CreateSession(t.Context(), &SessionConfig{Model: "auto", MCPServers: tt.servers}); err != nil {
-				t.Fatalf("CreateSession failed: %v", err)
-			}
-			assertMCPServers(t, <-createParams, tt.want)
-
-			resumeParams := make(chan json.RawMessage, 1)
-			server.SetRequestHandler("session.resume", func(params json.RawMessage) (json.RawMessage, *jsonrpc2.Error) {
-				resumeParams <- append(json.RawMessage(nil), params...)
-				return []byte(`{"sessionId":"resumed-mcp","workspacePath":"/workspace"}`), nil
-			})
-
-			if _, err := client.ResumeSessionWithOptions(t.Context(), "resumed-mcp", &ResumeSessionConfig{Model: "auto", MCPServers: tt.servers}); err != nil {
-				t.Fatalf("ResumeSessionWithOptions failed: %v", err)
-			}
-			assertMCPServers(t, <-resumeParams, tt.want)
-		})
-	}
-}
-
 func TestSessionRequests_SandboxConfig(t *testing.T) {
 	for _, enabled := range []bool{true, false} {
 		sandboxConfig := &rpc.SandboxConfig{
@@ -3597,46 +3545,6 @@ func TestModelInfoPreservesProviderMetadata(t *testing.T) {
 	}
 	if model.Metadata["provider"] != "acme" || model.Metadata["contextWindow"] != float64(200000) {
 		t.Fatalf("metadata = %#v", model.Metadata)
-	}
-}
-
-func TestModelInfoPreservesNativeProvider(t *testing.T) {
-	for _, provider := range []string{
-		`{"id":"copilot","kind":"copilot","label":"GitHub Copilot"}`,
-		`{"id":"loki:opaque","kind":"loki","label":"Microsoft 365 Copilot"}`,
-		`null`,
-	} {
-		t.Run(provider, func(t *testing.T) {
-			var model ModelInfo
-			if err := json.Unmarshal([]byte(`{"id":"shared-model","name":"Shared Model","capabilities":{},"provider":`+provider+`}`), &model); err != nil {
-				t.Fatal(err)
-			}
-			var expected *rpc.ModelProviderRef
-			if err := json.Unmarshal([]byte(provider), &expected); err != nil {
-				t.Fatal(err)
-			}
-			if !reflect.DeepEqual(model.Provider, expected) {
-				t.Fatalf("provider = %#v, want %#v", model.Provider, expected)
-			}
-			encoded, err := json.Marshal(model)
-			if err != nil {
-				t.Fatal(err)
-			}
-			var wire map[string]json.RawMessage
-			if err := json.Unmarshal(encoded, &wire); err != nil {
-				t.Fatal(err)
-			}
-			if expected == nil {
-				if _, present := wire["provider"]; present {
-					t.Fatal("unattributed model must omit provider")
-				}
-			} else {
-				var actual rpc.ModelProviderRef
-				if err := json.Unmarshal(wire["provider"], &actual); err != nil || !reflect.DeepEqual(actual, *expected) {
-					t.Fatalf("encoded provider = %s, want %s: %v", wire["provider"], provider, err)
-				}
-			}
-		})
 	}
 }
 
@@ -6108,6 +6016,45 @@ func TestToolNamespace(t *testing.T) {
 			t.Error("Expected namespace to be omitted when nil")
 		}
 	})
+}
+
+func TestSessionRequests_ExcludedManagedSettings(t *testing.T) {
+	for _, test := range []struct {
+		name       string
+		exclusions []string
+		want       string
+	}{
+		{name: "omitted"},
+		{name: "empty", exclusions: []string{}, want: `[]`},
+		{name: "populated", exclusions: []string{"sandbox"}, want: `["sandbox"]`},
+	} {
+		for _, request := range []struct {
+			name  string
+			value any
+		}{
+			{"create", createSessionRequest{ExcludedManagedSettings: test.exclusions}},
+			{"resume", resumeSessionRequest{SessionID: "s1", ExcludedManagedSettings: test.exclusions}},
+		} {
+			t.Run(request.name+"/"+test.name, func(t *testing.T) {
+				data, err := json.Marshal(request.value)
+				if err != nil {
+					t.Fatalf("Failed to marshal: %v", err)
+				}
+				var fields map[string]json.RawMessage
+				if err := json.Unmarshal(data, &fields); err != nil {
+					t.Fatalf("Failed to unmarshal: %v", err)
+				}
+				actual, present := fields["excludedManagedSettings"]
+				if test.want == "" {
+					if present {
+						t.Fatalf("Expected omitted exclusions, got %s", data)
+					}
+				} else if !present || string(actual) != test.want {
+					t.Fatalf("Expected excludedManagedSettings=%s, got %s", test.want, data)
+				}
+			})
+		}
+	}
 }
 
 func TestSessionRequests_ManagedSettings(t *testing.T) {

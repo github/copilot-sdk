@@ -12,7 +12,6 @@ import com.fasterxml.jackson.annotation.JsonSetter;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
 import com.github.copilot.CopilotExperimental;
 import com.github.copilot.generated.rpc.CurrentToolMetadata;
 
@@ -36,7 +35,7 @@ import com.github.copilot.generated.rpc.CurrentToolMetadata;
 @JsonInclude(JsonInclude.Include.NON_NULL)
 public final class ToolInvocation {
 
-    private static final ObjectMapper MAPPER = new ObjectMapper().registerModule(new JavaTimeModule());
+    private static final ObjectMapper MAPPER = new ObjectMapper();
     private static final TypeReference<Map<String, Object>> MAP_TYPE = new TypeReference<>() {
     };
 

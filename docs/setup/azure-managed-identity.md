@@ -288,6 +288,8 @@ public class ManagedIdentityExample {
 <details>
 <summary><strong>Python</strong></summary>
 
+<!-- docs-validate: skip -->
+
 ```python
 import asyncio
 import os
@@ -295,7 +297,6 @@ import os
 from azure.identity.aio import DefaultAzureCredential
 from copilot import CopilotClient
 from copilot.session import PermissionHandler, ProviderConfig
-from copilot.session_events import AssistantMessageData
 
 async def main():
     credential = DefaultAzureCredential(require_envvar=True)
@@ -320,8 +321,7 @@ async def main():
     )
 
     response = await session.send_and_wait("Hello from Managed Identity!")
-    if response and isinstance(response.data, AssistantMessageData):
-        print(response.data.content)
+    print(response.data.content)
 
     await client.stop()
     await credential.close()

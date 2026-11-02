@@ -25,7 +25,6 @@ import javax.annotation.processing.Generated;
 @JsonIgnoreProperties(ignoreUnknown = true)
 public record SessionNameGetResult(
     /** The session name (user-set or auto-generated), or null if not yet set */
-    @JsonInclude(JsonInclude.Include.ALWAYS)
     @JsonProperty("name") String name
 ) {
 }

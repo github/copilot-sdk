@@ -331,7 +331,6 @@ public final class ResumeSessionRequest {
      * Gets the pending-work continuation choice.
      *
      * @return the choice, or {@code null} if omitted
-     * @see ResumeSessionConfig#getContinuePendingWork()
      */
     public Boolean getContinuePendingWork() {
         return continuePendingWork;
@@ -342,7 +341,6 @@ public final class ResumeSessionRequest {
      *
      * @param continuePendingWork
      *            the choice
-     * @see #getContinuePendingWork()
      */
     public void setContinuePendingWork(boolean continuePendingWork) {
         this.continuePendingWork = continuePendingWork;

@@ -75,9 +75,6 @@ func TestHookIdentityTypedDispatch(t *testing.T) {
 				input := map[string]any{"sessionId": "reported-session", "timestamp": 1, "cwd": "work"}
 				if enriched {
 					input["agentId"], input["agentType"], input["parentAgentId"] = "child-actor", "explore", "parent-actor"
-					input["traceparent"] = "00-0123456789abcdef0123456789abcdef-0123456789abcdef-01"
-					input["tracestate"] = "vendor=state"
-					input["toolCallId"] = "model-call"
 				}
 				raw, err := json.Marshal(input)
 				if err != nil {
@@ -88,14 +85,7 @@ func TestHookIdentityTypedDispatch(t *testing.T) {
 					t.Fatal(err)
 				}
 				value := reflect.ValueOf(captured)
-				fields := map[string]string{
-					"AgentID": "child-actor", "AgentType": "explore", "ParentAgentID": "parent-actor",
-					"Traceparent": "00-0123456789abcdef0123456789abcdef-0123456789abcdef-01", "Tracestate": "vendor=state",
-				}
-				if hook == "preToolUse" || hook == "postToolUse" || hook == "postToolUseFailure" || hook == "preMcpToolCall" {
-					fields["ToolCallID"] = "model-call"
-				}
-				for field, expected := range fields {
+				for field, expected := range map[string]string{"AgentID": "child-actor", "AgentType": "explore", "ParentAgentID": "parent-actor"} {
 					if !enriched {
 						expected = ""
 					}
@@ -106,22 +96,6 @@ func TestHookIdentityTypedDispatch(t *testing.T) {
 				}
 				if value.FieldByName("SessionID").String() != "reported-session" {
 					t.Errorf("report ID changed: %+v", captured)
-				}
-				roundtrip, err := json.Marshal(captured)
-				if err != nil {
-					t.Fatal(err)
-				}
-				var output map[string]any
-				if err := json.Unmarshal(roundtrip, &output); err != nil {
-					t.Fatal(err)
-				}
-				for _, key := range []string{"traceparent", "tracestate", "toolCallId"} {
-					if key == "toolCallId" && fields["ToolCallID"] == "" {
-						continue
-					}
-					if output[key] != input[key] {
-						t.Errorf("%s: marshaled=%v input=%v", key, output[key], input[key])
-					}
 				}
 			})
 		}

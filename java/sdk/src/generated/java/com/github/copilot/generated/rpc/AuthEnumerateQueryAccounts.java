@@ -27,11 +27,4 @@ public final class AuthEnumerateQueryAccounts extends AuthEnumerateQuery {
 
     @Override
     public String getKind() { return kind; }
-
-    /** Whether to discard the cached inventory and re-run credential reads and availability checks for every account before returning the canonical account projection. */
-    @JsonProperty("refresh")
-    private Boolean refresh;
-
-    public Boolean getRefresh() { return refresh; }
-    public void setRefresh(Boolean refresh) { this.refresh = refresh; }
 }

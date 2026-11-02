@@ -82,7 +82,6 @@ from .generated.rpc import (
     GitHubTokenAcquireReason,
     GitHubTokenAcquireRequest,
     GitHubTokenAcquireResult,
-    HostDiagnostics,
     KerberosAuthAcquireRequest,
     KerberosAuthAcquireResult,
     KerberosAuthMode,
@@ -90,7 +89,6 @@ from .generated.rpc import (
     KerberosAuthSetProviderRequest,
     ModelBillingTokenPrices,
     ModelBillingTokenPricesLongContext,  # noqa: F401
-    ModelProviderRef,
     OpenCanvasInstance,
     RemoteSessionMode,  # noqa: F401
     SandboxConfig,
@@ -151,11 +149,7 @@ from .session import (
     _PermissionHandlerFn,
     _tools_to_wire_definitions,
 )
-from .session_fs_provider import (
-    SessionFsProvider,
-    SessionFsReadFileRangeProvider,
-    create_session_fs_adapter,
-)
+from .session_fs_provider import SessionFsProvider, create_session_fs_adapter
 from .tools import Tool
 
 logger = logging.getLogger(__name__)
@@ -579,7 +573,7 @@ class TelemetryConfig(TypedDict, total=False):
     source_name: str
     """Instrumentation scope name. Sets COPILOT_OTEL_SOURCE_NAME."""
     capture_content: bool
-    """Whether to capture span content. Sets OTEL_INSTRUMENTATION_GENAI_CAPTURE_CONTENT and its legacy alias."""  # noqa: E501
+    """Whether to capture message content. Sets OTEL_INSTRUMENTATION_GENAI_CAPTURE_MESSAGE_CONTENT."""  # noqa: E501
 
 
 class ClientInfo(TypedDict, total=False):
@@ -848,7 +842,8 @@ class InProcessRuntimeConnection(RuntimeConnection):
 
     Required for OneAuth interactive authentication on macOS. This general-purpose
     scheduler may also be used for other runtime-owned native UI operations.
-    Temporary OneAuth workaround; this API may be removed if no longer needed."""
+    Temporary OneAuth workaround; this API may be removed if no longer needed.
+    See https://github.com/github/copilot-agent-runtime/issues/27032."""
 
 
 class _UiThreadAdapter:
@@ -896,12 +891,44 @@ class _KerberosAuthAdapter:
 
     def __init__(self, config: KerberosAuthConfig) -> None:
         self._callback = config["callback"]
+        self._pending: set[asyncio.Future[object]] = set()
+        self._closed = False
+
+    def cancel_pending(self) -> None:
+        """Cancel in-flight callbacks because the connection closed; later requests fail."""
+        self._closed = True
+        pending = list(self._pending)
+        self._pending.clear()
+        for lookup in pending:
+            lookup.cancel()
 
     async def acquire(self, params: KerberosAuthAcquireRequest) -> KerberosAuthAcquireResult:
+        if self._closed:
+            raise RuntimeError("Kerberos auth connection closed")
         token = self._callback(params)
         if inspect.isawaitable(token):
-            token = await token
+            token = await self._await_callback(token)
         return KerberosAuthAcquireResult(token=cast(str | None, token))
+
+    async def _await_callback(self, awaitable: Awaitable[object]) -> object:
+        lookup = asyncio.ensure_future(awaitable)
+        self._pending.add(lookup)
+        try:
+            # Unlike ``await lookup``, this raises CancelledError only when the request itself
+            # is cancelled, not when the callback's own awaitable is.
+            await asyncio.wait({lookup})
+        except BaseException:
+            lookup.cancel()
+            raise
+        finally:
+            self._pending.discard(lookup)
+        if lookup.cancelled():
+            # The dispatcher answers only the request's own cancellation; a propagated
+            # CancelledError would leave the runtime waiting for its deadline.
+            if self._closed:
+                raise RuntimeError("Kerberos auth connection closed")
+            raise RuntimeError("Kerberos credential callback was cancelled")
+        return lookup.result()
 
     async def handle_request(self, params: dict) -> dict:
         """Wire-level ``kerberosAuth.acquire`` handler, registered as cancellable."""
@@ -1065,7 +1092,6 @@ class GetStatusResponse:
 
     version: str  # Package version (e.g., "1.0.0")
     protocol_version: int  # Protocol version for SDK compatibility
-    host_diagnostics: HostDiagnostics | None = field(default=None, kw_only=True)
 
     @staticmethod
     def from_dict(obj: Any) -> GetStatusResponse:
@@ -1077,23 +1103,12 @@ class GetStatusResponse:
                 f"Missing required fields in GetStatusResponse: version={version}, "
                 f"protocolVersion={protocol_version}"
             )
-        host_diagnostics = obj.get("hostDiagnostics")
-        return GetStatusResponse(
-            str(version),
-            int(protocol_version),
-            host_diagnostics=(
-                HostDiagnostics.from_dict(host_diagnostics)
-                if host_diagnostics is not None
-                else None
-            ),
-        )
+        return GetStatusResponse(str(version), int(protocol_version))
 
     def to_dict(self) -> dict:
         result: dict = {}
         result["version"] = self.version
         result["protocolVersion"] = self.protocol_version
-        if self.host_diagnostics is not None:
-            result["hostDiagnostics"] = self.host_diagnostics.to_dict()
         return result
 
 
@@ -1316,8 +1331,6 @@ class ModelInfo:
     supported_reasoning_efforts: list[str] | None = None
     # Default reasoning effort level (only present if model supports reasoning effort)
     default_reasoning_effort: str | None = None
-    # Native serving provider; absent for unattributed and configured BYOK models.
-    provider: ModelProviderRef | None = None
 
     @staticmethod
     def from_dict(obj: Any) -> ModelInfo:
@@ -1337,7 +1350,6 @@ class ModelInfo:
         billing = ModelBilling.from_dict(billing_dict) if billing_dict else None
         supported_reasoning_efforts = obj.get("supportedReasoningEfforts")
         default_reasoning_effort = obj.get("defaultReasoningEffort")
-        provider_dict = obj.get("provider")
         return ModelInfo(
             id=str(id),
             name=str(name),
@@ -1346,9 +1358,6 @@ class ModelInfo:
             billing=billing,
             supported_reasoning_efforts=supported_reasoning_efforts,
             default_reasoning_effort=default_reasoning_effort,
-            provider=ModelProviderRef.from_dict(provider_dict)
-            if provider_dict is not None
-            else None,
         )
 
     def to_dict(self) -> dict:
@@ -1356,8 +1365,6 @@ class ModelInfo:
         result["id"] = self.id
         result["name"] = self.name
         result["capabilities"] = self.capabilities.to_dict()
-        if self.provider is not None:
-            result["provider"] = self.provider.to_dict()
         if self.policy is not None:
             result["policy"] = self.policy.to_dict()
         if self.billing is not None:
@@ -1821,10 +1828,7 @@ class CopilotClient:
                 sessions can be created.
             use_logged_in_user: Use the logged-in user for authentication.
                 ``None`` (default) resolves to ``True`` unless ``github_token``
-                is set. When ``False``, only explicit tokens such as
-                ``github_token`` are used; environment variable tokens
-                (``COPILOT_GITHUB_TOKEN``, ``GH_TOKEN``, ``GITHUB_TOKEN``) are
-                ignored.
+                is set.
             telemetry: OpenTelemetry configuration. Providing this enables
                 telemetry.
             session_fs: Connection-level session filesystem provider
@@ -2000,6 +2004,7 @@ class CopilotClient:
         self._session_fs_config = options.session_fs
         self._request_handler = options.request_handler
         self._llm_inference_adapter: _CopilotRequestAdapterHandler | None = None
+        self._kerberos_auth_adapter: _KerberosAuthAdapter | None = None
         self._installation_confirmation_adapter: _InstallationConfirmationAdapter | None = None
         self._entra_token_provider = (
             options.entra.token_provider if isinstance(options.entra, EntraAuthOptions) else None
@@ -2389,7 +2394,10 @@ class CopilotClient:
             except OSError:
                 logger.debug("Error while closing Copilot CLI stdin", exc_info=True)
 
-        # Close client
+        # Close client. Kerberos lookups stay available until here because the runtime may
+        # still authenticate while it shuts down.
+        if self._kerberos_auth_adapter is not None:
+            self._kerberos_auth_adapter.cancel_pending()
         if self._client:
             await self._client.stop()
             self._client = None
@@ -2462,13 +2470,11 @@ class CopilotClient:
         - Clears all sessions immediately without destroying them
         - Force closes the connection (closes the underlying transport)
         - Kills the CLI process (if spawned by this client)
-        - Closes owned stdin so processes behind a launcher also receive EOF
         - Waits for the spawned CLI process to exit
 
         Raises:
             OSError: If the spawned CLI process cannot be terminated.
-            subprocess.TimeoutExpired: If owned stdin cannot close or the spawned
-                CLI process does not exit within the shutdown timeout.
+            subprocess.TimeoutExpired: If the spawned CLI process does not exit.
 
         Example:
             >>> # If normal stop hangs, force stop
@@ -2484,6 +2490,8 @@ class CopilotClient:
         self._ahp_hosts.disconnect()
         if self._llm_inference_adapter is not None:
             self._llm_inference_adapter.cancel_pending()
+        if self._kerberos_auth_adapter is not None:
+            self._kerberos_auth_adapter.cancel_pending()
 
         # Clear sessions immediately without trying to destroy them
         with self._sessions_lock:
@@ -2518,35 +2526,7 @@ class CopilotClient:
                 process = self._cli_process
                 try:
                     process.kill()
-                    # A Windows launcher can exit while its child still holds the read end.
-                    if process.stdin is not None:
-
-                        def observe_shutdown(result: asyncio.Future[Any]) -> None:
-                            if not result.cancelled() and (error := result.exception()) is not None:
-                                logger.debug(
-                                    "Error while completing forced CLI shutdown", exc_info=error
-                                )
-
-                        shutdown = asyncio.gather(
-                            asyncio.to_thread(process.stdin.close),
-                            asyncio.to_thread(
-                                process.wait, timeout=_CLI_PROCESS_EXIT_TIMEOUT_SECONDS
-                            ),
-                        )
-                        shutdown.add_done_callback(observe_shutdown)
-                        try:
-                            # Closing can wait for an outstanding pipe write on Windows.
-                            async with asyncio.timeout(_CLI_PROCESS_EXIT_TIMEOUT_SECONDS):
-                                # A deadline must not discard queued EOF delivery or reaping.
-                                await asyncio.shield(shutdown)
-                        except TimeoutError as error:
-                            raise subprocess.TimeoutExpired(
-                                process.args, _CLI_PROCESS_EXIT_TIMEOUT_SECONDS
-                            ) from error
-                    else:
-                        await asyncio.to_thread(
-                            process.wait, timeout=_CLI_PROCESS_EXIT_TIMEOUT_SECONDS
-                        )
+                    await asyncio.to_thread(process.wait, timeout=_CLI_PROCESS_EXIT_TIMEOUT_SECONDS)
                 except (OSError, subprocess.TimeoutExpired) as error:
                     process_error = error
                 else:
@@ -2713,10 +2693,6 @@ class CopilotClient:
             enable_experimental_mode: Controls whether the session enables
                 experimental features. Defaults to ``False`` in ``"empty"``
                 mode; otherwise the runtime decides when omitted.
-            coauthor_enabled: Whether to instruct the agent to include a
-                ``Co-authored-by`` trailer in commit messages. Subagents inherit this
-                setting. Defaults to ``False`` in ``"empty"`` mode; otherwise the
-                runtime decides when omitted.
             context_tier: Context window tier for models that support it. Use
                 ``"long_context"`` to pin the session to the long-context tier.
             tools: Custom tools to register with the session.
@@ -2759,9 +2735,10 @@ class CopilotClient:
                 each referencing a `providers` entry by name.
             enable_session_telemetry: Enables or disables internal session telemetry
                 for this session. When False, disables session telemetry. When omitted
-                or True, telemetry is enabled for eligible GitHub-authenticated sessions,
-                including custom providers (BYOK). Host and account policies still
-                control uploads. This is independent of client OpenTelemetry configuration.
+                or True, telemetry is enabled for GitHub-authenticated sessions. When
+                a custom provider (BYOK) is configured, session telemetry is always
+                disabled regardless of this setting. This is independent of the client
+                OpenTelemetry configuration.
             enable_citations: **Experimental.** Enables native model citations for
                 supported providers.
             enable_file_change_tracking: Opts in to capturing file changes from the
@@ -3135,7 +3112,7 @@ class CopilotClient:
             payload["modelCapabilities"] = _capabilities_to_dict(model_capabilities)
 
         # Add MCP servers configuration if provided
-        if mcp_servers is not None:
+        if mcp_servers:
             payload["mcpServers"] = _mcp_servers_to_wire(mcp_servers)
         if diagnostics is not None:
             payload["diagnostics"] = diagnostics.to_dict()
@@ -3319,15 +3296,6 @@ class CopilotClient:
                         )
                     fs_provider: SessionFsProvider = create_session_fs_handler(s)
                     caps = self._session_fs_config.get("capabilities")
-                    if (
-                        caps
-                        and caps.get("read_file_range")
-                        and not isinstance(fs_provider, SessionFsReadFileRangeProvider)
-                    ):
-                        raise ValueError(
-                            "SessionFs capabilities declare byte-range reads but the provider "
-                            "does not implement SessionFsReadFileRangeProvider"
-                        )
                     if caps and caps.get("sqlite"):
                         from .session_fs_provider import SessionFsSqliteProvider
 
@@ -3662,10 +3630,6 @@ class CopilotClient:
             enable_experimental_mode: Controls whether the session enables
                 experimental features. Defaults to ``False`` in ``"empty"``
                 mode; otherwise the runtime decides when omitted.
-            coauthor_enabled: Whether to instruct the agent to include a
-                ``Co-authored-by`` trailer in commit messages. Subagents inherit this
-                setting. Defaults to ``False`` in ``"empty"`` mode; otherwise the
-                runtime decides when omitted.
             context_tier: Context window tier for models that support it. Use
                 ``"long_context"`` to pin the session to the long-context tier.
             tools: Custom tools to register with the session.
@@ -3706,11 +3670,11 @@ class CopilotClient:
             models: BYOK model definitions added to the selectable model list,
                 each referencing a `providers` entry by name.
             enable_session_telemetry: Enables or disables internal session telemetry
-                for this session. False disables telemetry; True enables it for eligible
-                GitHub-authenticated sessions, including custom providers (BYOK).
-                Omission preserves a resident session's choice; otherwise defaults to enabled.
-                Host and account policies still control uploads. This is independent of
-                client OpenTelemetry configuration.
+                for this session. When False, disables session telemetry. When omitted
+                or True, telemetry is enabled for GitHub-authenticated sessions. When
+                a custom provider (BYOK) is configured, session telemetry is always
+                disabled regardless of this setting. This is independent of the client
+                OpenTelemetry configuration.
             enable_citations: **Experimental.** Enables native model citations for
                 supported providers.
             enable_file_change_tracking: Opts in to capturing file changes for
@@ -3817,10 +3781,6 @@ class CopilotClient:
                 session was last suspended. When False (the default), the runtime
                 treats pending work as interrupted on resume. Completed tool results
                 already durably recorded by the runtime are preserved.
-                When True, pending permission requests and external tool calls wait
-                for caller-supplied results via the corresponding low-level RPC methods.
-                Resuming does not re-emit restored permission requests or re-invoke
-                permission handlers or already-dispatched external tool callbacks.
             suppress_resume_event: When True, skips emitting the session.resume
                 event when attaching to an existing session. Defaults to False.
             allow_transcript_recovery: Whether to repair a damaged transcript on
@@ -4080,7 +4040,7 @@ class CopilotClient:
         if suppress_resume_event is not None:
             payload["disableResume"] = suppress_resume_event
 
-        if mcp_servers is not None:
+        if mcp_servers:
             payload["mcpServers"] = _mcp_servers_to_wire(mcp_servers)
         if diagnostics is not None:
             payload["diagnostics"] = diagnostics.to_dict()
@@ -4188,15 +4148,6 @@ class CopilotClient:
                     )
                 fs_provider: SessionFsProvider = create_session_fs_handler(session)
                 caps = self._session_fs_config.get("capabilities")
-                if (
-                    caps
-                    and caps.get("read_file_range")
-                    and not isinstance(fs_provider, SessionFsReadFileRangeProvider)
-                ):
-                    raise ValueError(
-                        "SessionFs capabilities declare byte-range reads but the provider "
-                        "does not implement SessionFsReadFileRangeProvider"
-                    )
                 if caps and caps.get("sqlite"):
                     from .session_fs_provider import SessionFsSqliteProvider
 
@@ -4866,8 +4817,6 @@ class CopilotClient:
             wire_provider["wireModel"] = provider["wire_model"]
         if "max_prompt_tokens" in provider:
             wire_provider["maxPromptTokens"] = provider["max_prompt_tokens"]
-        if "max_context_window_tokens" in provider:
-            wire_provider["maxContextWindowTokens"] = provider["max_context_window_tokens"]
         if "max_output_tokens" in provider:
             wire_provider["maxOutputTokens"] = provider["max_output_tokens"]
         if "azure" in provider:
@@ -5091,9 +5040,6 @@ class CopilotClient:
             if "source_name" in telemetry:
                 env["COPILOT_OTEL_SOURCE_NAME"] = telemetry["source_name"]
             if "capture_content" in telemetry:
-                env["OTEL_INSTRUMENTATION_GENAI_CAPTURE_CONTENT"] = (
-                    "SPAN_ONLY" if telemetry["capture_content"] else "NO_CONTENT"
-                )
                 env["OTEL_INSTRUMENTATION_GENAI_CAPTURE_MESSAGE_CONTENT"] = str(
                     telemetry["capture_content"]
                 ).lower()
@@ -5193,7 +5139,9 @@ class CopilotClient:
         )
 
         opts = self._options
-        args: list[str] = ["--log-level", opts.log_level]
+        args: list[str] = []
+        if opts.log_level:
+            args.extend(["--log-level", opts.log_level])
         if opts.github_token:
             args.extend(["--auth-token-env", "COPILOT_SDK_AUTH_TOKEN"])
         if not opts.use_logged_in_user:
@@ -5503,10 +5451,7 @@ class CopilotClient:
             "conventions": self._session_fs_config["conventions"],
         }
         if "capabilities" in self._session_fs_config:
-            capabilities = dict(self._session_fs_config["capabilities"])
-            if capabilities.pop("read_file_range", False):
-                capabilities["readFileRange"] = True
-            params["capabilities"] = capabilities
+            params["capabilities"] = self._session_fs_config["capabilities"]
 
         await self._client.request("sessionFs.setProvider", params)
 
@@ -5523,7 +5468,7 @@ class CopilotClient:
         github_telemetry_adapter = None
         if self._on_github_telemetry is not None:
             github_telemetry_adapter = _GitHubTelemetryAdapter(self._on_github_telemetry)
-        kerberos_auth_adapter = (
+        kerberos_auth_adapter = self._kerberos_auth_adapter = (
             _KerberosAuthAdapter(self._options.kerberos_auth)
             if self._options.kerberos_auth is not None
             else None
@@ -5567,6 +5512,15 @@ class CopilotClient:
             if entra_token_adapter is not None:
                 entra_token_adapter.close_connection()
             installation_confirmation_adapter.close_connection()
+            if kerberos_auth_adapter is not None:
+                # Cancel this connection's own lookups: a reconnect may already have
+                # replaced the client's adapter.
+                loop = client._loop
+                if loop is not None and not loop.is_closed():
+                    try:
+                        loop.call_soon_threadsafe(kerberos_auth_adapter.cancel_pending)
+                    except RuntimeError:
+                        logger.debug("Event loop closed while handling connection loss")
             if self._client is client:
                 self._handle_connection_close()
 

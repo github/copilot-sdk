@@ -214,16 +214,6 @@ impl SessionRouter {
             loop {
                 match notif_rx.recv().await {
                     Ok(notification) => {
-                        let routed = match notification.method.as_str() {
-                            "gitHubTelemetry.event" => github_telemetry.is_some(),
-                            "session.event" => true,
-                            _ => false,
-                        };
-                        if !routed {
-                            continue;
-                        }
-                        // Owned without a copy once the other receivers are done with it.
-                        let notification = Arc::unwrap_or_clone(notification);
                         // Client-global `gitHubTelemetry.event` notifications carry
                         // no routable session and are surfaced to the consumer
                         // callback (if any) registered at client construction.

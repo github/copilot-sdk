@@ -12,7 +12,6 @@ export { CopilotClient } from "./client.js";
 export type {
     HostLocalServerOptions,
     HostGitHubEnvironmentOptions,
-    Model,
     ModelGetReasoningSummariesRequest,
     ModelGetReasoningSummariesResult,
     SandboxConfig,
@@ -157,8 +156,6 @@ export type {
     ForegroundSessionInfo,
     GetAuthStatusResponse,
     GetStatusResponse,
-    HostDiagnostics,
-    HostErrorReportingStatus,
     GitHubMcpToolConfig,
     GitHubTelemetryNotification,
     GitHubTelemetryEvent,
@@ -242,7 +239,6 @@ export type {
     SessionUiApi,
     SessionFsConfig,
     SessionFsProvider,
-    SessionFsByteRange,
     SessionFsFileInfo,
     SessionFsSqliteQueryResult,
     SessionFsSqliteQueryType,
@@ -300,8 +296,5 @@ export type {
     WorkflowProgressLine,
     WorkflowPhaseObservation,
     WorkflowPhaseStatus,
-    WorkflowAgentContextObservation,
-    WorkflowAgentModelObservation,
-    WorkflowAgentReasoningEffortObservation,
     WorkflowAgentSummary,
 } from "./workflow.js";

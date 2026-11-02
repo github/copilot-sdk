@@ -13,7 +13,7 @@ For running sessions on GitHub-hosted compute, see [Cloud Sessions](./cloud-sess
 
 ### On-demand (per-session toggle)
 
-Use the experimental raw `session.rpc.remote.enable()` API with export mode to start read-only history export mid-session, and `session.rpc.remote.disable()` to stop it. Export mode does not enable AHP connections or remote steering; omitting the mode requests both export and remote steering.
+Use the experimental raw `session.rpc.remote.enable()` API to start history export mid-session, and `session.rpc.remote.disable()` to stop it. These APIs do not enable AHP connections or remote steering.
 
 <!-- tabs:start -->
 
@@ -21,7 +21,7 @@ Use the experimental raw `session.rpc.remote.enable()` API with export mode to s
 
 <!-- docs-validate: skip -->
 ```typescript
-const result = await session.rpc.remote.enable({ mode: "export" });
+const result = await session.rpc.remote.enable();
 console.log("Remote URL:", result.url);
 
 // Later: stop sharing
@@ -30,24 +30,9 @@ await session.rpc.remote.disable();
 
 #### Python
 
-<!-- docs-validate: hidden -->
+<!-- docs-validate: skip -->
 ```python
-from copilot.generated.rpc import RemoteEnableRequest, RemoteSessionMode
-from copilot.session import CopilotSession
-
-async def main(session: CopilotSession):
-    result = await session.rpc.remote.enable(RemoteEnableRequest(mode=RemoteSessionMode.EXPORT))
-    print(f"Remote URL: {result.url}")
-
-    # Later: stop sharing
-    await session.rpc.remote.disable()
-```
-<!-- /docs-validate: hidden -->
-
-```python
-from copilot.generated.rpc import RemoteEnableRequest, RemoteSessionMode
-
-result = await session.rpc.remote.enable(RemoteEnableRequest(mode=RemoteSessionMode.EXPORT))
+result = await session.rpc.remote.enable()
 print(f"Remote URL: {result.url}")
 
 # Later: stop sharing
@@ -58,24 +43,20 @@ await session.rpc.remote.disable()
 
 <!-- docs-validate: skip -->
 ```go
-mode := rpc.RemoteSessionModeExport
-result, err := session.RPC.Remote.Enable(ctx, &rpc.RemoteEnableRequest{Mode: &mode})
-if err != nil {
-    log.Fatal(err)
-}
+result, err := session.RPC.Remote.Enable(ctx)
 if result.URL != nil {
     fmt.Println("Remote URL:", *result.URL)
 }
 
 // Later: stop sharing
-_, err = session.RPC.Remote.Disable(ctx)
+err = session.RPC.Remote.Disable(ctx)
 ```
 
 #### C#
 
 <!-- docs-validate: skip -->
 ```csharp
-var result = await session.Rpc.Remote.EnableAsync(mode: RemoteSessionMode.Export);
+var result = await session.Rpc.Remote.EnableAsync();
 Console.WriteLine($"Remote URL: {result.Url}");
 
 // Later: stop sharing
@@ -86,15 +67,7 @@ await session.Rpc.Remote.DisableAsync();
 
 <!-- docs-validate: skip -->
 ```rust
-use github_copilot_sdk::rpc::{RemoteEnableRequest, RemoteSessionMode};
-
-let result = session
-    .rpc()
-    .remote()
-    .enable(RemoteEnableRequest {
-        mode: Some(RemoteSessionMode::Export),
-    })
-    .await?;
+let result = session.rpc().remote().enable().await?;
 if let Some(url) = &result.url {
     println!("Remote URL: {url}");
 }

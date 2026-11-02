@@ -6863,36 +6863,6 @@ func (r *ProtocolSectionOverride) UnmarshalJSON(data []byte) error {
 	return errors.New("data did not match any union variant for ProtocolSectionOverride")
 }
 
-func (r *PendingPermissionRequest) UnmarshalJSON(data []byte) error {
-	type rawPendingPermissionRequest struct {
-		AssistedApprovalAssessment json.RawMessage `json:"assistedApprovalAssessment,omitempty"`
-		RecoveryEpisodeID          *string         `json:"recoveryEpisodeId,omitempty"`
-		Request                    json.RawMessage `json:"request"`
-		RequestID                  string          `json:"requestId"`
-	}
-	var raw rawPendingPermissionRequest
-	if err := json.Unmarshal(data, &raw); err != nil {
-		return err
-	}
-	if raw.AssistedApprovalAssessment != nil {
-		value, err := unmarshalAssistedApprovalAssessment(raw.AssistedApprovalAssessment)
-		if err != nil {
-			return err
-		}
-		r.AssistedApprovalAssessment = value
-	}
-	r.RecoveryEpisodeID = raw.RecoveryEpisodeID
-	if raw.Request != nil {
-		value, err := unmarshalPermissionPromptRequest(raw.Request)
-		if err != nil {
-			return err
-		}
-		r.Request = value
-	}
-	r.RequestID = raw.RequestID
-	return nil
-}
-
 func unmarshalPermissionDecision(data []byte) (PermissionDecision, error) {
 	if string(data) == "null" {
 		return nil, nil
@@ -9384,7 +9354,6 @@ func (r *SessionOpenOptions) UnmarshalJSON(data []byte) error {
 		IntegrationID                          *string                                              `json:"integrationId,omitempty"`
 		InteractiveUser                        *bool                                                `json:"interactiveUser,omitempty"`
 		IsExperimentalMode                     *bool                                                `json:"isExperimentalMode,omitempty"`
-		LifecycleDiagnostics                   *LifecycleDiagnosticsConfiguration                   `json:"lifecycleDiagnostics,omitempty"`
 		LogInteractiveShells                   *bool                                                `json:"logInteractiveShells,omitempty"`
 		LspClientName                          *string                                              `json:"lspClientName,omitempty"`
 		ManagedMCPServers                      map[string]ManagedMCPServerConfig                    `json:"managedMcpServers,omitzero"`
@@ -9480,7 +9449,6 @@ func (r *SessionOpenOptions) UnmarshalJSON(data []byte) error {
 	r.IntegrationID = raw.IntegrationID
 	r.InteractiveUser = raw.InteractiveUser
 	r.IsExperimentalMode = raw.IsExperimentalMode
-	r.LifecycleDiagnostics = raw.LifecycleDiagnostics
 	r.LogInteractiveShells = raw.LogInteractiveShells
 	r.LspClientName = raw.LspClientName
 	r.ManagedMCPServers = raw.ManagedMCPServers

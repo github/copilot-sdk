@@ -16,9 +16,6 @@ import (
 // Experimental: this API may change or be removed.
 type EntraAuthOptions struct {
 	ClientID string
-	// MatsAppName identifies this host in OneAuth MATS telemetry.
-	// When nil or blank, MATS telemetry is disabled.
-	MatsAppName *string
 	// TokenProvider selects/revalidates identities and acquires resource tokens.
 	// When nil, the runtime uses its built-in Entra sign-in.
 	//

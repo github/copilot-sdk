@@ -26,7 +26,7 @@ import {
     ResponseError,
     StreamMessageReader,
     StreamMessageWriter,
-} from "vscode-jsonrpc/node";
+} from "vscode-jsonrpc/node.js";
 import {
     createServerRpc,
     createInternalServerRpc,
@@ -972,11 +972,6 @@ export class CopilotClient {
         ) {
             throw new Error(
                 "SessionFsConfig declares capabilities.binary but the provider does not implement readFileBytes and writeFileBytes."
-            );
-        }
-        if (this.sessionFsConfig.capabilities?.readFileRange && !provider.readFileRange) {
-            throw new Error(
-                "SessionFsConfig declares capabilities.readFileRange but the provider does not implement readFileRange."
             );
         }
         session.clientSessionApis.sessionFs = createSessionFsAdapter(provider);
@@ -1960,9 +1955,6 @@ export class CopilotClient {
                     : {}),
                 mcpServers: toWireMcpServers(config.mcpServers),
                 ...(config.diagnostics !== undefined ? { diagnostics: config.diagnostics } : {}),
-                ...(config.lifecycleDiagnostics !== undefined
-                    ? { lifecycleDiagnostics: config.lifecycleDiagnostics }
-                    : {}),
                 mcpOAuthTokenStorage: config.mcpOAuthTokenStorage,
                 authClientIdMetadataUrl: config.authClientIdMetadataUrl,
                 envValueMode: "direct",
@@ -2287,9 +2279,6 @@ export class CopilotClient {
                     : {}),
                 mcpServers: toWireMcpServers(config.mcpServers),
                 ...(config.diagnostics !== undefined ? { diagnostics: config.diagnostics } : {}),
-                ...(config.lifecycleDiagnostics !== undefined
-                    ? { lifecycleDiagnostics: config.lifecycleDiagnostics }
-                    : {}),
                 mcpOAuthTokenStorage: config.mcpOAuthTokenStorage,
                 authClientIdMetadataUrl: config.authClientIdMetadataUrl,
                 envValueMode: "direct",
@@ -2838,7 +2827,6 @@ export class CopilotClient {
             } = {
                 entra: this.options.entra && {
                     clientId: this.options.entra.clientId,
-                    matsAppName: this.options.entra.matsAppName,
                 },
                 entraTokenProvider: this.options.entra?.tokenProvider ? true : undefined,
                 token: this.effectiveConnectionToken,
@@ -3242,12 +3230,8 @@ export class CopilotClient {
             if (t.filePath !== undefined) env.COPILOT_OTEL_FILE_EXPORTER_PATH = t.filePath;
             if (t.exporterType !== undefined) env.COPILOT_OTEL_EXPORTER_TYPE = t.exporterType;
             if (t.sourceName !== undefined) env.COPILOT_OTEL_SOURCE_NAME = t.sourceName;
-            if (t.captureContent !== undefined) {
-                env.OTEL_INSTRUMENTATION_GENAI_CAPTURE_CONTENT = t.captureContent
-                    ? "SPAN_ONLY"
-                    : "NO_CONTENT";
+            if (t.captureContent !== undefined)
                 env.OTEL_INSTRUMENTATION_GENAI_CAPTURE_MESSAGE_CONTENT = String(t.captureContent);
-            }
         }
         return env;
     }

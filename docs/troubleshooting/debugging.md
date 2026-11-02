@@ -85,7 +85,7 @@ var loggerFactory = LoggerFactory.Create(builder =>
 
 var client = new CopilotClient(new CopilotClientOptions
 {
-    LogLevel = CopilotLogLevel.Debug,
+    LogLevel = "debug",
     Logger = loggerFactory.CreateLogger<CopilotClient>()
 });
 ```
@@ -122,7 +122,7 @@ not start a separate logging process.
 
 ```typescript
 const client = new CopilotClient({
-  connection: RuntimeConnection.forStdio({ args: ["--log-dir", "/path/to/logs"] }),
+  cliArgs: ["--log-dir", "/path/to/logs"],
 });
 ```
 
@@ -219,7 +219,7 @@ var client = new CopilotClient(new CopilotClientOptions()
 
    ```typescript
    const client = new CopilotClient({
-     connection: RuntimeConnection.forStdio({ path: "/usr/local/bin/copilot" }),
+     cliPath: "/usr/local/bin/copilot",
    });
    ```
    </details>
@@ -228,11 +228,7 @@ var client = new CopilotClient(new CopilotClientOptions()
    <summary><strong>Python</strong></summary>
 
    ```python
-   from copilot import CopilotClient, RuntimeConnection
-
-   client = CopilotClient(
-       connection=RuntimeConnection.for_stdio(path="/usr/local/bin/copilot")
-   )
+   client = CopilotClient({"cli_path": "/usr/local/bin/copilot"})
    ```
    </details>
 
@@ -252,7 +248,7 @@ var client = new CopilotClient(new CopilotClientOptions()
    ```csharp
    var client = new CopilotClient(new CopilotClientOptions
    {
-       Connection = RuntimeConnection.ForStdio(path: "/usr/local/bin/copilot"),
+       CliPath = "/usr/local/bin/copilot"
    });
    ```
    </details>
@@ -295,9 +291,7 @@ var client = new CopilotClient(new CopilotClientOptions()
 
    ```python
    import os
-   from copilot import CopilotClient
-
-   client = CopilotClient(github_token=os.environ.get("GITHUB_TOKEN"))
+   client = CopilotClient({"github_token": os.environ.get("GITHUB_TOKEN")})
    ```
    </details>
 
@@ -364,7 +358,8 @@ var client = new CopilotClient(new CopilotClientOptions()
 1. Check for port conflicts if using TCP mode:
    ```typescript
    const client = new CopilotClient({
-     connection: RuntimeConnection.forTcp({ port: 0 }),  // Use random available port
+     useStdio: false,
+     port: 0,  // Use random available port
    });
    ```
 
@@ -404,21 +399,22 @@ The SDK supports two transport modes:
 **Stdio mode (default):**
 ```typescript
 const client = new CopilotClient({
-  connection: RuntimeConnection.forStdio(),  // This is the default
+  useStdio: true,  // This is the default
 });
 ```
 
 **TCP mode:**
 ```typescript
 const client = new CopilotClient({
-  connection: RuntimeConnection.forTcp({ port: 8080 }),  // Or 0 for random port
+  useStdio: false,
+  port: 8080,  // Or 0 for random port
 });
 ```
 
 **Connect to existing server:**
 ```typescript
 const client = new CopilotClient({
-  connection: RuntimeConnection.forUri("localhost:8080"),  // Connect to running server
+  cliUrl: "localhost:8080",  // Connect to running server
 });
 ```
 
@@ -505,9 +501,9 @@ session.on("error", (event) => {
 
 1. **Path separators:** Use raw strings or forward slashes:
    ```csharp
-   Connection = RuntimeConnection.ForStdio(path: @"C:\Program Files\GitHub\copilot.exe")
+   CliPath = @"C:\Program Files\GitHub\copilot.exe"
    // or
-   Connection = RuntimeConnection.ForStdio(path: "C:/Program Files/GitHub/copilot.exe")
+   CliPath = "C:/Program Files/GitHub/copilot.exe"
    ```
 
 1. **PATHEXT resolution:** The SDK handles this automatically, but if issues persist:
@@ -531,7 +527,7 @@ session.on("error", (event) => {
 1. **PATH issues in GUI apps:** GUI applications may not inherit shell PATH:
    ```typescript
    const client = new CopilotClient({
-     connection: RuntimeConnection.forStdio({ path: "/opt/homebrew/bin/copilot" }),  // Full path
+     cliPath: "/opt/homebrew/bin/copilot",  // Full path
    });
    ```
 

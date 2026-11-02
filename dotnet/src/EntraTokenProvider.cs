@@ -14,16 +14,13 @@ public sealed class EntraAuthOptions
     /// <summary>Gets or sets the host application's Entra client ID.</summary>
     public string ClientId { get; set; } = string.Empty;
 
-    /// <summary>Gets or sets the host's MATS name. Omit to disable OneAuth MATS telemetry.</summary>
-    public string? MatsAppName { get; set; }
-
     /// <summary>
     /// Gets or sets the host callback. When absent, the runtime uses built-in sign-in.
     /// Unavailability or cancellation never falls back to runtime sign-in.
     /// </summary>
     public EntraTokenProvider? TokenProvider { get; set; }
 
-    internal EntraAuthConfig ToWire() => new() { ClientId = ClientId, MatsAppName = MatsAppName };
+    internal EntraAuthConfig ToWire() => new() { ClientId = ClientId };
 }
 
 /// <summary>

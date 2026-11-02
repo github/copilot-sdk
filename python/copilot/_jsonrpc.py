@@ -27,13 +27,7 @@ class _CompletionCancellation:
 
 
 class JsonRpcError(Exception):
-    """JSON-RPC error, publicly available as ``copilot.JsonRpcError``.
-
-    ``code`` and ``message`` describe the error. ``data`` preserves its optional
-    JSON payload without including it in the exception's string representation.
-    Data may contain untrusted diagnostics; inspect it explicitly rather than
-    automatically logging it. Missing data and explicit JSON null are both None.
-    """
+    """JSON-RPC error response"""
 
     def __init__(self, code: int, message: str, data: Any = None):
         self.code = code

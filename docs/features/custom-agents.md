@@ -66,8 +66,7 @@ const session = await client.createSession({
 <summary><strong>Python</strong></summary>
 
 ```python
-from copilot import CopilotClient
-from copilot.session import PermissionDecisionApproveOnce
+from copilot import CopilotClient, PermissionDecisionApproveOnce
 
 client = CopilotClient()
 await client.start()
@@ -502,23 +501,16 @@ const response = await session.sendAndWait({
 <summary><strong>Python</strong></summary>
 
 ```python
-from copilot import CopilotClient
-from copilot.session import PermissionHandler
-from copilot.session_events import SessionEventType
-
-client = CopilotClient()
-session = await client.create_session(on_permission_request=PermissionHandler.approve_all)
-
 def handle_event(event):
-    if event.type == SessionEventType.SUBAGENT_STARTED:
+    if event.type == "subagent.started":
         print(f"▶ Sub-agent started: {event.data.agent_display_name}")
         print(f"  Description: {event.data.agent_description}")
-    elif event.type == SessionEventType.SUBAGENT_COMPLETED:
+    elif event.type == "subagent.completed":
         print(f"✅ Sub-agent completed: {event.data.agent_display_name}")
-    elif event.type == SessionEventType.SUBAGENT_FAILED:
+    elif event.type == "subagent.failed":
         print(f"❌ Sub-agent failed: {event.data.agent_display_name}")
         print(f"  Error: {event.data.error}")
-    elif event.type == SessionEventType.SUBAGENT_SELECTED:
+    elif event.type == "subagent.selected":
         tools = event.data.tools or "all"
         print(f"🎯 Agent selected: {event.data.agent_display_name} (tools: {tools})")
 
@@ -831,30 +823,28 @@ const session = await client.createSession({
 
 ```python
 from copilot import CopilotClient
-from copilot.session import PermissionHandler
-from copilot.tools import Tool, ToolHandler
+from copilot.tools import Tool
 
-async def create_research_session(client: CopilotClient, analyze_handler: ToolHandler):
-    heavy_tool = Tool(
-        name="analyze-codebase",
-        description="Performs deep analysis of the codebase",
-        handler=analyze_handler,
-        parameters={"type": "object", "properties": {"query": {"type": "string"}}},
-    )
+heavy_tool = Tool(
+    name="analyze-codebase",
+    description="Performs deep analysis of the codebase",
+    handler=analyze_handler,
+    parameters={"type": "object", "properties": {"query": {"type": "string"}}},
+)
 
-    return await client.create_session(
-        tools=[heavy_tool],
-        default_agent={"excluded_tools": ["analyze-codebase"]},
-        custom_agents=[
-            {
-                "name": "researcher",
-                "description": "Deep codebase analysis agent",
-                "tools": ["analyze-codebase"],
-                "prompt": "You perform thorough codebase analysis.",
-            },
-        ],
-        on_permission_request=PermissionHandler.approve_all,
-    )
+session = await client.create_session(
+    tools=[heavy_tool],
+    default_agent={"excluded_tools": ["analyze-codebase"]},
+    custom_agents=[
+        {
+            "name": "researcher",
+            "description": "Deep codebase analysis agent",
+            "tools": ["analyze-codebase"],
+            "prompt": "You perform thorough codebase analysis.",
+        },
+    ],
+    on_permission_request=approve_all,
+)
 ```
 
 </details>

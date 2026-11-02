@@ -29,8 +29,7 @@ def _request(kind="identity"):
     return {"request": request}
 
 
-@pytest.mark.parametrize("mats_app_name", [None, "SDK Test Host"])
-async def test_typed_identity_and_resource_acquisition_does_not_serialize_callback(mats_app_name):
+async def test_typed_identity_and_resource_acquisition_does_not_serialize_callback():
     observed = []
 
     async def provider(request, context):
@@ -48,11 +47,8 @@ async def test_typed_identity_and_resource_acquisition_does_not_serialize_callba
             access_token="host-resource-token",
         )
 
-    options = EntraAuthOptions("host-client", provider, mats_app_name=mats_app_name)
-    expected = {"clientId": "host-client"}
-    if mats_app_name is not None:
-        expected["matsAppName"] = mats_app_name
-    assert options.to_dict() == expected
+    options = EntraAuthOptions(client_id="host-client", token_provider=provider)
+    assert options.to_dict() == {"clientId": "host-client"}
     harness = await _connect(entra=options)
     try:
         assert observed == []

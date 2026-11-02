@@ -16,7 +16,6 @@ import com.github.copilot.CopilotExperimental;
 @CopilotExperimental
 public final class EntraAuthOptions {
     private String clientId;
-    private String matsAppName;
     private EntraTokenProvider tokenProvider;
 
     /** @return the host application's Entra client ID */
@@ -31,22 +30,6 @@ public final class EntraAuthOptions {
      */
     public EntraAuthOptions setClientId(String clientId) {
         this.clientId = Objects.requireNonNull(clientId, "clientId must not be null");
-        return this;
-    }
-
-    /** @return the host's MATS name, or null to disable OneAuth MATS telemetry */
-    public String getMatsAppName() {
-        return matsAppName;
-    }
-
-    /**
-     * @param matsAppName
-     *            the host's MATS name; null or blank disables OneAuth MATS
-     *            telemetry
-     * @return this options instance
-     */
-    public EntraAuthOptions setMatsAppName(String matsAppName) {
-        this.matsAppName = matsAppName;
         return this;
     }
 

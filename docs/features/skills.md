@@ -42,8 +42,7 @@ await session.sendAndWait({ prompt: "Review this code for security issues" });
 <summary><strong>Python</strong></summary>
 
 ```python
-from copilot import CopilotClient
-from copilot.session import PermissionDecisionApproveOnce
+from copilot import CopilotClient, PermissionDecisionApproveOnce
 
 async def main():
     client = CopilotClient()
@@ -192,10 +191,7 @@ const session = await client.createSession({
 <summary><strong>Python</strong></summary>
 
 ```python
-from copilot import CopilotClient
 from copilot.session import PermissionHandler
-
-client = CopilotClient()
 
 session = await client.create_session(
     on_permission_request=PermissionHandler.approve_all,
@@ -310,7 +306,7 @@ skills/
     └── SKILL.md
 ```
 
-The `skillDirectories` option points to the parent directory (e.g., `./skills`). The CLI searches that directory recursively and loads the topmost `SKILL.md` on each path, so skills grouped in category folders (for example `skills/testing/coverage/SKILL.md`) are found too. It does not look inside a directory that already holds a `SKILL.md`: files nested in a skill's folder are that skill's resources, not separate skills. Directories whose names start with `.` are skipped.
+The `skillDirectories` option points to the parent directory (e.g., `./skills`). The CLI discovers all `SKILL.md` files in immediate subdirectories.
 
 ### SKILL.md format
 

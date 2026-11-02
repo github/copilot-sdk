@@ -7,9 +7,9 @@ launch a companion process or second runtime, or relay host traffic through the 
 
 ## Source layout
 
-The implementation spans the runtime repository and the hosting library it links.
+The implementation spans `github/copilot-agent-runtime` and `github/copilot-host`.
 Build from the runtime checkout; Cargo obtains the pinned `copilotd-hosting`
-library from its recorded Git source.
+library from the host repository.
 The SDK lives in the runtime repository at `src/sdk`; its source revision is
 the runtime commit, not a separate `github/copilot-sdk` commit. Run SDK commands
 from `src/sdk` unless a command names another working directory.
@@ -232,9 +232,9 @@ from copilot.rpc import HostLocalServerOptions
 
 async def start_application_host(client: CopilotClient):
     async def create(request: AhpSessionCreateRequest):
-        config = request.config.copy()
-        config["on_permission_request"] = PermissionHandler.approve_all
-        return await client.create_session(**config)
+        return await client.create_session(
+            **{**request.config, "on_permission_request": PermissionHandler.approve_all}
+        )
 
     async def release(session: CopilotSession):
         await session.disconnect()
@@ -535,16 +535,18 @@ behavior, and does not add standalone/in-process shared-writer support.
 In-process hosting does not yet provide traditional copilotd's propagation of an AHP session's
 GHES credential to shell `gh` commands. Ordinary per-session authentication is
 unchanged. General support belongs in the runtime's existing per-session shell
-credential capability and is tracked as a runtime issue.
+credential capability and is tracked in
+[runtime #22077](https://github.com/github/copilot-agent-runtime/issues/22077).
 The experimental credential workaround and new command-target policy have been
 removed. Traditional copilotd retains its existing Enterprise-token subprocess
 seeding and is unaffected.
 
 ## Local-development requirements
 
-Use the runtime checkout, including its Rust SDK in `src/sdk/rust`.
+Use the runtime checkout, including its Rust SDK in
+`copilot-agent-runtime/src/sdk/rust`.
 The runtime provider links the `copilotd-hosting` library at the immutable
-Git revision recorded in the runtime's `Cargo.lock`. Its own SDK
+`copilot-host` Git revision recorded in the runtime's `Cargo.lock`. Its own SDK
 dependency is runtime-free; do not patch that dependency to the runtime-bearing
 SDK build or stage a separate host executable.
 
@@ -655,8 +657,8 @@ is not claimed to implement the new host operations. Generated bindings in this
 branch come from the companion runtime's local schema, so release-based code
 generation must use that same companion release when its pin is advanced.
 
-The runtime repository's `.github/workflows/sdk-rust.yml` runs SDK feature checks in active
-monorepo CI.
+The canonical `.github/workflows/sdk-rust.yml` runs SDK feature checks in active
+monorepo CI and is mirrored to `src/sdk/.github/workflows/sdk-rust.yml` for export.
 Its runtime-free feature checks do not activate the opt-in AHP E2Es.
 
 The coordinated follow-up is: publish the integrated runtime artifacts, provision private

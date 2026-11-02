@@ -16,6 +16,7 @@ public class ElicitationContext {
     private ElicitationSchema requestedSchema;
     private String mode;
     private String elicitationSource;
+    private String elicitationSourceDisplayName;
     private String url;
 
     /**
@@ -92,6 +93,28 @@ public class ElicitationContext {
      */
     public ElicitationContext setElicitationSource(String elicitationSource) {
         this.elicitationSource = elicitationSource;
+        return this;
+    }
+
+    /**
+     * Gets the trusted display label of a Connector-owned MCP server that initiated
+     * the request, such as "Work IQ".
+     *
+     * @return the display label, or {@code null}
+     */
+    public String getElicitationSourceDisplayName() {
+        return elicitationSourceDisplayName;
+    }
+
+    /**
+     * Sets the elicitation source display label.
+     *
+     * @param elicitationSourceDisplayName
+     *            the display label
+     * @return this
+     */
+    public ElicitationContext setElicitationSourceDisplayName(String elicitationSourceDisplayName) {
+        this.elicitationSourceDisplayName = elicitationSourceDisplayName;
         return this;
     }
 

@@ -181,11 +181,6 @@ async fn connect_forwards_optional_entra_configuration() {
         None,
         Some(EntraAuthConfig {
             client_id: "host-entra-client".into(),
-            mats_app_name: None,
-        }),
-        Some(EntraAuthConfig {
-            client_id: "host-entra-client".into(),
-            mats_app_name: Some("Host App".into()),
         }),
     ] {
         let temp = tempfile::tempdir().unwrap();
@@ -194,13 +189,12 @@ async fn connect_forwards_optional_entra_configuration() {
         let (server_read, server_write) = tokio::io::split(server_stream);
         let client = Client::from_transport(
             client_read,
-            jsonrpc::MessageWriter::stream(client_write),
+            client_write,
             None,
             None,
             temp.path().to_owned(),
             None,
             None,
-            false,
             false,
             false,
             false,
@@ -240,13 +234,7 @@ async fn connect_forwards_optional_entra_configuration() {
         assert_eq!(
             params.get("entra"),
             entra
-                .map(|config| {
-                    let mut expected = serde_json::json!({ "clientId": config.client_id });
-                    if let Some(name) = config.mats_app_name {
-                        expected["matsAppName"] = name.into();
-                    }
-                    expected
-                })
+                .map(|config| serde_json::json!({ "clientId": config.client_id }))
                 .as_ref(),
         );
     }
@@ -344,7 +332,6 @@ fn client_options_builder_composes() {
         .with_github_token("ghp_test")
         .with_entra(EntraAuthConfig {
             client_id: "host-entra-client".into(),
-            mats_app_name: None,
         })
         .with_use_logged_in_user(false)
         .with_log_level(LogLevel::Debug)
@@ -377,10 +364,6 @@ fn default_transport_values_resolve_without_process_state() {
         Transport::Stdio
     ));
     assert!(matches!(
-        resolve_default_transport_value(Some("")).unwrap(),
-        Transport::Stdio
-    ));
-    assert!(matches!(
         resolve_default_transport_value(Some("stdio")).unwrap(),
         Transport::Stdio
     ));
@@ -388,47 +371,23 @@ fn default_transport_values_resolve_without_process_state() {
         resolve_default_transport_value(Some("INPROCESS")).unwrap(),
         Transport::InProcess
     ));
-    let error = resolve_default_transport_value(Some("tcp")).unwrap_err();
-    assert!(matches!(error.kind(), ErrorKind::InvalidConfig));
-    let message = error.message().expect("error message");
-    assert!(
-        message.contains(DEFAULT_CONNECTION_ENV_VAR) && message.contains("'tcp'"),
-        "{message}"
-    );
+    assert!(resolve_default_transport_value(Some("tcp")).is_err());
 }
 
 #[test]
 fn inprocess_rejects_process_scoped_options() {
     let invalid = [
-        ("working_directory", ClientOptions::new().with_cwd(".")),
-        ("env", ClientOptions::new().with_env([("KEY", "value")])),
-        ("env_remove", ClientOptions::new().with_env_remove(["KEY"])),
-        (
-            "telemetry",
-            ClientOptions::new().with_telemetry(TelemetryConfig::default()),
-        ),
-        (
-            "prefix_args",
-            ClientOptions::new().with_prefix_args(["index.js"]),
-        ),
-        (
-            "program",
-            ClientOptions::new().with_program(CliProgram::Path("copilot".into())),
-        ),
-        (
-            "extra_args",
-            ClientOptions::new().with_extra_args(["--verbose"]),
-        ),
+        ClientOptions::new().with_cwd("."),
+        ClientOptions::new().with_env([("KEY", "value")]),
+        ClientOptions::new().with_env_remove(["KEY"]),
+        ClientOptions::new().with_telemetry(TelemetryConfig::default()),
+        ClientOptions::new().with_prefix_args(["index.js"]),
+        ClientOptions::new().with_program(CliProgram::Path("copilot".into())),
+        ClientOptions::new().with_extra_args(["--verbose"]),
     ];
 
-    for (option, options) in invalid {
-        let error = validate_inprocess_options(&options).unwrap_err();
-        assert!(matches!(error.kind(), ErrorKind::InvalidConfig), "{option}");
-        let message = error.message().expect("error message");
-        assert!(
-            message.starts_with(&format!("ClientOptions::{option} is not supported")),
-            "{option}: {message}"
-        );
+    for options in invalid {
+        assert!(validate_inprocess_options(&options).is_err());
     }
 }
 
@@ -441,59 +400,9 @@ fn inprocess_allows_typed_runtime_options() {
         .with_session_idle_timeout_seconds(10)
         .with_github_token("token")
         .with_use_logged_in_user(false)
-        .with_disable_client_telemetry(true)
         .with_enable_remote_sessions(true);
 
     assert!(validate_inprocess_options(&options).is_ok());
-}
-
-#[test]
-fn inprocess_captures_the_client_telemetry_option_without_changing_other_settings() {
-    for disabled in [false, true] {
-        let options = ClientOptions::new()
-            .with_base_directory("isolated-state")
-            .with_github_token("fixture-token")
-            .with_disable_client_telemetry(disabled);
-        let environment = inprocess_environment(&options).unwrap();
-        assert!(environment.contains(&("COPILOT_HOME".to_owned(), "isolated-state".to_owned())));
-        assert!(environment.contains(&(
-            "COPILOT_SDK_AUTH_TOKEN".to_owned(),
-            "fixture-token".to_owned()
-        )));
-        assert_eq!(
-            environment
-                .iter()
-                .any(|(key, value)| key == "COPILOT_TELEMETRY_DISABLED" && value == "true"),
-            disabled
-        );
-    }
-}
-
-#[test]
-fn inprocess_sends_only_typed_overrides() {
-    let options = ClientOptions::new().with_base_directory("isolated-state");
-    let environment = inprocess_environment(&options).unwrap();
-    assert_eq!(
-        environment,
-        vec![("COPILOT_HOME".to_owned(), "isolated-state".to_owned())]
-    );
-    assert!(
-        inprocess_environment(&ClientOptions::new())
-            .unwrap()
-            .is_empty()
-    );
-}
-
-#[test]
-fn build_command_honors_the_client_telemetry_option_over_an_environment_override() {
-    let options = ClientOptions::new()
-        .with_disable_client_telemetry(true)
-        .with_env([("COPILOT_TELEMETRY_DISABLED", "false")]);
-    let command = Client::build_command(Path::new("copilot"), &options, Path::new("."));
-    assert_eq!(
-        env_value(&command, "COPILOT_TELEMETRY_DISABLED"),
-        Some(std::ffi::OsStr::new("true"))
-    );
 }
 
 #[cfg(not(feature = "in-process"))]
@@ -668,31 +577,11 @@ fn build_command_omits_otel_env_when_telemetry_none() {
         "COPILOT_OTEL_FILE_EXPORTER_PATH",
         "COPILOT_OTEL_EXPORTER_TYPE",
         "COPILOT_OTEL_SOURCE_NAME",
-        "OTEL_INSTRUMENTATION_GENAI_CAPTURE_CONTENT",
         "OTEL_INSTRUMENTATION_GENAI_CAPTURE_MESSAGE_CONTENT",
     ] {
         assert!(
             env_value(&cmd, key).is_none(),
             "expected {key} to be unset when telemetry is None",
-        );
-    }
-}
-
-#[test]
-fn build_command_sets_standard_and_legacy_capture_modes() {
-    for (capture, mode) in [(true, "SPAN_ONLY"), (false, "NO_CONTENT")] {
-        let opts = ClientOptions {
-            telemetry: Some(TelemetryConfig::new().with_capture_content(capture)),
-            ..Default::default()
-        };
-        let cmd = Client::build_command(Path::new("/bin/echo"), &opts, Path::new("/tmp"));
-        assert_eq!(
-            env_value(&cmd, "OTEL_INSTRUMENTATION_GENAI_CAPTURE_CONTENT"),
-            Some(std::ffi::OsStr::new(mode)),
-        );
-        assert_eq!(
-            env_value(&cmd, "OTEL_INSTRUMENTATION_GENAI_CAPTURE_MESSAGE_CONTENT"),
-            Some(std::ffi::OsStr::new(if capture { "true" } else { "false" })),
         );
     }
 }
@@ -722,7 +611,6 @@ fn build_command_omits_unset_telemetry_fields() {
         "COPILOT_OTEL_FILE_EXPORTER_PATH",
         "COPILOT_OTEL_EXPORTER_TYPE",
         "COPILOT_OTEL_SOURCE_NAME",
-        "OTEL_INSTRUMENTATION_GENAI_CAPTURE_CONTENT",
         "OTEL_INSTRUMENTATION_GENAI_CAPTURE_MESSAGE_CONTENT",
     ] {
         assert!(env_value(&cmd, key).is_none(), "{key} should be unset");
@@ -734,23 +622,12 @@ fn build_command_lets_user_env_override_telemetry() {
     let opts = ClientOptions {
         telemetry: Some(TelemetryConfig {
             otlp_endpoint: Some("http://from-config:4318".to_string()),
-            capture_content: Some(true),
             ..Default::default()
         }),
-        env: vec![
-            (
-                std::ffi::OsString::from("OTEL_EXPORTER_OTLP_ENDPOINT"),
-                std::ffi::OsString::from("http://from-user-env:4318"),
-            ),
-            (
-                std::ffi::OsString::from("OTEL_INSTRUMENTATION_GENAI_CAPTURE_CONTENT"),
-                std::ffi::OsString::from("NO_CONTENT"),
-            ),
-            (
-                std::ffi::OsString::from("OTEL_INSTRUMENTATION_GENAI_CAPTURE_MESSAGE_CONTENT"),
-                std::ffi::OsString::from("false"),
-            ),
-        ],
+        env: vec![(
+            std::ffi::OsString::from("OTEL_EXPORTER_OTLP_ENDPOINT"),
+            std::ffi::OsString::from("http://from-user-env:4318"),
+        )],
         ..Default::default()
     };
     let cmd = Client::build_command(Path::new("/bin/echo"), &opts, Path::new("/tmp"));
@@ -758,145 +635,6 @@ fn build_command_lets_user_env_override_telemetry() {
         env_value(&cmd, "OTEL_EXPORTER_OTLP_ENDPOINT"),
         Some(std::ffi::OsStr::new("http://from-user-env:4318")),
         "user-supplied options.env should override telemetry config",
-    );
-    assert_eq!(
-        env_value(&cmd, "OTEL_INSTRUMENTATION_GENAI_CAPTURE_CONTENT"),
-        Some(std::ffi::OsStr::new("NO_CONTENT")),
-    );
-    assert_eq!(
-        env_value(&cmd, "OTEL_INSTRUMENTATION_GENAI_CAPTURE_MESSAGE_CONTENT"),
-        Some(std::ffi::OsStr::new("false")),
-    );
-}
-
-#[test]
-fn build_command_preserves_legacy_only_capture_overrides() {
-    for (configured, legacy, expected) in [
-        (true, "false", "NO_CONTENT"),
-        (false, "TrUe", "SPAN_ONLY"),
-        (true, "invalid", "NO_CONTENT"),
-    ] {
-        let opts = ClientOptions {
-            telemetry: Some(TelemetryConfig::new().with_capture_content(configured)),
-            env: vec![(
-                "OTEL_INSTRUMENTATION_GENAI_CAPTURE_MESSAGE_CONTENT".into(),
-                legacy.into(),
-            )],
-            ..Default::default()
-        };
-        let cmd = Client::build_command(Path::new("/bin/echo"), &opts, Path::new("/tmp"));
-        assert_eq!(
-            env_value(&cmd, "OTEL_INSTRUMENTATION_GENAI_CAPTURE_CONTENT"),
-            Some(std::ffi::OsStr::new(expected)),
-        );
-        assert_eq!(
-            env_value(&cmd, "OTEL_INSTRUMENTATION_GENAI_CAPTURE_MESSAGE_CONTENT"),
-            Some(std::ffi::OsStr::new(legacy)),
-        );
-    }
-}
-
-#[test]
-fn build_command_explicit_standard_mode_overrides_legacy_capture() {
-    let opts = ClientOptions {
-        telemetry: Some(TelemetryConfig::new().with_capture_content(true)),
-        env: vec![
-            (
-                "OTEL_INSTRUMENTATION_GENAI_CAPTURE_MESSAGE_CONTENT".into(),
-                "false".into(),
-            ),
-            (
-                "OTEL_INSTRUMENTATION_GENAI_CAPTURE_CONTENT".into(),
-                "SPAN_AND_EVENT".into(),
-            ),
-        ],
-        ..Default::default()
-    };
-    let cmd = Client::build_command(Path::new("/bin/echo"), &opts, Path::new("/tmp"));
-    assert_eq!(
-        env_value(&cmd, "OTEL_INSTRUMENTATION_GENAI_CAPTURE_CONTENT"),
-        Some(std::ffi::OsStr::new("SPAN_AND_EVENT")),
-    );
-}
-
-#[test]
-fn build_command_removing_legacy_capture_disables_synthesized_capture() {
-    let opts = ClientOptions {
-        telemetry: Some(TelemetryConfig::new().with_capture_content(true)),
-        env_remove: vec!["OTEL_INSTRUMENTATION_GENAI_CAPTURE_MESSAGE_CONTENT".into()],
-        ..Default::default()
-    };
-    let cmd = Client::build_command(Path::new("/bin/echo"), &opts, Path::new("/tmp"));
-    assert_eq!(
-        env_value(&cmd, "OTEL_INSTRUMENTATION_GENAI_CAPTURE_CONTENT"),
-        Some(std::ffi::OsStr::new("NO_CONTENT")),
-    );
-    assert!(env_value(&cmd, "OTEL_INSTRUMENTATION_GENAI_CAPTURE_MESSAGE_CONTENT").is_none());
-}
-
-#[test]
-fn build_command_capture_env_keys_follow_platform_casing() {
-    for configured in [false, true] {
-        for duplicate in [false, true] {
-            let mut env = Vec::new();
-            if duplicate {
-                env.push((
-                    "OTEL_INSTRUMENTATION_GENAI_CAPTURE_MESSAGE_CONTENT".into(),
-                    if configured { "true" } else { "false" }.into(),
-                ));
-            }
-            env.push((
-                "otel_instrumentation_genai_capture_message_content".into(),
-                if configured { "false" } else { "true" }.into(),
-            ));
-            let opts = ClientOptions {
-                telemetry: Some(TelemetryConfig::new().with_capture_content(configured)),
-                env,
-                ..Default::default()
-            };
-            let cmd = Client::build_command(Path::new("copilot"), &opts, Path::new("."));
-            let capture = if cfg!(windows) {
-                !configured
-            } else {
-                configured
-            };
-            assert_eq!(
-                env_value(&cmd, "OTEL_INSTRUMENTATION_GENAI_CAPTURE_CONTENT"),
-                Some(std::ffi::OsStr::new(if capture {
-                    "SPAN_ONLY"
-                } else {
-                    "NO_CONTENT"
-                })),
-                "configured={configured}, duplicate={duplicate}",
-            );
-        }
-    }
-}
-
-#[test]
-fn build_command_capture_env_removals_follow_platform_casing() {
-    let opts = ClientOptions {
-        telemetry: Some(TelemetryConfig::new().with_capture_content(false)),
-        env: vec![(
-            "OTEL_INSTRUMENTATION_GENAI_CAPTURE_MESSAGE_CONTENT".into(),
-            "true".into(),
-        )],
-        env_remove: vec!["otel_instrumentation_genai_capture_message_content".into()],
-        ..Default::default()
-    };
-    let cmd = Client::build_command(Path::new("copilot"), &opts, Path::new("."));
-    let capture = !cfg!(windows);
-    assert_eq!(
-        env_value(&cmd, "OTEL_INSTRUMENTATION_GENAI_CAPTURE_CONTENT"),
-        Some(std::ffi::OsStr::new(if capture {
-            "SPAN_ONLY"
-        } else {
-            "NO_CONTENT"
-        })),
-    );
-    assert_eq!(
-        env_value(&cmd, "OTEL_INSTRUMENTATION_GENAI_CAPTURE_MESSAGE_CONTENT"),
-        capture.then_some(std::ffi::OsStr::new("true")),
     );
 }
 
@@ -1188,27 +926,6 @@ async fn list_models_serializes_concurrent_cache_misses() {
 }
 
 #[tokio::test]
-async fn connection_state_tracks_construction_stop_and_force_stop() {
-    for force in [false, true] {
-        let (client_write, _server_read) = tokio::io::duplex(8192);
-        let (_server_write, client_read) = tokio::io::duplex(8192);
-        let client = Client::from_streams(client_read, client_write, std::env::temp_dir()).unwrap();
-        assert_eq!(*client.inner.state.lock(), ConnectionState::Connected);
-
-        if force {
-            client.force_stop();
-        } else {
-            client.stop().await.expect("stop a client with no child");
-        }
-        assert_eq!(
-            *client.inner.state.lock(),
-            ConnectionState::Disconnected,
-            "force={force}"
-        );
-    }
-}
-
-#[tokio::test]
 async fn cancelled_resume_session_unregisters_pending_session() {
     let (client_write, _server_read) = tokio::io::duplex(8192);
     let (_server_write, client_read) = tokio::io::duplex(8192);
@@ -1237,25 +954,20 @@ async fn cancelled_resume_session_unregisters_pending_session() {
 async fn dropping_last_client_kills_spawned_cli() {
     let temp = tempfile::tempdir().unwrap();
     let ready = temp.path().join("ready");
-    // `Client::build_command` sets `kill_on_drop(true)`, so dropping the
-    // `Child` the client owns would kill the process even if the client's
-    // own drop never sent a kill. Turn it off so only that kill can stop it.
-    let mut child = test_child_command(temp.path(), &ready)
-        .kill_on_drop(false)
+    let survived = temp.path().join("survived");
+    let child = test_child_command(temp.path(), &ready, &survived)
         .spawn()
         .unwrap();
-    let exited = child.stdout.take().expect("piped child stdout");
     let (client_write, _server_read) = tokio::io::duplex(64);
     let (_server_write, client_read) = tokio::io::duplex(64);
     let client = Client::from_transport(
         client_read,
-        jsonrpc::MessageWriter::stream(client_write),
+        client_write,
         Some(child),
         None,
         temp.path().to_path_buf(),
         None,
         None,
-        false,
         false,
         false,
         false,
@@ -1272,7 +984,7 @@ async fn dropping_last_client_kills_spawned_cli() {
     wait_for_test_child(&ready).await;
     drop(client);
 
-    assert_test_child_killed(exited).await;
+    assert_test_child_killed(&survived).await;
 }
 
 #[cfg(any(unix, windows))]
@@ -1280,19 +992,19 @@ async fn dropping_last_client_kills_spawned_cli() {
 async fn spawned_child_is_killed_when_dropped() {
     let temp = tempfile::tempdir().unwrap();
     let ready = temp.path().join("ready");
-    let mut child = test_child_command(temp.path(), &ready).spawn().unwrap();
-    let exited = child.stdout.take().expect("piped child stdout");
+    let survived = temp.path().join("survived");
+    let child = test_child_command(temp.path(), &ready, &survived)
+        .spawn()
+        .unwrap();
 
     wait_for_test_child(&ready).await;
     drop(child);
 
-    assert_test_child_killed(exited).await;
+    assert_test_child_killed(&survived).await;
 }
 
-/// A child that reports readiness, then idles for a minute without writing to
-/// its piped stdout, so EOF on that pipe means the process exited.
 #[cfg(any(unix, windows))]
-fn test_child_command(temp: &Path, ready: &Path) -> Command {
+fn test_child_command(temp: &Path, ready: &Path, survived: &Path) -> Command {
     let mut command = Client::build_command(Path::new("node"), &ClientOptions::default(), temp);
     #[cfg(windows)]
     {
@@ -1305,11 +1017,11 @@ fn test_child_command(temp: &Path, ready: &Path) -> Command {
             r#"
                 const fs = require("node:fs");
                 fs.writeFileSync(process.env.READY, "ready");
-                setTimeout(() => {}, 60_000);
+                setTimeout(() => fs.writeFileSync(process.env.SURVIVED, "survived"), 1000);
                 "#,
         ])
         .env("READY", ready)
-        .stdout(Stdio::piped())
+        .env("SURVIVED", survived)
         .stderr(Stdio::inherit());
     command
 }
@@ -1326,19 +1038,14 @@ async fn wait_for_test_child(ready: &Path) {
     }
 }
 
-/// Waits for EOF on the child's stdout, which arrives only once the process
-/// has exited. A child nobody killed keeps the pipe open for its full minute.
 #[cfg(any(unix, windows))]
-async fn assert_test_child_killed(mut stdout: tokio::process::ChildStdout) {
-    let mut output = Vec::new();
-    tokio::time::timeout(
-        Duration::from_secs(10),
-        tokio::io::AsyncReadExt::read_to_end(&mut stdout, &mut output),
-    )
-    .await
-    .expect("child survived after its owner was dropped")
-    .expect("read child stdout");
-    assert!(output.is_empty(), "test child wrote to stdout");
+async fn assert_test_child_killed(survived: &Path) {
+    tokio::time::sleep(Duration::from_millis(1500)).await;
+
+    assert!(
+        !survived.exists(),
+        "child survived after its owner was dropped"
+    );
 }
 
 fn client_with_list_models_handler(handler: Arc<dyn ListModelsHandler>) -> Client {
@@ -1373,7 +1080,6 @@ fn client_with_list_models_handler(handler: Arc<dyn ListModelsHandler>) -> Clien
             session_fs_configured: false,
             session_fs_sqlite_declared: false,
             session_fs_binary_declared: false,
-            session_fs_read_file_range_declared: false,
             llm_inference: OnceLock::new(),
             extension_launch_provider: Arc::new(
                 extension_launch_provider::ExtensionLaunchProviderDispatcher::new(None),

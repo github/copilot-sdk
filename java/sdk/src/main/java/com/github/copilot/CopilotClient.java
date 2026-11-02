@@ -768,8 +768,7 @@ public final class CopilotClient implements AutoCloseable {
             }
             connectParams.put("supportedTaskKinds", List.of("agent", "client", "shell"));
             if (this.options.getEntra() != null) {
-                connectParams.put("entra", new com.github.copilot.generated.rpc.EntraAuthConfig(
-                        this.options.getEntra().getClientId(), this.options.getEntra().getMatsAppName()));
+                connectParams.put("entra", Map.of("clientId", this.options.getEntra().getClientId()));
                 if (this.options.getEntra().getTokenProvider() != null) {
                     connectParams.put("entraTokenProvider", true);
                 }

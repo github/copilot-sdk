@@ -207,14 +207,12 @@ client.start().get();
 <summary><strong>Python</strong></summary>
 
 ```python
-import os
 from copilot import CopilotClient
 
-user_access_token = os.environ["GITHUB_TOKEN"]  # Token from OAuth flow
-client = CopilotClient(
-    github_token=user_access_token,
-    use_logged_in_user=False,  # Don't use stored CLI credentials
-)
+client = CopilotClient({
+    "github_token": user_access_token,  # Token from OAuth flow
+    "use_logged_in_user": False,        # Don't use stored CLI credentials
+})
 await client.start()
 ```
 
@@ -594,12 +592,16 @@ client.start().get();
 ```python
 from copilot import CopilotClient
 
-client = CopilotClient(use_logged_in_user=False)
+client = CopilotClient({
+    "use_logged_in_user": False,
+})
 ```
 <!-- /docs-validate: hidden -->
 
 ```python
-client = CopilotClient(use_logged_in_user=False)  # Only use explicit tokens
+client = CopilotClient({
+    "use_logged_in_user": False,  # Only use explicit tokens
+})
 ```
 
 </details>

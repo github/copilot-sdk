@@ -11,7 +11,6 @@ from . import rpc as rpc  # noqa: F401  -- register the public ``copilot.rpc`` n
 
 # Register the public ``copilot.session_events`` namespace.
 from . import session_events as session_events  # noqa: F401
-from ._jsonrpc import JsonRpcError
 from ._mode import (
     BUILTIN_TOOLS_ISOLATED,
     CopilotClientMode,
@@ -115,8 +114,6 @@ from .generated.rpc import (
     GitHubTokenAcquireReason,
     GitHubTokenAcquireResult,
     GitHubTokenAcquireResultKind,
-    HostDiagnostics,
-    HostErrorReportingStatus,
     KerberosAuthAcquireRequest,
     KerberosAuthMode,
     KerberosAuthScope,
@@ -257,10 +254,8 @@ from .session import (
 )
 from .session_fs_provider import (
     SessionFsBinaryProvider,
-    SessionFsByteRange,
     SessionFsFileInfo,
     SessionFsProvider,
-    SessionFsReadFileRangeProvider,
     SessionFsSqliteProvider,
     SessionFsSqliteQueryResult,
     SessionFsSqliteTransactionFailure,
@@ -287,7 +282,6 @@ except PackageNotFoundError:
     __version__ = "0.0.0.dev0"
 
 __all__ = [
-    "JsonRpcError",
     "EntraAuthOptions",
     "EntraTokenAcquireReason",
     "EntraTokenAcquireRequestKind",
@@ -370,8 +364,6 @@ __all__ = [
     "GetAuthStatusResponse",
     "BearerTokenProvider",
     "GetStatusResponse",
-    "HostDiagnostics",
-    "HostErrorReportingStatus",
     "GitHubMcpToolConfig",
     "GitHubTelemetryClientInfo",
     "GitHubTelemetryEvent",
@@ -473,8 +465,6 @@ __all__ = [
     "SessionFsFileInfo",
     "SessionFsProvider",
     "SessionFsBinaryProvider",
-    "SessionFsByteRange",
-    "SessionFsReadFileRangeProvider",
     "SessionFsSqliteProvider",
     "SessionFsSqliteQueryResult",
     "SessionFsSqliteTransactionFailure",

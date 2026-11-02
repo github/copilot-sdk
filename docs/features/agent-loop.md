@@ -176,8 +176,9 @@ The number of `assistant.turn_start` / `assistant.turn_end` pairs in the event l
 
 To inspect turn count for a session:
 
-```typescript
-const turns = (await session.getEvents()).filter((event) => event.type === "assistant.turn_start").length;
+```bash
+# Count turns in a session's event log
+grep -c "assistant.turn_start" ~/.copilot/session-state/<sessionId>/events.jsonl
 ```
 
 ## Further reading

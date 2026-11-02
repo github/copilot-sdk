@@ -5,14 +5,11 @@ import (
 	"bytes"
 	"compress/gzip"
 	"crypto/sha256"
-	"errors"
-	"io"
 	"os"
 	"path/filepath"
 	"runtime"
 	"strings"
 	"testing"
-	"testing/iotest"
 )
 
 func resetGlobals() {
@@ -322,62 +319,6 @@ func TestInstallAtExistingBinaryHashMismatch(t *testing.T) {
 	_, err := installAt(tempDir)
 	if err == nil || !strings.Contains(err.Error(), "hash mismatch") {
 		t.Fatalf("expected hash mismatch error, got %v", err)
-	}
-}
-
-func TestInstallAtRejectsCLIBytesThatDoNotMatchCliHash(t *testing.T) {
-	resetGlobals()
-	tempDir := t.TempDir()
-	goodHash := sha256.Sum256([]byte("good"))
-	config = Config{
-		Cli:     bytes.NewReader([]byte("bad")),
-		CliHash: goodHash[:],
-	}
-
-	path, err := installAt(tempDir)
-	if err == nil || !strings.Contains(err.Error(), "hash mismatch") {
-		t.Fatalf("installAt() = %q, %v; want a hash mismatch error", path, err)
-	}
-	assertNoInstalledCLI(t, tempDir)
-}
-
-func TestInstallAtFailedCLIWriteCanBeRetried(t *testing.T) {
-	resetGlobals()
-	tempDir := t.TempDir()
-	content := []byte("good")
-	hash := sha256.Sum256(content)
-	config = Config{
-		Cli:     io.MultiReader(bytes.NewReader(content[:2]), iotest.ErrReader(errors.New("interrupted"))),
-		CliHash: hash[:],
-	}
-
-	if path, err := installAt(tempDir); err == nil {
-		t.Fatalf("installAt() = %q, nil; want the read error", path)
-	}
-	assertNoInstalledCLI(t, tempDir)
-
-	config.Cli = bytes.NewReader(content)
-	path, err := installAt(tempDir)
-	if err != nil {
-		t.Fatalf("retrying installAt(): %v", err)
-	}
-	if got, err := os.ReadFile(path); err != nil || !bytes.Equal(got, content) {
-		t.Fatalf("installed CLI content=%q err=%v", got, err)
-	}
-}
-
-// assertNoInstalledCLI fails if a failed install left anything in dir other
-// than the install lock.
-func assertNoInstalledCLI(t *testing.T, dir string) {
-	t.Helper()
-	entries, err := os.ReadDir(dir)
-	if err != nil {
-		t.Fatal(err)
-	}
-	for _, entry := range entries {
-		if entry.Name() != ".copilot-cli.lock" {
-			t.Fatalf("failed install left %q in %s", entry.Name(), dir)
-		}
 	}
 }
 

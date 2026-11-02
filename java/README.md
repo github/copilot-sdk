@@ -122,14 +122,14 @@ client.start().get();
 ```
 
 For the native standalone runtime, include
-`"COPILOT_TELEMETRY_DISABLED", "true"` in the environment map passed to
-`CopilotClientOptions.setEnvironment(...)` before startup to disable Copilot-owned
-GitHub and Entra authentication telemetry process-wide, including sessionless events.
+`"COPILOT_GITHUB_TELEMETRY_DISABLED", "true"` in the environment map passed to
+`CopilotClientOptions.setEnvironment(...)` before startup to disable direct
+GitHub telemetry uploads for the entire host, including sessionless events.
 Authentication, `setOnGitHubTelemetry(...)` forwarding, and user-configured
 OpenTelemetry export remain unchanged. This is separate from
 `SessionConfig.setEnableSessionTelemetry(false)`, which disables only a session's
-pipeline. The value must be exactly `"true"`; changing it requires a process
-restart. `COPILOT_GITHUB_TELEMETRY_DISABLED` remains native-runtime/GitHub-only. In-process connections
+pipeline. The value must be exactly `"true"`; changing it requires a runtime
+restart. The Node CLI host does not use this variable. In-process connections
 reject per-client environment maps; set the variable in the host process
 environment before starting the runtime instead.
 
@@ -632,11 +632,6 @@ class ProgressTools {
 }
 ```
 
-`@CopilotTool` and `@CopilotToolParam` are experimental.
-Compiling a tool class also compiles the companion class that the annotation processor generates for it, and that class implements an experimental interface.
-So the build needs `-Acopilot.experimental.allowed=true`; [Using experimental APIs](#using-experimental-apis) shows the Maven and Gradle settings.
-On JDK 23 and later, `javac` runs the SDK's annotation processors only when you ask for them, for example with `-proc:full`, and otherwise generates no companion class.
-
 Position examples:
 
 ```java
@@ -1087,7 +1082,7 @@ CI enforces both checks. Spotless runs explicitly in CI; `mvn verify` alone does
 
 #### Development Setup for native embedding
 
-Run native-runtime Maven commands from the `java` directory. Native packaging requires Node.js in addition to JDK 25 and Maven. In a standalone SDK checkout, `copilot-native/scripts/fetch-native.mjs` retrieves the pinned runtime package from the corresponding GitHub release. When the SDK is nested in the Copilot runtime source tree, it instead stages the same-checkout artifacts from `dist-cli`; run `pnpm run build:cli` from the runtime root first.
+Run native-runtime Maven commands from the `java` directory. Native packaging requires Node.js in addition to JDK 25 and Maven. In a standalone SDK checkout, `copilot-native/scripts/fetch-native.mjs` retrieves the pinned runtime package from the corresponding GitHub release. When the SDK is nested in `copilot-agent-runtime`, it instead stages the same-checkout artifacts from `dist-cli`; run `pnpm run build:cli` from the runtime repository first.
 
 On a native Linux glibc host, Maven activates `native-linux-x64` or `native-linux-arm64` for the matching architecture when `copilot.native.libc=glibc` is set. On a Linux musl host, Maven activates `native-linuxmusl-x64` or `native-linuxmusl-arm64` for the matching architecture when `copilot.native.libc=musl` is set. On Windows x64, Windows ARM64, Intel macOS, and Apple Silicon macOS, Maven activates `native-win32-x64`, `native-win32-arm64`, `native-darwin-x64`, or `native-darwin-arm64` automatically. The matching profile validates the host, runs the native script tests, stages the platform package during `generate-resources`, packages the classifier JAR during `package`, and verifies its native contents.
 

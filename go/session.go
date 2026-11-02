@@ -993,7 +993,6 @@ type permissionHandlerFunc func(
 	request PermissionRequest,
 	invocation PermissionInvocation,
 	promptRequest rpc.PermissionPromptRequest,
-	assistedApprovalAssessment rpc.AssistedApprovalAssessment,
 ) (rpc.PermissionDecision, error)
 
 // registerPermissionHandler registers a permission handler for this session.
@@ -1013,7 +1012,6 @@ func (s *Session) registerPermissionHandler(handler PermissionHandlerFunc) {
 		request PermissionRequest,
 		invocation PermissionInvocation,
 		_ rpc.PermissionPromptRequest,
-		_ rpc.AssistedApprovalAssessment,
 	) (rpc.PermissionDecision, error) {
 		return handler(request, invocation)
 	}
@@ -1029,12 +1027,10 @@ func (s *Session) registerPermissionHandlerWithPrompt(handler PermissionHandlerW
 		request PermissionRequest,
 		invocation PermissionInvocation,
 		promptRequest rpc.PermissionPromptRequest,
-		assistedApprovalAssessment rpc.AssistedApprovalAssessment,
 	) (rpc.PermissionDecision, error) {
 		return handler(request, PermissionHandlerInvocation{
-			PermissionInvocation:       invocation,
-			AssistedApprovalAssessment: assistedApprovalAssessment,
-			PromptRequest:              promptRequest,
+			PermissionInvocation: invocation,
+			PromptRequest:        promptRequest,
 		})
 	}
 }
@@ -1384,7 +1380,7 @@ func (s *Session) executeCommandAndRespond(requestID, commandName, command, args
 		Args:        args,
 	}
 
-	if err := callCommandHandler(handler, cmdCtx); err != nil {
+	if err := handler(cmdCtx); err != nil {
 		errMsg := err.Error()
 		s.RPC.Commands.HandlePendingCommand(ctx, &rpc.CommandsHandlePendingCommandRequest{
 			RequestID: requestID,
@@ -1396,17 +1392,6 @@ func (s *Session) executeCommandAndRespond(requestID, commandName, command, args
 	s.RPC.Commands.HandlePendingCommand(ctx, &rpc.CommandsHandlePendingCommandRequest{
 		RequestID: requestID,
 	})
-}
-
-// callCommandHandler runs a command handler and returns a panic as an error, so
-// the command is answered with that error instead of the panic ending the process.
-func callCommandHandler(handler CommandHandler, cmdCtx CommandContext) (err error) {
-	defer func() {
-		if r := recover(); r != nil {
-			err = fmt.Errorf("command panic: %v", r)
-		}
-	}()
-	return handler(cmdCtx)
 }
 
 // registerElicitationHandler registers an elicitation handler for this session.
@@ -1501,7 +1486,7 @@ func (s *Session) handleElicitationRequest(elicitCtx ElicitationContext, request
 
 	ctx := context.Background()
 
-	result, err := callElicitationHandler(handler, elicitCtx)
+	result, err := handler(elicitCtx)
 	if err != nil {
 		// Handler failed — attempt to cancel so the request doesn't hang.
 		s.RPC.UI.HandlePendingElicitation(ctx, &rpc.UIHandlePendingElicitationRequest{
@@ -1538,17 +1523,6 @@ func (s *Session) handleElicitationRequest(elicitCtx ElicitationContext, request
 			Content: rpcContent,
 		},
 	})
-}
-
-// callElicitationHandler runs an elicitation handler and returns a panic as an
-// error, so the request is cancelled instead of the panic ending the process.
-func callElicitationHandler(handler ElicitationHandler, elicitCtx ElicitationContext) (result ElicitationResult, err error) {
-	defer func() {
-		if r := recover(); r != nil {
-			err = fmt.Errorf("elicitation handler panic: %v", r)
-		}
-	}()
-	return handler(elicitCtx)
 }
 
 // toRPCContent converts an SDK content value to an RPC elicitation response value.
@@ -1624,27 +1598,6 @@ func (s *Session) setCapabilities(caps *SessionCapabilities) {
 	} else {
 		s.capabilities = SessionCapabilities{}
 	}
-}
-
-// applyUICapabilitiesChange applies a capabilities.changed payload, which names
-// only the capabilities that changed: anything it leaves out keeps its value.
-func (s *Session) applyUICapabilitiesChange(changed *CapabilitiesChangedUI) {
-	if changed.Elicitation == nil && changed.MCPApps == nil {
-		return
-	}
-	s.capabilitiesMu.Lock()
-	defer s.capabilitiesMu.Unlock()
-	var ui UICapabilities
-	if s.capabilities.UI != nil {
-		ui = *s.capabilities.UI
-	}
-	if changed.Elicitation != nil {
-		ui.Elicitation = *changed.Elicitation
-	}
-	if changed.MCPApps != nil {
-		ui.MCPApps = *changed.MCPApps
-	}
-	s.capabilities.UI = &ui
 }
 
 // UI returns the interactive UI API for showing elicitation dialogs.
@@ -1901,12 +1854,6 @@ func (s *Session) dispatchEvent(event SessionEvent) {
 
 	broadcastHandled := false
 	switch data := event.Data.(type) {
-	case *CapabilitiesChangedData:
-		// Apply deltas in notification order before subscribers can observe them.
-		if data.UI != nil {
-			s.applyUICapabilitiesChange(data.UI)
-		}
-		broadcastHandled = true
 	case *ExternalToolRequestedData:
 		var agentID string
 		if event.AgentID != nil {
@@ -2068,13 +2015,7 @@ func (s *Session) handleBroadcastEvent(event SessionEvent) {
 		if handler == nil {
 			return
 		}
-		s.executePermissionAndRespond(
-			d.RequestID,
-			d.PermissionRequest,
-			d.PromptRequest,
-			d.AssistedApprovalAssessment,
-			handler,
-		)
+		s.executePermissionAndRespond(d.RequestID, d.PermissionRequest, d.PromptRequest, handler)
 
 	case *MCPOauthRequiredData:
 		if d.RequestID == "" {
@@ -2123,13 +2064,21 @@ func (s *Session) handleBroadcastEvent(event SessionEvent) {
 			return
 		}
 		s.handleElicitationRequest(ElicitationContext{
-			SessionID:         s.SessionID,
-			Message:           d.Message,
-			RequestedSchema:   fromRPCElicitationRequestedSchema(d.RequestedSchema),
-			Mode:              d.Mode,
-			ElicitationSource: d.ElicitationSource,
-			URL:               d.URL,
+			SessionID:                    s.SessionID,
+			Message:                      d.Message,
+			RequestedSchema:              fromRPCElicitationRequestedSchema(d.RequestedSchema),
+			Mode:                         d.Mode,
+			ElicitationSource:            d.ElicitationSource,
+			ElicitationSourceDisplayName: d.ElicitationSourceDisplayName,
+			URL:                          d.URL,
 		}, d.RequestID)
+
+	case *CapabilitiesChangedData:
+		if d.UI != nil && d.UI.Elicitation != nil {
+			s.setCapabilities(&SessionCapabilities{
+				UI: &UICapabilities{Elicitation: *d.UI.Elicitation},
+			})
+		}
 	}
 }
 
@@ -2311,7 +2260,6 @@ func (s *Session) executePermissionAndRespond(
 	requestID string,
 	permissionRequest PermissionRequest,
 	promptRequest rpc.PermissionPromptRequest,
-	assistedApprovalAssessment rpc.AssistedApprovalAssessment,
 	handler permissionHandlerFunc,
 ) {
 	defer func() {
@@ -2328,12 +2276,7 @@ func (s *Session) executePermissionAndRespond(
 		ManagedSettingsEnabled: s.managedSettings,
 	}
 
-	decision, err := handler(
-		permissionRequest,
-		invocation,
-		promptRequest,
-		assistedApprovalAssessment,
-	)
+	decision, err := handler(permissionRequest, invocation, promptRequest)
 	if err != nil {
 		log.Printf("permission handler failed: session_id=%s request_id=%s error=%v", s.SessionID, requestID, err)
 		s.RPC.Permissions.HandlePendingPermissionRequest(context.Background(), &rpc.PermissionDecisionRequest{

@@ -37,7 +37,9 @@ public sealed class KerberosAuthConfig
     /// <remarks>
     /// <see cref="KerberosAuthAcquireRequest.Spn"/> uses the platform-independent <c>service/host[@REALM]</c> form;
     /// validate it before issuing credentials. Tokens must not be logged or persisted. Exceptions, including cancellation
-    /// not requested through the supplied <see cref="CancellationToken"/>, fail the lookup.
+    /// not requested through the supplied <see cref="CancellationToken"/>, fail the lookup. The callback is started on a
+    /// thread-pool thread and may block, for example while prompting for credentials; the supplied
+    /// <see cref="CancellationToken"/> is cancelled when the runtime abandons the request or the connection closes.
     /// </remarks>
     public required Func<KerberosAuthAcquireRequest, CancellationToken, Task<string?>> Callback { get; init; }
 }
@@ -65,7 +67,10 @@ internal sealed class KerberosAuthAdapter : IKerberosAuthHandler
     {
         try
         {
-            return new KerberosAuthAcquireResult { Token = await _callback(request, cancellationToken).ConfigureAwait(false) };
+            // Credential acquisition may block (e.g. on a prompt) before returning its task. Start it off the
+            // JSON-RPC reader so the reader can still deliver the runtime's cancellation of this request.
+            var token = await Task.Run(() => _callback(request, cancellationToken)).ConfigureAwait(false);
+            return new KerberosAuthAcquireResult { Token = token };
         }
         catch (OperationCanceledException ex) when (!cancellationToken.IsCancellationRequested)
         {

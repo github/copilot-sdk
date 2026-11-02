@@ -39,7 +39,9 @@ rust_library(
         "block-buffer",
         "core-api",
         "default",
+        "mac",
         "std",
+        "subtle",
     ],
     crate_root = "src/lib.rs",
     edition = "2018",
@@ -69,5 +71,6 @@ rust_library(
     deps = [
         "@sdk_vendor__block-buffer-0.10.4//:block_buffer",
         "@sdk_vendor__crypto-common-0.1.7//:crypto_common",
+        "@sdk_vendor__subtle-2.6.1//:subtle",
     ],
 )
