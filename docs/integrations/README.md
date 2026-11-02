@@ -3,3 +3,4 @@
 Guides for using the GitHub Copilot SDK with other platforms and frameworks.
 
 * [Microsoft Agent Framework](./microsoft-agent-framework.md): MAF multi-agent workflows
+* [tokenjuice](./tokenjuice.md): Compact successful Bash results through a post-tool hook
