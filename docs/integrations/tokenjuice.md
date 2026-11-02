@@ -51,8 +51,9 @@ export function withTokenjuice(config: SessionConfig): SessionConfig {
 }
 ```
 
-For an application without an existing post-tool hook, use
-`hooks: createCopilotSdkHooks()` directly. Retain the rest of your session
+For a session configuration with no existing hooks, use
+`hooks: createCopilotSdkHooks()` directly. If any hooks are already configured,
+use the helper above to preserve them. Retain the rest of your session
 configuration, including `onPermissionRequest`. The adapter does not approve or
 execute tool calls.
 
