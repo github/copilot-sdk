@@ -747,6 +747,12 @@ func unmarshalAttachment(data []byte) (Attachment, error) {
 			return nil, err
 		}
 		return &d, nil
+	case AttachmentTypeSessionReference:
+		var d AttachmentSessionReference
+		if err := json.Unmarshal(data, &d); err != nil {
+			return nil, err
+		}
+		return &d, nil
 	default:
 		return &RawAttachmentData{Discriminator: raw.Type, Raw: data}, nil
 	}
@@ -919,6 +925,17 @@ func (r AttachmentGitHubURL) MarshalJSON() ([]byte, error) {
 
 func (r AttachmentSelection) MarshalJSON() ([]byte, error) {
 	type alias AttachmentSelection
+	return json.Marshal(struct {
+		Type AttachmentType `json:"type"`
+		alias
+	}{
+		Type:  r.Type(),
+		alias: alias(r),
+	})
+}
+
+func (r AttachmentSessionReference) MarshalJSON() ([]byte, error) {
+	type alias AttachmentSessionReference
 	return json.Marshal(struct {
 		Type AttachmentType `json:"type"`
 		alias

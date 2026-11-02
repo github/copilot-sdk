@@ -479,13 +479,13 @@ func parseCLIURL(url string) (string, int) {
 // If connecting to an external server (via URIConnection), only establishes the connection.
 // Otherwise, spawns the CLI server process and then connects.
 //
-// This method is called automatically when creating a session if AutoStart is true (default).
+// CreateSession and ResumeSession call this method automatically when the client is not connected.
 //
 // Returns an error if the server fails to start or the connection fails.
 //
 // Example:
 //
-//	client := copilot.NewClient(&copilot.ClientOptions{AutoStart: boolPtr(false)})
+//	client := copilot.NewClient(nil)
 //	if err := client.Start(context.Background()); err != nil {
 //	    log.Fatal("Failed to start:", err)
 //	}

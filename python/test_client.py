@@ -2695,6 +2695,59 @@ class TestURLParsing:
         client._process.terminate()
 
 
+class TestSessionEventRouting:
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize("transport", ["stdio", "tcp"])
+    async def test_session_event_notification_looks_up_session_under_lock(self, transport):
+        class LockRecordingSessions(dict):
+            def __init__(self, lock: threading.Lock):
+                super().__init__()
+                self.lock = lock
+                self.lock_held_on_get: list[bool] = []
+
+            def get(self, key, default=None):
+                self.lock_held_on_get.append(self.lock.locked())
+                return super().get(key, default)
+
+        if transport == "stdio":
+            client = CopilotClient()
+            client._process = Mock()
+            connect = client._connect_via_stdio
+        else:
+            client = CopilotClient(connection=RuntimeConnection.for_uri("localhost:9000"))
+            connect = client._connect_via_tcp
+
+        fake_socket = Mock()
+        with (
+            patch.object(client_module, "JsonRpcClient") as rpc_client_class,
+            patch("socket.create_connection", return_value=fake_socket),
+        ):
+            await connect()
+        handler = rpc_client_class.return_value.set_notification_handler.call_args.args[0]
+
+        sessions = LockRecordingSessions(client._sessions_lock)
+        session = Mock()
+        sessions["s1"] = session
+        client._sessions = sessions
+
+        handler(
+            "session.event",
+            {
+                "sessionId": "s1",
+                "event": {
+                    "id": "11111111-1111-1111-1111-111111111111",
+                    "timestamp": "2026-09-18T22:00:00+00:00",
+                    "type": "session.idle",
+                    "data": {},
+                },
+            },
+        )
+
+        assert sessions.lock_held_on_get == [True]
+        session._dispatch_event.assert_called_once()
+        assert session._dispatch_event.call_args.args[0].type.value == "session.idle"
+
+
 class TestSessionFsConfig:
     @pytest.mark.asyncio
     async def test_binary_write_preserves_bytes_and_rejects_invalid_base64(self):

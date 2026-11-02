@@ -898,6 +898,21 @@ pub struct ProviderGetEndpointRequest {
     pub model_id: Option<String>,
 }
 
+/// Credential-free provider configuration status for the selected model.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ProviderStatus {
+    /// Whether the selected model uses a custom provider instead of requiring GitHub authentication.
+    pub has_custom_provider: bool,
+}
+
 /// Authoritative BYOK provider and model registry snapshot to apply atomically to the session.
 ///
 /// <div class="warning">

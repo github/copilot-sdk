@@ -10514,6 +10514,30 @@ public sealed partial class AttachmentExtensionContext : Attachment
     public required string Title { get; set; }
 }
 
+/// <summary>An ID-bound reference to an eligible live session. Supplies identity context only, without sending a message, reading history, or granting permission.</summary>
+/// <remarks>The <c>session_reference</c> variant of <see cref="Attachment"/>.</remarks>
+[Experimental(global::GitHub.Copilot.Diagnostics.Experimental)]
+public sealed partial class AttachmentSessionReference : Attachment
+{
+    /// <inheritdoc />
+    [JsonIgnore]
+    public override string Type => "session_reference";
+
+    /// <summary>User-visible mention label captured when the reference was selected.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("displayName")]
+    public string? DisplayName { get; set; }
+
+    /// <summary>Character offset of the selected mention in the displayed prompt.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("mentionIndex")]
+    public long? MentionIndex { get; set; }
+
+    /// <summary>Stable identity of the selected session, never resolved from its title.</summary>
+    [JsonPropertyName("sessionId")]
+    public required string SessionId { get; set; }
+}
+
 /// <summary>A user message attachment — a file, directory, code selection, blob, GitHub reference, GitHub-anchored pointer, or extension-supplied context payload.</summary>
 /// <remarks>Polymorphic base type discriminated by <c>type</c>.</remarks>
 [JsonPolymorphic(
@@ -10534,6 +10558,7 @@ public sealed partial class AttachmentExtensionContext : Attachment
 [JsonDerivedType(typeof(AttachmentGitHubSnippet), "github_snippet")]
 [JsonDerivedType(typeof(AttachmentBlob), "blob")]
 [JsonDerivedType(typeof(AttachmentExtensionContext), "extension_context")]
+[JsonDerivedType(typeof(AttachmentSessionReference), "session_reference")]
 public partial class Attachment
 {
     /// <summary>The type discriminator.</summary>
@@ -25406,6 +25431,7 @@ public readonly struct ExtensionsLoadedExtensionStatus : IEquatable<ExtensionsLo
 [JsonSerializable(typeof(AttachmentSelectionDetails))]
 [JsonSerializable(typeof(AttachmentSelectionDetailsEnd))]
 [JsonSerializable(typeof(AttachmentSelectionDetailsStart))]
+[JsonSerializable(typeof(AttachmentSessionReference))]
 [JsonSerializable(typeof(AutoModeSwitchCompletedData))]
 [JsonSerializable(typeof(AutoModeSwitchCompletedEvent))]
 [JsonSerializable(typeof(AutoModeSwitchRequestedData))]

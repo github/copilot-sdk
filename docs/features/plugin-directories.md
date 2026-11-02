@@ -320,6 +320,8 @@ The equivalent option in each SDK is:
 
 This is a trust boundary for plugins bundled and controlled by the host application. It is distinct from `--plugin-dir`, which is a CLI process launch argument for explicitly loading ordinary plugin directories. The startup option also works when connecting to an existing runtime because it is sent over JSON-RPC rather than forwarded as a process argument.
 
+The bundled opt-in plugins `computer-use` and `browser-use` are the exception: they contribute no skills, hooks or MCP servers until enabled through `enabledPlugins`, `client.rpc.plugins.enable({ names: ["browser-use"] })`, or settings. Changes apply to sessions created afterwards. Managed `enabledPlugins["browser-use"]` forces Browser Use on or off regardless of user preferences. Computer Use also accepts the legacy `enabledMcpServers` preference; its managed policy veto is `features.computerUse=false`, not `enabledPlugins["computer-use"]`.
+
 ## What a plugin can contribute
 
 Loading a plugin directory makes its extensions visible to every session created by the client. The runtime merges plugin-provided extensions with anything you register inline:

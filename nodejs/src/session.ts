@@ -26,6 +26,9 @@ import type {
     WorkflowRunResult as WireWorkflowRunResult,
     ModelSwitchAutoTierResult,
     SendAndWaitResult,
+    SessionManagementCreateHostRequest,
+    SessionManagementCreateResult,
+    SessionManagementPolicy,
 } from "./generated/rpc.js";
 import { type Canvas, CanvasError } from "./canvas.js";
 import type { OpenCanvasInstance } from "./generated/rpc.js";
@@ -72,6 +75,7 @@ import type {
     SkillProvider,
     SkillProviderCallOptions,
     SkillProviderDescriptor,
+    SessionCreationHandler,
     Tool,
     ToolHandler,
     ToolResult,
@@ -309,9 +313,16 @@ class WorkflowProgressBuffer {
 
     constructor(private readonly send: (lines: WorkflowLogLine[]) => Promise<void>) {}
 
-    enqueue(kind: WorkflowLogLine["kind"], text: string): void {
+    enqueue(kind: WorkflowLogLine["kind"], text: unknown): void {
         if (this.closed) {
             throw new Error("Cannot log after the workflow run has settled");
+        }
+        // Reject here rather than at flush time: the runtime refuses the whole batch
+        // for one non-string line, and a failed flush fails every later step.
+        if (typeof text !== "string") {
+            throw new TypeError(
+                `${kind}() expects a string; got ${text === null ? "null" : typeof text}.`
+            );
         }
         this.pending.push({ seq: this.nextSeq++, kind, text });
         this.scheduleFlush();
@@ -506,6 +517,7 @@ export class CopilotSession {
     /** Settles once every earlier `setTools` call has finished. */
     private setToolsQueue: Promise<void> = Promise.resolve();
     private pendingExternalTools: Map<string, AbortController> = new Map();
+    private pendingSessionCreations = new Set<AbortController>();
     private canvases: Map<string, Canvas> = new Map();
     private bearerTokenProviders: Map<string, BearerTokenProvider> = new Map();
     private commandHandlers: Map<string, CommandHandler> = new Map();
@@ -518,6 +530,7 @@ export class CopilotSession {
     private exitPlanModeHandler?: ExitPlanModeHandler;
     private autoModeSwitchHandler?: AutoModeSwitchHandler;
     private skillProvider?: SkillProvider;
+    private sessionCreationHandler?: SessionCreationHandler;
     private hooks?: SessionHooks;
     private transformCallbacks?: Map<string, SectionTransformFn>;
     private _rpc: ReturnType<typeof createSessionRpc> | null = null;
@@ -1328,6 +1341,10 @@ export class CopilotSession {
             controller.abort();
         }
         this.pendingExternalTools.clear();
+        for (const controller of this.pendingSessionCreations) {
+            controller.abort();
+        }
+        this.pendingSessionCreations.clear();
         this.eventHandlers.clear();
         this.typedEventHandlers.clear();
         this.toolHandlers.clear();
@@ -1338,6 +1355,7 @@ export class CopilotSession {
         this.exitPlanModeHandler = undefined;
         this.autoModeSwitchHandler = undefined;
         this.skillProvider = undefined;
+        this.sessionCreationHandler = undefined;
         this.hooks = undefined;
         this.traceContextProvider = undefined;
         this.bearerTokenProviders.clear();
@@ -2503,6 +2521,52 @@ export class CopilotSession {
     registerSkillProvider(provider?: SkillProvider): void {
         this.assertConnected();
         this.skillProvider = provider;
+    }
+
+    /**
+     * Registers the host's creation callback without enabling the tool group.
+     * Enable it separately with `session.rpc.management.configure({ enabled: true })`.
+     */
+    async setSessionCreationHandler(
+        handler?: SessionCreationHandler
+    ): Promise<SessionManagementPolicy> {
+        this.assertConnected();
+        const previous = this.sessionCreationHandler;
+        this.sessionCreationHandler = handler;
+        try {
+            return await this.rpc.management.configure({ hasCreateHandler: handler !== undefined });
+        } catch (error) {
+            if (this.sessionCreationHandler === handler) this.sessionCreationHandler = previous;
+            throw error;
+        }
+    }
+
+    /** @internal */
+    async _handleSessionManagementCreate(
+        request: SessionManagementCreateHostRequest,
+        token: CancellationToken
+    ): Promise<SessionManagementCreateResult> {
+        this.assertConnected();
+        const handler = this.sessionCreationHandler;
+        if (
+            !handler ||
+            request.parentSessionId !== this.sessionId ||
+            request.sessionId !== this.sessionId
+        ) {
+            throw new Error("Session creation handler is unavailable");
+        }
+        const controller = new AbortController();
+        this.pendingSessionCreations.add(controller);
+        const subscription = token.onCancellationRequested(() => controller.abort());
+        if (token.isCancellationRequested) controller.abort();
+        try {
+            return await handler(request, { signal: controller.signal });
+        } catch {
+            throw new Error("Session creation callback failed");
+        } finally {
+            subscription.dispose();
+            this.pendingSessionCreations.delete(controller);
+        }
     }
 
     /**

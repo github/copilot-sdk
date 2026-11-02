@@ -21,7 +21,9 @@ import java.util.concurrent.Executor;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.RejectedExecutionException;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Function;
+import java.util.function.Supplier;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 
@@ -132,8 +134,13 @@ public final class CopilotClient implements AutoCloseable {
     private final RuntimeConnection runtimeConnection;
     private final String effectiveConnectionToken;
     private final Runnable closeHook;
-    private volatile List<ModelInfo> modelsCache;
-    private final Object modelsCacheLock = new Object();
+    private volatile ModelsCache modelsCache = new ModelsCache();
+
+    private static final class ModelsCache {
+        private volatile List<ModelInfo> models;
+        private final AtomicReference<CompletableFuture<Void>> fetchTail = new AtomicReference<>(
+                CompletableFuture.completedFuture(null));
+    }
 
     /**
      * Creates a new CopilotClient with default options.
@@ -910,8 +917,9 @@ public final class CopilotClient implements AutoCloseable {
         CompletableFuture<Connection> future = connectionFuture;
         connectionFuture = null;
 
-        // Clear models cache
-        modelsCache = null;
+        // Retire the cache and its queue together so old fetches cannot affect a new
+        // lifecycle.
+        modelsCache = new ModelsCache();
 
         if (future == null) {
             return CompletableFuture.completedFuture(null);
@@ -1670,7 +1678,8 @@ public final class CopilotClient implements AutoCloseable {
      */
     public CompletableFuture<List<ModelInfo>> listModels() {
         // Check cache first
-        List<ModelInfo> cached = modelsCache;
+        ModelsCache cache = modelsCache;
+        List<ModelInfo> cached = cache.models;
         if (cached != null) {
             return CompletableFuture.completedFuture(new ArrayList<>(cached));
         }
@@ -1678,35 +1687,39 @@ public final class CopilotClient implements AutoCloseable {
         // If a custom handler is configured, use it instead of querying the CLI server
         var onListModels = options.getOnListModels();
         if (onListModels != null) {
-            synchronized (modelsCacheLock) {
-                if (modelsCache != null) {
-                    return CompletableFuture.completedFuture(new ArrayList<>(modelsCache));
-                }
-            }
-            return onListModels.get().thenApply(models -> {
-                synchronized (modelsCacheLock) {
-                    modelsCache = models;
-                }
-                return new ArrayList<>(models);
-            });
+            return loadModels(cache, onListModels);
         }
 
-        return ensureConnected().thenCompose(connection -> {
-            // Double-check cache inside lock
-            synchronized (modelsCacheLock) {
-                if (modelsCache != null) {
-                    return CompletableFuture.completedFuture(new ArrayList<>(modelsCache));
-                }
-            }
+        return ensureConnected().thenCompose(connection -> loadModels(cache, () -> connection.rpc
+                .invoke("models.list", Map.of(), GetModelsResponse.class).thenApply(GetModelsResponse::getModels)));
+    }
 
-            return connection.rpc.invoke("models.list", Map.of(), GetModelsResponse.class).thenApply(response -> {
-                List<ModelInfo> models = response.getModels();
-                synchronized (modelsCacheLock) {
-                    modelsCache = models;
-                }
-                return new ArrayList<>(models); // Return a copy to prevent cache mutation
+    /**
+     * Fills the models cache with {@code fetch}, one call at a time.
+     * <p>
+     * Each call waits for the previous one to finish, as if it held a lock across
+     * the fetch: a call that waited for a successful fetch is served from the
+     * cache, and after a failed fetch the next waiting call retries.
+     */
+    private CompletableFuture<List<ModelInfo>> loadModels(ModelsCache cache,
+            Supplier<CompletableFuture<List<ModelInfo>>> fetch) {
+        var finished = new CompletableFuture<Void>();
+        CompletableFuture<Void> previous = cache.fetchTail.getAndSet(finished);
+        CompletableFuture<List<ModelInfo>> models = previous.thenCompose(ignored -> {
+            List<ModelInfo> cached = cache.models;
+            if (cached != null) {
+                return CompletableFuture.completedFuture(cached);
+            }
+            return fetch.get().thenApply(fetched -> {
+                cache.models = fetched;
+                return fetched;
             });
         });
+        // Release the next call from this internal future, so a caller cancelling its
+        // own copy cannot let the next call start a second fetch. Dispatch the release
+        // independently so queued callbacks can join this result, and failure callbacks
+        // can synchronously retry, without blocking result publication.
+        return models.whenComplete((result, error) -> finished.completeAsync(() -> null)).thenApply(ArrayList::new);
     }
 
     /**

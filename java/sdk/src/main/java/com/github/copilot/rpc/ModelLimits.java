@@ -18,6 +18,9 @@ public class ModelLimits {
     @JsonProperty("max_prompt_tokens")
     private Integer maxPromptTokens;
 
+    @JsonProperty("max_output_tokens")
+    private Integer maxOutputTokens;
+
     @JsonProperty("max_context_window_tokens")
     private int maxContextWindowTokens;
 
@@ -30,6 +33,28 @@ public class ModelLimits {
 
     public ModelLimits setMaxPromptTokens(Integer maxPromptTokens) {
         this.maxPromptTokens = maxPromptTokens;
+        return this;
+    }
+
+    /**
+     * Gets the maximum number of tokens the model can generate in one response.
+     *
+     * @return the output token limit, or {@code null} if the model does not report
+     *         one
+     */
+    public Integer getMaxOutputTokens() {
+        return maxOutputTokens;
+    }
+
+    /**
+     * Sets the maximum number of tokens the model can generate in one response.
+     *
+     * @param maxOutputTokens
+     *            the output token limit
+     * @return this instance for method chaining
+     */
+    public ModelLimits setMaxOutputTokens(Integer maxOutputTokens) {
+        this.maxOutputTokens = maxOutputTokens;
         return this;
     }
 

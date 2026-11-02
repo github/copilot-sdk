@@ -686,7 +686,8 @@ type AgentsDiscoverRequest struct {
 	// leaving only project and remote agents. For multitenant deployments.
 	ExcludeHostAgents *bool `json:"excludeHostAgents,omitempty"`
 	// Optional list of project directory paths to scan for project-scoped agents. When omitted
-	// or empty, only user/plugin/remote-independent agents are returned (no project scan).
+	// or empty, no project is scanned: user-level and globally enabled plugin agents are still
+	// returned, but agents of a plugin enabled only in a repository's settings are not.
 	ProjectPaths []string `json:"projectPaths,omitzero"`
 }
 
@@ -1156,6 +1157,24 @@ type AttachmentSelection struct {
 func (AttachmentSelection) attachment() {}
 func (AttachmentSelection) Type() AttachmentType {
 	return AttachmentTypeSelection
+}
+
+// An ID-bound reference to an eligible live session. Supplies identity context only,
+// without sending a message, reading history, or granting permission.
+// Experimental: AttachmentSessionReference is part of an experimental API and may change or
+// be removed.
+type AttachmentSessionReference struct {
+	// User-visible mention label captured when the reference was selected.
+	DisplayName *string `json:"displayName,omitempty"`
+	// Character offset of the selected mention in the displayed prompt.
+	MentionIndex *int64 `json:"mentionIndex,omitempty"`
+	// Stable identity of the selected session, never resolved from its title.
+	SessionID string `json:"sessionId"`
+}
+
+func (AttachmentSessionReference) attachment() {}
+func (AttachmentSessionReference) Type() AttachmentType {
+	return AttachmentTypeSessionReference
 }
 
 // Optional line range to scope the attachment to a specific section of the file
@@ -1952,6 +1971,15 @@ type AutopilotObjectiveCreditLimit struct {
 type AutopilotObjectiveGetStateResult struct {
 	// Current objective state, or `null` when the session has no objective.
 	State *AutopilotObjectiveState `json:"state"`
+}
+
+// Client-resolved preference for retaining autopilot mode after objective completion or
+// pause.
+// Experimental: AutopilotObjectiveSetStayInAutopilotRequest is part of an experimental API
+// and may change or be removed.
+type AutopilotObjectiveSetStayInAutopilotRequest struct {
+	// Whether an objective's requested return to interactive mode is suppressed.
+	Value bool `json:"value"`
 }
 
 // Public, persistence-independent projection of an autopilot objective.
@@ -8962,6 +8990,26 @@ type ManagedPluginRetryEntry struct {
 	Status ManagedPluginRetryStatus `json:"status"`
 }
 
+// An opted-in local session, reported by its live owner.
+// Experimental: ManagedSessionInfo is part of an experimental API and may change or be
+// removed.
+type ManagedSessionInfo struct {
+	// Peer's current working directory.
+	Cwd string `json:"cwd"`
+	// Peer's selected model, when known.
+	Model *string `json:"model,omitempty"`
+	// Human-readable peer name.
+	Name string `json:"name"`
+	// The session that created this root through session management, if any.
+	ParentSessionID *string `json:"parentSessionId,omitempty"`
+	// Live peer's session identifier.
+	SessionID string `json:"sessionId"`
+	// Peer's local session-state directory containing events.jsonl, when known.
+	SessionStatePath *string `json:"sessionStatePath,omitempty"`
+	// Either idle or busy. A busy session may still accept messages.
+	State string `json:"state"`
+}
+
 // Lock state and provenance of one managed setting.
 // Experimental: ManagedSettingMeta is part of an experimental API and may change or be
 // removed.
@@ -15419,6 +15467,17 @@ type PermissionRulesSet struct {
 	Denied []PermissionRule `json:"denied"`
 }
 
+// Available permission modes, derived from current session policy.
+// Experimental: PermissionsCapabilities is part of an experimental API and may change or be
+// removed.
+type PermissionsCapabilities struct {
+	// Whether LLM-assisted approval is enabled for this session.
+	AssistedApproval bool `json:"assistedApproval"`
+	// Whether managed policy currently permits unconditional approval.
+	// Stays true while managed policy is still resolving.
+	BypassPermissions bool `json:"bypassPermissions"`
+}
+
 // No parameters.
 // Experimental: PermissionsClearResumeEscalationRequest is part of an experimental API and
 // may change or be removed.
@@ -17224,6 +17283,14 @@ type ProviderSessionToken struct {
 	Model *string `json:"model,omitempty"`
 	// The short-lived token value.
 	Token string `json:"token"`
+}
+
+// Credential-free provider configuration status for the selected model.
+// Experimental: ProviderStatus is part of an experimental API and may change or be removed.
+type ProviderStatus struct {
+	// Whether the selected model uses a custom provider instead of requiring GitHub
+	// authentication.
+	HasCustomProvider bool `json:"hasCustomProvider"`
 }
 
 // Authoritative BYOK provider and model registry snapshot to apply atomically to the
@@ -19605,6 +19672,11 @@ type SessionAuthSwitchRequest struct {
 	Token *string `json:"token,omitempty"`
 }
 
+// Experimental: SessionAutopilotObjectiveSetStayInAutopilotResult is part of an
+// experimental API and may change or be removed.
+type SessionAutopilotObjectiveSetStayInAutopilotResult struct {
+}
+
 // Map of sessionId -> bytes freed by removing the session's workspace directory.
 // Experimental: SessionBulkDeleteResult is part of an experimental API and may change or be
 // removed.
@@ -20629,6 +20701,163 @@ type SessionManagedPermissions struct {
 type SessionManagedSettings struct {
 	// Managed permission policy injected by the SDK host.
 	Permissions *SessionManagedPermissions `json:"permissions,omitempty"`
+}
+
+// Closes one live opted-in descendant without deleting its saved history or closing its
+// children.
+// Experimental: SessionManagementCloseRequest is part of an experimental API and may change
+// or be removed.
+type SessionManagementCloseRequest struct {
+	// Live created descendant whose owning host should close it.
+	TargetSessionID string `json:"targetSessionId"`
+}
+
+// Completion of the existing non-deleting close lifecycle.
+// Experimental: SessionManagementCloseResult is part of an experimental API and may change
+// or be removed.
+type SessionManagementCloseResult struct {
+	// True after the owning host has completed the existing session-close lifecycle.
+	Closed bool `json:"closed"`
+}
+
+// Updates the session's live policy without changing persistent host settings.
+// Experimental: SessionManagementConfigureRequest is part of an experimental API and may
+// change or be removed.
+type SessionManagementConfigureRequest struct {
+	// Expected workspace for host activation. Required when enabling an interactive CLI session.
+	Cwd *string `json:"cwd,omitempty"`
+	// Enabling resets all session management operations to enabled, then applies overrides.
+	Enabled *bool `json:"enabled,omitempty"`
+	// Peer boundary. Preserved when the master switch changes.
+	Scope *SessionManagementScope `json:"scope,omitempty"`
+	// Individual tool overrides, applied after the master switch.
+	Tools *SessionManagementToolOverrides `json:"tools,omitempty"`
+}
+
+// Host callback. The host owns workspace records, UI, approval routing and cleanup.
+// Experimental: SessionManagementCreateHostRequest is part of an experimental API and may
+// change or be removed.
+type SessionManagementCreateHostRequest struct {
+	// The host must preserve the parent's current model restrictions.
+	AllowedModels []string `json:"allowedModels,omitzero"`
+	// Parent's resolved configuration directory, which the host must preserve.
+	ConfigDir string `json:"configDir"`
+	// Effective model-supported context tier, when specified.
+	ContextTier *ContextTier `json:"contextTier,omitempty"`
+	// The new session must use this workspace and configuration directory.
+	Cwd string `json:"cwd"`
+	// Effective model to apply when creating the child.
+	Model *string `json:"model,omitempty"`
+	// Optional short name supplied for the independent session.
+	Name *string `json:"name,omitempty"`
+	// Runtime-allocated identity. The host must create a fresh session with this exact ID.
+	NewSessionID string `json:"newSessionId"`
+	// The originating session; the host must not escalate its permissions.
+	ParentSessionID string `json:"parentSessionId"`
+	// Must not be broadened by the creating host.
+	PermissionMode PermissionMode `json:"permissionMode"`
+	// Provider owning the effective model, when specified.
+	ProviderID *string `json:"providerId,omitempty"`
+	// Effective reasoning effort, when specified.
+	ReasoningEffort *string `json:"reasoningEffort,omitempty"`
+	// Target session identifier
+	SessionID string `json:"sessionId"`
+}
+
+// Requests a separate session. Omitted launch options inherit the caller's current
+// configuration.
+// Experimental: SessionManagementCreateRequest is part of an experimental API and may
+// change or be removed.
+type SessionManagementCreateRequest struct {
+	// Uses the selected model's supported default or long-context tier, not an arbitrary token
+	// count.
+	ContextTier *ContextTier `json:"contextTier,omitempty"`
+	// Absolute working directory. Defaults to the parent's current directory.
+	Cwd *string `json:"cwd,omitempty"`
+	// Optional model override; omission uses the parent's current model.
+	Model *string `json:"model,omitempty"`
+	// Optional short name for the independent session.
+	Name *string `json:"name,omitempty"`
+	// Initial task, delivered as peer text after successful creation.
+	Prompt string `json:"prompt"`
+	// Optional effort supported by the selected model.
+	ReasoningEffort *string `json:"reasoningEffort,omitempty"`
+}
+
+// Identifies a session owned and supervised by the creating host.
+// Experimental: SessionManagementCreateResult is part of an experimental API and may change
+// or be removed.
+type SessionManagementCreateResult struct {
+	// Runtime-allocated identifier of the newly created session.
+	SessionID string `json:"sessionId"`
+}
+
+// Lists opted-in local peers. The caller is omitted.
+// Experimental: SessionManagementListRequest is part of an experimental API and may change
+// or be removed.
+type SessionManagementListRequest struct {
+	// Optional exact working-directory filter.
+	Cwd *string `json:"cwd,omitempty"`
+}
+
+// Eligible live peers reported by their owning runtimes.
+// Experimental: SessionManagementListResult is part of an experimental API and may change
+// or be removed.
+type SessionManagementListResult struct {
+	// Matching peers, excluding the caller.
+	Sessions []ManagedSessionInfo `json:"sessions"`
+}
+
+// Sends peer text, never human approval, to another opted-in session.
+// Experimental: SessionManagementMessageRequest is part of an experimental API and may
+// change or be removed.
+type SessionManagementMessageRequest struct {
+	// Nonempty UTF-8 text, at most 16 KiB.
+	Message string `json:"message"`
+	// Eligible live peer that should receive the message.
+	TargetSessionID string `json:"targetSessionId"`
+}
+
+// Acceptance is not a completed turn or a reply.
+// Experimental: SessionManagementMessageResult is part of an experimental API and may
+// change or be removed.
+type SessionManagementMessageResult struct {
+	// True when the destination has accepted the peer message.
+	Accepted bool `json:"accepted"`
+	// Destination title captured by the receiving runtime at message admission.
+	TargetSessionName *string `json:"targetSessionName,omitempty"`
+}
+
+// Opt-in policy for local session management.
+// Experimental: SessionManagementPolicy is part of an experimental API and may change or be
+// removed.
+type SessionManagementPolicy struct {
+	// Allow closing sessions created by this session or its descendants. On by default.
+	Close bool `json:"close"`
+	// Allow requesting a new session from the owning host.
+	Create bool `json:"create"`
+	// Master switch. Off by default.
+	Enabled bool `json:"enabled"`
+	// Allow listing opted-in sessions in this configuration directory.
+	List bool `json:"list"`
+	// Allow sending a peer message to another opted-in session.
+	Message bool `json:"message"`
+	// Discovery and direct access boundary. Defaults to all eligible local peers.
+	Scope SessionManagementScope `json:"scope"`
+}
+
+// Per-operation overrides for an enabled session management policy.
+// Experimental: SessionManagementToolOverrides is part of an experimental API and may
+// change or be removed.
+type SessionManagementToolOverrides struct {
+	// Allow closing this session's live created descendants.
+	Close *bool `json:"close,omitempty"`
+	// Allow requesting an independent session from the owning host.
+	Create *bool `json:"create,omitempty"`
+	// Allow discovering eligible peer sessions.
+	List *bool `json:"list,omitempty"`
+	// Allow delivering peer text to another eligible session.
+	Message *bool `json:"message,omitempty"`
 }
 
 // Standard MCP CallToolResult
@@ -28233,6 +28462,7 @@ const (
 	AttachmentTypeGitHubTreeComparison AttachmentType = "github_tree_comparison"
 	AttachmentTypeGitHubURL            AttachmentType = "github_url"
 	AttachmentTypeSelection            AttachmentType = "selection"
+	AttachmentTypeSessionReference     AttachmentType = "session_reference"
 )
 
 // Kind discriminator for AuthEnumerateQuery.
@@ -32968,6 +33198,18 @@ const (
 	SessionLogLevelWarning SessionLogLevel = "warning"
 )
 
+// Peer boundary evaluated in the process hosting the native session.
+// Experimental: SessionManagementScope is part of an experimental API and may change or be
+// removed.
+type SessionManagementScope string
+
+const (
+	// Eligible local peers sharing the resolved configuration directory.
+	SessionManagementScopeAll SessionManagementScope = "all"
+	// Only peers hosted in this native runtime process.
+	SessionManagementScopeInProcess SessionManagementScope = "in-process"
+)
+
 // The session mode the agent is operating in
 // Experimental: SessionMode is part of an experimental API and may change or be removed.
 type SessionMode string
@@ -33148,7 +33390,8 @@ const (
 type SessionsOpenProgressStep string
 
 const (
-	// Checking the local working tree for uncommitted changes that would block the handoff.
+	// Checking the local working tree for uncommitted changes, which stay in place and are
+	// carried onto the checked-out branch.
 	SessionsOpenProgressStepCheckChanges SessionsOpenProgressStep = "check-changes"
 	// Checking out the branch associated with the remote session in the local working tree.
 	SessionsOpenProgressStepCheckoutBranch SessionsOpenProgressStep = "checkout-branch"
@@ -41199,6 +41442,30 @@ func (a *AutopilotObjectiveAPI) GetState(ctx context.Context) (*AutopilotObjecti
 	return &result, nil
 }
 
+// SetStayInAutopilot sets whether completing or pausing this session's objective preserves
+// autopilot mode. This in-memory preference defaults to false and must be reapplied when
+// attaching a client.
+//
+// RPC method: session.autopilotObjective.setStayInAutopilot.
+//
+// Parameters: Client-resolved preference for retaining autopilot mode after objective
+// completion or pause.
+func (a *AutopilotObjectiveAPI) SetStayInAutopilot(ctx context.Context, params *AutopilotObjectiveSetStayInAutopilotRequest) (*SessionAutopilotObjectiveSetStayInAutopilotResult, error) {
+	req := map[string]any{"sessionId": a.sessionID}
+	if params != nil {
+		req["value"] = params.Value
+	}
+	raw, err := a.client.Request(ctx, "session.autopilotObjective.setStayInAutopilot", req)
+	if err != nil {
+		return nil, err
+	}
+	var result SessionAutopilotObjectiveSetStayInAutopilotResult
+	if err := json.Unmarshal(raw, &result); err != nil {
+		return nil, err
+	}
+	return &result, nil
+}
+
 // Experimental: CanvasAPI contains experimental APIs that may change or be removed.
 type CanvasAPI sessionAPI
 
@@ -42713,6 +42980,122 @@ func (a *ManagedSettingsAPI) RecheckPolicyHelper(ctx context.Context) (*ManagedS
 		return nil, err
 	}
 	var result ManagedSettingsResolvedData
+	if err := json.Unmarshal(raw, &result); err != nil {
+		return nil, err
+	}
+	return &result, nil
+}
+
+// Experimental: ManagementAPI contains experimental APIs that may change or be removed.
+type ManagementAPI sessionAPI
+
+// Closes a live opted-in session created by the caller or one of its descendants,
+// preserving saved history and leaving descendants open. Requires the close capability to
+// be enabled. Self, ancestors, siblings and unrelated sessions cannot be closed.
+//
+// RPC method: session.management.close.
+//
+// Parameters: Closes one live opted-in descendant without deleting its saved history or
+// closing its children.
+//
+// Returns: Completion of the existing non-deleting close lifecycle.
+func (a *ManagementAPI) Close(ctx context.Context, params *SessionManagementCloseRequest) (*SessionManagementCloseResult, error) {
+	req := map[string]any{"sessionId": a.sessionID}
+	if params != nil {
+		req["targetSessionId"] = params.TargetSessionID
+	}
+	raw, err := a.client.Request(ctx, "session.management.close", req)
+	if err != nil {
+		return nil, err
+	}
+	var result SessionManagementCloseResult
+	if err := json.Unmarshal(raw, &result); err != nil {
+		return nil, err
+	}
+	return &result, nil
+}
+
+// Configure updates opt-in session management policy live. Enabling the master enables all
+// tools before applying individual overrides. Opt-in is scoped to the session's
+// configuration directory.
+//
+// RPC method: session.management.configure.
+//
+// Parameters: Updates the session's live policy without changing persistent host settings.
+//
+// Returns: Opt-in policy for local session management.
+func (a *ManagementAPI) Configure(ctx context.Context, params *SessionManagementConfigureRequest) (*SessionManagementPolicy, error) {
+	req := map[string]any{"sessionId": a.sessionID}
+	if params != nil {
+		if params.Cwd != nil {
+			req["cwd"] = *params.Cwd
+		}
+		if params.Enabled != nil {
+			req["enabled"] = *params.Enabled
+		}
+		if params.Scope != nil {
+			req["scope"] = *params.Scope
+		}
+		if params.Tools != nil {
+			req["tools"] = *params.Tools
+		}
+	}
+	raw, err := a.client.Request(ctx, "session.management.configure", req)
+	if err != nil {
+		return nil, err
+	}
+	var result SessionManagementPolicy
+	if err := json.Unmarshal(raw, &result); err != nil {
+		return nil, err
+	}
+	return &result, nil
+}
+
+// Lists other live, opted-in sessions in the same configuration directory. Requires the
+// list tool to be enabled.
+//
+// RPC method: session.management.list.
+//
+// Parameters: Lists opted-in local peers. The caller is omitted.
+//
+// Returns: Eligible live peers reported by their owning runtimes.
+func (a *ManagementAPI) List(ctx context.Context, params *SessionManagementListRequest) (*SessionManagementListResult, error) {
+	req := map[string]any{"sessionId": a.sessionID}
+	if params != nil {
+		if params.Cwd != nil {
+			req["cwd"] = *params.Cwd
+		}
+	}
+	raw, err := a.client.Request(ctx, "session.management.list", req)
+	if err != nil {
+		return nil, err
+	}
+	var result SessionManagementListResult
+	if err := json.Unmarshal(raw, &result); err != nil {
+		return nil, err
+	}
+	return &result, nil
+}
+
+// Message injects peer text into an opted-in session. Wakes an idle agent and safely queues
+// delivery to a busy agent. Acceptance does not imply an answer or completed task.
+//
+// RPC method: session.management.message.
+//
+// Parameters: Sends peer text, never human approval, to another opted-in session.
+//
+// Returns: Acceptance is not a completed turn or a reply.
+func (a *ManagementAPI) Message(ctx context.Context, params *SessionManagementMessageRequest) (*SessionManagementMessageResult, error) {
+	req := map[string]any{"sessionId": a.sessionID}
+	if params != nil {
+		req["message"] = params.Message
+		req["targetSessionId"] = params.TargetSessionID
+	}
+	raw, err := a.client.Request(ctx, "session.management.message", req)
+	if err != nil {
+		return nil, err
+	}
+	var result SessionManagementMessageResult
 	if err := json.Unmarshal(raw, &result); err != nil {
 		return nil, err
 	}
@@ -44693,6 +45076,26 @@ func (a *PermissionsAPI) Configure(ctx context.Context, params *PermissionsConfi
 	return &result, nil
 }
 
+// GetCapabilities returns the approval modes currently available under the session's
+// feature and managed permission policy. This read does not change permissions; mutations
+// must still check their authoritative result because policy may change.
+//
+// RPC method: session.permissions.getCapabilities.
+//
+// Returns: Available permission modes, derived from current session policy.
+func (a *PermissionsAPI) GetCapabilities(ctx context.Context) (*PermissionsCapabilities, error) {
+	req := map[string]any{"sessionId": a.sessionID}
+	raw, err := a.client.Request(ctx, "session.permissions.getCapabilities", req)
+	if err != nil {
+		return nil, err
+	}
+	var result PermissionsCapabilities
+	if err := json.Unmarshal(raw, &result); err != nil {
+		return nil, err
+	}
+	return &result, nil
+}
+
 // GetMode returns the current permission mode for the session.
 //
 // RPC method: session.permissions.getMode.
@@ -45735,6 +46138,25 @@ func (a *ProviderAPI) GetEndpoint(ctx context.Context, params ...*SessionProvide
 		return nil, err
 	}
 	var result ProviderEndpoint
+	if err := json.Unmarshal(raw, &result); err != nil {
+		return nil, err
+	}
+	return &result, nil
+}
+
+// GetStatus returns credential-free provider configuration status for the selected model.
+// This does not validate provider credentials or contact the provider.
+//
+// RPC method: session.provider.getStatus.
+//
+// Returns: Credential-free provider configuration status for the selected model.
+func (a *ProviderAPI) GetStatus(ctx context.Context) (*ProviderStatus, error) {
+	req := map[string]any{"sessionId": a.sessionID}
+	raw, err := a.client.Request(ctx, "session.provider.getStatus", req)
+	if err != nil {
+		return nil, err
+	}
+	var result ProviderStatus
 	if err := json.Unmarshal(raw, &result); err != nil {
 		return nil, err
 	}
@@ -48577,6 +48999,7 @@ type SessionRPC struct {
 	LimitPrediction    *LimitPredictionAPI
 	Lsp                *LspAPI
 	ManagedSettings    *ManagedSettingsAPI
+	Management         *ManagementAPI
 	MCP                *MCPAPI
 	Metadata           *MetadataAPI
 	Mode               *ModeAPI
@@ -48916,6 +49339,7 @@ func NewSessionRPC(client *jsonrpc2.Client, sessionID string) *SessionRPC {
 	r.LimitPrediction = (*LimitPredictionAPI)(&r.common)
 	r.Lsp = (*LspAPI)(&r.common)
 	r.ManagedSettings = (*ManagedSettingsAPI)(&r.common)
+	r.Management = (*ManagementAPI)(&r.common)
 	r.MCP = (*MCPAPI)(&r.common)
 	r.Metadata = (*MetadataAPI)(&r.common)
 	r.Mode = (*ModeAPI)(&r.common)

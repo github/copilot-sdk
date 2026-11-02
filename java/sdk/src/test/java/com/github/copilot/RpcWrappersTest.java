@@ -656,6 +656,32 @@ class RpcWrappersTest {
     }
 
     @Test
+    void copilotSession_compact_invokes_session_history_compact() throws Exception {
+        var mapper = JsonRpcClient.getObjectMapper();
+        try (var sockets = new SocketPair()) {
+            var stub = sockets.stubServer();
+            var session = new CopilotSession("sess-compact", sockets.client());
+            try {
+                CompletableFuture<Void> future = session.compact();
+                var request = stub.readOneMessage();
+                assertEquals("session.history.compact", request.get("method").asText());
+                assertEquals("sess-compact", request.get("params").get("sessionId").asText());
+
+                var result = mapper.createObjectNode();
+                result.put("success", true);
+                result.put("tokensRemoved", 1200);
+                result.put("messagesRemoved", 4);
+                result.put("summaryContent", "Earlier turns summarized.");
+                stub.respond(request, result);
+
+                assertNull(future.get(3, TimeUnit.SECONDS));
+            } finally {
+                session.forceStopLocally();
+            }
+        }
+    }
+
+    @Test
     void copilotSession_getRpc_returns_non_null_session_rpc() throws Exception {
         try (var sockets = new SocketPair()) {
             var rpc = sockets.client();

@@ -177,7 +177,48 @@ files on disk. The provider is ephemeral: it is not serialized or persisted, so
 re-supply it on every resume. Resuming without a provider unbinds any previous
 provider for that session.
 
-<!-- docs-validate: skip -->
+<!-- docs-validate: hidden -->
+<!--
+```go
+package main
+
+import (
+	"context"
+
+	copilot "github.com/github/copilot-sdk/go"
+	"github.com/github/copilot-sdk/go/rpc"
+)
+
+type memorySkillProvider struct{}
+
+func (memorySkillProvider) ListSkills(ctx context.Context) ([]rpc.SkillProviderDescriptor, error) {
+	return []rpc.SkillProviderDescriptor{{
+		Name:        "review",
+		Description: "Review code using the host application's policy",
+	}}, nil
+}
+
+func (memorySkillProvider) ReadSkill(ctx context.Context, name string) (string, error) {
+	if name != "review" {
+		return "", copilot.ErrSkillNotFound
+	}
+	return "Review the changes and call out policy violations.", nil
+}
+
+func main() {
+	ctx := context.Background()
+	client := copilot.NewClient(nil)
+
+	session, err := client.CreateSession(ctx, &copilot.SessionConfig{
+		SkillProvider: memorySkillProvider{},
+		// Required only when ClientOptions.Mode is ModeEmpty.
+		// EnableSkills: copilot.Bool(true),
+	})
+	_, _ = session, err
+}
+```
+-->
+<!-- /docs-validate: hidden -->
 
 ```go
 type memorySkillProvider struct{}
@@ -224,6 +265,27 @@ cancelled when the connection closes or the client is force-stopped.
 To give a provider skill supporting files, such as scripts, references,
 templates, and assets, set its descriptor's `Directory` to the absolute path of
 the folder that holds them:
+
+<!-- docs-validate: hidden -->
+<!--
+```go
+package main
+
+import (
+	copilot "github.com/github/copilot-sdk/go"
+	"github.com/github/copilot-sdk/go/rpc"
+)
+
+func main() {
+	_ = rpc.SkillProviderDescriptor{
+		Name:        "release-notes",
+		Description: "Writes release notes in the team's format.",
+		Directory:   copilot.String("/srv/skills/release-notes"),
+	}
+}
+```
+-->
+<!-- /docs-validate: hidden -->
 
 ```go
 rpc.SkillProviderDescriptor{
@@ -283,6 +345,36 @@ recovery.
 ## Kerberos authentication callback
 
 Set `ClientOptions.KerberosAuth` to a `KerberosAuthConfig{Mode, Callback}` when Kerberos tickets must be obtained by the SDK host, for example from Windows when the runtime runs in WSL. The runtime currently uses it for proxy authentication. The callback receives a `context.Context` and a `KerberosAuthAcquireRequest` whose `Spn` is a service principal in the platform-independent `service/host[@REALM]` form, and returns a fresh base64 SPNEGO token without the `Negotiate ` prefix, or `""` when credentials are unavailable. A returned error is reported to the runtime as a callback failure. The callback should validate the principal before issuing credentials.
+
+<!-- docs-validate: hidden -->
+<!--
+```go
+package main
+
+import (
+	"context"
+
+	copilot "github.com/github/copilot-sdk/go"
+)
+
+func acquireSPNEGOToken(ctx context.Context, spn string) (string, error) {
+	return "", nil
+}
+
+func main() {
+	client := copilot.NewClient(&copilot.ClientOptions{
+		KerberosAuth: &copilot.KerberosAuthConfig{
+			Mode: copilot.KerberosAuthModeFallback,
+			Callback: func(ctx context.Context, request copilot.KerberosAuthAcquireRequest) (string, error) {
+				return acquireSPNEGOToken(ctx, request.Spn) // host-side credential lookup
+			},
+		},
+	})
+	_ = client
+}
+```
+-->
+<!-- /docs-validate: hidden -->
 
 ```go
 client := copilot.NewClient(&copilot.ClientOptions{
@@ -384,6 +476,34 @@ Implemented with pure-Go FFI (via [purego](https://github.com/ebitengine/purego)
 
 **Session Lifecycle Events:**
 
+<!-- docs-validate: hidden -->
+<!--
+```go
+package main
+
+import (
+	"fmt"
+
+	copilot "github.com/github/copilot-sdk/go"
+)
+
+func main() {
+	client := copilot.NewClient(nil)
+
+	unsubscribe := client.On(func(event copilot.SessionLifecycleEvent) {
+		fmt.Printf("Session %s: %s\n", event.SessionID, event.Type)
+	})
+	defer unsubscribe()
+
+	unsubscribeForeground := client.OnEventType(copilot.SessionLifecycleForeground, func(event copilot.SessionLifecycleEvent) {
+		fmt.Printf("Session %s is now in foreground\n", event.SessionID)
+	})
+	defer unsubscribeForeground()
+}
+```
+-->
+<!-- /docs-validate: hidden -->
+
 ```go
 // Subscribe to all lifecycle events
 unsubscribe := client.On(func(event copilot.SessionLifecycleEvent) {
@@ -392,9 +512,10 @@ unsubscribe := client.On(func(event copilot.SessionLifecycleEvent) {
 defer unsubscribe()
 
 // Subscribe to specific event type
-unsubscribe := client.OnEventType(copilot.SessionLifecycleForeground, func(event copilot.SessionLifecycleEvent) {
+unsubscribeForeground := client.OnEventType(copilot.SessionLifecycleForeground, func(event copilot.SessionLifecycleEvent) {
     fmt.Printf("Session %s is now in foreground\n", event.SessionID)
 })
+defer unsubscribeForeground()
 ```
 
 Event types: `SessionLifecycleCreated`, `SessionLifecycleDeleted`, `SessionLifecycleUpdated`, `SessionLifecycleForeground`, `SessionLifecycleBackground`
@@ -474,6 +595,43 @@ Event types: `SessionLifecycleCreated`, `SessionLifecycleDeleted`, `SessionLifec
 - `InteractiveUser` (\*bool): Re-supplies the interactive-user declaration on cold resume. It is ignored when resuming a session that is already active.
 - `GitHubTokenProvider` (GitHubTokenProvider): Replaces the session-scoped token provider when resuming. Cannot be combined with `GitHubToken`.
 
+<!-- docs-validate: hidden -->
+<!--
+```go
+package main
+
+import (
+	"context"
+
+	copilot "github.com/github/copilot-sdk/go"
+)
+
+func acquireToken(host string) (string, error) {
+	return "", nil
+}
+
+func main() {
+	ctx := context.Background()
+	client := copilot.NewClient(nil)
+
+	session, err := client.CreateSession(ctx, &copilot.SessionConfig{
+		GitHubTokenProvider: func(args copilot.GitHubTokenProviderArgs) (*copilot.GitHubTokenProviderResult, error) {
+			token, err := acquireToken(args.Host)
+			if err != nil {
+				return nil, err
+			}
+			return copilot.GitHubTokenResult(&copilot.GitHubToken{
+				AccessToken: token,
+				ExpiresIn:   8 * 60 * 60,
+			}), nil
+		},
+	})
+	_, _ = session, err
+}
+```
+-->
+<!-- /docs-validate: hidden -->
+
 ```go
 session, err := client.CreateSession(ctx, &copilot.SessionConfig{
     GitHubTokenProvider: func(args copilot.GitHubTokenProviderArgs) (*copilot.GitHubTokenProviderResult, error) {
@@ -509,6 +667,36 @@ an identified agent. Use `copilot.MessageSourceSystem` for application-internal
 context, not as a substitute for agent provenance. Use `copilot.MessageSourceUser`
 for explicit user provenance, or leave it empty to omit `source` from the request
 and preserve the runtime's default behavior.
+
+<!-- docs-validate: hidden -->
+<!--
+```go
+package main
+
+import (
+	"context"
+
+	copilot "github.com/github/copilot-sdk/go"
+)
+
+func main() {
+	ctx := context.Background()
+	client := copilot.NewClient(nil)
+	session, err := client.CreateSession(ctx, &copilot.SessionConfig{})
+	if err != nil {
+		return
+	}
+
+	_, err = session.Send(ctx, copilot.MessageOptions{
+		Prompt: "Review complete. The build passed.",
+		Source: copilot.MessageSourceAgent("reviewer"),
+		Mode:   "enqueue",
+	})
+	_ = err
+}
+```
+-->
+<!-- /docs-validate: hidden -->
 
 ```go
 _, err := session.Send(ctx, copilot.MessageOptions{
@@ -731,6 +919,50 @@ See [Auto tier persistence](../docs/features/session-persistence.md#auto-tier-pe
 
 The SDK supports image attachments via the `Attachments` field in `MessageOptions`. You can attach images by providing their file path, or by passing base64-encoded data directly using a blob attachment:
 
+<!-- docs-validate: hidden -->
+<!--
+```go
+package main
+
+import (
+	"context"
+
+	copilot "github.com/github/copilot-sdk/go"
+)
+
+func main() {
+	var session *copilot.Session
+	var err error
+	base64ImageData := "iVBORw0KGgo="
+
+	// File attachment — runtime reads from disk
+	_, err = session.Send(context.Background(), copilot.MessageOptions{
+		Prompt: "What's in this image?",
+		Attachments: []copilot.Attachment{
+			&copilot.AttachmentFile{
+				DisplayName: "image.jpg",
+				Path:        "/path/to/image.jpg",
+			},
+		},
+	})
+
+	// Blob attachment — provide base64 data directly
+	mimeType := "image/png"
+	_, err = session.Send(context.Background(), copilot.MessageOptions{
+		Prompt: "What's in this image?",
+		Attachments: []copilot.Attachment{
+			&copilot.AttachmentBlob{
+				Data:     &base64ImageData,
+				MIMEType: mimeType,
+			},
+		},
+	})
+	_ = err
+}
+```
+-->
+<!-- /docs-validate: hidden -->
+
 ```go
 // File attachment — runtime reads from disk
 _, err = session.Send(context.Background(), copilot.MessageOptions{
@@ -749,7 +981,7 @@ _, err = session.Send(context.Background(), copilot.MessageOptions{
     Prompt: "What's in this image?",
     Attachments: []copilot.Attachment{
         &copilot.AttachmentBlob{
-            Data:     base64ImageData,
+            Data:     &base64ImageData,
             MIMEType: mimeType,
         },
     },
@@ -771,6 +1003,51 @@ Expose your own functionality to Copilot by attaching tools to a session.
 #### Using DefineTool (Recommended)
 
 Use `DefineTool` for type-safe tools with automatic JSON schema generation:
+
+<!-- docs-validate: hidden -->
+<!--
+```go
+package main
+
+import (
+	"context"
+
+	copilot "github.com/github/copilot-sdk/go"
+)
+
+type Issue struct {
+	ID      string
+	Summary string
+}
+
+func fetchIssue(id string) (Issue, error) { return Issue{ID: id}, nil }
+
+func main() {
+	client := copilot.NewClient(nil)
+
+	type LookupIssueParams struct {
+		ID string `json:"id" jsonschema:"Issue identifier"`
+	}
+
+	lookupIssue := copilot.DefineTool("lookup_issue", "Fetch issue details from our tracker",
+		func(params LookupIssueParams, inv copilot.ToolInvocation) (any, error) {
+			// params is automatically unmarshaled from the LLM's arguments
+			issue, err := fetchIssue(params.ID)
+			if err != nil {
+				return nil, err
+			}
+			return issue.Summary, nil
+		})
+
+	session, _ := client.CreateSession(context.Background(), &copilot.SessionConfig{
+		Model: "gpt-5",
+		Tools: []copilot.Tool{lookupIssue},
+	})
+	_ = session
+}
+```
+-->
+<!-- /docs-validate: hidden -->
 
 ```go
 type LookupIssueParams struct {
@@ -796,6 +1073,65 @@ session, _ := client.CreateSession(context.Background(), &copilot.SessionConfig{
 #### Using Tool struct directly
 
 For more control over the JSON schema, use the `Tool` struct directly:
+
+<!-- docs-validate: hidden -->
+<!--
+```go
+package main
+
+import (
+	"context"
+	"fmt"
+
+	copilot "github.com/github/copilot-sdk/go"
+)
+
+type Issue struct {
+	ID      string
+	Summary string
+}
+
+func fetchIssue(id string) (Issue, error) { return Issue{ID: id}, nil }
+
+func main() {
+	client := copilot.NewClient(nil)
+
+	lookupIssue := copilot.Tool{
+		Name:        "lookup_issue",
+		Description: "Fetch issue details from our tracker",
+		Parameters: map[string]any{
+			"type": "object",
+			"properties": map[string]any{
+				"id": map[string]any{
+					"type":        "string",
+					"description": "Issue identifier",
+				},
+			},
+			"required": []string{"id"},
+		},
+		Handler: func(invocation copilot.ToolInvocation) (copilot.ToolResult, error) {
+			args := invocation.Arguments.(map[string]any)
+			issue, err := fetchIssue(args["id"].(string))
+			if err != nil {
+				return copilot.ToolResult{}, err
+			}
+			return copilot.ToolResult{
+				TextResultForLLM: issue.Summary,
+				ResultType:       "success",
+				SessionLog:       fmt.Sprintf("Fetched issue %s", issue.ID),
+			}, nil
+		},
+	}
+
+	session, _ := client.CreateSession(context.Background(), &copilot.SessionConfig{
+		Model: "gpt-5",
+		Tools: []copilot.Tool{lookupIssue},
+	})
+	_ = session
+}
+```
+-->
+<!-- /docs-validate: hidden -->
 
 ```go
 lookupIssue := copilot.Tool{
@@ -837,6 +1173,31 @@ When the model selects a tool, the SDK automatically runs your handler (in paral
 
 If you register a tool with the same name as a built-in CLI tool (e.g. `edit_file`, `read_file`), the SDK will throw an error unless you explicitly opt in by setting `OverridesBuiltInTool = true`. This flag signals that you intend to replace the built-in tool with your custom implementation.
 
+<!-- docs-validate: hidden -->
+<!--
+```go
+package main
+
+import (
+	copilot "github.com/github/copilot-sdk/go"
+)
+
+type EditFileParams struct {
+	Path string `json:"path"`
+}
+
+func main() {
+	editFile := copilot.DefineTool("edit_file", "Custom file editor with project-specific validation",
+		func(params EditFileParams, inv copilot.ToolInvocation) (any, error) {
+			// your logic
+			return nil, nil
+		})
+	editFile.OverridesBuiltInTool = true
+}
+```
+-->
+<!-- /docs-validate: hidden -->
+
 ```go
 editFile := copilot.DefineTool("edit_file", "Custom file editor with project-specific validation",
     func(params EditFileParams, inv copilot.ToolInvocation) (any, error) {
@@ -869,6 +1230,29 @@ use an object schema if references are needed.
 
 Set `SkipPermission = true` on a tool to allow it to execute without triggering a permission prompt:
 
+<!-- docs-validate: hidden -->
+<!--
+```go
+package main
+
+import copilot "github.com/github/copilot-sdk/go"
+
+type LookupParams struct {
+	ID string `json:"id" jsonschema:"Issue identifier"`
+}
+
+func main() {
+	safeLookup := copilot.DefineTool("safe_lookup", "A read-only lookup that needs no confirmation",
+		func(params LookupParams, inv copilot.ToolInvocation) (any, error) {
+			// your logic
+			return nil, nil
+		})
+	safeLookup.SkipPermission = true
+}
+```
+-->
+<!-- /docs-validate: hidden -->
+
 ```go
 safeLookup := copilot.DefineTool("safe_lookup", "A read-only lookup that needs no confirmation",
     func(params LookupParams, inv copilot.ToolInvocation) (any, error) {
@@ -881,6 +1265,29 @@ safeLookup.SkipPermission = true
 
 Set `Defer` to control whether a tool may be loaded lazily via tool search rather than always pre-loaded. Use `copilot.ToolDeferAuto` to allow the tool to be deferred and surfaced through tool search, or `copilot.ToolDeferNever` to force it to always be pre-loaded. Defaults to `copilot.ToolDeferAuto`.
 
+<!-- docs-validate: hidden -->
+<!--
+```go
+package main
+
+import copilot "github.com/github/copilot-sdk/go"
+
+type LookupParams struct {
+	ID string `json:"id" jsonschema:"Issue identifier"`
+}
+
+func main() {
+	lookupIssue := copilot.DefineTool("lookup_issue", "Fetch issue details",
+		func(params LookupParams, inv copilot.ToolInvocation) (any, error) {
+			// your logic
+			return nil, nil
+		})
+	lookupIssue.Defer = copilot.ToolDeferAuto
+}
+```
+-->
+<!-- /docs-validate: hidden -->
+
 ```go
 lookupIssue := copilot.DefineTool("lookup_issue", "Fetch issue details",
     func(params LookupParams, inv copilot.ToolInvocation) (any, error) {
@@ -892,6 +1299,35 @@ lookupIssue.Defer = copilot.ToolDeferAuto
 ## Structured output (experimental)
 
 Use the package-level generic helper (Go does not support generic methods):
+
+<!-- docs-validate: hidden -->
+<!--
+```go
+package main
+
+import (
+	"context"
+
+	copilot "github.com/github/copilot-sdk/go"
+)
+
+func main() {
+	ctx := context.Background()
+	var session *copilot.Session
+
+	type Inventory struct {
+		Count int    `json:"count"`
+		Color string `json:"color"`
+	}
+
+	inventory, err := copilot.SendAndWait[Inventory](ctx, session, copilot.MessageOptions{
+		Prompt: "Call get_inventory, then report the widget count and color.",
+	})
+	_, _ = inventory, err
+}
+```
+-->
+<!-- /docs-validate: hidden -->
 
 ```go
 type Inventory struct {
@@ -1006,6 +1442,48 @@ Note: `assistant.message` and `assistant.reasoning` (final events) are always se
 
 By default, sessions use **infinite sessions** which automatically manage context window limits through background compaction and persist state to a workspace directory.
 
+<!-- docs-validate: hidden -->
+<!--
+```go
+package main
+
+import (
+	"context"
+	"fmt"
+
+	copilot "github.com/github/copilot-sdk/go"
+)
+
+func main() {
+	client := copilot.NewClient(nil)
+
+	session, _ := client.CreateSession(context.Background(), &copilot.SessionConfig{
+		Model: "gpt-5",
+	})
+
+	fmt.Println(session.WorkspacePath())
+
+	customSession, _ := client.CreateSession(context.Background(), &copilot.SessionConfig{
+		Model: "gpt-5",
+		InfiniteSessions: &copilot.InfiniteSessionConfig{
+			Enabled:                       copilot.Bool(true),
+			BackgroundCompactionThreshold: copilot.Float64(0.80),
+			BufferExhaustionThreshold:     copilot.Float64(0.95),
+		},
+	})
+
+	disabledSession, _ := client.CreateSession(context.Background(), &copilot.SessionConfig{
+		Model: "gpt-5",
+		InfiniteSessions: &copilot.InfiniteSessionConfig{
+			Enabled: copilot.Bool(false),
+		},
+	})
+	_, _ = customSession, disabledSession
+}
+```
+-->
+<!-- /docs-validate: hidden -->
+
 ```go
 // Default: infinite sessions enabled with default thresholds
 session, _ := client.CreateSession(context.Background(), &copilot.SessionConfig{
@@ -1017,7 +1495,7 @@ fmt.Println(session.WorkspacePath())
 // => ~/.copilot/session-state/{sessionId}/
 
 // Custom thresholds
-session, _ := client.CreateSession(context.Background(), &copilot.SessionConfig{
+customSession, _ := client.CreateSession(context.Background(), &copilot.SessionConfig{
     Model: "gpt-5",
     InfiniteSessions: &copilot.InfiniteSessionConfig{
         Enabled:                       copilot.Bool(true),
@@ -1027,7 +1505,7 @@ session, _ := client.CreateSession(context.Background(), &copilot.SessionConfig{
 })
 
 // Disable infinite sessions
-session, _ := client.CreateSession(context.Background(), &copilot.SessionConfig{
+disabledSession, _ := client.CreateSession(context.Background(), &copilot.SessionConfig{
     Model: "gpt-5",
     InfiniteSessions: &copilot.InfiniteSessionConfig{
         Enabled: copilot.Bool(false),
@@ -1049,6 +1527,39 @@ SDK leaves `Memory` unset so the runtime applies its own default, while `ModeEmp
 defaults `Memory` to disabled unless you set it explicitly.
 For more background, see [About GitHub Copilot Memory](https://docs.github.com/en/copilot/concepts/agents/copilot-memory).
 
+<!-- docs-validate: hidden -->
+<!--
+```go
+package main
+
+import (
+	"context"
+
+	copilot "github.com/github/copilot-sdk/go"
+)
+
+func main() {
+	client := copilot.NewClient(nil)
+
+	session, _ := client.CreateSession(context.Background(), &copilot.SessionConfig{
+		Model: "gpt-5",
+		Memory: &copilot.MemoryConfiguration{
+			Enabled: true,
+		},
+	})
+
+	memoryOffSession, _ := client.CreateSession(context.Background(), &copilot.SessionConfig{
+		Model: "gpt-5",
+		Memory: &copilot.MemoryConfiguration{
+			Enabled: false,
+		},
+	})
+	_, _ = session, memoryOffSession
+}
+```
+-->
+<!-- /docs-validate: hidden -->
+
 ```go
 // Enable memory for a session
 session, _ := client.CreateSession(context.Background(), &copilot.SessionConfig{
@@ -1059,7 +1570,7 @@ session, _ := client.CreateSession(context.Background(), &copilot.SessionConfig{
 })
 
 // Disable memory for a session
-session, _ := client.CreateSession(context.Background(), &copilot.SessionConfig{
+memoryOffSession, _ := client.CreateSession(context.Background(), &copilot.SessionConfig{
     Model: "gpt-5",
     Memory: &copilot.MemoryConfiguration{
         Enabled: false,
@@ -1413,6 +1924,38 @@ session, err := client.CreateSession(ctx, &copilot.SessionConfig{
 
 Commands are also available when resuming sessions:
 
+<!-- docs-validate: hidden -->
+<!--
+```go
+package main
+
+import (
+	"context"
+
+	copilot "github.com/github/copilot-sdk/go"
+)
+
+func statusHandler(ctx copilot.CommandContext) error {
+	return nil
+}
+
+func main() {
+	ctx := context.Background()
+	client := copilot.NewClient(nil)
+	sessionID := "session-id"
+
+	session, err := client.ResumeSession(ctx, sessionID, &copilot.ResumeSessionConfig{
+		OnPermissionRequest: copilot.PermissionHandler.ApproveAll,
+		Commands: []copilot.CommandDefinition{
+			{Name: "status", Description: "Show status", Handler: statusHandler},
+		},
+	})
+	_, _ = session, err
+}
+```
+-->
+<!-- /docs-validate: hidden -->
+
 ```go
 session, err := client.ResumeSession(ctx, sessionID, &copilot.ResumeSessionConfig{
     OnPermissionRequest: copilot.PermissionHandler.ApproveAll,
@@ -1427,6 +1970,53 @@ If a handler returns an error, the SDK sends the error message back to the serve
 ## UI Elicitation
 
 The SDK provides convenience methods to ask the user questions via elicitation dialogs. These are gated by host capabilities — check `session.Capabilities().UI.Elicitation` before calling.
+
+<!-- docs-validate: hidden -->
+<!--
+```go
+package main
+
+import (
+	"context"
+
+	copilot "github.com/github/copilot-sdk/go"
+)
+
+func main() {
+	ctx := context.Background()
+	var session *copilot.Session
+
+	ui := session.UI()
+
+	// Confirmation dialog — returns bool
+	confirmed, err := ui.Confirm(ctx, "Deploy to production?")
+
+	// Selection dialog — returns (selected string, ok bool, error)
+	choice, ok, err := ui.Select(ctx, "Pick an environment", []string{"staging", "production"})
+
+	// Text input — returns (text, ok bool, error)
+	name, ok, err := ui.Input(ctx, "Enter the release name", &copilot.UIInputOptions{
+		Title:       "Release Name",
+		Description: "A short name for the release",
+		MinLength:   copilot.Int(1),
+		MaxLength:   copilot.Int(50),
+	})
+
+	// Full custom elicitation with a schema
+	result, err := ui.Elicitation(ctx, "Configure deployment", copilot.ElicitationSchema{
+		Properties: map[string]any{
+			"target": map[string]any{"type": "string", "enum": []string{"staging", "production"}},
+			"force":  map[string]any{"type": "boolean"},
+		},
+		Required: []string{"target"},
+	})
+	// result.Action is "accept", "decline", or "cancel"
+	// result.Content has the form values when Action is "accept"
+	_, _, _, _, _, _ = confirmed, choice, name, ok, result, err
+}
+```
+-->
+<!-- /docs-validate: hidden -->
 
 ```go
 ui := session.UI()
@@ -1492,6 +2082,23 @@ When `OnElicitationRequest` is provided, the SDK automatically:
 ### stdio (Default)
 
 Communicates with CLI via stdin/stdout pipes. Recommended for most use cases.
+
+<!-- docs-validate: hidden -->
+<!--
+```go
+package main
+
+import (
+	copilot "github.com/github/copilot-sdk/go"
+)
+
+func main() {
+	client := copilot.NewClient(nil) // Uses stdio by default
+	_ = client
+}
+```
+-->
+<!-- /docs-validate: hidden -->
 
 ```go
 client := copilot.NewClient(nil) // Uses stdio by default

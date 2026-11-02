@@ -35,10 +35,12 @@ public class McpOAuthE2ETests(E2ETestFixture fixture, ITestOutputHelper output) 
         })!;
         using var observer = Process.GetProcessById(process.Id);
         using var cancellation = new CancellationTokenSource();
+        Task<OAuthMcpServer>? startup = null;
         try
         {
+            _ = observer.Handle;
             Assert.Equal("started", await process.StandardOutput.ReadLineAsync().WaitAsync(TimeSpan.FromSeconds(10)));
-            var startup = OAuthMcpServer.WaitForListeningAsync(process, cancellation.Token);
+            startup = OAuthMcpServer.WaitForListeningAsync(process, cancellation.Token);
             cancellation.Cancel();
 
             await Assert.ThrowsAnyAsync<OperationCanceledException>(() => startup);
@@ -46,10 +48,15 @@ public class McpOAuthE2ETests(E2ETestFixture fixture, ITestOutputHelper output) 
         }
         finally
         {
-            if (!observer.HasExited)
+            cancellation.Cancel();
+            startup ??= OAuthMcpServer.WaitForListeningAsync(process, cancellation.Token);
+            try
             {
-                observer.Kill(entireProcessTree: true);
-                await observer.WaitForExitAsync();
+                await startup;
+            }
+            catch (OperationCanceledException)
+            {
+                // The startup owner has already joined cleanup and disposed its Process.
             }
         }
     }

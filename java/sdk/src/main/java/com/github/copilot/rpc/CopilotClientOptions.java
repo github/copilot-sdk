@@ -552,7 +552,7 @@ public class CopilotClientOptions {
     /**
      * Sets the log level for the CLI process.
      * <p>
-     * Valid levels include: "error", "warn", "info", "debug", "trace".
+     * Valid levels include: "none", "error", "warning", "info", "debug", "all".
      *
      * @param logLevel
      *            the log level (must not be {@code null} or empty)

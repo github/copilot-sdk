@@ -775,7 +775,7 @@ class RuntimeConnection:
 class ChildProcessRuntimeConnection(RuntimeConnection):
     """Base for :class:`RuntimeConnection` variants that spawn a runtime child process.
 
-    Construct via :meth:`RuntimeConnection.stdio` or :meth:`RuntimeConnection.tcp`.
+    Construct via :meth:`RuntimeConnection.for_stdio` or :meth:`RuntimeConnection.for_tcp`.
     """
 
     path: str | None = None
@@ -787,16 +787,19 @@ class ChildProcessRuntimeConnection(RuntimeConnection):
     env: dict[str, str] | None = None
     """Per-connection environment variables for the spawned child process.
 
-    When set, do not also set :attr:`CopilotClientOptions.env` — the client
-    rejects setting environment in both places. ``None`` inherits the
-    client-level env (or the current process env)."""
+    When set, this mapping replaces the inherited process environment instead
+    of extending it, so include ``PATH`` and anything else the runtime needs
+    (the SDK still adds the variables it manages, such as the auth token).
+    Do not also set :attr:`CopilotClientOptions.env` — the client rejects
+    setting environment in both places. ``None`` inherits the client-level
+    env (or the current process env)."""
 
 
 @dataclass
 class StdioRuntimeConnection(ChildProcessRuntimeConnection):
     """Spawns a runtime child process and communicates over its stdin/stdout.
 
-    Construct via :meth:`RuntimeConnection.stdio`.
+    Construct via :meth:`RuntimeConnection.for_stdio`.
     """
 
 
@@ -804,7 +807,7 @@ class StdioRuntimeConnection(ChildProcessRuntimeConnection):
 class TcpRuntimeConnection(ChildProcessRuntimeConnection):
     """Spawns a runtime child process listening on a TCP socket.
 
-    Construct via :meth:`RuntimeConnection.tcp`.
+    Construct via :meth:`RuntimeConnection.for_tcp`.
     """
 
     port: int = 0
@@ -818,7 +821,7 @@ class TcpRuntimeConnection(ChildProcessRuntimeConnection):
 class UriRuntimeConnection(RuntimeConnection):
     """Connects to an already-running runtime at the specified URL.
 
-    Construct via :meth:`RuntimeConnection.uri`.
+    Construct via :meth:`RuntimeConnection.for_uri`.
     """
 
     url: str = ""
@@ -1182,16 +1185,20 @@ class ModelLimits:
     max_prompt_tokens: int | None = None
     max_context_window_tokens: int | None = None
     vision: ModelVisionLimits | None = None
+    # Last, so existing positional constructor calls keep their meaning.
+    max_output_tokens: int | None = None
 
     @staticmethod
     def from_dict(obj: Any) -> ModelLimits:
         assert isinstance(obj, dict)
         max_prompt_tokens = obj.get("max_prompt_tokens")
+        max_output_tokens = obj.get("max_output_tokens")
         max_context_window_tokens = obj.get("max_context_window_tokens")
         vision_dict = obj.get("vision")
         vision = ModelVisionLimits.from_dict(vision_dict) if vision_dict else None
         return ModelLimits(
             max_prompt_tokens=max_prompt_tokens,
+            max_output_tokens=max_output_tokens,
             max_context_window_tokens=max_context_window_tokens,
             vision=vision,
         )
@@ -1200,6 +1207,8 @@ class ModelLimits:
         result: dict = {}
         if self.max_prompt_tokens is not None:
             result["max_prompt_tokens"] = self.max_prompt_tokens
+        if self.max_output_tokens is not None:
+            result["max_output_tokens"] = self.max_output_tokens
         if self.max_context_window_tokens is not None:
             result["max_context_window_tokens"] = self.max_context_window_tokens
         if self.vision is not None:
@@ -5276,24 +5285,7 @@ class CopilotClient:
         self._client.on_close = self._handle_connection_close
         self._rpc = ServerRpc(self._client)
 
-        # Set up notification handler for session events
-        # Note: This handler is called from the event loop (thread-safe scheduling)
-        def handle_notification(method: str, params: dict):
-            if method == "session.event":
-                session_id = params["sessionId"]
-                event_dict = params["event"]
-                # Convert dict to SessionEvent object
-                event = session_event_from_dict(event_dict)
-                with self._sessions_lock:
-                    session = self._sessions.get(session_id)
-                if session:
-                    session._dispatch_event(event)
-            elif method == "session.lifecycle":
-                # Handle session lifecycle events
-                lifecycle_event = _session_lifecycle_event_from_dict(params)
-                self._dispatch_lifecycle_event(lifecycle_event)
-
-        self._client.set_notification_handler(handle_notification)
+        self._client.set_notification_handler(self._handle_notification)
         self._client.set_request_handler("userInput.request", self._handle_user_input_request)
         self._client.set_request_handler(
             "exitPlanMode.request", self._handle_exit_plan_mode_request
@@ -5398,22 +5390,7 @@ class CopilotClient:
         self._client.on_close = self._handle_connection_close
         self._rpc = ServerRpc(self._client)
 
-        # Set up notification handler for session events
-        def handle_notification(method: str, params: dict):
-            if method == "session.event":
-                session_id = params["sessionId"]
-                event_dict = params["event"]
-                # Convert dict to SessionEvent object
-                event = session_event_from_dict(event_dict)
-                session = self._sessions.get(session_id)
-                if session:
-                    session._dispatch_event(event)
-            elif method == "session.lifecycle":
-                # Handle session lifecycle events
-                lifecycle_event = _session_lifecycle_event_from_dict(params)
-                self._dispatch_lifecycle_event(lifecycle_event)
-
-        self._client.set_notification_handler(handle_notification)
+        self._client.set_notification_handler(self._handle_notification)
         self._client.set_request_handler("userInput.request", self._handle_user_input_request)
         self._client.set_request_handler(
             "exitPlanMode.request", self._handle_exit_plan_mode_request
@@ -5669,6 +5646,20 @@ class CopilotClient:
     def _get_session(self, session_id: str) -> CopilotSession | None:
         with self._sessions_lock:
             return self._sessions.get(session_id)
+
+    def _handle_notification(self, method: str, params: dict) -> None:
+        """Route a server notification to its session or the lifecycle listeners.
+
+        The stdio and TCP connections both register this one handler, so they share
+        the locked session lookup. The JSON-RPC reader schedules it on the event loop.
+        """
+        if method == "session.event":
+            event = session_event_from_dict(params["event"])
+            session = self._get_session(params["sessionId"])
+            if session:
+                session._dispatch_event(event)
+        elif method == "session.lifecycle":
+            self._dispatch_lifecycle_event(_session_lifecycle_event_from_dict(params))
 
     def _register_session_scoped_request_handlers(self) -> None:
         if not self._client:

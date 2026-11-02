@@ -483,11 +483,11 @@ Ephemeral. Token usage and cost information for an individual API call.
 | Data Field | Type | Required | Description |
 |------------|------|----------|-------------|
 | `model` | `string` | ✅ | Model identifier (e.g., `"gpt-5.4"`) |
-| `inputTokens` | `number` | | Input tokens consumed |
+| `inputTokens` | `number` | | Total input tokens for this call, including `cacheReadTokens` and `cacheWriteTokens` |
 | `outputTokens` | `number` | | Output tokens produced |
 | `reasoningTokens` | `number` | | Output tokens used for reasoning/chain-of-thought (subset of `outputTokens`) |
-| `cacheReadTokens` | `number` | | Tokens read from prompt cache |
-| `cacheWriteTokens` | `number` | | Tokens written to prompt cache |
+| `cacheReadTokens` | `number` | | Tokens read from prompt cache (subset of `inputTokens`) |
+| `cacheWriteTokens` | `number` | | Tokens written to prompt cache (subset of `inputTokens`) |
 | `cacheExpiresAt` | `string` | | ISO 8601 timestamp when the prompt cache for this model call expires |
 | `contentFilterTriggered` | `boolean` | | Whether the response was blocked or truncated by content filtering (`finish_reason === 'content_filter'`) |
 | `finishReason` | `string` | | Model finish reason (e.g., `"stop"`, `"length"`, `"tool_calls"`, `"content_filter"`) |
@@ -874,7 +874,7 @@ The current turn was aborted.
 
 | Data Field | Type | Required | Description |
 |------------|------|----------|-------------|
-| `reason` | `string` | ✅ | Why the turn was aborted (e.g., `"user initiated"`) |
+| `reason` | `"user_initiated" \| "remote_command" \| "user_abort" \| "autopilot_credit_limit"` | ✅ | Why the turn was aborted |
 
 ### `user.message`
 

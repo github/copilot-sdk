@@ -208,6 +208,10 @@ required-features = ["test-support"]
 [[test]]
 name = "kerberos_auth_test"
 required-features = ["runtime"]
+
+[[test]]
+name = "session_management_test"
+required-features = ["test-support"]
 [build-dependencies]
 flate2 = "1"
 serde_json = "1"

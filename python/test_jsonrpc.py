@@ -62,6 +62,41 @@ class MockProcess:
 
 
 @pytest.mark.asyncio
+@pytest.mark.parametrize("error", ["not an object", 42, [], None, {"message": "readable"}])
+async def test_unreadable_error_fails_request_and_keeps_reading(error, monkeypatch):
+    read_fd, write_fd = os.pipe()
+    with os.fdopen(read_fd, "rb") as stdout, os.fdopen(write_fd, "wb") as writer:
+        process = MockProcess()
+        process.stdout = stdout
+        client = JsonRpcClient(process)
+        callback_results = []
+
+        async def respond(message):
+            payload = (
+                {"error": error} if message["method"] == "bad" else {"result": {"recovered": True}}
+            )
+            body = json.dumps({"jsonrpc": "2.0", "id": message["id"], **payload}).encode()
+            writer.write(f"Content-Length: {len(body)}\r\n\r\n".encode() + body)
+            writer.flush()
+
+        monkeypatch.setattr(client, "_send_message", respond)
+        client.start()
+        try:
+            expected = copilot.JsonRpcError if isinstance(error, dict) else ValueError
+            match = "readable" if isinstance(error, dict) else "Invalid JSON-RPC error response"
+            with pytest.raises(expected, match=match):
+                await asyncio.wait_for(
+                    client.request("bad", on_response_inline=callback_results.append), timeout=5
+                )
+            assert callback_results == []
+            assert await asyncio.wait_for(client.request("next"), timeout=5) == {"recovered": True}
+            assert client.pending_requests == {}
+        finally:
+            writer.close()
+            await client.stop()
+
+
+@pytest.mark.asyncio
 @pytest.mark.parametrize("phase", ["during-write", "after-write", "blocked-cancellation"])
 async def test_completion_cancellation_preserves_frame_order_without_blocking_caller(
     phase, monkeypatch

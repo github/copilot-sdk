@@ -2445,9 +2445,9 @@ public sealed partial class CopilotSession : IAsyncDisposable
             return hookType switch
             {
                 "preToolUse" => hooks.OnPreToolUse != null
-                    ? await hooks.OnPreToolUse(
+                    ? SerializeHookOutputWithPayload(await hooks.OnPreToolUse(
                         JsonSerializer.Deserialize(input.GetRawText(), SessionJsonContext.Default.PreToolUseHookInput)!,
-                        invocation)
+                        invocation))
                     : null,
                 "preMcpToolCall" => hooks.OnPreMcpToolCall != null
                     ? SerializeHookOutput(await hooks.OnPreMcpToolCall(
@@ -2455,9 +2455,9 @@ public sealed partial class CopilotSession : IAsyncDisposable
                         invocation))
                     : null,
                 "postToolUse" => hooks.OnPostToolUse != null
-                    ? await hooks.OnPostToolUse(
+                    ? SerializeHookOutputWithPayload(await hooks.OnPostToolUse(
                         JsonSerializer.Deserialize(input.GetRawText(), SessionJsonContext.Default.PostToolUseHookInput)!,
-                        invocation)
+                        invocation))
                     : null,
                 "postToolUseFailure" => hooks.OnPostToolUseFailure != null
                     ? await hooks.OnPostToolUseFailure(
@@ -2524,6 +2524,31 @@ public sealed partial class CopilotSession : IAsyncDisposable
     /// </summary>
     private static JsonElement? SerializeHookOutput(PreMcpToolCallHookOutput? output) =>
         output is null ? null : JsonSerializer.SerializeToElement(output, SessionJsonContext.Default.PreMcpToolCallHookOutput);
+
+    /// <summary>
+    /// Serializer options for hook outputs with an <c>object?</c> payload
+    /// (<see cref="PreToolUseHookOutput.ModifiedArgs"/>, <see cref="PostToolUseHookOutput.ModifiedResult"/>),
+    /// which can hold caller-defined types, such as anonymous objects, that no source-generated
+    /// context describes. As for structured output and custom tools, those types are serialized
+    /// with reflection when the application enables it.
+    /// </summary>
+    private static readonly JsonSerializerOptions s_hookPayloadSerializerOptions = CreateHookPayloadSerializerOptions();
+
+    [UnconditionalSuppressMessage("AOT", "IL3050", Justification = "The reflection resolver is only added when JsonSerializer.IsReflectionEnabledByDefault is enabled.")]
+    [UnconditionalSuppressMessage("Trimming", "IL2026", Justification = "The reflection resolver is only added when JsonSerializer.IsReflectionEnabledByDefault is enabled.")]
+    private static JsonSerializerOptions CreateHookPayloadSerializerOptions()
+    {
+        var options = new JsonSerializerOptions(CopilotClient.SerializerOptionsForMessageFormatter);
+        if (JsonSerializer.IsReflectionEnabledByDefault)
+        {
+            options.TypeInfoResolverChain.Add(new DefaultJsonTypeInfoResolver());
+        }
+        options.MakeReadOnly();
+        return options;
+    }
+
+    private static JsonElement? SerializeHookOutputWithPayload<T>(T? output) where T : class =>
+        output is null ? null : JsonSerializer.SerializeToElement(output, s_hookPayloadSerializerOptions.GetTypeInfo(typeof(T)));
 
     /// <summary>
     /// Registers transform callbacks for system message sections.

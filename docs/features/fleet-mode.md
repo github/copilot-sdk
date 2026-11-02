@@ -171,7 +171,7 @@ if result.started {
 
 </details>
 
-Native typed bindings for fleet mode were verified in Node.js/TypeScript, Python, Go, .NET, and Rust. A Java binding was not found in `java/src/main/java` on this branch, so Java examples are omitted until that surface is available.
+Java exposes the same binding as `session.getRpc().fleet.start(...)`. The method and its `SessionFleetStartParams` and `SessionFleetStartResult` types are `@CopilotExperimental`, so the consuming class or method must opt in with `@AllowCopilotExperimental`. See [Using experimental APIs](../../java/README.md#using-experimental-apis).
 
 ### From plan mode
 
@@ -347,7 +347,6 @@ Keep plugin-provided sub-agent types narrow and descriptive so the orchestrator 
 * The SQL todos pattern is the canonical coordination model in the runtime guidance, but whether it is a stable extensibility contract for SDK consumers is still an open question.
 * Sub-agent lifecycle hook inputs identify the parent session but do not yet carry a shared tool-call ID for correlating with `subagent.*` events.
 * Plugin sub-agent registration is configured at the runtime layer through `--plugin-dir`; no SDK-level plugin registration helper was verified on this branch.
-* Java native typed bindings for `session.fleet.start` were not found in the Java SDK source on this branch.
 * Fleet mode does not remove the need for parent-agent review. Parallel workers can produce inconsistent assumptions that the orchestrator must reconcile.
 
 ## See also

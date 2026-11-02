@@ -100,6 +100,10 @@ public class E2ETestFixtureTests
             typeof(ReplayProxy).GetField("_startupTask", BindingFlags.Instance | BindingFlags.NonPublic)!
                 .SetValue(proxy, Task.FromException<string>(failure));
             Assert.Equal("started", await process.StandardOutput.ReadLineAsync().WaitAsync(TimeSpan.FromSeconds(10)));
+            // Proxy cleanup disposes its Process object; pin this independent observer first.
+            Assert.NotSame(process, observer);
+            _ = observer.Handle;
+            Assert.False(observer.HasExited);
 
             var observed = await Assert.ThrowsAsync<TimeoutException>(
                 () => E2ETestContext.CreateAsync(proxy, homeDir, workDir));

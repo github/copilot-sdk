@@ -75,6 +75,7 @@ type (
 	AttachmentSelectionDetails                                     = rpc.AttachmentSelectionDetails
 	AttachmentSelectionDetailsEnd                                  = rpc.AttachmentSelectionDetailsEnd
 	AttachmentSelectionDetailsStart                                = rpc.AttachmentSelectionDetailsStart
+	AttachmentSessionReference                                     = rpc.AttachmentSessionReference
 	AttachmentType                                                 = rpc.AttachmentType
 	AutoModeResolvedReasoningBucket                                = rpc.AutoModeResolvedReasoningBucket
 	AutoModeSwitchCompletedData                                    = rpc.AutoModeSwitchCompletedData
@@ -614,6 +615,7 @@ const (
 	AttachmentTypeGitHubTreeComparison                                   = rpc.AttachmentTypeGitHubTreeComparison
 	AttachmentTypeGitHubURL                                              = rpc.AttachmentTypeGitHubURL
 	AttachmentTypeSelection                                              = rpc.AttachmentTypeSelection
+	AttachmentTypeSessionReference                                       = rpc.AttachmentTypeSessionReference
 	AutoModeResolvedReasoningBucketHigh                                  = rpc.AutoModeResolvedReasoningBucketHigh
 	AutoModeResolvedReasoningBucketLow                                   = rpc.AutoModeResolvedReasoningBucketLow
 	AutoModeResolvedReasoningBucketMedium                                = rpc.AutoModeResolvedReasoningBucketMedium

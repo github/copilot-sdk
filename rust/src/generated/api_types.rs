@@ -571,6 +571,16 @@ pub mod rpc_methods {
     pub const CONNECTORS_LIST: &str = "connectors.list";
     /// `connectors.refresh`
     pub const CONNECTORS_REFRESH: &str = "connectors.refresh";
+    /// `session.management.configure`
+    pub const SESSION_MANAGEMENT_CONFIGURE: &str = "session.management.configure";
+    /// `session.management.list`
+    pub const SESSION_MANAGEMENT_LIST: &str = "session.management.list";
+    /// `session.management.message`
+    pub const SESSION_MANAGEMENT_MESSAGE: &str = "session.management.message";
+    /// `session.management.create`
+    pub const SESSION_MANAGEMENT_CREATE: &str = "session.management.create";
+    /// `session.management.close`
+    pub const SESSION_MANAGEMENT_CLOSE: &str = "session.management.close";
     /// `session.providers.getCatalog`
     pub const SESSION_PROVIDERS_GETCATALOG: &str = "session.providers.getCatalog";
     /// `session.providers.discover`
@@ -777,6 +787,9 @@ pub mod rpc_methods {
     pub const SESSION_WORKSPACES_DIFF: &str = "session.workspaces.diff";
     /// `session.autopilotObjective.getState`
     pub const SESSION_AUTOPILOTOBJECTIVE_GETSTATE: &str = "session.autopilotObjective.getState";
+    /// `session.autopilotObjective.setStayInAutopilot`
+    pub const SESSION_AUTOPILOTOBJECTIVE_SETSTAYINAUTOPILOT: &str =
+        "session.autopilotObjective.setStayInAutopilot";
     /// `session.autopilot.evaluateIdleContinuation`
     pub(crate) const SESSION_AUTOPILOT_EVALUATEIDLECONTINUATION: &str =
         "session.autopilot.evaluateIdleContinuation";
@@ -1001,6 +1014,8 @@ pub mod rpc_methods {
     pub const SESSION_PROVIDER_ADD: &str = "session.provider.add";
     /// `session.provider.sync`
     pub const SESSION_PROVIDER_SYNC: &str = "session.provider.sync";
+    /// `session.provider.getStatus`
+    pub const SESSION_PROVIDER_GETSTATUS: &str = "session.provider.getStatus";
     /// `session.provider.withdraw`
     pub const SESSION_PROVIDER_WITHDRAW: &str = "session.provider.withdraw";
     /// `session.options.update`
@@ -1109,6 +1124,8 @@ pub mod rpc_methods {
     pub const SESSION_PERMISSIONS_SETMODE: &str = "session.permissions.setMode";
     /// `session.permissions.getMode`
     pub const SESSION_PERMISSIONS_GETMODE: &str = "session.permissions.getMode";
+    /// `session.permissions.getCapabilities`
+    pub const SESSION_PERMISSIONS_GETCAPABILITIES: &str = "session.permissions.getCapabilities";
     /// `session.permissions.modifyRules`
     pub const SESSION_PERMISSIONS_MODIFYRULES: &str = "session.permissions.modifyRules";
     /// `session.permissions.setRequired`
@@ -1307,6 +1324,8 @@ pub mod rpc_methods {
     pub(crate) const SKILLPROVIDER_LIST: &str = "skillProvider.list";
     /// `skillProvider.read`
     pub(crate) const SKILLPROVIDER_READ: &str = "skillProvider.read";
+    /// `sessionManagement.create`
+    pub(crate) const SESSIONMANAGEMENT_CREATE: &str = "sessionManagement.create";
     /// `providerToken.getToken`
     pub const PROVIDERTOKEN_GETTOKEN: &str = "providerToken.getToken";
     /// `workflow.execute`
@@ -1471,8 +1490,8 @@ pub use sdk_api_session::{
     AuthenticatedAuthorityGrant, AuthenticatedAuthorityUpdate, BuiltinToolDescriptor,
     BuiltinToolFormat, BuiltinToolFormatType, BuiltinToolInputSchema, BuiltinToolInputSchemaType,
     CurrentToolMetadata, FleetStartRequest, FleetStartResult, LocalSessionMetadataValue,
-    ManagedMcpServerConfig, ManagedPluginRetryEntry, ManagedPluginRetryStatus, MemoryConfiguration,
-    MemoryMode, MetadataSnapshotCurrentMode, MetadataSnapshotRemoteMetadata,
+    ManagedMcpServerConfig, ManagedPluginRetryEntry, ManagedPluginRetryStatus, ManagedSessionInfo,
+    MemoryConfiguration, MemoryMode, MetadataSnapshotCurrentMode, MetadataSnapshotRemoteMetadata,
     MetadataSnapshotRemoteMetadataRepository, MetadataSnapshotRemoteMetadataTaskType,
     ModelProviderDescriptor, OptionsUpdateAdditionalContentExclusionPolicy,
     OptionsUpdateAdditionalContentExclusionPolicyRule,
@@ -1549,7 +1568,7 @@ pub use sdk_api_session::{
     PermissionPathsConfig, PermissionPathsList, PermissionPathsUpdatePrimaryParams,
     PermissionPathsWorkspaceCheckParams, PermissionPathsWorkspaceCheckResult,
     PermissionPromptShownNotification, PermissionRequestResult, PermissionRulesSet,
-    PermissionUrlsConfig, PermissionUrlsSetUnrestrictedModeParams,
+    PermissionUrlsConfig, PermissionUrlsSetUnrestrictedModeParams, PermissionsCapabilities,
     PermissionsClearResumeEscalationRequest, PermissionsClearResumeEscalationResult,
     PermissionsConfigureAdditionalContentExclusionPolicy,
     PermissionsConfigureAdditionalContentExclusionPolicyRule,
@@ -1664,8 +1683,13 @@ pub use sdk_api_session::{
     SessionLimitPredictionUnavailableReason, SessionList, SessionListFilter,
     SessionLoadDeferredRepoHooksResult, SessionLogResult, SessionManagedPermissions,
     SessionManagedSettings, SessionManagedSettingsGetParams, SessionManagedSettingsGetResult,
-    SessionManagedSettingsRecheckPolicyHelperParams, SessionMcpAppsCallToolResult,
-    SessionMcpAppsDiagnoseResult, SessionMcpAppsGetHostContextParams,
+    SessionManagedSettingsRecheckPolicyHelperParams, SessionManagementCloseRequest,
+    SessionManagementCloseResult, SessionManagementConfigureRequest,
+    SessionManagementConfigureResult, SessionManagementCreateHostRequest,
+    SessionManagementCreateRequest, SessionManagementCreateResult, SessionManagementListRequest,
+    SessionManagementListResult, SessionManagementMessageRequest, SessionManagementMessageResult,
+    SessionManagementPolicy, SessionManagementScope, SessionManagementToolOverrides,
+    SessionMcpAppsCallToolResult, SessionMcpAppsDiagnoseResult, SessionMcpAppsGetHostContextParams,
     SessionMcpAppsGetHostContextResult, SessionMcpAppsListToolsResult,
     SessionMcpAppsReadResourceResult, SessionMcpCancelSamplingExecutionResult,
     SessionMcpConfigureGitHubResult, SessionMcpExecuteSamplingResult,
@@ -1707,7 +1731,8 @@ pub use sdk_api_session::{
     SessionOpenOptionsReasoningSummary, SessionOpenParams, SessionOpenResult,
     SessionOptionsUpdateResult, SessionPermissionsClearResumeEscalationResult,
     SessionPermissionsConfigureResult, SessionPermissionsFolderTrustAddTrustedResult,
-    SessionPermissionsFolderTrustIsTrustedResult, SessionPermissionsGetModeResult,
+    SessionPermissionsFolderTrustIsTrustedResult, SessionPermissionsGetCapabilitiesParams,
+    SessionPermissionsGetCapabilitiesResult, SessionPermissionsGetModeResult,
     SessionPermissionsHandlePendingPermissionRequestResult,
     SessionPermissionsLocationsAddToolApprovalResult, SessionPermissionsLocationsApplyResult,
     SessionPermissionsLocationsResolveResult, SessionPermissionsModifyRulesResult,
@@ -1727,7 +1752,8 @@ pub use sdk_api_session::{
     SessionPluginsMarketplacesListResult, SessionPluginsMarketplacesRefreshResult,
     SessionPluginsMarketplacesRemoveResult, SessionPluginsRetryManagedRequest,
     SessionPluginsRetryManagedResult, SessionPluginsUpdateResult, SessionProviderAddResult,
-    SessionProviderGetEndpointResult, SessionProviderSyncResult, SessionProviderWithdrawResult,
+    SessionProviderGetEndpointResult, SessionProviderGetStatusParams,
+    SessionProviderGetStatusResult, SessionProviderSyncResult, SessionProviderWithdrawResult,
     SessionProvidersDiscoverResult, SessionProvidersGetCatalogParams,
     SessionProvidersGetCatalogResult, SessionProvidersGetStatusResult,
     SessionProvidersModelsListResult, SessionProvidersModelsPrepareConfigurationResult,
@@ -2129,7 +2155,7 @@ pub use sdk_api_models::{
     ModelSwitchToRequest, ModelSwitchToResult, ModelTokenPriceUnit, ModelTokenPriceUnitList,
     ModelsGetBuiltInCatalogResult, ModelsListRequest, ModelsListResult,
     ModelsListTokenPriceUnitsResult, ProviderAddRequest, ProviderAddResult, ProviderEndpoint,
-    ProviderGetEndpointRequest, ProviderSyncRequest, ProviderSyncResult,
+    ProviderGetEndpointRequest, ProviderStatus, ProviderSyncRequest, ProviderSyncResult,
     ProviderTokenAcquireRequest, ProviderTokenAcquireResult, ProviderTokenGetTokenResult,
     ProviderWithdrawRequest, ProviderWithdrawResult, TokenPriceUnit,
 };
@@ -2269,8 +2295,9 @@ pub use sdk_api_services::{
     AttachmentGitHubTreeComparisonSide, AttachmentGitHubTreeComparisonType, AttachmentGitHubUrl,
     AttachmentGitHubUrlType, AttachmentSelection, AttachmentSelectionDetails,
     AttachmentSelectionDetailsEnd, AttachmentSelectionDetailsStart, AttachmentSelectionType,
-    AuthIdentityMetadata, AutopilotEvaluateIdleContinuationResult,
-    AutopilotObjectiveGetStateResult, AzureMlAcquireFamilyResult, AzureMlCancelResult,
+    AttachmentSessionReference, AttachmentSessionReferenceType, AuthIdentityMetadata,
+    AutopilotEvaluateIdleContinuationResult, AutopilotObjectiveGetStateResult,
+    AutopilotObjectiveSetStayInAutopilotRequest, AzureMlAcquireFamilyResult, AzureMlCancelResult,
     AzureMlCatalogRequest, AzureMlCatalogResult, AzureMlCatalogRetryMode, AzureMlCatalogWarning,
     AzureMlDiscardRequest, AzureMlDiscardResult, AzureMlDownloadIdRequest, AzureMlDownloadRequest,
     AzureMlDownloadResult, AzureMlDownloadStatus, AzureMlFamilyLeaseResult,

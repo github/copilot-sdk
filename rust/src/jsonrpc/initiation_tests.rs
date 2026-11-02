@@ -323,7 +323,9 @@ async fn stream_initiation_enqueues_without_polling_completion() {
     .unwrap()
     .unwrap()
     .unwrap();
-    assert!(matches!(request, JsonRpcMessage::Request(request) if request.method == "queued"));
+    assert!(
+        matches!(request, IncomingMessage::Message(JsonRpcMessage::Request(request)) if request.method == "queued")
+    );
     drop(pending);
     assert!(rpc.pending_requests.read().is_empty());
     rpc.force_close();
@@ -349,6 +351,8 @@ async fn unpolled_public_completion_cleans_up_without_retracting_stream_frame() 
     .unwrap()
     .unwrap()
     .unwrap();
-    assert!(matches!(request, JsonRpcMessage::Request(request) if request.method == "accepted"));
+    assert!(
+        matches!(request, IncomingMessage::Message(JsonRpcMessage::Request(request)) if request.method == "accepted")
+    );
     client.force_stop();
 }

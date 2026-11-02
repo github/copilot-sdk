@@ -19,6 +19,7 @@ Set the create-session `cloud` option to create a cloud session. You can include
 
 ### TypeScript
 
+<!-- docs-validate: strict -->
 ```typescript
 import { CopilotClient } from "@github/copilot-sdk";
 
@@ -186,11 +187,35 @@ let session = client.create_session(
 
 ## Sending the first prompt
 
-Cloud sessions initialize in two phases: `createSession` resolves as soon as Mission Control has reserved a task, but the remote `copilot-agent` worker takes another second or two to connect and emit `session.start`. If you call `session.send` before that, the runtime's `RemoteSession.send` throws `"Remote session is still starting"` — but the schema wrapper is fire-and-forget and **silently swallows the error** while still returning a fresh `messageId` to your code. The prompt is dropped on the server and never reaches the worker.
+Cloud sessions initialize in two phases: `createSession` resolves as soon as Mission Control has reserved a task, but the remote `copilot-agent` worker takes another second or two to connect and emit `session.start`. If you call `session.send` before that, the runtime refuses the command with `"Remote session is still starting"`, but only logs that error: it is **not raised to your code**, and `session.send` still returns a fresh `messageId`. The prompt is dropped and never reaches the worker.
 
 To send reliably, subscribe to events **before** sending and await the first `session.start` event whose `producer` is `"copilot-agent"`:
 
-<!-- docs-validate: skip -->
+<!-- docs-validate: strict -->
+<!-- docs-validate: hidden -->
+```typescript
+import type { CopilotSession } from "@github/copilot-sdk";
+
+const session: CopilotSession = await client.createSession({
+  streaming: true,
+  cloud: { repository: { owner: "github", name: "copilot-sdk" } },
+  onPermissionRequest: async () => ({ kind: "approve-once" }),
+});
+
+const ready = new Promise<void>((resolve) => {
+  const off = session.on("session.start", (event) => {
+    if (event.data?.producer === "copilot-agent") {
+      off();
+      resolve();
+    }
+  });
+});
+
+await ready;
+await session.send({ prompt: "Summarize the README" });
+```
+<!-- /docs-validate: hidden -->
+
 ```typescript
 import { CopilotClient, type CopilotSession } from "@github/copilot-sdk";
 
@@ -220,7 +245,7 @@ await session.send({ prompt: "Summarize the README" });
 A few notes:
 
 * Set `streaming: true` on `createSession` so the runtime emits `assistant.message_delta` events. Without it, the only assistant signal you get is the final `assistant.message` — fine for batch use, but the chat will look frozen if you're rendering a live UI. See [Streaming Events](./streaming-events.md).
-* Only the **first** `session.send` is sensitive to this race. Subsequent sends on the same session work normally because the runtime keeps `hasSessionStarted` set for the life of the session.
+* Only the **first** `session.send` is sensitive to this race. Subsequent sends on the same session work normally because the runtime treats the session as started from its first `session.start` (or `session.resume`) event for the rest of its life.
 * Apply a timeout (e.g. 60 s) around the `ready` promise so a stuck Mission Control provisioning doesn't hang your app forever.
 * The same pattern works in every SDK language — subscribe to `session.start`, check `producer === "copilot-agent"`, then call `send`.
 
@@ -230,7 +255,22 @@ Cloud sessions are inherently remote: once the worker connects, Mission Control 
 
 Capture the URL by subscribing to `session.info` and filtering by `infoType: "remote"`:
 
-<!-- docs-validate: skip -->
+<!-- docs-validate: strict -->
+<!-- docs-validate: hidden -->
+```typescript
+const session = await client.createSession({
+  cloud: { repository: { owner: "github", name: "copilot-sdk" } },
+  onPermissionRequest: async () => ({ kind: "approve-once" }),
+});
+
+session.on("session.info", (event) => {
+  if (event.data?.infoType === "remote" && event.data.url) {
+    console.log("Open from web or mobile:", event.data.url);
+  }
+});
+```
+<!-- /docs-validate: hidden -->
+
 ```typescript
 session.on("session.info", (event) => {
   if (event.data?.infoType === "remote" && event.data.url) {
@@ -263,6 +303,7 @@ Use `branch` when the work should start from a specific branch. If your app is c
 The `cloud` option only applies when creating a new session. To resume an existing cloud session, use the standard resume API for the SDK language:
 
 <!-- docs-validate: hidden -->
+<!-- docs-validate: strict -->
 ```typescript
 import { CopilotClient } from "@github/copilot-sdk";
 
@@ -293,6 +334,7 @@ When this happens, the runtime reports a `"policy_blocked"` failure reason for c
 In TypeScript, check for the reason before retrying:
 
 <!-- docs-validate: hidden -->
+<!-- docs-validate: strict -->
 ```typescript
 import {
   CopilotClient,

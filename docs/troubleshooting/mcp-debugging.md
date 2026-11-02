@@ -18,7 +18,7 @@ Before diving deep, verify these basics:
 
 * [ ] MCP server executable exists and is runnable
 * [ ] Command path is correct (use absolute paths when in doubt)
-* [ ] Tools are enabled (`tools: ["*"]` or specific tool names)
+* [ ] Tools are not filtered out (`tools` omitted or `["*"]` exposes every tool; `[]` exposes none; a list exposes only the names in it)
 * [ ] Server implements MCP protocol correctly (responds to `initialize`)
 * [ ] No firewall/antivirus blocking the process (Windows)
 
@@ -131,12 +131,12 @@ cd /expected/working/dir
 
 **Causes & Solutions:**
 
-1. **Tools not enabled in config:**
+1. **Tools filtered out in config:**
    ```typescript
    mcpServers: {
      "server": {
        // ...
-       tools: ["*"],  // Must be "*" or list of tool names
+       tools: ["*"],  // Every tool; omitting the field does the same. [] exposes none, a list only those names
      },
    }
    ```
@@ -169,10 +169,10 @@ cd /expected/working/dir
 1. **Tool description unclear:**
    ```typescript
    // Bad - model doesn't know when to use it
-   { name: "do_thing", description: "Does a thing" }
-   
+   const vague = { name: "do_thing", description: "Does a thing" };
+
    // Good - clear purpose
-   { name: "get_weather", description: "Get current weather conditions for a city. Returns temperature, humidity, and conditions." }
+   const clear = { name: "get_weather", description: "Get current weather conditions for a city. Returns temperature, humidity, and conditions." };
    ```
 
 1. **Tool schema issues:**
@@ -341,6 +341,7 @@ xattr -d com.apple.quarantine /path/to/mcp-server
 
 #### Homebrew paths
 
+<!-- docs-validate: strict -->
 <!-- docs-validate: hidden -->
 ```typescript
 import { MCPStdioServerConfig } from "@github/copilot-sdk";

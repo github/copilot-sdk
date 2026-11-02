@@ -33,6 +33,9 @@ use crate::hooks::SessionHooks;
 use crate::provider_token::BearerTokenProvider;
 use crate::session_fs::SessionFsProvider;
 use crate::skill_provider::SkillProvider;
+mod creation_callback;
+use creation_callback::handle_session_creation_request;
+
 use crate::trace_context::inject_trace_context;
 use crate::transforms::SystemMessageTransform;
 use crate::types::{
@@ -96,6 +99,7 @@ pub(crate) struct SessionHandlers {
     pub exit_plan_mode: Option<Arc<dyn ExitPlanModeHandler>>,
     pub auto_mode_switch: Option<Arc<dyn AutoModeSwitchHandler>>,
     pub skill_provider: Option<Arc<dyn SkillProvider>>,
+    pub session_creation: Arc<parking_lot::RwLock<Option<Arc<dyn crate::SessionCreationHandler>>>>,
     /// Shared with the owning [`Session`], which replaces the map when the
     /// runtime accepts a [`Session::set_tools`] call.
     pub tools: Arc<parking_lot::RwLock<ToolHandlerMap>>,
@@ -103,6 +107,7 @@ pub(crate) struct SessionHandlers {
 
 struct ToolHandlerRetirement {
     handlers: Arc<parking_lot::RwLock<ToolHandlerMap>>,
+    session_creation: Arc<parking_lot::RwLock<Option<Arc<dyn crate::SessionCreationHandler>>>>,
     shutdown: CancellationToken,
 }
 
@@ -111,7 +116,9 @@ impl Drop for ToolHandlerRetirement {
         self.shutdown.cancel();
         // Handler destructors may re-enter the SDK; release the map lock first.
         let handlers = std::mem::take(&mut *self.handlers.write());
+        let creation = self.session_creation.write().take();
         drop(handlers);
+        drop(creation);
     }
 }
 
@@ -731,6 +738,7 @@ pub struct Session {
     /// This client's tool handlers, shared with the event loop's
     /// `external_tool.requested` dispatch.
     tool_handlers: Arc<parking_lot::RwLock<ToolHandlerMap>>,
+    session_creation: Arc<parking_lot::RwLock<Option<Arc<dyn crate::SessionCreationHandler>>>>,
     /// Held for each [`Session::set_tools`] request until the runtime answers,
     /// so replacements reach the runtime, and replace the handlers, one at a
     /// time. It counts the replacements sent, each taking the next generation:
@@ -979,6 +987,37 @@ impl Session {
     /// `rpc()` when you want a method without a hand-written wrapper.
     pub fn rpc(&self) -> crate::generated::rpc::SessionRpc<'_> {
         crate::generated::rpc::SessionRpc { session: self }
+    }
+
+    /// Register the host's session-creation callback without enabling the tools.
+    ///
+    /// Enable them separately with `session.rpc().management().configure(...)`.
+    /// Passing `None` removes the callback.
+    pub async fn set_session_creation_handler(
+        &self,
+        handler: Option<Arc<dyn crate::SessionCreationHandler>>,
+    ) -> Result<crate::rpc::SessionManagementPolicy, Error> {
+        let previous = std::mem::replace(&mut *self.session_creation.write(), handler.clone());
+        let result = self
+            .rpc()
+            .management()
+            .configure(crate::rpc::SessionManagementConfigureRequest {
+                has_create_handler: Some(handler.is_some()),
+                ..Default::default()
+            })
+            .await;
+        if result.is_err() {
+            let mut current = self.session_creation.write();
+            let unchanged = match (&*current, &handler) {
+                (Some(current), Some(handler)) => Arc::ptr_eq(current, handler),
+                (None, None) => true,
+                _ => false,
+            };
+            if unchanged {
+                *current = previous;
+            }
+        }
+        result
     }
 
     /// Stop the internal event loop. Called automatically on [`destroy`](Self::destroy).
@@ -2235,8 +2274,10 @@ impl Client {
             exit_plan_mode: runtime.exit_plan_mode_handler.take(),
             auto_mode_switch: runtime.auto_mode_switch_handler.take(),
             skill_provider: runtime.skill_provider.take(),
+            session_creation: Arc::default(),
             tools: tool_handlers.clone(),
         };
+        let session_creation = handlers.session_creation.clone();
         let hooks = runtime.hooks_handler.take();
         let transforms = runtime.system_message_transform.take();
         let tools_count = wire.tools.as_ref().map_or(0, Vec::len);
@@ -2462,6 +2503,7 @@ impl Client {
             shutdown,
             external_tools_shutdown,
             tool_handlers,
+            session_creation,
             set_tools_lock: Arc::default(),
             installed_tools_generation: Arc::default(),
             idle_waiter,
@@ -2597,8 +2639,10 @@ impl Client {
             exit_plan_mode: runtime.exit_plan_mode_handler.take(),
             auto_mode_switch: runtime.auto_mode_switch_handler.take(),
             skill_provider: runtime.skill_provider.take(),
+            session_creation: Arc::default(),
             tools: tool_handlers.clone(),
         };
+        let session_creation = handlers.session_creation.clone();
         let hooks = runtime.hooks_handler.take();
         let transforms = runtime.system_message_transform.take();
         let tools_count = wire.tools.as_ref().map_or(0, Vec::len);
@@ -2794,6 +2838,7 @@ impl Client {
             shutdown,
             external_tools_shutdown,
             tool_handlers,
+            session_creation,
             set_tools_lock: Arc::default(),
             installed_tools_generation: Arc::default(),
             idle_waiter,
@@ -3124,6 +3169,7 @@ fn spawn_event_loop(
         .map(|bootstrap| bootstrap.cleanup_guard());
     let tool_handler_retirement = ToolHandlerRetirement {
         handlers: handlers.tools.clone(),
+        session_creation: handlers.session_creation.clone(),
         shutdown: shutdown.clone(),
     };
     let connection_closed = client.inner.rpc.connection_closed_token();
@@ -4224,6 +4270,10 @@ async fn handle_request(
     {
         handle_skill_provider_request(client, &sid, handlers.skill_provider.as_ref(), &request)
             .await;
+        return;
+    }
+    if request.method == rpc_methods::SESSIONMANAGEMENT_CREATE {
+        handle_session_creation_request(client, &sid, &handlers.session_creation, &request).await;
         return;
     }
 

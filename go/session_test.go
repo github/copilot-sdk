@@ -190,6 +190,79 @@ func TestToolInvocationNamesTheSubAgentAndRequestBehindTheCall(t *testing.T) {
 	}
 }
 
+func TestToolResultWithEmptyTextIsSentAsEmptyText(t *testing.T) {
+	type noArgs struct{}
+	tests := []struct {
+		name  string
+		tool  Tool
+		check func(t *testing.T, result map[string]any)
+	}{
+		{
+			name: "success result with telemetry only",
+			tool: Tool{Name: "record_note", Handler: func(ToolInvocation) (ToolResult, error) {
+				return ToolResult{
+					ResultType:    "success",
+					ToolTelemetry: map[string]any{"properties": map[string]any{"analyzer": "eslint"}},
+				}, nil
+			}},
+			check: func(t *testing.T, result map[string]any) {
+				if result["resultType"] != "success" {
+					t.Errorf("resultType = %#v, want success", result["resultType"])
+				}
+				if _, ok := result["toolTelemetry"].(map[string]any); !ok {
+					t.Errorf("toolTelemetry = %#v, want the handler's telemetry", result["toolTelemetry"])
+				}
+			},
+		},
+		{
+			name: "DefineTool handler returning nil",
+			tool: DefineTool("record_note", "Records a note", func(noArgs, ToolInvocation) (any, error) {
+				return nil, nil
+			}),
+			check: func(t *testing.T, result map[string]any) {
+				if result["resultType"] != "success" {
+					t.Errorf("resultType = %#v, want success", result["resultType"])
+				}
+			},
+		},
+		{
+			name: "failure result with error only",
+			tool: Tool{Name: "record_note", Handler: func(ToolInvocation) (ToolResult, error) {
+				return ToolResult{ResultType: "failure", Error: "disk full"}, nil
+			}},
+			check: func(t *testing.T, result map[string]any) {
+				if result["resultType"] != "failure" || result["error"] != "disk full" {
+					t.Errorf("result = %#v, want failure with error %q", result, "disk full")
+				}
+			},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			session, server := newSetToolsTestSession(t)
+			session.registerTools([]Tool{tt.tool})
+			session.startExternalTool(&ExternalToolRequestedData{
+				RequestID:  "request-1",
+				SessionID:  "session-1",
+				ToolCallID: "tool-call-1",
+				ToolName:   "record_note",
+				Arguments:  map[string]any{},
+			}, "")
+
+			completion := server.expectRequest(t, "session.tools.handlePendingToolCall")
+			result, ok := completion.Params["result"].(map[string]any)
+			if !ok {
+				t.Fatalf("completion params = %#v, want a result object", completion.Params)
+			}
+			if text, ok := result["textResultForLlm"].(string); !ok || text != "" {
+				t.Errorf("textResultForLlm = %#v, want the empty string the handler returned", result["textResultForLlm"])
+			}
+			tt.check(t, result)
+			server.respond(t, completion.ID, map[string]any{})
+		})
+	}
+}
+
 func TestDispatchEventReturnsAfterEventProcessingStops(t *testing.T) {
 	session := &Session{
 		eventCh:   make(chan SessionEvent),
@@ -208,6 +281,32 @@ func TestDispatchEventReturnsAfterEventProcessingStops(t *testing.T) {
 	case <-dispatched:
 	case <-time.After(time.Second):
 		t.Fatal("dispatchEvent remained blocked after event processing stopped")
+	}
+}
+
+func TestEventBacklogIsReleasedWhenEventProcessingStops(t *testing.T) {
+	session := &Session{
+		eventCh:   make(chan SessionEvent),
+		eventDone: make(chan struct{}),
+	}
+
+	// Nothing consumes eventCh, so both events wait in the backlog.
+	session.dispatchEvent(newTestEvent())
+	session.dispatchEvent(newTestEvent())
+	session.stopEventProcessing()
+
+	deadline := time.Now().Add(2 * time.Second)
+	for {
+		session.eventBacklogMu.Lock()
+		active, pending := session.eventBacklogActive, len(session.eventBacklog)
+		session.eventBacklogMu.Unlock()
+		if !active && pending == 0 {
+			return
+		}
+		if time.Now().After(deadline) {
+			t.Fatalf("event backlog still active=%v with %d events after event processing stopped", active, pending)
+		}
+		time.Sleep(time.Millisecond)
 	}
 }
 
@@ -1742,6 +1841,50 @@ func TestSession_On(t *testing.T) {
 
 		if max := maxConcurrent.Load(); max != 1 {
 			t.Errorf("Expected max concurrent count of 1, got %d", max)
+		}
+	})
+
+	t.Run("a busy handler does not block dispatch or reorder events", func(t *testing.T) {
+		session := &Session{
+			handlers:  make([]*sessionHandler, 0),
+			eventCh:   make(chan SessionEvent, 1),
+			eventDone: make(chan struct{}),
+		}
+		go session.processEvents()
+		defer session.stopEventProcessing()
+
+		const totalEvents = 50
+		release := make(chan struct{})
+		received := make(chan string, totalEvents)
+		session.On(func(event SessionEvent) {
+			<-release
+			received <- event.ID
+		})
+
+		dispatched := make(chan struct{})
+		go func() {
+			defer close(dispatched)
+			for i := 0; i < totalEvents; i++ {
+				session.dispatchEvent(SessionEvent{ID: strconv.Itoa(i), Data: &SessionIdleData{}})
+			}
+		}()
+		select {
+		case <-dispatched:
+		case <-time.After(2 * time.Second):
+			close(release)
+			t.Fatal("dispatchEvent blocked while a handler was busy")
+		}
+
+		close(release)
+		for i := 0; i < totalEvents; i++ {
+			select {
+			case got := <-received:
+				if want := strconv.Itoa(i); got != want {
+					t.Fatalf("event %d delivered as %q, want %q", i, got, want)
+				}
+			case <-time.After(2 * time.Second):
+				t.Fatalf("handler received %d of %d events", i, totalEvents)
+			}
 		}
 	})
 

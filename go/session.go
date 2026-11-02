@@ -112,8 +112,14 @@ type Session struct {
 	// eventCh serializes user event handler dispatch. dispatchEvent enqueues;
 	// a single goroutine (processEvents) dequeues and invokes handlers in FIFO order.
 	// eventDone stops both sides without closing eventCh while a sender may be active.
+	// eventBacklog holds, in arrival order, events that arrived while eventCh was
+	// full; while eventBacklogActive is set, one goroutine moves them into eventCh
+	// and every new event joins the backlog behind them.
 	eventCh                  chan SessionEvent
 	eventDone                chan struct{}
+	eventBacklogMu           sync.Mutex
+	eventBacklog             []SessionEvent
+	eventBacklogActive       bool
 	closeOnce                sync.Once
 	completionRPCUnsupported atomic.Bool
 
@@ -1922,9 +1928,56 @@ func (s *Session) dispatchEvent(event SessionEvent) {
 		go s.handleBroadcastEvent(event)
 	}
 
-	select {
-	case s.eventCh <- event:
-	case <-s.eventDone:
+	s.enqueueEvent(event)
+}
+
+// enqueueEvent hands event to processEvents without blocking the caller, which
+// is the JSON-RPC read loop. A handler that is slow, or that waits for an RPC
+// response, must not stop the client from reading the connection. When eventCh
+// is full, the event joins an ordered backlog that a single goroutine moves into
+// eventCh, so handlers still receive events in arrival order.
+func (s *Session) enqueueEvent(event SessionEvent) {
+	s.eventBacklogMu.Lock()
+	defer s.eventBacklogMu.Unlock()
+	if !s.eventBacklogActive {
+		select {
+		case s.eventCh <- event:
+			return
+		case <-s.eventDone:
+			return
+		default:
+		}
+		s.eventBacklogActive = true
+		go s.drainEventBacklog()
+	}
+	s.eventBacklog = append(s.eventBacklog, event)
+}
+
+// drainEventBacklog moves backlogged events into eventCh in order until the
+// backlog is empty. It drops the backlog once event processing stops.
+func (s *Session) drainEventBacklog() {
+	for {
+		s.eventBacklogMu.Lock()
+		batch := s.eventBacklog
+		s.eventBacklog = nil
+		if len(batch) == 0 {
+			s.eventBacklogActive = false
+			s.eventBacklogMu.Unlock()
+			return
+		}
+		s.eventBacklogMu.Unlock()
+
+		for _, event := range batch {
+			select {
+			case s.eventCh <- event:
+			case <-s.eventDone:
+				s.eventBacklogMu.Lock()
+				s.eventBacklog = nil
+				s.eventBacklogActive = false
+				s.eventBacklogMu.Unlock()
+				return
+			}
+		}
 	}
 }
 
@@ -2262,11 +2315,6 @@ func (s *Session) executeToolAndRespond(requestID, toolName, toolCallID, agentID
 		return
 	}
 
-	textResultForLLM := result.TextResultForLLM
-	if textResultForLLM == "" {
-		textResultForLLM = fmt.Sprintf("%v", result)
-	}
-
 	// Default ResultType to "success" when unset, or "failure" when there's an error.
 	effectiveResultType := result.ResultType
 	if effectiveResultType == "" {
@@ -2278,7 +2326,7 @@ func (s *Session) executeToolAndRespond(requestID, toolName, toolCallID, agentID
 	}
 
 	rpcResult := &rpc.ExternalToolTextResultForLlm{
-		TextResultForLlm: textResultForLLM,
+		TextResultForLlm: result.TextResultForLLM,
 		ToolTelemetry:    result.ToolTelemetry,
 		ResultType:       &effectiveResultType,
 		ToolReferences:   result.ToolReferences,

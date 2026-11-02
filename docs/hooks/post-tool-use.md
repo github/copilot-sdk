@@ -317,7 +317,33 @@ var session = await client.CreateSessionAsync(new SessionConfig
 <details>
 <summary><strong>Java</strong></summary>
 
-<!-- docs-validate: skip -->
+<!-- docs-validate: hidden -->
+```java
+import com.github.copilot.*;
+import com.github.copilot.rpc.*;
+import java.util.concurrent.CompletableFuture;
+
+public class PostToolUseExample {
+    public static void main(String[] args) throws Exception {
+        try (var client = new CopilotClient()) {
+            var hooks = new SessionHooks()
+                .setOnPostToolUse((input, invocation) -> {
+                    System.out.println("[" + invocation.getSessionId() + "] Tool: " + input.getToolName());
+                    System.out.println("  Args: " + input.getToolArgs());
+                    System.out.println("  Result: " + input.getToolResult());
+                    return CompletableFuture.completedFuture(null);
+                });
+
+            var session = client.createSession(
+                new SessionConfig()
+                    .setOnPermissionRequest(PermissionHandler.APPROVE_ALL)
+                    .setHooks(hooks)
+            ).get();
+        }
+    }
+}
+```
+<!-- /docs-validate: hidden -->
 ```java
 import com.github.copilot.*;
 import com.github.copilot.rpc.*;

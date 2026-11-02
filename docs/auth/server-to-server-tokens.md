@@ -53,6 +53,7 @@ The following examples assume the minted token is in `INSTALLATION_TOKEN`. They 
 <details open>
 <summary><strong>TypeScript</strong></summary>
 
+<!-- docs-validate: strict -->
 ```typescript
 import { CopilotClient, RuntimeConnection } from "@github/copilot-sdk";
 

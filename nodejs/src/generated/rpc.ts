@@ -6196,6 +6196,18 @@ export type SessionLimitPredictionUnavailableReason =
 /** @experimental */
 export type SessionListEntry = LocalSessionMetadataValue | RemoteSessionMetadataValue;
 /**
+ * Peer boundary evaluated in the process hosting the native session.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "SessionManagementScope".
+ */
+/** @experimental */
+export type SessionManagementScope =
+  /** Eligible local peers sharing the resolved configuration directory. */
+  | "all"
+  /** Only peers hosted in this native runtime process. */
+  | "in-process";
+/**
  * Public-facing workspace metadata for this session, or null if the session has no associated workspace. Excludes runtime-internal fields (GitHub IDs, summary count, internal flags).
  *
  * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
@@ -6375,7 +6387,7 @@ export type SessionsOpenProgressStep =
   | "load-session"
   /** Validating that the local repository matches the remote session's repository. */
   | "validate-repo"
-  /** Checking the local working tree for uncommitted changes that would block the handoff. */
+  /** Checking the local working tree for uncommitted changes, which stay in place and are carried onto the checked-out branch. */
   | "check-changes"
   /** Checking out the branch associated with the remote session in the local working tree. */
   | "checkout-branch"
@@ -9514,7 +9526,7 @@ export interface AgentsDiscoverRequest {
    */
   agentDirectories?: string[];
   /**
-   * Optional list of project directory paths to scan for project-scoped agents. When omitted or empty, only user/plugin/remote-independent agents are returned (no project scan).
+   * Optional list of project directory paths to scan for project-scoped agents. When omitted or empty, no project is scanned: user-level and globally enabled plugin agents are still returned, but agents of a plugin enabled only in a repository's settings are not.
    */
   projectPaths?: string[];
   /**
@@ -10103,6 +10115,19 @@ export interface AutopilotObjectiveState {
    * Current per-window consumption and optional cap, when a credit-tracking window is present.
    */
   creditLimit?: AutopilotObjectiveCreditLimit;
+}
+/**
+ * Client-resolved preference for retaining autopilot mode after objective completion or pause.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "AutopilotObjectiveSetStayInAutopilotRequest".
+ */
+/** @experimental */
+export interface AutopilotObjectiveSetStayInAutopilotRequest {
+  /**
+   * Whether an objective's requested return to interactive mode is suppressed.
+   */
+  value: boolean;
 }
 
 /** @experimental */
@@ -19556,6 +19581,43 @@ export interface ManagedPluginRetryEntry {
   error?: string;
 }
 /**
+ * An opted-in local session, reported by its live owner.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "ManagedSessionInfo".
+ */
+/** @experimental */
+export interface ManagedSessionInfo {
+  /**
+   * Live peer's session identifier.
+   */
+  sessionId: string;
+  /**
+   * Human-readable peer name.
+   */
+  name: string;
+  /**
+   * Peer's current working directory.
+   */
+  cwd: string;
+  /**
+   * Peer's local session-state directory containing events.jsonl, when known.
+   */
+  sessionStatePath?: string;
+  /**
+   * Either idle or busy. A busy session may still accept messages.
+   */
+  state: string;
+  /**
+   * Peer's selected model, when known.
+   */
+  model?: string;
+  /**
+   * The session that created this root through session management, if any.
+   */
+  parentSessionId?: string;
+}
+/**
  * Lock state and provenance of one managed setting.
  *
  * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
@@ -26953,6 +27015,24 @@ export interface PermissionRulesSet {
   denied: PermissionRule[];
 }
 /**
+ * Available permission modes, derived from current session policy.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "PermissionsCapabilities".
+ */
+/** @experimental */
+export interface PermissionsCapabilities {
+  /**
+   * Whether LLM-assisted approval is enabled for this session.
+   */
+  assistedApproval: boolean;
+  /**
+   * Whether managed policy currently permits unconditional approval.
+   * Stays true while managed policy is still resolving.
+   */
+  bypassPermissions: boolean;
+}
+/**
  * No parameters.
  *
  * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
@@ -28347,6 +28427,19 @@ export interface ProviderSessionToken {
    * When the token expires, if known. Callers should refresh by calling `getEndpoint` again before this time, or reactively on any 401/403 response from `baseUrl`.
    */
   expiresAt?: string;
+}
+/**
+ * Credential-free provider configuration status for the selected model.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "ProviderStatus".
+ */
+/** @experimental */
+export interface ProviderStatus {
+  /**
+   * Whether the selected model uses a custom provider instead of requiring GitHub authentication.
+   */
+  hasCustomProvider: boolean;
 }
 /**
  * Authoritative BYOK provider and model registry snapshot to apply atomically to the session.
@@ -32507,6 +32600,282 @@ export interface SessionManagedSettings {
    * Managed permission policy injected by the SDK host.
    */
   permissions?: SessionManagedPermissions;
+}
+/**
+ * Closes one live opted-in descendant without deleting its saved history or closing its children.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "SessionManagementCloseRequest".
+ */
+/** @experimental */
+export interface SessionManagementCloseRequest {
+  /**
+   * Live created descendant whose owning host should close it.
+   */
+  targetSessionId: string;
+}
+/**
+ * Completion of the existing non-deleting close lifecycle.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "SessionManagementCloseResult".
+ */
+/** @experimental */
+export interface SessionManagementCloseResult {
+  /**
+   * True after the owning host has completed the existing session-close lifecycle.
+   */
+  closed: boolean;
+}
+/**
+ * Updates the session's live policy without changing persistent host settings.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "SessionManagementConfigureRequest".
+ */
+/** @experimental */
+export interface SessionManagementConfigureRequest {
+  /**
+   * Expected workspace for host activation. Required when enabling an interactive CLI session.
+   */
+  cwd?: string;
+  /**
+   * Enabling resets all session management operations to enabled, then applies overrides.
+   */
+  enabled?: boolean;
+  /**
+   * Peer boundary. Preserved when the master switch changes.
+   */
+  scope?: SessionManagementScope;
+  /**
+   * Individual tool overrides, applied after the master switch.
+   */
+  tools?: SessionManagementToolOverrides;
+  /**
+   * Bind creation to this SDK connection's sessionManagement.create callback.
+   */
+  hasCreateHandler?: boolean;
+}
+/**
+ * Per-operation overrides for an enabled session management policy.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "SessionManagementToolOverrides".
+ */
+/** @experimental */
+export interface SessionManagementToolOverrides {
+  /**
+   * Allow discovering eligible peer sessions.
+   */
+  list?: boolean;
+  /**
+   * Allow requesting an independent session from the owning host.
+   */
+  create?: boolean;
+  /**
+   * Allow delivering peer text to another eligible session.
+   */
+  message?: boolean;
+  /**
+   * Allow closing this session's live created descendants.
+   */
+  close?: boolean;
+}
+/**
+ * Host callback. The host owns workspace records, UI, approval routing and cleanup.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "SessionManagementCreateHostRequest".
+ */
+/** @experimental */
+export interface SessionManagementCreateHostRequest {
+  /**
+   * Target session identifier
+   */
+  sessionId: string;
+  /**
+   * The originating session; the host must not escalate its permissions.
+   */
+  parentSessionId: string;
+  /**
+   * Runtime-allocated identity. The host must create a fresh session with this exact ID.
+   */
+  newSessionId: string;
+  /**
+   * The new session must use this workspace and configuration directory.
+   */
+  cwd: string;
+  /**
+   * Parent's resolved configuration directory, which the host must preserve.
+   */
+  configDir: string;
+  /**
+   * Must not be broadened by the creating host.
+   */
+  permissionMode: PermissionMode;
+  /**
+   * Effective model to apply when creating the child.
+   */
+  model?: string;
+  /**
+   * Provider owning the effective model, when specified.
+   */
+  providerId?: string;
+  /**
+   * Effective reasoning effort, when specified.
+   */
+  reasoningEffort?: string;
+  /**
+   * Effective model-supported context tier, when specified.
+   */
+  contextTier?: ContextTier;
+  /**
+   * The host must preserve the parent's current model restrictions.
+   */
+  allowedModels?: string[];
+  /**
+   * Optional short name supplied for the independent session.
+   */
+  name?: string;
+}
+/**
+ * Requests a separate session. Omitted launch options inherit the caller's current configuration.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "SessionManagementCreateRequest".
+ */
+/** @experimental */
+export interface SessionManagementCreateRequest {
+  /**
+   * Initial task, delivered as peer text after successful creation.
+   */
+  prompt: string;
+  /**
+   * Optional short name for the independent session.
+   */
+  name?: string;
+  /**
+   * Absolute working directory. Defaults to the parent's current directory.
+   */
+  cwd?: string;
+  /**
+   * Optional model override; omission uses the parent's current model.
+   */
+  model?: string;
+  /**
+   * Optional effort supported by the selected model.
+   */
+  reasoningEffort?: string;
+  /**
+   * Uses the selected model's supported default or long-context tier, not an arbitrary token count.
+   */
+  contextTier?: ContextTier;
+}
+/**
+ * Identifies a session owned and supervised by the creating host.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "SessionManagementCreateResult".
+ */
+/** @experimental */
+export interface SessionManagementCreateResult {
+  /**
+   * Runtime-allocated identifier of the newly created session.
+   */
+  sessionId: string;
+}
+/**
+ * Lists opted-in local peers. The caller is omitted.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "SessionManagementListRequest".
+ */
+/** @experimental */
+export interface SessionManagementListRequest {
+  /**
+   * Optional exact working-directory filter.
+   */
+  cwd?: string;
+}
+/**
+ * Eligible live peers reported by their owning runtimes.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "SessionManagementListResult".
+ */
+/** @experimental */
+export interface SessionManagementListResult {
+  /**
+   * Matching peers, excluding the caller.
+   */
+  sessions: ManagedSessionInfo[];
+}
+/**
+ * Sends peer text, never human approval, to another opted-in session.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "SessionManagementMessageRequest".
+ */
+/** @experimental */
+export interface SessionManagementMessageRequest {
+  /**
+   * Eligible live peer that should receive the message.
+   */
+  targetSessionId: string;
+  /**
+   * Nonempty UTF-8 text, at most 16 KiB.
+   */
+  message: string;
+}
+/**
+ * Acceptance is not a completed turn or a reply.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "SessionManagementMessageResult".
+ */
+/** @experimental */
+export interface SessionManagementMessageResult {
+  /**
+   * True when the destination has accepted the peer message.
+   */
+  accepted: boolean;
+  /**
+   * Destination title captured by the receiving runtime at message admission.
+   */
+  targetSessionName?: string;
+}
+/**
+ * Opt-in policy for local session management.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "SessionManagementPolicy".
+ */
+/** @experimental */
+export interface SessionManagementPolicy {
+  /**
+   * Master switch. Off by default.
+   */
+  enabled: boolean;
+  /**
+   * Discovery and direct access boundary. Defaults to all eligible local peers.
+   */
+  scope: SessionManagementScope;
+  /**
+   * Allow listing opted-in sessions in this configuration directory.
+   */
+  list: boolean;
+  /**
+   * Allow requesting a new session from the owning host.
+   */
+  create: boolean;
+  /**
+   * Allow sending a peer message to another opted-in session.
+   */
+  message: boolean;
+  /**
+   * Allow closing sessions created by this session or its descendants. On by default.
+   */
+  close: boolean;
 }
 /**
  * Records which IDE the host is connected to, or clears it.
@@ -44166,6 +44535,54 @@ export function createInternalServerRpc(connection: MessageConnection) {
 export function createSessionRpc(connection: MessageConnection, sessionId: string) {
     return {
         /** @experimental */
+        management: {
+            /**
+             * Updates opt-in session management policy live. Enabling the master enables all tools before applying individual overrides. Opt-in is scoped to the session's configuration directory.
+             *
+             * @param params Updates the session's live policy without changing persistent host settings.
+             *
+             * @returns Opt-in policy for local session management.
+             */
+            configure: async (params: SessionManagementConfigureRequest): Promise<SessionManagementPolicy> =>
+                connection.sendRequest("session.management.configure", { ...params, sessionId }),
+            /**
+             * Lists other live, opted-in sessions in the same configuration directory. Requires the list tool to be enabled.
+             *
+             * @param params Lists opted-in local peers. The caller is omitted.
+             *
+             * @returns Eligible live peers reported by their owning runtimes.
+             */
+            list: async (params: SessionManagementListRequest): Promise<SessionManagementListResult> =>
+                connection.sendRequest("session.management.list", { ...params, sessionId }),
+            /**
+             * Injects peer text into an opted-in session. Wakes an idle agent and safely queues delivery to a busy agent. Acceptance does not imply an answer or completed task.
+             *
+             * @param params Sends peer text, never human approval, to another opted-in session.
+             *
+             * @returns Acceptance is not a completed turn or a reply.
+             */
+            message: async (params: SessionManagementMessageRequest): Promise<SessionManagementMessageResult> =>
+                connection.sendRequest("session.management.message", { ...params, sessionId }),
+            /**
+             * Asks the owning host to create and supervise a separate session, preserving permissions and model restrictions. Omitted model, reasoning effort, context tier and cwd inherit the caller's current values; explicit overrides use normal model validation and workspace trust. Records durable creation lineage before delivering the initial task as peer text. Returns the new session ID, not task completion. Requires the create tool and a host creation handler.
+             *
+             * @param params Requests a separate session. Omitted launch options inherit the caller's current configuration.
+             *
+             * @returns Identifies a session owned and supervised by the creating host.
+             */
+            create: async (params: SessionManagementCreateRequest): Promise<SessionManagementCreateResult> =>
+                connection.sendRequest("session.management.create", { ...params, sessionId }),
+            /**
+             * Closes a live opted-in session created by the caller or one of its descendants, preserving saved history and leaving descendants open. Requires the close capability to be enabled. Self, ancestors, siblings and unrelated sessions cannot be closed.
+             *
+             * @param params Closes one live opted-in descendant without deleting its saved history or closing its children.
+             *
+             * @returns Completion of the existing non-deleting close lifecycle.
+             */
+            close: async (params: SessionManagementCloseRequest): Promise<SessionManagementCloseResult> =>
+                connection.sendRequest("session.management.close", { ...params, sessionId }),
+        },
+        /** @experimental */
         providers: {
             /**
              * Returns adapter definitions and supported operations in this session's effective provider catalog, without running discovery. Does not list provider instances or select inference models.
@@ -44883,6 +45300,13 @@ export function createSessionRpc(connection: MessageConnection, sessionId: strin
              */
             getState: async (): Promise<AutopilotObjectiveGetStateResult> =>
                 connection.sendRequest("session.autopilotObjective.getState", { sessionId }),
+            /**
+             * Sets whether completing or pausing this session's objective preserves autopilot mode. This in-memory preference defaults to false and must be reapplied when attaching a client.
+             *
+             * @param params Client-resolved preference for retaining autopilot mode after objective completion or pause.
+             */
+            setStayInAutopilot: async (params: AutopilotObjectiveSetStayInAutopilotRequest): Promise<void> =>
+                connection.sendRequest("session.autopilotObjective.setStayInAutopilot", { ...params, sessionId }),
         },
         /** @experimental */
         completions: {
@@ -45720,6 +46144,13 @@ export function createSessionRpc(connection: MessageConnection, sessionId: strin
             sync: async (params: ProviderSyncRequest): Promise<ProviderSyncResult> =>
                 connection.sendRequest("session.provider.sync", { ...params, sessionId }),
             /**
+             * Returns credential-free provider configuration status for the selected model. This does not validate provider credentials or contact the provider.
+             *
+             * @returns Credential-free provider configuration status for the selected model.
+             */
+            getStatus: async (): Promise<ProviderStatus> =>
+                connection.sendRequest("session.provider.getStatus", { sessionId }),
+            /**
              * Withdraws named host-managed models from the session's BYOK registry, leaving every other entry untouched. The scoped counterpart to `provider.sync`: a snapshot can only describe entries the caller knows about, so using it to remove one model silently withdraws rows registered by another source, such as a plugin calling `provider.add` at runtime. Naming what to remove leaves unrelated entries alone. Selection ids that are not registered are ignored, so withdrawal is idempotent. A provider is removed only when one of the withdrawn models was the last entry referencing it; a provider that simply has no models, which is the normal state while its rows are supplied by catalog discovery, is left in place.
              *
              * @param params Host-managed model selection ids to withdraw from the session's BYOK registry.
@@ -46103,6 +46534,13 @@ export function createSessionRpc(connection: MessageConnection, sessionId: strin
              */
             getMode: async (): Promise<PermissionsGetModeResult> =>
                 connection.sendRequest("session.permissions.getMode", { sessionId }),
+            /**
+             * Returns the approval modes currently available under the session's feature and managed permission policy. This read does not change permissions; mutations must still check their authoritative result because policy may change.
+             *
+             * @returns Available permission modes, derived from current session policy.
+             */
+            getCapabilities: async (): Promise<PermissionsCapabilities> =>
+                connection.sendRequest("session.permissions.getCapabilities", { sessionId }),
             /**
              * Adds or removes session-scoped or location-scoped permission rules.
              *

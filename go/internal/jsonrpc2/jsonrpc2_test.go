@@ -22,6 +22,83 @@ type writeFunc func([]byte) (int, error)
 
 func (w writeFunc) Write(data []byte) (int, error) { return w(data) }
 
+func TestUnreadableErrorFailsRequestAndKeepsReading(t *testing.T) {
+	for _, errorJSON := range []string{
+		`null`,
+		`"not an object"`,
+		`{"code":-32603,"message":42}`,
+		`{"code":9223372036854775808,"message":"overflow"}`,
+		`{"code":-32603,"message":"readable","data":{"detail":true}}`,
+	} {
+		t.Run(errorJSON, func(t *testing.T) {
+			stdinR, stdinW := io.Pipe()
+			stdoutR, stdoutW := io.Pipe()
+			client := NewClient(stdinW, stdoutR)
+			client.Start()
+			defer client.Stop()
+			defer stdinR.Close()
+			defer stdoutW.Close()
+
+			peerDone := make(chan error, 1)
+			go func() {
+				reader := newHeaderReader(stdinR)
+				writer := newHeaderWriter(stdoutW)
+				for i := range 2 {
+					frame, err := reader.Read()
+					if err != nil {
+						peerDone <- err
+						return
+					}
+					var request Request
+					if err := json.Unmarshal(frame, &request); err != nil {
+						peerDone <- err
+						return
+					}
+					payload := `"result":{"recovered":true}`
+					if i == 0 {
+						payload = `"error":` + errorJSON
+					}
+					response := fmt.Sprintf(`{"jsonrpc":"2.0","id":%s,%s}`, request.ID, payload)
+					if err := writer.Write([]byte(response)); err != nil {
+						peerDone <- err
+						return
+					}
+				}
+				peerDone <- nil
+			}()
+
+			ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+			defer cancel()
+			callbackCalled := false
+			_, err := client.RequestWithInlineResponse(ctx, "bad", nil, func(json.RawMessage) error {
+				callbackCalled = true
+				return nil
+			})
+			var rpcError *Error
+			if !errors.As(err, &rpcError) {
+				t.Fatalf("first request error = %v, want JSON-RPC error", err)
+			}
+			if errorJSON == `{"code":-32603,"message":"readable","data":{"detail":true}}` {
+				if rpcError.Message != "readable" || string(rpcError.Data) != `{"detail":true}` {
+					t.Fatalf("readable error changed: %+v", rpcError)
+				}
+			} else if rpcError.Code != ErrInternal.Code || !bytes.Contains([]byte(rpcError.Message), []byte("invalid JSON-RPC error response")) {
+				t.Fatalf("malformed error = %+v, want a decoding failure", rpcError)
+			}
+			if callbackCalled {
+				t.Fatal("success callback ran for an error response")
+			}
+			result, err := client.Request(ctx, "next", nil)
+			if err != nil || string(result) != `{"recovered":true}` {
+				t.Fatalf("next request = %s, %v; want recovered result", result, err)
+			}
+			if err := <-peerDone; err != nil {
+				t.Fatalf("peer failed: %v", err)
+			}
+		})
+	}
+}
+
 func TestRequestPreparationPrecedesFollowingNotification(t *testing.T) {
 	client := NewClient(writeCloser{io.Discard}, io.NopCloser(bytes.NewReader(nil)))
 	release, finished := make(chan struct{}), make(chan struct{})

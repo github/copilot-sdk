@@ -723,7 +723,7 @@ func decodeMessage(data []byte) (any, error) {
 		Method  string          `json:"method,omitempty"`
 		Params  json.RawMessage `json:"params,omitempty"`
 		Result  json.RawMessage `json:"result,omitempty"`
-		Error   *Error          `json:"error,omitempty"`
+		Error   json.RawMessage `json:"error,omitempty"`
 	}
 	if err := json.Unmarshal(data, &msg); err != nil {
 		return nil, fmt.Errorf("unmarshaling jsonrpc message: %w", err)
@@ -740,17 +740,30 @@ func decodeMessage(data []byte) (any, error) {
 		}, nil
 	}
 	if len(msg.ID) > 0 {
-		if msg.Error != nil && len(msg.Result) > 0 {
+		var responseError *Error
+		if len(msg.Error) > 0 {
+			err := json.Unmarshal(msg.Error, &responseError)
+			if err == nil && responseError == nil {
+				err = errors.New("error must be an object")
+			}
+			if err != nil {
+				responseError = &Error{
+					Code:    ErrInternal.Code,
+					Message: fmt.Sprintf("invalid JSON-RPC error response: %v", err),
+				}
+			}
+		}
+		if responseError != nil && len(msg.Result) > 0 {
 			return nil, fmt.Errorf("response must not contain both result and error: %w", ErrInvalidRequest)
 		}
-		if msg.Error == nil && len(msg.Result) == 0 {
+		if responseError == nil && len(msg.Result) == 0 {
 			return nil, fmt.Errorf("response must contain either result or error: %w", ErrInvalidRequest)
 		}
 		return &Response{
 			JSONRPC: msg.JSONRPC,
 			ID:      msg.ID,
 			Result:  msg.Result,
-			Error:   msg.Error,
+			Error:   responseError,
 		}, nil
 	}
 	return nil, fmt.Errorf("message is neither a request nor a response: %w", ErrInvalidRequest)

@@ -88,7 +88,7 @@ pub use crate::copilot_request_handler::{
 };
 pub use crate::generated::api_types::{
     AutopilotOptions, DiagnosticLogLevel, DiagnosticSourcesConfiguration, DiagnosticsConfiguration,
-    McpDiagnosticSourceConfiguration,
+    McpDiagnosticSourceConfiguration, SessionManagementScope,
 };
 use crate::generated::api_types::{
     CurrentToolMetadata, LifecycleDiagnosticsConfiguration, OpenCanvasInstance, SandboxConfig,

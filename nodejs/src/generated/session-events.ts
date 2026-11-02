@@ -901,7 +901,8 @@ export type Attachment =
   | AttachmentGitHubFile
   | AttachmentGitHubSnippet
   | AttachmentBlob
-  | AttachmentExtensionContext;
+  | AttachmentExtensionContext
+  | AttachmentSessionReference;
 /**
  * Why the binary data is absent: it exceeded the inline size limit, or its asset was unavailable
  */
@@ -7011,6 +7012,28 @@ export interface AttachmentExtensionContext {
    * Attachment type discriminator
    */
   type: "extension_context";
+}
+/**
+ * An ID-bound reference to an eligible live session. Supplies identity context only, without sending a message, reading history, or granting permission.
+ */
+/** @experimental */
+export interface AttachmentSessionReference {
+  /**
+   * User-visible mention label captured when the reference was selected.
+   */
+  displayName?: string;
+  /**
+   * Character offset of the selected mention in the displayed prompt.
+   */
+  mentionIndex?: number;
+  /**
+   * Stable identity of the selected session, never resolved from its title.
+   */
+  sessionId: string;
+  /**
+   * Attachment type discriminator.
+   */
+  type: "session_reference";
 }
 /**
  * Session event "pending_messages.modified". Empty payload; the event signals that the pending message queue has changed

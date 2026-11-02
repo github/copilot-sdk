@@ -616,17 +616,18 @@ public class ClientOptionsE2ETests(E2ETestFixture fixture, ITestOutputHelper out
         var unavailablePort = GetAvailableTcpPort();
         await File.WriteAllTextAsync(cliPath, FakeTcpUnavailablePortCliScript);
 
+        using var observer = new RuntimeStartupProcessObserver(pidPath, useStdio: false, Logger);
         await using var client = Ctx.CreateClient(
             options: new CopilotClientOptions
             {
                 Connection = RuntimeConnection.ForTcp(path: cliPath, args: ["--pid-file", pidPath, "--announce-port", unavailablePort.ToString(CultureInfo.InvariantCulture)]),
                 UseLoggedInUser = false,
+                Logger = observer,
             });
 
         await Assert.ThrowsAnyAsync<Exception>(() => client.StartAsync());
 
-        var pid = int.Parse(await File.ReadAllTextAsync(pidPath), CultureInfo.InvariantCulture);
-        await AssertProcessExitedAsync(pid);
+        Assert.True(observer.Process.HasExited, "Failed TCP connection retained the runtime process.");
 
         await client.ForceStopAsync();
     }
@@ -940,34 +941,6 @@ public class ClientOptionsE2ETests(E2ETestFixture fixture, ITestOutputHelper out
             .EnumerateArray()
             .Single(request => request.GetProperty("method").GetString() == method)
             .GetProperty("params");
-    }
-
-    private static async Task AssertProcessExitedAsync(int pid)
-    {
-        for (var i = 0; i < 50; i++)
-        {
-            if (!IsProcessRunning(pid))
-            {
-                return;
-            }
-
-            await Task.Delay(100);
-        }
-
-        Assert.False(IsProcessRunning(pid), $"Expected process {pid} to have exited.");
-    }
-
-    private static bool IsProcessRunning(int pid)
-    {
-        try
-        {
-            using var process = Process.GetProcessById(pid);
-            return !process.HasExited;
-        }
-        catch (Exception ex) when (ex is ArgumentException or InvalidOperationException)
-        {
-            return false;
-        }
     }
 
     private const string FakeTcpUnavailablePortCliScript = """

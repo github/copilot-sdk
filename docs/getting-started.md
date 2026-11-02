@@ -145,6 +145,7 @@ Create a new file and add the following code. This is the simplest way to use th
 
 Create `index.ts`:
 
+<!-- docs-validate: strict -->
 ```typescript
 import { CopilotClient } from "@github/copilot-sdk";
 
@@ -378,6 +379,7 @@ Right now, you wait for the complete response before seeing anything. Let's make
 
 Update `index.ts`:
 
+<!-- docs-validate: strict -->
 ```typescript
 import { CopilotClient } from "@github/copilot-sdk";
 
@@ -931,6 +933,7 @@ Now for the powerful part. Let's give Copilot the ability to call your code by d
 
 Update `index.ts`:
 
+<!-- docs-validate: strict -->
 ```typescript
 import { CopilotClient, defineTool } from "@github/copilot-sdk";
 
@@ -1905,6 +1908,7 @@ Now that you've got the basics, here are more powerful features to explore:
 
 MCP (Model Context Protocol) servers provide pre-built tools. Connect to GitHub's MCP server to give Copilot access to repositories, issues, and pull requests:
 
+<!-- docs-validate: strict -->
 ```typescript
 const session = await client.createSession({
     mcpServers: {
@@ -1922,6 +1926,7 @@ const session = await client.createSession({
 
 Define specialized AI personas for specific tasks:
 
+<!-- docs-validate: strict -->
 ```typescript
 const session = await client.createSession({
     customAgents: [{
@@ -1940,6 +1945,7 @@ const session = await client.createSession({
 
 Control the AI's behavior and personality by appending instructions:
 
+<!-- docs-validate: strict -->
 ```typescript
 const session = await client.createSession({
     systemMessage: {
@@ -1950,6 +1956,7 @@ const session = await client.createSession({
 
 For more fine-grained control, use `mode: "customize"` to override individual sections of the system prompt while preserving the rest:
 
+<!-- docs-validate: strict -->
 ```typescript
 const session = await client.createSession({
     systemMessage: {
@@ -2007,6 +2014,7 @@ Once the CLI is running in server mode, configure your SDK client to connect to 
 <details open>
 <summary><strong>Node.js / TypeScript</strong></summary>
 
+<!-- docs-validate: strict -->
 ```typescript
 import { CopilotClient, RuntimeConnection, approveAll } from "@github/copilot-sdk";
 
@@ -2174,7 +2182,19 @@ Pass a `telemetry` (or `Telemetry`) config when creating the client. This is the
 <details open>
 <summary><strong>Node.js / TypeScript</strong></summary>
 
-<!-- docs-validate: skip -->
+<!-- docs-validate: strict -->
+<!-- docs-validate: hidden -->
+```typescript
+import { CopilotClient as SdkClient } from "@github/copilot-sdk";
+
+new SdkClient({
+  telemetry: {
+    otlpEndpoint: "http://localhost:4318",
+  },
+});
+```
+<!-- /docs-validate: hidden -->
+
 ```typescript
 import { CopilotClient } from "@github/copilot-sdk";
 
@@ -2192,7 +2212,6 @@ Optional peer dependency: `@opentelemetry/api`
 <details>
 <summary><strong>Python</strong></summary>
 
-<!-- docs-validate: skip -->
 ```python
 from copilot import CopilotClient
 
@@ -2203,14 +2222,32 @@ client = CopilotClient(
 )
 ```
 
-Install with telemetry extras: `pip install copilot-sdk[telemetry]` (provides `opentelemetry-api`)
+Install with telemetry extras: `pip install "github-copilot-sdk[telemetry]"` (provides `opentelemetry-api`)
 
 </details>
 
 <details>
 <summary><strong>Go</strong></summary>
 
-<!-- docs-validate: skip -->
+<!-- docs-validate: hidden -->
+```go
+package main
+
+import (
+	copilot "github.com/github/copilot-sdk/go"
+)
+
+func main() {
+	client := copilot.NewClient(&copilot.ClientOptions{
+		Telemetry: &copilot.TelemetryConfig{
+			OTLPEndpoint: "http://localhost:4318",
+		},
+	})
+	_ = client
+}
+```
+<!-- /docs-validate: hidden -->
+
 ```go
 client := copilot.NewClient(&copilot.ClientOptions{
     Telemetry: &copilot.TelemetryConfig{
@@ -2293,7 +2330,20 @@ The OTLP protocol field configures the CLI's `"otlp-http"` exporter for all sign
 
 To write traces to a local file instead of an OTLP endpoint:
 
-<!-- docs-validate: skip -->
+<!-- docs-validate: strict -->
+<!-- docs-validate: hidden -->
+```typescript
+import { CopilotClient as SdkClient } from "@github/copilot-sdk";
+
+new SdkClient({
+  telemetry: {
+    filePath: "./traces.jsonl",
+    exporterType: "file",
+  },
+});
+```
+<!-- /docs-validate: hidden -->
+
 ```typescript
 const client = new CopilotClient({
   telemetry: {

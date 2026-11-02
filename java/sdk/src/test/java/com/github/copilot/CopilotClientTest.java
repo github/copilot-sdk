@@ -16,6 +16,7 @@ import com.github.copilot.rpc.CopilotClientMode;
 import com.github.copilot.rpc.CreateSessionRequest;
 import com.github.copilot.rpc.CreateSessionResponse;
 import com.github.copilot.rpc.DeleteSessionResponse;
+import com.github.copilot.rpc.GetModelsResponse;
 import com.github.copilot.rpc.GitHubTokenProviderResult;
 import com.github.copilot.rpc.PermissionHandler;
 import com.github.copilot.rpc.PermissionInvocation;
@@ -35,6 +36,9 @@ import java.io.BufferedReader;
 import java.io.FilterOutputStream;
 import java.io.IOException;
 import java.io.InputStreamReader;
+import java.net.InetAddress;
+import java.net.ServerSocket;
+import java.net.Socket;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -449,92 +453,110 @@ public class CopilotClientTest {
 
     @Test
     void testStartupWriteFailureDrainsStderrBeforeKillingChild(@TempDir Path tempDir) throws Exception {
-        var script = tempDir.resolve("startup-error.js");
-        Files.writeString(script, """
-                const fs = require('node:fs');
-                fs.watch(__dirname, () => {
-                    if (fs.existsSync(__dirname + '/release-stderr')) {
+        try (var controlServer = new ServerSocket(0, 1, InetAddress.getByName("127.0.0.1"))) {
+            controlServer.setSoTimeout(10000);
+            var script = tempDir.resolve("startup-error.js");
+            Files.writeString(script, """
+                    const fs = require('node:fs');
+                    const control = require('node:net').createConnection(%d, '127.0.0.1');
+                    control.once('data', () => {
                         fs.writeSync(2, 'error: --nonexistent-flag-for-testing\\n');
-                        process.exit(1);
+                        fs.closeSync(2);
+                        control.end('stderr-written\\n', () => process.exit(1));
+                    });
+                    control.once('connect', () => control.write('started\\n'));
+                    """.formatted(controlServer.getLocalPort()));
+            var options = new CopilotClientOptions().setCliPath(script.toString()).setUseStdio(true);
+            var manager = spy(new CliServerManager(options));
+            var child = new AtomicReference<Process>();
+            var failedOutput = new AtomicReference<OutputStream>();
+            var controlSocket = new AtomicReference<Socket>();
+            var controlReader = new AtomicReference<BufferedReader>();
+            var writeFailure = new IOException("Controlled startup write failure");
+            doAnswer(invocation -> {
+                CliServerManager.ProcessInfo info = (CliServerManager.ProcessInfo) invocation.callRealMethod();
+                child.set(info.process());
+                // Closing fd 0 does not reliably fail the first parent write on Windows.
+                var output = new FilterOutputStream(info.process().getOutputStream()) {
+                    @Override
+                    public void write(int value) throws IOException {
+                        throw writeFailure;
                     }
-                });
-                process.stdout.write('started\\n');
-                """);
-        var options = new CopilotClientOptions().setCliPath(script.toString()).setUseStdio(true);
-        var manager = spy(new CliServerManager(options));
-        var child = new AtomicReference<Process>();
-        var failedOutput = new AtomicReference<OutputStream>();
-        var writeFailure = new IOException("Controlled startup write failure");
-        doAnswer(invocation -> {
-            CliServerManager.ProcessInfo info = (CliServerManager.ProcessInfo) invocation.callRealMethod();
-            child.set(info.process());
-            // Closing fd 0 does not reliably fail the first parent write on Windows.
-            var output = new FilterOutputStream(info.process().getOutputStream()) {
-                @Override
-                public void write(int value) throws IOException {
-                    throw writeFailure;
+
+                    @Override
+                    public void write(byte[] bytes, int offset, int length) throws IOException {
+                        throw writeFailure;
+                    }
+
+                    @Override
+                    public void close() throws IOException {
+                        // No write succeeds, so there is nothing to flush on this failed transport.
+                        out.close();
+                    }
+                };
+                failedOutput.set(output);
+                var transportProcess = mock(Process.class, org.mockito.AdditionalAnswers.delegatesTo(info.process()));
+                doReturn(output).when(transportProcess).getOutputStream();
+                return new CliServerManager.ProcessInfo(transportProcess, info.port());
+            }).when(manager).startCliServer();
+            doAnswer(invocation -> {
+                Process process = invocation.getArgument(0);
+                var socket = controlServer.accept();
+                controlSocket.set(socket);
+                socket.setSoTimeout(10000);
+                var reader = new BufferedReader(new InputStreamReader(socket.getInputStream(), StandardCharsets.UTF_8));
+                controlReader.set(reader);
+                assertEquals("started", reader.readLine());
+                // Closing the Java writer deterministically fails the startup write on every
+                // OS.
+                process.getOutputStream().close();
+                return invocation.callRealMethod();
+            }).when(manager).connectToServer(any(Process.class), isNull(), isNull());
+            doAnswer(invocation -> {
+                // Release stderr only when startup drains it, while the child is still alive.
+                assertTrue(child.get().isAlive(), "Startup must drain stderr before killing the controlled child.");
+                var control = controlSocket.get().getOutputStream();
+                control.write(1);
+                control.flush();
+                // The real join waits for the reader, not for fixture notification delivery.
+                assertEquals("stderr-written", controlReader.get().readLine());
+                return invocation.callRealMethod();
+            }).when(manager).awaitStderrReader();
+
+            try (AutoCloseable childCleanup = () -> {
+                var process = child.get();
+                if (process != null && process.isAlive()) {
+                    process.destroyForcibly();
+                    assertTrue(process.waitFor(10, TimeUnit.SECONDS), "Could not reap the controlled child.");
                 }
-
-                @Override
-                public void write(byte[] bytes, int offset, int length) throws IOException {
-                    throw writeFailure;
+            }; var client = new CopilotClient(options); AutoCloseable outputCleanup = () -> {
+                var output = failedOutput.get();
+                if (output != null) {
+                    output.close();
                 }
-
-                @Override
-                public void close() throws IOException {
-                    // No write succeeds, so there is nothing to flush on this failed transport.
-                    out.close();
+            }; AutoCloseable controlCleanup = () -> {
+                var socket = controlSocket.get();
+                if (socket != null) {
+                    socket.close();
                 }
-            };
-            failedOutput.set(output);
-            var transportProcess = mock(Process.class, org.mockito.AdditionalAnswers.delegatesTo(info.process()));
-            doReturn(output).when(transportProcess).getOutputStream();
-            return new CliServerManager.ProcessInfo(transportProcess, info.port());
-        }).when(manager).startCliServer();
-        doAnswer(invocation -> {
-            Process process = invocation.getArgument(0);
-            var reader = new BufferedReader(new InputStreamReader(process.getInputStream(), StandardCharsets.UTF_8));
-            assertEquals("started", reader.readLine());
-            // Closing the Java writer deterministically fails the startup write on every
-            // OS.
-            process.getOutputStream().close();
-            return invocation.callRealMethod();
-        }).when(manager).connectToServer(any(Process.class), isNull(), isNull());
-        doAnswer(invocation -> {
-            // Release stderr only when startup drains it, while the child is still alive.
-            assertTrue(child.get().isAlive(), "Startup must drain stderr before killing the controlled child.");
-            Files.createFile(tempDir.resolve("release-stderr"));
-            return invocation.callRealMethod();
-        }).when(manager).awaitStderrReader();
+            }) {
+                Field managerField = CopilotClient.class.getDeclaredField("serverManager");
+                managerField.setAccessible(true);
+                managerField.set(client, manager);
 
-        try (AutoCloseable childCleanup = () -> {
-            var process = child.get();
-            if (process != null && process.isAlive()) {
-                process.destroyForcibly();
-                assertTrue(process.waitFor(10, TimeUnit.SECONDS), "Could not reap the controlled child.");
+                var error = assertThrows(ExecutionException.class, () -> client.start().get(10, TimeUnit.SECONDS));
+                var cause = error.getCause();
+                assertTrue(cause.getMessage().contains("--nonexistent-flag-for-testing"),
+                        "Startup lost the child's stderr: " + cause);
+                assertInstanceOf(IOException.class, cause);
+                Throwable original = cause;
+                while (original.getCause() != null) {
+                    original = original.getCause();
+                }
+                assertSame(writeFailure, original, "Startup must preserve the actual failed transport write.");
+                assertNotSame(cause, original, "The startup error must retain its original transport failure.");
+                assertFalse(child.get().isAlive(), "Failed startup retained its child process.");
             }
-        }; var client = new CopilotClient(options); AutoCloseable outputCleanup = () -> {
-            var output = failedOutput.get();
-            if (output != null) {
-                output.close();
-            }
-        }) {
-            Field managerField = CopilotClient.class.getDeclaredField("serverManager");
-            managerField.setAccessible(true);
-            managerField.set(client, manager);
-
-            var error = assertThrows(ExecutionException.class, () -> client.start().get(10, TimeUnit.SECONDS));
-            var cause = error.getCause();
-            assertTrue(cause.getMessage().contains("--nonexistent-flag-for-testing"),
-                    "Startup lost the child's stderr: " + cause);
-            assertInstanceOf(IOException.class, cause);
-            Throwable original = cause;
-            while (original.getCause() != null) {
-                original = original.getCause();
-            }
-            assertSame(writeFailure, original, "Startup must preserve the actual failed transport write.");
-            assertNotSame(cause, original, "The startup error must retain its original transport failure.");
-            assertFalse(child.get().isAlive(), "Failed startup retained its child process.");
         }
     }
 
@@ -1035,6 +1057,188 @@ public class CopilotClientTest {
             assertEquals(1, callCount[0]);
             assertEquals(1, models.size());
             assertEquals("no-start-model", models.get(0).getId());
+        }
+    }
+
+    @Test
+    void testListModels_WithCustomHandler_ConcurrentCallsShareOneFetch() throws Exception {
+        var model = new com.github.copilot.rpc.ModelInfo();
+        model.setId("concurrent-model");
+        var gate = new CompletableFuture<List<com.github.copilot.rpc.ModelInfo>>();
+        var callCount = new AtomicInteger();
+        var options = new CopilotClientOptions().setOnListModels(() -> {
+            callCount.incrementAndGet();
+            return gate;
+        });
+
+        try (var client = new CopilotClient(options)) {
+            var calls = List.of(client.listModels(), client.listModels(), client.listModels());
+            assertEquals(1, callCount.get(), "Calls made while the first fetch is in flight should wait for it");
+
+            gate.complete(List.of(model));
+
+            for (var call : calls) {
+                assertEquals("concurrent-model", call.get(5, TimeUnit.SECONDS).get(0).getId());
+            }
+            client.listModels().get(5, TimeUnit.SECONDS);
+            assertEquals(1, callCount.get(), "Handler should be called only once");
+        }
+    }
+
+    @Test
+    void testListModels_WithCustomHandler_RetriesOneQueuedCallAfterFailure() throws Exception {
+        var model = new com.github.copilot.rpc.ModelInfo();
+        model.setId("retried-model");
+        var firstFetch = new CompletableFuture<List<com.github.copilot.rpc.ModelInfo>>();
+        var retryFetch = new CompletableFuture<List<com.github.copilot.rpc.ModelInfo>>();
+        var retryStarted = new CompletableFuture<Void>();
+        var callCount = new AtomicInteger();
+        var options = new CopilotClientOptions().setOnListModels(() -> {
+            if (callCount.incrementAndGet() == 1) {
+                return firstFetch;
+            }
+            retryStarted.complete(null);
+            return retryFetch;
+        });
+
+        try (var client = new CopilotClient(options)) {
+            var first = client.listModels();
+            var second = client.listModels();
+            var third = client.listModels();
+            assertEquals(1, callCount.get());
+
+            firstFetch.completeExceptionally(new RuntimeException("transient failure"));
+
+            var error = assertThrows(ExecutionException.class, () -> first.get(5, TimeUnit.SECONDS));
+            assertEquals("transient failure", error.getCause().getMessage());
+            retryStarted.get(5, TimeUnit.SECONDS);
+            assertEquals(2, callCount.get(), "The next queued call should retry the failed fetch");
+            assertFalse(third.isDone(), "Only one queued call should retry at a time");
+
+            retryFetch.complete(List.of(model));
+
+            assertEquals("retried-model", second.get(5, TimeUnit.SECONDS).get(0).getId());
+            assertEquals("retried-model", third.get(5, TimeUnit.SECONDS).get(0).getId());
+            assertEquals(2, callCount.get());
+        }
+    }
+
+    @Test
+    void testListModels_WithCustomHandler_StopRetiresPendingFetches() throws Exception {
+        var oldModel = new com.github.copilot.rpc.ModelInfo();
+        oldModel.setId("old-model");
+        var newModel = new com.github.copilot.rpc.ModelInfo();
+        newModel.setId("new-model");
+        var oldFetch = new CompletableFuture<List<com.github.copilot.rpc.ModelInfo>>();
+        var newFetch = new CompletableFuture<List<com.github.copilot.rpc.ModelInfo>>();
+        var callCount = new AtomicInteger();
+        var options = new CopilotClientOptions()
+                .setOnListModels(() -> callCount.incrementAndGet() == 1 ? oldFetch : newFetch);
+
+        try (var client = new CopilotClient(options)) {
+            var oldCall = client.listModels();
+            var queuedOldCall = client.listModels();
+            client.stop().get(5, TimeUnit.SECONDS);
+
+            var newCall = client.listModels();
+            assertEquals(2, callCount.get(), "A post-stop call must not wait for the old fetch");
+            oldFetch.complete(List.of(oldModel));
+            assertEquals("old-model", oldCall.get(5, TimeUnit.SECONDS).get(0).getId());
+            assertEquals("old-model", queuedOldCall.get(5, TimeUnit.SECONDS).get(0).getId());
+            var queuedNewCall = client.listModels();
+            assertFalse(queuedNewCall.isDone(), "An old fetch must not populate the new cache");
+
+            newFetch.complete(List.of(newModel));
+            assertEquals("new-model", newCall.get(5, TimeUnit.SECONDS).get(0).getId());
+            assertEquals("new-model", queuedNewCall.get(5, TimeUnit.SECONDS).get(0).getId());
+            assertEquals("new-model", client.listModels().get(5, TimeUnit.SECONDS).get(0).getId());
+            assertEquals(2, callCount.get());
+        }
+    }
+
+    @Test
+    void testListModels_WithCustomHandler_FailureCallbackCanRetrySynchronously() throws Exception {
+        var model = new com.github.copilot.rpc.ModelInfo();
+        model.setId("retried-model");
+        var firstFetch = new CompletableFuture<List<com.github.copilot.rpc.ModelInfo>>();
+        var callCount = new AtomicInteger();
+        var options = new CopilotClientOptions().setOnListModels(() -> callCount.incrementAndGet() == 1
+                ? firstFetch
+                : CompletableFuture.completedFuture(List.of(model)));
+
+        try (var client = new CopilotClient(options)) {
+            var retried = client.listModels()
+                    .exceptionally(error -> client.listModels().orTimeout(5, TimeUnit.SECONDS).join());
+
+            firstFetch.completeExceptionally(new RuntimeException("transient failure"));
+
+            assertEquals("retried-model", retried.get(5, TimeUnit.SECONDS).get(0).getId());
+            assertEquals(2, callCount.get());
+        }
+    }
+
+    @Test
+    void testListModels_WithCustomHandler_QueuedCallbackCanJoinFirstCall() throws Exception {
+        var model = new com.github.copilot.rpc.ModelInfo();
+        model.setId("shared-model");
+        var fetch = new CompletableFuture<List<com.github.copilot.rpc.ModelInfo>>();
+        var options = new CopilotClientOptions().setOnListModels(() -> fetch);
+
+        try (var client = new CopilotClient(options)) {
+            var first = client.listModels();
+            var second = client.listModels();
+            var joined = second.thenApply(ignored -> first.copy().orTimeout(5, TimeUnit.SECONDS).join());
+
+            fetch.complete(List.of(model));
+
+            assertEquals("shared-model", joined.get(5, TimeUnit.SECONDS).get(0).getId());
+        }
+    }
+
+    @Test
+    void testListModels_WithCustomHandler_CancellationDoesNotReleaseFetch() throws Exception {
+        var model = new com.github.copilot.rpc.ModelInfo();
+        model.setId("shared-model");
+        var fetch = new CompletableFuture<List<com.github.copilot.rpc.ModelInfo>>();
+        var callCount = new AtomicInteger();
+        var options = new CopilotClientOptions().setOnListModels(() -> {
+            callCount.incrementAndGet();
+            return fetch;
+        });
+
+        try (var client = new CopilotClient(options)) {
+            client.listModels().cancel(true);
+            var second = client.listModels();
+            assertEquals(1, callCount.get());
+            assertFalse(second.isDone());
+
+            fetch.complete(List.of(model));
+
+            assertEquals("shared-model", second.get(5, TimeUnit.SECONDS).get(0).getId());
+            assertEquals(1, callCount.get());
+        }
+    }
+
+    @Test
+    void testListModels_ConcurrentCallsShareOneModelsListRequest() throws Exception {
+        var model = new com.github.copilot.rpc.ModelInfo();
+        model.setId("server-model");
+        var response = new CompletableFuture<GetModelsResponse>();
+        var rpc = mock(JsonRpcClient.class);
+        when(rpc.invoke(eq("models.list"), any(), eq(GetModelsResponse.class))).thenReturn(response);
+
+        try (var client = new CopilotClient(new CopilotClientOptions().setAutoStart(false))) {
+            setConnectionFuture(client, rpc, null);
+
+            var first = client.listModels();
+            var second = client.listModels();
+            verify(rpc, times(1)).invoke(eq("models.list"), any(), eq(GetModelsResponse.class));
+
+            response.complete(new GetModelsResponse().setModels(List.of(model)));
+
+            assertEquals("server-model", first.get(5, TimeUnit.SECONDS).get(0).getId());
+            assertEquals("server-model", second.get(5, TimeUnit.SECONDS).get(0).getId());
+            verify(rpc, times(1)).invoke(eq("models.list"), any(), eq(GetModelsResponse.class));
         }
     }
 

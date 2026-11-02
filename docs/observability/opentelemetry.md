@@ -9,7 +9,19 @@ The SDK has built-in support for configuring OpenTelemetry on the CLI process an
 <details open>
 <summary><strong>Node.js / TypeScript</strong></summary>
 
-<!-- docs-validate: skip -->
+<!-- docs-validate: strict -->
+<!-- docs-validate: hidden -->
+```typescript
+import { CopilotClient as SdkClient } from "@github/copilot-sdk";
+
+new SdkClient({
+  telemetry: {
+    otlpEndpoint: "http://localhost:4318",
+  },
+});
+```
+<!-- /docs-validate: hidden -->
+
 ```typescript
 import { CopilotClient } from "@github/copilot-sdk";
 
@@ -25,7 +37,6 @@ const client = new CopilotClient({
 <details>
 <summary><strong>Python</strong></summary>
 
-<!-- docs-validate: skip -->
 ```python
 from copilot import CopilotClient
 
@@ -41,7 +52,25 @@ client = CopilotClient(
 <details>
 <summary><strong>Go</strong></summary>
 
-<!-- docs-validate: skip -->
+<!-- docs-validate: hidden -->
+```go
+package main
+
+import (
+	copilot "github.com/github/copilot-sdk/go"
+)
+
+func main() {
+	client := copilot.NewClient(&copilot.ClientOptions{
+		Telemetry: &copilot.TelemetryConfig{
+			OTLPEndpoint: "http://localhost:4318",
+		},
+	})
+	_ = client
+}
+```
+<!-- /docs-validate: hidden -->
+
 ```go
 client := copilot.NewClient(&copilot.ClientOptions{
     Telemetry: &copilot.TelemetryConfig{
@@ -55,7 +84,6 @@ client := copilot.NewClient(&copilot.ClientOptions{
 <details>
 <summary><strong>.NET</strong></summary>
 
-<!-- docs-validate: skip -->
 ```csharp
 var client = new CopilotClient(new CopilotClientOptions
 {
@@ -71,7 +99,6 @@ var client = new CopilotClient(new CopilotClientOptions
 <details>
 <summary><strong>Java</strong></summary>
 
-<!-- docs-validate: skip -->
 ```java
 import com.github.copilot.CopilotClient;
 import com.github.copilot.rpc.*;
@@ -87,7 +114,6 @@ var client = new CopilotClient(new CopilotClientOptions()
 <details>
 <summary><strong>Rust</strong></summary>
 
-<!-- docs-validate: skip -->
 ```rust
 use github_copilot_sdk::{Client, ClientOptions, TelemetryConfig};
 
@@ -257,7 +283,7 @@ const session = await client.createSession({ tools: [myTool] });
 | Language | Dependency | Notes |
 |---|---|---|
 | Node.js |—| No dependency; provide `onGetTraceContext` callback for outbound propagation |
-| Python | `opentelemetry-api` | Install with `pip install copilot-sdk[telemetry]` |
+| Python | `opentelemetry-api` | Install with `pip install "github-copilot-sdk[telemetry]"` |
 | Go | `go.opentelemetry.io/otel` | Required dependency |
 | .NET |—| Uses built-in `System.Diagnostics.Activity` |
 | Java | `io.opentelemetry:opentelemetry-api` | Add this dependency for SDK-based setup; trace context injection is automatic when the OpenTelemetry Java agent or SDK is configured |

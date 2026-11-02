@@ -239,6 +239,21 @@ var client = new CopilotClient(new CopilotClientOptions()
    <details>
    <summary><strong>Go</strong></summary>
 
+   <!-- docs-validate: hidden -->
+   ```go
+   package main
+
+   import copilot "github.com/github/copilot-sdk/go"
+
+   func main() {
+   	client := copilot.NewClient(&copilot.ClientOptions{
+   		Connection: copilot.StdioConnection{Path: "/usr/local/bin/copilot"},
+   	})
+   	_ = client
+   }
+   ```
+   <!-- /docs-validate: hidden -->
+
    ```go
    client := copilot.NewClient(&copilot.ClientOptions{
        Connection: copilot.StdioConnection{Path: "/usr/local/bin/copilot"},
@@ -303,6 +318,25 @@ var client = new CopilotClient(new CopilotClientOptions()
 
    <details>
    <summary><strong>Go</strong></summary>
+
+   <!-- docs-validate: hidden -->
+   ```go
+   package main
+
+   import (
+   	"os"
+
+   	copilot "github.com/github/copilot-sdk/go"
+   )
+
+   func main() {
+   	client := copilot.NewClient(&copilot.ClientOptions{
+   		GitHubToken: os.Getenv("GITHUB_TOKEN"),
+   	})
+   	_ = client
+   }
+   ```
+   <!-- /docs-validate: hidden -->
 
    ```go
    client := copilot.NewClient(&copilot.ClientOptions{
@@ -424,17 +458,11 @@ const client = new CopilotClient({
 
 ### Diagnosing connection failures
 
-1. **Check client state:**
+1. **Check the connection:**
    ```typescript
-   console.log("Connection state:", client.getState());
-   // Should be "connected" after start()
-   ```
-
-1. **Listen for state changes:**
-   ```typescript
-   client.on("stateChange", (state) => {
-     console.log("State changed to:", state);
-   });
+   const response = await client.ping();
+   console.log("Server responded at", response.timestamp);
+   // Fails with "Client not connected" if the client is not started
    ```
 
 1. **Verify CLI process is running:**
@@ -452,9 +480,6 @@ const client = new CopilotClient({
    const session = await client.createSession({
      tools: [myTool],
    });
-   
-   // Check registered tools
-   console.log("Registered tools:", session.getTools?.());
    ```
 
 1. **Check tool schema is valid JSON Schema:**
@@ -487,14 +512,16 @@ const client = new CopilotClient({
 
 ### Tool errors not surfacing
 
-Subscribe to error events:
+A failed tool call arrives as `tool.execution_complete` with `success: false`, and session errors arrive as `session.error`:
 
 ```typescript
-session.on("tool.execution_error", (event) => {
-  console.error("Tool error:", event.data);
+session.on("tool.execution_complete", (event) => {
+  if (!event.data.success) {
+    console.error("Tool error:", event.data.error);
+  }
 });
 
-session.on("error", (event) => {
+session.on("session.error", (event) => {
   console.error("Session error:", event.data);
 });
 ```
@@ -505,15 +532,22 @@ session.on("error", (event) => {
 
 1. **Path separators:** Use raw strings or forward slashes:
    ```csharp
-   Connection = RuntimeConnection.ForStdio(path: @"C:\Program Files\GitHub\copilot.exe")
-   // or
-   Connection = RuntimeConnection.ForStdio(path: "C:/Program Files/GitHub/copilot.exe")
+   var options = new CopilotClientOptions
+   {
+       // Verbatim string
+       Connection = RuntimeConnection.ForStdio(path: @"C:\Program Files\GitHub\copilot.exe"),
+   };
+   // or forward slashes
+   options.Connection = RuntimeConnection.ForStdio(path: "C:/Program Files/GitHub/copilot.exe");
    ```
 
 1. **PATHEXT resolution:** The SDK handles this automatically, but if issues persist:
    ```csharp
-   // Explicitly specify .exe
-   Command = "myserver.exe"  // Not just "myserver"
+   var server = new McpStdioServerConfig
+   {
+       // Explicitly specify .exe
+       Command = "myserver.exe",  // Not just "myserver"
+   };
    ```
 
 1. **Console encoding:** Ensure UTF-8 for proper JSON handling:

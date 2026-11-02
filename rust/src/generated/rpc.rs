@@ -9176,6 +9176,13 @@ impl<'a> SessionRpc<'a> {
         }
     }
 
+    /// `session.management.*` sub-namespace.
+    pub fn management(&self) -> SessionRpcManagement<'a> {
+        SessionRpcManagement {
+            session: self.session,
+        }
+    }
+
     /// `session.mcp.*` sub-namespace.
     pub fn mcp(&self) -> SessionRpcMcp<'a> {
         SessionRpcMcp {
@@ -10168,6 +10175,38 @@ impl<'a> SessionRpcAutopilotObjective<'a> {
             )
             .await?;
         Ok(serde_json::from_value(_value)?)
+    }
+
+    /// Sets whether completing or pausing this session's objective preserves autopilot mode. This in-memory preference defaults to false and must be reapplied when attaching a client.
+    ///
+    /// Wire method: `session.autopilotObjective.setStayInAutopilot`.
+    ///
+    /// # Parameters
+    ///
+    /// * `params` - Client-resolved preference for retaining autopilot mode after objective completion or pause.
+    ///
+    /// <div class="warning">
+    ///
+    /// **Experimental.** This API is part of an experimental wire-protocol surface
+    /// and may change or be removed in future SDK or CLI releases. Pin both the
+    /// SDK and CLI versions if your code depends on it.
+    ///
+    /// </div>
+    pub async fn set_stay_in_autopilot(
+        &self,
+        params: AutopilotObjectiveSetStayInAutopilotRequest,
+    ) -> Result<(), Error> {
+        let mut wire_params = serde_json::to_value(params)?;
+        wire_params["sessionId"] = serde_json::Value::String(self.session.id().to_string());
+        let _value = self
+            .session
+            .client()
+            .call(
+                rpc_methods::SESSION_AUTOPILOTOBJECTIVE_SETSTAYINAUTOPILOT,
+                Some(wire_params),
+            )
+            .await?;
+        Ok(())
     }
 }
 
@@ -12705,6 +12744,179 @@ impl<'a> SessionRpcManagedSettings<'a> {
                 rpc_methods::SESSION_MANAGEDSETTINGS_RECHECKPOLICYHELPER,
                 Some(wire_params),
             )
+            .await?;
+        Ok(serde_json::from_value(_value)?)
+    }
+}
+
+/// `session.management.*` RPCs.
+#[derive(Clone, Copy)]
+pub struct SessionRpcManagement<'a> {
+    pub(crate) session: &'a Session,
+}
+
+impl<'a> SessionRpcManagement<'a> {
+    /// Updates opt-in session management policy live. Enabling the master enables all tools before applying individual overrides. Opt-in is scoped to the session's configuration directory.
+    ///
+    /// Wire method: `session.management.configure`.
+    ///
+    /// # Parameters
+    ///
+    /// * `params` - Updates the session's live policy without changing persistent host settings.
+    ///
+    /// # Returns
+    ///
+    /// Opt-in policy for local session management.
+    ///
+    /// <div class="warning">
+    ///
+    /// **Experimental.** This API is part of an experimental wire-protocol surface
+    /// and may change or be removed in future SDK or CLI releases. Pin both the
+    /// SDK and CLI versions if your code depends on it.
+    ///
+    /// </div>
+    pub async fn configure(
+        &self,
+        params: SessionManagementConfigureRequest,
+    ) -> Result<SessionManagementPolicy, Error> {
+        let mut wire_params = serde_json::to_value(params)?;
+        wire_params["sessionId"] = serde_json::Value::String(self.session.id().to_string());
+        let _value = self
+            .session
+            .client()
+            .call(rpc_methods::SESSION_MANAGEMENT_CONFIGURE, Some(wire_params))
+            .await?;
+        Ok(serde_json::from_value(_value)?)
+    }
+
+    /// Lists other live, opted-in sessions in the same configuration directory. Requires the list tool to be enabled.
+    ///
+    /// Wire method: `session.management.list`.
+    ///
+    /// # Parameters
+    ///
+    /// * `params` - Lists opted-in local peers. The caller is omitted.
+    ///
+    /// # Returns
+    ///
+    /// Eligible live peers reported by their owning runtimes.
+    ///
+    /// <div class="warning">
+    ///
+    /// **Experimental.** This API is part of an experimental wire-protocol surface
+    /// and may change or be removed in future SDK or CLI releases. Pin both the
+    /// SDK and CLI versions if your code depends on it.
+    ///
+    /// </div>
+    pub async fn list(
+        &self,
+        params: SessionManagementListRequest,
+    ) -> Result<SessionManagementListResult, Error> {
+        let mut wire_params = serde_json::to_value(params)?;
+        wire_params["sessionId"] = serde_json::Value::String(self.session.id().to_string());
+        let _value = self
+            .session
+            .client()
+            .call(rpc_methods::SESSION_MANAGEMENT_LIST, Some(wire_params))
+            .await?;
+        Ok(serde_json::from_value(_value)?)
+    }
+
+    /// Injects peer text into an opted-in session. Wakes an idle agent and safely queues delivery to a busy agent. Acceptance does not imply an answer or completed task.
+    ///
+    /// Wire method: `session.management.message`.
+    ///
+    /// # Parameters
+    ///
+    /// * `params` - Sends peer text, never human approval, to another opted-in session.
+    ///
+    /// # Returns
+    ///
+    /// Acceptance is not a completed turn or a reply.
+    ///
+    /// <div class="warning">
+    ///
+    /// **Experimental.** This API is part of an experimental wire-protocol surface
+    /// and may change or be removed in future SDK or CLI releases. Pin both the
+    /// SDK and CLI versions if your code depends on it.
+    ///
+    /// </div>
+    pub async fn message(
+        &self,
+        params: SessionManagementMessageRequest,
+    ) -> Result<SessionManagementMessageResult, Error> {
+        let mut wire_params = serde_json::to_value(params)?;
+        wire_params["sessionId"] = serde_json::Value::String(self.session.id().to_string());
+        let _value = self
+            .session
+            .client()
+            .call(rpc_methods::SESSION_MANAGEMENT_MESSAGE, Some(wire_params))
+            .await?;
+        Ok(serde_json::from_value(_value)?)
+    }
+
+    /// Asks the owning host to create and supervise a separate session, preserving permissions and model restrictions. Omitted model, reasoning effort, context tier and cwd inherit the caller's current values; explicit overrides use normal model validation and workspace trust. Records durable creation lineage before delivering the initial task as peer text. Returns the new session ID, not task completion. Requires the create tool and a host creation handler.
+    ///
+    /// Wire method: `session.management.create`.
+    ///
+    /// # Parameters
+    ///
+    /// * `params` - Requests a separate session. Omitted launch options inherit the caller's current configuration.
+    ///
+    /// # Returns
+    ///
+    /// Identifies a session owned and supervised by the creating host.
+    ///
+    /// <div class="warning">
+    ///
+    /// **Experimental.** This API is part of an experimental wire-protocol surface
+    /// and may change or be removed in future SDK or CLI releases. Pin both the
+    /// SDK and CLI versions if your code depends on it.
+    ///
+    /// </div>
+    pub async fn create(
+        &self,
+        params: SessionManagementCreateRequest,
+    ) -> Result<SessionManagementCreateResult, Error> {
+        let mut wire_params = serde_json::to_value(params)?;
+        wire_params["sessionId"] = serde_json::Value::String(self.session.id().to_string());
+        let _value = self
+            .session
+            .client()
+            .call(rpc_methods::SESSION_MANAGEMENT_CREATE, Some(wire_params))
+            .await?;
+        Ok(serde_json::from_value(_value)?)
+    }
+
+    /// Closes a live opted-in session created by the caller or one of its descendants, preserving saved history and leaving descendants open. Requires the close capability to be enabled. Self, ancestors, siblings and unrelated sessions cannot be closed.
+    ///
+    /// Wire method: `session.management.close`.
+    ///
+    /// # Parameters
+    ///
+    /// * `params` - Closes one live opted-in descendant without deleting its saved history or closing its children.
+    ///
+    /// # Returns
+    ///
+    /// Completion of the existing non-deleting close lifecycle.
+    ///
+    /// <div class="warning">
+    ///
+    /// **Experimental.** This API is part of an experimental wire-protocol surface
+    /// and may change or be removed in future SDK or CLI releases. Pin both the
+    /// SDK and CLI versions if your code depends on it.
+    ///
+    /// </div>
+    pub async fn close(
+        &self,
+        params: SessionManagementCloseRequest,
+    ) -> Result<SessionManagementCloseResult, Error> {
+        let mut wire_params = serde_json::to_value(params)?;
+        wire_params["sessionId"] = serde_json::Value::String(self.session.id().to_string());
+        let _value = self
+            .session
+            .client()
+            .call(rpc_methods::SESSION_MANAGEMENT_CLOSE, Some(wire_params))
             .await?;
         Ok(serde_json::from_value(_value)?)
     }
@@ -15429,6 +15641,34 @@ impl<'a> SessionRpcPermissions<'a> {
         Ok(serde_json::from_value(_value)?)
     }
 
+    /// Returns the approval modes currently available under the session's feature and managed permission policy. This read does not change permissions; mutations must still check their authoritative result because policy may change.
+    ///
+    /// Wire method: `session.permissions.getCapabilities`.
+    ///
+    /// # Returns
+    ///
+    /// Available permission modes, derived from current session policy.
+    ///
+    /// <div class="warning">
+    ///
+    /// **Experimental.** This API is part of an experimental wire-protocol surface
+    /// and may change or be removed in future SDK or CLI releases. Pin both the
+    /// SDK and CLI versions if your code depends on it.
+    ///
+    /// </div>
+    pub async fn get_capabilities(&self) -> Result<PermissionsCapabilities, Error> {
+        let wire_params = serde_json::json!({ "sessionId": self.session.id() });
+        let _value = self
+            .session
+            .client()
+            .call(
+                rpc_methods::SESSION_PERMISSIONS_GETCAPABILITIES,
+                Some(wire_params),
+            )
+            .await?;
+        Ok(serde_json::from_value(_value)?)
+    }
+
     /// Adds or removes session-scoped or location-scoped permission rules.
     ///
     /// Wire method: `session.permissions.modifyRules`.
@@ -16774,6 +17014,31 @@ impl<'a> SessionRpcProvider<'a> {
             .session
             .client()
             .call(rpc_methods::SESSION_PROVIDER_SYNC, Some(wire_params))
+            .await?;
+        Ok(serde_json::from_value(_value)?)
+    }
+
+    /// Returns credential-free provider configuration status for the selected model. This does not validate provider credentials or contact the provider.
+    ///
+    /// Wire method: `session.provider.getStatus`.
+    ///
+    /// # Returns
+    ///
+    /// Credential-free provider configuration status for the selected model.
+    ///
+    /// <div class="warning">
+    ///
+    /// **Experimental.** This API is part of an experimental wire-protocol surface
+    /// and may change or be removed in future SDK or CLI releases. Pin both the
+    /// SDK and CLI versions if your code depends on it.
+    ///
+    /// </div>
+    pub async fn get_status(&self) -> Result<ProviderStatus, Error> {
+        let wire_params = serde_json::json!({ "sessionId": self.session.id() });
+        let _value = self
+            .session
+            .client()
+            .call(rpc_methods::SESSION_PROVIDER_GETSTATUS, Some(wire_params))
             .await?;
         Ok(serde_json::from_value(_value)?)
     }

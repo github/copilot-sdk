@@ -40,6 +40,7 @@ Attach an image file to any message using the file attachment type. The path mus
 <details open>
 <summary><strong>Node.js / TypeScript</strong></summary>
 
+<!-- docs-validate: strict -->
 ```typescript
 import { CopilotClient } from "@github/copilot-sdk";
 
@@ -257,6 +258,7 @@ When you already have image data in memory (e.g., a screenshot captured by your 
 <details open>
 <summary><strong>Node.js / TypeScript</strong></summary>
 
+<!-- docs-validate: strict -->
 ```typescript
 import { CopilotClient } from "@github/copilot-sdk";
 
@@ -495,6 +497,7 @@ Not all models support vision. Check the model's capabilities before sending ima
 ### Vision limits type
 
 <!-- docs-validate: hidden -->
+<!-- docs-validate: strict -->
 ```typescript
 interface VisionCapabilities {
     vision?: {

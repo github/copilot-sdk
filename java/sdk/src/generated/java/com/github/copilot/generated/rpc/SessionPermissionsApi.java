@@ -146,6 +146,17 @@ public final class SessionPermissionsApi {
     }
 
     /**
+     * Returns the approval modes currently available under the session's feature and managed permission policy. This read does not change permissions; mutations must still check their authoritative result because policy may change.
+     *
+     * @apiNote This method is experimental and may change in a future version.
+     * @since 1.0.0
+     */
+    @CopilotExperimental
+    public CompletableFuture<SessionPermissionsGetCapabilitiesResult> getCapabilities() {
+        return caller.invoke("session.permissions.getCapabilities", java.util.Map.of("sessionId", this.sessionId), SessionPermissionsGetCapabilitiesResult.class);
+    }
+
+    /**
      * Adds or removes session-scoped or location-scoped permission rules.
      * <p>
      * Note: the {@code sessionId} field in the params record is overridden

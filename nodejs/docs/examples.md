@@ -198,7 +198,7 @@ Use `session.send()` to programmatically inject a new user message.
 ```js
 hooks: {
     onUserPromptSubmitted: async (input) => {
-        if (/\\burgent\\b/i.test(input.prompt)) {
+        if (/\burgent\b/i.test(input.prompt)) {
             // Fire-and-forget a follow-up message
             setTimeout(() => session.send({ prompt: "Please prioritize this." }), 0);
         }
@@ -217,7 +217,7 @@ hooks: {
     onPreToolUse: async (input) => {
         if (input.toolName === "bash") {
             const cmd = String(input.toolArgs?.command || "");
-            if (/rm\\s+-rf/i.test(cmd) || /Remove-Item\\s+.*-Recurse/i.test(cmd)) {
+            if (/rm\s+-rf/i.test(cmd) || /Remove-Item\s+.*-Recurse/i.test(cmd)) {
                 return {
                     permissionDecision: "deny",
                     permissionDecisionReason: "Destructive commands are not allowed.",
@@ -394,7 +394,7 @@ function copyToClipboard(text) {
 const session = await joinSession({
     hooks: {
         onUserPromptSubmitted: async (input) => {
-            if (/\\bcopy\\b/i.test(input.prompt)) {
+            if (/\bcopy\b/i.test(input.prompt)) {
                 copyNextResponse = true;
             }
         },
@@ -513,7 +513,7 @@ const debounce = new Map();
 
 watch(cwd, { recursive: true }, (eventType, filename) => {
     if (!filename || eventType !== "change") return;
-    if (filename.split(/[\\\\\\/]/).some((p) => IGNORE.has(p))) return;
+    if (filename.split(/[\\/]/).some((p) => IGNORE.has(p))) return;
 
     if (debounce.has(filename)) clearTimeout(debounce.get(filename));
     debounce.set(filename, setTimeout(() => {
@@ -524,7 +524,7 @@ watch(cwd, { recursive: true }, (eventType, filename) => {
         try { if (!statSync(fullPath).isFile()) return; } catch { return; }
         const relPath = relative(cwd, fullPath);
         session.send({
-            prompt: `The user edited \\`${relPath}\\`.`,
+            prompt: `The user edited \`${relPath}\`.`,
             attachments: [{ type: "file", path: fullPath }],
         });
     }, 500));
@@ -619,7 +619,7 @@ function openInEditor(filePath) {
 const session = await joinSession({
     hooks: {
         onUserPromptSubmitted: async (input) => {
-            if (/\\bcopy this\\b/i.test(input.prompt)) {
+            if (/\bcopy this\b/i.test(input.prompt)) {
                 copyNextResponse = true;
             }
             return {
@@ -629,7 +629,7 @@ const session = await joinSession({
         onPreToolUse: async (input) => {
             if (input.toolName === "bash") {
                 const cmd = String(input.toolArgs?.command || "");
-                if (/rm\\s+-rf\\s+\//i.test(cmd) || /Remove-Item\\s+.*-Recurse/i.test(cmd)) {
+                if (/rm\s+-rf\s+\//i.test(cmd) || /Remove-Item\s+.*-Recurse/i.test(cmd)) {
                     return {
                         permissionDecision: "deny",
                         permissionDecisionReason: "Destructive commands are not allowed.",

@@ -33,6 +33,7 @@ flowchart LR
 <details open>
 <summary><strong>Node.js / TypeScript</strong></summary>
 
+<!-- docs-validate: strict -->
 ```typescript
 import { CopilotClient, RuntimeConnection } from "@github/copilot-sdk";
 
@@ -188,6 +189,7 @@ The SDK picks these up automatically—no code changes needed.
 
 Sessions default to ephemeral. To create resumable sessions, provide your own session ID:
 
+<!-- docs-validate: strict -->
 ```typescript
 // Create a named session
 const session = await client.createSession({

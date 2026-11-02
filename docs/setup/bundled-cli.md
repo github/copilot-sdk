@@ -45,6 +45,7 @@ flowchart TB
 <details open>
 <summary><strong>Node.js / TypeScript</strong></summary>
 
+<!-- docs-validate: strict -->
 ```typescript
 import { CopilotClient } from "@github/copilot-sdk";
 

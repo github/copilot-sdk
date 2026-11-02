@@ -3600,6 +3600,32 @@ func TestModelInfoPreservesProviderMetadata(t *testing.T) {
 	}
 }
 
+func TestModelInfoPreservesMaxOutputTokens(t *testing.T) {
+	wireLimits := `{"max_prompt_tokens":128000,"max_output_tokens":16384,"max_context_window_tokens":144384}`
+	var model ModelInfo
+	if err := json.Unmarshal([]byte(`{"id":"m","name":"M","capabilities":{"supports":{},"limits":`+wireLimits+`}}`), &model); err != nil {
+		t.Fatalf("unmarshal model info: %v", err)
+	}
+	limits := model.Capabilities.Limits
+	if limits.MaxOutputTokens == nil || *limits.MaxOutputTokens != 16384 {
+		t.Fatalf("MaxOutputTokens = %v, want 16384", limits.MaxOutputTokens)
+	}
+	encoded, err := json.Marshal(limits)
+	if err != nil {
+		t.Fatalf("marshal limits: %v", err)
+	}
+	var actual, expected map[string]any
+	if err := json.Unmarshal(encoded, &actual); err != nil {
+		t.Fatalf("unmarshal encoded limits: %v", err)
+	}
+	if err := json.Unmarshal([]byte(wireLimits), &expected); err != nil {
+		t.Fatalf("unmarshal wire limits: %v", err)
+	}
+	if !reflect.DeepEqual(actual, expected) {
+		t.Fatalf("encoded limits = %s, want %s", encoded, wireLimits)
+	}
+}
+
 func TestModelInfoPreservesNativeProvider(t *testing.T) {
 	for _, provider := range []string{
 		`{"id":"copilot","kind":"copilot","label":"GitHub Copilot"}`,

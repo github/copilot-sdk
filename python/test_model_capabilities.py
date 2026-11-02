@@ -8,6 +8,8 @@ import pytest
 from copilot import (
     CopilotClient,
     ModelCapabilitiesOverride,
+    ModelInfo,
+    ModelLimits,
     ModelLimitsOverride,
     ModelSupportsOverride,
     ModelVisionLimitsOverride,
@@ -100,6 +102,32 @@ def test_model_limits_override_keeps_positional_constructor():
     assert limits.max_output_tokens == 4096
     assert limits.max_context_window_tokens == 1_048_576
     assert limits.vision is vision
+
+
+def test_listed_model_limits_round_trip_max_output_tokens():
+    wire_limits = {
+        "max_prompt_tokens": 128_000,
+        "max_output_tokens": 16_384,
+        "max_context_window_tokens": 144_384,
+    }
+    model = ModelInfo.from_dict(
+        {"id": "m", "name": "M", "capabilities": {"supports": {}, "limits": wire_limits}}
+    )
+
+    assert model.capabilities.limits.max_output_tokens == 16_384
+    assert model.capabilities.limits.to_dict() == wire_limits
+    assert ModelLimits.from_dict({"max_context_window_tokens": 1}).to_dict() == {
+        "max_context_window_tokens": 1
+    }
+
+
+def test_model_limits_keeps_positional_constructor():
+    limits = ModelLimits(128_000, 144_384, None, 16_384)
+
+    assert limits.max_prompt_tokens == 128_000
+    assert limits.max_context_window_tokens == 144_384
+    assert limits.vision is None
+    assert limits.max_output_tokens == 16_384
 
 
 @pytest.mark.parametrize("operation", ["create", "resume", "set_model"])

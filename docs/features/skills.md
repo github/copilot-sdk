@@ -314,7 +314,7 @@ The `skillDirectories` option points to the parent directory (e.g., `./skills`).
 
 ### SKILL.md format
 
-A `SKILL.md` file is a markdown document with optional YAML frontmatter:
+A `SKILL.md` file is a markdown document that starts with a YAML frontmatter block:
 
 ```markdown
 ---
@@ -337,6 +337,8 @@ Provide specific line-number references and suggested fixes.
 The frontmatter fields:
 * **`name`**: The skill's identifier (used with `disabledSkills` to selectively disable it). If omitted, the directory name is used.
 * **`description`**: A short description of what the skill does.
+
+Both fields are optional, but the frontmatter block itself is required: a `SKILL.md` without the `---` lines is skipped.
 
 The markdown body contains the instructions that are injected into the session context when the skill is loaded.
 
@@ -847,8 +849,9 @@ const session = await client.createSession({
 
 1. **Check path exists** - Verify the skill directory path is correct and contains subdirectories with `SKILL.md` files
 1. **Check permissions** - Ensure the SDK can read the directory
-1. **Check SKILL.md format** - Verify the markdown is well-formed and any YAML frontmatter uses valid syntax
-1. **Enable debug logging** - Set `logLevel: "debug"` to see skill loading logs
+1. **Check SKILL.md format** - Verify the file starts with a YAML frontmatter block and that the frontmatter uses valid syntax
+1. **Check the runtime log** - Each skipped skill is logged as a warning with its path and the reason, for example missing frontmatter, an invalid `name`, or a name that another skill already uses (see [Log directory](../troubleshooting/debugging.md#log-directory))
+1. **Check the reload diagnostics** - `skills.reload` rescans the skill directories and returns the same problems in its `warnings` and `errors` lists
 
 ### Skill conflicts
 

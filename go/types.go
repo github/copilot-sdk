@@ -342,9 +342,8 @@ type TelemetryConfig struct {
 }
 
 // Bool returns a pointer to the given bool value.
-// Use for option fields such as AutoStart, AutoRestart, or LogOptions.Ephemeral:
+// Use for optional bool fields such as LogOptions.Ephemeral:
 //
-//	AutoStart: Bool(false)
 //	Ephemeral: Bool(true)
 func Bool(v bool) *bool {
 	return &v
@@ -2044,7 +2043,9 @@ type SessionConfig struct {
 	Canvases []CanvasDeclaration
 	// RequestCanvasRenderer asks the host to enable canvas rendering for this session.
 	RequestCanvasRenderer *bool
-	// RequestExtensions asks the host to surface declared canvases as agent-visible extensions.
+	// RequestExtensions opts this connection into the extension surface: when true,
+	// the host wires extension management tools and per-extension tool dispatch onto
+	// the session.
 	RequestExtensions *bool
 	// ExtensionSDKPath optionally overrides the bundled `@github/copilot-sdk` drop
 	// injected into extension subprocesses. When set to an absolute path containing
@@ -2256,6 +2257,8 @@ type ToolHandler func(invocation ToolInvocation) (ToolResult, error)
 
 // ToolResult represents the result of a tool invocation.
 type ToolResult struct {
+	// TextResultForLLM is the tool output for the model. The SDK sends it
+	// unchanged, including when it is empty.
 	TextResultForLLM    string             `json:"textResultForLlm"`
 	BinaryResultsForLLM []ToolBinaryResult `json:"binaryResultsForLlm,omitempty"`
 	ResultType          string             `json:"resultType"`
@@ -2697,7 +2700,7 @@ type ResumeSessionConfig struct {
 	OpenCanvases []rpc.OpenCanvasInstance
 	// RequestCanvasRenderer asks the host to enable canvas rendering for this session.
 	RequestCanvasRenderer *bool
-	// RequestExtensions asks the host to surface declared canvases as agent-visible extensions.
+	// RequestExtensions opts this connection into the extension surface. See SessionConfig.RequestExtensions.
 	RequestExtensions *bool
 	// ExtensionSDKPath optionally overrides the bundled `@github/copilot-sdk` drop
 	// injected into extension subprocesses. See SessionConfig.ExtensionSDKPath.
@@ -3077,6 +3080,7 @@ type ModelVisionLimits struct {
 // ModelLimits contains model limits
 type ModelLimits struct {
 	MaxPromptTokens        *int               `json:"max_prompt_tokens,omitempty"`
+	MaxOutputTokens        *int               `json:"max_output_tokens,omitempty"`
 	MaxContextWindowTokens *int               `json:"max_context_window_tokens,omitempty"`
 	Vision                 *ModelVisionLimits `json:"vision,omitempty"`
 }

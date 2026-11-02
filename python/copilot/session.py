@@ -205,7 +205,8 @@ def _capabilities_to_dict(caps: ModelCapabilitiesOverride) -> dict:
     return result
 
 
-ReasoningEffort = Literal["low", "medium", "high", "xhigh", "max"]
+# Model-defined; use list_models() to discover supported values. BYOK providers can define more.
+ReasoningEffort = str
 ReasoningSummary = Literal["none", "concise", "detailed"]
 ContextTier = Literal["default", "long_context"]
 AutoTier = str

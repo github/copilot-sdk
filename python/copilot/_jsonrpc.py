@@ -551,11 +551,14 @@ class JsonRpcClient:
 
                 if "error" in message:
                     error = message["error"]
-                    exc = JsonRpcError(
-                        error.get("code", -1),
-                        error.get("message", "Unknown error"),
-                        error.get("data"),
-                    )
+                    if isinstance(error, dict):
+                        exc = JsonRpcError(
+                            error.get("code", -1),
+                            error.get("message", "Unknown error"),
+                            error.get("data"),
+                        )
+                    else:
+                        exc = ValueError("Invalid JSON-RPC error response: expected an object")
                     loop.call_soon_threadsafe(future.set_exception, exc)
                 elif "result" in message:
                     result = message["result"]

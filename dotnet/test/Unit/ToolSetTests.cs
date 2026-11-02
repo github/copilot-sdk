@@ -47,6 +47,7 @@ public class ToolSetTests
     [Theory]
     [InlineData("has:colon")]
     [InlineData("has space")]
+    [InlineData("bash\n")]
     [InlineData("")]
     public void ToolSet_Rejects_Invalid_Names(string bad)
     {

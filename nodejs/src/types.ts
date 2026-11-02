@@ -43,6 +43,8 @@ import type {
     KerberosAuthMode,
     KerberosAuthScope,
     SandboxConfig,
+    SessionManagementCreateHostRequest,
+    SessionManagementCreateResult,
 } from "./generated/rpc.js";
 import type { ToolSet } from "./toolSet.js";
 export type {
@@ -54,6 +56,33 @@ export type { RemoteSessionMode } from "./generated/rpc.js";
 export type { AutopilotOptions } from "./generated/rpc.js";
 export type { CurrentToolMetadata } from "./generated/rpc.js";
 export type { SandboxConfig, SandboxConfigSource } from "./generated/rpc.js";
+export type {
+    ManagedSessionInfo,
+    SessionManagementCloseRequest,
+    SessionManagementCloseResult,
+    SessionManagementConfigureRequest,
+    SessionManagementCreateHostRequest,
+    SessionManagementCreateRequest,
+    SessionManagementCreateResult,
+    SessionManagementListRequest,
+    SessionManagementListResult,
+    SessionManagementMessageRequest,
+    SessionManagementMessageResult,
+    SessionManagementPolicy,
+    SessionManagementScope,
+    SessionManagementToolOverrides,
+} from "./generated/rpc.js";
+
+/**
+ * Creates and supervises a separate session for this session's management tools.
+ * Use newSessionId as the child's exact identity and apply the requested launch
+ * options and permission ceiling. Route approvals independently, retain the new
+ * session, and dispose it with the host. Do not copy the parent's conversation.
+ */
+export type SessionCreationHandler = (
+    request: SessionManagementCreateHostRequest,
+    options: { signal: AbortSignal }
+) => SessionManagementCreateResult | Promise<SessionManagementCreateResult>;
 export type {
     AuthIdentityMetadata,
     AuthInfoType,
@@ -2350,9 +2379,10 @@ export interface LargeToolOutputConfig {
 }
 
 /**
- * Valid reasoning effort levels for models that support it.
+ * Model-defined reasoning effort for models that support it.
+ * Use client.listModels() to discover supported values; BYOK providers can define additional levels.
  */
-export type ReasoningEffort = "low" | "medium" | "high" | "xhigh" | "max";
+export type ReasoningEffort = string;
 
 /**
  * Context window tier for the session. "long_context" pins the session to the

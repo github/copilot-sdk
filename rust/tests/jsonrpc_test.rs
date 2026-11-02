@@ -101,6 +101,62 @@ async fn request_response_round_trip() {
 }
 
 #[tokio::test]
+async fn unreadable_error_fails_request_and_keeps_reading() {
+    for (error_json, extension_json) in [
+        "null",
+        r#""not an object""#,
+        r#"{"code":-32603,"message":42}"#,
+        r#"{"code":9223372036854775808,"message":"overflow"}"#,
+        r#"{"code":true,"message":"\ud83d"}"#,
+        r#"{"code":-32603,"message":"readable","data":{"detail":true}}"#,
+    ]
+    .into_iter()
+    .flat_map(|error| ["", r#","peerExtension":true"#].map(|extension| (error, extension)))
+    {
+        let (client_write, mut server_read) = duplex(4096);
+        let (mut server_write, client_read) = duplex(4096);
+        let (notification_tx, _) = broadcast::channel(16);
+        let (request_tx, _request_rx) = mpsc::unbounded_channel();
+        let client = JsonRpcClient::new(client_write, client_read, notification_tx, request_tx);
+
+        let peer = async {
+            for i in 0..2 {
+                let request: JsonRpcRequest =
+                    serde_json::from_slice(&read_framed(&mut server_read).await).unwrap();
+                let payload = if i == 0 {
+                    format!(r#""error":{error_json}"#)
+                } else {
+                    r#""result":{"recovered":true}"#.to_string()
+                };
+                let body = format!(
+                    r#"{{"jsonrpc":"2.0","id":{}{extension_json},{payload}}}"#,
+                    request.id
+                );
+                write_framed(&mut server_write, body.as_bytes()).await;
+            }
+        };
+        let requests = async {
+            let first = client.send_request("bad", None).await;
+            if error_json.contains("readable") {
+                let error = first.unwrap().error.unwrap();
+                assert_eq!(error.message, "readable");
+                assert_eq!(error.data, Some(serde_json::json!({"detail": true})));
+            } else {
+                let error = first.expect_err("malformed error must fail its request");
+                assert!(matches!(error.kind(), ErrorKind::Json), "{error:?}");
+            }
+            let next = client.send_request("next", None).await.unwrap();
+            assert_eq!(next.result, Some(serde_json::json!({"recovered": true})));
+        };
+        tokio::time::timeout(std::time::Duration::from_secs(5), async {
+            tokio::join!(peer, requests);
+        })
+        .await
+        .expect("requests did not settle while the peer remained connected");
+    }
+}
+
+#[tokio::test]
 async fn notification_broadcasting() {
     let (_client_write, _discard) = duplex(4096);
     let (mut server_write, client_read) = duplex(4096);

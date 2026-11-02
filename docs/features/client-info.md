@@ -28,6 +28,7 @@ Pass client info when you create the client:
 <details open>
 <summary><strong>TypeScript</strong></summary>
 
+<!-- docs-validate: strict -->
 <!-- docs-validate: hidden -->
 ```typescript
 import { CopilotClient } from "@github/copilot-sdk";

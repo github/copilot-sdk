@@ -11,6 +11,7 @@ Context clearing is different from creating a new session: it preserves the sess
 
 A successful context-clearing tool should be terminal. Otherwise, the agent loop may make another model call against the newly cleared window before starting the seeded turn.
 
+<!-- docs-validate: strict -->
 ```typescript
 import { approveAll, CopilotClient, defineTool } from "@github/copilot-sdk";
 import type { CopilotSession } from "@github/copilot-sdk";
@@ -41,7 +42,7 @@ The required `prompt` becomes the first user message in the fresh context. A suc
 
 ## Terminal-tool behavior
 
-`isTerminal` ends the current agent turn only when the tool succeeds. A failure, denial, rejection, timeout, or input-validation error remains visible to the model so it can recover or retry.
+`isTerminal` ends the current agent turn only when the tool succeeds. A failure, denial, timeout, or input-validation error remains visible to the model so it can recover or retry.
 
 The option follows each language's naming conventions:
 

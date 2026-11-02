@@ -1630,6 +1630,19 @@ public final class CopilotSession implements AutoCloseable {
     }
 
     /**
+     * Returns the error text reported for a failed tool or command handler: the
+     * handler's own exception message, without the {@code CompletionException} that
+     * a dependent stage wraps around an asynchronous failure.
+     */
+    private static String handlerErrorMessage(Throwable error) {
+        while (error instanceof java.util.concurrent.CompletionException && error.getCause() != null) {
+            error = error.getCause();
+        }
+        String message = error.getMessage();
+        return message != null && !message.isEmpty() ? message : error.toString();
+    }
+
+    /**
      * Executes a tool handler and sends the result back via
      * {@code session.tools.handlePendingToolCall}.
      */
@@ -1695,7 +1708,7 @@ public final class CopilotSession implements AutoCloseable {
                     }
                     try {
                         getRpc().tools.handlePendingToolCall(new SessionToolsHandlePendingToolCallParams(sessionId,
-                                requestId, null, ex.getMessage() != null ? ex.getMessage() : ex.toString()));
+                                requestId, null, handlerErrorMessage(ex)));
                     } catch (Exception e) {
                         LOG.log(Level.WARNING, "Error sending tool error for requestId=" + requestId, e);
                     }
@@ -1708,7 +1721,7 @@ public final class CopilotSession implements AutoCloseable {
                 LOG.log(Level.WARNING, "Error executing tool for requestId=" + requestId, e);
                 try {
                     getRpc().tools.handlePendingToolCall(new SessionToolsHandlePendingToolCallParams(sessionId,
-                            requestId, null, e.getMessage() != null ? e.getMessage() : e.toString()));
+                            requestId, null, handlerErrorMessage(e)));
                 } catch (Exception sendEx) {
                     LOG.log(Level.WARNING, "Error sending tool error for requestId=" + requestId, sendEx);
                 }
@@ -1930,9 +1943,8 @@ public final class CopilotSession implements AutoCloseable {
                     }
                 }).exceptionally(ex -> {
                     try {
-                        String msg = ex.getMessage() != null ? ex.getMessage() : ex.toString();
-                        getRpc().commands.handlePendingCommand(
-                                new SessionCommandsHandlePendingCommandParams(sessionId, requestId, msg));
+                        getRpc().commands.handlePendingCommand(new SessionCommandsHandlePendingCommandParams(sessionId,
+                                requestId, handlerErrorMessage(ex)));
                     } catch (Exception e) {
                         LOG.log(Level.WARNING, "Error sending command error for requestId=" + requestId, e);
                     }
@@ -1941,9 +1953,8 @@ public final class CopilotSession implements AutoCloseable {
             } catch (Exception e) {
                 LOG.log(Level.WARNING, "Error executing command for requestId=" + requestId, e);
                 try {
-                    String msg = e.getMessage() != null ? e.getMessage() : e.toString();
-                    getRpc().commands.handlePendingCommand(
-                            new SessionCommandsHandlePendingCommandParams(sessionId, requestId, msg));
+                    getRpc().commands.handlePendingCommand(new SessionCommandsHandlePendingCommandParams(sessionId,
+                            requestId, handlerErrorMessage(e)));
                 } catch (Exception sendEx) {
                     LOG.log(Level.WARNING, "Error sending command error for requestId=" + requestId, sendEx);
                 }
@@ -3177,7 +3188,8 @@ public final class CopilotSession implements AutoCloseable {
      */
     public CompletableFuture<Void> compact() {
         ensureNotTerminated();
-        return rpc.invoke("session.compaction.compact", Map.of("sessionId", sessionId), Void.class);
+        return getRpc().history.compact().thenAccept(result -> {
+        });
     }
 
     /**

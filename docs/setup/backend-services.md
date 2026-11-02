@@ -527,6 +527,7 @@ flowchart TB
 
 Monitor the CLI server's health:
 
+<!-- docs-validate: strict -->
 ```typescript
 // Periodic health check
 async function checkCLIHealth(): Promise<boolean> {

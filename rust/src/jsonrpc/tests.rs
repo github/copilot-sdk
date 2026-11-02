@@ -500,3 +500,66 @@ async fn notification_receivers_share_one_parsed_notification() {
         "hi"
     );
 }
+
+#[tokio::test]
+async fn a_frame_body_is_reserved_as_it_arrives_not_as_declared() {
+    let (client_write, _server_read) = tokio::io::duplex(4096);
+    let (mut server_write, client_read) = tokio::io::duplex(4096);
+    let (notification_tx, _) = broadcast::channel(16);
+    let (request_tx, _request_rx) = mpsc::unbounded_channel();
+    let client = JsonRpcClient::new(client_write, client_read, notification_tx, request_tx);
+    let closed = client.connection_closed_token();
+
+    // No address space holds a 1 PiB body, so reserving the declared length
+    // before the body arrives fails the allocation and aborts the process.
+    server_write
+        .write_all(b"Content-Length: 1125899906842624\r\n\r\n{\"jsonrpc\":\"2.0\"")
+        .await
+        .unwrap();
+    tokio::time::sleep(std::time::Duration::from_millis(100)).await;
+    assert!(
+        !closed.is_cancelled(),
+        "the connection ended while the peer was still sending the frame"
+    );
+
+    // The peer closes mid-frame: the truncated read ends the connection.
+    drop(server_write);
+    tokio::time::timeout(std::time::Duration::from_secs(5), closed.cancelled())
+        .await
+        .expect("the read loop did not end at the truncated frame");
+}
+
+#[tokio::test]
+async fn a_frame_body_larger_than_the_first_reserve_arrives_whole() {
+    let (client_write, _server_read) = tokio::io::duplex(4096);
+    let (mut server_write, client_read) = tokio::io::duplex(4096);
+    let (notification_tx, mut notifications) = broadcast::channel(16);
+    let (request_tx, _request_rx) = mpsc::unbounded_channel();
+    let _client = JsonRpcClient::new(client_write, client_read, notification_tx, request_tx);
+
+    // Several reserve steps, the last one partial, each fed through a pipe
+    // far smaller than the body.
+    let text = "x".repeat(FRAME_BODY_FIRST_RESERVE * 5 + 17);
+    let body = serde_json::to_vec(&serde_json::json!({
+        "jsonrpc": "2.0",
+        "method": "session.event",
+        "params": { "text": text },
+    }))
+    .unwrap();
+    let writer = tokio::spawn(async move {
+        server_write
+            .write_all(format!("Content-Length: {}\r\n\r\n", body.len()).as_bytes())
+            .await
+            .unwrap();
+        server_write.write_all(&body).await.unwrap();
+        server_write
+    });
+
+    let notification =
+        tokio::time::timeout(std::time::Duration::from_secs(5), notifications.recv())
+            .await
+            .expect("the large notification did not arrive")
+            .unwrap();
+    assert_eq!(notification.params.as_ref().unwrap()["text"], text);
+    drop(writer.await.unwrap());
+}

@@ -114,6 +114,8 @@ public class MessageOptions {
      * reference</li>
      * <li>{@link BlobAttachment} — inline base64-encoded binary data (e.g. images)
      * </li>
+     * <li>{@link SessionReferenceAttachment} — an ID-bound live session
+     * reference</li>
      * </ul>
      *
      * @param attachments
@@ -121,6 +123,7 @@ public class MessageOptions {
      * @return this options instance for method chaining
      * @see Attachment
      * @see BlobAttachment
+     * @see SessionReferenceAttachment
      */
     public MessageOptions setAttachments(List<? extends MessageAttachment> attachments) {
         this.attachments = attachments != null ? new ArrayList<>(attachments) : null;

@@ -21,7 +21,20 @@ Return no value to leave the transformed prompt unchanged. Return `modifiedTrans
 <details open>
 <summary><strong>TypeScript</strong></summary>
 
-<!-- docs-validate: skip -->
+<!-- docs-validate: strict -->
+<!-- docs-validate: hidden -->
+```typescript
+declare function redact(text: string): string;
+
+const session = await client.createSession({
+  hooks: {
+    onUserPromptTransformed: async (input) => ({
+      modifiedTransformedPrompt: redact(input.transformedPrompt),
+    }),
+  },
+});
+```
+<!-- /docs-validate: hidden -->
 ```typescript
 const session = await client.createSession({
   hooks: {
@@ -37,7 +50,23 @@ const session = await client.createSession({
 <details>
 <summary><strong>Python</strong></summary>
 
-<!-- docs-validate: skip -->
+<!-- docs-validate: hidden -->
+```python
+from copilot import CopilotClient
+
+def redact(text: str) -> str:
+    return text
+
+async def main(client: CopilotClient):
+    session = await client.create_session(
+        hooks={
+            "on_user_prompt_transformed": lambda input_data, invocation: {
+                "modifiedTransformedPrompt": redact(input_data["transformedPrompt"])
+            }
+        }
+    )
+```
+<!-- /docs-validate: hidden -->
 ```python
 session = await client.create_session(
     hooks={
@@ -53,7 +82,34 @@ session = await client.create_session(
 <details>
 <summary><strong>Go</strong></summary>
 
-<!-- docs-validate: skip -->
+<!-- docs-validate: hidden -->
+```go
+package main
+
+import (
+	"context"
+
+	copilot "github.com/github/copilot-sdk/go"
+)
+
+func redact(text string) string { return text }
+
+func main() {
+	var client *copilot.Client
+	ctx := context.Background()
+	session, err := client.CreateSession(ctx, &copilot.SessionConfig{
+		Hooks: &copilot.SessionHooks{
+			OnUserPromptTransformed: func(input copilot.UserPromptTransformedHookInput, invocation copilot.HookInvocation) (*copilot.UserPromptTransformedHookOutput, error) {
+				return &copilot.UserPromptTransformedHookOutput{
+					ModifiedTransformedPrompt: copilot.String(redact(input.TransformedPrompt)),
+				}, nil
+			},
+		},
+	})
+	_, _ = session, err
+}
+```
+<!-- /docs-validate: hidden -->
 ```go
 session, err := client.CreateSession(ctx, &copilot.SessionConfig{
 	Hooks: &copilot.SessionHooks{
@@ -71,7 +127,27 @@ session, err := client.CreateSession(ctx, &copilot.SessionConfig{
 <details>
 <summary><strong>.NET</strong></summary>
 
-<!-- docs-validate: skip -->
+<!-- docs-validate: hidden -->
+```csharp
+using GitHub.Copilot;
+
+static string Redact(string text) => text;
+
+await using var client = new CopilotClient();
+
+var session = await client.CreateSessionAsync(new SessionConfig
+{
+    Hooks = new SessionHooks
+    {
+        OnUserPromptTransformed = (input, invocation) =>
+            Task.FromResult<UserPromptTransformedHookOutput?>(new()
+            {
+                ModifiedTransformedPrompt = Redact(input.TransformedPrompt),
+            }),
+    },
+});
+```
+<!-- /docs-validate: hidden -->
 ```csharp
 var session = await client.CreateSessionAsync(new SessionConfig
 {
@@ -91,7 +167,29 @@ var session = await client.CreateSessionAsync(new SessionConfig
 <details>
 <summary><strong>Java</strong></summary>
 
-<!-- docs-validate: skip -->
+<!-- docs-validate: hidden -->
+```java
+import com.github.copilot.CopilotClient;
+import com.github.copilot.rpc.*;
+import java.util.concurrent.CompletableFuture;
+
+public class UserPromptTransformedExample {
+    static String redact(String text) {
+        return text;
+    }
+
+    public static void main(String[] args) throws Exception {
+        try (var client = new CopilotClient()) {
+            var hooks = new SessionHooks().setOnUserPromptTransformed((input, invocation) ->
+                CompletableFuture.completedFuture(
+                    new UserPromptTransformedHookOutput(redact(input.transformedPrompt()))));
+
+            var session = client.createSession(new SessionConfig().setHooks(hooks)).get();
+        }
+    }
+}
+```
+<!-- /docs-validate: hidden -->
 ```java
 var hooks = new SessionHooks().setOnUserPromptTransformed((input, invocation) ->
     CompletableFuture.completedFuture(

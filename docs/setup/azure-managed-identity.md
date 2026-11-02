@@ -159,8 +159,6 @@ Console.WriteLine(response?.Data.Content);
 <details>
 <summary><strong>Go</strong></summary>
 
-<!-- docs-validate: skip -->
-
 ```go
 package main
 
@@ -236,8 +234,6 @@ func main() {
 <details>
 <summary><strong>Java</strong></summary>
 
-<!-- docs-validate: skip -->
-
 ```java
 import com.azure.core.credential.TokenRequestContext;
 import com.azure.identity.AzureIdentityEnvVars;
@@ -278,7 +274,7 @@ public class ManagedIdentityExample {
                     .get();
             System.out.println(response.getData().content());
 
-            session.disconnect().get();
+            session.close();
         }
     }
 }

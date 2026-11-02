@@ -605,8 +605,10 @@ export class CopilotClient {
     private effectiveConnectionToken?: string;
     private onListModels?: () => Promise<ModelInfo[]> | ModelInfo[];
     private onGetTraceContext?: TraceContextProvider;
-    private modelsCache: ModelInfo[] | null = null;
-    private modelsCacheLock: Promise<void> = Promise.resolve();
+    private modelsCache: { models: ModelInfo[] | null; lock: Promise<void> } = {
+        models: null,
+        lock: Promise.resolve(),
+    };
     private sessionLifecycleHandlers: Set<SessionLifecycleHandler> = new Set();
     private typedLifecycleHandlers: Map<
         SessionLifecycleEventType,
@@ -1336,7 +1338,7 @@ export class CopilotClient {
         }
 
         // Clear models cache
-        this.modelsCache = null;
+        this.modelsCache = { models: null, lock: Promise.resolve() };
 
         // Close the TCP socket and wait for the close to complete before returning.
         if (this.socket) {
@@ -1524,7 +1526,7 @@ export class CopilotClient {
         }
 
         // Clear models cache
-        this.modelsCache = null;
+        this.modelsCache = { models: null, lock: Promise.resolve() };
 
         if (this.socket) {
             try {
@@ -2756,18 +2758,21 @@ export class CopilotClient {
      * @throws Error if not connected (when no custom handler is set)
      */
     async listModels(): Promise<ModelInfo[]> {
-        // Use promise-based locking to prevent race condition with concurrent calls
-        await this.modelsCacheLock;
-
+        // Serialize concurrent calls with a promise chain. The next link must be installed
+        // before the first await, so that callers started in the same tick queue behind
+        // each other instead of all waiting on the same promise and all missing the cache.
+        const cache = this.modelsCache;
+        const previousLock = cache.lock;
         let resolveLock: () => void;
-        this.modelsCacheLock = new Promise((resolve) => {
+        cache.lock = new Promise((resolve) => {
             resolveLock = resolve;
         });
+        await previousLock;
 
         try {
             // Check cache (already inside lock)
-            if (this.modelsCache !== null) {
-                return [...this.modelsCache]; // Return a copy to prevent cache mutation
+            if (cache.models !== null) {
+                return [...cache.models]; // Return a copy to prevent cache mutation
             }
 
             let models: ModelInfo[];
@@ -2805,7 +2810,7 @@ export class CopilotClient {
             }
 
             // Update cache before releasing lock (copy to prevent external mutation)
-            this.modelsCache = [...models];
+            cache.models = [...models];
 
             return [...models]; // Return a copy to prevent cache mutation
         } finally {
@@ -3832,6 +3837,19 @@ export class CopilotClient {
                 await this.resolveSkillProviderSession(params)._handleSkillProviderList(token)
         );
         this.connection.onRequest(
+            "sessionManagement.create",
+            async (
+                params: Parameters<CopilotSession["_handleSessionManagementCreate"]>[0] & {
+                    sessionId: string;
+                },
+                token: CancellationToken
+            ) => {
+                const session = this.sessions.get(params.sessionId);
+                if (!session) throw new Error("Session creation owner is unavailable");
+                return await session._handleSessionManagementCreate(params, token);
+            }
+        );
+        this.connection.onRequest(
             "skillProvider.read",
             async (params: { sessionId: string; name: string }, token: CancellationToken) => {
                 const session = this.resolveSkillProviderSession(params);
@@ -3872,7 +3890,7 @@ export class CopilotClient {
             this.messageWriter = null;
             this._rpc = null;
             this._internalRpc = null;
-            this.modelsCache = null;
+            this.modelsCache = { models: null, lock: Promise.resolve() };
         };
         const disconnectAfterDrain = () => {
             if (exitFallback !== undefined) {

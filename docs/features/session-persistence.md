@@ -683,16 +683,16 @@ When a timeout is configured, sessions without activity for that duration are au
 
 ```mermaid
 flowchart LR
-    A["⚡ Last Activity"] --> B["⏳ ~5 min before<br/>timeout_warning"] --> C["🧹 Timeout<br/>destroyed"]
+    A["⚡ Last Activity"] --> B["🧹 Timeout<br/>destroyed"]
 ```
 
 Sessions with active work (running commands, background agents) are always protected from idle cleanup, regardless of the timeout setting.
 
-Listen for idle events to react to session inactivity:
+Listen for `session.idle` to know when a session has finished processing and gone idle:
 
 ```typescript
-session.on("session.idle", (event) => {
-  console.log(`Session idle for ${event.idleDurationMs}ms`);
+session.on("session.idle", () => {
+  console.log("Session is idle");
 });
 ```
 

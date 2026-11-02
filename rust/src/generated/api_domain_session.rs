@@ -342,6 +342,36 @@ pub struct ManagedPluginRetryEntry {
     pub status: ManagedPluginRetryStatus,
 }
 
+/// An opted-in local session, reported by its live owner.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ManagedSessionInfo {
+    /// Peer's current working directory.
+    pub cwd: String,
+    /// Peer's selected model, when known.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub model: Option<String>,
+    /// Human-readable peer name.
+    pub name: String,
+    /// The session that created this root through session management, if any.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub parent_session_id: Option<String>,
+    /// Live peer's session identifier.
+    pub session_id: SessionId,
+    /// Peer's local session-state directory containing events.jsonl, when known.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub session_state_path: Option<String>,
+    /// Either idle or busy. A busy session may still accept messages.
+    pub state: String,
+}
+
 /// Memory configuration for this session.
 ///
 /// <div class="warning">
@@ -1628,6 +1658,24 @@ pub struct PermissionRulesSet {
     pub approved: Vec<PermissionRule>,
     /// Rules that auto-deny matching requests
     pub denied: Vec<PermissionRule>,
+}
+
+/// Available permission modes, derived from current session policy.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct PermissionsCapabilities {
+    /// Whether LLM-assisted approval is enabled for this session.
+    pub assisted_approval: bool,
+    /// Whether managed policy currently permits unconditional approval.
+    /// Stays true while managed policy is still resolving.
+    pub bypass_permissions: bool,
 }
 
 /// No parameters.
@@ -3747,6 +3795,268 @@ pub struct SessionManagedSettings {
     /// Managed permission policy injected by the SDK host.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub permissions: Option<SessionManagedPermissions>,
+}
+
+/// Closes one live opted-in descendant without deleting its saved history or closing its children.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SessionManagementCloseRequest {
+    /// Live created descendant whose owning host should close it.
+    pub target_session_id: String,
+}
+
+/// Completion of the existing non-deleting close lifecycle.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SessionManagementCloseResult {
+    /// True after the owning host has completed the existing session-close lifecycle.
+    pub closed: bool,
+}
+
+/// Per-operation overrides for an enabled session management policy.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SessionManagementToolOverrides {
+    /// Allow closing this session's live created descendants.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub close: Option<bool>,
+    /// Allow requesting an independent session from the owning host.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub create: Option<bool>,
+    /// Allow discovering eligible peer sessions.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub list: Option<bool>,
+    /// Allow delivering peer text to another eligible session.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub message: Option<bool>,
+}
+
+/// Updates the session's live policy without changing persistent host settings.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SessionManagementConfigureRequest {
+    /// Expected workspace for host activation. Required when enabling an interactive CLI session.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub cwd: Option<String>,
+    /// Enabling resets all session management operations to enabled, then applies overrides.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub enabled: Option<bool>,
+    /// Bind creation to this SDK connection's sessionManagement.create callback.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub has_create_handler: Option<bool>,
+    /// Peer boundary. Preserved when the master switch changes.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub scope: Option<SessionManagementScope>,
+    /// Individual tool overrides, applied after the master switch.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub tools: Option<SessionManagementToolOverrides>,
+}
+
+/// Host callback. The host owns workspace records, UI, approval routing and cleanup.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SessionManagementCreateHostRequest {
+    /// Target session identifier
+    pub session_id: SessionId,
+    /// The originating session; the host must not escalate its permissions.
+    pub parent_session_id: String,
+    /// Runtime-allocated identity. The host must create a fresh session with this exact ID.
+    pub new_session_id: String,
+    /// The new session must use this workspace and configuration directory.
+    pub cwd: String,
+    /// Parent's resolved configuration directory, which the host must preserve.
+    pub config_dir: String,
+    /// Must not be broadened by the creating host.
+    pub permission_mode: PermissionMode,
+    /// Effective model to apply when creating the child.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub model: Option<String>,
+    /// Provider owning the effective model, when specified.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub provider_id: Option<String>,
+    /// Effective reasoning effort, when specified.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub reasoning_effort: Option<String>,
+    /// Effective model-supported context tier, when specified.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub context_tier: Option<ContextTier>,
+    /// The host must preserve the parent's current model restrictions.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub allowed_models: Option<Vec<String>>,
+    /// Optional short name supplied for the independent session.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub name: Option<String>,
+}
+
+/// Requests a separate session. Omitted launch options inherit the caller's current configuration.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SessionManagementCreateRequest {
+    /// Uses the selected model's supported default or long-context tier, not an arbitrary token count.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub context_tier: Option<ContextTier>,
+    /// Absolute working directory. Defaults to the parent's current directory.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub cwd: Option<String>,
+    /// Optional model override; omission uses the parent's current model.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub model: Option<String>,
+    /// Optional short name for the independent session.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub name: Option<String>,
+    /// Initial task, delivered as peer text after successful creation.
+    pub prompt: String,
+    /// Optional effort supported by the selected model.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub reasoning_effort: Option<String>,
+}
+
+/// Identifies a session owned and supervised by the creating host.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SessionManagementCreateResult {
+    /// Runtime-allocated identifier of the newly created session.
+    pub session_id: SessionId,
+}
+
+/// Lists opted-in local peers. The caller is omitted.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SessionManagementListRequest {
+    /// Optional exact working-directory filter.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub cwd: Option<String>,
+}
+
+/// Eligible live peers reported by their owning runtimes.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SessionManagementListResult {
+    /// Matching peers, excluding the caller.
+    pub sessions: Vec<ManagedSessionInfo>,
+}
+
+/// Sends peer text, never human approval, to another opted-in session.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SessionManagementMessageRequest {
+    /// Nonempty UTF-8 text, at most 16 KiB.
+    pub message: String,
+    /// Eligible live peer that should receive the message.
+    pub target_session_id: String,
+}
+
+/// Acceptance is not a completed turn or a reply.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SessionManagementMessageResult {
+    /// True when the destination has accepted the peer message.
+    pub accepted: bool,
+    /// Destination title captured by the receiving runtime at message admission.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub target_session_name: Option<String>,
+}
+
+/// Opt-in policy for local session management.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SessionManagementPolicy {
+    /// Allow closing sessions created by this session or its descendants. On by default.
+    pub close: bool,
+    /// Allow requesting a new session from the owning host.
+    pub create: bool,
+    /// Master switch. Off by default.
+    pub enabled: bool,
+    /// Allow listing opted-in sessions in this configuration directory.
+    pub list: bool,
+    /// Allow sending a peer message to another opted-in session.
+    pub message: bool,
+    /// Discovery and direct access boundary. Defaults to all eligible local peers.
+    pub scope: SessionManagementScope,
 }
 
 /// Records which IDE the host is connected to, or clears it.
@@ -7650,6 +7960,31 @@ pub struct SessionsStopRemoteControlResult {
 pub struct SessionsGetRemoteControlStatusResult {
     /// State of the runtime-managed remote-control singleton.
     pub status: serde_json::Value,
+}
+
+/// Opt-in policy for local session management.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SessionManagementConfigureResult {
+    /// Allow closing sessions created by this session or its descendants. On by default.
+    pub close: bool,
+    /// Allow requesting a new session from the owning host.
+    pub create: bool,
+    /// Master switch. Off by default.
+    pub enabled: bool,
+    /// Allow listing opted-in sessions in this configuration directory.
+    pub list: bool,
+    /// Allow sending a peer message to another opted-in session.
+    pub message: bool,
+    /// Discovery and direct access boundary. Defaults to all eligible local peers.
+    pub scope: SessionManagementScope,
 }
 
 /// Identifies the target session.
@@ -11738,6 +12073,36 @@ pub struct SessionProviderSyncResult {
     pub selection_ids: Vec<String>,
 }
 
+/// Identifies the target session.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SessionProviderGetStatusParams {
+    /// Target session identifier
+    pub session_id: SessionId,
+}
+
+/// Credential-free provider configuration status for the selected model.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SessionProviderGetStatusResult {
+    /// Whether the selected model uses a custom provider instead of requiring GitHub authentication.
+    pub has_custom_provider: bool,
+}
+
 /// What the withdrawal actually removed from the registry.
 ///
 /// <div class="warning">
@@ -12506,6 +12871,39 @@ pub struct SessionPermissionsSetModeResult {
 pub struct SessionPermissionsGetModeResult {
     /// Current permission mode
     pub mode: PermissionMode,
+}
+
+/// Identifies the target session.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SessionPermissionsGetCapabilitiesParams {
+    /// Target session identifier
+    pub session_id: SessionId,
+}
+
+/// Available permission modes, derived from current session policy.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SessionPermissionsGetCapabilitiesResult {
+    /// Whether LLM-assisted approval is enabled for this session.
+    pub assisted_approval: bool,
+    /// Whether managed policy currently permits unconditional approval.
+    /// Stays true while managed policy is still resolving.
+    pub bypass_permissions: bool,
 }
 
 /// Indicates whether the operation succeeded.
@@ -15879,6 +16277,28 @@ pub enum SessionLimitPredictionResult {
     Unavailable(SessionLimitPredictionResultUnavailable),
 }
 
+/// Peer boundary evaluated in the process hosting the native session.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub enum SessionManagementScope {
+    /// Eligible local peers sharing the resolved configuration directory.
+    #[serde(rename = "all")]
+    All,
+    /// Only peers hosted in this native runtime process.
+    #[serde(rename = "in-process")]
+    InProcess,
+    /// Unknown variant for forward compatibility.
+    #[default]
+    #[serde(other)]
+    Unknown,
+}
+
 /// Allowed values for the `SessionOpenOptionsAdditionalContentExclusionPolicyScope` enumeration.
 ///
 /// <div class="warning">
@@ -16084,7 +16504,7 @@ pub enum SessionsOpenProgressStep {
     /// Validating that the local repository matches the remote session's repository.
     #[serde(rename = "validate-repo")]
     ValidateRepo,
-    /// Checking the local working tree for uncommitted changes that would block the handoff.
+    /// Checking the local working tree for uncommitted changes, which stay in place and are carried onto the checked-out branch.
     #[serde(rename = "check-changes")]
     CheckChanges,
     /// Checking out the branch associated with the remote session in the local working tree.

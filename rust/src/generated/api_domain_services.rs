@@ -644,7 +644,7 @@ pub struct AgentsDiscoverRequest {
     /// When true, omit the host's agents (the user-level agent directory and all plugin agents), leaving only project and remote agents. For multitenant deployments.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub exclude_host_agents: Option<bool>,
-    /// Optional list of project directory paths to scan for project-scoped agents. When omitted or empty, only user/plugin/remote-independent agents are returned (no project scan).
+    /// Optional list of project directory paths to scan for project-scoped agents. When omitted or empty, no project is scanned: user-level and globally enabled plugin agents are still returned, but agents of a plugin enabled only in a repository's settings are not.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub project_paths: Option<Vec<String>>,
 }
@@ -681,7 +681,7 @@ impl AgentsDiscoverOptions {
         }
     }
 
-    /// Optional list of project directory paths to scan for project-scoped agents. When omitted or empty, only user/plugin/remote-independent agents are returned (no project scan).
+    /// Optional list of project directory paths to scan for project-scoped agents. When omitted or empty, no project is scanned: user-level and globally enabled plugin agents are still returned, but agents of a plugin enabled only in a repository's settings are not.
     pub fn project_paths(mut self, value: Vec<String>) -> Self {
         self.legacy.project_paths = Some(value);
         self
@@ -1444,6 +1444,29 @@ pub struct AttachmentSelection {
     pub r#type: AttachmentSelectionType,
 }
 
+/// An ID-bound reference to an eligible live session. Supplies identity context only, without sending a message, reading history, or granting permission.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct AttachmentSessionReference {
+    /// User-visible mention label captured when the reference was selected.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub display_name: Option<String>,
+    /// Character offset of the selected mention in the displayed prompt.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub mention_index: Option<i64>,
+    /// Stable identity of the selected session, never resolved from its title.
+    pub session_id: SessionId,
+    /// Attachment type discriminator.
+    pub r#type: AttachmentSessionReferenceType,
+}
+
 /// Credential-free identity metadata.
 ///
 /// <div class="warning">
@@ -1491,6 +1514,21 @@ pub struct AutopilotEvaluateIdleContinuationResult {
 pub struct AutopilotObjectiveGetStateResult {
     /// Current objective state, or `null` when the session has no objective.
     pub state: Option<AutopilotObjectiveState>,
+}
+
+/// Client-resolved preference for retaining autopilot mode after objective completion or pause.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct AutopilotObjectiveSetStayInAutopilotRequest {
+    /// Whether an objective's requested return to interactive mode is suppressed.
+    pub value: bool,
 }
 
 /// Lists models eligible for local use before a chat session exists.
@@ -11993,6 +12031,14 @@ pub enum AttachmentSelectionType {
     #[serde(rename = "selection")]
     #[default]
     Selection,
+}
+
+/// Attachment type discriminator.
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub enum AttachmentSessionReferenceType {
+    #[serde(rename = "session_reference")]
+    #[default]
+    SessionReference,
 }
 
 /// How catalog discovery handles a recent sign-in failure.

@@ -89,10 +89,14 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
     private bool _disposed;
     private int? _actualPort;
     private int? _negotiatedProtocolVersion;
-    private SemaphoreSlim? _modelsCacheLock;
-    private List<ModelInfo>? _modelsCache;
+    private volatile ModelsCache _modelsCache = new();
     private ServerRpc? _serverRpc;
 
+    private sealed class ModelsCache
+    {
+        public SemaphoreSlim Lock { get; } = new(1, 1);
+        public List<ModelInfo>? Models { get; set; }
+    }
     /// <summary>
     /// Client-global RPC handlers (e.g. the LLM inference provider adapter),
     /// built once at construction and registered on every connection.
@@ -648,6 +652,7 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
         {
             connectionTask = _connectionTask;
             _connectionTask = null;
+            _modelsCache = new();
         }
         if (connectionTask is null)
         {
@@ -696,9 +701,8 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
         try { ctx.Rpc.Dispose(); }
         catch (Exception ex) { AddCleanupError(errors, ex, _logger); }
 
-        // Clear RPC and models cache
+        // Clear RPC
         _serverRpc = null;
-        _modelsCache = null;
 
         if (ctx.NetworkStream is not null)
         {
@@ -1761,16 +1765,12 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
     /// <exception cref="InvalidOperationException">Thrown when the client is not connected or not authenticated.</exception>
     public async Task<IList<ModelInfo>> ListModelsAsync(CancellationToken cancellationToken = default)
     {
-        if (_modelsCacheLock is null)
-        {
-            Interlocked.CompareExchange(ref _modelsCacheLock, new(1, 1), null);
-        }
-
-        await _modelsCacheLock.WaitAsync(cancellationToken);
+        var cache = _modelsCache;
+        await cache.Lock.WaitAsync(cancellationToken);
         try
         {
             // Check cache (already inside lock)
-            if (_modelsCache is null)
+            if (cache.Models is null)
             {
                 IList<ModelInfo> models;
                 if (_onListModels is not null)
@@ -1789,14 +1789,14 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
                 }
 
                 // Update cache before releasing lock (copy to prevent external mutation)
-                _modelsCache = [.. models];
+                cache.Models = [.. models];
             }
 
-            return [.. _modelsCache]; // Return a copy to prevent cache mutation
+            return [.. cache.Models]; // Return a copy to prevent cache mutation
         }
         finally
         {
-            _modelsCacheLock.Release();
+            cache.Lock.Release();
         }
     }
 
@@ -2993,7 +2993,7 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
         }
     }
 
-    private static JsonSerializerOptions SerializerOptionsForMessageFormatter { get; } = CreateSerializerOptions();
+    internal static JsonSerializerOptions SerializerOptionsForMessageFormatter { get; } = CreateSerializerOptions();
 
     /// <summary>
     /// Converts an arbitrary value into the <see cref="JsonElement"/> representation that wire

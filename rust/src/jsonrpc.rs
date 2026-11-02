@@ -79,7 +79,11 @@ pub struct JsonRpcResponse {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub result: Option<Value>,
     /// Error payload (mutually exclusive with `result`).
-    #[serde(skip_serializing_if = "Option::is_none")]
+    #[serde(
+        default,
+        deserialize_with = "present_json_field",
+        skip_serializing_if = "Option::is_none"
+    )]
     pub error: Option<JsonRpcError>,
 }
 
@@ -137,6 +141,11 @@ pub enum JsonRpcMessage {
     UncorrelatedError(JsonRpcError),
 }
 
+enum IncomingMessage {
+    Message(JsonRpcMessage),
+    InvalidResponse { id: u64, error: serde_json::Error },
+}
+
 #[derive(Deserialize)]
 #[serde(deny_unknown_fields)]
 struct MessageEnvelope {
@@ -147,15 +156,17 @@ struct MessageEnvelope {
     method: Option<Value>,
     params: Option<Value>,
     result: Option<Value>,
+    #[serde(default, deserialize_with = "present_json_field")]
     error: Option<Value>,
 }
 
 // Null and omission select different JSON-RPC message classes.
-fn present_json_field<'de, D>(deserializer: D) -> Result<Option<Value>, D::Error>
+fn present_json_field<'de, D, T>(deserializer: D) -> Result<Option<T>, D::Error>
 where
     D: serde::Deserializer<'de>,
+    T: Deserialize<'de>,
 {
-    Value::deserialize(deserializer).map(Some)
+    T::deserialize(deserializer).map(Some)
 }
 
 impl MessageEnvelope {
@@ -374,6 +385,15 @@ pub(crate) fn nests_deeper_than(value: &Value, levels: usize) -> bool {
 
 const CONTENT_LENGTH_HEADER: &str = "Content-Length: ";
 
+/// The most of a frame body reserved before any of it has arrived.
+///
+/// `Content-Length` is the peer's claim, not bytes received. The body buffer
+/// starts at this size and then grows by at most what has already arrived, so
+/// memory follows the bytes the peer actually sends. A frame declaring more
+/// than the host can reserve then fails as a truncated read when the peer
+/// closes, instead of failing the allocation, which aborts the process.
+const FRAME_BODY_FIRST_RESERVE: usize = 64 * 1024;
+
 /// The most characters of a peer's error message the SDK repeats in a log or
 /// an error.
 const PEER_MESSAGE_MAX_CHARS: usize = 200;
@@ -582,6 +602,7 @@ impl CancellableRequests {
                 | crate::kerberos_auth::ACQUIRE_METHOD
                 | rpc_methods::SKILLPROVIDER_LIST
                 | rpc_methods::SKILLPROVIDER_READ
+                | rpc_methods::SESSIONMANAGEMENT_CREATE
         )
     }
 
@@ -870,7 +891,7 @@ impl JsonRpcClient {
                 message = Self::read_message(&mut reader) => message,
             };
             match message {
-                Ok(Some(message)) => match message {
+                Ok(Some(IncomingMessage::Message(message))) => match message {
                     JsonRpcMessage::Response(mut response) => {
                         let id = response.id;
                         let pending = pending_requests.write().remove(&id);
@@ -1029,6 +1050,13 @@ impl JsonRpcClient {
                         }
                     }
                 },
+                Ok(Some(IncomingMessage::InvalidResponse { id, error })) => {
+                    if let Some(pending) = pending_requests.write().remove(&id)
+                        && let Some(sender) = pending.sender
+                    {
+                        let _ = sender.send(Err(error.into()));
+                    }
+                }
                 Ok(None) => {
                     break;
                 }
@@ -1106,7 +1134,7 @@ impl JsonRpcClient {
 
     async fn read_message(
         reader: &mut BufReader<impl AsyncRead + Unpin>,
-    ) -> Result<Option<JsonRpcMessage>, Error> {
+    ) -> Result<Option<IncomingMessage>, Error> {
         let mut line = String::new();
         let mut content_length = None;
 
@@ -1134,16 +1162,24 @@ impl JsonRpcClient {
             return Err(ErrorKind::Protocol(ProtocolErrorKind::MissingContentLength).into());
         };
 
-        let mut body = vec![0u8; length];
-        reader.read_exact(&mut body).await?;
+        let mut body = Vec::new();
+        while body.len() < length {
+            let received = body.len();
+            let step = (length - received).min(received.max(FRAME_BODY_FIRST_RESERVE));
+            body.reserve_exact(step);
+            body.resize(received + step, 0);
+            reader.read_exact(&mut body[received..]).await?;
+        }
 
         match JsonRpcMessage::from_slice(&body) {
-            Ok(message) => Ok(Some(message)),
+            Ok(message) => Ok(Some(IncomingMessage::Message(message))),
             Err(error) => {
                 // Dropping an undecodable frame could leave its pending
                 // request waiting forever because this layer has no timeout.
-                match repair_lone_surrogates(&body)
-                    .and_then(|repaired| JsonRpcMessage::from_slice(&repaired).ok())
+                let repaired = repair_lone_surrogates(&body);
+                match repaired
+                    .as_deref()
+                    .and_then(|body| JsonRpcMessage::from_slice(body).ok())
                 {
                     Some(message) => {
                         warn!(
@@ -1151,9 +1187,23 @@ impl JsonRpcClient {
                             length,
                             "recovered JSON-RPC frame containing unpaired UTF-16 surrogates"
                         );
-                        Ok(Some(message))
+                        Ok(Some(IncomingMessage::Message(message)))
                     }
-                    None => Err(error.into()),
+                    None => {
+                        // A readable response envelope still identifies the
+                        // caller even when its typed error payload is invalid.
+                        if let Ok(Value::Object(mut envelope)) =
+                            serde_json::from_slice::<Value>(repaired.as_deref().unwrap_or(&body))
+                            && !envelope.contains_key("method")
+                            && envelope.get("jsonrpc").is_some_and(Value::is_string)
+                            && let Some(id) = envelope.get("id").and_then(Value::as_u64)
+                            && let Some(raw_error) = envelope.remove("error")
+                            && serde_json::from_value::<JsonRpcError>(raw_error).is_err()
+                        {
+                            return Ok(Some(IncomingMessage::InvalidResponse { id, error }));
+                        }
+                        Err(error.into())
+                    }
                 }
             }
         }

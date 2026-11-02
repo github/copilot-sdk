@@ -19,7 +19,21 @@ Use the experimental raw `session.rpc.remote.enable()` API with export mode to s
 
 #### TypeScript
 
-<!-- docs-validate: skip -->
+<!-- docs-validate: strict -->
+<!-- docs-validate: hidden -->
+```typescript
+import { approveAll } from "@github/copilot-sdk";
+
+const session = await client.createSession({ onPermissionRequest: approveAll });
+
+const result = await session.rpc.remote.enable({ mode: "export" });
+console.log("Remote URL:", result.url);
+
+// Later: stop sharing
+await session.rpc.remote.disable();
+```
+<!-- /docs-validate: hidden -->
+
 ```typescript
 const result = await session.rpc.remote.enable({ mode: "export" });
 console.log("Remote URL:", result.url);
@@ -56,7 +70,45 @@ await session.rpc.remote.disable()
 
 #### Go
 
-<!-- docs-validate: skip -->
+<!-- docs-validate: hidden -->
+```go
+package main
+
+import (
+	"context"
+	"fmt"
+	"log"
+
+	copilot "github.com/github/copilot-sdk/go"
+	"github.com/github/copilot-sdk/go/rpc"
+)
+
+func main() {
+	ctx := context.Background()
+	client := copilot.NewClient(nil)
+
+	session, err := client.CreateSession(ctx, &copilot.SessionConfig{
+		OnPermissionRequest: copilot.PermissionHandler.ApproveAll,
+	})
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	mode := rpc.RemoteSessionModeExport
+	result, err := session.RPC.Remote.Enable(ctx, &rpc.RemoteEnableRequest{Mode: &mode})
+	if err != nil {
+		log.Fatal(err)
+	}
+	if result.URL != nil {
+		fmt.Println("Remote URL:", *result.URL)
+	}
+
+	// Later: stop sharing
+	_, err = session.RPC.Remote.Disable(ctx)
+}
+```
+<!-- /docs-validate: hidden -->
+
 ```go
 mode := rpc.RemoteSessionModeExport
 result, err := session.RPC.Remote.Enable(ctx, &rpc.RemoteEnableRequest{Mode: &mode})
@@ -73,8 +125,25 @@ _, err = session.RPC.Remote.Disable(ctx)
 
 #### C#
 
-<!-- docs-validate: skip -->
+<!-- docs-validate: hidden -->
 ```csharp
+await using var client = new CopilotClient();
+await using var session = await client.CreateSessionAsync(new SessionConfig
+{
+    OnPermissionRequest = PermissionHandler.ApproveAll,
+});
+
+#pragma warning disable GHCP001 // The remote RPC API is experimental.
+var result = await session.Rpc.Remote.EnableAsync(mode: RemoteSessionMode.Export);
+Console.WriteLine($"Remote URL: {result.Url}");
+
+// Later: stop sharing
+await session.Rpc.Remote.DisableAsync();
+```
+<!-- /docs-validate: hidden -->
+
+```csharp
+#pragma warning disable GHCP001 // The remote RPC API is experimental.
 var result = await session.Rpc.Remote.EnableAsync(mode: RemoteSessionMode.Export);
 Console.WriteLine($"Remote URL: {result.Url}");
 
@@ -84,7 +153,6 @@ await session.Rpc.Remote.DisableAsync();
 
 #### Rust
 
-<!-- docs-validate: skip -->
 ```rust
 use github_copilot_sdk::rpc::{RemoteEnableRequest, RemoteSessionMode};
 

@@ -52,6 +52,19 @@ public class SerializationTests
     }
 
     [Fact]
+    public void ModelInfo_PreservesMaxOutputTokens()
+    {
+        const string limits = """{"max_prompt_tokens":128000,"max_output_tokens":16384,"max_context_window_tokens":144384}""";
+        var model = JsonSerializer.Deserialize<ModelInfo>(
+            "{\"id\":\"m\",\"name\":\"M\",\"capabilities\":{\"supports\":{},\"limits\":" + limits + "}}",
+            GetSerializerOptions())!;
+
+        Assert.Equal(16384, model.Capabilities.Limits.MaxOutputTokens);
+        using var encoded = JsonDocument.Parse(JsonSerializer.Serialize(model.Capabilities.Limits, GetSerializerOptions()));
+        Assert.Equal(16384, encoded.RootElement.GetProperty("max_output_tokens").GetInt32());
+    }
+
+    [Fact]
     public void ModelInfo_OmitsUnattributedProvider()
     {
         var model = JsonSerializer.Deserialize<ModelInfo>(

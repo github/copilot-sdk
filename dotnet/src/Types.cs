@@ -5118,6 +5118,12 @@ public sealed class ModelLimits
     public int? MaxPromptTokens { get; set; }
 
     /// <summary>
+    /// Maximum number of tokens the model can generate in one response.
+    /// </summary>
+    [JsonPropertyName("max_output_tokens")]
+    public int? MaxOutputTokens { get; set; }
+
+    /// <summary>
     /// Maximum total tokens in the context window.
     /// </summary>
     [JsonPropertyName("max_context_window_tokens")]

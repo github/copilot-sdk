@@ -187,6 +187,7 @@ runtimes without these RPC operations cannot start a host.
 
 ## Quick Start
 
+<!-- docs-validate: strict -->
 ```typescript
 import { CopilotClient, approveAll } from "@github/copilot-sdk";
 
@@ -221,7 +222,10 @@ await client.stop();
 
 Sessions also support `Symbol.asyncDispose` for use with [`await using`](https://github.com/tc39/proposal-explicit-resource-management) (TypeScript 5.2+ / Node.js 20+):
 
+<!-- docs-validate: strict -->
 ```typescript
+import { approveAll } from "@github/copilot-sdk";
+
 await using session = await client.createSession({
     model: "gpt-5",
     onPermissionRequest: approveAll,
@@ -866,7 +870,10 @@ Note: `assistant.message` and `assistant.reasoning` (final events) are always se
 
 ### Manual Server Control
 
+<!-- docs-validate: strict -->
 ```typescript
+import { CopilotClient } from "@github/copilot-sdk";
+
 const client = new CopilotClient({});
 
 // Start manually
@@ -882,6 +889,31 @@ await client.stop();
 
 You can let the CLI call back into your process when the model needs capabilities you own. Use `defineTool` with Zod schemas for type-safe tool definitions:
 
+<!-- docs-validate: strict -->
+<!-- docs-validate: hidden -->
+```ts
+import { z } from "zod";
+import { defineTool } from "@github/copilot-sdk";
+
+declare function fetchIssue(id: string): Promise<string>;
+
+const session = await client.createSession({
+    model: "gpt-5",
+    tools: [
+        defineTool("lookup_issue", {
+            description: "Fetch issue details from our tracker",
+            parameters: z.object({
+                id: z.string().describe("Issue identifier"),
+            }),
+            handler: async ({ id }) => {
+                const issue = await fetchIssue(id);
+                return issue;
+            },
+        }),
+    ],
+});
+```
+<!-- /docs-validate: hidden -->
 ```ts
 import { z } from "zod";
 import { CopilotClient, defineTool } from "@github/copilot-sdk";
@@ -909,6 +941,22 @@ When Copilot invokes `lookup_issue`, the client automatically runs your handler 
 
 If you register a tool with the same name as a built-in CLI tool (e.g. `edit_file`, `read_file`), the SDK will throw an error unless you explicitly opt in by setting `overridesBuiltInTool: true`. This flag signals that you intend to replace the built-in tool with your custom implementation.
 
+<!-- docs-validate: strict -->
+<!-- docs-validate: hidden -->
+```ts
+import { z } from "zod";
+import { defineTool } from "@github/copilot-sdk";
+
+defineTool("edit_file", {
+    description: "Custom file editor with project-specific validation",
+    parameters: z.object({ path: z.string(), content: z.string() }),
+    overridesBuiltInTool: true,
+    handler: async ({ path, content }) => {
+        /* your logic */
+    },
+});
+```
+<!-- /docs-validate: hidden -->
 ```ts
 defineTool("edit_file", {
     description: "Custom file editor with project-specific validation",
@@ -925,6 +973,19 @@ An `apply_patch` override can declare a string schema. The model sees a required
 dispatching to any SDK. Both a Zod-inferred Node handler and
 `invocation.arguments` receive the patch text as a string:
 
+<!-- docs-validate: strict -->
+<!-- docs-validate: hidden -->
+```ts
+import { z } from "zod";
+import { defineTool } from "@github/copilot-sdk";
+
+defineTool("apply_patch", {
+    parameters: z.string(),
+    overridesBuiltInTool: true,
+    handler: (patch) => patch.trim(),
+});
+```
+<!-- /docs-validate: hidden -->
 ```ts
 defineTool("apply_patch", {
     parameters: z.string(),
@@ -940,6 +1001,22 @@ use an object schema if references are needed.
 
 Set `skipPermission: true` on a tool definition to allow it to execute without triggering a permission prompt:
 
+<!-- docs-validate: strict -->
+<!-- docs-validate: hidden -->
+```ts
+import { z } from "zod";
+import { defineTool } from "@github/copilot-sdk";
+
+defineTool("safe_lookup", {
+    description: "A read-only lookup that needs no confirmation",
+    parameters: z.object({ id: z.string() }),
+    skipPermission: true,
+    handler: async ({ id }) => {
+        /* your logic */
+    },
+});
+```
+<!-- /docs-validate: hidden -->
 ```ts
 defineTool("safe_lookup", {
     description: "A read-only lookup that needs no confirmation",
@@ -955,6 +1032,22 @@ defineTool("safe_lookup", {
 
 Set `defer` to control whether a tool may be loaded lazily via tool search rather than always pre-loaded. Use `"auto"` to allow the tool to be deferred and surfaced through tool search, or `"never"` to force it to always be pre-loaded. Defaults to `"auto"`.
 
+<!-- docs-validate: strict -->
+<!-- docs-validate: hidden -->
+```ts
+import { z } from "zod";
+import { defineTool } from "@github/copilot-sdk";
+
+defineTool("lookup_issue", {
+    description: "Fetch issue details",
+    parameters: z.object({ id: z.string() }),
+    defer: "auto",
+    handler: async ({ id }) => {
+        /* your logic */
+    },
+});
+```
+<!-- /docs-validate: hidden -->
 ```ts
 defineTool("lookup_issue", {
     description: "Fetch issue details",
@@ -970,6 +1063,26 @@ defineTool("lookup_issue", {
 
 Register slash commands so that users of the CLI's TUI can invoke custom actions via `/commandName`. Each command has a `name`, optional `description`, and a `handler` called when the user executes it.
 
+<!-- docs-validate: strict -->
+<!-- docs-validate: hidden -->
+```ts
+import { approveAll } from "@github/copilot-sdk";
+
+const session = await client.createSession({
+    onPermissionRequest: approveAll,
+    commands: [
+        {
+            name: "deploy",
+            description: "Deploy the app to production",
+            handler: async ({ commandName, args }) => {
+                console.log(`Deploying with args: ${args}`);
+                // Do work here — any thrown error is reported back to the CLI
+            },
+        },
+    ],
+});
+```
+<!-- /docs-validate: hidden -->
 ```ts
 const session = await client.createSession({
     onPermissionRequest: approveAll,
@@ -996,6 +1109,44 @@ When the session has elicitation support — either from the CLI's TUI or from a
 
 > **Capability check:** Elicitation is only available when at least one connected participant advertises support. Always check `session.capabilities.ui?.elicitation` before calling UI methods — this property updates automatically as participants join and leave.
 
+<!-- docs-validate: strict -->
+<!-- docs-validate: hidden -->
+```ts
+import { approveAll } from "@github/copilot-sdk";
+
+const session = await client.createSession({ onPermissionRequest: approveAll });
+
+if (session.capabilities.ui?.elicitation) {
+    // Confirm dialog — returns boolean
+    const ok = await session.ui.confirm("Deploy to production?");
+
+    // Selection dialog — returns selected value or null
+    const env = await session.ui.select("Pick environment", ["production", "staging", "dev"]);
+
+    // Text input — returns string or null
+    const name = await session.ui.input("Project name:", {
+        title: "Name",
+        minLength: 1,
+        maxLength: 50,
+    });
+
+    // Generic elicitation with full schema control
+    const result = await session.ui.elicitation({
+        message: "Configure deployment",
+        requestedSchema: {
+            type: "object",
+            properties: {
+                region: { type: "string", enum: ["us-east", "eu-west"] },
+                dryRun: { type: "boolean", default: true },
+            },
+            required: ["region"],
+        },
+    });
+    // result.action: "accept" | "decline" | "cancel"
+    // result.content: { region: "us-east", dryRun: true } (when accepted)
+}
+```
+<!-- /docs-validate: hidden -->
 ```ts
 const session = await client.createSession({ onPermissionRequest: approveAll });
 
@@ -1036,6 +1187,7 @@ All UI methods throw if elicitation is not supported by the host.
 
 Control the system prompt using `systemMessage` in session config:
 
+<!-- docs-validate: strict -->
 ```typescript
 const session = await client.createSession({
     model: "gpt-5",
@@ -1056,6 +1208,7 @@ The SDK auto-injects environment context, tool instructions, and security guardr
 
 Use `mode: "customize"` to selectively override individual sections of the prompt while preserving the rest:
 
+<!-- docs-validate: strict -->
 ```typescript
 import { SYSTEM_MESSAGE_SECTIONS } from "@github/copilot-sdk";
 import type { SectionOverride, SystemMessageSection } from "@github/copilot-sdk";
@@ -1103,6 +1256,7 @@ Unknown section IDs are handled gracefully: content from `replace`/`append`/`pre
 
 For full control (removes all guardrails), use `mode: "replace"`:
 
+<!-- docs-validate: strict -->
 ```typescript
 const session = await client.createSession({
     model: "gpt-5",
@@ -1117,6 +1271,33 @@ const session = await client.createSession({
 
 By default, sessions use **infinite sessions** which automatically manage context window limits through background compaction and persist state to a workspace directory.
 
+<!-- docs-validate: strict -->
+<!-- docs-validate: hidden -->
+```typescript
+// Default: infinite sessions enabled with default thresholds
+const session = await client.createSession({ model: "gpt-5" });
+
+// Access the workspace path for checkpoints and files
+console.log(session.workspacePath);
+// => ~/.copilot/session-state/{sessionId}/
+
+// Custom thresholds
+const tuned = await client.createSession({
+    model: "gpt-5",
+    infiniteSessions: {
+        enabled: true,
+        backgroundCompactionThreshold: 0.8, // Start compacting at 80% context usage
+        bufferExhaustionThreshold: 0.95, // Block at 95% until compaction completes
+    },
+});
+
+// Disable infinite sessions
+const disabled = await client.createSession({
+    model: "gpt-5",
+    infiniteSessions: { enabled: false },
+});
+```
+<!-- /docs-validate: hidden -->
 ```typescript
 // Default: infinite sessions enabled with default thresholds
 const session = await client.createSession({ model: "gpt-5" });
@@ -1156,6 +1337,22 @@ SDK leaves `memory` unset so the runtime applies its own default, while `"empty"
 defaults `memory` to disabled unless you set it explicitly.
 For more background, see [About GitHub Copilot Memory](https://docs.github.com/en/copilot/concepts/agents/copilot-memory).
 
+<!-- docs-validate: strict -->
+<!-- docs-validate: hidden -->
+```typescript
+// Enable memory for a session
+const enabled = await client.createSession({
+    model: "gpt-5",
+    memory: { enabled: true },
+});
+
+// Disable memory for a session
+const disabled = await client.createSession({
+    model: "gpt-5",
+    memory: { enabled: false },
+});
+```
+<!-- /docs-validate: hidden -->
 ```typescript
 // Enable memory for a session
 const session = await client.createSession({
@@ -1176,6 +1373,29 @@ A skill provider serves skills from your own storage, such as a database, instea
 files on disk. Provider skills join the session's skill catalog and load on demand through the
 `skill` tool, just like file-based skills.
 
+<!-- docs-validate: strict -->
+<!-- docs-validate: hidden -->
+```typescript
+import { approveAll } from "@github/copilot-sdk";
+import type { SkillProvider } from "@github/copilot-sdk";
+
+declare const db: {
+    findSkill(name: string, options: { signal: AbortSignal }): Promise<{ markdown: string } | undefined>;
+};
+
+const skillProvider: SkillProvider = {
+    listSkills: async () => [
+        { name: "release-notes", description: "Writes release notes in the team's format." },
+    ],
+    readSkill: async (name, { signal }) => (await db.findSkill(name, { signal }))?.markdown ?? null,
+};
+
+const session = await client.createSession({
+    onPermissionRequest: approveAll,
+    skillProvider,
+});
+```
+<!-- /docs-validate: hidden -->
 ```typescript
 import type { SkillProvider } from "@github/copilot-sdk";
 
@@ -1229,6 +1449,7 @@ See [Supporting files](../docs/features/skills.md#supporting-files-experimental)
 
 ### Multiple Sessions
 
+<!-- docs-validate: strict -->
 ```typescript
 const session1 = await client.createSession({ model: "gpt-5" });
 const session2 = await client.createSession({ model: "claude-sonnet-4.5" });
@@ -1240,6 +1461,7 @@ await session2.sendAndWait({ prompt: "Hello from session 2" });
 
 ### Custom Session IDs
 
+<!-- docs-validate: strict -->
 ```typescript
 const session = await client.createSession({
     sessionId: "my-custom-session-id",
@@ -1249,6 +1471,25 @@ const session = await client.createSession({
 
 ### File Attachments
 
+<!-- docs-validate: strict -->
+<!-- docs-validate: hidden -->
+```typescript
+import { approveAll } from "@github/copilot-sdk";
+
+const session = await client.createSession({ onPermissionRequest: approveAll });
+
+await session.send({
+    prompt: "Analyze this file",
+    attachments: [
+        {
+            type: "file",
+            path: "/path/to/file.js",
+            displayName: "My File",
+        },
+    ],
+});
+```
+<!-- /docs-validate: hidden -->
 ```typescript
 await session.send({
     prompt: "Analyze this file",
@@ -1277,6 +1518,7 @@ The SDK supports custom OpenAI-compatible API providers (BYOK - Bring Your Own K
 
 **Example with Ollama:**
 
+<!-- docs-validate: strict -->
 ```typescript
 const session = await client.createSession({
     model: "deepseek-coder-v2:16b", // Required when using custom provider
@@ -1292,6 +1534,7 @@ await session.sendAndWait({ prompt: "Hello!" });
 
 **Example with custom OpenAI-compatible API:**
 
+<!-- docs-validate: strict -->
 ```typescript
 const session = await client.createSession({
     model: "gpt-4",
@@ -1305,6 +1548,7 @@ const session = await client.createSession({
 
 **Example with Azure OpenAI:**
 
+<!-- docs-validate: strict -->
 ```typescript
 const session = await client.createSession({
     model: "gpt-4",
@@ -1329,7 +1573,10 @@ const session = await client.createSession({
 
 The SDK supports OpenTelemetry for distributed tracing. Provide a `telemetry` config to enable trace export from the CLI process — this is all most users need:
 
+<!-- docs-validate: strict -->
 ```typescript
+import { CopilotClient } from "@github/copilot-sdk";
+
 const client = new CopilotClient({
     telemetry: {
         otlpEndpoint: "http://localhost:4318",
@@ -1521,6 +1768,7 @@ To let a specific custom tool bypass the permission prompt entirely, set `skipPe
 
 Enable the legacy question-and-answer `ask_user` tool by providing an `onUserInputRequest` handler:
 
+<!-- docs-validate: strict -->
 ```typescript
 const session = await client.createSession({
     model: "gpt-5",
@@ -1547,7 +1795,10 @@ const session = await client.createSession({
 
 Register an `onElicitationRequest` handler to let your client act as an elicitation provider — presenting form-based UI dialogs on behalf of the agent. When provided, the server notifies your client whenever a tool or MCP server needs structured user input.
 
+<!-- docs-validate: strict -->
 ```typescript
+import { approveAll } from "@github/copilot-sdk";
+
 const session = await client.createSession({
     model: "gpt-5",
     onPermissionRequest: approveAll,
@@ -1588,6 +1839,100 @@ In multi-client scenarios:
 
 Hook into session lifecycle events by providing handlers in the `hooks` configuration:
 
+<!-- docs-validate: strict -->
+<!-- docs-validate: hidden -->
+```typescript
+declare function needsMoreWork(): boolean;
+
+const session = await client.createSession({
+    model: "gpt-5",
+    hooks: {
+        // Called before each tool execution
+        onPreToolUse: async (input, invocation) => {
+            console.log(`About to run tool: ${input.toolName}`);
+            // Return permission decision and optionally modify args
+            return {
+                permissionDecision: "allow", // "allow", "deny", or "ask"
+                modifiedArgs: input.toolArgs, // Optionally modify tool arguments
+                additionalContext: "Extra context for the model",
+            };
+        },
+
+        // Called after each successful tool execution
+        onPostToolUse: async (input, invocation) => {
+            console.log(`Tool ${input.toolName} completed`);
+            // Optionally modify the result or add context
+            return {
+                additionalContext: "Post-execution notes",
+            };
+        },
+
+        // Called after a tool execution whose result was "failure".
+        // onPostToolUse does NOT fire for failed tool calls — register this
+        // hook to observe them. Input includes `error` (the failure message
+        // extracted from the tool's result), not the full result object.
+        onPostToolUseFailure: async (input, invocation) => {
+            console.log(`Tool ${input.toolName} failed: ${input.error}`);
+            // Optionally append hidden guidance to the model.
+            return { additionalContext: "Suggest checking inputs and retrying." };
+        },
+
+        // Called when user submits a prompt
+        onUserPromptSubmitted: async (input, invocation) => {
+            console.log(`User prompt: ${input.prompt}`);
+            return {
+                modifiedPrompt: input.prompt, // Optionally modify the prompt
+            };
+        },
+
+        // Called when session starts
+        onSessionStart: async (input, invocation) => {
+            console.log(`Session started from: ${input.source}`); // "startup", "resume", "new"
+            return {
+                additionalContext: "Session initialization context",
+            };
+        },
+
+        // Called when session ends
+        onSessionEnd: async (input, invocation) => {
+            console.log(`Session ended: ${input.reason}`);
+        },
+
+        // Called when an error occurs
+        onErrorOccurred: async (input, invocation) => {
+            console.error(`Error in ${input.errorContext}: ${input.error}`);
+            return {
+                errorHandling: "retry", // "retry", "skip", or "abort"
+            };
+        },
+
+        // Called when the top-level agent naturally stops
+        onAgentStop: async (input, invocation) => {
+            if (!input.stopHookActive && needsMoreWork()) {
+                return {
+                    decision: "block",
+                    reason: "Run the final validation and fix any failures.",
+                };
+            }
+        },
+
+        // Called before a sub-agent's first turn (the input identifies the parent session)
+        onSubagentStart: (input, invocation) => {
+            console.log(`Starting ${input.agentDisplayName ?? input.agentName}`);
+            return { additionalContext: "Check the requested file before reporting back." };
+        },
+
+        // Called when a sub-agent completes a turn
+        onSubagentStop: (input, invocation) => {
+            console.log(`${input.agentName} replied: ${input.response}`);
+            // Return { decision: "block", reason: "Continue checking the file." }
+            // to request another child turn instead.
+            return { modifiedResponse: `Reviewed: ${input.response}` };
+        },
+    },
+});
+```
+<!-- /docs-validate: hidden -->
 ```typescript
 const session = await client.createSession({
     model: "gpt-5",
@@ -1693,12 +2038,13 @@ const session = await client.createSession({
 
 ## Error Handling
 
+<!-- docs-validate: strict -->
 ```typescript
 try {
-    const session = await client.createSession();
+    const session = await client.createSession({});
     await session.send({ prompt: "Hello" });
 } catch (error) {
-    console.error("Error:", error.message);
+    console.error("Error:", error instanceof Error ? error.message : error);
 }
 ```
 

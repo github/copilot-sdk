@@ -27,18 +27,21 @@ public sealed class StdioShutdownTests
 
         try
         {
+            using var observer = operation == "start-failure"
+                ? new RuntimeStartupProcessObserver(pidPath, useStdio: true)
+                : null;
             await using var client = new CopilotClient(new CopilotClientOptions
             {
                 Connection = RuntimeConnection.ForStdio(path: "node", args: [script, marker, operation, pidPath]),
                 UseLoggedInUser = false,
+                Logger = observer,
             });
             if (operation == "start-failure")
             {
                 var error = await Assert.ThrowsAsync<InvalidOperationException>(() =>
                     client.StartAsync().WaitAsync(TimeSpan.FromSeconds(5)));
                 Assert.Contains("protocol version mismatch", error.Message);
-                var pid = int.Parse(await File.ReadAllTextAsync(pidPath), System.Globalization.CultureInfo.InvariantCulture);
-                Assert.Throws<ArgumentException>(() => Process.GetProcessById(pid));
+                Assert.True(observer!.Process.HasExited, "Failed startup retained the runtime process.");
                 Assert.False(File.Exists(marker));
                 return;
             }
@@ -46,6 +49,7 @@ public sealed class StdioShutdownTests
             await client.StartAsync().WaitAsync(TimeSpan.FromSeconds(5));
             using var process = Process.GetProcessById(
                 int.Parse(await File.ReadAllTextAsync(pidPath), System.Globalization.CultureInfo.InvariantCulture));
+            _ = process.Handle;
             var elapsed = Stopwatch.StartNew();
 
             switch (operation)

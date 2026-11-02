@@ -141,6 +141,8 @@ pub(crate) use jsonrpc::{
 pub use mode::{BUILTIN_TOOLS_ISOLATED, ClientMode, ToolSet};
 pub use provider_token::{BearerTokenError, BearerTokenProvider, ProviderTokenArgs};
 pub use skill_provider::{SkillProvider, SkillProviderDescriptor};
+pub mod session_management;
+pub use session_management::SessionCreationHandler;
 
 /// Re-exported JSON-RPC internals for integration tests (requires `test-support` feature).
 #[cfg(feature = "test-support")]

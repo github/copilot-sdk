@@ -5,6 +5,7 @@
 package com.github.copilot;
 
 import static org.junit.jupiter.api.Assertions.*;
+import static org.mockito.Mockito.*;
 
 import java.io.IOException;
 import java.lang.reflect.InvocationTargetException;
@@ -212,6 +213,19 @@ class CliServerManagerTest {
         var info = new CliServerManager.ProcessInfo(null, null);
         assertNull(info.process());
         assertNull(info.port());
+    }
+
+    @Test
+    void awaitStderrReaderJoinsReaderThread() throws Exception {
+        var manager = new CliServerManager(new CopilotClientOptions());
+        var reader = mock(Thread.class);
+        var field = CliServerManager.class.getDeclaredField("stderrThread");
+        field.setAccessible(true);
+        field.set(manager, reader);
+
+        manager.awaitStderrReader();
+
+        verify(reader).join(5000);
     }
 
     // ===== resolveCliCommand tests =====

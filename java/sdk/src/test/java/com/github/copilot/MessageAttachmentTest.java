@@ -19,6 +19,7 @@ import com.github.copilot.rpc.ExtensionContextAttachment;
 import com.github.copilot.rpc.MessageAttachment;
 import com.github.copilot.rpc.MessageOptions;
 import com.github.copilot.rpc.SendMessageRequest;
+import com.github.copilot.rpc.SessionReferenceAttachment;
 
 /**
  * Tests for the {@link MessageAttachment} sealed interface and type-safe
@@ -151,6 +152,38 @@ class MessageAttachmentTest {
         assertTrue(json.contains("\"canvasId\":\"diff\""));
         assertTrue(json.contains("\"instanceId\":\"diff-17\""));
         assertTrue(json.contains("\"selection\":\"active\""));
+    }
+
+    @Test
+    void sessionReferenceRoundTripsThroughMessageOptions() throws Exception {
+        String json = """
+                {"prompt":"Ask this peer","attachments":[{"type":"session_reference",
+                "sessionId":"peer-session","displayName":"Peer","mentionIndex":2}]}
+                """;
+        MessageOptions options = MAPPER.readValue(json, MessageOptions.class);
+        MessageAttachment reference = options.getAttachments().get(0);
+        assertInstanceOf(SessionReferenceAttachment.class, reference);
+        assertEquals("session_reference", reference.getType());
+        assertEquals(MAPPER.readTree(json), MAPPER.readTree(MAPPER.writeValueAsString(options)));
+    }
+
+    @Test
+    void sessionReferenceCanBeConstructedWithOptionalMentionFields() throws Exception {
+        SessionReferenceAttachment reference = new SessionReferenceAttachment().setSessionId("peer-session");
+        MessageOptions options = new MessageOptions().setPrompt("Ask this peer").setAttachments(List.of(reference));
+        assertEquals(MAPPER.readTree("""
+                {"prompt":"Ask this peer","attachments":[{"type":"session_reference","sessionId":"peer-session"}]}
+                """), MAPPER.readTree(MAPPER.writeValueAsString(options)));
+
+        reference.setDisplayName("Peer").setMentionIndex(4_294_967_296L);
+        assertEquals("peer-session", reference.getSessionId());
+        assertEquals("Peer", reference.getDisplayName());
+        assertEquals(4_294_967_296L, reference.getMentionIndex());
+        SessionReferenceAttachment restored = (SessionReferenceAttachment) MAPPER
+                .readValue(MAPPER.writeValueAsString(options), MessageOptions.class).getAttachments().get(0);
+        assertEquals(reference.getSessionId(), restored.getSessionId());
+        assertEquals(reference.getDisplayName(), restored.getDisplayName());
+        assertEquals(reference.getMentionIndex(), restored.getMentionIndex());
     }
 
     @Test

@@ -27,6 +27,54 @@ public sealed partial class ClientSessionLifetimeTests
     [Theory]
     [InlineData(false)]
     [InlineData(true)]
+    public async Task Stop_RetiresPendingModelFetches(bool force)
+    {
+        IList<ModelInfo> oldModels = [new ModelInfo { Id = "old-model" }];
+        IList<ModelInfo> newModels = [new ModelInfo { Id = "new-model" }];
+        var oldFetch = new TaskCompletionSource<IList<ModelInfo>>(TaskCreationOptions.RunContinuationsAsynchronously);
+        var newFetch = new TaskCompletionSource<IList<ModelInfo>>(TaskCreationOptions.RunContinuationsAsynchronously);
+        var calls = 0;
+        await using var client = new CopilotClient(new CopilotClientOptions
+        {
+            OnListModels = _ => Interlocked.Increment(ref calls) == 1 ? oldFetch.Task : newFetch.Task
+        });
+        try
+        {
+            var first = client.ListModelsAsync();
+            var queuedOld = client.ListModelsAsync();
+            if (force)
+            {
+                await client.ForceStopAsync();
+            }
+            else
+            {
+                await client.StopAsync();
+            }
+
+            var current = client.ListModelsAsync();
+            Assert.Equal(2, Volatile.Read(ref calls));
+            oldFetch.SetResult(oldModels);
+            Assert.Equal("old-model", (await first.WaitAsync(TimeSpan.FromSeconds(5)))[0].Id);
+            Assert.Equal("old-model", (await queuedOld.WaitAsync(TimeSpan.FromSeconds(5)))[0].Id);
+            var queuedNew = client.ListModelsAsync();
+            Assert.False(queuedNew.IsCompleted);
+            newFetch.SetResult(newModels);
+
+            Assert.Equal("new-model", (await current.WaitAsync(TimeSpan.FromSeconds(5)))[0].Id);
+            Assert.Equal("new-model", (await queuedNew.WaitAsync(TimeSpan.FromSeconds(5)))[0].Id);
+            Assert.Equal("new-model", (await client.ListModelsAsync())[0].Id);
+            Assert.Equal(2, Volatile.Read(ref calls));
+        }
+        finally
+        {
+            oldFetch.TrySetResult(oldModels);
+            newFetch.TrySetResult(newModels);
+        }
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
     public async Task LegacyPingFallback_RequiresNoEntraConfiguration(bool entra)
     {
         await using var server = await FakeCopilotServer.StartAsync();

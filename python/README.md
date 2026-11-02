@@ -369,6 +369,15 @@ client = CopilotClient(connection=RuntimeConnection.for_uri("localhost:3000"))
 
 **CopilotClient Constructor:**
 
+<!-- docs-validate: hidden -->
+```python
+from copilot import CopilotClient, RuntimeConnection
+
+CopilotClient()  # spawn the bundled runtime with defaults
+CopilotClient(connection=RuntimeConnection.for_stdio(), log_level="debug", github_token="token")
+```
+<!-- /docs-validate: hidden -->
+
 ```python
 CopilotClient()                                                   # spawn the bundled runtime with defaults
 CopilotClient(connection=..., log_level="debug", github_token=..., ...)
@@ -420,11 +429,17 @@ path or `COPILOT_CLI_PATH` overrides the downloaded runtime.
 
 Child-process connections (`for_stdio`/`for_tcp`) also expose a per-connection
 `env` field for the spawned process. Set it on the returned connection instead of
-the client-level `env` — setting both raises:
+the client-level `env` — setting both raises. The mapping replaces the child's
+entire environment rather than adding to it, so start from `os.environ` to keep
+the variables the runtime needs, such as `PATH`:
 
 ```python
+import os
+
+from copilot import CopilotClient, RuntimeConnection
+
 conn = RuntimeConnection.for_stdio()
-conn.env = {"MY_VAR": "value"}
+conn.env = {**os.environ, "MY_VAR": "value"}
 client = CopilotClient(connection=conn)  # do NOT also pass env=... here
 ```
 
@@ -476,6 +491,25 @@ safety.
 ### Kerberos authentication callback
 
 Provide `kerberos_auth={"mode": ..., "callback": ...}` (a `KerberosAuthConfig`) to `CopilotClient` when Kerberos tickets must be obtained by the SDK host, for example from Windows when the runtime runs in WSL. The runtime currently uses it for proxy authentication. The callback receives a `KerberosAuthAcquireRequest` whose `spn` is a service principal in the platform-independent `service/host[@REALM]` form, and returns a fresh base64 SPNEGO token without the `Negotiate ` prefix, or `None` when credentials are unavailable. The callback may be sync or async and should validate the principal before issuing credentials.
+
+<!-- docs-validate: hidden -->
+```python
+from copilot import CopilotClient, KerberosAuthAcquireRequest
+
+
+async def get_spnego_token(spn: str) -> str:
+    return ""
+
+
+async def acquire_token(request: KerberosAuthAcquireRequest) -> str | None:
+    if request.spn != "HTTP/proxy.example.com":
+        return None
+    return await get_spnego_token(request.spn)  # Your Kerberos/SSPI integration.
+
+
+client = CopilotClient(kerberos_auth={"mode": "fallback", "callback": acquire_token})
+```
+<!-- /docs-validate: hidden -->
 
 ```python
 from copilot import CopilotClient, KerberosAuthAcquireRequest
@@ -551,6 +585,24 @@ These are passed as keyword arguments to `create_session()`:
 - `interactive_user` (bool): Declares that a person types this session's messages, as in an editor chat panel. Enables the runtime's user-message analysis telemetry for user-authored messages; automated messages stay excluded. Defaults to `False`. Ignored for cloud sessions. Re-supply it when cold-resuming a session; it is ignored when resuming a session that is already active.
 - `hooks` (SessionHooks): Hook handlers for session lifecycle events. See [Session Hooks](#session-hooks) section.
 
+<!-- docs-validate: hidden -->
+```python
+async def acquire_token_for_host(host: str) -> str:
+    return ""
+
+
+async def provide_github_token(args):
+    return {
+        "kind": "token",
+        "accessToken": await acquire_token_for_host(args["host"]),
+        "expiresIn": 8 * 60 * 60,
+    }
+
+
+session = await client.create_session(github_token_provider=provide_github_token)
+```
+<!-- /docs-validate: hidden -->
+
 ```python
 async def provide_github_token(args):
     return {
@@ -605,6 +657,38 @@ unsubscribe()
 
 Define tools with automatic JSON schema generation using the `@define_tool` decorator and Pydantic models:
 
+<!-- docs-validate: hidden -->
+<!--
+```python
+from typing import Any
+
+from pydantic import BaseModel, Field
+from copilot import CopilotClient, define_tool
+
+
+async def fetch_issue(issue_id: str) -> Any: ...
+
+
+class LookupIssueParams(BaseModel):
+    id: str = Field(description="Issue identifier")
+
+
+@define_tool(description="Fetch issue details from our tracker")
+async def lookup_issue(params: LookupIssueParams) -> str:
+    issue = await fetch_issue(params.id)
+    return issue.summary
+
+
+async with await client.create_session(
+    on_permission_request=PermissionHandler.approve_all,
+    model="gpt-5",
+    tools=[lookup_issue],
+) as session:
+    ...
+```
+-->
+<!-- /docs-validate: hidden -->
+
 ```python
 from pydantic import BaseModel, Field
 from copilot import CopilotClient, define_tool
@@ -633,6 +717,52 @@ async with await client.create_session(
 #### Low-level API (without Pydantic)
 
 For users who prefer manual schema definition:
+
+<!-- docs-validate: hidden -->
+<!--
+```python
+from typing import Any
+
+from copilot import CopilotClient
+from copilot.tools import Tool, ToolInvocation, ToolResult
+from copilot.session import PermissionHandler
+
+
+async def fetch_issue(issue_id: str) -> Any: ...
+
+
+async def lookup_issue(invocation: ToolInvocation) -> ToolResult:
+    issue_id = invocation.arguments["id"]
+    issue = await fetch_issue(issue_id)
+    return ToolResult(
+        text_result_for_llm=issue.summary,
+        result_type="success",
+        session_log=f"Fetched issue {issue_id}",
+    )
+
+
+async with await client.create_session(
+    on_permission_request=PermissionHandler.approve_all,
+    model="gpt-5",
+    tools=[
+        Tool(
+            name="lookup_issue",
+            description="Fetch issue details from our tracker",
+            parameters={
+                "type": "object",
+                "properties": {
+                    "id": {"type": "string", "description": "Issue identifier"},
+                },
+                "required": ["id"],
+            },
+            handler=lookup_issue,
+        )
+    ],
+) as session:
+    ...
+```
+-->
+<!-- /docs-validate: hidden -->
 
 ```python
 from copilot import CopilotClient
@@ -675,6 +805,26 @@ The SDK automatically handles `tool.call`, executes your handler (sync or async)
 
 You can also create a declaration-only tool with generated Pydantic parameters:
 
+<!-- docs-validate: hidden -->
+<!--
+```python
+from pydantic import BaseModel, Field
+from copilot import define_tool
+
+
+class LookupIssueParams(BaseModel):
+    id: str = Field(description="Issue identifier")
+
+
+tool = define_tool(
+    "lookup_issue",
+    description="Fetch issue details from our tracker",
+    params_type=LookupIssueParams,
+)
+```
+-->
+<!-- /docs-validate: hidden -->
+
 ```python
 tool = define_tool(
     "lookup_issue",
@@ -696,6 +846,33 @@ finish on the handler they already captured, a rejected replacement leaves the
 previous handlers in place, and concurrent `set_tools()` calls on the same
 session are applied in order.
 
+<!-- docs-validate: hidden -->
+<!--
+```python
+from pydantic import BaseModel, Field
+from copilot import define_tool
+
+
+class LookupParams(BaseModel):
+    id: str = Field(description="Record identifier")
+
+
+@define_tool(description="Fetch issue details from our tracker")
+async def lookup_issue(params: LookupParams) -> str:
+    return params.id
+
+
+@define_tool(description="Fetch customer details from our CRM")
+async def lookup_customer(params: LookupParams) -> str:
+    return params.id
+
+
+await session.set_tools([lookup_issue, lookup_customer])
+await session.set_tools([])  # remove this client's custom tools
+```
+-->
+<!-- /docs-validate: hidden -->
+
 ```python
 await session.set_tools([lookup_issue, lookup_customer])
 await session.set_tools([])  # remove this client's custom tools
@@ -707,6 +884,30 @@ the shared behavior and active-turn limitations.
 #### Overriding Built-in Tools
 
 If you register a tool with the same name as a built-in CLI tool (e.g. `edit_file`, `read_file`), the SDK will throw an error unless you explicitly opt in by setting `overrides_built_in_tool=True`. This flag signals that you intend to replace the built-in tool with your custom implementation.
+
+<!-- docs-validate: hidden -->
+<!--
+```python
+from pydantic import BaseModel, Field
+from copilot import define_tool
+
+
+class EditFileParams(BaseModel):
+    path: str = Field(description="File path")
+    content: str = Field(description="New file content")
+
+
+@define_tool(
+    name="edit_file",
+    description="Custom file editor with project-specific validation",
+    overrides_built_in_tool=True,
+)
+async def edit_file(params: EditFileParams) -> str:
+    # your logic
+    return ""
+```
+-->
+<!-- /docs-validate: hidden -->
 
 ```python
 class EditFileParams(BaseModel):
@@ -746,6 +947,29 @@ use an object schema if references are needed.
 
 Set `skip_permission=True` on a tool definition to allow it to execute without triggering a permission prompt:
 
+<!-- docs-validate: hidden -->
+<!--
+```python
+from pydantic import BaseModel, Field
+from copilot import define_tool
+
+
+class LookupParams(BaseModel):
+    id: str = Field(description="Record identifier")
+
+
+@define_tool(
+    name="safe_lookup",
+    description="A read-only lookup that needs no confirmation",
+    skip_permission=True,
+)
+async def safe_lookup(params: LookupParams) -> str:
+    # your logic
+    return ""
+```
+-->
+<!-- /docs-validate: hidden -->
+
 ```python
 @define_tool(name="safe_lookup", description="A read-only lookup that needs no confirmation", skip_permission=True)
 async def safe_lookup(params: LookupParams) -> str:
@@ -755,6 +979,25 @@ async def safe_lookup(params: LookupParams) -> str:
 #### Deferring Tools
 
 Set `defer` to control whether a tool may be loaded lazily via tool search rather than always pre-loaded. Use `"auto"` to allow the tool to be deferred and surfaced through tool search, or `"never"` to force it to always be pre-loaded. Defaults to `"auto"`.
+
+<!-- docs-validate: hidden -->
+<!--
+```python
+from pydantic import BaseModel, Field
+from copilot import define_tool
+
+
+class LookupParams(BaseModel):
+    id: str = Field(description="Record identifier")
+
+
+@define_tool(name="lookup_issue", description="Fetch issue details", defer="auto")
+async def lookup_issue(params: LookupParams) -> str:
+    # your logic
+    return ""
+```
+-->
+<!-- /docs-validate: hidden -->
 
 ```python
 @define_tool(name="lookup_issue", description="Fetch issue details", defer="auto")
@@ -769,6 +1012,8 @@ Change the Auto routing preference without changing the selected model. The runt
 Watch for the outcome through the `session.model_change` event on success or the ephemeral `session.auto_tier_switch_failed` event on failure. A failed activation leaves the incumbent effective tier unchanged. Read the authoritative committed, pending, and activating preferences at any time through the session's `model.getCurrent` RPC method.
 
 ```python
+from copilot import ModelSwitchAutoTierStatus
+
 result = await session.set_auto_tier("intelligence")
 if result.status == ModelSwitchAutoTierStatus.PENDING:
     ...  # Accepted, but not yet in effect.
@@ -784,6 +1029,40 @@ See [Auto tier persistence](../docs/features/session-persistence.md#auto-tier-pe
 ## Image Support
 
 The SDK supports image attachments via the `attachments` parameter. You can attach images by providing their file path, or by passing base64-encoded data directly using a blob attachment:
+
+<!-- docs-validate: hidden -->
+<!--
+```python
+import base64
+from pathlib import Path
+
+base64_image_data = base64.b64encode(Path("/path/to/image.png").read_bytes()).decode("ascii")
+
+# File attachment — runtime reads from disk
+await session.send(
+    "What's in this image?",
+    attachments=[
+        {
+            "type": "file",
+            "path": "/path/to/image.jpg",
+        }
+    ],
+)
+
+# Blob attachment — provide base64 data directly
+await session.send(
+    "What's in this image?",
+    attachments=[
+        {
+            "type": "blob",
+            "data": base64_image_data,
+            "mimeType": "image/png",
+        }
+    ],
+)
+```
+-->
+<!-- /docs-validate: hidden -->
 
 ```python
 # File attachment — runtime reads from disk
@@ -1223,15 +1502,23 @@ When `enable_managed_settings` is true for the session, `approve_all` raises an 
 Provide your own function to inspect each request and apply custom logic (sync or async). Check `managed_approval_required` before any automatic approval:
 
 ```python
-from copilot import PermissionNoResult, PermissionRequest, PermissionRequestResult
+from copilot import (
+    CopilotClient,
+    PermissionNoResult,
+    PermissionRequest,
+    PermissionRequestResult,
+)
 from copilot.rpc import (
     PermissionDecisionApproveOnce,
     PermissionDecisionReject,
 )
+from copilot.session import PermissionInvocation
 from copilot.session_events import PermissionRequestShell
 
 
-def on_permission_request(request: PermissionRequest, invocation: dict) -> PermissionRequestResult:
+def on_permission_request(
+    request: PermissionRequest, invocation: PermissionInvocation
+) -> PermissionRequestResult:
     if getattr(request, "managed_approval_required", False) is True:
         return PermissionNoResult()
 
@@ -1245,17 +1532,25 @@ def on_permission_request(request: PermissionRequest, invocation: dict) -> Permi
             return PermissionDecisionApproveOnce()
 
 
-session = await client.create_session(
-    on_permission_request=on_permission_request,
-    model="gpt-5",
-)
+async with CopilotClient() as client:
+    session = await client.create_session(
+        on_permission_request=on_permission_request,
+        model="gpt-5",
+    )
 ```
 
 Async handlers are also supported:
 
 ```python
+import asyncio
+
+from copilot import PermissionNoResult, PermissionRequest, PermissionRequestResult
+from copilot.rpc import PermissionDecisionApproveOnce
+from copilot.session import PermissionInvocation
+
+
 async def on_permission_request(
-    request: PermissionRequest, invocation: dict
+    request: PermissionRequest, invocation: PermissionInvocation
 ) -> PermissionRequestResult:
     if getattr(request, "managed_approval_required", False) is True:
         return PermissionNoResult()

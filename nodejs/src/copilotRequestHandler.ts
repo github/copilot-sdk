@@ -170,7 +170,9 @@ export class CopilotWebSocketForwarder extends CopilotWebSocketHandler {
         if (this.#upstream) {
             return;
         }
-        const upstream = new WebSocket(this.context.url);
+        const upstream = new WebSocket(this.context.url, {
+            headers: forwardedRequestHeaders(this.context.headers),
+        });
         upstream.binaryType = "arraybuffer";
         this.#upstream = upstream;
         upstream.addEventListener("message", (event) => {
@@ -681,19 +683,29 @@ const FORBIDDEN_REQUEST_HEADERS = new Set([
     "trailer",
 ]);
 
-async function buildFetchRequest(exchange: CopilotRequestExchange): Promise<Request> {
+/**
+ * The request headers to send upstream, minus hop-by-hop and WebSocket headers the
+ * outbound HTTP or WebSocket client sets itself.
+ */
+function forwardedRequestHeaders(source: LlmInferenceHeaders): Headers {
     const headers = new Headers();
-    for (const [name, values] of Object.entries(exchange.headers)) {
+    for (const [name, values] of Object.entries(source)) {
         if (!values) {
             continue;
         }
-        if (FORBIDDEN_REQUEST_HEADERS.has(name.toLowerCase())) {
+        const lower = name.toLowerCase();
+        if (FORBIDDEN_REQUEST_HEADERS.has(lower) || lower.startsWith("sec-websocket-")) {
             continue;
         }
         for (const value of values) {
             headers.append(name, value);
         }
     }
+    return headers;
+}
+
+async function buildFetchRequest(exchange: CopilotRequestExchange): Promise<Request> {
+    const headers = forwardedRequestHeaders(exchange.headers);
 
     const method = exchange.method.toUpperCase();
     const hasBody = method !== "GET" && method !== "HEAD";

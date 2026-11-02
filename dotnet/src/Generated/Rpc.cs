@@ -12358,7 +12358,7 @@ public sealed class AgentsDiscoverRequest
     [JsonPropertyName("excludeHostAgents")]
     public bool? ExcludeHostAgents { get; set; }
 
-    /// <summary>Optional list of project directory paths to scan for project-scoped agents. When omitted or empty, only user/plugin/remote-independent agents are returned (no project scan).</summary>
+    /// <summary>Optional list of project directory paths to scan for project-scoped agents. When omitted or empty, no project is scanned: user-level and globally enabled plugin agents are still returned, but agents of a plugin enabled only in a repository's settings are not.</summary>
     [JsonPropertyName("projectPaths")]
     public IList<string>? ProjectPaths { get; set; }
 }
@@ -16771,6 +16771,188 @@ internal sealed class LogRequest
     [StringSyntax(StringSyntaxAttribute.Uri)]
     [JsonPropertyName("url")]
     public string? Url { get; set; }
+}
+
+/// <summary>Opt-in policy for local session management.</summary>
+[Experimental(global::GitHub.Copilot.Diagnostics.Experimental)]
+public sealed class SessionManagementPolicy
+{
+    /// <summary>Allow closing sessions created by this session or its descendants. On by default.</summary>
+    [JsonPropertyName("close")]
+    public bool Close { get; set; }
+
+    /// <summary>Allow requesting a new session from the owning host.</summary>
+    [JsonPropertyName("create")]
+    public bool Create { get; set; }
+
+    /// <summary>Master switch. Off by default.</summary>
+    [JsonPropertyName("enabled")]
+    public bool Enabled { get; set; }
+
+    /// <summary>Allow listing opted-in sessions in this configuration directory.</summary>
+    [JsonPropertyName("list")]
+    public bool List { get; set; }
+
+    /// <summary>Allow sending a peer message to another opted-in session.</summary>
+    [JsonPropertyName("message")]
+    public bool Message { get; set; }
+
+    /// <summary>Discovery and direct access boundary. Defaults to all eligible local peers.</summary>
+    [JsonPropertyName("scope")]
+    public SessionManagementScope Scope { get; set; }
+}
+
+/// <summary>Per-operation overrides for an enabled session management policy.</summary>
+[Experimental(global::GitHub.Copilot.Diagnostics.Experimental)]
+public sealed class SessionManagementToolOverrides
+{
+    /// <summary>Allow closing this session's live created descendants.</summary>
+    [JsonPropertyName("close")]
+    public bool? Close { get; set; }
+
+    /// <summary>Allow requesting an independent session from the owning host.</summary>
+    [JsonPropertyName("create")]
+    public bool? Create { get; set; }
+
+    /// <summary>Allow discovering eligible peer sessions.</summary>
+    [JsonPropertyName("list")]
+    public bool? List { get; set; }
+
+    /// <summary>Allow delivering peer text to another eligible session.</summary>
+    [JsonPropertyName("message")]
+    public bool? Message { get; set; }
+}
+
+/// <summary>Updates the session's live policy without changing persistent host settings.</summary>
+[Experimental(global::GitHub.Copilot.Diagnostics.Experimental)]
+internal sealed class SessionManagementConfigureRequest
+{
+    /// <summary>Expected workspace for host activation. Required when enabling an interactive CLI session.</summary>
+    [JsonPropertyName("cwd")]
+    public string? Cwd { get; set; }
+
+    /// <summary>Enabling resets all session management operations to enabled, then applies overrides.</summary>
+    [JsonPropertyName("enabled")]
+    public bool? Enabled { get; set; }
+
+    /// <summary>Peer boundary. Preserved when the master switch changes.</summary>
+    [JsonPropertyName("scope")]
+    public SessionManagementScope? Scope { get; set; }
+
+    /// <summary>Target session identifier.</summary>
+    [JsonPropertyName("sessionId")]
+    public string SessionId { get; set; } = string.Empty;
+
+    /// <summary>Individual tool overrides, applied after the master switch.</summary>
+    [JsonPropertyName("tools")]
+    public SessionManagementToolOverrides? Tools { get; set; }
+}
+
+/// <summary>An opted-in local session, reported by its live owner.</summary>
+[Experimental(global::GitHub.Copilot.Diagnostics.Experimental)]
+public sealed class ManagedSessionInfo
+{
+    /// <summary>Peer's current working directory.</summary>
+    [JsonPropertyName("cwd")]
+    public string Cwd { get; set; } = string.Empty;
+
+    /// <summary>Peer's selected model, when known.</summary>
+    [JsonPropertyName("model")]
+    public string? Model { get; set; }
+
+    /// <summary>Human-readable peer name.</summary>
+    [JsonPropertyName("name")]
+    public string Name { get; set; } = string.Empty;
+
+    /// <summary>The session that created this root through session management, if any.</summary>
+    [JsonPropertyName("parentSessionId")]
+    public string? ParentSessionId { get; set; }
+
+    /// <summary>Live peer's session identifier.</summary>
+    [JsonPropertyName("sessionId")]
+    public string SessionId { get; set; } = string.Empty;
+
+    /// <summary>Peer's local session-state directory containing events.jsonl, when known.</summary>
+    [JsonPropertyName("sessionStatePath")]
+    public string? SessionStatePath { get; set; }
+
+    /// <summary>Either idle or busy. A busy session may still accept messages.</summary>
+    [JsonPropertyName("state")]
+    public string State { get; set; } = string.Empty;
+}
+
+/// <summary>Eligible live peers reported by their owning runtimes.</summary>
+[Experimental(global::GitHub.Copilot.Diagnostics.Experimental)]
+public sealed class SessionManagementListResult
+{
+    /// <summary>Matching peers, excluding the caller.</summary>
+    [JsonPropertyName("sessions")]
+    public IList<ManagedSessionInfo> Sessions { get => field ??= []; set; }
+}
+
+/// <summary>Lists opted-in local peers. The caller is omitted.</summary>
+[Experimental(global::GitHub.Copilot.Diagnostics.Experimental)]
+internal sealed class SessionManagementListRequest
+{
+    /// <summary>Optional exact working-directory filter.</summary>
+    [JsonPropertyName("cwd")]
+    public string? Cwd { get; set; }
+
+    /// <summary>Target session identifier.</summary>
+    [JsonPropertyName("sessionId")]
+    public string SessionId { get; set; } = string.Empty;
+}
+
+/// <summary>Acceptance is not a completed turn or a reply.</summary>
+[Experimental(global::GitHub.Copilot.Diagnostics.Experimental)]
+public sealed class SessionManagementMessageResult
+{
+    /// <summary>True when the destination has accepted the peer message.</summary>
+    [JsonPropertyName("accepted")]
+    public bool Accepted { get; set; }
+
+    /// <summary>Destination title captured by the receiving runtime at message admission.</summary>
+    [JsonPropertyName("targetSessionName")]
+    public string? TargetSessionName { get; set; }
+}
+
+/// <summary>Sends peer text, never human approval, to another opted-in session.</summary>
+[Experimental(global::GitHub.Copilot.Diagnostics.Experimental)]
+internal sealed class SessionManagementMessageRequest
+{
+    /// <summary>Nonempty UTF-8 text, at most 16 KiB.</summary>
+    [JsonPropertyName("message")]
+    public string Message { get; set; } = string.Empty;
+
+    /// <summary>Target session identifier.</summary>
+    [JsonPropertyName("sessionId")]
+    public string SessionId { get; set; } = string.Empty;
+
+    /// <summary>Eligible live peer that should receive the message.</summary>
+    [JsonPropertyName("targetSessionId")]
+    public string TargetSessionId { get; set; } = string.Empty;
+}
+
+/// <summary>Completion of the existing non-deleting close lifecycle.</summary>
+[Experimental(global::GitHub.Copilot.Diagnostics.Experimental)]
+public sealed class SessionManagementCloseResult
+{
+    /// <summary>True after the owning host has completed the existing session-close lifecycle.</summary>
+    [JsonPropertyName("closed")]
+    public bool Closed { get; set; }
+}
+
+/// <summary>Closes one live opted-in descendant without deleting its saved history or closing its children.</summary>
+[Experimental(global::GitHub.Copilot.Diagnostics.Experimental)]
+internal sealed class SessionManagementCloseRequest
+{
+    /// <summary>Target session identifier.</summary>
+    [JsonPropertyName("sessionId")]
+    public string SessionId { get; set; } = string.Empty;
+
+    /// <summary>Live created descendant whose owning host should close it.</summary>
+    [JsonPropertyName("targetSessionId")]
+    public string TargetSessionId { get; set; } = string.Empty;
 }
 
 /// <summary>Adapter-declared policy that tells clients whether discovery may run automatically.</summary>
@@ -21565,6 +21747,19 @@ internal sealed class SessionAutopilotObjectiveGetStateRequest
     public string SessionId { get; set; } = string.Empty;
 }
 
+/// <summary>Client-resolved preference for retaining autopilot mode after objective completion or pause.</summary>
+[Experimental(global::GitHub.Copilot.Diagnostics.Experimental)]
+internal sealed class AutopilotObjectiveSetStayInAutopilotRequest
+{
+    /// <summary>Target session identifier.</summary>
+    [JsonPropertyName("sessionId")]
+    public string SessionId { get; set; } = string.Empty;
+
+    /// <summary>Whether an objective's requested return to interactive mode is suppressed.</summary>
+    [JsonPropertyName("value")]
+    public bool Value { get; set; }
+}
+
 /// <summary>Result of applying the ordinary session-idle Autopilot continuation decision.</summary>
 [Experimental(global::GitHub.Copilot.Diagnostics.Experimental)]
 internal sealed class AutopilotEvaluateIdleContinuationResult
@@ -26171,6 +26366,24 @@ internal sealed class ProviderSyncRequest
     public string SessionId { get; set; } = string.Empty;
 }
 
+/// <summary>Credential-free provider configuration status for the selected model.</summary>
+[Experimental(global::GitHub.Copilot.Diagnostics.Experimental)]
+public sealed class ProviderStatus
+{
+    /// <summary>Whether the selected model uses a custom provider instead of requiring GitHub authentication.</summary>
+    [JsonPropertyName("hasCustomProvider")]
+    public bool HasCustomProvider { get; set; }
+}
+
+/// <summary>Identifies the target session.</summary>
+[Experimental(global::GitHub.Copilot.Diagnostics.Experimental)]
+internal sealed class SessionProviderGetStatusRequest
+{
+    /// <summary>Target session identifier.</summary>
+    [JsonPropertyName("sessionId")]
+    public string SessionId { get; set; } = string.Empty;
+}
+
 /// <summary>What the withdrawal actually removed from the registry.</summary>
 [Experimental(global::GitHub.Copilot.Diagnostics.Experimental)]
 public sealed class ProviderWithdrawResult
@@ -30128,6 +30341,31 @@ public sealed class PermissionsGetModeResult
 /// <summary>No parameters.</summary>
 [Experimental(global::GitHub.Copilot.Diagnostics.Experimental)]
 internal sealed class PermissionsGetModeRequest
+{
+    /// <summary>Target session identifier.</summary>
+    [JsonPropertyName("sessionId")]
+    public string SessionId { get; set; } = string.Empty;
+}
+
+/// <summary>Available permission modes, derived from current session policy.</summary>
+[Experimental(global::GitHub.Copilot.Diagnostics.Experimental)]
+public sealed class PermissionsCapabilities
+{
+    /// <summary>Whether LLM-assisted approval is enabled for this session.</summary>
+    [JsonPropertyName("assistedApproval")]
+    public bool AssistedApproval { get; set; }
+
+    /// <summary>
+    /// Whether managed policy currently permits unconditional approval.
+    /// Stays true while managed policy is still resolving.
+    /// </summary>
+    [JsonPropertyName("bypassPermissions")]
+    public bool BypassPermissions { get; set; }
+}
+
+/// <summary>Identifies the target session.</summary>
+[Experimental(global::GitHub.Copilot.Diagnostics.Experimental)]
+internal sealed class SessionPermissionsGetCapabilitiesRequest
 {
     /// <summary>Target session identifier.</summary>
     [JsonPropertyName("sessionId")]
@@ -42579,7 +42817,7 @@ public readonly struct SessionsOpenProgressStep : IEquatable<SessionsOpenProgres
     /// <summary>Validating that the local repository matches the remote session's repository.</summary>
     public static SessionsOpenProgressStep ValidateRepo { get; } = new("validate-repo");
 
-    /// <summary>Checking the local working tree for uncommitted changes that would block the handoff.</summary>
+    /// <summary>Checking the local working tree for uncommitted changes, which stay in place and are carried onto the checked-out branch.</summary>
     public static SessionsOpenProgressStep CheckChanges { get; } = new("check-changes");
 
     /// <summary>Checking out the branch associated with the remote session in the local working tree.</summary>
@@ -44960,6 +45198,69 @@ public readonly struct SessionLogLevel : IEquatable<SessionLogLevel>
         public override void Write(Utf8JsonWriter writer, SessionLogLevel value, JsonSerializerOptions options)
         {
             GeneratedStringEnumJson.WriteValue(writer, value.Value, typeof(SessionLogLevel));
+        }
+    }
+}
+
+
+/// <summary>Peer boundary evaluated in the process hosting the native session.</summary>
+[Experimental(global::GitHub.Copilot.Diagnostics.Experimental)]
+[JsonConverter(typeof(Converter))]
+[DebuggerDisplay("{Value,nq}")]
+public readonly struct SessionManagementScope : IEquatable<SessionManagementScope>
+{
+    private readonly string? _value;
+
+    /// <summary>Initializes a new instance of the <see cref="SessionManagementScope"/> struct.</summary>
+    /// <param name="value">The value to associate with this <see cref="SessionManagementScope"/>.</param>
+    [JsonConstructor]
+    public SessionManagementScope(string value)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(value);
+        _value = value;
+    }
+
+    /// <summary>Gets the value associated with this <see cref="SessionManagementScope"/>.</summary>
+    public string Value => _value ?? string.Empty;
+
+    /// <summary>Eligible local peers sharing the resolved configuration directory.</summary>
+    public static SessionManagementScope All { get; } = new("all");
+
+    /// <summary>Only peers hosted in this native runtime process.</summary>
+    public static SessionManagementScope InProcess { get; } = new("in-process");
+
+    /// <summary>Returns a value indicating whether two <see cref="SessionManagementScope"/> instances are equivalent.</summary>
+    public static bool operator ==(SessionManagementScope left, SessionManagementScope right) => left.Equals(right);
+
+    /// <summary>Returns a value indicating whether two <see cref="SessionManagementScope"/> instances are not equivalent.</summary>
+    public static bool operator !=(SessionManagementScope left, SessionManagementScope right) => !(left == right);
+
+    /// <inheritdoc />
+    public override bool Equals(object? obj) => obj is SessionManagementScope other && Equals(other);
+
+    /// <inheritdoc />
+    public bool Equals(SessionManagementScope other) => string.Equals(Value, other.Value, StringComparison.OrdinalIgnoreCase);
+
+    /// <inheritdoc />
+    public override int GetHashCode() => StringComparer.OrdinalIgnoreCase.GetHashCode(Value);
+
+    /// <inheritdoc />
+    public override string ToString() => Value;
+
+    /// <summary>Provides a <see cref="JsonConverter{SessionManagementScope}"/> for serializing <see cref="SessionManagementScope"/> instances.</summary>
+    [EditorBrowsable(EditorBrowsableState.Never)]
+    public sealed class Converter : JsonConverter<SessionManagementScope>
+    {
+        /// <inheritdoc />
+        public override SessionManagementScope Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
+        {
+            return new(GeneratedStringEnumJson.ReadValue(ref reader, typeToConvert));
+        }
+
+        /// <inheritdoc />
+        public override void Write(Utf8JsonWriter writer, SessionManagementScope value, JsonSerializerOptions options)
+        {
+            GeneratedStringEnumJson.WriteValue(writer, value.Value, typeof(SessionManagementScope));
         }
     }
 }
@@ -56762,7 +57063,7 @@ public sealed class ServerAgentsApi
     }
 
     /// <summary>Discovers custom agents across user, project, plugin, and remote sources.</summary>
-    /// <param name="projectPaths">Optional list of project directory paths to scan for project-scoped agents. When omitted or empty, only user/plugin/remote-independent agents are returned (no project scan).</param>
+    /// <param name="projectPaths">Optional list of project directory paths to scan for project-scoped agents. When omitted or empty, no project is scanned: user-level and globally enabled plugin agents are still returned, but agents of a plugin enabled only in a repository's settings are not.</param>
     /// <param name="excludeHostAgents">When true, omit the host's agents (the user-level agent directory and all plugin agents), leaving only project and remote agents. For multitenant deployments.</param>
     /// <param name="cancellationToken">The <see cref="CancellationToken"/> to monitor for cancellation requests. The default is <see cref="CancellationToken.None"/>.</param>
     /// <returns>Agents discovered across user, project, plugin, and remote sources.</returns>
@@ -57787,6 +58088,12 @@ public sealed class SessionRpc
 
     internal CopilotSession Session => _session;
 
+    /// <summary>Management APIs.</summary>
+    public ManagementApi Management =>
+        field ??
+        Interlocked.CompareExchange(ref field, new(_session), null) ??
+        field;
+
     /// <summary>Providers APIs.</summary>
     public ProvidersApi Providers =>
         field ??
@@ -58246,6 +58553,73 @@ public sealed class SessionRpc
 
         var request = new LogRequest { SessionId = _session.SessionId, Message = message, Level = level, Type = type, Ephemeral = ephemeral, Url = url, Tip = tip };
         return await CopilotClient.InvokeRpcAsync<LogResult>(_session.Rpc, "session.log", [request], cancellationToken);
+    }
+}
+
+/// <summary>Provides session-scoped Management APIs.</summary>
+[Experimental(global::GitHub.Copilot.Diagnostics.Experimental)]
+public sealed class ManagementApi
+{
+    private readonly CopilotSession _session;
+
+    internal ManagementApi(CopilotSession session)
+    {
+        _session = session;
+    }
+
+    /// <summary>Updates opt-in session management policy live. Enabling the master enables all tools before applying individual overrides. Opt-in is scoped to the session's configuration directory.</summary>
+    /// <param name="cwd">Expected workspace for host activation. Required when enabling an interactive CLI session.</param>
+    /// <param name="enabled">Enabling resets all session management operations to enabled, then applies overrides.</param>
+    /// <param name="scope">Peer boundary. Preserved when the master switch changes.</param>
+    /// <param name="tools">Individual tool overrides, applied after the master switch.</param>
+    /// <param name="cancellationToken">The <see cref="CancellationToken"/> to monitor for cancellation requests. The default is <see cref="CancellationToken.None"/>.</param>
+    /// <returns>Opt-in policy for local session management.</returns>
+    public async Task<SessionManagementPolicy> ConfigureAsync(string? cwd = null, bool? enabled = null, SessionManagementScope? scope = null, SessionManagementToolOverrides? tools = null, CancellationToken cancellationToken = default)
+    {
+        _session.ThrowIfDisposed();
+
+        var request = new SessionManagementConfigureRequest { SessionId = _session.SessionId, Cwd = cwd, Enabled = enabled, Scope = scope, Tools = tools };
+        return await CopilotClient.InvokeRpcAsync<SessionManagementPolicy>(_session.Rpc, "session.management.configure", [request], cancellationToken);
+    }
+
+    /// <summary>Lists other live, opted-in sessions in the same configuration directory. Requires the list tool to be enabled.</summary>
+    /// <param name="cwd">Optional exact working-directory filter.</param>
+    /// <param name="cancellationToken">The <see cref="CancellationToken"/> to monitor for cancellation requests. The default is <see cref="CancellationToken.None"/>.</param>
+    /// <returns>Eligible live peers reported by their owning runtimes.</returns>
+    public async Task<SessionManagementListResult> ListAsync(string? cwd = null, CancellationToken cancellationToken = default)
+    {
+        _session.ThrowIfDisposed();
+
+        var request = new SessionManagementListRequest { SessionId = _session.SessionId, Cwd = cwd };
+        return await CopilotClient.InvokeRpcAsync<SessionManagementListResult>(_session.Rpc, "session.management.list", [request], cancellationToken);
+    }
+
+    /// <summary>Injects peer text into an opted-in session. Wakes an idle agent and safely queues delivery to a busy agent. Acceptance does not imply an answer or completed task.</summary>
+    /// <param name="targetSessionId">Eligible live peer that should receive the message.</param>
+    /// <param name="message">Nonempty UTF-8 text, at most 16 KiB.</param>
+    /// <param name="cancellationToken">The <see cref="CancellationToken"/> to monitor for cancellation requests. The default is <see cref="CancellationToken.None"/>.</param>
+    /// <returns>Acceptance is not a completed turn or a reply.</returns>
+    public async Task<SessionManagementMessageResult> MessageAsync(string targetSessionId, string message, CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(targetSessionId);
+        ArgumentNullException.ThrowIfNull(message);
+        _session.ThrowIfDisposed();
+
+        var request = new SessionManagementMessageRequest { SessionId = _session.SessionId, TargetSessionId = targetSessionId, Message = message };
+        return await CopilotClient.InvokeRpcAsync<SessionManagementMessageResult>(_session.Rpc, "session.management.message", [request], cancellationToken);
+    }
+
+    /// <summary>Closes a live opted-in session created by the caller or one of its descendants, preserving saved history and leaving descendants open. Requires the close capability to be enabled. Self, ancestors, siblings and unrelated sessions cannot be closed.</summary>
+    /// <param name="targetSessionId">Live created descendant whose owning host should close it.</param>
+    /// <param name="cancellationToken">The <see cref="CancellationToken"/> to monitor for cancellation requests. The default is <see cref="CancellationToken.None"/>.</param>
+    /// <returns>Completion of the existing non-deleting close lifecycle.</returns>
+    public async Task<SessionManagementCloseResult> CloseAsync(string targetSessionId, CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(targetSessionId);
+        _session.ThrowIfDisposed();
+
+        var request = new SessionManagementCloseRequest { SessionId = _session.SessionId, TargetSessionId = targetSessionId };
+        return await CopilotClient.InvokeRpcAsync<SessionManagementCloseResult>(_session.Rpc, "session.management.close", [request], cancellationToken);
     }
 }
 
@@ -59710,6 +60084,17 @@ public sealed class AutopilotObjectiveApi
 
         var request = new SessionAutopilotObjectiveGetStateRequest { SessionId = _session.SessionId };
         return await CopilotClient.InvokeRpcAsync<AutopilotObjectiveGetStateResult>(_session.Rpc, "session.autopilotObjective.getState", [request], cancellationToken);
+    }
+
+    /// <summary>Sets whether completing or pausing this session's objective preserves autopilot mode. This in-memory preference defaults to false and must be reapplied when attaching a client.</summary>
+    /// <param name="value">Whether an objective's requested return to interactive mode is suppressed.</param>
+    /// <param name="cancellationToken">The <see cref="CancellationToken"/> to monitor for cancellation requests. The default is <see cref="CancellationToken.None"/>.</param>
+    public async Task SetStayInAutopilotAsync(bool value, CancellationToken cancellationToken = default)
+    {
+        _session.ThrowIfDisposed();
+
+        var request = new AutopilotObjectiveSetStayInAutopilotRequest { SessionId = _session.SessionId, Value = value };
+        await CopilotClient.InvokeRpcAsync(_session.Rpc, "session.autopilotObjective.setStayInAutopilot", [request], cancellationToken);
     }
 }
 
@@ -61474,6 +61859,17 @@ public sealed class ProviderApi
         return await CopilotClient.InvokeRpcAsync<ProviderSyncResult>(_session.Rpc, "session.provider.sync", [request], cancellationToken);
     }
 
+    /// <summary>Returns credential-free provider configuration status for the selected model. This does not validate provider credentials or contact the provider.</summary>
+    /// <param name="cancellationToken">The <see cref="CancellationToken"/> to monitor for cancellation requests. The default is <see cref="CancellationToken.None"/>.</param>
+    /// <returns>Credential-free provider configuration status for the selected model.</returns>
+    public async Task<ProviderStatus> GetStatusAsync(CancellationToken cancellationToken = default)
+    {
+        _session.ThrowIfDisposed();
+
+        var request = new SessionProviderGetStatusRequest { SessionId = _session.SessionId };
+        return await CopilotClient.InvokeRpcAsync<ProviderStatus>(_session.Rpc, "session.provider.getStatus", [request], cancellationToken);
+    }
+
     /// <summary>Withdraws named host-managed models from the session's BYOK registry, leaving every other entry untouched. The scoped counterpart to `provider.sync`: a snapshot can only describe entries the caller knows about, so using it to remove one model silently withdraws rows registered by another source, such as a plugin calling `provider.add` at runtime. Naming what to remove leaves unrelated entries alone. Selection ids that are not registered are ignored, so withdrawal is idempotent. A provider is removed only when one of the withdrawn models was the last entry referencing it; a provider that simply has no models, which is the normal state while its rows are supplied by catalog discovery, is left in place.</summary>
     /// <param name="models">Provider-qualified selection ids to withdraw. Ids that are not registered are ignored, so withdrawal is idempotent. A provider left with no models referencing it is removed too.</param>
     /// <param name="cancellationToken">The <see cref="CancellationToken"/> to monitor for cancellation requests. The default is <see cref="CancellationToken.None"/>.</param>
@@ -62304,6 +62700,17 @@ public sealed class PermissionsApi
 
         var request = new PermissionsGetModeRequest { SessionId = _session.SessionId };
         return await CopilotClient.InvokeRpcAsync<PermissionsGetModeResult>(_session.Rpc, "session.permissions.getMode", [request], cancellationToken);
+    }
+
+    /// <summary>Returns the approval modes currently available under the session's feature and managed permission policy. This read does not change permissions; mutations must still check their authoritative result because policy may change.</summary>
+    /// <param name="cancellationToken">The <see cref="CancellationToken"/> to monitor for cancellation requests. The default is <see cref="CancellationToken.None"/>.</param>
+    /// <returns>Available permission modes, derived from current session policy.</returns>
+    public async Task<PermissionsCapabilities> GetCapabilitiesAsync(CancellationToken cancellationToken = default)
+    {
+        _session.ThrowIfDisposed();
+
+        var request = new SessionPermissionsGetCapabilitiesRequest { SessionId = _session.SessionId };
+        return await CopilotClient.InvokeRpcAsync<PermissionsCapabilities>(_session.Rpc, "session.permissions.getCapabilities", [request], cancellationToken);
     }
 
     /// <summary>Adds or removes session-scoped or location-scoped permission rules.</summary>
@@ -64253,6 +64660,7 @@ internal static class ClientGlobalApiRegistration
 [JsonSerializable(typeof(GitHub.Copilot.AttachmentSelectionDetails), TypeInfoPropertyName = "SessionEventsAttachmentSelectionDetails")]
 [JsonSerializable(typeof(GitHub.Copilot.AttachmentSelectionDetailsEnd), TypeInfoPropertyName = "SessionEventsAttachmentSelectionDetailsEnd")]
 [JsonSerializable(typeof(GitHub.Copilot.AttachmentSelectionDetailsStart), TypeInfoPropertyName = "SessionEventsAttachmentSelectionDetailsStart")]
+[JsonSerializable(typeof(GitHub.Copilot.AttachmentSessionReference), TypeInfoPropertyName = "SessionEventsAttachmentSessionReference")]
 [JsonSerializable(typeof(GitHub.Copilot.AutoModeResolvedReasoningBucket), TypeInfoPropertyName = "SessionEventsAutoModeResolvedReasoningBucket")]
 [JsonSerializable(typeof(GitHub.Copilot.AutoModeSwitchCompletedData), TypeInfoPropertyName = "SessionEventsAutoModeSwitchCompletedData")]
 [JsonSerializable(typeof(GitHub.Copilot.AutoModeSwitchCompletedEvent), TypeInfoPropertyName = "SessionEventsAutoModeSwitchCompletedEvent")]
@@ -64784,6 +65192,7 @@ internal static class ClientGlobalApiRegistration
 [JsonSerializable(typeof(AutopilotEvaluateIdleContinuationResult))]
 [JsonSerializable(typeof(AutopilotObjectiveCreditLimit))]
 [JsonSerializable(typeof(AutopilotObjectiveGetStateResult))]
+[JsonSerializable(typeof(AutopilotObjectiveSetStayInAutopilotRequest))]
 [JsonSerializable(typeof(AutopilotObjectiveState))]
 [JsonSerializable(typeof(AutopilotOptions))]
 [JsonSerializable(typeof(AzureMlAcquireFamilyRequest))]
@@ -65121,6 +65530,7 @@ internal static class ClientGlobalApiRegistration
 [JsonSerializable(typeof(ManagedPermissionEvaluation))]
 [JsonSerializable(typeof(ManagedPermissionOperation))]
 [JsonSerializable(typeof(ManagedPluginRetryEntry))]
+[JsonSerializable(typeof(ManagedSessionInfo))]
 [JsonSerializable(typeof(ManagedSettingMeta))]
 [JsonSerializable(typeof(ManagedSettingsApplyControlsParams))]
 [JsonSerializable(typeof(ManagedSettingsApplyControlsResult))]
@@ -65431,6 +65841,7 @@ internal static class ClientGlobalApiRegistration
 [JsonSerializable(typeof(PermissionRulesSet))]
 [JsonSerializable(typeof(PermissionUrlsConfig))]
 [JsonSerializable(typeof(PermissionUrlsSetUnrestrictedModeParams))]
+[JsonSerializable(typeof(PermissionsCapabilities))]
 [JsonSerializable(typeof(PermissionsClearResumeEscalationRequest))]
 [JsonSerializable(typeof(PermissionsClearResumeEscalationResult))]
 [JsonSerializable(typeof(PermissionsConfigureAdditionalContentExclusionPolicy))]
@@ -65527,6 +65938,7 @@ internal static class ClientGlobalApiRegistration
 [JsonSerializable(typeof(ProviderEndpoint))]
 [JsonSerializable(typeof(ProviderModelConfig))]
 [JsonSerializable(typeof(ProviderSessionToken))]
+[JsonSerializable(typeof(ProviderStatus))]
 [JsonSerializable(typeof(ProviderSyncRequest))]
 [JsonSerializable(typeof(ProviderSyncResult))]
 [JsonSerializable(typeof(ProviderTokenAcquireRequest))]
@@ -65759,6 +66171,15 @@ internal static class ClientGlobalApiRegistration
 [JsonSerializable(typeof(SessionManagedSettings))]
 [JsonSerializable(typeof(SessionManagedSettingsGetRequest))]
 [JsonSerializable(typeof(SessionManagedSettingsRecheckPolicyHelperRequest))]
+[JsonSerializable(typeof(SessionManagementCloseRequest))]
+[JsonSerializable(typeof(SessionManagementCloseResult))]
+[JsonSerializable(typeof(SessionManagementConfigureRequest))]
+[JsonSerializable(typeof(SessionManagementListRequest))]
+[JsonSerializable(typeof(SessionManagementListResult))]
+[JsonSerializable(typeof(SessionManagementMessageRequest))]
+[JsonSerializable(typeof(SessionManagementMessageResult))]
+[JsonSerializable(typeof(SessionManagementPolicy))]
+[JsonSerializable(typeof(SessionManagementToolOverrides))]
 [JsonSerializable(typeof(SessionMcpAppsGetHostContextRequest))]
 [JsonSerializable(typeof(SessionMcpListConfiguredRequest))]
 [JsonSerializable(typeof(SessionMcpListRequest))]
@@ -65792,6 +66213,7 @@ internal static class ClientGlobalApiRegistration
 [JsonSerializable(typeof(SessionOpenOptionsAdditionalContentExclusionPolicyRuleSource))]
 [JsonSerializable(typeof(SessionOpenParams))]
 [JsonSerializable(typeof(SessionOpenResult))]
+[JsonSerializable(typeof(SessionPermissionsGetCapabilitiesRequest))]
 [JsonSerializable(typeof(SessionPlanDeleteRequest))]
 [JsonSerializable(typeof(SessionPlanReadRequest))]
 [JsonSerializable(typeof(SessionPlanReadSqlTodosRequest))]
@@ -65810,6 +66232,7 @@ internal static class ClientGlobalApiRegistration
 [JsonSerializable(typeof(SessionPluginsRetryManagedResult))]
 [JsonSerializable(typeof(SessionProviderGetEndpointRequest))]
 [JsonSerializable(typeof(SessionProviderGetEndpointRequestWithSession))]
+[JsonSerializable(typeof(SessionProviderGetStatusRequest))]
 [JsonSerializable(typeof(SessionProvidersGetCatalogRequest))]
 [JsonSerializable(typeof(SessionPruneResult))]
 [JsonSerializable(typeof(SessionQueueClearRequest))]

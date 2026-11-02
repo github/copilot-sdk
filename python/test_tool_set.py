@@ -66,6 +66,11 @@ class TestToolSet:
         with pytest.raises(ValueError, match="tool names must match"):
             ToolSet().add_mcp("server:tool")
 
+    @pytest.mark.parametrize("method", ["add_builtin", "add_custom", "add_mcp"])
+    def test_rejects_trailing_newline(self, method):
+        with pytest.raises(ValueError, match="tool names must match"):
+            getattr(ToolSet(), method)("bash\n")
+
     def test_iterable_protocol(self):
         ts = ToolSet().add_builtin("bash").add_mcp("*")
         assert list(ts) == ["builtin:bash", "mcp:*"]

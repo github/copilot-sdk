@@ -913,6 +913,38 @@ class AssistedApprovalAssessmentUnavailable:
 
 # Experimental: this type is part of an experimental API and may change or be removed.
 @dataclass
+class AttachmentSessionReference:
+    "An ID-bound reference to an eligible live session. Supplies identity context only, without sending a message, reading history, or granting permission."
+    session_id: str
+    type: ClassVar[str] = "session_reference"
+    display_name: str | None = None
+    mention_index: int | None = None
+
+    @staticmethod
+    def from_dict(obj: Any) -> "AttachmentSessionReference":
+        assert isinstance(obj, dict)
+        session_id = from_str(obj.get("sessionId"))
+        display_name = from_union([from_none, from_str], obj.get("displayName"))
+        mention_index = from_union([from_none, from_int], obj.get("mentionIndex"))
+        return AttachmentSessionReference(
+            session_id=session_id,
+            display_name=display_name,
+            mention_index=mention_index,
+        )
+
+    def to_dict(self) -> dict:
+        result: dict = {}
+        result["sessionId"] = from_str(self.session_id)
+        result["type"] = self.type
+        if self.display_name is not None:
+            result["displayName"] = from_union([from_none, from_str], self.display_name)
+        if self.mention_index is not None:
+            result["mentionIndex"] = from_union([from_none, to_int], self.mention_index)
+        return result
+
+
+# Experimental: this type is part of an experimental API and may change or be removed.
+@dataclass
 class BinaryAssetReference:
     "A reference to binary data persisted once on a session.binary_asset event and shared by id"
     asset_id: str
@@ -15830,6 +15862,7 @@ def _load_Attachment(obj: Any) -> "Attachment":
         case "github_snippet": return AttachmentGitHubSnippet.from_dict(obj)
         case "blob": return AttachmentBlob.from_dict(obj)
         case "extension_context": return AttachmentExtensionContext.from_dict(obj)
+        case "session_reference": return AttachmentSessionReference.from_dict(obj)
         case _: raise ValueError(f"Unknown Attachment type: {kind!r}")
 
 
@@ -15954,7 +15987,7 @@ PersistedBinaryResult = PersistedBinaryImage | OmittedBinaryResult | BinaryAsset
 
 
 # A user message attachment — a file, directory, code selection, blob, GitHub reference, GitHub-anchored pointer, or extension-supplied context payload
-Attachment = AttachmentFile | AttachmentDirectory | AttachmentSelection | AttachmentGitHubReference | AttachmentGitHubCommit | AttachmentGitHubRelease | AttachmentGitHubActionsJob | AttachmentGitHubRepository | AttachmentGitHubFileDiff | AttachmentGitHubTreeComparison | AttachmentGitHubUrl | AttachmentGitHubFile | AttachmentGitHubSnippet | AttachmentBlob | AttachmentExtensionContext
+Attachment = AttachmentFile | AttachmentDirectory | AttachmentSelection | AttachmentGitHubReference | AttachmentGitHubCommit | AttachmentGitHubRelease | AttachmentGitHubActionsJob | AttachmentGitHubRepository | AttachmentGitHubFileDiff | AttachmentGitHubTreeComparison | AttachmentGitHubUrl | AttachmentGitHubFile | AttachmentGitHubSnippet | AttachmentBlob | AttachmentExtensionContext | AttachmentSessionReference
 
 
 # Canonical runtime-owned Assisted Permissions assessment for one permission request. This assessment is advisory; `permission.completed` remains the authoritative final permission decision.
@@ -18110,6 +18143,7 @@ __all__ = [
     "AttachmentSelectionDetails",
     "AttachmentSelectionDetailsEnd",
     "AttachmentSelectionDetailsStart",
+    "AttachmentSessionReference",
     "AutoModeResolvedReasoningBucket",
     "AutoModeSwitchCompletedData",
     "AutoModeSwitchRequestedData",
