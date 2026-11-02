@@ -79,17 +79,19 @@ fn public_windows_lookups_match_the_os_known_folders() {
 
         const CREATE_NO_WINDOW: u32 = 0x0800_0000;
         let current = std::thread::current();
-        let output = std::process::Command::new(std::env::current_exe().unwrap())
-            .current_dir(std::env::temp_dir())
-            .creation_flags(CREATE_NO_WINDOW)
-            .args(["--exact", current.name().expect("test name"), "--nocapture"])
-            .env(CHILD, "1")
-            .env("LOCALAPPDATA", "Z:\\not-the-local-known-folder")
-            .env("APPDATA", "Z:\\not-the-roaming-known-folder")
-            .env("USERPROFILE", "Z:\\not-the-profile-known-folder")
-            .env("HOME", "Z:\\not-the-home-folder")
-            .output()
-            .expect("run known-folder lookup with spoofed environment");
+        let output = std::process::Command::new(
+            std::env::current_exe().expect("resolve current test executable"),
+        )
+        .current_dir(std::env::temp_dir())
+        .creation_flags(CREATE_NO_WINDOW)
+        .args(["--exact", current.name().expect("test name"), "--nocapture"])
+        .env(CHILD, "1")
+        .env("LOCALAPPDATA", "Z:\\not-the-local-known-folder")
+        .env("APPDATA", "Z:\\not-the-roaming-known-folder")
+        .env("USERPROFILE", "Z:\\not-the-profile-known-folder")
+        .env("HOME", "Z:\\not-the-home-folder")
+        .output()
+        .expect("run known-folder lookup with spoofed environment");
         assert!(
             output.status.success() && String::from_utf8_lossy(&output.stdout).contains("1 passed"),
             "{}{}",
