@@ -63,20 +63,7 @@ Pass the language-specific connection option when you create the client.
 <details open>
 <summary><strong>TypeScript</strong></summary>
 
-<!-- docs-validate: strict -->
-<!-- docs-validate: hidden -->
-```typescript
-import { CopilotClient as Client, RuntimeConnection } from "@github/copilot-sdk";
-
-async function main() {
-  const client = new Client({
-    connection: RuntimeConnection.forInProcess(),
-  });
-
-  await client.start();
-}
-```
-<!-- /docs-validate: hidden -->
+<!-- docs-validate: skip -->
 
 ```typescript
 import { CopilotClient, RuntimeConnection } from "@github/copilot-sdk";
@@ -92,6 +79,8 @@ await client.start();
 <details>
 <summary><strong>Python</strong></summary>
 
+<!-- docs-validate: skip -->
+
 ```python
 from copilot import CopilotClient, RuntimeConnection
 
@@ -106,29 +95,8 @@ await client.start()
 <details>
 <summary><strong>Go</strong></summary>
 
-<!-- docs-validate: hidden -->
-```go
-package main
+<!-- docs-validate: skip -->
 
-import (
-	"context"
-	"log"
-
-	copilot "github.com/github/copilot-sdk/go"
-)
-
-func main() {
-	client := copilot.NewClient(&copilot.ClientOptions{
-		Connection: copilot.InProcessConnection{},
-	})
-
-	if err := client.Start(context.Background()); err != nil {
-		log.Fatal(err)
-	}
-	defer client.Stop()
-}
-```
-<!-- /docs-validate: hidden -->
 ```go
 client := copilot.NewClient(&copilot.ClientOptions{
     Connection: copilot.InProcessConnection{},
@@ -143,6 +111,8 @@ defer client.Stop()
 </details>
 <details>
 <summary><strong>.NET</strong></summary>
+
+<!-- docs-validate: skip -->
 
 ```csharp
 #pragma warning disable GHCP001
@@ -172,11 +142,10 @@ let client = Client::start(options).await?;
 <details>
 <summary><strong>Java</strong></summary>
 
+<!-- docs-validate: skip -->
+
 ```java
 import com.github.copilot.AllowCopilotExperimental;
-import com.github.copilot.CopilotClient;
-import com.github.copilot.rpc.CopilotClientOptions;
-import com.github.copilot.rpc.RuntimeConnection;
 
 @AllowCopilotExperimental
 public class Example {

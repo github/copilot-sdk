@@ -15,8 +15,7 @@ import {
     streamedTurn,
 } from "../../nodejs/test/e2e/harness/runtimeHost.js";
 
-if (process.platform !== "linux")
-    throw new Error("This source-build topology smoke requires Linux");
+if (process.platform !== "linux") throw new Error("This source-build topology smoke requires Linux");
 const artifacts = localHostArtifacts();
 const workDir = resolve(process.argv[2] ?? ".");
 const githubToken = process.env.GITHUB_TOKEN || process.env.GH_TOKEN;
@@ -38,7 +37,6 @@ try {
         model: "claude-sonnet-5",
     });
     await using host = await owner.startAhpHost({
-        authentication: { mode: "github" },
         localServer: {},
         onExit: (exit) => console.log(`AHP host stopped: ${exit.reason}`),
     });
@@ -67,11 +65,9 @@ try {
         console.log(`Standard AHP response: ${response.text} (${response.deltas} streamed deltas)`);
         console.log(`SDK response on the same runtime: ${sdkResponse.data.content}`);
         await host.dispose();
-        await assertHostStopped(host, ahp, runtime);
+        await assertHostStopped(host, ahp, runtime.pid);
         await sdkSession.getEvents();
-        console.log(
-            "Listener closed, AHP client disconnected; hosting runtime and SDK session survive."
-        );
+        console.log("Listener closed, AHP client disconnected; hosting runtime and SDK session survive.");
     } finally {
         await ahp.client.shutdown();
     }

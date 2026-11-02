@@ -25,7 +25,6 @@ import javax.annotation.processing.Generated;
 @JsonInclude(JsonInclude.Include.NON_NULL)
 @JsonIgnoreProperties(ignoreUnknown = true)
 public record FusionStagedTerminal(
-    @JsonInclude(JsonInclude.Include.ALWAYS)
     @JsonProperty("assistantMessage") Object assistantMessage,
     @JsonProperty("toolName") String toolName,
     @JsonProperty("toolCallId") String toolCallId,

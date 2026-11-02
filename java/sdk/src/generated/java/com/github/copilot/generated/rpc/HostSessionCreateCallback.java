@@ -26,8 +26,6 @@ import javax.annotation.processing.Generated;
 @JsonInclude(JsonInclude.Include.NON_NULL)
 @JsonIgnoreProperties(ignoreUnknown = true)
 record HostSessionCreateCallback(
-    /** Trusted admission identity, separate from inference credentials. Always supplied by the runtime for admitted handoffs. */
-    @JsonProperty("authentication") Object authentication,
     /** Listener UUID identifying the owning application's host. */
     @JsonProperty("hostId") String hostId,
     /** Unique identity of the session participation being requested. */

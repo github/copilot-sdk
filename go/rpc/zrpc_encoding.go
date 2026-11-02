@@ -747,12 +747,6 @@ func unmarshalAttachment(data []byte) (Attachment, error) {
 			return nil, err
 		}
 		return &d, nil
-	case AttachmentTypeSessionReference:
-		var d AttachmentSessionReference
-		if err := json.Unmarshal(data, &d); err != nil {
-			return nil, err
-		}
-		return &d, nil
 	default:
 		return &RawAttachmentData{Discriminator: raw.Type, Raw: data}, nil
 	}
@@ -925,17 +919,6 @@ func (r AttachmentGitHubURL) MarshalJSON() ([]byte, error) {
 
 func (r AttachmentSelection) MarshalJSON() ([]byte, error) {
 	type alias AttachmentSelection
-	return json.Marshal(struct {
-		Type AttachmentType `json:"type"`
-		alias
-	}{
-		Type:  r.Type(),
-		alias: alias(r),
-	})
-}
-
-func (r AttachmentSessionReference) MarshalJSON() ([]byte, error) {
-	type alias AttachmentSessionReference
 	return json.Marshal(struct {
 		Type AttachmentType `json:"type"`
 		alias
@@ -3425,184 +3408,6 @@ func (r UnsupportedEnqueueCommandResult) MarshalJSON() ([]byte, error) {
 	})
 }
 
-func unmarshalEntraTokenAcquireRequest(data []byte) (EntraTokenAcquireRequest, error) {
-	if string(data) == "null" {
-		return nil, nil
-	}
-	type rawUnion struct {
-		Kind EntraTokenAcquireRequestKind `json:"kind"`
-	}
-	var raw rawUnion
-	if err := json.Unmarshal(data, &raw); err != nil {
-		return nil, err
-	}
-
-	switch raw.Kind {
-	case EntraTokenAcquireRequestKindIdentity:
-		var d EntraTokenAcquireRequestIdentity
-		if err := json.Unmarshal(data, &d); err != nil {
-			return nil, err
-		}
-		return &d, nil
-	case EntraTokenAcquireRequestKindToken:
-		var d EntraTokenAcquireRequestToken
-		if err := json.Unmarshal(data, &d); err != nil {
-			return nil, err
-		}
-		return &d, nil
-	default:
-		return &RawEntraTokenAcquireRequestData{Discriminator: raw.Kind, Raw: data}, nil
-	}
-}
-
-func (r RawEntraTokenAcquireRequestData) MarshalJSON() ([]byte, error) {
-	if r.Raw != nil {
-		return r.Raw, nil
-	}
-	return json.Marshal(struct {
-		Kind EntraTokenAcquireRequestKind `json:"kind"`
-	}{
-		Kind: r.Discriminator,
-	})
-}
-
-func (r EntraTokenAcquireRequestIdentity) MarshalJSON() ([]byte, error) {
-	type alias EntraTokenAcquireRequestIdentity
-	return json.Marshal(struct {
-		Kind EntraTokenAcquireRequestKind `json:"kind"`
-		alias
-	}{
-		Kind:  r.Kind(),
-		alias: alias(r),
-	})
-}
-
-func (r EntraTokenAcquireRequestToken) MarshalJSON() ([]byte, error) {
-	type alias EntraTokenAcquireRequestToken
-	return json.Marshal(struct {
-		Kind EntraTokenAcquireRequestKind `json:"kind"`
-		alias
-	}{
-		Kind:  r.Kind(),
-		alias: alias(r),
-	})
-}
-
-func unmarshalEntraTokenAcquireResult(data []byte) (EntraTokenAcquireResult, error) {
-	if string(data) == "null" {
-		return nil, nil
-	}
-	type rawUnion struct {
-		Kind EntraTokenAcquireResultKind `json:"kind"`
-	}
-	var raw rawUnion
-	if err := json.Unmarshal(data, &raw); err != nil {
-		return nil, err
-	}
-
-	switch raw.Kind {
-	case EntraTokenAcquireResultKindCancelled:
-		var d EntraTokenAcquireResultCancelled
-		if err := json.Unmarshal(data, &d); err != nil {
-			return nil, err
-		}
-		return &d, nil
-	case EntraTokenAcquireResultKindIdentity:
-		var d EntraTokenAcquireResultIdentity
-		if err := json.Unmarshal(data, &d); err != nil {
-			return nil, err
-		}
-		return &d, nil
-	case EntraTokenAcquireResultKindToken:
-		var d EntraTokenAcquireResultToken
-		if err := json.Unmarshal(data, &d); err != nil {
-			return nil, err
-		}
-		return &d, nil
-	case EntraTokenAcquireResultKindUnavailable:
-		var d EntraTokenAcquireResultUnavailable
-		if err := json.Unmarshal(data, &d); err != nil {
-			return nil, err
-		}
-		return &d, nil
-	default:
-		return &RawEntraTokenAcquireResultData{Discriminator: raw.Kind, Raw: data}, nil
-	}
-}
-
-func (r RawEntraTokenAcquireResultData) MarshalJSON() ([]byte, error) {
-	if r.Raw != nil {
-		return r.Raw, nil
-	}
-	return json.Marshal(struct {
-		Kind EntraTokenAcquireResultKind `json:"kind"`
-	}{
-		Kind: r.Discriminator,
-	})
-}
-
-func (r EntraTokenAcquireResultCancelled) MarshalJSON() ([]byte, error) {
-	type alias EntraTokenAcquireResultCancelled
-	return json.Marshal(struct {
-		Kind EntraTokenAcquireResultKind `json:"kind"`
-		alias
-	}{
-		Kind:  r.Kind(),
-		alias: alias(r),
-	})
-}
-
-func (r EntraTokenAcquireResultIdentity) MarshalJSON() ([]byte, error) {
-	type alias EntraTokenAcquireResultIdentity
-	return json.Marshal(struct {
-		Kind EntraTokenAcquireResultKind `json:"kind"`
-		alias
-	}{
-		Kind:  r.Kind(),
-		alias: alias(r),
-	})
-}
-
-func (r EntraTokenAcquireResultToken) MarshalJSON() ([]byte, error) {
-	type alias EntraTokenAcquireResultToken
-	return json.Marshal(struct {
-		Kind EntraTokenAcquireResultKind `json:"kind"`
-		alias
-	}{
-		Kind:  r.Kind(),
-		alias: alias(r),
-	})
-}
-
-func (r EntraTokenAcquireResultUnavailable) MarshalJSON() ([]byte, error) {
-	type alias EntraTokenAcquireResultUnavailable
-	return json.Marshal(struct {
-		Kind EntraTokenAcquireResultKind `json:"kind"`
-		alias
-	}{
-		Kind:  r.Kind(),
-		alias: alias(r),
-	})
-}
-
-func (r *EntraTokenGetTokenRequest) UnmarshalJSON(data []byte) error {
-	type rawEntraTokenGetTokenRequest struct {
-		Request json.RawMessage `json:"request"`
-	}
-	var raw rawEntraTokenGetTokenRequest
-	if err := json.Unmarshal(data, &raw); err != nil {
-		return err
-	}
-	if raw.Request != nil {
-		value, err := unmarshalEntraTokenAcquireRequest(raw.Request)
-		if err != nil {
-			return err
-		}
-		r.Request = value
-	}
-	return nil
-}
-
 func (r EventLogTypes) MarshalJSON() ([]byte, error) {
 	if r.String != nil {
 		return json.Marshal(r.String)
@@ -4091,308 +3896,6 @@ func (r *HandlePendingToolCallRequest) UnmarshalJSON(data []byte) error {
 		}
 		r.Result = value
 	}
-	return nil
-}
-
-func unmarshalHostAuthentication(data []byte) (HostAuthentication, error) {
-	if string(data) == "null" {
-		return nil, nil
-	}
-	type rawUnion struct {
-		Mode HostAuthenticationMode `json:"mode"`
-	}
-	var raw rawUnion
-	if err := json.Unmarshal(data, &raw); err != nil {
-		return nil, err
-	}
-
-	switch raw.Mode {
-	case HostAuthenticationModeCustom:
-		var d HostAuthenticationCustom
-		if err := json.Unmarshal(data, &d); err != nil {
-			return nil, err
-		}
-		return &d, nil
-	case HostAuthenticationModeGitHub:
-		var d HostAuthenticationGitHub
-		if err := json.Unmarshal(data, &d); err != nil {
-			return nil, err
-		}
-		return &d, nil
-	case HostAuthenticationModeNone:
-		var d HostAuthenticationNone
-		if err := json.Unmarshal(data, &d); err != nil {
-			return nil, err
-		}
-		return &d, nil
-	default:
-		return &RawHostAuthenticationData{Discriminator: raw.Mode, Raw: data}, nil
-	}
-}
-
-func (r RawHostAuthenticationData) MarshalJSON() ([]byte, error) {
-	if r.Raw != nil {
-		return r.Raw, nil
-	}
-	return json.Marshal(struct {
-		Mode HostAuthenticationMode `json:"mode"`
-	}{
-		Mode: r.Discriminator,
-	})
-}
-
-func (r HostAuthenticationCustom) MarshalJSON() ([]byte, error) {
-	type alias HostAuthenticationCustom
-	return json.Marshal(struct {
-		Mode HostAuthenticationMode `json:"mode"`
-		alias
-	}{
-		Mode:  r.Mode(),
-		alias: alias(r),
-	})
-}
-
-func (r HostAuthenticationGitHub) MarshalJSON() ([]byte, error) {
-	type alias HostAuthenticationGitHub
-	return json.Marshal(struct {
-		Mode HostAuthenticationMode `json:"mode"`
-		alias
-	}{
-		Mode:  r.Mode(),
-		alias: alias(r),
-	})
-}
-
-func (r HostAuthenticationNone) MarshalJSON() ([]byte, error) {
-	type alias HostAuthenticationNone
-	return json.Marshal(struct {
-		Mode HostAuthenticationMode `json:"mode"`
-		alias
-	}{
-		Mode:  r.Mode(),
-		alias: alias(r),
-	})
-}
-
-func (r *HostConfiguration) UnmarshalJSON(data []byte) error {
-	type rawHostConfiguration struct {
-		AllowCreatingNewSessions *bool                         `json:"allowCreatingNewSessions,omitempty"`
-		Authentication           json.RawMessage               `json:"authentication,omitempty"`
-		GitHubEnvironment        *HostGitHubEnvironmentOptions `json:"githubEnvironment,omitempty"`
-		LocalServer              *HostLocalServerConfiguration `json:"localServer,omitempty"`
-		ResumeFactory            bool                          `json:"resumeFactory"`
-		SessionFactory           bool                          `json:"sessionFactory"`
-	}
-	var raw rawHostConfiguration
-	if err := json.Unmarshal(data, &raw); err != nil {
-		return err
-	}
-	r.AllowCreatingNewSessions = raw.AllowCreatingNewSessions
-	if raw.Authentication != nil {
-		value, err := unmarshalHostAuthentication(raw.Authentication)
-		if err != nil {
-			return err
-		}
-		r.Authentication = value
-	}
-	r.GitHubEnvironment = raw.GitHubEnvironment
-	r.LocalServer = raw.LocalServer
-	r.ResumeFactory = raw.ResumeFactory
-	r.SessionFactory = raw.SessionFactory
-	return nil
-}
-
-func (r *HostGetConfigurationResult) UnmarshalJSON(data []byte) error {
-	type rawHostGetConfigurationResult struct {
-		AllowCreatingNewSessions *bool                         `json:"allowCreatingNewSessions,omitempty"`
-		Authentication           json.RawMessage               `json:"authentication,omitempty"`
-		GitHubEnvironment        *HostGitHubEnvironmentOptions `json:"githubEnvironment,omitempty"`
-		LocalServer              *HostLocalServerConfiguration `json:"localServer,omitempty"`
-		ResumeFactory            bool                          `json:"resumeFactory"`
-		SessionFactory           bool                          `json:"sessionFactory"`
-	}
-	var raw rawHostGetConfigurationResult
-	if err := json.Unmarshal(data, &raw); err != nil {
-		return err
-	}
-	r.AllowCreatingNewSessions = raw.AllowCreatingNewSessions
-	if raw.Authentication != nil {
-		value, err := unmarshalHostAuthentication(raw.Authentication)
-		if err != nil {
-			return err
-		}
-		r.Authentication = value
-	}
-	r.GitHubEnvironment = raw.GitHubEnvironment
-	r.LocalServer = raw.LocalServer
-	r.ResumeFactory = raw.ResumeFactory
-	r.SessionFactory = raw.SessionFactory
-	return nil
-}
-
-func unmarshalHostSessionAuthentication(data []byte) (HostSessionAuthentication, error) {
-	if string(data) == "null" {
-		return nil, nil
-	}
-	type rawUnion struct {
-		Mode HostSessionAuthenticationMode `json:"mode"`
-	}
-	var raw rawUnion
-	if err := json.Unmarshal(data, &raw); err != nil {
-		return nil, err
-	}
-
-	switch raw.Mode {
-	case HostSessionAuthenticationModeCustom:
-		var d HostSessionAuthenticationCustom
-		if err := json.Unmarshal(data, &d); err != nil {
-			return nil, err
-		}
-		return &d, nil
-	case HostSessionAuthenticationModeGitHub:
-		var d HostSessionAuthenticationGitHub
-		if err := json.Unmarshal(data, &d); err != nil {
-			return nil, err
-		}
-		return &d, nil
-	case HostSessionAuthenticationModeNone:
-		var d HostSessionAuthenticationNone
-		if err := json.Unmarshal(data, &d); err != nil {
-			return nil, err
-		}
-		return &d, nil
-	default:
-		return &RawHostSessionAuthenticationData{Discriminator: raw.Mode, Raw: data}, nil
-	}
-}
-
-func (r RawHostSessionAuthenticationData) MarshalJSON() ([]byte, error) {
-	if r.Raw != nil {
-		return r.Raw, nil
-	}
-	return json.Marshal(struct {
-		Mode HostSessionAuthenticationMode `json:"mode"`
-	}{
-		Mode: r.Discriminator,
-	})
-}
-
-func (r HostSessionAuthenticationCustom) MarshalJSON() ([]byte, error) {
-	type alias HostSessionAuthenticationCustom
-	return json.Marshal(struct {
-		Mode HostSessionAuthenticationMode `json:"mode"`
-		alias
-	}{
-		Mode:  r.Mode(),
-		alias: alias(r),
-	})
-}
-
-func (r HostSessionAuthenticationGitHub) MarshalJSON() ([]byte, error) {
-	type alias HostSessionAuthenticationGitHub
-	return json.Marshal(struct {
-		Mode HostSessionAuthenticationMode `json:"mode"`
-		alias
-	}{
-		Mode:  r.Mode(),
-		alias: alias(r),
-	})
-}
-
-func (r HostSessionAuthenticationNone) MarshalJSON() ([]byte, error) {
-	type alias HostSessionAuthenticationNone
-	return json.Marshal(struct {
-		Mode HostSessionAuthenticationMode `json:"mode"`
-		alias
-	}{
-		Mode:  r.Mode(),
-		alias: alias(r),
-	})
-}
-
-func (r *HostSessionCreateCallback) UnmarshalJSON(data []byte) error {
-	type rawHostSessionCreateCallback struct {
-		Authentication json.RawMessage `json:"authentication,omitempty"`
-		Config         map[string]any  `json:"config"`
-		HandoffID      string          `json:"handoffId"`
-		HostID         string          `json:"hostId"`
-		Resume         *bool           `json:"resume,omitempty"`
-	}
-	var raw rawHostSessionCreateCallback
-	if err := json.Unmarshal(data, &raw); err != nil {
-		return err
-	}
-	if raw.Authentication != nil {
-		value, err := unmarshalHostSessionAuthentication(raw.Authentication)
-		if err != nil {
-			return err
-		}
-		r.Authentication = value
-	}
-	r.Config = raw.Config
-	r.HandoffID = raw.HandoffID
-	r.HostID = raw.HostID
-	r.Resume = raw.Resume
-	return nil
-}
-
-func (r *HostSessionCreateRequest) UnmarshalJSON(data []byte) error {
-	type rawHostSessionCreateRequest struct {
-		Authentication json.RawMessage `json:"authentication,omitempty"`
-		Config         map[string]any  `json:"config"`
-		HandoffID      string          `json:"handoffId"`
-		PreferResident *bool           `json:"preferResident,omitempty"`
-		Resume         *bool           `json:"resume,omitempty"`
-	}
-	var raw rawHostSessionCreateRequest
-	if err := json.Unmarshal(data, &raw); err != nil {
-		return err
-	}
-	if raw.Authentication != nil {
-		value, err := unmarshalHostSessionAuthentication(raw.Authentication)
-		if err != nil {
-			return err
-		}
-		r.Authentication = value
-	}
-	r.Config = raw.Config
-	r.HandoffID = raw.HandoffID
-	r.PreferResident = raw.PreferResident
-	r.Resume = raw.Resume
-	return nil
-}
-
-func (r *HostStartRequest) UnmarshalJSON(data []byte) error {
-	type rawHostStartRequest struct {
-		AllowCreatingNewSessions *bool                         `json:"allowCreatingNewSessions,omitempty"`
-		Authentication           json.RawMessage               `json:"authentication,omitempty"`
-		ComputeID                *string                       `json:"computeId,omitempty"`
-		GitHubEnvironment        *HostGitHubEnvironmentOptions `json:"githubEnvironment,omitempty"`
-		HostID                   string                        `json:"hostId"`
-		LocalServer              *HostLocalServerOptions       `json:"localServer,omitempty"`
-		ResumeFactory            *bool                         `json:"resumeFactory,omitempty"`
-		SessionFactory           *bool                         `json:"sessionFactory,omitempty"`
-		Workspace                *string                       `json:"workspace,omitempty"`
-	}
-	var raw rawHostStartRequest
-	if err := json.Unmarshal(data, &raw); err != nil {
-		return err
-	}
-	r.AllowCreatingNewSessions = raw.AllowCreatingNewSessions
-	if raw.Authentication != nil {
-		value, err := unmarshalHostAuthentication(raw.Authentication)
-		if err != nil {
-			return err
-		}
-		r.Authentication = value
-	}
-	r.ComputeID = raw.ComputeID
-	r.GitHubEnvironment = raw.GitHubEnvironment
-	r.HostID = raw.HostID
-	r.LocalServer = raw.LocalServer
-	r.ResumeFactory = raw.ResumeFactory
-	r.SessionFactory = raw.SessionFactory
-	r.Workspace = raw.Workspace
 	return nil
 }
 
@@ -6880,36 +6383,6 @@ func (r *ProtocolSectionOverride) UnmarshalJSON(data []byte) error {
 	return errors.New("data did not match any union variant for ProtocolSectionOverride")
 }
 
-func (r *PendingPermissionRequest) UnmarshalJSON(data []byte) error {
-	type rawPendingPermissionRequest struct {
-		AssistedApprovalAssessment json.RawMessage `json:"assistedApprovalAssessment,omitempty"`
-		RecoveryEpisodeID          *string         `json:"recoveryEpisodeId,omitempty"`
-		Request                    json.RawMessage `json:"request"`
-		RequestID                  string          `json:"requestId"`
-	}
-	var raw rawPendingPermissionRequest
-	if err := json.Unmarshal(data, &raw); err != nil {
-		return err
-	}
-	if raw.AssistedApprovalAssessment != nil {
-		value, err := unmarshalAssistedApprovalAssessment(raw.AssistedApprovalAssessment)
-		if err != nil {
-			return err
-		}
-		r.AssistedApprovalAssessment = value
-	}
-	r.RecoveryEpisodeID = raw.RecoveryEpisodeID
-	if raw.Request != nil {
-		value, err := unmarshalPermissionPromptRequest(raw.Request)
-		if err != nil {
-			return err
-		}
-		r.Request = value
-	}
-	r.RequestID = raw.RequestID
-	return nil
-}
-
 func unmarshalPermissionDecision(data []byte) (PermissionDecision, error) {
 	if string(data) == "null" {
 		return nil, nil
@@ -9387,7 +8860,6 @@ func (r *SessionOpenOptions) UnmarshalJSON(data []byte) error {
 		EventsLogDirectory                     *string                                              `json:"eventsLogDirectory,omitempty"`
 		EventsLogIncludesSubagents             *bool                                                `json:"eventsLogIncludesSubagents,omitempty"`
 		ExcludedBuiltinAgents                  []string                                             `json:"excludedBuiltinAgents,omitzero"`
-		ExcludedManagedSettings                []string                                             `json:"excludedManagedSettings,omitzero"`
 		ExcludedTools                          []string                                             `json:"excludedTools,omitzero"`
 		ExpAssignments                         any                                                  `json:"expAssignments,omitempty"`
 		FeatureFlags                           map[string]bool                                      `json:"featureFlags,omitzero"`
@@ -9401,7 +8873,6 @@ func (r *SessionOpenOptions) UnmarshalJSON(data []byte) error {
 		IntegrationID                          *string                                              `json:"integrationId,omitempty"`
 		InteractiveUser                        *bool                                                `json:"interactiveUser,omitempty"`
 		IsExperimentalMode                     *bool                                                `json:"isExperimentalMode,omitempty"`
-		LifecycleDiagnostics                   *LifecycleDiagnosticsConfiguration                   `json:"lifecycleDiagnostics,omitempty"`
 		LogInteractiveShells                   *bool                                                `json:"logInteractiveShells,omitempty"`
 		LspClientName                          *string                                              `json:"lspClientName,omitempty"`
 		ManagedMCPServers                      map[string]ManagedMCPServerConfig                    `json:"managedMcpServers,omitzero"`
@@ -9483,7 +8954,6 @@ func (r *SessionOpenOptions) UnmarshalJSON(data []byte) error {
 	r.EventsLogDirectory = raw.EventsLogDirectory
 	r.EventsLogIncludesSubagents = raw.EventsLogIncludesSubagents
 	r.ExcludedBuiltinAgents = raw.ExcludedBuiltinAgents
-	r.ExcludedManagedSettings = raw.ExcludedManagedSettings
 	r.ExcludedTools = raw.ExcludedTools
 	r.ExpAssignments = raw.ExpAssignments
 	r.FeatureFlags = raw.FeatureFlags
@@ -9497,7 +8967,6 @@ func (r *SessionOpenOptions) UnmarshalJSON(data []byte) error {
 	r.IntegrationID = raw.IntegrationID
 	r.InteractiveUser = raw.InteractiveUser
 	r.IsExperimentalMode = raw.IsExperimentalMode
-	r.LifecycleDiagnostics = raw.LifecycleDiagnostics
 	r.LogInteractiveShells = raw.LogInteractiveShells
 	r.LspClientName = raw.LspClientName
 	r.ManagedMCPServers = raw.ManagedMCPServers

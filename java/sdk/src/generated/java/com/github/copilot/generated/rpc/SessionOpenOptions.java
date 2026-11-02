@@ -49,8 +49,6 @@ public record SessionOpenOptions(
     @JsonProperty("expAssignments") Object expAssignments,
     /** Opt-in: self-fetch and enforce enterprise managed settings, including managed hook policies, at session bootstrap. */
     @JsonProperty("enableManagedSettings") Boolean enableManagedSettings,
-    /** Managed-setting paths this trusted SDK host enforces externally or does not support, excluded from fetched, device, and policy-helper policy for this session. Exact dotted paths exclude a setting and its descendants (for example sandbox or permissions.disableBypassPermissionsMode); wildcards and array indices are not supported. Host-injected managedSettings and policy availability checks are not excluded. Not persisted; re-supply on resume, where omission restores full enforcement. Requires enableManagedSettings to self-fetch policy. */
-    @JsonProperty("excludedManagedSettings") List<String> excludedManagedSettings,
     /** Opt in to enforcing non-overridable managed model controls on session model, Auto-tier, reasoning-effort, and context-tier changes. Managed defaults still apply when omitted; this option only turns conflicting changes into errors. */
     @JsonProperty("enforceManagedModelDefaults") Boolean enforceManagedModelDefaults,
     /** Permissions-only enterprise policy injected by the SDK host at session create or resume. Composes restrictively with self-fetched and device policy and is not persisted. */
@@ -99,13 +97,11 @@ public record SessionOpenOptions(
     @JsonProperty("includedBuiltinAgents") List<String> includedBuiltinAgents,
     /** Built-in subagent names to exclude from this session. Excluded built-ins are hidden from agent discovery and cannot be dispatched unless a custom agent with the same name is available. */
     @JsonProperty("excludedBuiltinAgents") List<String> excludedBuiltinAgents,
-    /** Deprecated and ignored. Shell command analysis is always enabled; retained for wire compatibility. */
-    @Deprecated
+    /** Whether shell-script safety heuristics are enabled. */
     @JsonProperty("enableScriptSafety") Boolean enableScriptSafety,
     /** Per-session settings for built-in shell tools. */
     @JsonProperty("shell") ShellOptions shell,
     /** Use shell.initProfile instead. Shell init profile. */
-    @Deprecated
     @JsonProperty("shellInitProfile") String shellInitProfile,
     /** PowerShell process flags applied to built-in and user-requested shell commands. */
     @JsonProperty("shellProcessFlags") List<String> shellProcessFlags,

@@ -50,10 +50,6 @@ func TestPermissionHandlerReceivesDerivedPromptContext(t *testing.T) {
 			Recommendation: rpc.AssistedApprovalRecommendationApprove,
 		},
 	}
-	assessment := &rpc.AssistedApprovalAssessmentCompleted{
-		Recommendation: rpc.AssistedApprovalCompletedRecommendationRequireApproval,
-		Rationale:      ptr("The command modifies protected files."),
-	}
 	var observed PermissionHandlerInvocation
 	session.registerPermissionHandlerWithPrompt(func(_ PermissionRequest, invocation PermissionHandlerInvocation) (rpc.PermissionDecision, error) {
 		observed = invocation
@@ -69,8 +65,7 @@ func TestPermissionHandlerReceivesDerivedPromptContext(t *testing.T) {
 				Intention:               "List files",
 				ManagedApprovalRequired: &managedApprovalRequired,
 			},
-			PromptRequest:              promptRequest,
-			AssistedApprovalAssessment: assessment,
+			PromptRequest: promptRequest,
 		},
 	})
 
@@ -79,9 +74,6 @@ func TestPermissionHandlerReceivesDerivedPromptContext(t *testing.T) {
 	}
 	if !observed.ManagedSettingsEnabled {
 		t.Fatal("expected managed settings context")
-	}
-	if observed.AssistedApprovalAssessment != assessment {
-		t.Fatalf("expected assisted approval assessment, got %#v", observed.AssistedApprovalAssessment)
 	}
 }
 
@@ -190,79 +182,6 @@ func TestToolInvocationNamesTheSubAgentAndRequestBehindTheCall(t *testing.T) {
 	}
 }
 
-func TestToolResultWithEmptyTextIsSentAsEmptyText(t *testing.T) {
-	type noArgs struct{}
-	tests := []struct {
-		name  string
-		tool  Tool
-		check func(t *testing.T, result map[string]any)
-	}{
-		{
-			name: "success result with telemetry only",
-			tool: Tool{Name: "record_note", Handler: func(ToolInvocation) (ToolResult, error) {
-				return ToolResult{
-					ResultType:    "success",
-					ToolTelemetry: map[string]any{"properties": map[string]any{"analyzer": "eslint"}},
-				}, nil
-			}},
-			check: func(t *testing.T, result map[string]any) {
-				if result["resultType"] != "success" {
-					t.Errorf("resultType = %#v, want success", result["resultType"])
-				}
-				if _, ok := result["toolTelemetry"].(map[string]any); !ok {
-					t.Errorf("toolTelemetry = %#v, want the handler's telemetry", result["toolTelemetry"])
-				}
-			},
-		},
-		{
-			name: "DefineTool handler returning nil",
-			tool: DefineTool("record_note", "Records a note", func(noArgs, ToolInvocation) (any, error) {
-				return nil, nil
-			}),
-			check: func(t *testing.T, result map[string]any) {
-				if result["resultType"] != "success" {
-					t.Errorf("resultType = %#v, want success", result["resultType"])
-				}
-			},
-		},
-		{
-			name: "failure result with error only",
-			tool: Tool{Name: "record_note", Handler: func(ToolInvocation) (ToolResult, error) {
-				return ToolResult{ResultType: "failure", Error: "disk full"}, nil
-			}},
-			check: func(t *testing.T, result map[string]any) {
-				if result["resultType"] != "failure" || result["error"] != "disk full" {
-					t.Errorf("result = %#v, want failure with error %q", result, "disk full")
-				}
-			},
-		},
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			session, server := newSetToolsTestSession(t)
-			session.registerTools([]Tool{tt.tool})
-			session.startExternalTool(&ExternalToolRequestedData{
-				RequestID:  "request-1",
-				SessionID:  "session-1",
-				ToolCallID: "tool-call-1",
-				ToolName:   "record_note",
-				Arguments:  map[string]any{},
-			}, "")
-
-			completion := server.expectRequest(t, "session.tools.handlePendingToolCall")
-			result, ok := completion.Params["result"].(map[string]any)
-			if !ok {
-				t.Fatalf("completion params = %#v, want a result object", completion.Params)
-			}
-			if text, ok := result["textResultForLlm"].(string); !ok || text != "" {
-				t.Errorf("textResultForLlm = %#v, want the empty string the handler returned", result["textResultForLlm"])
-			}
-			tt.check(t, result)
-			server.respond(t, completion.ID, map[string]any{})
-		})
-	}
-}
-
 func TestDispatchEventReturnsAfterEventProcessingStops(t *testing.T) {
 	session := &Session{
 		eventCh:   make(chan SessionEvent),
@@ -281,32 +200,6 @@ func TestDispatchEventReturnsAfterEventProcessingStops(t *testing.T) {
 	case <-dispatched:
 	case <-time.After(time.Second):
 		t.Fatal("dispatchEvent remained blocked after event processing stopped")
-	}
-}
-
-func TestEventBacklogIsReleasedWhenEventProcessingStops(t *testing.T) {
-	session := &Session{
-		eventCh:   make(chan SessionEvent),
-		eventDone: make(chan struct{}),
-	}
-
-	// Nothing consumes eventCh, so both events wait in the backlog.
-	session.dispatchEvent(newTestEvent())
-	session.dispatchEvent(newTestEvent())
-	session.stopEventProcessing()
-
-	deadline := time.Now().Add(2 * time.Second)
-	for {
-		session.eventBacklogMu.Lock()
-		active, pending := session.eventBacklogActive, len(session.eventBacklog)
-		session.eventBacklogMu.Unlock()
-		if !active && pending == 0 {
-			return
-		}
-		if time.Now().After(deadline) {
-			t.Fatalf("event backlog still active=%v with %d events after event processing stopped", active, pending)
-		}
-		time.Sleep(time.Millisecond)
 	}
 }
 
@@ -1390,27 +1283,18 @@ func (s *setToolsTestServer) readRequests() {
 
 func (s *setToolsTestServer) expectRequest(t *testing.T, method string) setToolsJSONRPCRequest {
 	t.Helper()
-	deadline := time.NewTimer(2 * time.Second)
-	defer deadline.Stop()
-	for {
-		select {
-		case request := <-s.request:
-			if method == "session.send" && request.Method == "session.sendAndWait" {
-				s.respondError(t, request.ID, -32601, "Method not found")
-				continue
-			}
-			if request.Method != method {
-				t.Fatalf("method = %s, want %s", request.Method, method)
-			}
-			return request
-		case err := <-s.errs:
-			t.Fatal(err)
-			return setToolsJSONRPCRequest{}
-		case <-deadline.C:
-			t.Fatalf("timed out waiting for %s request", method)
-			return setToolsJSONRPCRequest{}
+	select {
+	case request := <-s.request:
+		if request.Method != method {
+			t.Fatalf("method = %s, want %s", request.Method, method)
 		}
+		return request
+	case err := <-s.errs:
+		t.Fatal(err)
+	case <-time.After(2 * time.Second):
+		t.Fatalf("timed out waiting for %s request", method)
 	}
+	return setToolsJSONRPCRequest{}
 }
 
 func (s *setToolsTestServer) expectNoRequest(t *testing.T) {
@@ -1513,7 +1397,7 @@ func checkSendAndWaitSkipsSubagentAndAutopilotContinuationIdle(t *testing.T, roo
 	requestReceived := make(chan struct{})
 	errCh := make(chan error, 1)
 	go func() {
-		frame, err := readLegacySessionSendFrame(stdinR, stdoutW)
+		frame, err := readTestJSONRPCFrame(stdinR)
 		if err != nil {
 			errCh <- err
 			return
@@ -1844,50 +1728,6 @@ func TestSession_On(t *testing.T) {
 		}
 	})
 
-	t.Run("a busy handler does not block dispatch or reorder events", func(t *testing.T) {
-		session := &Session{
-			handlers:  make([]*sessionHandler, 0),
-			eventCh:   make(chan SessionEvent, 1),
-			eventDone: make(chan struct{}),
-		}
-		go session.processEvents()
-		defer session.stopEventProcessing()
-
-		const totalEvents = 50
-		release := make(chan struct{})
-		received := make(chan string, totalEvents)
-		session.On(func(event SessionEvent) {
-			<-release
-			received <- event.ID
-		})
-
-		dispatched := make(chan struct{})
-		go func() {
-			defer close(dispatched)
-			for i := 0; i < totalEvents; i++ {
-				session.dispatchEvent(SessionEvent{ID: strconv.Itoa(i), Data: &SessionIdleData{}})
-			}
-		}()
-		select {
-		case <-dispatched:
-		case <-time.After(2 * time.Second):
-			close(release)
-			t.Fatal("dispatchEvent blocked while a handler was busy")
-		}
-
-		close(release)
-		for i := 0; i < totalEvents; i++ {
-			select {
-			case got := <-received:
-				if want := strconv.Itoa(i); got != want {
-					t.Fatalf("event %d delivered as %q, want %q", i, got, want)
-				}
-			case <-time.After(2 * time.Second):
-				t.Fatalf("handler received %d of %d events", i, totalEvents)
-			}
-		}
-	})
-
 	t.Run("handler panic does not halt delivery", func(t *testing.T) {
 		session, cleanup := newTestSession()
 		defer cleanup()
@@ -2112,7 +1952,12 @@ func TestSession_Capabilities(t *testing.T) {
 			},
 		})
 
-		caps = session.Capabilities()
+		// Capabilities are updated by handleBroadcastEvent which runs in a goroutine.
+		// Poll instead of sleep so the test is bound by event processing, not arbitrary
+		// timing — fast machines exit immediately, slow ones still get 2s.
+		caps = waitForCapability(t, session, func(c SessionCapabilities) bool {
+			return c.UI != nil && c.UI.Elicitation
+		}, 2*time.Second)
 		if caps.UI == nil || !caps.UI.Elicitation {
 			t.Error("Expected UI.Elicitation to be true after capabilities.changed event")
 		}
@@ -2125,7 +1970,9 @@ func TestSession_Capabilities(t *testing.T) {
 			},
 		})
 
-		caps = session.Capabilities()
+		caps = waitForCapability(t, session, func(c SessionCapabilities) bool {
+			return c.UI != nil && !c.UI.Elicitation
+		}, 2*time.Second)
 		if caps.UI == nil || caps.UI.Elicitation {
 			t.Error("Expected UI.Elicitation to be false after second capabilities.changed event")
 		}
@@ -2316,80 +2163,6 @@ func TestSession_ElicitationCapabilityGating(t *testing.T) {
 			t.Errorf("Expected no error when elicitation capability is present, got %v", err)
 		}
 	})
-}
-
-func TestSession_CapabilitiesChangedKeepsCapabilitiesItDoesNotName(t *testing.T) {
-	changed := func(session *Session, ui CapabilitiesChangedUI) {
-		session.dispatchEvent(SessionEvent{Data: &CapabilitiesChangedData{UI: &ui}})
-	}
-
-	t.Run("an elicitation change keeps mcpApps", func(t *testing.T) {
-		session, cleanup := newTestSession()
-		defer cleanup()
-		session.setCapabilities(&SessionCapabilities{UI: &UICapabilities{MCPApps: true}})
-		before := session.Capabilities()
-
-		changed(session, CapabilitiesChangedUI{Elicitation: Bool(true)})
-
-		caps := waitForCapability(t, session, func(c SessionCapabilities) bool {
-			return c.UI != nil && c.UI.Elicitation
-		}, 2*time.Second)
-		if caps.UI == nil || !caps.UI.Elicitation || !caps.UI.MCPApps {
-			t.Fatalf("expected elicitation applied and mcpApps kept, got %+v", caps.UI)
-		}
-		if before.UI.Elicitation {
-			t.Error("capabilities read before the event were modified in place")
-		}
-	})
-
-	t.Run("an mcpApps change is applied and keeps elicitation", func(t *testing.T) {
-		session, cleanup := newTestSession()
-		defer cleanup()
-		session.setCapabilities(&SessionCapabilities{UI: &UICapabilities{Elicitation: true}})
-
-		changed(session, CapabilitiesChangedUI{MCPApps: Bool(true)})
-
-		caps := waitForCapability(t, session, func(c SessionCapabilities) bool {
-			return c.UI != nil && c.UI.MCPApps
-		}, 2*time.Second)
-		if caps.UI == nil || !caps.UI.MCPApps || !caps.UI.Elicitation {
-			t.Fatalf("expected mcpApps applied and elicitation kept, got %+v", caps.UI)
-		}
-	})
-
-	t.Run("a change to false keeps the other capability", func(t *testing.T) {
-		session, cleanup := newTestSession()
-		defer cleanup()
-		session.setCapabilities(&SessionCapabilities{UI: &UICapabilities{Elicitation: true, MCPApps: true}})
-
-		changed(session, CapabilitiesChangedUI{Elicitation: Bool(false)})
-
-		caps := waitForCapability(t, session, func(c SessionCapabilities) bool {
-			return c.UI != nil && !c.UI.Elicitation
-		}, 2*time.Second)
-		if caps.UI == nil || caps.UI.Elicitation || !caps.UI.MCPApps {
-			t.Fatalf("expected elicitation off and mcpApps kept, got %+v", caps.UI)
-		}
-	})
-}
-
-func TestSession_CapabilitiesChangedAppliesInNotificationOrder(t *testing.T) {
-	session, cleanup := newTestSession()
-	defer cleanup()
-	session.setCapabilities(&SessionCapabilities{UI: &UICapabilities{Elicitation: true}})
-
-	for _, enabled := range []bool{true, false, true, false} {
-		session.dispatchEvent(SessionEvent{
-			Data: &CapabilitiesChangedData{
-				UI: &CapabilitiesChangedUI{MCPApps: Bool(enabled)},
-			},
-		})
-
-		caps := session.Capabilities()
-		if caps.UI == nil || caps.UI.MCPApps != enabled || !caps.UI.Elicitation {
-			t.Fatalf("expected mcpApps=%v and elicitation kept immediately after dispatch, got %+v", enabled, caps.UI)
-		}
-	}
 }
 
 func TestSession_ElicitationHandler(t *testing.T) {

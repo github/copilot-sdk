@@ -10,7 +10,6 @@ package com.github.copilot.generated.rpc;
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.annotation.JsonProperty;
-import com.github.copilot.generated.PolicyHelperFailure;
 import java.util.List;
 import javax.annotation.processing.Generated;
 
@@ -41,10 +40,7 @@ record ManagedSettingsResolveStartupPolicyResult(
     @JsonProperty("deviceLoadFailed") Boolean deviceLoadFailed,
     /** The policy helper was configured but could not be run, or its output could not be read. */
     @JsonProperty("policyHelperLoadFailed") Boolean policyHelperLoadFailed,
-    /** Structured latest Policy Helper failure for this startup resolution, when one occurred. */
-    @JsonProperty("policyHelperFailure") PolicyHelperFailure policyHelperFailure,
     /** Telemetry describing which layers answered and how, for the host to report alongside its own startup events. */
-    @JsonInclude(JsonInclude.Include.ALWAYS)
     @JsonProperty("telemetry") Object telemetry,
     /** The effective sandbox floor composed across every layer, which a host must apply rather than its own default. */
     @JsonProperty("sandboxFloor") Object sandboxFloor,

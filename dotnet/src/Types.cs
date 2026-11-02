@@ -297,6 +297,7 @@ public sealed class InProcessRuntimeConnection : RuntimeConnection
     /// Required for OneAuth interactive authentication on macOS. This general-purpose
     /// scheduler may also be used for other runtime-owned native UI operations.
     /// Temporary OneAuth workaround; this API may be removed if no longer needed.
+    /// See https://github.com/github/copilot-agent-runtime/issues/27032.
     /// </summary>
     public Func<Action, Task>? RunOnUiThread { get; set; }
 }
@@ -414,12 +415,11 @@ public sealed class CopilotClientOptions
         SessionFs = other.SessionFs;
         RequestHandler = other.RequestHandler;
         ExtensionLaunchProvider = other.ExtensionLaunchProvider;
-        KerberosAuth = other.KerberosAuth;
         InstallationConfirmationHandler = other.InstallationConfirmationHandler;
         OnGitHubTelemetry = other.OnGitHubTelemetry;
         SessionIdleTimeoutSeconds = other.SessionIdleTimeoutSeconds;
+        EnableRemoteSessions = other.EnableRemoteSessions;
         ClientInfo = other.ClientInfo;
-        Entra = other.Entra;
         Mode = other.Mode;
     }
 
@@ -498,8 +498,7 @@ public sealed class CopilotClientOptions
     /// <summary>
     /// Whether to use the logged-in user for authentication.
     /// When true, the runtime will attempt to use stored OAuth tokens or gh CLI auth.
-    /// When false, only explicit tokens such as GitHubToken are used; environment variable
-    /// tokens (COPILOT_GITHUB_TOKEN, GH_TOKEN, GITHUB_TOKEN) are ignored.
+    /// When false, only explicit tokens (GitHubToken or environment variables) are used.
     /// Default: true (but defaults to false when GitHubToken is provided).
     /// </summary>
     public bool? UseLoggedInUser { get; set; }
@@ -540,14 +539,6 @@ public sealed class CopilotClientOptions
     public IExtensionLaunchProviderHandler? ExtensionLaunchProvider { get; set; }
 
     /// <summary>
-    /// Supplies Kerberos credentials from the SDK host.
-    /// When set, the SDK registers the callback during <c>StartAsync()</c>
-    /// before any session can be created.
-    /// </summary>
-    [Experimental(global::GitHub.Copilot.Diagnostics.Experimental)]
-    public KerberosAuthConfig? KerberosAuth { get; set; }
-
-    /// <summary>
     /// Connection-global human review for experimental installation operations.
     /// Does not register or enable installation capabilities on the runtime.
     /// </summary>
@@ -579,6 +570,15 @@ public sealed class CopilotClientOptions
     public int? SessionIdleTimeoutSeconds { get; set; }
 
     /// <summary>
+    /// Enable remote session support (Mission Control integration).
+    /// When true, sessions in a GitHub repository working directory are
+    /// accessible from GitHub web and mobile.
+    /// This option is only used when the SDK spawns the runtime; it is ignored
+    /// when connecting to an external runtime via <see cref="RuntimeConnection.ForUri(string, string?)"/>.
+    /// </summary>
+    public bool EnableRemoteSessions { get; set; }
+
+    /// <summary>
     /// Declares the integrating application's identity, forwarded to the runtime on the
     /// <c>server.connect</c> handshake. Declaring it lets the telemetry the
     /// runtime emits on this connection be attributed to a consistent surface
@@ -587,14 +587,6 @@ public sealed class CopilotClientOptions
     /// the runtime's default attribution.
     /// </summary>
     public CopilotClientInfo? ClientInfo { get; set; }
-
-    /// <summary>
-    /// Host application's Entra registration, shared by its sessions.
-    /// Required for built-in Entra sign-in and token renewal; other authentication methods remain available.
-    /// </summary>
-    [Experimental(global::GitHub.Copilot.Diagnostics.Experimental)]
-    [EditorBrowsable(EditorBrowsableState.Never)]
-    public EntraAuthOptions? Entra { get; set; }
 
     /// <summary>
     /// Creates a shallow clone of this <see cref="CopilotClientOptions"/> instance.
@@ -657,7 +649,7 @@ public sealed class TelemetryConfig
     /// Whether to capture message content as part of telemetry.
     /// </summary>
     /// <remarks>
-    /// Sets <c>OTEL_INSTRUMENTATION_GENAI_CAPTURE_CONTENT</c> and its legacy boolean alias.
+    /// Maps to the <c>OTEL_INSTRUMENTATION_GENAI_CAPTURE_MESSAGE_CONTENT</c> environment variable.
     /// </remarks>
     public bool? CaptureContent { get; set; }
 }
@@ -1024,17 +1016,6 @@ public sealed class PermissionInvocation
     public bool ManagedSettingsEnabled { get; set; }
 
     /// <summary>
-    /// Canonical runtime-owned Assisted Permissions assessment.
-    /// </summary>
-    /// <remarks>
-    /// This explains the assisted review only; <c>permission.completed</c>
-    /// remains authoritative for the final permission result. It is absent
-    /// with older runtimes and legacy direct permission callbacks.
-    /// </remarks>
-    [Experimental(global::GitHub.Copilot.Diagnostics.Experimental)]
-    public AssistedApprovalAssessment? AssistedApprovalAssessment { get; set; }
-
-    /// <summary>
     /// Derived user-facing permission prompt supplied by newer runtimes.
     /// </summary>
     /// <remarks>
@@ -1073,18 +1054,6 @@ public sealed class UserInputRequest
     /// </summary>
     [JsonPropertyName("allowFreeform")]
     public bool? AllowFreeform { get; set; }
-
-    /// <summary>
-    /// Runtime request ID of the pending <c>user_input.requested</c> request.
-    /// </summary>
-    /// <remarks>
-    /// Pass it as <c>requestId</c> to the session's
-    /// <see cref="UiApi.HandlePendingUserInputAsync"/> (or the trusted
-    /// <c>session.ui.handleHumanUserInput</c> path) to correlate an out-of-band answer
-    /// with this request. <see langword="null"/> when the runtime predates this field.
-    /// </remarks>
-    [JsonPropertyName("requestId")]
-    public string? RequestId { get; set; }
 }
 
 /// <summary>
@@ -1144,18 +1113,6 @@ public sealed class ExitPlanModeRequest
     /// </summary>
     [JsonPropertyName("recommendedAction")]
     public string RecommendedAction { get; set; } = "autopilot";
-
-    /// <summary>
-    /// Runtime request ID of the pending <c>exit_plan_mode.requested</c> request.
-    /// </summary>
-    /// <remarks>
-    /// Pass it as <c>requestId</c> to the session's
-    /// <see cref="UiApi.HandlePendingExitPlanModeAsync"/> (or the trusted
-    /// <c>session.ui.handleHumanExitPlanMode</c> path) to correlate an out-of-band
-    /// decision with this request. <see langword="null"/> when the runtime predates this field.
-    /// </remarks>
-    [JsonPropertyName("requestId")]
-    public string? RequestId { get; set; }
 }
 
 /// <summary>
@@ -1564,10 +1521,6 @@ public sealed class HookInvocation
 /// </summary>
 public sealed class PreToolUseHookInput
 {
-    /// <summary>Existing tool-call ID; correlate using (SessionId, ToolCallId). Absent on older runtimes.</summary>
-    [JsonPropertyName("toolCallId")]
-    public string? ToolCallId { get; set; }
-
     /// <summary>Subagent actor ID, absent for root hooks and older runtimes.</summary>
     [JsonPropertyName("agentId")]
     public string? AgentId { get; set; }
@@ -1747,10 +1700,6 @@ public sealed class PreMcpToolCallHookOutput
 /// </summary>
 public sealed class PostToolUseHookInput
 {
-    /// <summary>Existing tool-call ID; correlate using (SessionId, ToolCallId). Absent on older runtimes.</summary>
-    [JsonPropertyName("toolCallId")]
-    public string? ToolCallId { get; set; }
-
     /// <summary>Subagent actor ID, absent for root hooks and older runtimes.</summary>
     [JsonPropertyName("agentId")]
     public string? AgentId { get; set; }
@@ -1834,10 +1783,6 @@ public sealed class PostToolUseHookOutput
 /// </summary>
 public sealed class PostToolUseFailureHookInput
 {
-    /// <summary>Existing tool-call ID; correlate using (SessionId, ToolCallId). Absent on older runtimes.</summary>
-    [JsonPropertyName("toolCallId")]
-    public string? ToolCallId { get; set; }
-
     /// <summary>Subagent actor ID, absent for root hooks and older runtimes.</summary>
     [JsonPropertyName("agentId")]
     public string? AgentId { get; set; }
@@ -2926,9 +2871,7 @@ public sealed class ProviderConfig
     /// Product serving the model, such as <c>ollama</c> or <c>lm_studio</c>, reported in telemetry
     /// as <c>model_provider</c>. Allowed values are <c>openai</c>, <c>anthropic</c>,
     /// <c>azure_openai</c>, <c>ollama</c>, <c>lm_studio</c>, <c>foundry_local</c>, and
-    /// <c>llama_cpp</c>. <c>azure_openai</c> also omits explicit prompt-cache breakpoints, which
-    /// limit cross-turn cache reuse on Azure; set it for a proxy or custom domain in front of
-    /// Azure OpenAI.
+    /// <c>llama_cpp</c>; only affects telemetry.
     /// </summary>
     [JsonPropertyName("modelProvider")]
     public string? ModelProvider { get; set; }
@@ -3115,9 +3058,7 @@ public sealed class NamedProviderConfig
     /// Product serving this provider's models, such as <c>ollama</c> or <c>lm_studio</c>, reported
     /// in telemetry as <c>model_provider</c>. Allowed values are <c>openai</c>, <c>anthropic</c>,
     /// <c>azure_openai</c>, <c>ollama</c>, <c>lm_studio</c>, <c>foundry_local</c>, and
-    /// <c>llama_cpp</c>. <c>azure_openai</c> also omits explicit prompt-cache breakpoints, which
-    /// limit cross-turn cache reuse on Azure; set it for a proxy or custom domain in front of
-    /// Azure OpenAI.
+    /// <c>llama_cpp</c>; only affects telemetry.
     /// </summary>
     [JsonPropertyName("modelProvider")]
     public string? ModelProvider { get; set; }
@@ -3593,18 +3534,6 @@ public sealed class ImageGenerationConfig
     /// </summary>
     [JsonPropertyName("watermark")]
     public bool? Watermark { get; set; }
-
-    /// <summary>
-    /// Experimental. Save generated and edited images under the session-state
-    /// directory's <c>images</c> folder and give the model each path as a
-    /// <c>saved_to:</c> line in the tool result. Defaults to true; set false to
-    /// opt out. Subagents
-    /// follow their parent's value unless they set their own. A failed save still
-    /// returns the image. Sessions without a local session-state directory never
-    /// save. Re-supply after cold resume. Does not enable image generation.
-    /// </summary>
-    [JsonPropertyName("saveToDisk")]
-    public bool? SaveToDisk { get; set; }
 }
 
 /// <summary>
@@ -3632,21 +3561,6 @@ public sealed class ToolSearchConfig
 }
 
 /// <summary>
-/// Selects where retrieved memories are included in the model conversation.
-/// </summary>
-[Experimental(Diagnostics.Experimental)]
-[JsonConverter(typeof(JsonStringEnumConverter<MemoryMode>))]
-public enum MemoryMode
-{
-    /// <summary>Include memories in the system prompt (the default).</summary>
-    [JsonStringEnumMemberName("system-prompt")]
-    SystemPrompt,
-    /// <summary>Include memories in user messages.</summary>
-    [JsonStringEnumMemberName("user-prompt")]
-    UserPrompt
-}
-
-/// <summary>
 /// Configuration for session memory.
 /// </summary>
 public sealed class MemoryConfiguration
@@ -3656,15 +3570,6 @@ public sealed class MemoryConfiguration
     /// </summary>
     [JsonPropertyName("enabled")]
     public bool Enabled { get; set; }
-
-    /// <summary>
-    /// "system-prompt" (default) places memories in the system prompt.
-    /// "user-prompt" places memories in generated user-role messages.
-    /// </summary>
-    [Experimental(Diagnostics.Experimental)]
-    [JsonPropertyName("mode")]
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
-    public MemoryMode? Mode { get; set; }
 }
 
 /// <summary>
@@ -3995,7 +3900,6 @@ public abstract class SessionConfigBase
             : null;
         McpOAuthTokenStorage = other.McpOAuthTokenStorage;
         Diagnostics = other.Diagnostics;
-        LifecycleDiagnostics = other.LifecycleDiagnostics;
         AuthClientIdMetadataUrl = other.AuthClientIdMetadataUrl;
         Model = other.Model;
         ModelCapabilities = other.ModelCapabilities;
@@ -4023,12 +3927,12 @@ public abstract class SessionConfigBase
         CreateSessionFsProvider = other.CreateSessionFsProvider;
         GitHubToken = other.GitHubToken;
         GitHubTokenProvider = other.GitHubTokenProvider;
+        RemoteSession = other.RemoteSession;
         FeatureFlags = other.FeatureFlags is not null
             ? new Dictionary<string, bool>(other.FeatureFlags)
             : null;
         ExpAssignments = other.ExpAssignments;
         EnableManagedSettings = other.EnableManagedSettings;
-        ExcludedManagedSettings = other.ExcludedManagedSettings?.ToList();
         EnforceManagedModelDefaults = other.EnforceManagedModelDefaults;
         InteractiveUser = other.InteractiveUser;
         ManagedSettings = other.ManagedSettings;
@@ -4260,10 +4164,10 @@ public abstract class SessionConfigBase
 
     /// <summary>
     /// Enables or disables internal session telemetry for this session.
-    /// When <c>false</c>, disables session telemetry. When <c>true</c>, enables it for eligible
-    /// GitHub-authenticated sessions, including custom <see cref="Provider"/> (BYOK) sessions.
-    /// When <c>null</c>, preserves a resident session's choice; otherwise defaults to enabled.
-    /// Host and account policies still control uploads.
+    /// When <c>false</c>, disables session telemetry. When <c>null</c> (the default) or <c>true</c>,
+    /// telemetry is enabled for GitHub-authenticated sessions.
+    /// When a custom <see cref="Provider"/> (BYOK) is configured, session telemetry is
+    /// always disabled regardless of this setting.
     /// This is independent of <see cref="CopilotClientOptions.Telemetry"/>, which configures
     /// OpenTelemetry export for observability.
     /// </summary>
@@ -4300,7 +4204,6 @@ public abstract class SessionConfigBase
     /// <summary>
     /// When <see langword="true"/>, allows the runtime to append a
     /// <c>Co-authored-by</c> trailer when it commits on behalf of the user.
-    /// Subagents inherit this setting.
     /// When <see langword="null"/>, the SDK chooses based on
     /// <see cref="CopilotClientOptions.Mode"/>: <c>false</c> under
     /// <see cref="CopilotClientMode.Empty"/>, <c>null</c> otherwise.
@@ -4413,12 +4316,6 @@ public abstract class SessionConfigBase
     /// without deliberate user action.
     /// </summary>
     public DiagnosticsConfiguration? Diagnostics { get; set; }
-
-    /// <summary>
-    /// Configures the startup-only experimental runtime lifecycle diagnostic read and persistence surfaces.
-    /// </summary>
-    [Experimental(global::GitHub.Copilot.Diagnostics.Experimental)]
-    internal LifecycleDiagnosticsConfiguration? LifecycleDiagnostics { get; set; }
 
     /// <summary>
     /// Controls how MCP OAuth tokens are stored for this session.
@@ -4592,6 +4489,16 @@ public abstract class SessionConfigBase
     public Func<GitHubTokenProviderArgs, Task<GitHubTokenProviderResult>>? GitHubTokenProvider { get; set; }
 
     /// <summary>
+    /// Per-session remote behavior control:
+    /// <list type="bullet">
+    /// <item><description><c>"off"</c> — local only, no remote export (default)</description></item>
+    /// <item><description><c>"export"</c> — export session events to GitHub without enabling remote steering</description></item>
+    /// <item><description><c>"on"</c> — export to GitHub AND enable remote steering</description></item>
+    /// </list>
+    /// </summary>
+    public RemoteSessionMode? RemoteSession { get; set; }
+
+    /// <summary>
     /// ExP assignment ("flight") data injected by a trusted integrator, in the
     /// same JSON shape the Copilot CLI fetches from the experimentation service
     /// (<c>CopilotExpAssignmentResponse</c>). When provided, the runtime feeds it
@@ -4623,14 +4530,6 @@ public abstract class SessionConfigBase
     /// wire as <c>enableManagedSettings</c>.
     /// </summary>
     public bool? EnableManagedSettings { get; set; }
-
-    /// <summary>
-    /// Exact dotted setting paths excluded from fetched, device, and policy-helper
-    /// policy. Host-injected policy and availability checks are unaffected.
-    /// Not persisted; re-supply on resume, where omission restores full enforcement.
-    /// Use EnableManagedSettings to enable self-fetching.
-    /// </summary>
-    public IList<string>? ExcludedManagedSettings { get; set; }
 
     /// <summary>
     /// When true, enforces locked managed model controls for this session.
@@ -4841,10 +4740,10 @@ public sealed class ResumeSessionConfig : SessionConfigBase
     /// interrupted on resume. Completed tool results already durably recorded
     /// by the runtime are preserved.
     /// <para>
-    /// When <see langword="true"/>, pending permission requests and external tool calls
-    /// wait for caller-supplied results via the corresponding low-level RPC methods.
-    /// Resuming does not re-emit restored permission requests or re-invoke permission
-    /// handlers or already-dispatched external tool callbacks.
+    /// For permission requests, the runtime re-emits <c>permission.requested</c> so the
+    /// registered <see cref="SessionConfigBase.OnPermissionRequest"/> handler can re-prompt;
+    /// for external tool calls, the consumer is expected to supply the result via the
+    /// corresponding low-level RPC method.
     /// </para>
     /// </summary>
     public bool? ContinuePendingWork { get; set; }
@@ -5064,10 +4963,6 @@ public sealed class GetStatusResponse
     /// <summary>Protocol version for SDK compatibility</summary>
     [JsonPropertyName("protocolVersion")]
     public int ProtocolVersion { get; set; }
-
-    /// <summary>Host diagnostics, when supplied by the runtime.</summary>
-    [JsonPropertyName("hostDiagnostics")]
-    public GitHub.Copilot.Rpc.HostDiagnostics? HostDiagnostics { get; set; }
 }
 
 /// <summary>
@@ -5140,12 +5035,6 @@ public sealed class ModelLimits
     /// </summary>
     [JsonPropertyName("max_prompt_tokens")]
     public int? MaxPromptTokens { get; set; }
-
-    /// <summary>
-    /// Maximum number of tokens the model can generate in one response.
-    /// </summary>
-    [JsonPropertyName("max_output_tokens")]
-    public int? MaxOutputTokens { get; set; }
 
     /// <summary>
     /// Maximum total tokens in the context window.
@@ -5244,11 +5133,6 @@ public sealed class ModelInfo
     /// <summary>Display name</summary>
     [JsonPropertyName("name")]
     public string Name { get; set; } = string.Empty;
-
-    /// <summary>Native serving provider, when attributed by the runtime. Absent for configured BYOK models.</summary>
-    [JsonPropertyName("provider")]
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
-    public ModelProviderRef? Provider { get; set; }
 
     /// <summary>Model capabilities and limits</summary>
     [JsonPropertyName("capabilities")]
@@ -5435,7 +5319,6 @@ public sealed class SystemMessageTransformRpcResponse
 [JsonSerializable(typeof(GetForegroundSessionResponse))]
 [JsonSerializable(typeof(GetModelsResponse))]
 [JsonSerializable(typeof(GetStatusResponse))]
-[JsonSerializable(typeof(GitHub.Copilot.Rpc.HostDiagnostics))]
 [JsonSerializable(typeof(McpServerConfig))]
 [JsonSerializable(typeof(MessageOptions))]
 [JsonSerializable(typeof(ModelBilling))]

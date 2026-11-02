@@ -226,7 +226,6 @@ public final class CopilotSession implements AutoCloseable {
 
     /** Tracks whether this session instance has been closed or force-stopped. */
     private volatile boolean isTerminated = false;
-    private volatile boolean completionRpcUnsupported;
     private volatile boolean callbacksRetired = false;
 
     private static final class EventSubscription {
@@ -595,11 +594,6 @@ public final class CopilotSession implements AutoCloseable {
      */
     public CompletableFuture<String> send(MessageOptions options) {
         ensureNotTerminated();
-        return rpc.invoke("session.send", createSendRequest(options), SendMessageResponse.class)
-                .thenApply(SendMessageResponse::messageId);
-    }
-
-    private SendMessageRequest createSendRequest(MessageOptions options) {
         var request = new SendMessageRequest();
         request.setSessionId(sessionId);
         request.setPrompt(options.getPrompt());
@@ -614,7 +608,7 @@ public final class CopilotSession implements AutoCloseable {
                     Map.of("name", "response", "strict", true, "schema", options.getResponseSchema())));
         }
 
-        return request;
+        return rpc.invoke("session.send", request, SendMessageResponse.class).thenApply(SendMessageResponse::messageId);
     }
 
     /**
@@ -624,8 +618,9 @@ public final class CopilotSession implements AutoCloseable {
      * does not wait for or stop attached shells. An aborted request completes the
      * returned future exceptionally.
      * <p>
-     * Supported local runtimes correlate completion and the response with this
-     * message. Unsupported runtimes retain the legacy {@code session.idle} wait.
+     * This method blocks until the assistant finishes processing the message or
+     * until the timeout expires. It's suitable for simple request/response
+     * interactions where you don't need to process streaming events.
      * <p>
      * The returned future can be cancelled via
      * {@link java.util.concurrent.Future#cancel(boolean)}. If cancelled externally,
@@ -635,7 +630,7 @@ public final class CopilotSession implements AutoCloseable {
      * <p>
      * Sub-agent events with a non-empty agentId remain visible to subscribers but
      * cannot complete this wait or supply its reply. Synchronous listeners
-     * registered before this call process the terminal event, when present, before
+     * registered before this call finish processing the root terminal event before
      * this wait completes.
      *
      * @param options
@@ -652,182 +647,6 @@ public final class CopilotSession implements AutoCloseable {
      * @see #send(MessageOptions)
      */
     public CompletableFuture<AssistantMessageEvent> sendAndWait(MessageOptions options, long timeoutMs) {
-        ensureNotTerminated();
-        return completionRpcUnsupported
-                ? sendAndWaitLegacy(options, timeoutMs)
-                : sendWithCompletion(options, timeoutMs);
-    }
-
-    private CompletableFuture<AssistantMessageEvent> sendWithCompletion(MessageOptions options, long timeoutMs) {
-        java.util.Objects.requireNonNull(options, "options");
-        long started = System.nanoTime();
-        var result = new CompletableFuture<AssistantMessageEvent>();
-        var outcome = new CompletableFuture<AssistantMessageEvent>();
-        var active = new AtomicReference<CompletableFuture<?>>();
-        class Delivery {
-            final Set<String> dispatched = new java.util.HashSet<>();
-            String boundary;
-            Runnable completion;
-
-            synchronized void event(SessionEvent event) {
-                if ((event.getAgentId() != null && !event.getAgentId().isEmpty()) || !(event instanceof SessionIdleEvent
-                        || event instanceof SessionAutopilotStoppedEvent || event instanceof SessionErrorEvent)) {
-                    return;
-                }
-                if (event.getId() == null) {
-                    return;
-                }
-                String eventId = event.getId().toString();
-                dispatched.add(eventId);
-                if (eventId.equals(boundary)) {
-                    completion.run();
-                    completion = null;
-                    boundary = null;
-                }
-            }
-
-            synchronized void finish(String eventId, Runnable action) {
-                if (eventId == null || dispatched.contains(eventId)) {
-                    action.run();
-                } else {
-                    boundary = eventId;
-                    completion = action;
-                }
-            }
-        }
-        var delivery = new Delivery();
-        Closeable subscription;
-        synchronized (this) {
-            subscription = on(delivery::event);
-            plainWaits.put(result, () -> {
-                outcome.completeExceptionally(new IllegalStateException("Session closed before response completed"));
-                outcome.whenComplete((value, error) -> {
-                    if (error != null)
-                        result.completeExceptionally(error);
-                    else
-                        result.complete(value);
-                });
-            });
-        }
-        ScheduledFuture<?> timer;
-        try {
-            timer = timeoutMs > 0
-                    ? timeoutScheduler.schedule(
-                            () -> result.completeExceptionally(
-                                    new TimeoutException("sendAndWait timed out after " + timeoutMs + "ms")),
-                            timeoutMs, TimeUnit.MILLISECONDS)
-                    : null;
-        } catch (RejectedExecutionException error) {
-            timer = null;
-            result.completeExceptionally(error);
-        }
-        final ScheduledFuture<?> timeout = timer;
-        result.whenComplete((value, error) -> {
-            plainWaits.remove(result);
-            if (timeout != null)
-                timeout.cancel(false);
-            var request = active.get();
-            if (request != null)
-                request.cancel(true);
-            try {
-                subscription.close();
-            } catch (IOException closeError) {
-                LOG.log(Level.SEVERE, "Error closing completion subscription", closeError);
-            }
-        });
-        outcome.whenCompleteAsync((value, error) -> {
-            if (error != null)
-                result.completeExceptionally(error);
-            else
-                result.complete(value);
-        }, timeoutScheduler);
-        if (result.isDone())
-            return result;
-        var params = createSendRequest(options);
-        if (result.isDone())
-            return result;
-        var request = rpc.invoke("session.sendAndWait", params, JsonNode.class);
-        active.set(request);
-        if (result.isDone())
-            request.cancel(true);
-        request.whenComplete((completion, error) -> {
-            if (result.isDone())
-                return;
-            while (error instanceof java.util.concurrent.CompletionException && error.getCause() != null) {
-                error = error.getCause();
-            }
-            if (error instanceof JsonRpcException remote && remote.getCode() == -32601) {
-                completionRpcUnsupported = true;
-                long remaining = timeoutMs > 0
-                        ? Math.max(1, timeoutMs - TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - started))
-                        : timeoutMs;
-                try {
-                    synchronized (this) {
-                        if (result.isDone())
-                            return;
-                        var fallback = sendAndWaitLegacy(options, remaining);
-                        active.set(fallback);
-                        // Transfer retirement ownership together with the legacy registration.
-                        plainWaits.remove(result);
-                        fallback.whenComplete((value, failure) -> {
-                            if (failure != null)
-                                result.completeExceptionally(failure);
-                            else
-                                result.complete(value);
-                        });
-                        if (result.isDone())
-                            fallback.cancel(true);
-                    }
-                } catch (IllegalStateException | IllegalArgumentException failure) {
-                    outcome.completeExceptionally(failure);
-                }
-                return;
-            }
-            if (error != null) {
-                String boundary = error instanceof JsonRpcException remote && remote.getData() != null
-                        ? remote.getData().path("completionEventId").textValue()
-                        : null;
-                final Throwable failure = error;
-                delivery.finish(boundary, () -> outcome.completeExceptionally(failure));
-                return;
-            }
-            if (completion == null || !completion.path("messageId").isTextual()
-                    || !completion.path("aborted").isBoolean()) {
-                outcome.completeExceptionally(new IllegalStateException("The runtime returned an invalid completion"));
-                return;
-            }
-            delivery.finish(completion.path("completionEventId").textValue(), () -> {
-                final SessionEvent response;
-                try {
-                    response = completion.hasNonNull("response")
-                            ? MAPPER.treeToValue(completion.get("response"), SessionEvent.class)
-                            : null;
-                } catch (com.fasterxml.jackson.core.JsonProcessingException failure) {
-                    outcome.completeExceptionally(failure);
-                    return;
-                }
-                if (response != null && (!(response instanceof AssistantMessageEvent)
-                        || (response.getAgentId() != null && !response.getAgentId().isEmpty()))) {
-                    outcome.completeExceptionally(
-                            new IllegalStateException("The runtime returned a non-assistant response"));
-                } else if (options.getResponseSchema() != null && (completion.path("aborted").booleanValue()
-                        || !(response instanceof AssistantMessageEvent assistant)
-                        || assistant.getData().content().isBlank() || (assistant.getData().toolRequests() != null
-                                && !assistant.getData().toolRequests().isEmpty()))) {
-                    outcome.completeExceptionally(
-                            new IllegalStateException("Run completed without a structured assistant response"));
-                } else if (completion.path("aborted").booleanValue()) {
-                    outcome.completeExceptionally(
-                            new IllegalStateException("Session aborted before sendAndWait completed"));
-                } else {
-                    outcome.complete((AssistantMessageEvent) response);
-                }
-            });
-        });
-        return result;
-    }
-
-    private CompletableFuture<AssistantMessageEvent> sendAndWaitLegacy(MessageOptions options, long timeoutMs) {
         ensureNotTerminated();
         if (options.getResponseSchema() != null) {
             return sendAndWaitStructured(options, timeoutMs);
@@ -1186,7 +1005,7 @@ public final class CopilotSession implements AutoCloseable {
             throw new IllegalArgumentException("Typed output cannot specify a response schema or immediate delivery");
         }
         var message = options.clone().setResponseSchema(ResponseSchemas.forType(responseType));
-        var waiting = sendAndWait(message, timeoutMs);
+        var waiting = sendAndWaitStructured(message, timeoutMs);
         CompletableFuture<T> result = waiting.thenApply(event -> {
             try {
                 T value = MAPPER.readerFor(responseType)
@@ -1541,7 +1360,7 @@ public final class CopilotSession implements AutoCloseable {
             executePermissionAndRespondAsync(data.requestId(),
                     MAPPER.convertValue(data.permissionRequest(), PermissionRequest.class),
                     data.promptRequest() == null ? null : PermissionRequest.fromJsonValue(data.promptRequest()),
-                    data.assistedApprovalAssessment(), handler);
+                    handler);
         } else if (event instanceof McpOauthRequiredEvent authEvent) {
             var data = authEvent.getData();
             if (data == null || data.requestId() == null) {
@@ -1583,22 +1402,14 @@ public final class CopilotSession implements AutoCloseable {
             }
         } else if (event instanceof CapabilitiesChangedEvent capEvent) {
             var data = capEvent.getData();
-            if (data != null && data.ui() != null) {
-                // The event names only the capabilities that changed; keep the rest.
-                var changed = data.ui();
-                var current = capabilities.getUi();
-                var ui = new SessionUiCapabilities();
-                if (current != null) {
-                    current.getElicitation().ifPresent(ui::setElicitation);
-                    current.getMcpApps().ifPresent(ui::setMcpApps);
+            if (data != null) {
+                var newCapabilities = new SessionCapabilities();
+                if (data.ui() != null) {
+                    newCapabilities.setUi(new SessionUiCapabilities().setElicitation(data.ui().elicitation()));
+                } else {
+                    newCapabilities.setUi(capabilities.getUi());
                 }
-                if (changed.elicitation() != null) {
-                    ui.setElicitation(changed.elicitation());
-                }
-                if (changed.mcpApps() != null) {
-                    ui.setMcpApps(changed.mcpApps());
-                }
-                capabilities = new SessionCapabilities().setUi(ui);
+                capabilities = newCapabilities;
             }
         }
     }
@@ -1627,19 +1438,6 @@ public final class CopilotSession implements AutoCloseable {
         } catch (Exception e) {
             LOG.log(Level.FINE, "Failed to fetch tool metadata for tool search", e);
         }
-    }
-
-    /**
-     * Returns the error text reported for a failed tool or command handler: the
-     * handler's own exception message, without the {@code CompletionException} that
-     * a dependent stage wraps around an asynchronous failure.
-     */
-    private static String handlerErrorMessage(Throwable error) {
-        while (error instanceof java.util.concurrent.CompletionException && error.getCause() != null) {
-            error = error.getCause();
-        }
-        String message = error.getMessage();
-        return message != null && !message.isEmpty() ? message : error.toString();
     }
 
     /**
@@ -1708,7 +1506,7 @@ public final class CopilotSession implements AutoCloseable {
                     }
                     try {
                         getRpc().tools.handlePendingToolCall(new SessionToolsHandlePendingToolCallParams(sessionId,
-                                requestId, null, handlerErrorMessage(ex)));
+                                requestId, null, ex.getMessage() != null ? ex.getMessage() : ex.toString()));
                     } catch (Exception e) {
                         LOG.log(Level.WARNING, "Error sending tool error for requestId=" + requestId, e);
                     }
@@ -1721,7 +1519,7 @@ public final class CopilotSession implements AutoCloseable {
                 LOG.log(Level.WARNING, "Error executing tool for requestId=" + requestId, e);
                 try {
                     getRpc().tools.handlePendingToolCall(new SessionToolsHandlePendingToolCallParams(sessionId,
-                            requestId, null, handlerErrorMessage(e)));
+                            requestId, null, e.getMessage() != null ? e.getMessage() : e.toString()));
                 } catch (Exception sendEx) {
                     LOG.log(Level.WARNING, "Error sending tool error for requestId=" + requestId, sendEx);
                 }
@@ -1764,15 +1562,12 @@ public final class CopilotSession implements AutoCloseable {
      * {@code session.permissions.handlePendingPermissionRequest}.
      */
     private void executePermissionAndRespondAsync(String requestId, PermissionRequest permissionRequest,
-            PermissionRequest promptRequest,
-            com.github.copilot.generated.AssistedApprovalAssessment assistedApprovalAssessment,
-            PermissionHandler handler) {
+            PermissionRequest promptRequest, PermissionHandler handler) {
         Runnable task = () -> {
             try {
                 var invocation = new PermissionInvocation();
                 invocation.setSessionId(sessionId);
                 invocation.setManagedSettingsEnabled(managedSettingsEnabled);
-                invocation.setAssistedApprovalAssessment(assistedApprovalAssessment);
                 invocation.setPromptRequest(promptRequest);
                 handler.handle(permissionRequest, invocation).thenAccept(result -> {
                     try {
@@ -1910,11 +1705,7 @@ public final class CopilotSession implements AutoCloseable {
         }
         Map<String, ToolDefinition> handlers = new LinkedHashMap<>();
         for (ToolDefinition tool : tools) {
-            // A tool without a handler is declaration-only: its calls stay pending for
-            // the application or another connected client to answer.
-            if (tool.handler() != null) {
-                handlers.put(tool.name(), tool);
-            }
+            handlers.put(tool.name(), tool);
         }
         return Collections.unmodifiableMap(handlers);
     }
@@ -1947,8 +1738,9 @@ public final class CopilotSession implements AutoCloseable {
                     }
                 }).exceptionally(ex -> {
                     try {
-                        getRpc().commands.handlePendingCommand(new SessionCommandsHandlePendingCommandParams(sessionId,
-                                requestId, handlerErrorMessage(ex)));
+                        String msg = ex.getMessage() != null ? ex.getMessage() : ex.toString();
+                        getRpc().commands.handlePendingCommand(
+                                new SessionCommandsHandlePendingCommandParams(sessionId, requestId, msg));
                     } catch (Exception e) {
                         LOG.log(Level.WARNING, "Error sending command error for requestId=" + requestId, e);
                     }
@@ -1957,8 +1749,9 @@ public final class CopilotSession implements AutoCloseable {
             } catch (Exception e) {
                 LOG.log(Level.WARNING, "Error executing command for requestId=" + requestId, e);
                 try {
-                    getRpc().commands.handlePendingCommand(new SessionCommandsHandlePendingCommandParams(sessionId,
-                            requestId, handlerErrorMessage(e)));
+                    String msg = e.getMessage() != null ? e.getMessage() : e.toString();
+                    getRpc().commands.handlePendingCommand(
+                            new SessionCommandsHandlePendingCommandParams(sessionId, requestId, msg));
                 } catch (Exception sendEx) {
                     LOG.log(Level.WARNING, "Error sending command error for requestId=" + requestId, sendEx);
                 }
@@ -3192,8 +2985,7 @@ public final class CopilotSession implements AutoCloseable {
      */
     public CompletableFuture<Void> compact() {
         ensureNotTerminated();
-        return getRpc().history.compact().thenAccept(result -> {
-        });
+        return rpc.invoke("session.compaction.compact", Map.of("sessionId", sessionId), Void.class);
     }
 
     /**
@@ -3215,8 +3007,7 @@ public final class CopilotSession implements AutoCloseable {
      * releases tool and permission handlers. After calling this method, the session
      * cannot be used again. Subsequent calls to this method have no effect. Pending
      * response waits fail when the session retires; ordinary callbacks remain
-     * active until the detach request completes, even if this method's wait times
-     * out or is interrupted. Forced client shutdown retires callbacks immediately.
+     * active until the detach acknowledgement.
      */
     @Override
     public void close() {
@@ -3225,15 +3016,10 @@ public final class CopilotSession implements AutoCloseable {
         }
 
         RuntimeException detachFailure = null;
-        CompletableFuture<SessionDetachResponse> detach = null;
         try {
-            detach = rpc.invoke("session.detach", Map.of("sessionId", sessionId), SessionDetachResponse.class);
-            // A caller's wait can end before the detach RPC does.
-            SessionDetachResponse response = detach.whenComplete((ignored, error) -> {
-                if (!callbacksRetired) {
-                    retireCallbacks();
-                }
-            }).get(5, TimeUnit.SECONDS);
+            SessionDetachResponse response = rpc
+                    .invoke("session.detach", Map.of("sessionId", sessionId), SessionDetachResponse.class)
+                    .get(5, TimeUnit.SECONDS);
             if (response == null || !response.success()) {
                 String detail = response != null && response.error() != null ? response.error() : "unknown error";
                 detachFailure = new IllegalStateException("Failed to detach session " + sessionId + ": " + detail);
@@ -3244,9 +3030,7 @@ public final class CopilotSession implements AutoCloseable {
             }
             detachFailure = new IllegalStateException("Failed to detach session " + sessionId, e);
         } finally {
-            if (detach == null || detach.isDone()) {
-                retireCallbacks();
-            }
+            retireCallbacks();
         }
 
         if (detachFailure != null) {

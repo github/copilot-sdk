@@ -16,8 +16,6 @@ import com.github.copilot.generated.rpc.ServerHostApi;
 import com.github.copilot.rpc.ResumeSessionConfig;
 import com.github.copilot.rpc.SessionConfig;
 import java.io.IOException;
-import java.time.Instant;
-import java.time.OffsetDateTime;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.IdentityHashMap;
@@ -60,32 +58,11 @@ final class AhpHostManager {
         final AhpHostOptions options;
         final ServerHostApi rpc;
         final Map<String, Handoff> handoffs = new HashMap<>();
-        final Map<String, Authentication> authentications = new HashMap<>();
         boolean exited;
 
         Host(ServerHostApi rpc, AhpHostOptions options) {
             this.rpc = rpc;
             this.options = new AhpHostOptions(options);
-        }
-    }
-
-    private static final class Authentication {
-        final CompletableFuture<Void> cancellation = new CompletableFuture<>();
-        final CompletableFuture<AhpAuthenticationResult> response = new CompletableFuture<>();
-    }
-
-    static void validateOptions(AhpHostOptions options) {
-        var policy = options == null ? null : options.getAuthentication();
-        if (policy == null
-                || !java.util.Set.of("github", "none", "custom").contains(policy.mode() == null ? "" : policy.mode())) {
-            throw new IllegalArgumentException("An explicit authentication mode is required");
-        }
-        if ("custom".equals(policy.mode()) && (policy.requireIdentity() == null || policy.requireIdentity().isBlank()
-                || policy.authenticate() == null)) {
-            throw new IllegalArgumentException("Custom authentication requires requireIdentity and authenticate");
-        }
-        if (!"github".equals(policy.mode()) && options.getGithubEnvironment() != null) {
-            throw new IllegalArgumentException("githubEnvironment requires github authentication");
         }
     }
 
@@ -121,14 +98,8 @@ final class AhpHostManager {
             hosts.put(host.id, host);
         }
         var snapshot = host.options;
-        var policy = snapshot.getAuthentication();
         return rpc
                 .start(new HostStartRequest(host.id).setComputeId(snapshot.getComputeId())
-                        .setWorkspace(snapshot.getWorkspace())
-                        .setAuthentication("custom".equals(policy.mode())
-                                ? Map.of("mode", policy.mode(), "requireIdentity", policy.requireIdentity())
-                                : Map.of("mode", policy.mode()))
-                        .setAllowCreatingNewSessions(snapshot.getAllowCreatingNewSessions())
                         .setLocalServer(snapshot.getLocalServer()).setGitHubEnvironment(snapshot.getGithubEnvironment())
                         .setSessionFactory(snapshot.getCreateSession() != null)
                         .setResumeFactory(snapshot.getResumeSession() != null))
@@ -140,35 +111,6 @@ final class AhpHostManager {
     }
 
     void register(JsonRpcClient rpc) {
-        rpc.registerMethodHandler("host.validateAuthentication", (id, params) -> {
-            CompletableFuture<AhpAuthenticationResult> response;
-            try {
-                response = authenticate(params);
-            } catch (Exception error) {
-                response = CompletableFuture.failedFuture(error);
-            }
-            response.whenComplete((result, error) -> {
-                try {
-                    if (error == null) {
-                        rpc.sendResponse(Long.parseLong(id), result);
-                    } else {
-                        rpc.sendErrorResponse(Long.parseLong(id), -32603, unwrap(error).getMessage());
-                    }
-                } catch (IOException | NumberFormatException errorSending) {
-                    LOG.log(Level.WARNING, "Could not send AHP authentication response", errorSending);
-                }
-            });
-        });
-        rpc.registerMethodHandler("host.authenticationCancelled", (id, params) -> {
-            Authentication authentication;
-            synchronized (gate) {
-                Host host = hosts.get(text(params, "hostId"));
-                authentication = host == null ? null : host.authentications.remove(text(params, "requestId"));
-            }
-            if (authentication != null) {
-                cancelAuthentication(authentication);
-            }
-        });
         rpc.registerMethodHandler("host.materializeSession", (id, params) -> {
             CompletableFuture<Map<String, String>> response;
             try {
@@ -219,72 +161,6 @@ final class AhpHostManager {
         });
     }
 
-    private CompletableFuture<AhpAuthenticationResult> authenticate(JsonNode params) {
-        String requestId = text(params, "requestId");
-        String token = text(params, "token");
-        Host host;
-        var entry = new Authentication();
-        synchronized (gate) {
-            host = hosts.get(text(params, "hostId"));
-            if (host == null || host.exited || !"custom".equals(host.options.getAuthentication().mode())
-                    || host.authentications.putIfAbsent(requestId, entry) != null) {
-                throw new IllegalStateException("AHP authenticator unavailable or duplicate request");
-            }
-        }
-        entry.response.whenComplete((result, error) -> {
-            synchronized (gate) {
-                host.authentications.remove(requestId, entry);
-            }
-            entry.cancellation.completeAsync(() -> null);
-        });
-        try {
-            CompletableFuture.supplyAsync(() -> {
-                synchronized (gate) {
-                    if (host.exited || entry.response.isDone()) {
-                        throw new CancellationException("AHP authentication ended");
-                    }
-                }
-                return Objects
-                        .requireNonNull(
-                                host.options.getAuthentication().authenticate()
-                                        .apply(new AhpAuthenticationRequest(token,
-                                                entry.cancellation.minimalCompletionStage())),
-                                "AHP authenticator returned a null future");
-            }, executor).thenCompose(future -> future).whenComplete((result, error) -> {
-                synchronized (gate) {
-                    if (host.exited || entry.response.isDone()) {
-                        return;
-                    }
-                    try {
-                        if (error != null) {
-                            throw new CompletionException(unwrap(error));
-                        }
-                        if (result == null
-                                || !host.options.getAuthentication().requireIdentity().equals(result.identity())
-                                || result.expiresAt() == null
-                                || !result.expiresAt().matches(
-                                        "\\d{4}-\\d{2}-\\d{2}[Tt]\\d{2}:\\d{2}:\\d{2}(\\.\\d+)?([Zz]|[+-]\\d{2}:\\d{2})")
-                                || !OffsetDateTime.parse(result.expiresAt()).toInstant().isAfter(Instant.now())) {
-                            throw new IllegalArgumentException(
-                                    "AHP authentication rejected: invalid identity or expiration");
-                        }
-                        entry.response.complete(result);
-                    } catch (Exception invalid) {
-                        entry.response.completeExceptionally(invalid);
-                    }
-                }
-            });
-        } catch (Exception error) {
-            entry.response.completeExceptionally(error);
-        }
-        return entry.response;
-    }
-
-    private static void cancelAuthentication(Authentication entry) {
-        entry.response.completeExceptionally(new CancellationException("AHP authentication ended"));
-        entry.cancellation.completeAsync(() -> null);
-    }
-
     void capture(CopilotSession session, Object request) {
         synchronized (gate) {
             for (Host host : hosts.values()) {
@@ -322,25 +198,11 @@ final class AhpHostManager {
         String sessionId = text(expected, "sessionId");
         boolean resume = params.path("resume").asBoolean(false);
         Handoff handoff;
-        AhpSessionAuthentication authentication;
         synchronized (gate) {
             Host host = hosts.get(hostId);
             if (host == null || host.exited) {
                 throw new IllegalStateException("AHP host is not active");
             }
-            JsonNode context = params.required("authentication");
-            String mode = text(context, "mode");
-            var policy = host.options.getAuthentication();
-            String identity = "none".equals(mode) ? null : text(context, "identity");
-            if (!policy.mode().equals(mode) || ("none".equals(mode) && context.has("identity"))
-                    || ("github".equals(mode) && (identity == null || identity.isBlank()))
-                    || ("custom".equals(mode) && !policy.requireIdentity().equals(identity))) {
-                throw new IllegalArgumentException("AHP trusted authentication does not match host policy");
-            }
-            if (expected.has("authentication")) {
-                throw new IllegalArgumentException("AHP authentication must not be session configuration");
-            }
-            authentication = new AhpSessionAuthentication(mode, identity);
             if (host.handoffs.containsKey(handoffId)) {
                 throw new IllegalStateException("Duplicate AHP session handoff");
             }
@@ -360,12 +222,11 @@ final class AhpHostManager {
                 converted.remove("sessionId");
                 var settings = CONFIG_MAPPER.treeToValue(converted, ResumeSessionConfig.class);
                 var request = new AhpSessionResumeRequest(sessionId, settings,
-                        handoff.cancellation.minimalCompletionStage(), authentication);
+                        handoff.cancellation.minimalCompletionStage());
                 factory = () -> handoff.host.options.getResumeSession().apply(request);
             } else {
                 var settings = CONFIG_MAPPER.treeToValue(converted, SessionConfig.class);
-                var request = new AhpSessionCreateRequest(settings, handoff.cancellation.minimalCompletionStage(),
-                        authentication);
+                var request = new AhpSessionCreateRequest(settings, handoff.cancellation.minimalCompletionStage());
                 factory = () -> handoff.host.options.getCreateSession().apply(request);
             }
             CompletableFuture.supplyAsync(() -> {
@@ -486,7 +347,6 @@ final class AhpHostManager {
 
     private void endHost(Host host, AhpHostExit info) {
         ArrayList<Handoff> active;
-        ArrayList<Authentication> authentications;
         synchronized (gate) {
             if (host.exited) {
                 return;
@@ -494,10 +354,7 @@ final class AhpHostManager {
             host.exited = true;
             hosts.remove(host.id, host);
             active = new ArrayList<>(host.handoffs.values());
-            authentications = new ArrayList<>(host.authentications.values());
-            host.authentications.clear();
         }
-        authentications.forEach(AhpHostManager::cancelAuthentication);
         active.forEach(this::release);
         if (info != null && host.options.getOnExit() != null) {
             notifyCallback(() -> host.options.getOnExit().apply(info));

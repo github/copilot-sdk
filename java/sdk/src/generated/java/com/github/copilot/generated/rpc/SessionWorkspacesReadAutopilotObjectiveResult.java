@@ -25,7 +25,6 @@ import javax.annotation.processing.Generated;
 @JsonIgnoreProperties(ignoreUnknown = true)
 public record SessionWorkspacesReadAutopilotObjectiveResult(
     /** Autopilot objective file content, or null when missing. */
-    @JsonInclude(JsonInclude.Include.ALWAYS)
     @JsonProperty("content") String content
 ) {
 }

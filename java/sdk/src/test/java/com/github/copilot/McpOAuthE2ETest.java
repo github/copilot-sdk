@@ -256,7 +256,6 @@ public class McpOAuthE2ETest {
         try (var oauthServer = OAuthMcpServer.start(ctx.getRepoRoot())) {
             var serverName = "oauth-direct-rpc-mcp";
             var observedRequest = new AtomicReference<McpAuthRequest>();
-            var observedRequestIds = new CopyOnWriteArrayList<String>();
             var requestSeen = new CompletableFuture<McpAuthRequest>();
             var pendingHandlerResult = new CompletableFuture<McpAuthResult>();
 
@@ -266,7 +265,6 @@ public class McpOAuthE2ETest {
                             .setOnMcpAuthRequest((request, invocation) -> {
                                 assertNotNull(invocation);
                                 observedRequest.set(request);
-                                observedRequestIds.add(request.requestId());
                                 requestSeen.complete(request);
                                 return pendingHandlerResult;
                             }).setMcpServers(Map.of(serverName, new McpHttpServerConfig()
@@ -275,8 +273,7 @@ public class McpOAuthE2ETest {
                 var connected = CompletableFuture.runAsync(() -> {
                     try {
                         waitForMcpServerStatus(session, serverName, McpServerStatus.CONNECTED, observedRequest);
-                    } catch (Exception | AssertionError ex) {
-                        ex.addSuppressed(new IllegalStateException("MCP OAuth request IDs: " + observedRequestIds));
+                    } catch (Exception ex) {
                         throw new CompletionException(ex);
                     }
                 });
@@ -326,13 +323,11 @@ public class McpOAuthE2ETest {
             throws Exception {
         var deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(60);
         var lastStatus = "<not listed>";
-        var lastServer = "<not listed>";
         while (System.nanoTime() < deadline) {
             var result = session.getRpc().mcp.list().get(5, TimeUnit.SECONDS);
             var server = result.servers().stream().filter(candidate -> serverName.equals(candidate.name())).findFirst();
             if (server.isPresent()) {
                 lastStatus = String.valueOf(server.get().status());
-                lastServer = server.get().toString();
             }
             if (server.isPresent() && status.equals(server.get().status())) {
                 return;
@@ -340,8 +335,7 @@ public class McpOAuthE2ETest {
             Thread.sleep(200);
         }
         fail(serverName + " did not reach " + status + "; last status was " + lastStatus + "; auth handler invoked="
-                + (observedRequest.get() != null) + "; last server=" + lastServer + "; last auth request="
-                + observedRequest.get());
+                + (observedRequest.get() != null));
     }
 
     @JsonIgnoreProperties(ignoreUnknown = true)

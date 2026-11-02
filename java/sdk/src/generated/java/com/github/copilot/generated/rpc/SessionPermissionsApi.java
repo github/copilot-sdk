@@ -45,7 +45,7 @@ public final class SessionPermissionsApi {
     }
 
     /**
-     * Replaces selected session permission fields, including rules, paths, URLs, exclusions, allow-all flags, user-authored judge instructions, bounded host-supplied advisory judge context, owner-authenticated session authority, and the owner's host-policy declaration for its own tools.
+     * Replaces selected permission policy fields (rules, paths, URLs, exclusions, allow-all flags) on the session.
      * <p>
      * Note: the {@code sessionId} field in the params record is overridden
      * by the session-scoped wrapper; any value provided is ignored.
@@ -61,7 +61,7 @@ public final class SessionPermissionsApi {
     }
 
     /**
-     * Replaces selected session permission fields, including rules, paths, URLs, exclusions, allow-all flags, user-authored judge instructions, bounded host-supplied advisory judge context, owner-authenticated session authority, and the owner's host-policy declaration for its own tools.
+     * Replaces selected permission policy fields (rules, paths, URLs, exclusions, allow-all flags) on the session.
      * <p>
      * Accepts the extensible request, including inputs added after the params record.
      *
@@ -146,17 +146,6 @@ public final class SessionPermissionsApi {
     }
 
     /**
-     * Returns the approval modes currently available under the session's feature and managed permission policy. This read does not change permissions; mutations must still check their authoritative result because policy may change.
-     *
-     * @apiNote This method is experimental and may change in a future version.
-     * @since 1.0.0
-     */
-    @CopilotExperimental
-    public CompletableFuture<SessionPermissionsGetCapabilitiesResult> getCapabilities() {
-        return caller.invoke("session.permissions.getCapabilities", java.util.Map.of("sessionId", this.sessionId), SessionPermissionsGetCapabilitiesResult.class);
-    }
-
-    /**
      * Adds or removes session-scoped or location-scoped permission rules.
      * <p>
      * Note: the {@code sessionId} field in the params record is overridden
@@ -202,17 +191,6 @@ public final class SessionPermissionsApi {
         com.fasterxml.jackson.databind.node.ObjectNode _p = MAPPER.valueToTree(params);
         _p.put("sessionId", this.sessionId);
         return caller.invoke("session.permissions.resetSessionApprovals", _p, SessionPermissionsResetSessionApprovalsResult.class);
-    }
-
-    /**
-     * Clears, in memory only, the allow-all and assisted-approval posture that resuming the session restored from its history. No permission event is recorded, so a later resume restores the user's choice again. A headless caller, which has no one to approve requests, calls it before configuring permissions from its own flags.
-     *
-     * @apiNote This method is experimental and may change in a future version.
-     * @since 1.0.0
-     */
-    @CopilotExperimental
-    public CompletableFuture<SessionPermissionsClearResumeEscalationResult> clearResumeEscalation() {
-        return caller.invoke("session.permissions.clearResumeEscalation", java.util.Map.of("sessionId", this.sessionId), SessionPermissionsClearResumeEscalationResult.class);
     }
 
     /**

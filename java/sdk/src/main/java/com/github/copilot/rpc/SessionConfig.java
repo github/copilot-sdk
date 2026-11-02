@@ -124,10 +124,10 @@ public class SessionConfig {
     private String gitHubToken;
     @JsonIgnore
     private GitHubTokenProvider gitHubTokenProvider;
+    private String remoteSession;
     private CloudSessionOptions cloud;
     private CopilotExpAssignmentResponse expAssignments;
     private Boolean enableManagedSettings;
-    private List<String> excludedManagedSettings;
     private Boolean enforceManagedModelDefaults;
     private Boolean interactiveUser;
     private Map<String, Boolean> featureFlags;
@@ -551,9 +551,9 @@ public class SessionConfig {
     /**
      * Enables or disables internal session telemetry for this session. When
      * {@code false}, disables session telemetry. When unset (the default) or
-     * {@code true}, telemetry is enabled for eligible GitHub-authenticated
-     * sessions, including custom {@link ProviderConfig} (BYOK) sessions. Host and
-     * account policies still control uploads. This is independent of
+     * {@code true}, telemetry is enabled for GitHub-authenticated sessions. When a
+     * custom {@link ProviderConfig} (BYOK) is configured, session telemetry is
+     * always disabled regardless of this setting. This is independent of
      * {@link com.github.copilot.rpc.CopilotClientOptions#getTelemetry()
      * CopilotClientOptions.TelemetryConfig}, which configures OpenTelemetry export
      * for observability.
@@ -569,9 +569,9 @@ public class SessionConfig {
     /**
      * Enables or disables internal session telemetry for this session. When
      * {@code false}, disables session telemetry. When unset (the default) or
-     * {@code true}, telemetry is enabled for eligible GitHub-authenticated
-     * sessions, including custom {@link ProviderConfig} (BYOK) sessions. Host and
-     * account policies still control uploads.
+     * {@code true}, telemetry is enabled for GitHub-authenticated sessions. When a
+     * custom {@link ProviderConfig} (BYOK) is configured, session telemetry is
+     * always disabled regardless of this setting.
      *
      * @param enableSessionTelemetry
      *            whether to enable session telemetry
@@ -863,8 +863,7 @@ public class SessionConfig {
 
     /**
      * Sets whether the runtime is allowed to append a {@code Co-authored-by}
-     * trailer when it commits on behalf of the user. Subagents inherit this
-     * setting.
+     * trailer when it commits on behalf of the user.
      * <p>
      * This option is sent to the server via a {@code session.options.update}
      * JSON-RPC call immediately after session creation. In
@@ -2377,6 +2376,45 @@ public class SessionConfig {
     }
 
     /**
+     * Gets the per-session remote behavior control.
+     * <p>
+     * Possible values:
+     * <ul>
+     * <li>{@code "off"} — local only, no remote export (default)</li>
+     * <li>{@code "export"} — export session events to GitHub without enabling
+     * remote steering</li>
+     * <li>{@code "on"} — export to GitHub AND enable remote steering</li>
+     * </ul>
+     *
+     * @return the remote session mode, or {@code null} if not set
+     * @since 1.4.0
+     */
+    public String getRemoteSession() {
+        return remoteSession;
+    }
+
+    /**
+     * Sets the per-session remote behavior control.
+     * <p>
+     * Possible values:
+     * <ul>
+     * <li>{@code "off"} — local only, no remote export (default)</li>
+     * <li>{@code "export"} — export session events to GitHub without enabling
+     * remote steering</li>
+     * <li>{@code "on"} — export to GitHub AND enable remote steering</li>
+     * </ul>
+     *
+     * @param remoteSession
+     *            the remote session mode
+     * @return this config instance for method chaining
+     * @since 1.4.0
+     */
+    public SessionConfig setRemoteSession(String remoteSession) {
+        this.remoteSession = remoteSession;
+        return this;
+    }
+
+    /**
      * Gets the cloud session options.
      * <p>
      * When set, creates a remote session in the cloud instead of a local session.
@@ -2465,29 +2503,6 @@ public class SessionConfig {
     @JsonIgnore
     public Optional<Boolean> getEnableManagedSettings() {
         return Optional.ofNullable(enableManagedSettings);
-    }
-
-    /**
-     * Gets managed-setting paths excluded from fetched, device, and helper policy.
-     *
-     * @return excluded paths, or {@code null} for full enforcement
-     */
-    public List<String> getExcludedManagedSettings() {
-        return excludedManagedSettings;
-    }
-
-    /**
-     * Excludes exact dotted setting paths and their descendants. Host-injected
-     * policy and availability checks are unaffected. Not persisted; re-supply on
-     * resume, where omission restores full enforcement. Does not enable fetching.
-     *
-     * @param paths
-     *            setting paths, such as {@code sandbox}
-     * @return this configuration
-     */
-    public SessionConfig setExcludedManagedSettings(List<String> paths) {
-        this.excludedManagedSettings = paths;
-        return this;
     }
 
     /**
@@ -2682,13 +2697,11 @@ public class SessionConfig {
         copy.githubMcpToolConfig = this.githubMcpToolConfig;
         copy.gitHubToken = this.gitHubToken;
         copy.gitHubTokenProvider = this.gitHubTokenProvider;
+        copy.remoteSession = this.remoteSession;
         copy.cloud = this.cloud;
         copy.featureFlags = this.featureFlags != null ? new java.util.HashMap<>(this.featureFlags) : null;
         copy.expAssignments = this.expAssignments;
         copy.enableManagedSettings = this.enableManagedSettings;
-        copy.excludedManagedSettings = this.excludedManagedSettings == null
-                ? null
-                : new ArrayList<>(this.excludedManagedSettings);
         copy.enforceManagedModelDefaults = this.enforceManagedModelDefaults;
         copy.interactiveUser = this.interactiveUser;
         copy.managedSettings = this.managedSettings;

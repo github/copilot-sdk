@@ -46,21 +46,9 @@ public final class HostStartRequest {
     @JsonProperty("resumeFactory")
     private Boolean resumeFactory;
 
-    /** Explicit admission policy, required by the runtime before hosting. Optional in the wire DTO only to preserve generated client construction. */
-    @JsonProperty("authentication")
-    private Object authentication;
-
     /** Stable application identity selecting its durable host catalog. Defaults to the persisted runtime compute GUID; must agree with githubEnvironment.computeId when both are supplied. */
     @JsonProperty("computeId")
     private String computeId;
-
-    /** Absolute directory on the runtime host to serve through AHP. Defaults to the runtime's configured working directory. Does not change process or session working directories. */
-    @JsonProperty("workspace")
-    private String workspace;
-
-    /** Whether remote clients may create new sessions. Defaults to denied when omitted. Does not restrict owner work, publication, or existing sessions. */
-    @JsonProperty("allowCreatingNewSessions")
-    private Boolean allowCreatingNewSessions;
 
     /**
      * Creates a request with its required inputs.
@@ -117,39 +105,12 @@ public final class HostStartRequest {
     }
 
     /**
-     * Returns the {@code authentication} property.
-     *
-     * @return Explicit admission policy, required by the runtime before hosting. Optional in the wire DTO only to preserve generated client construction.
-     */
-    public Object getAuthentication() {
-        return authentication;
-    }
-
-    /**
      * Returns the {@code computeId} property.
      *
      * @return Stable application identity selecting its durable host catalog. Defaults to the persisted runtime compute GUID; must agree with githubEnvironment.computeId when both are supplied.
      */
     public String getComputeId() {
         return computeId;
-    }
-
-    /**
-     * Returns the {@code workspace} property.
-     *
-     * @return Absolute directory on the runtime host to serve through AHP. Defaults to the runtime's configured working directory. Does not change process or session working directories.
-     */
-    public String getWorkspace() {
-        return workspace;
-    }
-
-    /**
-     * Returns the {@code allowCreatingNewSessions} property.
-     *
-     * @return Whether remote clients may create new sessions. Defaults to denied when omitted. Does not restrict owner work, publication, or existing sessions.
-     */
-    public Boolean getAllowCreatingNewSessions() {
-        return allowCreatingNewSessions;
     }
 
     /**
@@ -197,17 +158,6 @@ public final class HostStartRequest {
     }
 
     /**
-     * Sets the {@code authentication} property.
-     *
-     * @param value Explicit admission policy, required by the runtime before hosting. Optional in the wire DTO only to preserve generated client construction.
-     * @return this request
-     */
-    public HostStartRequest setAuthentication(Object value) {
-        this.authentication = value;
-        return this;
-    }
-
-    /**
      * Sets the {@code computeId} property.
      *
      * @param value Stable application identity selecting its durable host catalog. Defaults to the persisted runtime compute GUID; must agree with githubEnvironment.computeId when both are supplied.
@@ -215,28 +165,6 @@ public final class HostStartRequest {
      */
     public HostStartRequest setComputeId(String value) {
         this.computeId = value;
-        return this;
-    }
-
-    /**
-     * Sets the {@code workspace} property.
-     *
-     * @param value Absolute directory on the runtime host to serve through AHP. Defaults to the runtime's configured working directory. Does not change process or session working directories.
-     * @return this request
-     */
-    public HostStartRequest setWorkspace(String value) {
-        this.workspace = value;
-        return this;
-    }
-
-    /**
-     * Sets the {@code allowCreatingNewSessions} property.
-     *
-     * @param value Whether remote clients may create new sessions. Defaults to denied when omitted. Does not restrict owner work, publication, or existing sessions.
-     * @return this request
-     */
-    public HostStartRequest setAllowCreatingNewSessions(Boolean value) {
-        this.allowCreatingNewSessions = value;
         return this;
     }
 }

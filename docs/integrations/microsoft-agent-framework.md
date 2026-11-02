@@ -34,9 +34,6 @@ Install the Copilot SDK alongside the MAF integration package for your language:
 ```shell
 dotnet add package GitHub.Copilot.SDK
 dotnet add package Microsoft.Agents.AI.GitHub.Copilot --prerelease
-# Only for the multi-agent workflow examples below
-dotnet add package Microsoft.Agents.AI.Workflows
-dotnet add package Microsoft.Agents.AI.OpenAI
 ```
 
 </details>
@@ -45,7 +42,7 @@ dotnet add package Microsoft.Agents.AI.OpenAI
 <summary><strong>Python</strong></summary>
 
 ```shell
-pip install github-copilot-sdk agent-framework-github-copilot
+pip install copilot-sdk agent-framework-github-copilot
 ```
 
 </details>
@@ -84,11 +81,11 @@ await using var copilotClient = new CopilotClient();
 await copilotClient.StartAsync();
 
 // Wrap as a MAF agent
-AIAgent agent = copilotClient.AsAIAgent(new SessionConfig { Model = "gpt-5.4" });
+AIAgent agent = copilotClient.AsAIAgent();
 
 // Use the standard MAF interface
-AgentResponse response = await agent.RunAsync("Explain how dependency injection works in ASP.NET Core");
-Console.WriteLine(response.Text);
+string response = await agent.RunAsync("Explain how dependency injection works in ASP.NET Core");
+Console.WriteLine(response);
 ```
 
 </details>
@@ -102,7 +99,9 @@ from agent_framework.github import GitHubCopilotAgent
 
 async def main():
     agent = GitHubCopilotAgent(
-        instructions="You are a helpful coding assistant.",
+        default_options={
+            "instructions": "You are a helpful coding assistant.",
+        }
     )
 
     async with agent:
@@ -115,6 +114,7 @@ async def main():
 <details>
 <summary><strong>Java</strong></summary>
 
+<!-- docs-validate: skip -->
 ```java
 import com.github.copilot.CopilotClient;
 import com.github.copilot.rpc.*;
@@ -163,10 +163,13 @@ await using var copilotClient = new CopilotClient();
 await copilotClient.StartAsync();
 
 // Create agent with tools
-AIAgent agent = copilotClient.AsAIAgent(tools: [weatherTool]);
+AIAgent agent = copilotClient.AsAIAgent(new AIAgentOptions
+{
+    Tools = new[] { weatherTool },
+});
 
-AgentResponse response = await agent.RunAsync("What's the weather like in Seattle?");
-Console.WriteLine(response.Text);
+string response = await agent.RunAsync("What's the weather like in Seattle?");
+Console.WriteLine(response);
 ```
 
 </details>
@@ -184,7 +187,9 @@ def get_weather(location: str) -> str:
 
 async def main():
     agent = GitHubCopilotAgent(
-        instructions="You are a helpful assistant with access to weather data.",
+        default_options={
+            "instructions": "You are a helpful assistant with access to weather data.",
+        },
         tools=[get_weather],
     )
 
@@ -200,7 +205,6 @@ You can also use Copilot SDK's native tool definition alongside MAF tools:
 <details open>
 <summary><strong>Node.js / TypeScript (standalone SDK)</strong></summary>
 
-<!-- docs-validate: strict -->
 ```typescript
 import { CopilotClient, defineTool } from "@github/copilot-sdk";
 
@@ -284,33 +288,31 @@ Run agents one after another, passing output from one to the next:
 ```csharp
 using GitHub.Copilot;
 using Microsoft.Agents.AI;
-using Microsoft.Agents.AI.Workflows;
-using OpenAI;
-using OpenAI.Chat;
+using Microsoft.Agents.AI.Orchestration;
 
 await using var copilotClient = new CopilotClient();
 await copilotClient.StartAsync();
 
 // Copilot agent for code review
-AIAgent reviewer = copilotClient.AsAIAgent(
-    name: "reviewer",
-    instructions: "You review code for bugs, security issues, and best practices. Be thorough.");
+AIAgent reviewer = copilotClient.AsAIAgent(new AIAgentOptions
+{
+    Instructions = "You review code for bugs, security issues, and best practices. Be thorough.",
+});
 
-// OpenAI agent for generating documentation
-AIAgent documentor = new OpenAIClient(Environment.GetEnvironmentVariable("OPENAI_API_KEY")!)
-    .GetChatClient("gpt-5.4")
-    .AsAIAgent(
-        name: "documentor",
-        instructions: "You write clear, concise documentation for code changes.");
+// Azure OpenAI agent for generating documentation
+AIAgent documentor = AIAgent.FromOpenAI(new OpenAIAgentOptions
+{
+    Model = "gpt-5.4",
+    Instructions = "You write clear, concise documentation for code changes.",
+});
 
-// Compose in a sequential pipeline and use it as a single agent
-Workflow workflow = AgentWorkflowBuilder.BuildSequential(reviewer, documentor);
-AIAgent pipeline = workflow.AsAIAgent();
+// Compose in a sequential pipeline
+var pipeline = new SequentialOrchestrator(new[] { reviewer, documentor });
 
-AgentResponse result = await pipeline.RunAsync(
+string result = await pipeline.RunAsync(
     "Review and document this pull request: added retry logic to the HTTP client"
 );
-Console.WriteLine(result.Text);
+Console.WriteLine(result);
 ```
 
 </details>
@@ -318,35 +320,34 @@ Console.WriteLine(result.Text);
 <details>
 <summary><strong>Python</strong></summary>
 
-This example also needs the OpenAI and orchestration packages: `pip install agent-framework-openai agent-framework-orchestrations`.
-
 <!-- docs-validate: skip -->
 ```python
-from agent_framework import Agent
 from agent_framework.github import GitHubCopilotAgent
-from agent_framework.openai import OpenAIChatClient
-from agent_framework.orchestrations import SequentialBuilder
+from agent_framework.openai import OpenAIAgent
+from agent_framework.orchestration import SequentialOrchestrator
 
 async def main():
     # Copilot agent for code review
     reviewer = GitHubCopilotAgent(
-        instructions="You review code for bugs, security issues, and best practices.",
+        default_options={
+            "instructions": "You review code for bugs, security issues, and best practices.",
+        }
     )
 
     # OpenAI agent for documentation
-    documentor = Agent(
-        client=OpenAIChatClient(model="gpt-5.4"),
+    documentor = OpenAIAgent(
+        model="gpt-5.4",
         instructions="You write clear, concise documentation for code changes.",
     )
 
     # Compose in a sequential pipeline
-    workflow = SequentialBuilder(participants=[reviewer, documentor]).build()
+    pipeline = SequentialOrchestrator(agents=[reviewer, documentor])
 
-    async with reviewer:
-        result = await workflow.run(
+    async with pipeline:
+        result = await pipeline.run(
             "Review and document this PR: added retry logic to the HTTP client"
         )
-        print(result.get_outputs())
+        print(result)
 ```
 
 </details>
@@ -354,6 +355,7 @@ async def main():
 <details>
 <summary><strong>Java</strong></summary>
 
+<!-- docs-validate: skip -->
 ```java
 import com.github.copilot.CopilotClient;
 import com.github.copilot.rpc.*;
@@ -398,27 +400,28 @@ Run multiple agents in parallel and aggregate their results:
 ```csharp
 using GitHub.Copilot;
 using Microsoft.Agents.AI;
-using Microsoft.Agents.AI.Workflows;
+using Microsoft.Agents.AI.Orchestration;
 
 await using var copilotClient = new CopilotClient();
 await copilotClient.StartAsync();
 
-AIAgent securityReviewer = copilotClient.AsAIAgent(
-    name: "security",
-    instructions: "Focus exclusively on security vulnerabilities and risks.");
+AIAgent securityReviewer = copilotClient.AsAIAgent(new AIAgentOptions
+{
+    Instructions = "Focus exclusively on security vulnerabilities and risks.",
+});
 
-AIAgent performanceReviewer = copilotClient.AsAIAgent(
-    name: "performance",
-    instructions: "Focus exclusively on performance bottlenecks and optimization opportunities.");
+AIAgent performanceReviewer = copilotClient.AsAIAgent(new AIAgentOptions
+{
+    Instructions = "Focus exclusively on performance bottlenecks and optimization opportunities.",
+});
 
 // Run both reviews concurrently
-Workflow workflow = AgentWorkflowBuilder.BuildConcurrent([securityReviewer, performanceReviewer]);
-AIAgent concurrent = workflow.AsAIAgent();
+var concurrent = new ConcurrentOrchestrator(new[] { securityReviewer, performanceReviewer });
 
-AgentResponse combinedResult = await concurrent.RunAsync(
+string combinedResult = await concurrent.RunAsync(
     "Analyze this database query module for issues"
 );
-Console.WriteLine(combinedResult.Text);
+Console.WriteLine(combinedResult);
 ```
 
 </details>
@@ -426,6 +429,7 @@ Console.WriteLine(combinedResult.Text);
 <details>
 <summary><strong>Java</strong></summary>
 
+<!-- docs-validate: skip -->
 ```java
 import com.github.copilot.CopilotClient;
 import com.github.copilot.rpc.*;
@@ -476,11 +480,14 @@ using Microsoft.Agents.AI;
 await using var copilotClient = new CopilotClient();
 await copilotClient.StartAsync();
 
-AIAgent agent = copilotClient.AsAIAgent(new SessionConfig { Model = "gpt-5.4" });
-
-await foreach (AgentResponseUpdate update in agent.RunStreamingAsync("Write a quicksort implementation in C#"))
+AIAgent agent = copilotClient.AsAIAgent(new AIAgentOptions
 {
-    Console.Write(update.Text);
+    Streaming = true,
+});
+
+await foreach (var chunk in agent.RunStreamingAsync("Write a quicksort implementation in C#"))
+{
+    Console.Write(chunk);
 }
 Console.WriteLine();
 ```
@@ -495,11 +502,13 @@ Console.WriteLine();
 from agent_framework.github import GitHubCopilotAgent
 
 async def main():
-    agent = GitHubCopilotAgent()
+    agent = GitHubCopilotAgent(
+        default_options={"streaming": True}
+    )
 
     async with agent:
-        async for update in agent.run("Write a quicksort in Python", stream=True):
-            print(update.text, end="", flush=True)
+        async for chunk in agent.run_streaming("Write a quicksort in Python"):
+            print(chunk, end="", flush=True)
         print()
 ```
 
@@ -510,7 +519,6 @@ You can also stream directly through the Copilot SDK without MAF:
 <details open>
 <summary><strong>Node.js / TypeScript (standalone SDK)</strong></summary>
 
-<!-- docs-validate: strict -->
 ```typescript
 import { CopilotClient } from "@github/copilot-sdk";
 
@@ -533,9 +541,9 @@ await session.sendAndWait({ prompt: "Write a quicksort implementation in TypeScr
 <details>
 <summary><strong>Java</strong></summary>
 
+<!-- docs-validate: skip -->
 ```java
 import com.github.copilot.CopilotClient;
-import com.github.copilot.generated.AssistantMessageDeltaEvent;
 import com.github.copilot.rpc.*;
 
 var client = new CopilotClient();
@@ -568,7 +576,7 @@ client.stop().get();
 |----------|------|-------------|
 | `Instructions` / `instructions` | `string` | System prompt for the agent |
 | `Tools` / `tools` | `AIFunction[]` / `list` | Custom function tools available to the agent |
-| `RunStreamingAsync` / `run(..., stream=True)` | method / argument | Stream responses; streaming is chosen per call, not set on the agent |
+| `Streaming` / `streaming` | `bool` | Enable streaming responses |
 | `Model` / `model` | `string` | Override the default model |
 
 ### Copilot SDK options (passed through)
@@ -590,7 +598,6 @@ All standard [SessionConfig](../getting-started.md) options are still available 
 
 Use the MAF wrapper when you need to compose Copilot with other providers in orchestrated workflows. If your application only uses Copilot, the standalone SDK is simpler and gives you full control:
 
-<!-- docs-validate: strict -->
 ```typescript
 // Standalone SDK — full control, simpler setup
 import { CopilotClient } from "@github/copilot-sdk";
@@ -623,32 +630,18 @@ const agents = [
 
 ### Handle errors at the orchestration level
 
-Workflow agents can return `Microsoft.Extensions.AI.ErrorContent` in response messages instead of throwing an exception. Check for these errors before printing `AgentResponse.Text`, which excludes non-text content. Keep a `catch` block for exceptions that escape the workflow:
+Wrap agent calls in error handling, especially in multi-agent workflows where one agent's failure shouldn't block the entire pipeline:
 
 <!-- docs-validate: skip -->
 ```csharp
-using Microsoft.Agents.AI;
-using Microsoft.Extensions.AI;
-using System.Linq;
-
 try
 {
-    AgentResponse result = await pipeline.RunAsync("Analyze this module");
-    var errors = result.Messages
-        .SelectMany(message => message.Contents)
-        .OfType<ErrorContent>()
-        .ToList();
-    if (errors.Count > 0)
-    {
-        throw new InvalidOperationException(
-            string.Join(Environment.NewLine, errors.Select(error => error.Message)));
-    }
-
-    Console.WriteLine(result.Text);
+    string result = await pipeline.RunAsync("Analyze this module");
+    Console.WriteLine(result);
 }
-catch (Exception ex)
+catch (AgentException ex)
 {
-    Console.Error.WriteLine($"Pipeline failed: {ex.Message}");
+    Console.Error.WriteLine($"Agent {ex.AgentName} failed: {ex.Message}");
     // Fall back to single-agent mode or retry
 }
 ```

@@ -139,12 +139,8 @@ async fn should_export_file_telemetry_for_sdk_interactions() {
                     Some(format!("{{\"value\":\"{marker}\"}}").as_str())
                 );
                 assert_eq!(
-                    serde_json::from_str::<serde_json::Value>(
-                        &string_attribute(tool_span, "gen_ai.tool.call.result")
-                            .expect("tool result attribute")
-                    )
-                    .expect("tool result JSON"),
-                    json!({ "content": marker })
+                    string_attribute(tool_span, "gen_ai.tool.call.result").as_deref(),
+                    Some(marker)
                 );
             })
         },

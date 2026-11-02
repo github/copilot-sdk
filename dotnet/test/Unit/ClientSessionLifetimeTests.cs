@@ -24,79 +24,6 @@ public sealed partial class ClientSessionLifetimeTests
 {
     private sealed record RpcRequestRecord(string Method, JsonElement Params);
 
-    [Theory]
-    [InlineData(false)]
-    [InlineData(true)]
-    public async Task Stop_RetiresPendingModelFetches(bool force)
-    {
-        IList<ModelInfo> oldModels = [new ModelInfo { Id = "old-model" }];
-        IList<ModelInfo> newModels = [new ModelInfo { Id = "new-model" }];
-        var oldFetch = new TaskCompletionSource<IList<ModelInfo>>(TaskCreationOptions.RunContinuationsAsynchronously);
-        var newFetch = new TaskCompletionSource<IList<ModelInfo>>(TaskCreationOptions.RunContinuationsAsynchronously);
-        var calls = 0;
-        await using var client = new CopilotClient(new CopilotClientOptions
-        {
-            OnListModels = _ => Interlocked.Increment(ref calls) == 1 ? oldFetch.Task : newFetch.Task
-        });
-        try
-        {
-            var first = client.ListModelsAsync();
-            var queuedOld = client.ListModelsAsync();
-            if (force)
-            {
-                await client.ForceStopAsync();
-            }
-            else
-            {
-                await client.StopAsync();
-            }
-
-            var current = client.ListModelsAsync();
-            Assert.Equal(2, Volatile.Read(ref calls));
-            oldFetch.SetResult(oldModels);
-            Assert.Equal("old-model", (await first.WaitAsync(TimeSpan.FromSeconds(5)))[0].Id);
-            Assert.Equal("old-model", (await queuedOld.WaitAsync(TimeSpan.FromSeconds(5)))[0].Id);
-            var queuedNew = client.ListModelsAsync();
-            Assert.False(queuedNew.IsCompleted);
-            newFetch.SetResult(newModels);
-
-            Assert.Equal("new-model", (await current.WaitAsync(TimeSpan.FromSeconds(5)))[0].Id);
-            Assert.Equal("new-model", (await queuedNew.WaitAsync(TimeSpan.FromSeconds(5)))[0].Id);
-            Assert.Equal("new-model", (await client.ListModelsAsync())[0].Id);
-            Assert.Equal(2, Volatile.Read(ref calls));
-        }
-        finally
-        {
-            oldFetch.TrySetResult(oldModels);
-            newFetch.TrySetResult(newModels);
-        }
-    }
-
-    [Theory]
-    [InlineData(false)]
-    [InlineData(true)]
-    public async Task LegacyPingFallback_RequiresNoEntraConfiguration(bool entra)
-    {
-        await using var server = await FakeCopilotServer.StartAsync();
-        server.RejectConnect = true;
-        await using var client = new CopilotClient(new CopilotClientOptions
-        {
-            Connection = RuntimeConnection.ForUri(server.Url),
-            Entra = entra ? new EntraAuthOptions { ClientId = "host-entra-client" } : null
-        });
-        if (entra)
-        {
-            var error = await Assert.ThrowsAsync<InvalidOperationException>(() => client.StartAsync());
-            Assert.Contains("does not support Entra client configuration", error.Message);
-            Assert.DoesNotContain(server.Requests, r => r.Method == "ping");
-        }
-        else
-        {
-            await client.StartAsync();
-            Assert.Single(server.Requests, r => r.Method == "ping");
-        }
-    }
-
     [Fact]
     public async Task TypedHookDispatch_RetainsChildIdentityAndOldRootInputs()
     {
@@ -142,9 +69,6 @@ public sealed partial class ClientSessionLifetimeTests
                     input["agentId"] = "child-actor";
                     input["agentType"] = "explore";
                     input["parentAgentId"] = "parent-actor";
-                    input["traceparent"] = "00-0123456789abcdef0123456789abcdef-0123456789abcdef-01";
-                    input["tracestate"] = "vendor=state";
-                    input["toolCallId"] = "model-call";
                 }
                 captured.Clear();
                 await server.SendRequestAsync("hooks.invoke", new Dictionary<string, object?>
@@ -155,17 +79,12 @@ public sealed partial class ClientSessionLifetimeTests
                 }).WaitAsync(TimeSpan.FromSeconds(5));
                 var actual = Assert.Single(captured);
                 Assert.Equal("reported-session", actual.GetType().GetProperty("SessionId")!.GetValue(actual));
-                var fields = new Dictionary<string, string>
+                foreach (var field in new Dictionary<string, string>
                 {
                     ["AgentId"] = "child-actor",
                     ["AgentType"] = "explore",
                     ["ParentAgentId"] = "parent-actor"
-                };
-                if (hook is "preToolUse" or "postToolUse" or "postToolUseFailure" or "preMcpToolCall")
-                {
-                    fields["ToolCallId"] = "model-call";
-                }
-                foreach (var field in fields)
+                })
                 {
                     var property = actual.GetType().GetProperty(field.Key);
                     Assert.NotNull(property);
@@ -189,19 +108,11 @@ public sealed partial class ClientSessionLifetimeTests
     [InlineData(true, null, false)]
     [InlineData(false, false, true)]
     [InlineData(true, true, false)]
-    [InlineData(false, null, null, true)]
-    [InlineData(false, null, null, false)]
-    [InlineData(true, null, null, true)]
-    [InlineData(true, null, null, false)]
-    [InlineData(false, true, false, true)]
-    [InlineData(true, false, true, false)]
-    public async Task ImageGeneration_ForwardsCreateAndResumeOptIn(bool resume, bool? enabled, bool? watermark = null, bool? saveToDisk = null)
+    public async Task ImageGeneration_ForwardsCreateAndResumeOptIn(bool resume, bool? enabled, bool? watermark = null)
     {
         await using var server = await FakeCopilotServer.StartAsync();
         await using var client = new CopilotClient(new CopilotClientOptions { Connection = RuntimeConnection.ForUri(server.Url) });
-        var imageGeneration = enabled is null && watermark is null && saveToDisk is null
-            ? null
-            : new ImageGenerationConfig { Enabled = enabled, Watermark = watermark, SaveToDisk = saveToDisk };
+        var imageGeneration = enabled is null && watermark is null ? null : new ImageGenerationConfig { Enabled = enabled, Watermark = watermark };
         await using var session = resume
             ? await client.ResumeSessionAsync("image-test", new ResumeSessionConfig
             {
@@ -214,7 +125,7 @@ public sealed partial class ClientSessionLifetimeTests
                 ImageGeneration = imageGeneration
             }.Clone());
         var request = Assert.Single(server.Requests, r => r.Method == (resume ? "session.resume" : "session.create")).Params;
-        if (enabled is null && watermark is null && saveToDisk is null)
+        if (enabled is null && watermark is null)
         {
             Assert.False(request.TryGetProperty("imageGeneration", out _), request.ToString());
         }
@@ -236,14 +147,6 @@ public sealed partial class ClientSessionLifetimeTests
             else
             {
                 Assert.Equal(watermark.Value, options.GetProperty("watermark").GetBoolean());
-            }
-            if (saveToDisk is null)
-            {
-                Assert.False(options.TryGetProperty("saveToDisk", out _));
-            }
-            else
-            {
-                Assert.Equal(saveToDisk.Value, options.GetProperty("saveToDisk").GetBoolean());
             }
         }
     }
@@ -2193,16 +2096,16 @@ public sealed partial class ClientSessionLifetimeTests
             OnPermissionRequest = PermissionHandler.ApproveAll
         });
 
+        DispatchEvent(session, ExternalToolRequested("request-blocking-callback"));
+        await toolStarted.Task.WaitAsync(TimeSpan.FromSeconds(5));
+
+        var dispatchTask = Task.Run(() => DispatchEvent(session, new ExternalToolCompletedEvent
+        {
+            Data = new ExternalToolCompletedData { RequestId = "request-blocking-callback" }
+        }));
+        await callbackStarted.Task.WaitAsync(TimeSpan.FromSeconds(5));
         try
         {
-            DispatchEvent(session, ExternalToolRequested("request-blocking-callback"));
-            await toolStarted.Task.WaitAsync(TimeSpan.FromSeconds(5));
-
-            var dispatchTask = Task.Run(() => DispatchEvent(session, new ExternalToolCompletedEvent
-            {
-                Data = new ExternalToolCompletedData { RequestId = "request-blocking-callback" }
-            }));
-            await callbackStarted.Task.WaitAsync(TimeSpan.FromSeconds(5));
             await dispatchTask.WaitAsync(TimeSpan.FromSeconds(5));
         }
         finally
@@ -2213,16 +2116,14 @@ public sealed partial class ClientSessionLifetimeTests
 
         async Task<string> BlockedTool(CancellationToken cancellationToken)
         {
+            toolStarted.TrySetResult();
             using var registration = cancellationToken.Register(() =>
             {
                 callbackStarted.TrySetResult();
                 releaseCallback.Task.GetAwaiter().GetResult();
             });
-            toolStarted.TrySetResult();
             try
             {
-                // Keep the registration alive until cancellation enters the blocking callback.
-                await callbackStarted.Task;
                 await Task.Delay(Timeout.InfiniteTimeSpan, cancellationToken);
                 return "unreachable";
             }
@@ -3368,39 +3269,6 @@ public sealed partial class ClientSessionLifetimeTests
         Assert.Null(await sendTask.WaitAsync(timeout));
     }
 
-    [Fact]
-    public async Task CapabilitiesChanged_Keeps_Capabilities_The_Event_Does_Not_Name()
-    {
-        await using var server = await FakeCopilotServer.StartAsync();
-        await using var client = new CopilotClient(
-            new CopilotClientOptions { Connection = RuntimeConnection.ForUri(server.Url) });
-        await using var session = await client.CreateSessionAsync(new SessionConfig());
-        var timeout = TimeSpan.FromSeconds(5);
-
-        Task ChangeAsync(Dictionary<string, object?>? ui) =>
-            server.SendAndDrainSessionEventAsync(
-                session,
-                "capabilities.changed",
-                ui is null ? new Dictionary<string, object?>() : new Dictionary<string, object?> { ["ui"] = ui },
-                timeout);
-
-        await ChangeAsync(new() { ["mcpApps"] = true });
-        await ChangeAsync(new() { ["elicitation"] = true });
-        Assert.True(session.Capabilities.Ui?.McpApps);
-        Assert.True(session.Capabilities.Ui?.Elicitation);
-
-        var before = session.Capabilities;
-        await ChangeAsync(new() { ["canvases"] = true });
-        await ChangeAsync(null);
-        Assert.True(session.Capabilities.Ui?.McpApps);
-        Assert.True(session.Capabilities.Ui?.Elicitation);
-
-        await ChangeAsync(new() { ["elicitation"] = false });
-        Assert.True(session.Capabilities.Ui?.McpApps);
-        Assert.False(session.Capabilities.Ui?.Elicitation);
-        Assert.True(before.Ui?.Elicitation);
-    }
-
     [Theory]
     [MemberData(nameof(MessageSourcesAndOutcomes))]
     public async Task SendAndWaitAsync_MessageSource_Propagates_Errors(MessageSource? source, string? wireSource, bool rpcError, string? mode)
@@ -3463,17 +3331,17 @@ public sealed partial class ClientSessionLifetimeTests
             new MessageOptions { Prompt = "Context", Source = source },
             timeout: cancel ? TimeSpan.FromSeconds(30) : TimeSpan.FromMilliseconds(50),
             cancellationToken: cancellation.Token);
+        var request = await WaitForRequestAsync(server, "session.send");
+        AssertMessageSource(request.Params, source.Value);
+
         if (cancel)
         {
-            var request = await WaitForRequestAsync(server, "session.send");
-            AssertMessageSource(request.Params, source.Value);
             cancellation.Cancel();
             var error = await Assert.ThrowsAnyAsync<OperationCanceledException>(() => sendTask.WaitAsync(TimeSpan.FromSeconds(5)));
             Assert.Equal(cancellation.Token, error.CancellationToken);
         }
         else
         {
-            // The timeout can expire during the unsupported completion-RPC probe, before session.send.
             var error = await Assert.ThrowsAsync<TimeoutException>(() => sendTask.WaitAsync(TimeSpan.FromSeconds(5)));
             Assert.Contains("SendAndWaitAsync timed out", error.Message);
         }
@@ -3915,7 +3783,6 @@ public sealed partial class ClientSessionLifetimeTests
 
         await using var session = await client.CreateSessionAsync(new SessionConfig
         {
-            ExcludedManagedSettings = ["sandbox", "allowedMcpServers"],
             EnforceManagedModelDefaults = true,
             InteractiveUser = true,
             ManagedSettings = new ManagedSettings
@@ -3938,10 +3805,6 @@ public sealed partial class ClientSessionLifetimeTests
         });
 
         var request = Assert.Single(server.Requests, request => request.Method == "session.create");
-        Assert.Collection(
-            request.Params.GetProperty("excludedManagedSettings").EnumerateArray(),
-            value => Assert.Equal("sandbox", value.GetString()),
-            value => Assert.Equal("allowedMcpServers", value.GetString()));
         Assert.True(request.Params.GetProperty("enforceManagedModelDefaults").GetBoolean());
         Assert.False(request.Params.TryGetProperty("enableManagedSettings", out _));
         Assert.True(request.Params.GetProperty("interactiveUser").GetBoolean());
@@ -3975,11 +3838,6 @@ public sealed partial class ClientSessionLifetimeTests
                         Recommendation = AssistedApprovalRecommendation.Approve
                     }
                 },
-                AssistedApprovalAssessment = new AssistedApprovalAssessmentCompleted
-                {
-                    Recommendation = AssistedApprovalCompletedRecommendation.RequireApproval,
-                    Rationale = "The command modifies protected files."
-                },
                 RequestId = "managed-permission"
             }
         });
@@ -3988,9 +3846,6 @@ public sealed partial class ClientSessionLifetimeTests
         var promptRequest = Assert.IsType<PermissionPromptRequestCommands>(invocation.PromptRequest);
         Assert.Null(promptRequest.ManagedApprovalRequired);
         Assert.Equal(AssistedApprovalRecommendation.Approve, promptRequest.AssistedApproval?.Recommendation);
-        var assessment = Assert.IsType<AssistedApprovalAssessmentCompleted>(invocation.AssistedApprovalAssessment);
-        Assert.Equal(AssistedApprovalCompletedRecommendation.RequireApproval, assessment.Recommendation);
-        Assert.Equal("The command modifies protected files.", assessment.Rationale);
     }
 
     [Fact]
@@ -4246,7 +4101,6 @@ public sealed partial class ClientSessionLifetimeTests
 
         await using var session = await client.ResumeSessionAsync("session-managed", new ResumeSessionConfig
         {
-            ExcludedManagedSettings = ["deniedMcpServers"],
             EnforceManagedModelDefaults = true,
             InteractiveUser = true,
             ManagedSettings = new ManagedSettings
@@ -4261,7 +4115,6 @@ public sealed partial class ClientSessionLifetimeTests
         });
 
         var request = Assert.Single(server.Requests, request => request.Method == "session.resume");
-        Assert.Equal("deniedMcpServers", Assert.Single(request.Params.GetProperty("excludedManagedSettings").EnumerateArray()).GetString());
         Assert.True(request.Params.GetProperty("enforceManagedModelDefaults").GetBoolean());
         Assert.True(request.Params.GetProperty("interactiveUser").GetBoolean());
         var permissions = request.Params.GetProperty("managedSettings").GetProperty("permissions");
@@ -4403,7 +4256,6 @@ public sealed partial class ClientSessionLifetimeTests
         private readonly TaskCompletionSource _destroyStarted = new(TaskCreationOptions.RunContinuationsAsynchronously);
         private readonly TaskCompletionSource _allowDestroy = new(TaskCreationOptions.RunContinuationsAsynchronously);
         private readonly Task _serverTask;
-        private readonly List<Task> _sendCompletionTasks = [];
         private readonly List<RpcRequestRecord> _requests = [];
         private readonly ConcurrentQueue<object?> _sessionEvents = new();
         private readonly object _requestsLock = new();
@@ -4419,7 +4271,6 @@ public sealed partial class ClientSessionLifetimeTests
         private bool _reconnectObserved;
         private int _nextMessageId;
         public bool IncludeTranscriptRecovery { get; set; }
-        public bool RejectConnect { get; set; }
 
         public string? LastSessionId => _lastSessionId;
         public bool UniqueMessageIds { get; set; }
@@ -4428,7 +4279,6 @@ public sealed partial class ClientSessionLifetimeTests
         public bool ReconnectObserved => Volatile.Read(ref _reconnectObserved);
 
         public Func<string, Task>? BeforeSendResponse { get; set; }
-        public Func<RpcRequestRecord, CancellationToken, Task<object?>>? SendCompletion { get; set; }
 
         private FakeCopilotServer(TcpListener listener)
         {
@@ -4514,8 +4364,7 @@ public sealed partial class ClientSessionLifetimeTests
 
         public void CloseConnection()
         {
-            // RunAsync owns the stream and disposes it after its I/O has stopped.
-            _cts.Cancel();
+            _stream?.Dispose();
         }
 
         public async Task<JsonElement> SendRequestAsync(string method, Dictionary<string, object?> parameters)
@@ -4611,14 +4460,6 @@ public sealed partial class ClientSessionLifetimeTests
             {
             }
 
-            try
-            {
-                await Task.WhenAll(_sendCompletionTasks);
-            }
-            catch (Exception ex) when (ex is OperationCanceledException or ObjectDisposedException or IOException or SocketException)
-            {
-            }
-
             _cts.Dispose();
             _writeLock.Dispose();
         }
@@ -4638,16 +4479,9 @@ public sealed partial class ClientSessionLifetimeTests
                 }
 
                 var root = message.RootElement;
-                if (root.TryGetProperty("method", out var method))
+                if (root.TryGetProperty("method", out _))
                 {
-                    if (method.GetString() == "session.sendAndWait" && SendCompletion is not null)
-                    {
-                        _sendCompletionTasks.Add(HandleRequestAsync(stream, root.Clone(), _cts.Token));
-                    }
-                    else
-                    {
-                        await HandleRequestAsync(stream, root, _cts.Token);
-                    }
+                    await HandleRequestAsync(stream, root, _cts.Token);
                     continue;
                 }
 
@@ -4702,42 +4536,6 @@ public sealed partial class ClientSessionLifetimeTests
                 _requests.Add(new RpcRequestRecord(method!, paramsElement));
             }
             RequestsChanged.Pulse();
-            if (method == "connect" && RejectConnect)
-            {
-                await WriteMessageAsync(stream, new Dictionary<string, object?>
-                {
-                    ["jsonrpc"] = "2.0",
-                    ["id"] = id,
-                    ["error"] = new Dictionary<string, object?>
-                    {
-                        ["code"] = -32601,
-                        ["message"] = "Method not found"
-                    }
-                }, cancellationToken);
-                return;
-            }
-            if (method == "session.sendAndWait")
-            {
-                var response = new Dictionary<string, object?>
-                {
-                    ["jsonrpc"] = "2.0",
-                    ["id"] = id,
-                };
-                if (SendCompletion is { } complete)
-                {
-                    response["result"] = await complete(new RpcRequestRecord(method, paramsElement), cancellationToken);
-                }
-                else
-                {
-                    response["error"] = new Dictionary<string, object?>
-                    {
-                        ["code"] = -32601,
-                        ["message"] = "Method not found",
-                    };
-                }
-                await WriteMessageAsync(stream, response, cancellationToken);
-                return;
-            }
             if (method == "session.create" && _failSessionCreate)
             {
                 _failSessionCreate = false;
@@ -4794,7 +4592,7 @@ public sealed partial class ClientSessionLifetimeTests
             }
             object? result = method switch
             {
-                "connect" or "ping" => new Dictionary<string, object?>
+                "connect" => new Dictionary<string, object?>
                 {
                     ["ok"] = true,
                     ["protocolVersion"] = 3,

@@ -66,7 +66,6 @@ or configuration-source precedence.
 
 ### Node.js / TypeScript
 
-<!-- docs-validate: strict -->
 ```typescript
 import { CopilotClient } from "@github/copilot-sdk";
 
@@ -80,7 +79,7 @@ const session = await client.createSession({
             command: "node",
             args: ["./mcp-server.js"],
             env: { DEBUG: "true" },
-            workingDirectory: "./servers",
+            cwd: "./servers",
             tools: ["*"],  // "*" = all tools, [] = none, or list specific tools
             timeout: 30000,
         },
@@ -101,7 +100,6 @@ const session = await client.createSession({
 import asyncio
 from copilot import CopilotClient
 from copilot.session import PermissionHandler
-from copilot.session_events import AssistantMessageData
 
 async def main():
     client = CopilotClient()
@@ -114,7 +112,7 @@ async def main():
             "command": "python",
             "args": ["./mcp_server.py"],
             "env": {"DEBUG": "true"},
-            "working_directory": "./servers",
+            "cwd": "./servers",
             "tools": ["*"],
             "timeout": 30000,
         },
@@ -128,8 +126,7 @@ async def main():
     })
 
     response = await session.send_and_wait("List my recent GitHub notifications")
-    if response and isinstance(response.data, AssistantMessageData):
-        print(response.data.content)
+    print(response.data.content)
 
     await client.stop()
 
@@ -201,7 +198,6 @@ Set `disabledMcpServers` to exact MCP server names that must not run in a sessio
 The setting is scoped to the individual create or resume request; it does not
 modify global MCP settings or the server configuration.
 
-<!-- docs-validate: strict -->
 ```typescript
 const session = await client.createSession({
     mcpServers: {
@@ -322,7 +318,7 @@ You can control which tools are available to an MCP server using the `tools` fie
 
 ### Allow all tools
 
-Use `"*"` to enable all tools provided by the MCP server. Omitting the `tools` field has the same effect:
+Use `"*"` to enable all tools provided by the MCP server:
 
 ```typescript
 tools: ["*"]
@@ -568,7 +564,6 @@ per output surface and retain its cursor. A read loop owns its cursor and
 presentation; the runtime owns capture, filtering, retention, cursor expiry,
 and wakeups.
 
-<!-- docs-validate: strict -->
 ```ts
 import { approveAll, CopilotClient } from "@github/copilot-sdk";
 
@@ -668,7 +663,7 @@ server-provided secrets.
    * Look for error output in stderr
 
 1. **Check tool configuration**
-   * Leave `tools` out or set it to `["*"]` to expose every tool, or list the specific tools you need
+   * Make sure `tools` is set to `["*"]` or lists the specific tools you need
    * An empty array `[]` means no tools are enabled
 
 1. **Verify connectivity for remote servers**

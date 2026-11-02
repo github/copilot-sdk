@@ -41,8 +41,6 @@ public final class SessionFusionRouteFailedEvent extends SessionEvent {
     public record SessionFusionRouteFailedEventData(
         /** Identifier of the routing attempt that failed. */
         @JsonProperty("attemptId") String attemptId,
-        /** Identifier of the HydraFusion turn whose routing failed; its fallback phase runs under the same id. Absent on events written before it was recorded. */
-        @JsonProperty("fusionId") String fusionId,
         /** Synthetic HydraFusion model selected for the session. */
         @JsonProperty("syntheticModel") String syntheticModel,
         /** HydraFusion routing policy requested for the turn. */

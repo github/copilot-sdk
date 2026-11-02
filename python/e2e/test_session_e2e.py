@@ -1093,10 +1093,14 @@ class TestSessions:
 
     async def test_sendandwait_throws_on_timeout(self, ctx: E2ETestContext):
         """`send_and_wait` raises TimeoutError when the session does not become idle."""
+        import asyncio
+
         session = await ctx.client.create_session(
             on_permission_request=PermissionHandler.approve_all,
         )
 
+        # Subscribe before sending so even an idle emitted before the abort reply is captured.
+        idle_task = get_next_event_of_type(session, "session.idle", timeout=30.0)
         try:
             with pytest.raises(TimeoutError) as exc_info:
                 await session.send_and_wait(
@@ -1104,9 +1108,14 @@ class TestSessions:
                     timeout=0.1,
                 )
             assert "Timeout" in str(exc_info.value) or "timed out" in str(exc_info.value).lower()
+
+            # The timeout only cancels the client-side wait; abort the agent and wait for idle
+            # so leftover requests don't leak into subsequent tests.
+            await session.abort()
+            await idle_task
         finally:
-            # The deadline can expire before admission, so no idle event is guaranteed.
-            # Disconnect drains any admitted work before the next test starts.
+            idle_task.cancel()
+            await asyncio.gather(idle_task, return_exceptions=True)
             await session.disconnect()
 
     async def test_sendandwait_throws_operationcanceledexception_when_token_cancelled(

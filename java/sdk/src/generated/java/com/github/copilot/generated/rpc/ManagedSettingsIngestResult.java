@@ -10,7 +10,6 @@ package com.github.copilot.generated.rpc;
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.annotation.JsonProperty;
-import com.github.copilot.generated.PolicyHelperFailure;
 import java.util.List;
 import javax.annotation.processing.Generated;
 
@@ -69,8 +68,6 @@ record ManagedSettingsIngestResult(
     @JsonProperty("policyHelperAuthority") ManagedSettingsPolicyHelperAuthority policyHelperAuthority,
     /** The policy helper was configured but could not be run or its output could not be read. */
     @JsonProperty("policyHelperLoadFailed") Boolean policyHelperLoadFailed,
-    /** Structured latest Policy Helper failure for this ingestion, when one occurred. */
-    @JsonProperty("policyHelperFailure") PolicyHelperFailure policyHelperFailure,
     /** A policy helper is configured for this host. */
     @JsonProperty("policyHelperConfigured") Boolean policyHelperConfigured,
     /** The policy helper's failure must be treated as fail-closed rather than ignored. */

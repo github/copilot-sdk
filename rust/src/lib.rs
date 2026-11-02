@@ -6,15 +6,17 @@
 /// Experimental runtime-owned Agent Host Protocol listeners.
 pub mod ahp_host;
 pub use ahp_host::{
-    AhpAuthenticationRequest, AhpAuthenticationResult, AhpAuthenticator, AhpHost,
-    AhpHostAuthentication, AhpHostExit, AhpHostExitCallback, AhpHostExitReason, AhpHostOptions,
-    AhpSessionAuthentication, AhpSessionFactory, AhpSessionReleasedCallback, AhpSessionRequest,
-    AhpSessionResumeFactory, AhpSessionResumeRequest,
+    AhpHost, AhpHostExit, AhpHostExitCallback, AhpHostExitReason, AhpHostOptions,
+    AhpSessionFactory, AhpSessionReleasedCallback, AhpSessionRequest, AhpSessionResumeFactory,
+    AhpSessionResumeRequest,
 };
 
 // Outside tests, `cache_paths`'s only caller is `resolve::extracted_program`, which
 // needs the build script to have extracted a CLI (`has_extracted_cli`). Without it the
-// module is compiled only for its own unit tests.
+// module is compiled only for its own unit tests, which exercise the pure path helpers;
+// `extracted_runtime_install_dir` and `platform_cache_dir` then have no caller in the
+// lib test unit (the build script reaches them through its own `#[path]` include).
+#[cfg_attr(all(test, not(has_extracted_cli)), expect(dead_code))]
 #[cfg(all(
     feature = "runtime",
     not(feature = "bundled-cli"),
@@ -39,10 +41,6 @@ pub use errors::*;
 /// model-layer HTTP and WebSocket traffic the runtime issues for both CAPI and
 /// BYOK sessions.
 pub mod copilot_request_handler;
-#[cfg(all(target_os = "macos", feature = "network-forwarding"))]
-mod network_tls;
-
-pub mod entra;
 /// GitHub telemetry forwarding callback surface (experimental). Public but
 /// `#[doc(hidden)]` — re-exports the generated telemetry payload types.
 #[doc(hidden)]
@@ -56,13 +54,8 @@ pub mod hooks;
 /// Connection-global human confirmation for experimental installation operations.
 pub mod installation_confirmation;
 mod jsonrpc;
-/// Kerberos credentials supplied by the SDK host.
-pub mod kerberos_auth;
 /// Permission-policy helpers that produce a [`handler::PermissionHandler`].
 pub mod permission;
-#[allow(dead_code)]
-#[path = "platform_dirs/mod.rs"]
-mod platform_dirs;
 mod process_tree;
 /// BYOK bearer-token provider callbacks.
 pub mod provider_token;
@@ -141,8 +134,6 @@ pub(crate) use jsonrpc::{
 pub use mode::{BUILTIN_TOOLS_ISOLATED, ClientMode, ToolSet};
 pub use provider_token::{BearerTokenError, BearerTokenProvider, ProviderTokenArgs};
 pub use skill_provider::{SkillProvider, SkillProviderDescriptor};
-pub mod session_management;
-pub use session_management::SessionCreationHandler;
 
 /// Re-exported JSON-RPC internals for integration tests (requires `test-support` feature).
 #[cfg(feature = "test-support")]
@@ -152,7 +143,6 @@ pub mod test_support {
         error_codes,
     };
 }
-pub use generated::api_types::EntraAuthConfig;
 use serde::{Deserialize, Serialize};
 #[cfg(feature = "runtime")]
 use tokio::io::{AsyncBufReadExt, BufReader};
@@ -358,6 +348,7 @@ pub struct ClientOptions {
     /// Required for OneAuth interactive authentication on macOS. This general-purpose
     /// scheduler may also be used for other runtime-owned native UI operations.
     /// Temporary OneAuth workaround; this API may be removed if no longer needed.
+    /// See <https://github.com/github/copilot-agent-runtime/issues/27032>.
     pub run_on_ui_thread: Option<Arc<dyn UiThreadHandler>>,
     /// GitHub token for authentication. When set, the SDK passes the token
     /// to the CLI via `--auth-token-env COPILOT_SDK_AUTH_TOKEN` and exports
@@ -366,10 +357,7 @@ pub struct ClientOptions {
     pub github_token: Option<String>,
     /// Whether the CLI should fall back to the logged-in `gh` user when no
     /// token is provided. `None` means use the runtime default (true unless
-    /// [`Self::github_token`] is set, in which case false). When false, only
-    /// explicit tokens such as [`Self::github_token`] are used; environment
-    /// variable tokens (`COPILOT_GITHUB_TOKEN`, `GH_TOKEN`, `GITHUB_TOKEN`)
-    /// are ignored.
+    /// [`Self::github_token`] is set, in which case false).
     pub use_logged_in_user: Option<bool>,
     /// Log level passed to the CLI server via `--log-level`. When `None`,
     /// the SDK does not pass `--log-level` to the runtime at all and the
@@ -414,12 +402,6 @@ pub struct ClientOptions {
     /// of sessions.
     pub extension_launch_provider:
         Option<Arc<dyn crate::extension_launch_provider::ExtensionLaunchProvider>>,
-    /// Kerberos credentials supplied by the SDK host.
-    ///
-    /// When set, the SDK handles `kerberosAuth.acquire` requests and registers
-    /// with the runtime via `kerberosAuth.setProvider` during [`Client::start`],
-    /// before any session can be created.
-    pub kerberos_auth: Option<crate::kerberos_auth::KerberosAuthConfig>,
     /// Connection-global human review handler for `installations.confirm` (experimental).
     ///
     /// This receives requests without session routing or inferred operation authority.
@@ -449,12 +431,6 @@ pub struct ClientOptions {
     /// [`TelemetryConfig`] for the env-var mapping. The SDK takes no
     /// OpenTelemetry dependency — this is pure spawn-time env injection.
     pub telemetry: Option<TelemetryConfig>,
-    /// Disable Copilot-owned GitHub and Entra authentication telemetry at startup.
-    ///
-    /// Applies to owned runtimes, including [`Transport::InProcess`], without
-    /// changing the host process environment. User-configured OpenTelemetry and
-    /// [`Self::on_github_telemetry`] forwarding remain independent.
-    pub disable_client_telemetry: bool,
     /// Override the directory where the CLI persists its state (sessions,
     /// auth, telemetry buffers). When set, exported as `COPILOT_HOME` to
     /// the spawned CLI process. Useful for sandboxing test runs or
@@ -470,17 +446,19 @@ pub struct ClientOptions {
     /// Otherwise defaults to the SDK's ordinary runtime resolver.
     #[doc(hidden)]
     pub in_process_runtime_library_path: Option<PathBuf>,
-    /// Deprecated legacy v1 remote-control compatibility option. This enables
-    /// export and polling-based steering for SDK-managed runtimes; it is
-    /// ignored when connecting to an external server via [`Transport::External`].
+    /// Enable remote session support (Mission Control integration).
+    /// When `true`, the SDK passes `--remote` to the spawned CLI process so
+    /// sessions in a GitHub repository working directory are accessible from
+    /// GitHub web and mobile. Ignored when connecting to an external server
+    /// via [`Transport::External`].
     pub enable_remote_sessions: bool,
     /// Override the directory where the bundled CLI binary is extracted on
     /// first use.
     ///
     /// When `None` (the default), the SDK extracts the embedded CLI to
     /// `<platform cache dir>/github-copilot-sdk/cli/<version>/copilot[.exe]`,
-    /// where the cache dir is the OS's LocalAppData known folder on
-    /// Windows, `~/Library/Caches/` on macOS,
+    /// where the cache dir is [`dirs::cache_dir()`] —
+    /// `%LOCALAPPDATA%` on Windows, `~/Library/Caches/` on macOS,
     /// `$XDG_CACHE_HOME` (or `~/.cache/`) on Linux. Use this knob to
     /// redirect the extraction (e.g. to a session-scoped temp directory in
     /// CI runners) without changing the global cache layout.
@@ -504,11 +482,6 @@ pub struct ClientOptions {
     /// build. All fields are optional; leave it `None` to keep the runtime's
     /// default attribution.
     pub client_info: Option<ClientInfo>,
-    /// Host's Entra registration, shared by its sessions. Omission disables
-    /// built-in Entra sign-in and token renewal; other auth methods remain available.
-    ///
-    /// **Experimental.** May change or be removed in future releases.
-    pub entra: Option<types::EntraAuthOptions>,
 }
 
 /// Identity of the integrating application, declared on the `server.connect`
@@ -608,7 +581,6 @@ impl std::fmt::Debug for ClientOptions {
             .field("working_directory", &self.working_directory)
             .field("env", &self.env)
             .field("env_remove", &self.env_remove)
-            .field("disable_client_telemetry", &self.disable_client_telemetry)
             .field("extra_args", &self.extra_args)
             .field(
                 "builtin_plugin_directories",
@@ -642,7 +614,6 @@ impl std::fmt::Debug for ClientOptions {
                 "extension_launch_provider",
                 &self.extension_launch_provider.as_ref().map(|_| "<set>"),
             )
-            .field("kerberos_auth", &self.kerberos_auth)
             .field(
                 "installation_confirmation_handler",
                 &self
@@ -668,7 +639,6 @@ impl std::fmt::Debug for ClientOptions {
             .field("enable_remote_sessions", &self.enable_remote_sessions)
             .field("bundled_cli_extract_dir", &self.bundled_cli_extract_dir)
             .field("client_info", &self.client_info)
-            .field("entra", &self.entra)
             .finish()
     }
 }
@@ -822,7 +792,7 @@ impl OtlpHttpProtocol {
 /// | [`file_path`]        | `COPILOT_OTEL_FILE_EXPORTER_PATH`                     |
 /// | [`exporter_type`]    | `COPILOT_OTEL_EXPORTER_TYPE`                          |
 /// | [`source_name`]      | `COPILOT_OTEL_SOURCE_NAME`                            |
-/// | [`capture_content`]  | `OTEL_INSTRUMENTATION_GENAI_CAPTURE_CONTENT` (and legacy boolean alias) |
+/// | [`capture_content`]  | `OTEL_INSTRUMENTATION_GENAI_CAPTURE_MESSAGE_CONTENT`  |
 ///
 /// Caller-supplied entries in [`ClientOptions::env`] override these, so a
 /// developer can pin any individual variable to a different value while
@@ -938,12 +908,10 @@ impl Default for ClientOptions {
             session_fs: None,
             request_handler: None,
             extension_launch_provider: None,
-            kerberos_auth: None,
             installation_confirmation_handler: None,
             on_github_telemetry: None,
             on_get_trace_context: None,
             telemetry: None,
-            disable_client_telemetry: false,
             base_directory: None,
             in_process_server_id: None,
             in_process_runtime_library_path: None,
@@ -951,7 +919,6 @@ impl Default for ClientOptions {
             bundled_cli_extract_dir: None,
             mode: ClientMode::default(),
             client_info: None,
-            entra: None,
         }
     }
 }
@@ -1062,12 +1029,6 @@ impl ClientOptions {
         self
     }
 
-    /// Disable Copilot-owned uploads without affecting independently configured OpenTelemetry.
-    pub fn with_disable_client_telemetry(mut self, disabled: bool) -> Self {
-        self.disable_client_telemetry = disabled;
-        self
-    }
-
     /// Log level passed to the CLI server via `--log-level`.
     pub fn with_log_level(mut self, level: LogLevel) -> Self {
         self.log_level = Some(level);
@@ -1121,33 +1082,6 @@ impl ClientOptions {
         self
     }
 
-    /// Supply Kerberos credentials from the SDK host.
-    ///
-    /// [`KerberosAuthMode::Fallback`](crate::kerberos_auth::KerberosAuthMode::Fallback)
-    /// uses the provider only when the runtime's native lookup fails;
-    /// [`KerberosAuthMode::Always`](crate::kerberos_auth::KerberosAuthMode::Always)
-    /// never attempts native lookup. The provider is registered with the runtime
-    /// before [`Client::start`] returns.
-    ///
-    /// The provider authenticates only requests made for sessions this client
-    /// creates or resumes. To also authenticate the runtime's shared background
-    /// traffic, set [`ClientOptions::kerberos_auth`] to a
-    /// [`KerberosAuthConfig`](crate::kerberos_auth::KerberosAuthConfig) with
-    /// [`KerberosAuthScope::Runtime`](crate::kerberos_auth::KerberosAuthScope::Runtime).
-    pub fn with_kerberos_auth<P>(
-        mut self,
-        mode: crate::kerberos_auth::KerberosAuthMode,
-        provider: P,
-    ) -> Self
-    where
-        P: crate::kerberos_auth::KerberosAuthProvider,
-    {
-        self.kerberos_auth = Some(crate::kerberos_auth::KerberosAuthConfig::new(
-            mode, provider,
-        ));
-        self
-    }
-
     /// Install a connection-global human confirmation handler (experimental).
     pub fn with_installation_confirmation_handler<H>(mut self, handler: H) -> Self
     where
@@ -1195,12 +1129,8 @@ impl ClientOptions {
         self
     }
 
-    /// Enable the deprecated legacy v1 remote-control compatibility mode.
-    ///
-    /// This option is temporary and may be removed in a future release.
-    #[deprecated(
-        note = "Legacy v1 remote-control compatibility is temporary and may be removed in a future release"
-    )]
+    /// Enable remote session support (Mission Control). Passes `--remote`
+    /// to the spawned CLI process.
     pub fn with_enable_remote_sessions(mut self, enabled: bool) -> Self {
         self.enable_remote_sessions = enabled;
         self
@@ -1234,14 +1164,6 @@ impl ClientOptions {
     /// consistent surface. See [`Self::client_info`].
     pub fn with_client_info(mut self, client_info: ClientInfo) -> Self {
         self.client_info = Some(client_info);
-        self
-    }
-
-    /// Configure the host's Microsoft Entra application for its sessions.
-    ///
-    /// **Experimental.** May change or be removed in future releases.
-    pub fn with_entra(mut self, entra: impl Into<types::EntraAuthOptions>) -> Self {
-        self.entra = Some(entra.into());
         self
     }
 }
@@ -1322,31 +1244,6 @@ fn resolve_default_transport_value(value: Option<&str>) -> Result<Transport> {
 }
 
 #[cfg(any(feature = "in-process", test))]
-fn inprocess_environment(options: &ClientOptions) -> Result<Vec<(String, String)>> {
-    let mut environment = Vec::new();
-    if let Some(base_directory) = &options.base_directory {
-        let value = base_directory.to_str().ok_or_else(|| {
-            Error::with_message(
-                ErrorKind::InvalidConfig,
-                "base_directory must be valid UTF-8 for Transport::InProcess",
-            )
-        })?;
-        environment.push(("COPILOT_HOME".to_owned(), value.to_owned()));
-    }
-    if options.mode == ClientMode::Empty {
-        environment.push(("COPILOT_DISABLE_KEYTAR".to_owned(), "1".to_owned()));
-    }
-    if let Some(github_token) = &options.github_token {
-        environment.push(("COPILOT_SDK_AUTH_TOKEN".to_owned(), github_token.clone()));
-    }
-    if options.disable_client_telemetry {
-        environment.push(("COPILOT_TELEMETRY_DISABLED".to_owned(), "true".to_owned()));
-    }
-    // The embedded host captures inheritance and normalizes platform-specific environment names.
-    Ok(environment)
-}
-
-#[cfg(any(feature = "in-process", test))]
 fn validate_inprocess_options(options: &ClientOptions) -> Result<()> {
     if !matches!(&options.program, CliProgram::Resolve) {
         return Err(Error::with_message(
@@ -1424,7 +1321,7 @@ struct ClientInner {
     rpc: JsonRpcClient,
     cwd: PathBuf,
     request_rx: parking_lot::Mutex<Option<mpsc::UnboundedReceiver<JsonRpcRequest>>>,
-    notification_tx: broadcast::Sender<Arc<JsonRpcNotification>>,
+    notification_tx: broadcast::Sender<JsonRpcNotification>,
     router: router::SessionRouter,
     github_token_registry: Arc<github_token::GitHubTokenRegistry>,
     negotiated_protocol_version: OnceLock<u32>,
@@ -1435,13 +1332,11 @@ struct ClientInner {
     session_fs_configured: bool,
     session_fs_sqlite_declared: bool,
     session_fs_binary_declared: bool,
-    session_fs_read_file_range_declared: bool,
     /// Inbound `llmInference.*` dispatcher, installed when
     /// [`ClientOptions::request_handler`] is set.
     llm_inference: OnceLock<Arc<copilot_request_handler::CopilotRequestDispatcher>>,
     extension_launch_provider: Arc<extension_launch_provider::ExtensionLaunchProviderDispatcher>,
     installation_confirmation: Arc<installation_confirmation::InstallationConfirmationDispatcher>,
-    entra_token: Arc<entra::EntraTokenDispatcher>,
     /// Connection-level GitHub telemetry forwarding callback, set from
     /// [`ClientOptions::on_github_telemetry`]. Drives the
     /// `enableGitHubTelemetryForwarding` wire flag and the
@@ -1457,7 +1352,6 @@ struct ClientInner {
     /// [`ClientOptions::client_info`]. `None` keeps the runtime's default
     /// telemetry attribution.
     client_info: Option<ClientInfo>,
-    entra: Option<types::EntraAuthOptions>,
     /// SDK [`ClientMode`] captured at start time. Drives empty-mode safe
     /// defaults inside `create_session` / `resume_session`.
     pub(crate) mode: ClientMode,
@@ -1521,8 +1415,6 @@ impl Client {
     ///
     /// After establishing the connection, calls [`verify_protocol_version`](Self::verify_protocol_version)
     /// to ensure the CLI server speaks a compatible protocol version.
-    /// When [`ClientOptions::kerberos_auth`] is set, next registers the SDK as
-    /// the Kerberos credential provider via `kerberosAuth.setProvider`.
     /// When [`ClientOptions::session_fs`] is set, also calls
     /// `sessionFs.setProvider` to register the SDK as the filesystem
     /// backend.
@@ -1647,7 +1539,6 @@ impl Client {
         let session_fs_config = options.session_fs.clone();
         let request_handler = options.request_handler.clone();
         let extension_launch_provider = options.extension_launch_provider.clone();
-        let kerberos_auth_config = options.kerberos_auth.clone();
         let installation_confirmation_handler = options.installation_confirmation_handler.clone();
         let session_fs_sqlite_declared = session_fs_config
             .as_ref()
@@ -1657,10 +1548,6 @@ impl Client {
             .as_ref()
             .and_then(|c| c.capabilities.as_ref())
             .is_some_and(|caps| caps.binary);
-        let session_fs_read_file_range_declared = session_fs_config
-            .as_ref()
-            .and_then(|c| c.capabilities.as_ref())
-            .is_some_and(|caps| caps.read_file_range);
         let program = match &options.program {
             CliProgram::Path(path) => {
                 info!(path = %path.display(), "using explicit copilot CLI path");
@@ -1724,7 +1611,7 @@ impl Client {
                 let (reader, writer) = tokio::io::split(stream);
                 Self::from_transport(
                     reader,
-                    jsonrpc::MessageWriter::stream(writer),
+                    writer,
                     None,
                     None,
                     working_directory,
@@ -1733,13 +1620,11 @@ impl Client {
                     session_fs_config.is_some(),
                     session_fs_sqlite_declared,
                     session_fs_binary_declared,
-                    session_fs_read_file_range_declared,
                     options.on_get_trace_context,
                     options.on_github_telemetry,
                     effective_connection_token.clone(),
                     options.mode,
                     options.client_info,
-                    options.entra,
                     false,
                 )?
             }
@@ -1762,7 +1647,7 @@ impl Client {
                 Self::drain_stderr(&mut child);
                 Self::from_transport(
                     reader,
-                    jsonrpc::MessageWriter::stream(writer),
+                    writer,
                     Some(child),
                     tree,
                     working_directory,
@@ -1771,13 +1656,11 @@ impl Client {
                     session_fs_config.is_some(),
                     session_fs_sqlite_declared,
                     session_fs_binary_declared,
-                    session_fs_read_file_range_declared,
                     options.on_get_trace_context,
                     options.on_github_telemetry,
                     effective_connection_token.clone(),
                     options.mode,
                     options.client_info,
-                    options.entra,
                     false,
                 )?
             }
@@ -1790,7 +1673,7 @@ impl Client {
                 Self::drain_stderr(&mut child);
                 Self::from_transport(
                     stdout,
-                    jsonrpc::MessageWriter::stream(stdin),
+                    stdin,
                     Some(child),
                     tree,
                     working_directory,
@@ -1799,13 +1682,11 @@ impl Client {
                     session_fs_config.is_some(),
                     session_fs_sqlite_declared,
                     session_fs_binary_declared,
-                    session_fs_read_file_range_declared,
                     options.on_get_trace_context,
                     options.on_github_telemetry,
                     effective_connection_token.clone(),
                     options.mode,
                     options.client_info,
-                    options.entra,
                     true,
                 )?
             }
@@ -1813,7 +1694,23 @@ impl Client {
                 #[cfg(feature = "in-process")]
                 {
                     info!(runtime_path = %program.display(), "hosting copilot runtime in-process (FFI)");
-                    let environment = inprocess_environment(&options)?;
+                    let mut environment = Vec::new();
+                    if let Some(base_directory) = &options.base_directory {
+                        let value = base_directory.to_str().ok_or_else(|| {
+                            Error::with_message(
+                                ErrorKind::InvalidConfig,
+                                "base_directory must be valid UTF-8 for Transport::InProcess",
+                            )
+                        })?;
+                        environment.push(("COPILOT_HOME".to_string(), value.to_string()));
+                    }
+                    if options.mode == ClientMode::Empty {
+                        environment.push(("COPILOT_DISABLE_KEYTAR".to_string(), "1".to_string()));
+                    }
+                    if let Some(github_token) = &options.github_token {
+                        environment
+                            .push(("COPILOT_SDK_AUTH_TOKEN".to_string(), github_token.clone()));
+                    }
                     let mut args = Vec::new();
                     args.extend(
                         Self::log_level_args(&options)
@@ -1850,13 +1747,10 @@ impl Client {
                         options.in_process_server_id,
                         options.in_process_runtime_library_path.as_deref(),
                     )?;
-                    let (reader, shared) = host.start().await?;
-                    let sender = shared.clone();
+                    let (reader, writer, shared) = host.start().await?;
                     let client = Self::from_transport(
                         reader,
-                        jsonrpc::MessageWriter::Synchronous(Arc::new(move |frame| {
-                            sender.write_frame(frame)
-                        })),
+                        writer,
                         None,
                         None,
                         working_directory,
@@ -1865,13 +1759,11 @@ impl Client {
                         session_fs_config.is_some(),
                         session_fs_sqlite_declared,
                         session_fs_binary_declared,
-                        session_fs_read_file_range_declared,
                         options.on_get_trace_context,
                         options.on_github_telemetry,
                         effective_connection_token.clone(),
                         options.mode,
                         options.client_info,
-                        options.entra,
                         false,
                     )?;
                     let ui_handler = options.run_on_ui_thread;
@@ -1936,9 +1828,6 @@ impl Client {
             dispatcher
         });
         client.inner.router.ensure_started(&client.inner);
-        if let Some(config) = kerberos_auth_config {
-            kerberos_auth::register(&client, config).await?;
-        }
         if client.inner.extension_launch_provider.is_configured() {
             client.rpc().register_extension_launch_provider().await?;
         }
@@ -1956,7 +1845,6 @@ impl Client {
                 crate::generated::api_types::SessionFsSetProviderCapabilities {
                     sqlite: Some(c.sqlite),
                     binary: Some(c.binary),
-                    read_file_range: c.read_file_range.then_some(true),
                 }
             });
             let request = crate::generated::api_types::SessionFsSetProviderRequest {
@@ -2070,40 +1958,9 @@ impl Client {
         writer: impl AsyncWrite + Unpin + Send + 'static,
         cwd: PathBuf,
     ) -> Result<Self> {
-        Self::from_streams_with_entra(reader, writer, cwd, None)
-    }
-
-    /// Create a client from a custom transport with optional host Entra configuration.
-    ///
-    /// Supplying `entra` enables built-in Entra sign-in and renewal using the host's
-    /// registration. `None` retains the behavior of [`Self::from_streams`].
-    /// Call [`Self::verify_protocol_version`] before using the client to send the
-    /// configuration and reject legacy servers that cannot accept it.
-    ///
-    /// **Experimental.** May change or be removed in future releases.
-    pub fn from_streams_with_entra(
-        reader: impl AsyncRead + Unpin + Send + 'static,
-        writer: impl AsyncWrite + Unpin + Send + 'static,
-        cwd: PathBuf,
-        entra: Option<EntraAuthConfig>,
-    ) -> Result<Self> {
-        Self::from_streams_with_entra_options(reader, writer, cwd, entra.map(Into::into))
-    }
-
-    /// Create a custom-transport client with optional host-owned Entra acquisition.
-    ///
-    /// Call [`Self::verify_protocol_version`] before issuing other operations.
-    ///
-    /// **Experimental.** May change or be removed in future releases.
-    pub fn from_streams_with_entra_options(
-        reader: impl AsyncRead + Unpin + Send + 'static,
-        writer: impl AsyncWrite + Unpin + Send + 'static,
-        cwd: PathBuf,
-        entra: Option<types::EntraAuthOptions>,
-    ) -> Result<Self> {
         Self::from_transport(
             reader,
-            jsonrpc::MessageWriter::stream(writer),
+            writer,
             None,
             None,
             cwd,
@@ -2112,13 +1969,11 @@ impl Client {
             false,
             false,
             false,
-            false,
             None,
             None,
             None,
             ClientMode::default(),
             None,
-            entra,
             false,
         )
     }
@@ -2135,13 +1990,9 @@ impl Client {
     ) -> Result<Self> {
         let sqlite = config.capabilities.as_ref().is_some_and(|c| c.sqlite);
         let binary = config.capabilities.as_ref().is_some_and(|c| c.binary);
-        let read_file_range = config
-            .capabilities
-            .as_ref()
-            .is_some_and(|c| c.read_file_range);
         Self::from_transport(
             reader,
-            jsonrpc::MessageWriter::stream(writer),
+            writer,
             None,
             None,
             cwd,
@@ -2150,12 +2001,10 @@ impl Client {
             true,
             sqlite,
             binary,
-            read_file_range,
             None,
             None,
             None,
             ClientMode::default(),
-            None,
             None,
             false,
         )
@@ -2173,7 +2022,7 @@ impl Client {
     ) -> Result<Self> {
         Self::from_transport(
             reader,
-            jsonrpc::MessageWriter::stream(writer),
+            writer,
             None,
             None,
             cwd,
@@ -2182,12 +2031,10 @@ impl Client {
             false,
             false,
             false,
-            false,
             None,
             None,
             None,
             ClientMode::default(),
-            None,
             None,
             false,
         )
@@ -2226,7 +2073,7 @@ impl Client {
     ) -> Result<Self> {
         Self::from_transport(
             reader,
-            jsonrpc::MessageWriter::stream(writer),
+            writer,
             None,
             None,
             cwd,
@@ -2235,12 +2082,10 @@ impl Client {
             false,
             false,
             false,
-            false,
             Some(provider),
             None,
             None,
             ClientMode::default(),
-            None,
             None,
             false,
         )
@@ -2258,7 +2103,7 @@ impl Client {
     ) -> Result<Self> {
         Self::from_transport(
             reader,
-            jsonrpc::MessageWriter::stream(writer),
+            writer,
             None,
             None,
             cwd,
@@ -2267,12 +2112,10 @@ impl Client {
             false,
             false,
             false,
-            false,
             None,
             None,
             token,
             ClientMode::default(),
-            None,
             None,
             false,
         )
@@ -2290,7 +2133,7 @@ impl Client {
     ) -> Result<Self> {
         Self::from_transport(
             reader,
-            jsonrpc::MessageWriter::stream(writer),
+            writer,
             None,
             None,
             cwd,
@@ -2299,12 +2142,10 @@ impl Client {
             false,
             false,
             false,
-            false,
             None,
             Some(on_github_telemetry),
             None,
             ClientMode::default(),
-            None,
             None,
             false,
         )
@@ -2333,7 +2174,7 @@ impl Client {
     ) -> Result<Self> {
         Self::from_transport(
             reader,
-            jsonrpc::MessageWriter::stream(writer),
+            writer,
             None,
             None,
             cwd,
@@ -2342,13 +2183,11 @@ impl Client {
             false,
             false,
             false,
-            false,
             None,
             None,
             None,
             ClientMode::default(),
             client_info,
-            None,
             false,
         )
     }
@@ -2364,31 +2203,15 @@ impl Client {
         mode: ClientMode,
     ) -> Result<Self> {
         Self::from_transport(
-            reader,
-            jsonrpc::MessageWriter::stream(writer),
-            None,
-            None,
-            cwd,
-            None,
-            None,
-            false,
-            false,
-            false,
-            false,
-            None,
-            None,
-            None,
-            mode,
-            None,
-            None,
-            false,
+            reader, writer, None, None, cwd, None, None, false, false, false, None, None, None,
+            mode, None, false,
         )
     }
 
     #[allow(clippy::too_many_arguments)]
     fn from_transport(
         reader: impl AsyncRead + Unpin + Send + 'static,
-        writer: jsonrpc::MessageWriter,
+        writer: impl AsyncWrite + Unpin + Send + 'static,
         child: Option<Child>,
         process_tree: Option<process_tree::ProcessTree>,
         cwd: PathBuf,
@@ -2399,18 +2222,16 @@ impl Client {
         session_fs_configured: bool,
         session_fs_sqlite_declared: bool,
         session_fs_binary_declared: bool,
-        session_fs_read_file_range_declared: bool,
         on_get_trace_context: Option<Arc<dyn TraceContextProvider>>,
         on_github_telemetry: Option<crate::github_telemetry::GitHubTelemetryCallback>,
         effective_connection_token: Option<String>,
         mode: ClientMode,
         client_info: Option<ClientInfo>,
-        entra: Option<types::EntraAuthOptions>,
         owns_stdio: bool,
     ) -> Result<Self> {
         let setup_start = Instant::now();
         let (request_tx, request_rx) = mpsc::unbounded_channel::<JsonRpcRequest>();
-        let (notification_broadcast_tx, _) = broadcast::channel::<Arc<JsonRpcNotification>>(1024);
+        let (notification_broadcast_tx, _) = broadcast::channel::<JsonRpcNotification>(1024);
         let (host_notification_tx, host_notification_rx) = mpsc::unbounded_channel();
         let rpc = JsonRpcClient::new_with_host_notifications(
             writer,
@@ -2431,11 +2252,6 @@ impl Client {
         );
         let installation_confirmation =
             Arc::new(installation_confirmation::InstallationConfirmationDispatcher::new());
-        let entra_token = Arc::new(entra::EntraTokenDispatcher::new(
-            entra
-                .as_ref()
-                .and_then(|options| options.token_provider.clone()),
-        ));
         let ahp_host_sessions = Arc::new(ahp_host::HostSessions::new());
         let client = Self {
             ahp_host_sessions: Some(ahp_host_sessions.clone()),
@@ -2462,17 +2278,14 @@ impl Client {
                 session_fs_configured,
                 session_fs_sqlite_declared,
                 session_fs_binary_declared,
-                session_fs_read_file_range_declared,
                 llm_inference: OnceLock::new(),
                 extension_launch_provider: extension_launch_provider.clone(),
                 installation_confirmation: installation_confirmation.clone(),
-                entra_token: entra_token.clone(),
                 on_github_telemetry,
                 on_get_trace_context,
                 effective_connection_token,
                 mode,
                 client_info,
-                entra,
                 startup_timings: OnceLock::new(),
             }),
         };
@@ -2480,18 +2293,9 @@ impl Client {
         github_token_registry.set_client(Arc::downgrade(&client.inner));
         extension_launch_provider.set_client(Arc::downgrade(&client.inner));
         installation_confirmation.set_client(Arc::downgrade(&client.inner));
-        entra_token.set_client(Arc::downgrade(&client.inner));
         client.spawn_lifecycle_dispatcher();
         client.spawn_ahp_host_dispatcher(host_notification_rx);
         client.register_ahp_session_factory()?;
-        if client
-            .inner
-            .entra
-            .as_ref()
-            .is_some_and(|options| options.token_provider.is_some())
-        {
-            client.inner.router.ensure_started(&client.inner);
-        }
         debug!(
             elapsed_ms = setup_start.elapsed().as_millis(),
             pid = ?pid,
@@ -2572,31 +2376,6 @@ impl Client {
                 command.env("COPILOT_OTEL_SOURCE_NAME", source);
             }
             if let Some(capture) = telemetry.capture_content {
-                // A synthesized standard mode must not defeat an existing legacy env override.
-                let legacy_key = "OTEL_INSTRUMENTATION_GENAI_CAPTURE_MESSAGE_CONTENT";
-                let is_legacy_key = |key: &OsString| {
-                    if cfg!(windows) {
-                        key.as_encoded_bytes()
-                            .eq_ignore_ascii_case(legacy_key.as_bytes())
-                    } else {
-                        key == legacy_key
-                    }
-                };
-                let capture = !options.env_remove.iter().any(is_legacy_key)
-                    && options
-                        .env
-                        .iter()
-                        .rev()
-                        .find(|(key, _)| is_legacy_key(key))
-                        .map_or(capture, |(_, value)| {
-                            value
-                                .to_str()
-                                .is_some_and(|value| value.eq_ignore_ascii_case("true"))
-                        });
-                command.env(
-                    "OTEL_INSTRUMENTATION_GENAI_CAPTURE_CONTENT",
-                    if capture { "SPAN_ONLY" } else { "NO_CONTENT" },
-                );
                 command.env(
                     "OTEL_INSTRUMENTATION_GENAI_CAPTURE_MESSAGE_CONTENT",
                     if capture { "true" } else { "false" },
@@ -2623,9 +2402,6 @@ impl Client {
         }
         for key in &options.env_remove {
             command.env_remove(key);
-        }
-        if options.disable_client_telemetry {
-            command.env("COPILOT_TELEMETRY_DISABLED", "true");
         }
         if options.mode != ClientMode::Empty {
             command.env("COPILOT_RUNTIME_PROCESS_FILE_LOGGING", "1");
@@ -2849,10 +2625,10 @@ impl Client {
     ///
     /// # Cancel safety
     ///
-    /// **Cancel-safe.** The first poll submits a complete frame. The
-    /// in-process transport submits it synchronously; stream transports
-    /// use a writer actor. Cancelling the await drops the response
-    /// oneshot but does not desync the transport.
+    /// **Cancel-safe.** The frame is committed to the wire via the
+    /// writer-actor task before the future yields; cancelling the await
+    /// (via `tokio::time::timeout`, `select!`, or dropped JoinHandle)
+    /// drops the response oneshot but does not desync the transport.
     /// The pending-requests entry is cleaned up by an RAII guard.
     /// However, the call's *side effect* on the CLI may still occur —
     /// the CLI receives the request and processes it; the caller just
@@ -2866,38 +2642,6 @@ impl Client {
         params: Option<serde_json::Value>,
     ) -> Result<serde_json::Value> {
         self.call_with_inline_callback(method, params, None).await
-    }
-
-    /// Submit a JSON-RPC request now and return its asynchronous completion.
-    ///
-    /// In-process clients submit the complete frame through the runtime C ABI
-    /// before this method returns. Stream clients enqueue the frame for their
-    /// writer actor without waiting for I/O. Neither transport waits for the
-    /// server to finish the request.
-    ///
-    /// Unlike [`Self::call`], initiation does not require polling the returned
-    /// future. Serialization and immediate submission errors are returned here;
-    /// asynchronous write errors and RPC errors are returned by the future.
-    ///
-    /// Dropping the future, even before its first poll, removes its response
-    /// registration but does not retract an accepted request. The future does
-    /// not retain this client or keep its connection open.
-    pub fn begin_call(
-        &self,
-        method: &str,
-        params: Option<serde_json::Value>,
-    ) -> Result<impl std::future::Future<Output = Result<serde_json::Value>> + Send + 'static + use<>>
-    {
-        let session_id = params
-            .as_ref()
-            .and_then(|p| p.get("sessionId"))
-            .and_then(|v| v.as_str())
-            .map(SessionId::from);
-        let request = self
-            .inner
-            .rpc
-            .begin_request_with_inline_callback(method, params, None)?;
-        Ok(async move { Self::call_result(request.await?, session_id) })
     }
 
     pub(crate) async fn detach_session(&self, session_id: &str) -> Result<()> {
@@ -2941,7 +2685,7 @@ impl Client {
         method: &str,
         params: Option<serde_json::Value>,
         inline_callback: Option<crate::jsonrpc::InlineResponseCallback>,
-    ) -> impl std::future::Future<Output = Result<serde_json::Value>> + Send + 'static + use<> {
+    ) -> impl std::future::Future<Output = Result<serde_json::Value>> + Send + 'static {
         let session_id: Option<SessionId> = params
             .as_ref()
             .and_then(|p| p.get("sessionId"))
@@ -2953,24 +2697,17 @@ impl Client {
                 .send_request_with_inline_callback(method, params, inline_callback);
         async move {
             let response = request.await?;
-            Self::call_result(response, session_id)
-        }
-    }
-
-    fn call_result(
-        response: JsonRpcResponse,
-        session_id: Option<SessionId>,
-    ) -> Result<serde_json::Value> {
-        if let Some(err) = response.error {
-            if err.message.contains("Session not found") {
-                return Err(ErrorKind::Session(SessionErrorKind::NotFound(
-                    session_id.unwrap_or_else(|| "unknown".into()),
-                ))
-                .into());
+            if let Some(err) = response.error {
+                if err.message.contains("Session not found") {
+                    return Err(ErrorKind::Session(SessionErrorKind::NotFound(
+                        session_id.unwrap_or_else(|| "unknown".into()),
+                    ))
+                    .into());
+                }
+                return Err(Error::from_rpc(err.code, err.message, err.data));
             }
-            return Err(Error::from_rpc(err.code, err.message, err.data));
+            Ok(response.result.unwrap_or(serde_json::Value::Null))
         }
-        Ok(response.result.unwrap_or(serde_json::Value::Null))
     }
 
     /// Send a JSON-RPC response back to the CLI (e.g. for permission or tool call requests).
@@ -3140,12 +2877,6 @@ impl Client {
         let server_version = match self.connect_handshake().await {
             Ok(v) => v,
             Err(ref e) if e.rpc_code() == Some(error_codes::METHOD_NOT_FOUND) => {
-                if self.inner.entra.is_some() {
-                    return Err(Error::with_message(
-                        ErrorKind::InvalidConfig,
-                        "This runtime does not support Entra client configuration",
-                    ));
-                }
                 used_fallback_ping = true;
                 self.ping(None).await?.protocol_version
             }
@@ -3196,17 +2927,6 @@ impl Client {
     /// started with `COPILOT_CONNECTION_TOKEN`.
     async fn connect_handshake(&self) -> Result<Option<u32>> {
         let params = crate::generated::api_types::ConnectRequest {
-            entra: self
-                .inner
-                .entra
-                .as_ref()
-                .map(types::EntraAuthOptions::to_wire),
-            entra_token_provider: self
-                .inner
-                .entra
-                .as_ref()
-                .is_some_and(|options| options.token_provider.is_some())
-                .then_some(true),
             token: self.inner.effective_connection_token.clone(),
             enable_git_hub_telemetry_forwarding: self
                 .inner
@@ -3235,18 +2955,6 @@ impl Client {
             )
             .await?;
         let result: crate::generated::api_types::ConnectResult = serde_json::from_value(value)?;
-        if self
-            .inner
-            .entra
-            .as_ref()
-            .is_some_and(|options| options.token_provider.is_some())
-            && result.entra_token_provider != Some(true)
-        {
-            return Err(Error::with_message(
-                ErrorKind::InvalidConfig,
-                "This runtime does not support host-owned Entra token providers",
-            ));
-        }
         Ok(Some(u32::try_from(result.protocol_version).map_err(
             |_| ProtocolErrorKind::InvalidProtocolVersion {
                 server: result.protocol_version,
@@ -3457,50 +3165,7 @@ impl Client {
     /// List available models.
     ///
     /// When [`ClientOptions::on_list_models`] is set, returns the handler's
-    /// result without making a `models.list` RPC. Otherwise asks the CLI for
-    /// the models available to its current account. In either case, the first
-    /// successful result is cached for the lifetime of this client, so the
-    /// handler must not return a different catalog for each user.
-    ///
-    /// Without [`ClientOptions::on_list_models`] the CLI needs an account to
-    /// answer. For an SDK-owned runtime, a client with no
-    /// [`ClientOptions::github_token`] and with
-    /// [`ClientOptions::use_logged_in_user`] set to `false` has none, so this
-    /// call fails with `Not authenticated`. With [`Transport::External`], the
-    /// server manages its own authentication; these client options do not
-    /// control the account used for model listing.
-    ///
-    /// Tokens given to sessions (for example through
-    /// [`SessionConfig::with_github_token_provider`](crate::SessionConfig::with_github_token_provider))
-    /// are only used by those sessions and do not help here. Such a client
-    /// can instead:
-    ///
-    /// - supply its own catalog through [`ClientOptions::on_list_models`], or
-    /// - list the models available to one user by passing that user's token to
-    ///   [`ClientRpcModels::list_with_params`](crate::rpc::ClientRpcModels::list_with_params).
-    ///   That call is experimental, bypasses the cache, and resolves only the
-    ///   token it is given:
-    ///
-    /// ```no_run
-    /// # async fn example(
-    /// #     client: &github_copilot_sdk::Client,
-    /// #     user_token: String,
-    /// # ) -> Result<(), github_copilot_sdk::Error> {
-    /// use github_copilot_sdk::rpc::ModelsListRequest;
-    ///
-    /// let models = client
-    ///     .rpc()
-    ///     .models()
-    ///     .list_with_params(ModelsListRequest {
-    ///         git_hub_token: Some(user_token),
-    ///         ..Default::default()
-    ///     })
-    ///     .await?
-    ///     .models;
-    /// println!("{} models available to this user", models.len());
-    /// # Ok(())
-    /// # }
-    /// ```
+    /// result without making a `models.list` RPC. Otherwise queries the CLI.
     pub async fn list_models(&self) -> Result<Vec<Model>> {
         let cache = self.inner.models_cache.lock().clone();
         let models = cache

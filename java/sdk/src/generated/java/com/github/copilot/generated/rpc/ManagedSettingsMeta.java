@@ -34,8 +34,6 @@ public record ManagedSettingsMeta(
     /** Lock state and provenance of `values.effortLevel`. */
     @JsonProperty("effortLevel") ManagedSettingMeta effortLevel,
     /** Lock state and provenance of `values.contextTier`. */
-    @JsonProperty("contextTier") ManagedSettingMeta contextTier,
-    /** Provenance of `values.communication`. Always reported as not overridable: users cannot replace the organization's information. */
-    @JsonProperty("communication") ManagedSettingMeta communication
+    @JsonProperty("contextTier") ManagedSettingMeta contextTier
 ) {
 }

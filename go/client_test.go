@@ -28,34 +28,6 @@ import (
 
 // This file is for unit tests. Where relevant, prefer to add e2e tests in e2e/*.test.go instead
 
-func TestGetStatusResponseHostDiagnostics(t *testing.T) {
-	for _, state := range []string{"", "pending", "enabled", "disabled"} {
-		t.Run(state, func(t *testing.T) {
-			payload := `{"version":"1.2.3","protocolVersion":2}`
-			if state != "" {
-				payload = fmt.Sprintf(`{"version":"1.2.3","protocolVersion":2,"hostDiagnostics":{"errorReporting":%q}}`, state)
-			}
-			var response GetStatusResponse
-			if err := json.Unmarshal([]byte(payload), &response); err != nil {
-				t.Fatal(err)
-			}
-			if response.Version != "1.2.3" || response.ProtocolVersion != 2 {
-				t.Fatalf("status version fields = %s, %d", response.Version, response.ProtocolVersion)
-			}
-			if (response.HostDiagnostics == nil) != (state == "") {
-				t.Fatalf("host diagnostics = %+v, state = %q", response.HostDiagnostics, state)
-			}
-			encoded, err := json.Marshal(response)
-			if err != nil {
-				t.Fatal(err)
-			}
-			if string(encoded) != payload {
-				t.Fatalf("status round trip = %s, want %s", encoded, payload)
-			}
-		})
-	}
-}
-
 func TestResolveRuntimeExecutable(t *testing.T) {
 	t.Run("managed launch requires bundled runtime pair", func(t *testing.T) {
 		_, err := resolveRuntimeExecutable("", "")
@@ -352,23 +324,6 @@ func TestClient_ClientInfo(t *testing.T) {
 		return nil
 	}
 
-	t.Run("forwards the host Entra registration", func(t *testing.T) {
-		url, requests, cleanup := newStartupRPCServer(t)
-		defer cleanup()
-		client := NewClient(&ClientOptions{
-			Connection: URIConnection{URL: url},
-			Entra:      &EntraAuthOptions{ClientID: "host-entra-client", MatsAppName: String("TestHost")},
-		})
-		if err := client.Start(t.Context()); err != nil {
-			t.Fatalf("Start failed: %v", err)
-		}
-		defer client.ForceStop()
-		want := map[string]any{"clientId": "host-entra-client", "matsAppName": "TestHost"}
-		if got := findConnect(requests())["entra"]; !reflect.DeepEqual(got, want) {
-			t.Fatalf("entra = %v, want %v", got, want)
-		}
-	})
-
 	t.Run("forwards a declared identity on the connect handshake", func(t *testing.T) {
 		url, requests, cleanup := newStartupRPCServer(t)
 		defer cleanup()
@@ -450,61 +405,6 @@ func TestClient_ClientInfo(t *testing.T) {
 			t.Fatal("clientInfo should be omitted when all fields are empty")
 		}
 	})
-}
-
-func TestClient_EntraHandshakeFailureClosesExternalConnection(t *testing.T) {
-	listener, err := net.Listen("tcp", "127.0.0.1:0")
-	if err != nil {
-		t.Fatal(err)
-	}
-	t.Cleanup(func() { listener.Close() })
-	client := NewClient(&ClientOptions{
-		Connection: URIConnection{URL: listener.Addr().String()},
-		Entra:      &EntraAuthOptions{ClientID: "host-entra-client"},
-	})
-	t.Cleanup(func() { client.ForceStop() })
-
-	for attempt := range 2 {
-		closed := make(chan struct{})
-		serverReady := make(chan *jsonrpc2.Client, 1)
-		go func() {
-			conn, acceptErr := listener.Accept()
-			if acceptErr != nil {
-				serverReady <- nil
-				return
-			}
-			server := jsonrpc2.NewClient(conn, conn)
-			server.SetRequestHandler("connect", func(json.RawMessage) (json.RawMessage, *jsonrpc2.Error) {
-				return nil, &jsonrpc2.Error{Code: -32601, Message: "Method not found"}
-			})
-			server.SetOnClose(func() { close(closed) })
-			server.Start()
-			serverReady <- server
-		}()
-
-		ctx, cancel := context.WithTimeout(t.Context(), 5*time.Second)
-		err := client.Start(ctx)
-		server := <-serverReady
-		if server == nil {
-			cancel()
-			t.Fatal("server failed to accept the connection")
-		}
-		t.Cleanup(server.Stop)
-		if err == nil || !strings.Contains(err.Error(), "does not support Entra client configuration") {
-			cancel()
-			t.Fatalf("attempt %d: Start returned %v", attempt, err)
-		}
-		select {
-		case <-closed:
-		case <-ctx.Done():
-			cancel()
-			t.Fatalf("attempt %d: rejected connection remained open", attempt)
-		}
-		cancel()
-		if client.client != nil || client.conn != nil || client.RPC != nil || client.internalRPC != nil {
-			t.Fatalf("attempt %d: failed handshake retained connection state", attempt)
-		}
-	}
 }
 
 type startupRPCRequest struct {
@@ -811,163 +711,6 @@ func TestClient_ConnectionCloseCancelsPendingExternalTools(t *testing.T) {
 		t.Fatal("Stop did not clean up the retained session")
 	}
 	server.Stop()
-}
-
-func TestClient_StopDoesNotDeadlockWithLifecycleHandlerCallingClient(t *testing.T) {
-	clientConn, serverConn := net.Pipe()
-	t.Cleanup(func() {
-		clientConn.Close()
-		serverConn.Close()
-	})
-	rpcClient := jsonrpc2.NewClient(clientConn, clientConn)
-	client := NewClient(nil)
-	client.client, client.RPC, client.state = rpcClient, rpc.NewServerRPC(rpcClient), stateConnected
-	client.setupNotificationHandler()
-	rpcClient.Start()
-	// Stop closes the transport only after acquiring startStopMux.
-	transportClosed := make(chan struct{})
-	go func() {
-		defer close(transportClosed)
-		_, _ = io.Copy(io.Discard, serverConn)
-	}()
-
-	entered := make(chan struct{})
-	proceed := make(chan struct{})
-	releaseHandler := sync.OnceFunc(func() { close(proceed) })
-	t.Cleanup(releaseHandler)
-	handlerErr := make(chan error, 1)
-	client.On(func(SessionLifecycleEvent) {
-		close(entered)
-		<-proceed
-		ctx, cancel := context.WithCancel(context.Background())
-		cancel()
-		_, err := client.GetSessionMetadata(ctx, "session-1")
-		handlerErr <- err
-	})
-	body := `{"jsonrpc":"2.0","method":"session.lifecycle","params":{"type":"session.created","sessionId":"session-1"}}`
-	if _, err := fmt.Fprintf(serverConn, "Content-Length: %d\r\n\r\n%s", len(body), body); err != nil {
-		t.Fatalf("write lifecycle notification: %v", err)
-	}
-	select {
-	case <-entered:
-	case <-time.After(5 * time.Second):
-		t.Fatal("lifecycle handler was not dispatched")
-	}
-
-	stopped := make(chan error, 1)
-	go func() { stopped <- client.Stop() }()
-	select {
-	case <-transportClosed:
-	case <-time.After(5 * time.Second):
-		t.Fatal("Stop did not close the transport")
-	}
-	// Stop now holds startStopMux and is joining the reader running this handler.
-	releaseHandler()
-	select {
-	case err := <-stopped:
-		if err != nil {
-			t.Fatalf("Stop failed: %v", err)
-		}
-	case <-time.After(5 * time.Second):
-		t.Fatal("Stop deadlocked with a lifecycle handler calling the client")
-	}
-	if err := <-handlerErr; !errors.Is(err, context.Canceled) {
-		t.Fatalf("GetSessionMetadata error = %v, want %v", err, context.Canceled)
-	}
-}
-
-func TestClient_CallAdmittedDuringStopFailsInsteadOfPanicking(t *testing.T) {
-	clientConn, serverConn := net.Pipe()
-	t.Cleanup(func() {
-		clientConn.Close()
-		serverConn.Close()
-	})
-	rpcClient := jsonrpc2.NewClient(clientConn, clientConn)
-	client := NewClient(nil)
-	client.client, client.RPC, client.state = rpcClient, rpc.NewServerRPC(rpcClient), stateConnected
-	client.setupNotificationHandler()
-	admitted := make(chan struct{})
-	proceed := make(chan struct{})
-	releaseCall := sync.OnceFunc(func() { close(proceed) })
-	t.Cleanup(releaseCall)
-	client.testHookTransportAcquired = func() {
-		close(admitted)
-		<-proceed
-	}
-	rpcClient.Start()
-	transportClosed := make(chan struct{})
-	go func() {
-		defer close(transportClosed)
-		_, _ = io.Copy(io.Discard, serverConn)
-	}()
-
-	// Hold the reader so Stop stays in teardown with the transport still published.
-	readerBlocked := make(chan struct{})
-	unblockReader := make(chan struct{})
-	releaseReader := sync.OnceFunc(func() { close(unblockReader) })
-	t.Cleanup(releaseReader)
-	client.On(func(SessionLifecycleEvent) {
-		close(readerBlocked)
-		<-unblockReader
-	})
-	body := `{"jsonrpc":"2.0","method":"session.lifecycle","params":{"type":"session.created","sessionId":"session-1"}}`
-	if _, err := fmt.Fprintf(serverConn, "Content-Length: %d\r\n\r\n%s", len(body), body); err != nil {
-		t.Fatalf("write lifecycle notification: %v", err)
-	}
-	select {
-	case <-readerBlocked:
-	case <-time.After(5 * time.Second):
-		t.Fatal("lifecycle handler was not dispatched")
-	}
-	stopped := make(chan error, 1)
-	go func() { stopped <- client.Stop() }()
-	select {
-	case <-transportClosed:
-	case <-time.After(5 * time.Second):
-		t.Fatal("Stop did not close the transport")
-	}
-
-	type callResult struct {
-		err      error
-		panicked any
-	}
-	result := make(chan callResult, 1)
-	go func() {
-		defer func() {
-			if r := recover(); r != nil {
-				result <- callResult{panicked: r}
-			}
-		}()
-		_, err := client.GetSessionMetadata(context.Background(), "session-1")
-		result <- callResult{err: err}
-	}()
-	select {
-	case <-admitted:
-	case <-time.After(5 * time.Second):
-		t.Fatal("GetSessionMetadata was not admitted while Stop was tearing down")
-	}
-	// Let Stop join the reader and retire the transport before the admitted call uses it.
-	releaseReader()
-	select {
-	case err := <-stopped:
-		if err != nil {
-			t.Fatalf("Stop failed: %v", err)
-		}
-	case <-time.After(5 * time.Second):
-		t.Fatal("Stop did not finish")
-	}
-	releaseCall()
-	select {
-	case r := <-result:
-		if r.panicked != nil {
-			t.Fatalf("GetSessionMetadata panicked after Stop retired the transport: %v", r.panicked)
-		}
-		if r.err == nil {
-			t.Fatal("GetSessionMetadata succeeded on a stopped transport")
-		}
-	case <-time.After(5 * time.Second):
-		t.Fatal("GetSessionMetadata did not fail on a stopped transport")
-	}
 }
 
 func newRuntimeShutdownRpcPair(t *testing.T) (*jsonrpc2.Client, *jsonrpc2.Client, chan struct{}) {
@@ -2375,34 +2118,6 @@ func TestClient_ProcessFileLoggingEnvironment(t *testing.T) {
 	}
 }
 
-func TestClient_TelemetryCaptureOverridesEnvironment(t *testing.T) {
-	for _, capture := range []bool{false, true} {
-		t.Run(strconv.FormatBool(capture), func(t *testing.T) {
-			client := NewClient(&ClientOptions{
-				Connection:       StdioConnection{Path: os.Args[0]},
-				BaseDirectory:    t.TempDir(),
-				WorkingDirectory: filepath.Join(t.TempDir(), "missing"),
-				Env:              []string{"OTEL_INSTRUMENTATION_GENAI_CAPTURE_CONTENT=SPAN_AND_EVENT"},
-				Telemetry:        &TelemetryConfig{CaptureContent: Bool(capture)},
-			})
-			err := client.startCLIServer(context.Background())
-			if err == nil || !strings.Contains(err.Error(), "failed to start CLI server") {
-				t.Fatalf("expected process start to fail in missing working directory, got %v", err)
-			}
-			want := "NO_CONTENT"
-			if capture {
-				want = "SPAN_ONLY"
-			}
-			if got := getEnvValue(client.process.Env, "OTEL_INSTRUMENTATION_GENAI_CAPTURE_CONTENT"); got != want {
-				t.Errorf("content capture mode = %q, want %q", got, want)
-			}
-			if got := getEnvValue(client.process.Env, "OTEL_INSTRUMENTATION_GENAI_CAPTURE_MESSAGE_CONTENT"); got != strconv.FormatBool(capture) {
-				t.Errorf("legacy content capture = %q, want %q", got, strconv.FormatBool(capture))
-			}
-		})
-	}
-}
-
 func TestClient_InProcessConnection(t *testing.T) {
 	t.Run("requires build tag", func(t *testing.T) {
 		if inProcessAvailable {
@@ -2484,6 +2199,7 @@ func TestClient_InProcessConnection(t *testing.T) {
 			BaseDirectory:             "/copilot-home",
 			LogLevel:                  "debug",
 			SessionIdleTimeoutSeconds: 30,
+			EnableRemoteSessions:      true,
 			Mode:                      ModeEmpty,
 		})
 
@@ -2493,6 +2209,7 @@ func TestClient_InProcessConnection(t *testing.T) {
 			"--auth-token-env", "COPILOT_SDK_AUTH_TOKEN",
 			"--no-auto-login",
 			"--session-idle-timeout", "30",
+			"--remote",
 		}
 		if !reflect.DeepEqual(config.Args, expectedArgs) {
 			t.Fatalf("Expected managed arguments %v, got %v", expectedArgs, config.Args)
@@ -2508,14 +2225,14 @@ func TestClient_InProcessConnection(t *testing.T) {
 	})
 
 	t.Run("forwards supported CLI login sync integrations", func(t *testing.T) {
-		t.Setenv("GITHUB_COPILOT_INTEGRATION_ID", "microsoft/vscode")
+		t.Setenv("GITHUB_COPILOT_INTEGRATION_ID", "github/github-app")
 		client := NewClient(&ClientOptions{Connection: InProcessConnection{}})
 		t.Setenv("GITHUB_COPILOT_INTEGRATION_ID", "changed/after-construction")
 
 		integrationID := getEnvValue(client.options.Env, "GITHUB_COPILOT_INTEGRATION_ID")
 		config := client.inProcessHostConfig(integrationID)
 
-		expectedArgs := []string{"--cli-login-sync-integration-id=microsoft/vscode"}
+		expectedArgs := []string{"--cli-login-sync-integration-id=github/github-app"}
 		if !reflect.DeepEqual(config.Args, expectedArgs) {
 			t.Fatalf("Expected CLI login sync arguments %v, got %v", expectedArgs, config.Args)
 		}
@@ -3057,212 +2774,6 @@ func TestSessionRequests_PluginDirectoriesAndLargeOutput(t *testing.T) {
 	})
 }
 
-func TestClient_ForwardsCustomAgentsPresenceToSessionRequests(t *testing.T) {
-	tests := []struct {
-		name   string
-		agents []CustomAgentConfig
-		want   any
-	}{
-		{"omitted", nil, nil},
-		// An explicitly empty list must reach the runtime: on resume it replaces the
-		// session's custom agents with none, which omitting the key cannot express.
-		{"empty", []CustomAgentConfig{}, []any{}},
-		{"one agent", []CustomAgentConfig{{Name: "alpha", Prompt: "you are alpha"}},
-			[]any{map[string]any{"name": "alpha", "prompt": "you are alpha"}}},
-	}
-
-	assertCustomAgents := func(t *testing.T, params json.RawMessage, want any) {
-		t.Helper()
-		var m map[string]any
-		if err := json.Unmarshal(params, &m); err != nil {
-			t.Fatalf("Failed to unmarshal: %v", err)
-		}
-		got, ok := m["customAgents"]
-		if want == nil {
-			if ok {
-				t.Errorf("Expected customAgents to be omitted, got %v", got)
-			}
-			return
-		}
-		if !ok || !reflect.DeepEqual(got, want) {
-			t.Errorf("Expected customAgents %v, got %v (present=%v)", want, got, ok)
-		}
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			rpcClient, server, _ := newRuntimeShutdownRpcPair(t)
-			t.Cleanup(server.Stop)
-			client := &Client{
-				client:   rpcClient,
-				RPC:      rpc.NewServerRPC(rpcClient),
-				sessions: make(map[string]*Session),
-			}
-
-			createParams := make(chan json.RawMessage, 1)
-			server.SetRequestHandler("session.create", func(params json.RawMessage) (json.RawMessage, *jsonrpc2.Error) {
-				createParams <- append(json.RawMessage(nil), params...)
-				sessionID := sessionIDFromParams(t, params)
-				return []byte(`{"sessionId":"` + sessionID + `","workspacePath":"/workspace"}`), nil
-			})
-
-			if _, err := client.CreateSession(t.Context(), &SessionConfig{Model: "auto", CustomAgents: tt.agents}); err != nil {
-				t.Fatalf("CreateSession failed: %v", err)
-			}
-			assertCustomAgents(t, <-createParams, tt.want)
-
-			resumeParams := make(chan json.RawMessage, 1)
-			server.SetRequestHandler("session.resume", func(params json.RawMessage) (json.RawMessage, *jsonrpc2.Error) {
-				resumeParams <- append(json.RawMessage(nil), params...)
-				return []byte(`{"sessionId":"resumed-agents","workspacePath":"/workspace"}`), nil
-			})
-
-			if _, err := client.ResumeSessionWithOptions(t.Context(), "resumed-agents", &ResumeSessionConfig{Model: "auto", CustomAgents: tt.agents}); err != nil {
-				t.Fatalf("ResumeSessionWithOptions failed: %v", err)
-			}
-			assertCustomAgents(t, <-resumeParams, tt.want)
-		})
-	}
-}
-
-func TestClient_ForwardsMCPServersPresenceToSessionRequests(t *testing.T) {
-	tests := []struct {
-		name    string
-		servers map[string]MCPServerConfig
-		want    any
-	}{
-		{"omitted", nil, nil},
-		// An explicitly empty map must reach the runtime: on resume it replaces the
-		// session's servers with none, which omitting the key cannot express.
-		{"empty", map[string]MCPServerConfig{}, map[string]any{}},
-		{"one server", map[string]MCPServerConfig{
-			"local": MCPStdioServerConfig{Command: "echo", Tools: []string{"*"}},
-		}, map[string]any{"local": map[string]any{"type": "stdio", "command": "echo", "tools": []any{"*"}}}},
-	}
-
-	assertMCPServers := func(t *testing.T, params json.RawMessage, want any) {
-		t.Helper()
-		var m map[string]any
-		if err := json.Unmarshal(params, &m); err != nil {
-			t.Fatalf("Failed to unmarshal: %v", err)
-		}
-		got, ok := m["mcpServers"]
-		if want == nil {
-			if ok {
-				t.Errorf("Expected mcpServers to be omitted, got %v", got)
-			}
-			return
-		}
-		if !ok || !reflect.DeepEqual(got, want) {
-			t.Errorf("Expected mcpServers %v, got %v (present=%v)", want, got, ok)
-		}
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			rpcClient, server, _ := newRuntimeShutdownRpcPair(t)
-			t.Cleanup(server.Stop)
-			client := &Client{
-				client:   rpcClient,
-				RPC:      rpc.NewServerRPC(rpcClient),
-				sessions: make(map[string]*Session),
-			}
-
-			createParams := make(chan json.RawMessage, 1)
-			server.SetRequestHandler("session.create", func(params json.RawMessage) (json.RawMessage, *jsonrpc2.Error) {
-				createParams <- append(json.RawMessage(nil), params...)
-				sessionID := sessionIDFromParams(t, params)
-				return []byte(`{"sessionId":"` + sessionID + `","workspacePath":"/workspace"}`), nil
-			})
-
-			if _, err := client.CreateSession(t.Context(), &SessionConfig{Model: "auto", MCPServers: tt.servers}); err != nil {
-				t.Fatalf("CreateSession failed: %v", err)
-			}
-			assertMCPServers(t, <-createParams, tt.want)
-
-			resumeParams := make(chan json.RawMessage, 1)
-			server.SetRequestHandler("session.resume", func(params json.RawMessage) (json.RawMessage, *jsonrpc2.Error) {
-				resumeParams <- append(json.RawMessage(nil), params...)
-				return []byte(`{"sessionId":"resumed-mcp","workspacePath":"/workspace"}`), nil
-			})
-
-			if _, err := client.ResumeSessionWithOptions(t.Context(), "resumed-mcp", &ResumeSessionConfig{Model: "auto", MCPServers: tt.servers}); err != nil {
-				t.Fatalf("ResumeSessionWithOptions failed: %v", err)
-			}
-			assertMCPServers(t, <-resumeParams, tt.want)
-		})
-	}
-}
-
-func TestClient_ForwardsToolsPresenceToSessionRequests(t *testing.T) {
-	tests := []struct {
-		name  string
-		tools []Tool
-		want  []any
-	}{
-		{"omitted", nil, nil},
-		// An explicitly empty slice must reach the runtime: on resume it replaces the
-		// session's external tools with none, which omitting the key cannot express.
-		{"empty", []Tool{}, []any{}},
-		{"one tool", []Tool{{Name: "probe_echo", Description: "echo"}}, []any{
-			map[string]any{"name": "probe_echo", "description": "echo"},
-		}},
-	}
-
-	assertTools := func(t *testing.T, params json.RawMessage, want []any) {
-		t.Helper()
-		var m map[string]any
-		if err := json.Unmarshal(params, &m); err != nil {
-			t.Fatalf("Failed to unmarshal: %v", err)
-		}
-		got, ok := m["tools"]
-		if want == nil {
-			if ok {
-				t.Errorf("Expected tools to be omitted, got %v", got)
-			}
-			return
-		}
-		if !ok || !reflect.DeepEqual(got, want) {
-			t.Errorf("Expected tools %v, got %v (present=%v)", want, got, ok)
-		}
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			rpcClient, server, _ := newRuntimeShutdownRpcPair(t)
-			t.Cleanup(server.Stop)
-			client := &Client{
-				client:   rpcClient,
-				RPC:      rpc.NewServerRPC(rpcClient),
-				sessions: make(map[string]*Session),
-			}
-
-			createParams := make(chan json.RawMessage, 1)
-			server.SetRequestHandler("session.create", func(params json.RawMessage) (json.RawMessage, *jsonrpc2.Error) {
-				createParams <- append(json.RawMessage(nil), params...)
-				sessionID := sessionIDFromParams(t, params)
-				return []byte(`{"sessionId":"` + sessionID + `","workspacePath":"/workspace"}`), nil
-			})
-
-			if _, err := client.CreateSession(t.Context(), &SessionConfig{Model: "auto", Tools: tt.tools}); err != nil {
-				t.Fatalf("CreateSession failed: %v", err)
-			}
-			assertTools(t, <-createParams, tt.want)
-
-			resumeParams := make(chan json.RawMessage, 1)
-			server.SetRequestHandler("session.resume", func(params json.RawMessage) (json.RawMessage, *jsonrpc2.Error) {
-				resumeParams <- append(json.RawMessage(nil), params...)
-				return []byte(`{"sessionId":"resumed-tools","workspacePath":"/workspace"}`), nil
-			})
-
-			if _, err := client.ResumeSessionWithOptions(t.Context(), "resumed-tools", &ResumeSessionConfig{Model: "auto", Tools: tt.tools}); err != nil {
-				t.Fatalf("ResumeSessionWithOptions failed: %v", err)
-			}
-			assertTools(t, <-resumeParams, tt.want)
-		})
-	}
-}
-
 func TestSessionRequests_SandboxConfig(t *testing.T) {
 	for _, enabled := range []bool{true, false} {
 		sandboxConfig := &rpc.SandboxConfig{
@@ -3317,7 +2828,7 @@ func TestSessionRequests_SandboxConfig(t *testing.T) {
 
 func TestSessionRequests_Memory(t *testing.T) {
 	t.Run("create includes memory in JSON when enabled", func(t *testing.T) {
-		req := createSessionRequest{Memory: &MemoryConfiguration{Enabled: true, Mode: MemoryModeUserPrompt}}
+		req := createSessionRequest{Memory: &MemoryConfiguration{Enabled: true}}
 		data, err := json.Marshal(req)
 		if err != nil {
 			t.Fatalf("Failed to marshal: %v", err)
@@ -3326,14 +2837,14 @@ func TestSessionRequests_Memory(t *testing.T) {
 		if err := json.Unmarshal(data, &m); err != nil {
 			t.Fatalf("Failed to unmarshal: %v", err)
 		}
-		expected := map[string]any{"enabled": true, "mode": "user-prompt"}
+		expected := map[string]any{"enabled": true}
 		if !reflect.DeepEqual(m["memory"], expected) {
 			t.Errorf("Expected memory %v, got %v", expected, m["memory"])
 		}
 	})
 
 	t.Run("resume includes memory in JSON when disabled", func(t *testing.T) {
-		req := resumeSessionRequest{SessionID: "s1", Memory: &MemoryConfiguration{Enabled: false, Mode: MemoryModeSystemPrompt}}
+		req := resumeSessionRequest{SessionID: "s1", Memory: &MemoryConfiguration{Enabled: false}}
 		data, err := json.Marshal(req)
 		if err != nil {
 			t.Fatalf("Failed to marshal: %v", err)
@@ -3342,7 +2853,7 @@ func TestSessionRequests_Memory(t *testing.T) {
 		if err := json.Unmarshal(data, &m); err != nil {
 			t.Fatalf("Failed to unmarshal: %v", err)
 		}
-		expected := map[string]any{"enabled": false, "mode": "system-prompt"}
+		expected := map[string]any{"enabled": false}
 		if !reflect.DeepEqual(m["memory"], expected) {
 			t.Errorf("Expected memory %v, got %v", expected, m["memory"])
 		}
@@ -3734,72 +3245,6 @@ func TestModelInfoPreservesProviderMetadata(t *testing.T) {
 	}
 	if model.Metadata["provider"] != "acme" || model.Metadata["contextWindow"] != float64(200000) {
 		t.Fatalf("metadata = %#v", model.Metadata)
-	}
-}
-
-func TestModelInfoPreservesMaxOutputTokens(t *testing.T) {
-	wireLimits := `{"max_prompt_tokens":128000,"max_output_tokens":16384,"max_context_window_tokens":144384}`
-	var model ModelInfo
-	if err := json.Unmarshal([]byte(`{"id":"m","name":"M","capabilities":{"supports":{},"limits":`+wireLimits+`}}`), &model); err != nil {
-		t.Fatalf("unmarshal model info: %v", err)
-	}
-	limits := model.Capabilities.Limits
-	if limits.MaxOutputTokens == nil || *limits.MaxOutputTokens != 16384 {
-		t.Fatalf("MaxOutputTokens = %v, want 16384", limits.MaxOutputTokens)
-	}
-	encoded, err := json.Marshal(limits)
-	if err != nil {
-		t.Fatalf("marshal limits: %v", err)
-	}
-	var actual, expected map[string]any
-	if err := json.Unmarshal(encoded, &actual); err != nil {
-		t.Fatalf("unmarshal encoded limits: %v", err)
-	}
-	if err := json.Unmarshal([]byte(wireLimits), &expected); err != nil {
-		t.Fatalf("unmarshal wire limits: %v", err)
-	}
-	if !reflect.DeepEqual(actual, expected) {
-		t.Fatalf("encoded limits = %s, want %s", encoded, wireLimits)
-	}
-}
-
-func TestModelInfoPreservesNativeProvider(t *testing.T) {
-	for _, provider := range []string{
-		`{"id":"copilot","kind":"copilot","label":"GitHub Copilot"}`,
-		`{"id":"loki:opaque","kind":"loki","label":"Microsoft 365 Copilot"}`,
-		`null`,
-	} {
-		t.Run(provider, func(t *testing.T) {
-			var model ModelInfo
-			if err := json.Unmarshal([]byte(`{"id":"shared-model","name":"Shared Model","capabilities":{},"provider":`+provider+`}`), &model); err != nil {
-				t.Fatal(err)
-			}
-			var expected *rpc.ModelProviderRef
-			if err := json.Unmarshal([]byte(provider), &expected); err != nil {
-				t.Fatal(err)
-			}
-			if !reflect.DeepEqual(model.Provider, expected) {
-				t.Fatalf("provider = %#v, want %#v", model.Provider, expected)
-			}
-			encoded, err := json.Marshal(model)
-			if err != nil {
-				t.Fatal(err)
-			}
-			var wire map[string]json.RawMessage
-			if err := json.Unmarshal(encoded, &wire); err != nil {
-				t.Fatal(err)
-			}
-			if expected == nil {
-				if _, present := wire["provider"]; present {
-					t.Fatal("unattributed model must omit provider")
-				}
-			} else {
-				var actual rpc.ModelProviderRef
-				if err := json.Unmarshal(wire["provider"], &actual); err != nil || !reflect.DeepEqual(actual, *expected) {
-					t.Fatalf("encoded provider = %s, want %s: %v", wire["provider"], provider, err)
-				}
-			}
-		})
 	}
 }
 
@@ -5189,76 +4634,6 @@ func TestModeCallbackRequestHandlers(t *testing.T) {
 	}
 }
 
-func TestUserInputRequestCallbackRequestID(t *testing.T) {
-	for _, tc := range []struct {
-		name   string
-		params string
-		want   string
-	}{
-		{"present", `{"sessionId":"s1","question":"Continue?","requestId":"req-user-1"}`, "req-user-1"},
-		{"absent", `{"sessionId":"s1","question":"Continue?"}`, ""},
-	} {
-		t.Run(tc.name, func(t *testing.T) {
-			session := &Session{SessionID: "s1"}
-			client := &Client{sessions: map[string]*Session{"s1": session}}
-			var got *UserInputRequest
-			session.registerUserInputHandler(func(request UserInputRequest, _ UserInputInvocation) (UserInputResponse, error) {
-				got = &request
-				return UserInputResponse{Answer: "yes"}, nil
-			})
-
-			handler := jsonrpc2.RequestHandlerFor(client.handleUserInputRequest)
-			if _, rpcErr := handler(json.RawMessage(tc.params)); rpcErr != nil {
-				t.Fatalf("Unexpected RPC error: %v", rpcErr)
-			}
-			if got == nil {
-				t.Fatal("Expected user input handler to be called")
-			}
-			if got.RequestID != tc.want {
-				t.Fatalf("Expected RequestID %q, got %q", tc.want, got.RequestID)
-			}
-			if got.Question != "Continue?" {
-				t.Fatalf("Expected question to round-trip, got %q", got.Question)
-			}
-		})
-	}
-}
-
-func TestExitPlanModeRequestCallbackRequestID(t *testing.T) {
-	for _, tc := range []struct {
-		name   string
-		params string
-		want   string
-	}{
-		{"present", `{"sessionId":"s1","summary":"Plan","actions":["autopilot"],"recommendedAction":"autopilot","requestId":"req-plan-1"}`, "req-plan-1"},
-		{"absent", `{"sessionId":"s1","summary":"Plan","actions":["autopilot"],"recommendedAction":"autopilot"}`, ""},
-	} {
-		t.Run(tc.name, func(t *testing.T) {
-			session := &Session{SessionID: "s1"}
-			client := &Client{sessions: map[string]*Session{"s1": session}}
-			var got *ExitPlanModeRequest
-			session.registerExitPlanModeHandler(func(request ExitPlanModeRequest, _ ExitPlanModeInvocation) (ExitPlanModeResult, error) {
-				got = &request
-				return ExitPlanModeResult{Approved: true}, nil
-			})
-
-			handler := jsonrpc2.RequestHandlerFor(client.handleExitPlanModeRequest)
-			if _, rpcErr := handler(json.RawMessage(tc.params)); rpcErr != nil {
-				t.Fatalf("Unexpected RPC error: %v", rpcErr)
-			}
-			if got == nil {
-				t.Fatal("Expected exit-plan-mode handler to be called")
-			}
-			if got.RequestID != tc.want {
-				t.Fatalf("Expected RequestID %q, got %q", tc.want, got.RequestID)
-			}
-			if got.Summary != "Plan" {
-				t.Fatalf("Expected summary to round-trip, got %q", got.Summary)
-			}
-		})
-	}
-}
-
 func TestResumeTranscriptRecoveryDefaultsAndReport(t *testing.T) {
 	for _, tc := range []struct {
 		name     string
@@ -6376,7 +5751,6 @@ func TestSessionRequests_ManagedSettings(t *testing.T) {
 	t.Run("includes managedSettings on create when set", func(t *testing.T) {
 		req := createSessionRequest{
 			EnableManagedSettings:       Bool(true),
-			ExcludedManagedSettings:     []string{"sandbox", "allowedMcpServers"},
 			EnforceManagedModelDefaults: Bool(true),
 			ManagedSettings:             settings,
 		}
@@ -6390,9 +5764,6 @@ func TestSessionRequests_ManagedSettings(t *testing.T) {
 		}
 		if m["enableManagedSettings"] != true {
 			t.Errorf("Expected enableManagedSettings true, got %v", m["enableManagedSettings"])
-		}
-		if !reflect.DeepEqual(m["excludedManagedSettings"], []any{"sandbox", "allowedMcpServers"}) {
-			t.Errorf("Unexpected exclusions: %v", m["excludedManagedSettings"])
 		}
 		if m["enforceManagedModelDefaults"] != true {
 			t.Errorf("Expected enforceManagedModelDefaults true, got %v", m["enforceManagedModelDefaults"])
@@ -6411,7 +5782,7 @@ func TestSessionRequests_ManagedSettings(t *testing.T) {
 	})
 
 	t.Run("includes managedSettings on resume when set", func(t *testing.T) {
-		req := resumeSessionRequest{SessionID: "s1", ManagedSettings: settings, ExcludedManagedSettings: []string{"deniedMcpServers"}}
+		req := resumeSessionRequest{SessionID: "s1", ManagedSettings: settings}
 		data, err := json.Marshal(req)
 		if err != nil {
 			t.Fatalf("Failed to marshal: %v", err)
@@ -6422,9 +5793,6 @@ func TestSessionRequests_ManagedSettings(t *testing.T) {
 		}
 		if _, ok := m["managedSettings"].(map[string]any); !ok {
 			t.Fatalf("Expected managedSettings object, got %v", m["managedSettings"])
-		}
-		if !reflect.DeepEqual(m["excludedManagedSettings"], []any{"deniedMcpServers"}) {
-			t.Errorf("Unexpected exclusions: %v", m["excludedManagedSettings"])
 		}
 	})
 

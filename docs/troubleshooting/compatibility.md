@@ -16,6 +16,7 @@ The Copilot SDK communicates with the CLI via JSON-RPC protocol. Features must b
 | Create session | `createSession()` | Full config support |
 | Resume session | `resumeSession()` | With infinite session workspaces |
 | Disconnect session | `disconnect()` | Release in-memory resources |
+| Destroy session *(deprecated)* | `destroy()` | Use `disconnect()` instead |
 | Delete session | `deleteSession()` | Remove from storage |
 | List sessions | `listSessions()` | All stored sessions |
 | Get last session | `getLastSessionId()` | For quick resume |
@@ -31,7 +32,7 @@ The Copilot SDK communicates with the CLI via JSON-RPC protocol. Features must b
 | Get history | `getEvents()` | All session events |
 | Abort | `abort()` | Cancel in-flight request |
 | **Tools** | | |
-| Register custom tools | `tools` in session config | Full JSON Schema support |
+| Register custom tools | `registerTools()` | Full JSON Schema support |
 | Replace custom tools (mid-session) | `session.setTools()` | Experimental; see [Changing tools during a session](../features/changing-tools.md) |
 | Tool permission control | `onPreToolUse` hook | Allow/deny/ask |
 | Tool result modification | `onPostToolUse` hook | Transform results |
@@ -50,9 +51,9 @@ The Copilot SDK communicates with the CLI via JSON-RPC protocol. Features must b
 | Update plan | `session.rpc.plan.update()` | Write plan.md content |
 | Delete plan | `session.rpc.plan.delete()` | Remove plan.md |
 | **Workspace Files** | | |
-| List workspace files | `session.rpc.workspaces.listFiles()` | Files in session workspace |
-| Read workspace file | `session.rpc.workspaces.readFile()` | Read file content |
-| Create workspace file | `session.rpc.workspaces.createFile()` | Create file in workspace |
+| List workspace files | `session.rpc.workspace.listFiles()` | Files in session workspace |
+| Read workspace file | `session.rpc.workspace.readFile()` | Read file content |
+| Create workspace file | `session.rpc.workspace.createFile()` | Create file in workspace |
 | **Authentication** | | |
 | Get auth status | `getAuthStatus()` | Check login state |
 | Use token | `gitHubToken` option | Programmatic auth |
@@ -70,7 +71,7 @@ The Copilot SDK communicates with the CLI via JSON-RPC protocol. Features must b
 | Session start/end | `onSessionStart`, `onSessionEnd` | Lifecycle with source/reason |
 | Error handling | `onErrorOccurred` | Custom handling |
 | **Events** | | |
-| All session events | `on()` | 40+ event types |
+| All session events | `on()`, `once()` | 40+ event types |
 | Streaming | `streaming: true` | Delta events |
 | **Session Config** | | |
 | Custom agents | `customAgents` config | Define specialized agents |
@@ -108,7 +109,7 @@ The Copilot SDK communicates with the CLI via JSON-RPC protocol. Features must b
 | Theme picker | `/theme` | Terminal UI |
 | Model picker | `/model` | Interactive UI (use SDK `setModel()` instead) |
 | Copy to clipboard | `/copy` | Terminal-specific |
-| Context management | `/context` | Interactive UI (use SDK `session.rpc.metadata.contextInfo()` instead) |
+| Context management | `/context` | Interactive UI |
 | **Research & History** | | |
 | Deep research | `/research` | TUI workflow with web search |
 | Session history tools | `/chronicle` | Standup, tips, improve, reindex |
@@ -132,8 +133,8 @@ The Copilot SDK communicates with the CLI via JSON-RPC protocol. Features must b
 | List directories | `/list-dirs` | TUI command |
 | Change directory | `/cwd` | TUI command |
 | **Plugin/MCP Management** | | |
-| Plugin commands | `/plugin` | Interactive management (use SDK `server.rpc.plugins.*` for installed plugins and marketplaces, or `session.rpc.plugins.*` to change plugins in a live session) |
-| MCP server management | `/mcp` | Interactive UI (use SDK `server.rpc.mcp.config.*` to edit saved MCP configuration, which does not restart running servers, or `session.rpc.mcp.*` to list, start, stop and reload servers in a live session) |
+| Plugin commands | `/plugin` | Interactive management |
+| MCP server management | `/mcp` | Interactive UI |
 | **Account Management** | | |
 | Login flow | `/login`, `copilot auth login` | OAuth device flow |
 | Logout | `/logout`, `copilot auth logout` | Direct CLI |
@@ -144,9 +145,9 @@ The Copilot SDK communicates with the CLI via JSON-RPC protocol. Features must b
 | Session management | `/session`, `/resume`, `/rename` | TUI workflow |
 | Fleet mode (interactive) | `/fleet` | TUI-only (use SDK `session.rpc.fleet.start()` instead) |
 | **Skills Management** | | |
-| Manage skills | `/skills` | Interactive UI (use SDK `session.rpc.skills.*` instead) |
+| Manage skills | `/skills` | Interactive UI |
 | **Task Management** | | |
-| View background tasks | `/tasks` | TUI command (use SDK `session.rpc.tasks.*` instead) |
+| View background tasks | `/tasks` | TUI command |
 | **Usage & Stats** | | |
 | Token usage | `/usage` | Subscribe to usage events |
 | **Code Review** | | |
@@ -159,8 +160,8 @@ The Copilot SDK communicates with the CLI via JSON-RPC protocol. Features must b
 | Toggle experimental | `/experimental`, `--experimental` | Runtime flag |
 | Custom instructions control | `--no-custom-instructions` | CLI flag |
 | Diagnose session | `/diagnose` | TUI command |
-| View/manage instructions | `/instructions` | TUI command (use SDK `session.rpc.instructions.getSources()` instead) |
-| Collect debug logs | `/collect-debug-logs` | Diagnostic tool (use SDK `session.rpc.debug.collectLogs()` instead) |
+| View/manage instructions | `/instructions` | TUI command |
+| Collect debug logs | `/collect-debug-logs` | Diagnostic tool |
 | Reindex workspace | `/reindex` | TUI command |
 | IDE integration | `/ide` | IDE-specific workflow |
 | **Non-interactive Mode** | | |
@@ -278,12 +279,12 @@ The SDK can only access features exposed through the CLI's JSON-RPC protocol. If
 
 ## Version compatibility
 
-| SDK | Supported CLI Protocol Versions | v2 CLI Server |
-|-----|---------------------------------|---------------|
-| Node.js, Python, Go, .NET, Rust | v3 | Not supported: startup fails with a protocol version mismatch error |
-| Java | v2–v3 | Supported with automatic v2 adapters |
+| SDK Protocol Range | CLI Protocol Version | Compatibility |
+|--------------------|---------------------|---------------|
+| v2–v3 | v3 | Full support |
+| v2–v3 | v2 | Supported with automatic v2 adapters |
 
-The SDK checks the CLI's protocol version at startup and fails to start with a protocol version mismatch error when the CLI reports a version outside the supported range. Only the Java SDK accepts a v2 CLI server: it adapts the server's `tool.call` and `permission.request` requests to the same tool and permission handlers used with v3, so no code changes are required.
+The SDK negotiates protocol versions with the CLI at startup. The SDK supports protocol versions 2 through 3. When connecting to a v2 CLI server, the SDK automatically adapts `tool.call` and `permission.request` messages to the v3 event model—no code changes required.
 
 Check versions at runtime:
 

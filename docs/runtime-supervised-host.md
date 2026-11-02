@@ -7,9 +7,9 @@ launch a companion process or second runtime, or relay host traffic through the 
 
 ## Source layout
 
-The implementation spans the runtime repository and the hosting library it links.
+The implementation spans `github/copilot-agent-runtime` and `github/copilot-host`.
 Build from the runtime checkout; Cargo obtains the pinned `copilotd-hosting`
-library from its recorded Git source.
+library from the host repository.
 The SDK lives in the runtime repository at `src/sdk`; its source revision is
 the runtime commit, not a separate `github/copilot-sdk` commit. Run SDK commands
 from `src/sdk` unless a command names another working directory.
@@ -58,7 +58,6 @@ detached, and the hosting task has stopped, not merely that shutdown was request
 await client.start();
 const host = await client.startAhpHost({
     localServer: {},
-    authentication: { mode: "github" },
     onExit: (exit) => console.log(`AHP host stopped: ${exit.reason}`),
 });
 // Connect an AHP client using host.url and, when defined, host.token.
@@ -66,14 +65,14 @@ const host = await client.startAhpHost({
 await client.stop();
 ```
 
-All SDK hosting options require explicit authentication and a transport:
-`localServer`, `githubEnvironment`, or both. No listener is implicit.
+`AhpHostOptions` requires at least one explicit transport: `localServer`,
+`githubEnvironment`, or both. There is no implicit local listener.
 `localServer` accepts `hostname`, `port`, `token`, and
 `requireConnectionToken`. The hostname defaults to `127.0.0.1`; explicit
 non-loopback addresses are allowed. An omitted or zero port selects an available
 port; other values must be integers from 1 through 65535. The returned URL contains
-the actual bound address, including IPv6 brackets where needed. `workspace` overrides
-the runtime's configured working directory with an absolute, existing directory path.
+the actual bound address, including IPv6 brackets where needed. The host always
+uses the runtime's configured working directory, with no per-host override.
 
 Connection-token authentication defaults on: supply a nonempty token or let the
 listener generate one. `requireConnectionToken: false` disables only that
@@ -83,11 +82,7 @@ and authorization remain in effect independently. Explicit public binding or
 disabling the connection gate is the application's choice; the default remains
 loopback with a generated token. Tokens travel over framed SDK RPC, not argv.
 
-Select GitHub, custom, or anonymous (`none`) admission explicitly in every client mode.
-Custom validators receive the decrypted token and cancellation signal; accepted
-results require the exact configured owner and future RFC3339 expiry. Rejection,
-exceptions, invalid results, and cancellation fail closed. Custom and anonymous
-hosting are direct-only; Mission Control requires GitHub authentication.
+Node.js, Rust, Python, Go, .NET, and Java expose experimental thin handles over the generated host RPCs.
 `onExit` is a local callback, not part of the serialized start request. There is no
 `closed` promise and no public generic notification-registration API.
 
@@ -95,12 +90,11 @@ hosting are direct-only; Mission Control requires GitHub authentication.
 
 ```ts
 const host = await client.startAhpHost({
-    authentication: { mode: "github" },
     githubEnvironment: {
         name: "My application",
         computeId: "stable-application-installation-id",
     },
-    // localServer: {} also enables a local listener.
+    // Include localServer: {} to also enable a local listener.
 });
 console.log(host.environmentId);
 ```
@@ -171,7 +165,6 @@ import { approveAll, type CopilotClient } from "@github/copilot-sdk";
 async function startApplicationHost(client: CopilotClient) {
     return client.startAhpHost({
         localServer: {},
-        authentication: { mode: "github" },
         createSession: ({ config, signal }) => {
             signal.throwIfAborted();
             return client.createSession({
@@ -192,14 +185,13 @@ async function startApplicationHost(client: CopilotClient) {
 
 ```rust
 use std::sync::Arc;
-use github_copilot_sdk::{AhpHost, AhpHostAuthentication, AhpHostOptions, AhpSessionRequest, Client, Error};
+use github_copilot_sdk::{AhpHost, AhpHostOptions, AhpSessionRequest, Client, Error};
 use github_copilot_sdk::rpc::HostLocalServerOptions;
 
 async fn start_application_host(owner: &Client) -> Result<AhpHost, Error> {
     owner
         .start_ahp_host(
             AhpHostOptions::new()
-                .with_authentication(AhpHostAuthentication::Github)
                 .with_local_server(HostLocalServerOptions::default())
                 .with_create_session(
                     |request: AhpSessionRequest, client: Client| async move {
@@ -225,23 +217,22 @@ async fn start_application_host(owner: &Client) -> Result<AhpHost, Error> {
 
 ```python
 from copilot import (
-    AhpHostAuthentication, AhpHostOptions, AhpSessionCreateRequest, CopilotClient, CopilotSession,
+    AhpHostOptions, AhpSessionCreateRequest, CopilotClient, CopilotSession,
     PermissionHandler,
 )
 from copilot.rpc import HostLocalServerOptions
 
 async def start_application_host(client: CopilotClient):
     async def create(request: AhpSessionCreateRequest):
-        config = request.config.copy()
-        config["on_permission_request"] = PermissionHandler.approve_all
-        return await client.create_session(**config)
+        return await client.create_session(
+            **{**request.config, "on_permission_request": PermissionHandler.approve_all}
+        )
 
     async def release(session: CopilotSession):
         await session.disconnect()
 
     return await client.start_ahp_host(
         AhpHostOptions(
-            authentication=AhpHostAuthentication("github"),
             local_server=HostLocalServerOptions(),
             create_session=create,
             on_session_released=release,
@@ -264,7 +255,6 @@ import (
 
 func startApplicationHost(ctx context.Context, client *copilot.Client) (*copilot.AhpHost, error) {
     return client.StartAhpHost(ctx, &copilot.AhpHostOptions{
-        Authentication: copilot.AhpHostAuthentication{Mode: "github"},
         LocalServer: &rpc.HostLocalServerOptions{},
         CreateSession: func(ctx context.Context, request copilot.AhpSessionCreateRequest) (*copilot.Session, error) {
             request.Config.OnPermissionRequest = copilot.PermissionHandler.ApproveAll
@@ -293,7 +283,6 @@ static class HostingExample
     public static Task<AhpHost> StartApplicationHostAsync(CopilotClient client) =>
         client.StartAhpHostAsync(new AhpHostOptions
         {
-            Authentication = new AhpHostAuthentication.GitHub(),
             LocalServer = new(),
             CreateSession = request =>
             {
@@ -312,7 +301,6 @@ static class HostingExample
 
 ```java
 import com.github.copilot.AhpHost;
-import com.github.copilot.AhpHostAuthentication;
 import com.github.copilot.AhpHostOptions;
 import com.github.copilot.AllowCopilotExperimental;
 import com.github.copilot.CopilotClient;
@@ -324,7 +312,6 @@ import java.util.concurrent.CompletableFuture;
 class HostingExample {
     static CompletableFuture<AhpHost> startApplicationHost(CopilotClient client) {
         return client.startAhpHost(new AhpHostOptions()
-                .setAuthentication(AhpHostAuthentication.github())
                 .setLocalServer(new HostLocalServerOptions(null, null, null, null))
                 .setCreateSession(request -> client.createSession(request.config()
                         .setOnPermissionRequest(PermissionHandler.APPROVE_ALL)))
@@ -387,10 +374,6 @@ Returning a retained original `Arc<Session>` is also supported under the same
 identity and ownership checks.
 
 The other SDKs support the same create, resume, release, and publication contract:
-
-Create and resume callbacks receive trusted `authentication` separately from
-session configuration in every SDK. Custom admission tokens never enter GitHub
-or inference configuration; configure BYOK in the callback on the returned session.
 
 | SDK | Start | Resume callback | Resume the requested session | Publish |
 | --- | --- | --- | --- | --- |
@@ -472,21 +455,21 @@ must reconnect after hosting restarts; local sessions and their identities
 remain unchanged. Exiting the owning CLI stops the listener as well. Hosting
 lifetime is separate from durable publication.
 
-`--host-ahp [--host-ahp-listen host:port] [--host-directory directory]` serves this same backend
+`--ahp-host [--listen host:port] [--workspace directory]` serves this same backend
 in the CLI process, using normal SDK session construction, managed policy,
 hooks, authentication and telemetry. The old promotion backend and duplicate
 commands have been removed. The CLI defaults to a random required local
-connection token. `--host-ahp-token <value>` supplies a fixed nonempty token
-(`localServer.token`); `--host-ahp-disable-token` sets
+connection token. `--ahp-host-token <value>` supplies a fixed nonempty token
+(`localServer.token`); `--ahp-host-disable-token` sets
 `localServer.requireConnectionToken` to `false`. These options require
-`--host-ahp` and cannot be combined. Explicit tokens are visible in process
+`--ahp-host` and cannot be combined. Explicit tokens are visible in process
 arguments and may be stored in shell history. Startup prints a connectable
 `AHP 1.0 endpoint` URL with the active token URL-encoded in its `tkn` query parameter,
 not a separate token line. Disabling the token leaves the URL without that
 parameter. Treat this stdout URL as a credential; ordinary host logs retain
 the bare endpoint. GitHub authentication and resource authorization remain
 required in both modes, independently of SDK `--auth-token-env` or client-side
-`--ahp-authenticate github`.
+`--ahp-authenticate-with-github`.
 Local-owner `/remote on|off|show` retains its independent
 Mission Control path; the old attached-AHP-client export toggle is intentionally unavailable.
 `COPILOT_AHP_SHARE_BIND` can select a wider listener for sharing;
@@ -535,16 +518,18 @@ behavior, and does not add standalone/in-process shared-writer support.
 In-process hosting does not yet provide traditional copilotd's propagation of an AHP session's
 GHES credential to shell `gh` commands. Ordinary per-session authentication is
 unchanged. General support belongs in the runtime's existing per-session shell
-credential capability and is tracked as a runtime issue.
+credential capability and is tracked in
+[runtime #22077](https://github.com/github/copilot-agent-runtime/issues/22077).
 The experimental credential workaround and new command-target policy have been
 removed. Traditional copilotd retains its existing Enterprise-token subprocess
 seeding and is unaffected.
 
 ## Local-development requirements
 
-Use the runtime checkout, including its Rust SDK in `src/sdk/rust`.
+Use the runtime checkout, including its Rust SDK in
+`copilot-agent-runtime/src/sdk/rust`.
 The runtime provider links the `copilotd-hosting` library at the immutable
-Git revision recorded in the runtime's `Cargo.lock`. Its own SDK
+`copilot-host` Git revision recorded in the runtime's `Cargo.lock`. Its own SDK
 dependency is runtime-free; do not patch that dependency to the runtime-bearing
 SDK build or stage a separate host executable.
 
@@ -655,8 +640,8 @@ is not claimed to implement the new host operations. Generated bindings in this
 branch come from the companion runtime's local schema, so release-based code
 generation must use that same companion release when its pin is advanced.
 
-The runtime repository's `.github/workflows/sdk-rust.yml` runs SDK feature checks in active
-monorepo CI.
+The canonical `.github/workflows/sdk-rust.yml` runs SDK feature checks in active
+monorepo CI and is mirrored to `src/sdk/.github/workflows/sdk-rust.yml` for export.
 Its runtime-free feature checks do not activate the opt-in AHP E2Es.
 
 The coordinated follow-up is: publish the integrated runtime artifacts, provision private

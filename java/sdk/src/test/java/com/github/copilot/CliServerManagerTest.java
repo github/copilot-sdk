@@ -5,7 +5,6 @@
 package com.github.copilot;
 
 import static org.junit.jupiter.api.Assertions.*;
-import static org.mockito.Mockito.*;
 
 import java.io.IOException;
 import java.lang.reflect.InvocationTargetException;
@@ -91,21 +90,6 @@ class CliServerManagerTest {
                 assertEquals("1", process.environment().get("COPILOT_RUNTIME_PROCESS_FILE_LOGGING"));
             }
         }
-    }
-
-    @ParameterizedTest
-    @ValueSource(booleans = {false, true})
-    void explicitTelemetryCaptureOverridesEnvironment(boolean capture) {
-        var options = new CopilotClientOptions().setTelemetry(new TelemetryConfig().setCaptureContent(capture))
-                .setEnvironment(Map.of("OTEL_INSTRUMENTATION_GENAI_CAPTURE_CONTENT", "SPAN_AND_EVENT"));
-        var process = new ProcessBuilder("copilot-runtime");
-
-        new CliServerManager(options).configureProcessEnvironment(process);
-
-        assertEquals(capture ? "SPAN_ONLY" : "NO_CONTENT",
-                process.environment().get("OTEL_INSTRUMENTATION_GENAI_CAPTURE_CONTENT"));
-        assertEquals(Boolean.toString(capture),
-                process.environment().get("OTEL_INSTRUMENTATION_GENAI_CAPTURE_MESSAGE_CONTENT"));
     }
 
     // ===== parseCliUrl tests =====
@@ -213,19 +197,6 @@ class CliServerManagerTest {
         var info = new CliServerManager.ProcessInfo(null, null);
         assertNull(info.process());
         assertNull(info.port());
-    }
-
-    @Test
-    void awaitStderrReaderJoinsReaderThread() throws Exception {
-        var manager = new CliServerManager(new CopilotClientOptions());
-        var reader = mock(Thread.class);
-        var field = CliServerManager.class.getDeclaredField("stderrThread");
-        field.setAccessible(true);
-        field.set(manager, reader);
-
-        manager.awaitStderrReader();
-
-        verify(reader).join(5000);
     }
 
     // ===== resolveCliCommand tests =====

@@ -32,7 +32,6 @@ public record WorkflowAgentSummary(
     /** Owning workflow run identifier. */
     @JsonProperty("runId") String runId,
     /** Phase identifier active when the agent was launched, or null. */
-    @JsonInclude(JsonInclude.Include.ALWAYS)
     @JsonProperty("phaseId") String phaseId,
     /** Friendly, non-unique name intended for display */
     @JsonProperty("label") String label,
@@ -42,17 +41,9 @@ public record WorkflowAgentSummary(
     @JsonProperty("agentType") String agentType,
     /** Current durable or live agent status. */
     @JsonProperty("status") String status,
-    /** Requested and resolved model observations, when available. */
-    @JsonProperty("model") WorkflowAgentModelObservation model,
-    /** Requested and resolved reasoning-effort observations, when available. */
-    @JsonProperty("reasoningEffort") WorkflowAgentReasoningEffortObservation reasoningEffort,
-    /** Requested and resolved context observations, when available. */
-    @JsonProperty("context") WorkflowAgentContextObservation context,
-    /** Deprecated compatibility alias for model.requested. */
-    @Deprecated
+    /** Model requested when the agent was launched. */
     @JsonProperty("requestedModel") String requestedModel,
-    /** Deprecated compatibility alias for model.resolved. */
-    @Deprecated
+    /** Concrete model resolved for the agent. */
     @JsonProperty("resolvedModel") String resolvedModel,
     /** Epoch milliseconds when the agent started. */
     @JsonProperty("startedAt") Long startedAt,
@@ -60,8 +51,6 @@ public record WorkflowAgentSummary(
     @JsonProperty("completedAt") Long completedAt,
     /** Accumulated active agent time in milliseconds. */
     @JsonProperty("activeMs") Long activeMs,
-    /** Known AI-credit spend, in nano-AIU, produced by this direct agent and its descendants. Omitted for historical agents when unattributed charges prevent a known zero. */
-    @JsonProperty("consumedNanoAiu") Long consumedNanoAiu,
     /** Prompt-safe live activity text. */
     @JsonProperty("activity") String activity
 ) {

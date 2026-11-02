@@ -90,7 +90,6 @@ flowchart TB
 
 Your application handles the standard GitHub OAuth flow. Here's the server-side token exchange:
 
-<!-- docs-validate: strict -->
 ```typescript
 // Server-side: Exchange authorization code for user token
 async function handleOAuthCallback(code: string): Promise<string> {
@@ -107,7 +106,7 @@ async function handleOAuthCallback(code: string): Promise<string> {
         }),
     });
 
-    const data = (await response.json()) as { access_token: string };
+    const data = await response.json();
     return data.access_token; // gho_xxxx or ghu_xxxx
 }
 ```
@@ -150,13 +149,12 @@ from copilot import CopilotClient
 from copilot.session import PermissionHandler
 
 def create_client_for_user(user_token: str) -> CopilotClient:
-    return CopilotClient(
-        github_token=user_token,
-        use_logged_in_user=False,
-    )
+    return CopilotClient({
+        "github_token": user_token,
+        "use_logged_in_user": False,
+    })
 
 # Usage
-user_id = "123"
 client = create_client_for_user("gho_user_access_token")
 await client.start()
 
@@ -280,38 +278,7 @@ var response = await session.SendAndWaitAsync(
 <details>
 <summary><strong>Java</strong></summary>
 
-<!-- docs-validate: hidden -->
-```java
-import com.github.copilot.CopilotClient;
-import com.github.copilot.rpc.*;
-
-public class UserClientExample {
-    static CopilotClient createClientForUser(String userToken) throws Exception {
-        var client = new CopilotClient(new CopilotClientOptions()
-            .setGitHubToken(userToken)
-            .setUseLoggedInUser(false)
-        );
-        client.start().get();
-        return client;
-    }
-
-    public static void main(String[] args) throws Exception {
-        // Usage — use try-with-resources to ensure cleanup
-        var userId = "user1";
-        try (var client = createClientForUser("gho_user_access_token")) {
-            var session = client.createSession(new SessionConfig()
-                .setSessionId(String.format("user-%s-session", userId))
-                .setModel("gpt-5.4")
-                .setOnPermissionRequest(PermissionHandler.APPROVE_ALL)
-            ).get();
-
-            var response = session.sendAndWait(new MessageOptions()
-                .setPrompt("Hello!")).get();
-        }
-    }
-}
-```
-<!-- /docs-validate: hidden -->
+<!-- docs-validate: skip -->
 ```java
 import com.github.copilot.CopilotClient;
 import com.github.copilot.rpc.*;
@@ -378,34 +345,6 @@ flowchart TB
 
 After OAuth, check that the user belongs to your organization:
 
-<!-- docs-validate: hidden -->
-<!-- docs-validate: strict -->
-```typescript
-import type { CopilotClient } from "@github/copilot-sdk";
-
-declare const code: string;
-declare function handleOAuthCallback(code: string): Promise<string>;
-declare function createClientForUser(userToken: string): CopilotClient;
-
-async function verifyOrgMembership(
-    token: string,
-    requiredOrg: string
-): Promise<boolean> {
-    const response = await fetch("https://api.github.com/user/orgs", {
-        headers: { Authorization: `Bearer ${token}` },
-    });
-    const orgs = (await response.json()) as { login: string }[];
-    return orgs.some((org) => org.login === requiredOrg);
-}
-
-// In your auth flow
-const token = await handleOAuthCallback(code);
-if (!await verifyOrgMembership(token, "my-company")) {
-    throw new Error("User is not a member of the required organization");
-}
-const client = createClientForUser(token);
-```
-<!-- /docs-validate: hidden -->
 ```typescript
 async function verifyOrgMembership(
     token: string,
@@ -414,8 +353,8 @@ async function verifyOrgMembership(
     const response = await fetch("https://api.github.com/user/orgs", {
         headers: { Authorization: `Bearer ${token}` },
     });
-    const orgs = (await response.json()) as { login: string }[];
-    return orgs.some((org) => org.login === requiredOrg);
+    const orgs = await response.json();
+    return orgs.some((org: any) => org.login === requiredOrg);
 }
 
 // In your auth flow

@@ -67,13 +67,11 @@ Omitted values preserve the current setting. Re-supply consent on cold resume. *
     @JsonProperty("excludedBuiltinAgents") List<String> excludedBuiltinAgents,
     /** Controls how availableTools (allowlist) and excludedTools (denylist) combine when both are set. */
     @JsonProperty("toolFilterPrecedence") OptionsUpdateToolFilterPrecedence toolFilterPrecedence,
-    /** Deprecated and ignored. Shell command analysis is always enabled; retained for wire compatibility. */
-    @Deprecated
+    /** Whether shell-script safety heuristics are enabled. */
     @JsonProperty("enableScriptSafety") Boolean enableScriptSafety,
     /** Per-session settings for built-in shell tools. */
     @JsonProperty("shell") ShellOptions shell,
     /** Use shell.initProfile instead. Shell init profile (`None` or `NonInteractive`). */
-    @Deprecated
     @JsonProperty("shellInitProfile") String shellInitProfile,
     /** PowerShell process flags applied to built-in and user-requested shell commands. */
     @JsonProperty("shellProcessFlags") List<String> shellProcessFlags,

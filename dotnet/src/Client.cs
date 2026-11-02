@@ -89,14 +89,10 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
     private bool _disposed;
     private int? _actualPort;
     private int? _negotiatedProtocolVersion;
-    private volatile ModelsCache _modelsCache = new();
+    private SemaphoreSlim? _modelsCacheLock;
+    private List<ModelInfo>? _modelsCache;
     private ServerRpc? _serverRpc;
 
-    private sealed class ModelsCache
-    {
-        public SemaphoreSlim Lock { get; } = new(1, 1);
-        public List<ModelInfo>? Models { get; set; }
-    }
     /// <summary>
     /// Client-global RPC handlers (e.g. the LLM inference provider adapter),
     /// built once at construction and registered on every connection.
@@ -454,11 +450,6 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
                     "CopilotClient.StartAsync protocol verification complete. Elapsed={Elapsed}",
                     startTimestamp);
 
-                if (_clientGlobalApis?.KerberosAuth is KerberosAuthAdapter kerberosAuth)
-                {
-                    await connection.Server.KerberosAuth.SetProviderAsync(kerberosAuth.Mode, kerberosAuth.Scope, ct);
-                }
-
                 if (_options.ExtensionLaunchProvider is not null)
                 {
                     await connection.Server.RegisterExtensionLaunchProviderAsync(ct);
@@ -652,7 +643,6 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
         {
             connectionTask = _connectionTask;
             _connectionTask = null;
-            _modelsCache = new();
         }
         if (connectionTask is null)
         {
@@ -701,8 +691,9 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
         try { ctx.Rpc.Dispose(); }
         catch (Exception ex) { AddCleanupError(errors, ex, _logger); }
 
-        // Clear RPC
+        // Clear RPC and models cache
         _serverRpc = null;
+        _modelsCache = null;
 
         if (ctx.NetworkStream is not null)
         {
@@ -1298,7 +1289,6 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
                 config.IncludeSubAgentStreamingEvents,
                 config.McpServers,
                 config.Diagnostics,
-                config.LifecycleDiagnostics,
                 config.McpOAuthTokenStorage,
                 config.AuthClientIdMetadataUrl,
                 "direct",
@@ -1329,6 +1319,7 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
                 ModelCapabilities: config.ModelCapabilities,
                 GitHubToken: config.GitHubToken,
                 GitHubTokenProviderRegistrationId: registrationId,
+                RemoteSession: config.RemoteSession,
                 Cloud: config.Cloud,
                 TrustWorkingDirectory: config.TrustWorkingDirectory switch
                 {
@@ -1360,7 +1351,6 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
                 FeatureFlags: config.FeatureFlags,
                 ExpAssignments: config.ExpAssignments,
                 EnableManagedSettings: config.EnableManagedSettings,
-                ExcludedManagedSettings: config.ExcludedManagedSettings,
                 EnforceManagedModelDefaults: config.EnforceManagedModelDefaults,
                 InteractiveUser: config.InteractiveUser,
                 GitHubMcpToolConfig: config.GitHubMcpToolConfig,
@@ -1455,8 +1445,7 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
                     or InvalidOperationException
                     or ObjectDisposedException)
                 {
-                    if (_logger.IsEnabled(LogLevel.Warning))
-                        _logger.LogWarning(cleanupError, "Failed to delete cloud session {SessionId} after creation failed", serverAssignedSessionId);
+                    _logger.LogWarning(cleanupError, "Failed to delete cloud session {SessionId} after creation failed", serverAssignedSessionId);
                 }
             }
 
@@ -1597,7 +1586,6 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
                 config.IncludeSubAgentStreamingEvents,
                 config.McpServers,
                 config.Diagnostics,
-                config.LifecycleDiagnostics,
                 config.McpOAuthTokenStorage,
                 config.AuthClientIdMetadataUrl,
                 "direct",
@@ -1617,6 +1605,7 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
                 ModelCapabilities: config.ModelCapabilities,
                 GitHubToken: config.GitHubToken,
                 GitHubTokenProviderRegistrationId: registrationId,
+                RemoteSession: config.RemoteSession,
                 ContinuePendingWork: config.ContinuePendingWork,
                 InstructionDirectories: config.InstructionDirectories,
                 AgentDirectories: config.AgentDirectories,
@@ -1641,7 +1630,6 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
                 FeatureFlags: config.FeatureFlags,
                 ExpAssignments: config.ExpAssignments,
                 EnableManagedSettings: config.EnableManagedSettings,
-                ExcludedManagedSettings: config.ExcludedManagedSettings,
                 EnforceManagedModelDefaults: config.EnforceManagedModelDefaults,
                 InteractiveUser: config.InteractiveUser,
                 GitHubMcpToolConfig: config.GitHubMcpToolConfig,
@@ -1765,12 +1753,16 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
     /// <exception cref="InvalidOperationException">Thrown when the client is not connected or not authenticated.</exception>
     public async Task<IList<ModelInfo>> ListModelsAsync(CancellationToken cancellationToken = default)
     {
-        var cache = _modelsCache;
-        await cache.Lock.WaitAsync(cancellationToken);
+        if (_modelsCacheLock is null)
+        {
+            Interlocked.CompareExchange(ref _modelsCacheLock, new(1, 1), null);
+        }
+
+        await _modelsCacheLock.WaitAsync(cancellationToken);
         try
         {
             // Check cache (already inside lock)
-            if (cache.Models is null)
+            if (_modelsCache is null)
             {
                 IList<ModelInfo> models;
                 if (_onListModels is not null)
@@ -1789,14 +1781,14 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
                 }
 
                 // Update cache before releasing lock (copy to prevent external mutation)
-                cache.Models = [.. models];
+                _modelsCache = [.. models];
             }
 
-            return [.. cache.Models]; // Return a copy to prevent cache mutation
+            return [.. _modelsCache]; // Return a copy to prevent cache mutation
         }
         finally
         {
-            cache.Lock.Release();
+            _modelsCacheLock.Release();
         }
     }
 
@@ -2152,17 +2144,12 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
         var handler = _options.RequestHandler;
         var onGitHubTelemetry = _options.OnGitHubTelemetry;
         var installationConfirmationHandler = _options.InstallationConfirmationHandler;
-        var kerberosAuth = _options.KerberosAuth;
         return new ClientGlobalApiHandlers
         {
             ExtensionLaunchProvider = _options.ExtensionLaunchProvider,
-            KerberosAuth = kerberosAuth is null ? null : new KerberosAuthAdapter(kerberosAuth),
             LlmInference = handler is null ? null : new LlmInferenceAdapter(handler, () => _serverRpc),
             GitHubTelemetry = onGitHubTelemetry is null ? null : new GitHubTelemetryAdapter(onGitHubTelemetry, _logger),
             GitHubToken = new GitHubTokenAdapter(this),
-            EntraToken = _options.Entra?.TokenProvider is { } entraProvider
-                ? new EntraTokenAdapter(entraProvider)
-                : null,
             UiThread = new UiThreadAdapter(this),
             Installations = installationConfirmationHandler is null
                 ? null
@@ -2297,11 +2284,6 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
                 "SessionFsConfig declares capabilities.binary but the provider does not implement ISessionFsBinaryProvider.");
         }
 
-        if (_options.SessionFs.Capabilities?.ReadFileRange == true && provider is not ISessionFsReadFileRangeProvider)
-        {
-            throw new InvalidOperationException(
-                "SessionFsConfig declares capabilities.readFileRange but the provider does not implement ISessionFsReadFileRangeProvider.");
-        }
         session.SetSessionFsHandler(provider);
     }
 
@@ -2335,23 +2317,13 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
                     // telemetry it emits on this connection to a consistent surface instead
                     // of its own build. Null when the app didn't supply it.
                     ConnectHandshakeClientInfo.From(_options.ClientInfo),
-                    SupportedTaskKinds: [TaskKind.Agent, TaskKind.Client, TaskKind.Shell],
-                    Entra: _options.Entra?.ToWire(),
-                    EntraTokenProvider: _options.Entra?.TokenProvider is null ? null : true)],
+                    SupportedTaskKinds: [TaskKind.Agent, TaskKind.Client, TaskKind.Shell])],
                 connection.StderrBuffer,
                 cancellationToken);
             serverVersion = (int)connectResponse.ProtocolVersion;
-            if (_options.Entra?.TokenProvider is not null && connectResponse.EntraTokenProvider != true)
-            {
-                throw new InvalidOperationException("This runtime does not support host-owned Entra token providers.");
-            }
         }
         catch (IOException ex) when (ex.InnerException is RemoteRpcException remoteEx && IsUnsupportedConnectMethod(remoteEx))
         {
-            if (_options.Entra is not null)
-            {
-                throw new InvalidOperationException("This runtime does not support Entra client configuration.", ex);
-            }
             // Legacy server without `connect`; fall back to `ping`. A token, if any,
             // is silently dropped — the legacy server can't enforce one.
             usedFallbackPing = true;
@@ -2406,11 +2378,7 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
         if (telemetry.FilePath is not null) environment["COPILOT_OTEL_FILE_EXPORTER_PATH"] = telemetry.FilePath;
         if (telemetry.ExporterType is not null) environment["COPILOT_OTEL_EXPORTER_TYPE"] = telemetry.ExporterType;
         if (telemetry.SourceName is not null) environment["COPILOT_OTEL_SOURCE_NAME"] = telemetry.SourceName;
-        if (telemetry.CaptureContent is { } capture)
-        {
-            environment["OTEL_INSTRUMENTATION_GENAI_CAPTURE_CONTENT"] = capture ? "SPAN_ONLY" : "NO_CONTENT";
-            environment["OTEL_INSTRUMENTATION_GENAI_CAPTURE_MESSAGE_CONTENT"] = capture ? "true" : "false";
-        }
+        if (telemetry.CaptureContent is { } capture) environment["OTEL_INSTRUMENTATION_GENAI_CAPTURE_MESSAGE_CONTENT"] = capture ? "true" : "false";
     }
 
     private async Task<(Process Process, int? DetectedLocalhostTcpPort, ProcessStderrPump StderrPump)> StartCliServerAsync(CancellationToken cancellationToken)
@@ -2472,6 +2440,11 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
         if (options.SessionIdleTimeoutSeconds is > 0)
         {
             args.AddRange(["--session-idle-timeout", options.SessionIdleTimeoutSeconds.Value.ToString(CultureInfo.InvariantCulture)]);
+        }
+
+        if (options.EnableRemoteSessions)
+        {
+            args.Add("--remote");
         }
 
         var (fileName, processArgs) = ResolveCliCommand(cliPath, args);
@@ -2637,6 +2610,10 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
         if (options.SessionIdleTimeoutSeconds is > 0)
         {
             args.AddRange(["--session-idle-timeout", options.SessionIdleTimeoutSeconds.Value.ToString(CultureInfo.InvariantCulture)]);
+        }
+        if (options.EnableRemoteSessions)
+        {
+            args.Add("--remote");
         }
 
         var cliLoginSyncIntegrationId =
@@ -2878,10 +2855,6 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
             });
             if (_clientGlobalApis is not null)
             {
-                if (_clientGlobalApis.EntraToken is EntraTokenAdapter entraTokenAdapter)
-                {
-                    entraTokenAdapter.Attach(rpc);
-                }
                 if (_clientGlobalApis.Installations is InstallationConfirmationAdapter installationConfirmationAdapter)
                 {
                     installationConfirmationAdapter.Attach(rpc);
@@ -2993,7 +2966,7 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
         }
     }
 
-    internal static JsonSerializerOptions SerializerOptionsForMessageFormatter { get; } = CreateSerializerOptions();
+    private static JsonSerializerOptions SerializerOptionsForMessageFormatter { get; } = CreateSerializerOptions();
 
     /// <summary>
     /// Converts an arbitrary value into the <see cref="JsonElement"/> representation that wire
@@ -3121,15 +3094,14 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
             client.DispatchLifecycleEvent(evt);
         }
 
-        public async ValueTask<UserInputRequestResponse> OnUserInputRequest(string sessionId, string question, IList<string>? choices = null, bool? allowFreeform = null, string? requestId = null)
+        public async ValueTask<UserInputRequestResponse> OnUserInputRequest(string sessionId, string question, IList<string>? choices = null, bool? allowFreeform = null)
         {
             var session = client.GetSession(sessionId) ?? throw new ArgumentException($"Unknown session {sessionId}");
             var request = new UserInputRequest
             {
                 Question = question,
                 Choices = choices,
-                AllowFreeform = allowFreeform,
-                RequestId = requestId
+                AllowFreeform = allowFreeform
             };
 
             var result = await session.HandleUserInputRequestAsync(request);
@@ -3141,8 +3113,7 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
             string summary,
             string? planContent = null,
             IList<string>? actions = null,
-            string? recommendedAction = null,
-            string? requestId = null)
+            string? recommendedAction = null)
         {
             var session = client.GetSession(sessionId) ?? throw new ArgumentException($"Unknown session {sessionId}");
             var request = new ExitPlanModeRequest
@@ -3150,8 +3121,7 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
                 Summary = summary,
                 PlanContent = planContent,
                 Actions = actions ?? [],
-                RecommendedAction = recommendedAction ?? "autopilot",
-                RequestId = requestId
+                RecommendedAction = recommendedAction ?? "autopilot"
             };
 
             return await session.HandleExitPlanModeRequestAsync(request);
@@ -3315,7 +3285,6 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
         bool? IncludeSubAgentStreamingEvents,
         IDictionary<string, McpServerConfig>? McpServers,
         DiagnosticsConfiguration? Diagnostics,
-        LifecycleDiagnosticsConfiguration? LifecycleDiagnostics,
         McpOAuthTokenStorageMode? McpOAuthTokenStorage,
         string? AuthClientIdMetadataUrl,
         string? EnvValueMode,
@@ -3373,7 +3342,6 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
         [property: JsonPropertyName("featureFlags")] IDictionary<string, bool>? FeatureFlags = null,
         [property: JsonPropertyName("expAssignments")] CopilotExpAssignmentResponse? ExpAssignments = null,
         [property: JsonPropertyName("enableManagedSettings")] bool? EnableManagedSettings = null,
-        [property: JsonPropertyName("excludedManagedSettings")] IList<string>? ExcludedManagedSettings = null,
         [property: JsonPropertyName("enforceManagedModelDefaults")] bool? EnforceManagedModelDefaults = null,
         [property: JsonPropertyName("interactiveUser")] bool? InteractiveUser = null,
         [property: JsonPropertyName("managedSettings")] ManagedSettings? ManagedSettings = null,
@@ -3463,7 +3431,6 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
         bool? IncludeSubAgentStreamingEvents,
         IDictionary<string, McpServerConfig>? McpServers,
         DiagnosticsConfiguration? Diagnostics,
-        LifecycleDiagnosticsConfiguration? LifecycleDiagnostics,
         McpOAuthTokenStorageMode? McpOAuthTokenStorage,
         string? AuthClientIdMetadataUrl,
         string? EnvValueMode,
@@ -3509,7 +3476,6 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
         [property: JsonPropertyName("featureFlags")] IDictionary<string, bool>? FeatureFlags = null,
         [property: JsonPropertyName("expAssignments")] CopilotExpAssignmentResponse? ExpAssignments = null,
         [property: JsonPropertyName("enableManagedSettings")] bool? EnableManagedSettings = null,
-        [property: JsonPropertyName("excludedManagedSettings")] IList<string>? ExcludedManagedSettings = null,
         [property: JsonPropertyName("enforceManagedModelDefaults")] bool? EnforceManagedModelDefaults = null,
         [property: JsonPropertyName("interactiveUser")] bool? InteractiveUser = null,
         [property: JsonPropertyName("managedSettings")] ManagedSettings? ManagedSettings = null,
@@ -3559,9 +3525,7 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
         string? Token,
         [property: JsonPropertyName("enableGitHubTelemetryForwarding")] bool? EnableGitHubTelemetryForwarding = null,
         [property: JsonPropertyName("clientInfo")] ConnectHandshakeClientInfo? ClientInfo = null,
-        [property: JsonPropertyName("supportedTaskKinds")] IList<TaskKind>? SupportedTaskKinds = null,
-        [property: JsonPropertyName("entra")] EntraAuthConfig? Entra = null,
-        [property: JsonPropertyName("entraTokenProvider")] bool? EntraTokenProvider = null);
+        [property: JsonPropertyName("supportedTaskKinds")] IList<TaskKind>? SupportedTaskKinds = null);
 
     internal record ConnectHandshakeClientInfo(
         [property: JsonPropertyName("editorName")] string? EditorName = null,
@@ -3639,9 +3603,6 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
     [JsonSerializable(typeof(AhpMaterializeRequest))]
     [JsonSerializable(typeof(AhpMaterializeResult))]
     [JsonSerializable(typeof(AhpReleaseRequest))]
-    [JsonSerializable(typeof(AhpValidateAuthenticationRequest))]
-    [JsonSerializable(typeof(AhpAuthenticationCancelled))]
-    [JsonSerializable(typeof(AhpAuthenticationResult))]
     [JsonSerializable(typeof(CreateSessionResponse))]
     [JsonSerializable(typeof(AutoModeSwitchRequest))]
     [JsonSerializable(typeof(AutoModeSwitchRequestResponse))]

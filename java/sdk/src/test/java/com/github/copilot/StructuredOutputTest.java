@@ -42,8 +42,6 @@ class StructuredOutputTest {
     void setup() {
         rpc = mock(JsonRpcClient.class);
         session = new CopilotSession("session-1", rpc, null);
-        when(rpc.invoke(eq("session.sendAndWait"), any(), eq(com.fasterxml.jackson.databind.JsonNode.class)))
-                .thenReturn(CompletableFuture.failedFuture(new JsonRpcException(-32601, "Method not found")));
         when(rpc.invoke(eq("session.send"), any(), eq(SendMessageResponse.class)))
                 .thenReturn(CompletableFuture.completedFuture(new SendMessageResponse("user-1")));
         when(rpc.invoke(eq("session.detach"), any(), eq(CopilotSession.SessionDetachResponse.class)))

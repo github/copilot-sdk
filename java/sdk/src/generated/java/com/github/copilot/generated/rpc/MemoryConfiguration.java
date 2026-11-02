@@ -22,8 +22,6 @@ import javax.annotation.processing.Generated;
 @JsonIgnoreProperties(ignoreUnknown = true)
 public record MemoryConfiguration(
     /** Whether memory is enabled for the session. */
-    @JsonProperty("enabled") Boolean enabled,
-    /** Memory injection mode: system-prompt (default) includes memories in the system prompt; user-prompt includes them in user messages. */
-    @JsonProperty("mode") MemoryMode mode
+    @JsonProperty("enabled") Boolean enabled
 ) {
 }

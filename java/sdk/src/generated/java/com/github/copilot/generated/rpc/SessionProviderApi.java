@@ -92,17 +92,6 @@ public final class SessionProviderApi {
     }
 
     /**
-     * Returns credential-free provider configuration status for the selected model. This does not validate provider credentials or contact the provider.
-     *
-     * @apiNote This method is experimental and may change in a future version.
-     * @since 1.0.0
-     */
-    @CopilotExperimental
-    public CompletableFuture<SessionProviderGetStatusResult> getStatus() {
-        return caller.invoke("session.provider.getStatus", java.util.Map.of("sessionId", this.sessionId), SessionProviderGetStatusResult.class);
-    }
-
-    /**
      * Withdraws named host-managed models from the session's BYOK registry, leaving every other entry untouched. The scoped counterpart to `provider.sync`: a snapshot can only describe entries the caller knows about, so using it to remove one model silently withdraws rows registered by another source, such as a plugin calling `provider.add` at runtime. Naming what to remove leaves unrelated entries alone. Selection ids that are not registered are ignored, so withdrawal is idempotent. A provider is removed only when one of the withdrawn models was the last entry referencing it; a provider that simply has no models, which is the normal state while its rows are supplied by catalog discovery, is left in place.
      * <p>
      * Note: the {@code sessionId} field in the params record is overridden

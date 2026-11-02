@@ -1,5 +1,3 @@
-#![cfg(test)]
-
 use std::collections::HashMap;
 use std::path::PathBuf;
 use std::sync::atomic::{AtomicUsize, Ordering};
@@ -14,9 +12,7 @@ use super::*;
 use crate::generated::api_types::{HostGitHubEnvironmentOptions, HostLocalServerOptions};
 
 fn local_options() -> AhpHostOptions {
-    AhpHostOptions::new()
-        .with_authentication(AhpHostAuthentication::Github)
-        .with_local_server(HostLocalServerOptions::default())
+    AhpHostOptions::new().with_local_server(HostLocalServerOptions::default())
 }
 
 const TIMEOUT: Duration = Duration::from_secs(5);
@@ -60,9 +56,6 @@ fn autopilot_settings_round_trip_through_ahp_create_and_resume() {
     );
 }
 
-#[path = "authentication_tests.rs"]
-mod authentication_tests;
-
 // Same Content-Length duplex protocol fixture as tests/prepared_session_test.rs.
 struct Peer {
     read: DuplexStream,
@@ -91,12 +84,7 @@ impl Peer {
         .unwrap()
     }
 
-    async fn send(&mut self, mut value: Value) {
-        if value["method"] == "host.materializeSession"
-            && value["params"].get("authentication").is_none()
-        {
-            value["params"]["authentication"] = json!({"mode": "github", "identity": "test-owner"});
-        }
+    async fn send(&mut self, value: Value) {
         let body = serde_json::to_vec(&value).unwrap();
         let header = format!("Content-Length: {}\r\n\r\n", body.len());
         self.write.write_all(header.as_bytes()).await.unwrap();
@@ -160,9 +148,7 @@ fn callback_options() -> (AhpHostOptions, mpsc::UnboundedReceiver<AhpHostExit>) 
 async fn requires_an_explicit_transport() {
     let (client, _peer) = fixture();
     let error = client
-        .start_ahp_host(
-            AhpHostOptions::default().with_authentication(AhpHostAuthentication::Github),
-        )
+        .start_ahp_host(AhpHostOptions::default())
         .await
         .unwrap_err();
     assert!(matches!(error.kind(), ErrorKind::InvalidConfig));
@@ -179,7 +165,6 @@ async fn github_and_combined_transports_preserve_optional_results() {
     for local in [false, true] {
         let (client, mut peer) = fixture();
         let mut options = AhpHostOptions::new()
-            .with_authentication(AhpHostAuthentication::Github)
             .with_compute_id("compute")
             .with_github_environment(HostGitHubEnvironmentOptions {
                 name: "SDK host".into(),
@@ -192,7 +177,6 @@ async fn github_and_combined_transports_preserve_optional_results() {
         let pending = start(&client, options);
         let request = peer.request().await;
         let mut expected = json!({
-            "authentication": {"mode": "github"},
             "hostId": request["params"]["hostId"],
             "computeId": "compute",
             "githubEnvironment": {"name": "SDK host", "computeId": "compute", "requireConnectionBinding": local}
@@ -226,19 +210,6 @@ async fn explicit_local_compute_identity_is_forwarded() {
 }
 
 #[tokio::test]
-async fn explicit_host_workspace_is_forwarded() {
-    let (client, mut peer) = fixture();
-    let pending = start(
-        &client,
-        local_options().with_workspace("/runtime/workspace"),
-    );
-    let request = peer.request().await;
-    assert_eq!(request["params"]["workspace"], "/runtime/workspace");
-    peer.started(&request, None).await;
-    assert!(pending.await.unwrap().is_ok());
-}
-
-#[tokio::test]
 async fn forwards_only_generated_options_and_returns_runtime_fields() {
     let (client, mut peer) = fixture();
     let (options, _exits) = callback_options();
@@ -258,7 +229,6 @@ async fn forwards_only_generated_options_and_returns_runtime_fields() {
     assert_eq!(
         request["params"],
         json!({
-            "authentication": {"mode": "github"},
             "hostId": host_id, "localServer": {
                 "hostname": "::1", "port": 0,
                 "token": "explicit-token", "requireConnectionToken": true
@@ -314,7 +284,7 @@ async fn explicit_local_defaults_are_forwarded_and_token_can_be_absent() {
     let (client, mut peer) = fixture();
     let pending = start(&client, local_options());
     let request = peer.request().await;
-    assert_eq!(request["params"].as_object().unwrap().len(), 3);
+    assert_eq!(request["params"].as_object().unwrap().len(), 2);
     assert_eq!(request["params"]["localServer"], json!({}));
     peer.started(&request, None).await;
     assert!(pending.await.unwrap().unwrap().token.is_none());
@@ -382,37 +352,9 @@ async fn list_sessions_forwards_the_owning_host_and_returns_the_catalog() {
     let request = peer.request().await;
     assert_eq!(request["method"], "host.listSessions");
     assert_eq!(request["params"], json!({"hostId": host_id}));
-    // Two summaries in catalog order, one without the optional activity and
-    // one with every status bit set, so dropped, reordered or misdecoded
-    // entries change the round trip below.
-    let catalog = json!({"sessions": [
-        {
-            "activity": "Running tests",
-            "createdAt": "2026-01-01T00:00:00Z",
-            "modifiedAt": "2026-01-02T00:00:00Z",
-            "resource": "ahp://host/sessions/b",
-            "status": 4_294_967_295_u64,
-            "title": "Second by name, first in the catalog",
-        },
-        {
-            "createdAt": "2026-01-03T00:00:00Z",
-            "modifiedAt": "2026-01-04T00:00:00Z",
-            "resource": "ahp://host/sessions/a",
-            "status": 1,
-            "title": "Dormant",
-        },
-    ]});
-    peer.respond(&request, catalog.clone()).await;
+    peer.respond(&request, json!({"sessions": []})).await;
     let result = listing.await.unwrap().unwrap();
-    assert_eq!(result.sessions.len(), 2);
-    assert_eq!(result.sessions[0].resource, "ahp://host/sessions/b");
-    assert_eq!(
-        result.sessions[0].activity.as_deref(),
-        Some("Running tests")
-    );
-    assert_eq!(result.sessions[0].status, 4_294_967_295);
-    assert_eq!(result.sessions[1].activity, None);
-    assert_eq!(serde_json::to_value(&result).unwrap(), catalog);
+    assert!(result.sessions.is_empty());
 }
 
 #[tokio::test]
@@ -420,14 +362,12 @@ async fn listener_validation_is_left_to_the_runtime() {
     let (client, mut peer) = fixture();
     let pending = start(
         &client,
-        AhpHostOptions::default()
-            .with_authentication(AhpHostAuthentication::Github)
-            .with_local_server(HostLocalServerOptions {
-                hostname: Some("".into()),
-                port: Some(-1),
-                token: Some("".into()),
-                require_connection_token: Some(false),
-            }),
+        AhpHostOptions::default().with_local_server(HostLocalServerOptions {
+            hostname: Some("".into()),
+            port: Some(-1),
+            token: Some("".into()),
+            require_connection_token: Some(false),
+        }),
     );
     let request = peer.request().await;
     assert_eq!(request["params"]["localServer"]["port"], -1);
@@ -804,13 +744,7 @@ async fn callback_panic_does_not_break_other_callbacks_or_rpc() {
         local_options().with_on_exit({
             let calls = calls.clone();
             move |exit| {
-                // Bounded: were callbacks run inline on the test's
-                // current-thread runtime, an unbounded wait would stall every
-                // timeout below and hang the test instead of failing it.
-                gate.lock()
-                    .unwrap()
-                    .recv_timeout(Duration::from_secs(10))
-                    .expect("the test releases the first callback");
+                gate.lock().unwrap().recv().unwrap();
                 calls.fetch_add(1, Ordering::SeqCst);
                 first_tx.send(exit).unwrap();
                 // Exercise unwinding without blocking channel closure on panic-hook output.

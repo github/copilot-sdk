@@ -22,7 +22,6 @@ import javax.annotation.processing.Generated;
 @JsonIgnoreProperties(ignoreUnknown = true)
 record ManagedSettingsApplyControlsResult(
     /** The resulting settings document. */
-    @JsonInclude(JsonInclude.Include.ALWAYS)
     @JsonProperty("settingsJson") Object settingsJson
 ) {
 }

@@ -62,10 +62,6 @@ _FORBIDDEN_REQUEST_HEADERS = frozenset(
 
 _shared_http_client: httpx.AsyncClient | None = None
 _HTTP_RESPONSE_READ_AHEAD_BYTES = 32 * 1024
-# Largest upstream WebSocket message the default forwarder relays. The
-# websockets library rejects messages above 1 MiB by default, which model
-# responses can exceed; 64 MiB matches the Rust SDK's forwarder.
-_WEBSOCKET_MAX_MESSAGE_BYTES = 64 * 1024 * 1024
 
 
 def _get_shared_http_client() -> httpx.AsyncClient:
@@ -222,21 +218,14 @@ class CopilotWebSocketForwarder(CopilotWebSocketHandler):
             (name, value)
             for name, values in self.context.headers.items()
             if name.lower() not in _FORBIDDEN_REQUEST_HEADERS
-            and not name.lower().startswith("sec-websocket-")
             for value in (values or [])
         ]
-        self._upstream = await websockets.connect(
-            self.context.url,
-            additional_headers=headers,
-            max_size=_WEBSOCKET_MAX_MESSAGE_BYTES,
-        )
+        self._upstream = await websockets.connect(self.context.url, additional_headers=headers)
         self._receive_task = asyncio.create_task(self._receive_loop())
 
     async def _receive_loop(self) -> None:
-        upstream = self._upstream
-        assert upstream is not None
         try:
-            async for message in upstream:
+            async for message in self._upstream:  # type: ignore[union-attr]
                 await self.send_response_message(message)
             await self.close(CopilotWebSocketCloseStatus.normal_closure())
         except asyncio.CancelledError:
@@ -350,11 +339,11 @@ class CopilotRequestHandler:
                 {client_task, completion}, return_when=asyncio.FIRST_COMPLETED
             )
 
+            if client_task in done and client_task.exception() is not None:
+                handler._suppress_close_on_dispose = True
+                raise client_task.exception()  # type: ignore[misc]
+
             if client_task in done:
-                error = client_task.exception()
-                if error is not None:
-                    handler._suppress_close_on_dispose = True
-                    raise error
                 await handler.close(CopilotWebSocketCloseStatus.normal_closure())
                 await handler._completion
                 return

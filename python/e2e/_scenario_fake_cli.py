@@ -244,9 +244,6 @@ function handleRequest(message) {
         event: remoteSteerableEvent(),
       });
       return;
-    case "session.sendAndWait":
-      writeError(message.id, -32601, "Method not found");
-      return;
     case "session.send":
       if (scenario === "send-fail") {
         saveCapture();

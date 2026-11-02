@@ -119,6 +119,7 @@ public class ScenarioTestingSessionSetupE2ETests(E2ETestFixture fixture, ITestOu
                     WireModel = "scenario-wire-model",
                 },
             ],
+            RemoteSession = RemoteSessionMode.Export,
             EnableMcpApps = true,
             GitHubMcpToolConfig = new GitHubMcpToolConfig
             {
@@ -189,7 +190,7 @@ public class ScenarioTestingSessionSetupE2ETests(E2ETestFixture fixture, ITestOu
         Assert.Equal("scenario-provider", request.GetProperty("providers")[0].GetProperty("name").GetString());
         Assert.True(request.GetProperty("providers")[0].GetProperty("hasBearerTokenProvider").GetBoolean());
         Assert.Equal("scenario-model", request.GetProperty("models")[0].GetProperty("id").GetString());
-        Assert.False(request.TryGetProperty("remoteSession", out _));
+        Assert.Equal("export", request.GetProperty("remoteSession").GetString());
         Assert.True(request.GetProperty("requestMcpApps").GetBoolean());
         Assert.False(request.GetProperty("githubMcpToolConfig").GetProperty("enableAllTools").GetBoolean());
         Assert.True(request.GetProperty("githubMcpToolConfig").GetProperty("disableFormDeferral").GetBoolean());

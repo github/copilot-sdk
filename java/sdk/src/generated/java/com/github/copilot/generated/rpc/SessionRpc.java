@@ -29,8 +29,6 @@ public final class SessionRpc {
     private final RpcCaller caller;
     private final String sessionId;
 
-    /** API methods for the {@code management} namespace. */
-    public final SessionManagementApi management;
     /** API methods for the {@code providers} namespace. */
     public final SessionProvidersApi providers;
     /** API methods for the {@code sandbox} namespace. */
@@ -57,8 +55,6 @@ public final class SessionRpc {
     public final SessionWorkspacesApi workspaces;
     /** API methods for the {@code autopilotObjective} namespace. */
     public final SessionAutopilotObjectiveApi autopilotObjective;
-    /** API methods for the {@code autopilot} namespace. */
-    final SessionAutopilotApi autopilot;
     /** API methods for the {@code completions} namespace. */
     public final SessionCompletionsApi completions;
     /** API methods for the {@code instructions} namespace. */
@@ -137,7 +133,6 @@ public final class SessionRpc {
     public SessionRpc(RpcCaller caller, String sessionId) {
         this.caller = caller;
         this.sessionId = sessionId;
-        this.management = new SessionManagementApi(caller, sessionId);
         this.providers = new SessionProvidersApi(caller, sessionId);
         this.sandbox = new SessionSandboxApi(caller, sessionId);
         this.gitHubAuth = new SessionGitHubAuthApi(caller, sessionId);
@@ -151,7 +146,6 @@ public final class SessionRpc {
         this.plan = new SessionPlanApi(caller, sessionId);
         this.workspaces = new SessionWorkspacesApi(caller, sessionId);
         this.autopilotObjective = new SessionAutopilotObjectiveApi(caller, sessionId);
-        this.autopilot = new SessionAutopilotApi(caller, sessionId);
         this.completions = new SessionCompletionsApi(caller, sessionId);
         this.instructions = new SessionInstructionsApi(caller, sessionId);
         this.customizations = new SessionCustomizationsApi(caller, sessionId);
@@ -213,22 +207,6 @@ public final class SessionRpc {
         com.fasterxml.jackson.databind.node.ObjectNode _p = MAPPER.valueToTree(params);
         _p.put("sessionId", this.sessionId);
         return caller.invoke("session.send", _p, SessionSendResult.class);
-    }
-
-    /**
-     * Submits one message through normal admission and waits for its request-owned completion. Returns the exact root assistant event, or an explicit aborted/no-response outcome. Cancelling or timing out the wait does not abort agent work. Unsupported execution hosts reject the method before admitting the message.
-     * <p>
-     * Note: the {@code sessionId} field in the params record is overridden
-     * by the session-scoped wrapper; any value provided is ignored.
-     *
-     * @apiNote This method is experimental and may change in a future version.
-     * @since 1.0.0
-     */
-    @CopilotExperimental
-    CompletableFuture<SendAndWaitResult> sendAndWait(SessionSendAndWaitParams params) {
-        com.fasterxml.jackson.databind.node.ObjectNode _p = MAPPER.valueToTree(params);
-        _p.put("sessionId", this.sessionId);
-        return caller.invoke("session.sendAndWait", _p, SendAndWaitResult.class);
     }
 
     /**

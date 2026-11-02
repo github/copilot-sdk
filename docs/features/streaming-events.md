@@ -483,11 +483,11 @@ Ephemeral. Token usage and cost information for an individual API call.
 | Data Field | Type | Required | Description |
 |------------|------|----------|-------------|
 | `model` | `string` | ✅ | Model identifier (e.g., `"gpt-5.4"`) |
-| `inputTokens` | `number` | | Total input tokens for this call, including `cacheReadTokens` and `cacheWriteTokens` |
+| `inputTokens` | `number` | | Input tokens consumed |
 | `outputTokens` | `number` | | Output tokens produced |
 | `reasoningTokens` | `number` | | Output tokens used for reasoning/chain-of-thought (subset of `outputTokens`) |
-| `cacheReadTokens` | `number` | | Tokens read from prompt cache (subset of `inputTokens`) |
-| `cacheWriteTokens` | `number` | | Tokens written to prompt cache (subset of `inputTokens`) |
+| `cacheReadTokens` | `number` | | Tokens read from prompt cache |
+| `cacheWriteTokens` | `number` | | Tokens written to prompt cache |
 | `cacheExpiresAt` | `string` | | ISO 8601 timestamp when the prompt cache for this model call expires |
 | `contentFilterTriggered` | `boolean` | | Whether the response was blocked or truncated by content filtering (`finish_reason === 'content_filter'`) |
 | `finishReason` | `string` | | Model finish reason (e.g., `"stop"`, `"length"`, `"tool_calls"`, `"content_filter"`) |
@@ -519,15 +519,14 @@ These events track the full lifecycle of each tool invocation—from the model r
 
 ### `tool.execution_start`
 
-Emitted when a tool begins executing. MCP identity: `mcpConfigServerName ?? mcpServerName` (legacy-compatible).
+Emitted when a tool begins executing.
 
 | Data Field | Type | Required | Description |
 |------------|------|----------|-------------|
 | `toolCallId` | `string` | ✅ | Unique identifier for this tool call |
 | `toolName` | `string` | ✅ | Name of the tool (e.g., `"bash"`, `"edit"`, `"grep"`) |
 | `arguments` | `object` | | Parsed arguments passed to the tool |
-| `mcpServerName` | `string` | | Configured MCP server key |
-| `mcpServerDisplayName` | `string` | | Explicit display label; otherwise display `mcpServerName` |
+| `mcpServerName` | `string` | | MCP server name, when the tool is provided by an MCP server |
 | `mcpToolName` | `string` | | Original tool name on the MCP server |
 | `parentToolCallId` | `string` | | Deprecated. Use envelope-level `agentId` for sub-agent attribution |
 
@@ -579,7 +578,7 @@ Emitted when a tool finishes executing—successfully or with an error.
 | `model` | `string` | | Model that generated this tool call |
 | `interactionId` | `string` | | CAPI interaction ID |
 | `isUserRequested` | `boolean` | | `true` when the user explicitly requested this tool call |
-| `result` | `Result` | | Present on success. On failure, present when the tool returned content with its error, or when the text sent to the LLM differs from `error.message`; `content` is then that text |
+| `result` | `Result` | | Present on success, and on failure when the tool returned content with its error (see below) |
 | `error` | `{ message, code? }` | | Present on failure |
 | `toolTelemetry` | `object` | | Tool-specific telemetry (e.g., CodeQL check counts) |
 | `parentToolCallId` | `string` | | Deprecated. Use envelope-level `agentId` for sub-agent attribution |
@@ -710,7 +709,7 @@ The session has ended.
 |------------|------|----------|-------------|
 | `shutdownType` | `"routine" \| "error"` | ✅ | Normal shutdown or crash |
 | `errorReason` | `string` | | Error description when `shutdownType` is `"error"` |
-| `totalPremiumRequests` | `number` | | Total premium API requests used |
+| `totalPremiumRequests` | `number` | ✅ | Total premium API requests used |
 | `totalApiDurationMs` | `number` | ✅ | Cumulative API call time in milliseconds |
 | `sessionStartTime` | `number` | ✅ | Unix timestamp (ms) when the session started |
 | `codeChanges` | `{ linesAdded, linesRemoved, filesModified }` | ✅ | Aggregate code change metrics |
@@ -778,15 +777,14 @@ Ephemeral. A user input request was resolved.
 
 ### `elicitation.requested`
 
-Ephemeral. The agent needs input from the user, either as structured form fields (MCP elicitation protocol) or by opening a URL in the user's browser.
+Ephemeral. The agent needs structured form input from the user (MCP elicitation protocol).
 
 | Data Field | Type | Required | Description |
 |------------|------|----------|-------------|
 | `requestId` | `string` | ✅ | Use this to respond via `session.respondToElicitation()` |
 | `message` | `string` | ✅ | Description of what information is needed |
-| `mode` | `"form" \| "url"` | | Elicitation mode: structured form or browser URL |
-| `requestedSchema` | `{ type: "object", properties, required? }` | | JSON Schema describing the form fields (form mode only) |
-| `url` | `string` | | URL to open in the user's browser (url mode only) |
+| `mode` | `"form"` | | Elicitation mode (currently only `"form"`) |
+| `requestedSchema` | `{ type: "object", properties, required? }` | ✅ | JSON Schema describing the form fields |
 
 ### `elicitation.completed`
 
@@ -874,7 +872,7 @@ The current turn was aborted.
 
 | Data Field | Type | Required | Description |
 |------------|------|----------|-------------|
-| `reason` | `"user_initiated" \| "remote_command" \| "user_abort" \| "autopilot_credit_limit"` | ✅ | Why the turn was aborted |
+| `reason` | `string` | ✅ | Why the turn was aborted (e.g., `"user initiated"`) |
 
 ### `user.message`
 
@@ -929,9 +927,8 @@ Ephemeral. The agent has created a plan and wants to exit plan mode.
 | `requestId` | `string` | ✅ | Use this to respond via `session.respondToExitPlanMode()` |
 | `summary` | `string` | ✅ | Summary of the plan |
 | `planContent` | `string` | ✅ | Full plan file content |
-| `actions` | `("exit_only" \| "interactive" \| "autopilot" \| "autopilot_fleet")[]` | ✅ | Available user actions |
-| `recommendedAction` | `"exit_only" \| "interactive" \| "autopilot" \| "autopilot_fleet"` | ✅ | Suggested action to preselect |
-| `model` | `string` | | Model the session had selected when the plan was authored, when one is known |
+| `actions` | `string[]` | ✅ | Available user actions (e.g., approve, edit, reject) |
+| `recommendedAction` | `string` | ✅ | Suggested action |
 
 ### `exit_plan_mode.completed`
 
@@ -940,10 +937,6 @@ Ephemeral. An exit plan mode request was resolved.
 | Data Field | Type | Required | Description |
 |------------|------|----------|-------------|
 | `requestId` | `string` | ✅ | Matches the corresponding `exit_plan_mode.requested` |
-| `approved` | `boolean` | | Whether the user approved the plan |
-| `selectedAction` | `"exit_only" \| "interactive" \| "autopilot" \| "autopilot_fleet"` | | Action the user selected |
-| `autoApproveEdits` | `boolean` | | Whether edits should be auto-approved without confirmation |
-| `feedback` | `string` | | Free-form feedback from the user if they requested changes to the plan |
 
 ### `command.queued`
 
@@ -1026,7 +1019,7 @@ This table lists key `data` payload fields. Common envelope fields are documente
 | `assistant.turn_end` | | Assistant | `turnId` |
 | `assistant.usage` | ✅ | Assistant | `model`, `apiEndpoint?`, `inputTokens?`, `outputTokens?`, `cost?`, `duration?` |
 | `tool.user_requested` | | Tool | `toolCallId`, `toolName`, `arguments?` |
-| `tool.execution_start` | | Tool | `toolCallId`, `toolName`, `arguments?`, `mcpServerName?`, `mcpServerDisplayName?` |
+| `tool.execution_start` | | Tool | `toolCallId`, `toolName`, `arguments?`, `mcpServerName?` |
 | `tool.execution_partial_result` | ✅ | Tool | `toolCallId`, `partialOutput` |
 | `tool.shell_output` | ✅ | Tool | `toolCallId`, `text`, `stream?`, `sequence` |
 | `tool.execution_progress` | ✅ | Tool | `toolCallId`, `progressMessage` |
@@ -1046,7 +1039,7 @@ This table lists key `data` payload fields. Common envelope fields are documente
 | `permission.completed` | | Permission | `requestId`, `result.kind` |
 | `user_input.requested` | ✅ | User Input | `requestId`, `question`, `choices?` |
 | `user_input.completed` | ✅ | User Input | `requestId` |
-| `elicitation.requested` | ✅ | User Input | `requestId`, `message`, `mode?`, `requestedSchema?`, `url?` |
+| `elicitation.requested` | ✅ | User Input | `requestId`, `message`, `requestedSchema` |
 | `elicitation.completed` | ✅ | User Input | `requestId` |
 | `subagent.started` | | Sub-Agent | `toolCallId`, `agentName`, `agentDisplayName`, `model?` |
 | `subagent.completed` | | Sub-Agent | `toolCallId`, `agentName`, `agentDisplayName`, `model?`, `durationMs?`, `totalTokens?`, `totalToolCalls?` |
@@ -1064,4 +1057,4 @@ This table lists key `data` payload fields. Common envelope fields are documente
 | `session_limits_exhausted.requested` | ✅ | Session | `requestId`, `maxAiCredits`, `usedAiCredits` |
 | `session_limits_exhausted.completed` | ✅ | Session | `requestId`, `response.action` |
 | `exit_plan_mode.requested` | ✅ | Plan Mode | `requestId`, `summary`, `planContent`, `actions` |
-| `exit_plan_mode.completed` | ✅ | Plan Mode | `requestId`, `approved?`, `selectedAction?` |
+| `exit_plan_mode.completed` | ✅ | Plan Mode | `requestId` |

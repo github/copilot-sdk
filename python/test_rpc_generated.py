@@ -14,14 +14,11 @@ from copilot.generated.rpc import (
     CustomizationReloadStatus,
     CustomizationReloadSubsystem,
     UsageGetMetricsResult,
-    _InternalServerRpc,
-    _SettingsRedactValueForDisplayRequest,
     register_client_global_api_handlers,
 )
 from copilot.rpc import (
     AuthReadValue,
     BuiltinToolInputSchemaType,
-    CatalogInvalidRequestError,
     CommandsApi,
     CommandsInvokeRequest,
     CommandsRespondToQueuedCommandRequest,
@@ -44,79 +41,7 @@ from copilot.rpc import (
     SlashCommandTextResult,
     TaskAgentInfo,
     UIElicitationSchemaType,
-    UpdateSubagentSettingsRequest,
 )
-
-
-def test_catalog_product_validation_refusal_preserves_typed_field():
-    payload = {
-        "kind": "invalid-request",
-        "field": "product",
-        "message": "The product must contain between 1 and 256 characters.",
-    }
-
-    result = CatalogInvalidRequestError.from_dict(payload)
-
-    assert result.kind == "invalid-request"
-    assert result.field.value == "product"
-    assert result.field.name == "PRODUCT"
-    assert result.to_dict() == payload
-
-
-async def test_settings_redaction_keeps_required_opaque_null():
-    client = Mock(request=AsyncMock(return_value={"value": None}))
-
-    result = await _InternalServerRpc(client).settings._redact_value_for_display(
-        _SettingsRedactValueForDisplayRequest(value=None, base_path=[])
-    )
-
-    client.request.assert_awaited_once_with(
-        "settings.redactValueForDisplay", {"value": None, "basePath": []}
-    )
-    assert result.value is None
-
-
-@pytest.mark.parametrize(
-    "context_settings",
-    [{}, {"contextManagementTools": True}, {"contextManagementTools": False}],
-    ids=["absent", "enabled", "disabled"],
-)
-async def test_subagent_settings_getter_setter_preserve_context_management_tools(context_settings):
-    settings = {
-        "agents": {
-            "rubber-duck": {
-                "model": "model-id",
-                "providerId": "provider-id",
-                "autoInvoke": False,
-            },
-            "task": {"model": "task-model", "contextTier": "long_context"},
-        },
-        "disabledSubagents": ["explore"],
-        "maxConcurrency": 7,
-        "maxDepth": 3,
-        **context_settings,
-    }
-    client = Mock(request=AsyncMock(side_effect=[{"subagents": settings}, {}]))
-    api = SessionRpc(client, "settings-session").tools
-
-    result = await api.get_subagent_settings()
-    assert result.subagents is not None
-    assert result.subagents.agents is not None
-    result.subagents.agents["rubber-duck"].auto_invoke = True
-    await api.update_subagent_settings(UpdateSubagentSettingsRequest(subagents=result.subagents))
-
-    expected = {
-        **settings,
-        "agents": {
-            **settings["agents"],
-            "rubber-duck": {**settings["agents"]["rubber-duck"], "autoInvoke": True},
-        },
-    }
-    assert client.request.await_count == 2
-    client.request.assert_awaited_with(
-        "session.tools.updateSubagentSettings",
-        {"sessionId": "settings-session", "subagents": expected},
-    )
 
 
 async def test_session_usage_get_metrics_deserializes_shared_event_type():
@@ -233,49 +158,6 @@ def test_sandbox_config_round_trips_allow_bypass_and_omits_when_absent():
     assert SandboxConfig(enabled=True).to_dict() == {"enabled": True}
 
 
-def test_sandbox_extensions_preserve_existing_positional_parameters():
-    legacy_fields = [
-        "enabled",
-        "add_current_working_directory",
-        "allow_bypass",
-        "allow_dev_tool_access",
-        "auth",
-        "credentials",
-        "managed_lsp_routing_locked",
-        "managed_mcp_routing_locked",
-        "sandbox_lsp_servers",
-        "sandbox_mcp_servers",
-        "user_policy",
-    ]
-    parameters = list(inspect.signature(SandboxConfig).parameters)
-    assert parameters[: len(legacy_fields)] == legacy_fields
-
-    config = SandboxConfig(True, None, None, None, None, None, None, None, False, True)
-    assert config.to_dict() == {
-        "enabled": True,
-        "sandboxLspServers": False,
-        "sandboxMcpServers": True,
-    }
-    assert SandboxConfig.from_dict(config.to_dict()) == config
-    extended = SandboxConfig(
-        True,
-        None,
-        None,
-        None,
-        None,
-        None,
-        None,
-        None,
-        False,
-        True,
-        sandbox_extensions=False,
-        managed_extensions_routing_locked=True,
-    )
-    assert SandboxConfig.from_dict(extended.to_dict()) == extended
-    assert extended.to_dict()["sandboxExtensions"] is False
-    assert extended.to_dict()["managedExtensionsRoutingLocked"] is True
-
-
 def test_slash_command_prompt_preserves_existing_positional_parameters():
     result = SlashCommandAgentPromptResult("Display prompt", "Agent prompt", None, None, True)
 
@@ -320,7 +202,6 @@ def test_auth_read_value_preserves_existing_positional_parameters():
         "status",
         "errors",
         "auth_info",
-        "auth_selection_id",
     ]
     payload = {
         "kind": "activeAccount",

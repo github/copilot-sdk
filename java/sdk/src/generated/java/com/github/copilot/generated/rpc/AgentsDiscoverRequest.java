@@ -27,7 +27,7 @@ import javax.annotation.processing.Generated;
 @JsonInclude(JsonInclude.Include.NON_NULL)
 public final class AgentsDiscoverRequest {
 
-    /** Optional list of project directory paths to scan for project-scoped agents. When omitted or empty, no project is scanned: user-level and globally enabled plugin agents are still returned, but agents of a plugin enabled only in a repository's settings are not. */
+    /** Optional list of project directory paths to scan for project-scoped agents. When omitted or empty, only user/plugin/remote-independent agents are returned (no project scan). */
     @JsonProperty("projectPaths")
     private List<String> projectPaths;
 
@@ -48,7 +48,7 @@ public final class AgentsDiscoverRequest {
     /**
      * Returns the {@code projectPaths} property.
      *
-     * @return Optional list of project directory paths to scan for project-scoped agents. When omitted or empty, no project is scanned: user-level and globally enabled plugin agents are still returned, but agents of a plugin enabled only in a repository's settings are not.
+     * @return Optional list of project directory paths to scan for project-scoped agents. When omitted or empty, only user/plugin/remote-independent agents are returned (no project scan).
      */
     public List<String> getProjectPaths() {
         return projectPaths;
@@ -75,7 +75,7 @@ public final class AgentsDiscoverRequest {
     /**
      * Sets the {@code projectPaths} property.
      *
-     * @param value Optional list of project directory paths to scan for project-scoped agents. When omitted or empty, no project is scanned: user-level and globally enabled plugin agents are still returned, but agents of a plugin enabled only in a repository's settings are not.
+     * @param value Optional list of project directory paths to scan for project-scoped agents. When omitted or empty, only user/plugin/remote-independent agents are returned (no project scan).
      * @return this request
      */
     public AgentsDiscoverRequest setProjectPaths(List<String> value) {

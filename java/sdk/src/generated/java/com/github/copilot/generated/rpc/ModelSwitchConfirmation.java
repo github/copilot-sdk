@@ -21,8 +21,6 @@ public record ModelSwitchConfirmation(
     /** Current conversation token count before switching models. */
     @JsonProperty("currentTokens") Double currentTokens,
     /** Target model token limit used by the compaction preflight. */
-    @JsonProperty("targetLimit") Double targetLimit,
-    /** Effective prompt-token limit with the target model's long_context tier, present only when that tier can fit the conversation and managed policy permits it. Resubmit the switch with contextTier set to long_context to avoid compaction. */
-    @JsonProperty("longContextLimit") Double longContextLimit
+    @JsonProperty("targetLimit") Double targetLimit
 ) {
 }

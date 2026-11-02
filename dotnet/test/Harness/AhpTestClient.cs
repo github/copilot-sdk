@@ -16,7 +16,7 @@ public sealed class AhpTestClient : IAsyncDisposable
 
     private AhpTestClient(Process process) => _process = process;
 
-    public static async Task<AhpTestClient> StartAsync(bool authentication = false)
+    public static async Task<AhpTestClient> StartAsync()
     {
         var directory = new DirectoryInfo(AppContext.BaseDirectory);
         while (directory is not null && !File.Exists(Path.Combine(directory.FullName, "nodejs", "test", "e2e", "harness", "ahpTestDriver.ts")))
@@ -31,9 +31,7 @@ public sealed class AhpTestClient : IAsyncDisposable
         };
         info.ArgumentList.Add("--import");
         info.ArgumentList.Add("tsx");
-        info.ArgumentList.Add(authentication
-            ? Path.Combine(directory.FullName, "test", "harness", "hostAuthenticationDriver.mjs")
-            : "test/e2e/harness/ahpTestDriver.ts");
+        info.ArgumentList.Add("test/e2e/harness/ahpTestDriver.ts");
         var process = Process.Start(info) ?? throw new InvalidOperationException("Could not start the AHP test client");
         var client = new AhpTestClient(process);
         try

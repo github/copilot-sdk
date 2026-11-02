@@ -96,9 +96,8 @@ class RuntimeHostIT {
         }
 
         AhpHostOptions options() {
-            return new AhpHostOptions().setAuthentication(AhpHostAuthentication.github())
-                    .setLocalServer(new HostLocalServerOptions(null, null, null, null))
-                    .setAllowCreatingNewSessions(true).setCreateSession(request -> {
+            return new AhpHostOptions().setLocalServer(new HostLocalServerOptions(null, null, null, null))
+                    .setCreateSession(request -> {
                         creates.incrementAndGet();
                         assertFalse(request.cancellation().toCompletableFuture().isDone());
                         assertEquals(context.getWorkDir().toString(), request.config().getWorkingDirectory());

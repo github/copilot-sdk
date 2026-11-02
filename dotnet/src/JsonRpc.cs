@@ -584,31 +584,16 @@ internal sealed partial class JsonRpc : IDisposable
 
         if (message.TryGetProperty("error", out var errorProp))
         {
-            RemoteRpcException remoteError;
-            try
-            {
-                var errorMessage = errorProp.TryGetProperty("message", out var msgProp)
-                    ? msgProp.GetString() ?? "Unknown error"
-                    : "Unknown error";
-                var errorCode = errorProp.TryGetProperty("code", out var codeProp) && codeProp.ValueKind == JsonValueKind.Number
-                    ? codeProp.GetInt32()
-                    : 0;
-                var errorData = errorProp.TryGetProperty("data", out var dataProp)
-                    ? dataProp
-                    : (JsonElement?)null;
-                remoteError = new RemoteRpcException(errorMessage, errorCode, errorData);
-            }
-            catch (Exception ex)
-            {
-                // The request has already left the pending table, so nothing else can complete it.
-                // An error object this method cannot read (a non-object error, a message that is
-                // not a string or holds an unpaired surrogate escape, a code beyond Int32) fails
-                // the request with that exception, and the read loop goes on to the next message.
-                pending.TrySetException(ex);
-                return;
-            }
-
-            pending.TrySetException(remoteError);
+            var errorMessage = errorProp.TryGetProperty("message", out var msgProp)
+                ? msgProp.GetString() ?? "Unknown error"
+                : "Unknown error";
+            var errorCode = errorProp.TryGetProperty("code", out var codeProp) && codeProp.ValueKind == JsonValueKind.Number
+                ? codeProp.GetInt32()
+                : 0;
+            var errorData = errorProp.TryGetProperty("data", out var dataProp)
+                ? dataProp
+                : (JsonElement?)null;
+            pending.TrySetException(new RemoteRpcException(errorMessage, errorCode, errorData));
         }
         else if (message.TryGetProperty("result", out var resultProp))
         {

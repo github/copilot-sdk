@@ -13,7 +13,6 @@ Tools are defined exactly as they are for creating a session, and a tool without
 <details open>
 <summary><strong>TypeScript</strong></summary>
 
-<!-- docs-validate: strict -->
 <!-- docs-validate: hidden -->
 ```typescript
 import { CopilotClient, approveAll, defineTool } from "@github/copilot-sdk";

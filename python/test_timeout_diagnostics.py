@@ -276,8 +276,8 @@ async def test_signal_snapshot_precedes_task_cleanup_and_keeps_original_failure(
 
 @pytest.mark.parametrize("phase", ["call", "teardown"] if hasattr(signal, "SIGALRM") else ["call"])
 def test_timeout_report_survives_xdist_without_stdout_capture(tmp_path, phase):
-    # Deliver the real POSIX signal at a safe loop boundary, not during callback
-    # queue mutation. Windows emulates the exception because thread timeouts exit.
+    # Exercise the real signal timeout on POSIX. On Windows emulate its exception
+    # at the event-loop boundary, since the thread timeout terminates the worker.
     (tmp_path / "conftest.py").write_text(
         """
 import pytest
@@ -303,18 +303,14 @@ def runner():
         yield runner
 
 def stall(runner):
-    if hasattr(signal, "SIGALRM"):
-        signal.setitimer(signal.ITIMER_REAL, 0)
     loop = runner.get_loop()
-    run_once = loop._run_once
-    def interrupt_loop():
-        run_once()
-        loop._run_once = run_once
-        if hasattr(signal, "SIGALRM"):
-            signal.raise_signal(signal.SIGALRM)
-        else:
+    if not hasattr(signal, "SIGALRM"):
+        run_once = loop._run_once
+        def interrupt_loop():
+            run_once()
+            loop._run_once = run_once
             pytest.fail("Timeout (>1.0s) from pytest-timeout.")
-    loop._run_once = interrupt_loop
+        loop._run_once = interrupt_loop
 
     async def stalled_rpc():
         await asyncio.Future()

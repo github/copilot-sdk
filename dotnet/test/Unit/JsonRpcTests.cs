@@ -204,28 +204,6 @@ public class JsonRpcTests
         Assert.True(pair.Client.Completion.IsCompleted);
     }
 
-    [Theory]
-    [InlineData("""{"code":-32000,"message":"boom \ud83d\ude00"}""", typeof(RemoteRpcException))]
-    [InlineData("""{"code":-32000,"message":"boom \ud83d"}""", typeof(InvalidOperationException))]
-    [InlineData("""{"code":-32000,"message":42}""", typeof(InvalidOperationException))]
-    [InlineData("""{"code":2147483648,"message":"boom"}""", typeof(FormatException))]
-    [InlineData("\"boom\"", typeof(InvalidOperationException))]
-    public async Task JsonRpc_Unreadable_Error_Response_Fails_Its_Request_And_Keeps_Reading(string error, Type expectedException)
-    {
-        var errorFrame = CreateFrame($$"""{"jsonrpc":"2.0","id":1,"error":{{error}}}""");
-        var nextFrame = CreateResponseFrame(2, "carried");
-        using var receiveStream = new MemoryStream(CombineFrames([errorFrame, nextFrame]));
-        using var rpc = new JsonRpcReflection(Stream.Null, receiveStream);
-
-        var failed = rpc.InvokeAsync<string>("first", args: null);
-        var next = rpc.InvokeAsync<string>("second", args: null);
-        rpc.StartListening();
-
-        var exception = await Assert.ThrowsAnyAsync<Exception>(() => failed.WaitAsync(TimeSpan.FromSeconds(5)));
-        Assert.IsType(expectedException, exception);
-        Assert.Equal("carried", await next.WaitAsync(TimeSpan.FromSeconds(5)));
-    }
-
     [Fact]
     public async Task JsonRpc_Does_Not_Retain_Oversized_Receive_Buffer()
     {

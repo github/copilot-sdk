@@ -9,26 +9,7 @@ Set `maxAiCredits` to the AI Credits soft cap for the session's current accounti
 <details open>
 <summary><strong>TypeScript</strong></summary>
 
-<!-- docs-validate: strict -->
-<!-- docs-validate: hidden -->
-```typescript
-import { approveAll } from "@github/copilot-sdk";
-
-const session = await client.createSession({
-    onPermissionRequest: approveAll,
-    sessionLimits: {
-        maxAiCredits: 30,
-    },
-});
-
-const resumed = await client.resumeSession(session.sessionId, {
-    onPermissionRequest: approveAll,
-    sessionLimits: {
-        maxAiCredits: 30,
-    },
-});
-```
-<!-- /docs-validate: hidden -->
+<!-- docs-validate: skip -->
 
 ```typescript
 const session = await client.createSession({
@@ -50,28 +31,7 @@ const resumed = await client.resumeSession(session.sessionId, {
 <details>
 <summary><strong>Python</strong></summary>
 
-<!-- docs-validate: hidden -->
-```python
-from copilot import CopilotClient
-from copilot.session import PermissionHandler
-
-async def main(client: CopilotClient):
-    session = await client.create_session(
-        on_permission_request=PermissionHandler.approve_all,
-        session_limits={
-            "max_ai_credits": 30,
-        },
-    )
-
-    resumed = await client.resume_session(
-        session.session_id,
-        on_permission_request=PermissionHandler.approve_all,
-        session_limits={
-            "max_ai_credits": 30,
-        },
-    )
-```
-<!-- /docs-validate: hidden -->
+<!-- docs-validate: skip -->
 
 ```python
 session = await client.create_session(
@@ -94,38 +54,7 @@ resumed = await client.resume_session(
 <details>
 <summary><strong>Go</strong></summary>
 
-<!-- docs-validate: hidden -->
-```go
-package main
-
-import (
-	"context"
-
-	copilot "github.com/github/copilot-sdk/go"
-	"github.com/github/copilot-sdk/go/rpc"
-)
-
-func main() {
-	ctx := context.Background()
-	client := copilot.NewClient(nil)
-
-	session, err := client.CreateSession(ctx, &copilot.SessionConfig{
-		OnPermissionRequest: copilot.PermissionHandler.ApproveAll,
-		SessionLimits: &rpc.SessionLimitsConfig{
-			MaxAiCredits: copilot.Float64(30),
-		},
-	})
-
-	resumed, err := client.ResumeSession(ctx, session.SessionID, &copilot.ResumeSessionConfig{
-		OnPermissionRequest: copilot.PermissionHandler.ApproveAll,
-		SessionLimits: &rpc.SessionLimitsConfig{
-			MaxAiCredits: copilot.Float64(30),
-		},
-	})
-	_, _ = resumed, err
-}
-```
-<!-- /docs-validate: hidden -->
+<!-- docs-validate: skip -->
 
 ```go
 session, err := client.CreateSession(ctx, &copilot.SessionConfig{
@@ -147,11 +76,9 @@ resumed, err := client.ResumeSession(ctx, session.SessionID, &copilot.ResumeSess
 <details>
 <summary><strong>.NET</strong></summary>
 
-<!-- docs-validate: hidden -->
-```csharp
-await using var client = new CopilotClient();
+<!-- docs-validate: skip -->
 
-#pragma warning disable GHCP001 // Session limits are experimental.
+```csharp
 var session = await client.CreateSessionAsync(new SessionConfig
 {
     OnPermissionRequest = PermissionHandler.ApproveAll,
@@ -170,67 +97,14 @@ var resumed = await client.ResumeSessionAsync(session.SessionId, new ResumeSessi
     },
 });
 ```
-<!-- /docs-validate: hidden -->
-
-```csharp
-#pragma warning disable GHCP001 // Session limits are experimental.
-var session = await client.CreateSessionAsync(new SessionConfig
-{
-    OnPermissionRequest = PermissionHandler.ApproveAll,
-    SessionLimits = new SessionLimitsConfig
-    {
-        MaxAiCredits = 30,
-    },
-});
-
-var resumed = await client.ResumeSessionAsync(session.SessionId, new ResumeSessionConfig
-{
-    OnPermissionRequest = PermissionHandler.ApproveAll,
-    SessionLimits = new SessionLimitsConfig
-    {
-        MaxAiCredits = 30,
-    },
-});
-```
-
-The .NET `SessionLimits` property raises the `GHCP001` experimental diagnostic. Suppress it with `#pragma warning disable GHCP001` or a project-level `<NoWarn>GHCP001</NoWarn>`.
 
 </details>
 <details>
 <summary><strong>Java</strong></summary>
 
-<!-- docs-validate: hidden -->
-```java
-import com.github.copilot.CopilotClient;
-import com.github.copilot.CopilotSession;
-import com.github.copilot.generated.rpc.SessionLimitsConfig;
-import com.github.copilot.rpc.*;
-
-public class SessionLimitsExample {
-    public static void main(String[] args) throws Exception {
-        try (var client = new CopilotClient()) {
-            client.start().get();
-
-            CopilotSession session = client
-                    .createSession(new SessionConfig()
-                            .setOnPermissionRequest(PermissionHandler.APPROVE_ALL)
-                            .setSessionLimits(new SessionLimitsConfig(30.0)))
-                    .get();
-
-            CopilotSession resumed = client
-                    .resumeSession(session.getSessionId(), new ResumeSessionConfig()
-                            .setOnPermissionRequest(PermissionHandler.APPROVE_ALL)
-                            .setSessionLimits(new SessionLimitsConfig(30.0)))
-                    .get();
-        }
-    }
-}
-```
-<!-- /docs-validate: hidden -->
+<!-- docs-validate: skip -->
 
 ```java
-import com.github.copilot.generated.rpc.SessionLimitsConfig;
-
 CopilotSession session = client
         .createSession(new SessionConfig()
                 .setOnPermissionRequest(PermissionHandler.APPROVE_ALL)
@@ -247,6 +121,8 @@ CopilotSession resumed = client
 </details>
 <details>
 <summary><strong>Rust</strong></summary>
+
+<!-- docs-validate: skip -->
 
 ```rust
 let limits = SessionLimitsConfig {

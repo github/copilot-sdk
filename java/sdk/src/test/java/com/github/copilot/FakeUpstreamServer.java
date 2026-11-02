@@ -18,10 +18,6 @@ import java.util.Base64;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
-import java.util.Set;
-import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 
 /**
@@ -43,8 +39,6 @@ final class FakeUpstreamServer implements AutoCloseable {
     private final ServerSocket serverSocket;
     private final Thread acceptThread;
     private final AtomicInteger upstreamWsRequests = new AtomicInteger();
-    private final Set<Socket> connections = ConcurrentHashMap.newKeySet();
-    private final CompletableFuture<Void> webSocketClosed = new CompletableFuture<>();
     private final String httpText;
     private final String wsText;
     private volatile boolean running = true;
@@ -74,20 +68,10 @@ final class FakeUpstreamServer implements AutoCloseable {
         return upstreamWsRequests.get();
     }
 
-    void awaitWebSocketClose(long timeout, TimeUnit unit) throws Exception {
-        webSocketClosed.get(timeout, unit);
-    }
-
     private void acceptLoop() {
         while (running) {
             try {
                 Socket socket = serverSocket.accept();
-                connections.add(socket);
-                if (!running) {
-                    socket.close();
-                    connections.remove(socket);
-                    return;
-                }
                 Thread t = new Thread(() -> handle(socket), "fake-upstream-conn");
                 t.setDaemon(true);
                 t.start();
@@ -98,7 +82,6 @@ final class FakeUpstreamServer implements AutoCloseable {
     }
 
     private void handle(Socket socket) {
-        boolean webSocket = false;
         try (socket) {
             InputStream in = socket.getInputStream();
             OutputStream out = socket.getOutputStream();
@@ -121,18 +104,12 @@ final class FakeUpstreamServer implements AutoCloseable {
             }
 
             if ("websocket".equalsIgnoreCase(headers.get("upgrade"))) {
-                webSocket = true;
                 serveWebSocket(in, out, headers);
                 return;
             }
             serveHttp(in, out, path, headers);
         } catch (Exception ignored) {
             // Connection error; drop it.
-        } finally {
-            connections.remove(socket);
-            if (webSocket) {
-                webSocketClosed.complete(null);
-            }
         }
     }
 
@@ -161,9 +138,7 @@ final class FakeUpstreamServer implements AutoCloseable {
         String contentType = "application/json";
         String body;
         int status = 200;
-        if (lower.endsWith("/meta")) {
-            body = CopilotRequestTestSupport.metaCatalog(List.of("/responses", "ws:/responses"));
-        } else if (lower.endsWith("/models")) {
+        if (lower.endsWith("/models")) {
             body = CopilotRequestTestSupport.modelCatalog(List.of("/responses", "ws:/responses"));
         } else if (lower.contains("/models/session")) {
             body = "{}";
@@ -323,8 +298,5 @@ final class FakeUpstreamServer implements AutoCloseable {
     public void close() throws IOException {
         running = false;
         serverSocket.close();
-        for (Socket socket : connections) {
-            socket.close();
-        }
     }
 }

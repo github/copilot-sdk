@@ -7,8 +7,7 @@ The `onPostToolUse` hook is called **after** a tool executes **successfully**. U
 * Add context based on results
 * Suppress results from the conversation
 
-> [!NOTE]
-> **Failure variant**: `onPostToolUse` only fires for successful tool executions. To observe **failed** tool calls, register `onPostToolUseFailure` (`on_post_tool_use_failure` in Python, `OnPostToolUseFailure` in Go/.NET, `on_post_tool_use_failure` in Rust). The handler receives the originating session, tool name and arguments, and an `error` string extracted from the failure result. It can return `{ additionalContext: string }` to inject guidance for the model. The same optional tool-call and tracing metadata described in [Hook metadata](./hooks-overview.md#hook-metadata) is available on both success and failure hooks. Other outcomes can invoke neither hook; a pre-hook does not guarantee a matching post-hook.
+> **Failure variant** — `onPostToolUse` only fires for successful tool executions. To observe **failed** tool calls, register `onPostToolUseFailure` (`on_post_tool_use_failure` in Python, `OnPostToolUseFailure` in Go/.NET, `on_post_tool_use_failure` in Rust). The handler receives `{ sessionId, toolName, toolArgs, error, timestamp, workingDirectory }` — the `error` field is a string extracted from the tool's failure result — and may return `{ additionalContext: string }` to inject extra guidance for the model (e.g. retry hints). See the [hooks overview](./hooks-overview.md) for the full list.
 > <a id="failure-variant"></a>
 
 ## Hook signature
@@ -151,18 +150,9 @@ public interface PostToolUseHandler {
 | ------------------ | ------------------ | -------------------------------------- |
 | `timestamp`        | SDK timestamp type | When the hook was triggered            |
 | `workingDirectory` | string             | Current working directory              |
-| `sessionId`        | string             | Session reported by the hook input, not necessarily the callback owner's session |
-| `toolCallId`       | string (optional)  | Original tool-call ID, unchanged by pre-hook argument modifications |
-| `traceparent`      | string (optional)  | Existing W3C trace context |
-| `tracestate`       | string (optional)  | Existing W3C vendor trace state |
 | `toolName`         | string             | Name of the tool that was called       |
 | `toolArgs`         | object             | Arguments that were passed to the tool |
 | `toolResult`       | object             | Result returned by the tool            |
-
-Tracing fields are exposed in TypeScript, Python, Go, Rust, and Java, not .NET.
-See [Hook metadata](./hooks-overview.md#hook-metadata) for language-specific
-accessors and compatibility with older runtimes. Correlate with the pre-hook and
-tool-execution events using `(input.sessionId, input.toolCallId)`.
 
 ## Output
 
@@ -200,10 +190,7 @@ const session = await client.createSession({
 <summary><strong>Python</strong></summary>
 
 ```python
-from copilot import CopilotClient
 from copilot.session import PermissionHandler
-
-client = CopilotClient()
 
 async def on_post_tool_use(input_data, invocation):
     print(f"[{invocation['session_id']}] Tool: {input_data['toolName']}")
@@ -317,33 +304,7 @@ var session = await client.CreateSessionAsync(new SessionConfig
 <details>
 <summary><strong>Java</strong></summary>
 
-<!-- docs-validate: hidden -->
-```java
-import com.github.copilot.*;
-import com.github.copilot.rpc.*;
-import java.util.concurrent.CompletableFuture;
-
-public class PostToolUseExample {
-    public static void main(String[] args) throws Exception {
-        try (var client = new CopilotClient()) {
-            var hooks = new SessionHooks()
-                .setOnPostToolUse((input, invocation) -> {
-                    System.out.println("[" + invocation.getSessionId() + "] Tool: " + input.getToolName());
-                    System.out.println("  Args: " + input.getToolArgs());
-                    System.out.println("  Result: " + input.getToolResult());
-                    return CompletableFuture.completedFuture(null);
-                });
-
-            var session = client.createSession(
-                new SessionConfig()
-                    .setOnPermissionRequest(PermissionHandler.APPROVE_ALL)
-                    .setHooks(hooks)
-            ).get();
-        }
-    }
-}
-```
-<!-- /docs-validate: hidden -->
+<!-- docs-validate: skip -->
 ```java
 import com.github.copilot.*;
 import com.github.copilot.rpc.*;

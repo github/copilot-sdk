@@ -29,7 +29,7 @@ fn cache_install_dir(cache_root: &Path, namespace: &str, version: &str) -> PathB
 }
 
 fn platform_cache_dir() -> PathBuf {
-    crate::platform_dirs::cache_dir().unwrap_or_else(std::env::temp_dir)
+    dirs::cache_dir().unwrap_or_else(std::env::temp_dir)
 }
 
 fn version_component(version: &str) -> String {

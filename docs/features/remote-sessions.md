@@ -1,6 +1,6 @@
 # Remote sessions
 
-Session history can be exported to GitHub web and mobile via [Mission Control](https://github.com). This is read-only history export, not remote control of the SDK session.
+Remote sessions let users access their Copilot session from GitHub web and mobile via [Mission Control](https://github.com). When enabled, the SDK connects each session to Mission Control, producing a URL that can be shared as a link or QR code.
 
 For running sessions on GitHub-hosted compute, see [Cloud Sessions](./cloud-sessions.md).
 
@@ -11,31 +11,128 @@ For running sessions on GitHub-hosted compute, see [Cloud Sessions](./cloud-sess
 
 ## Enabling remote sessions
 
-### On-demand (per-session toggle)
+### Always-on (client-level)
 
-Use the experimental raw `session.rpc.remote.enable()` API with export mode to start read-only history export mid-session, and `session.rpc.remote.disable()` to stop it. Export mode does not enable AHP connections or remote steering; omitting the mode requests both export and remote steering.
+Set `enableRemoteSessions: true` when creating the client. Every session in a GitHub repo automatically gets a remote URL.
 
 <!-- tabs:start -->
 
 #### TypeScript
 
-<!-- docs-validate: strict -->
-<!-- docs-validate: hidden -->
+<!-- docs-validate: skip -->
 ```typescript
-import { approveAll } from "@github/copilot-sdk";
+import { CopilotClient } from "@github/copilot-sdk";
 
-const session = await client.createSession({ onPermissionRequest: approveAll });
+const client = new CopilotClient({ enableRemoteSessions: true });
+const session = await client.createSession({
+  workingDirectory: "/path/to/github-repo",
+  onPermissionRequest: async () => ({ allowed: true }),
+});
 
-const result = await session.rpc.remote.enable({ mode: "export" });
-console.log("Remote URL:", result.url);
-
-// Later: stop sharing
-await session.rpc.remote.disable();
+session.on("session.info", (event) => {
+  if (event.data.infoType === "remote") {
+    console.log("Remote URL:", event.data.url);
+  }
+});
 ```
-<!-- /docs-validate: hidden -->
 
+#### Python
+
+<!-- docs-validate: skip -->
+```python
+from copilot import CopilotClient
+
+client = CopilotClient(enable_remote_sessions=True)
+session = await client.create_session(
+    working_directory="/path/to/github-repo",
+    on_permission_request=lambda req: {"allowed": True},
+)
+
+def on_event(event):
+    if event.type == "session.info" and event.data.info_type == "remote":
+        print(f"Remote URL: {event.data.url}")
+
+session.on(on_event)
+```
+
+#### Go
+
+<!-- docs-validate: skip -->
+```go
+client := copilot.NewClient(&copilot.ClientOptions{EnableRemoteSessions: true})
+session, _ := client.CreateSession(ctx, &copilot.SessionConfig{
+    WorkingDirectory: "/path/to/github-repo",
+    OnPermissionRequest: func(req copilot.PermissionRequest, inv copilot.PermissionInvocation) (rpc.PermissionDecision, error) {
+        return &rpc.PermissionDecisionApproveOnce{}, nil
+    },
+})
+
+session.On(func(event copilot.SessionEvent) {
+    if event.Type == "session.info" {
+        // Check infoType and extract URL
+    }
+})
+```
+
+#### C#
+
+<!-- docs-validate: skip -->
+```csharp
+var client = new CopilotClient(new CopilotClientOptions { EnableRemoteSessions = true });
+var session = await client.CreateSessionAsync(new SessionConfig
+{
+    WorkingDirectory = "/path/to/github-repo",
+    OnPermissionRequest = (req, inv) =>
+        Task.FromResult(PermissionDecision.ApproveOnce()),
+});
+
+session.On((SessionEvent e) =>
+{
+    if (e is SessionInfoEvent info && info.Data.InfoType == "remote")
+    {
+        Console.WriteLine($"Remote URL: {info.Data.Url}");
+    }
+});
+```
+
+#### Rust
+
+<!-- docs-validate: skip -->
+```rust
+use github_copilot_sdk::{Client, ClientOptions, SessionConfig};
+use github_copilot_sdk::handler::PermissionResult;
+
+let client = Client::start(
+    ClientOptions::new().with_enable_remote_sessions(true)
+).await?;
+let session = client.create_session(
+    SessionConfig::new("/path/to/github-repo")
+        .with_permission_handler(|_req, _inv| async {
+            Ok(PermissionResult::approve_once())
+        }),
+).await?;
+
+let mut events = session.subscribe();
+while let Ok(event) = events.recv().await {
+    if event.event_type == "session.info" {
+        // Check info_type and extract URL
+    }
+}
+```
+
+<!-- tabs:end -->
+
+### On-demand (per-session toggle)
+
+Use `session.rpc.remote.enable()` to start remote access mid-session, and `session.rpc.remote.disable()` to stop it. This is equivalent to the CLI's `/remote on` and `/remote off` commands.
+
+<!-- tabs:start -->
+
+#### TypeScript
+
+<!-- docs-validate: skip -->
 ```typescript
-const result = await session.rpc.remote.enable({ mode: "export" });
+const result = await session.rpc.remote.enable();
 console.log("Remote URL:", result.url);
 
 // Later: stop sharing
@@ -44,24 +141,9 @@ await session.rpc.remote.disable();
 
 #### Python
 
-<!-- docs-validate: hidden -->
+<!-- docs-validate: skip -->
 ```python
-from copilot.generated.rpc import RemoteEnableRequest, RemoteSessionMode
-from copilot.session import CopilotSession
-
-async def main(session: CopilotSession):
-    result = await session.rpc.remote.enable(RemoteEnableRequest(mode=RemoteSessionMode.EXPORT))
-    print(f"Remote URL: {result.url}")
-
-    # Later: stop sharing
-    await session.rpc.remote.disable()
-```
-<!-- /docs-validate: hidden -->
-
-```python
-from copilot.generated.rpc import RemoteEnableRequest, RemoteSessionMode
-
-result = await session.rpc.remote.enable(RemoteEnableRequest(mode=RemoteSessionMode.EXPORT))
+result = await session.rpc.remote.enable()
 print(f"Remote URL: {result.url}")
 
 # Later: stop sharing
@@ -70,81 +152,22 @@ await session.rpc.remote.disable()
 
 #### Go
 
-<!-- docs-validate: hidden -->
+<!-- docs-validate: skip -->
 ```go
-package main
-
-import (
-	"context"
-	"fmt"
-	"log"
-
-	copilot "github.com/github/copilot-sdk/go"
-	"github.com/github/copilot-sdk/go/rpc"
-)
-
-func main() {
-	ctx := context.Background()
-	client := copilot.NewClient(nil)
-
-	session, err := client.CreateSession(ctx, &copilot.SessionConfig{
-		OnPermissionRequest: copilot.PermissionHandler.ApproveAll,
-	})
-	if err != nil {
-		log.Fatal(err)
-	}
-
-	mode := rpc.RemoteSessionModeExport
-	result, err := session.RPC.Remote.Enable(ctx, &rpc.RemoteEnableRequest{Mode: &mode})
-	if err != nil {
-		log.Fatal(err)
-	}
-	if result.URL != nil {
-		fmt.Println("Remote URL:", *result.URL)
-	}
-
-	// Later: stop sharing
-	_, err = session.RPC.Remote.Disable(ctx)
-}
-```
-<!-- /docs-validate: hidden -->
-
-```go
-mode := rpc.RemoteSessionModeExport
-result, err := session.RPC.Remote.Enable(ctx, &rpc.RemoteEnableRequest{Mode: &mode})
-if err != nil {
-    log.Fatal(err)
-}
+result, err := session.RPC.Remote.Enable(ctx)
 if result.URL != nil {
     fmt.Println("Remote URL:", *result.URL)
 }
 
 // Later: stop sharing
-_, err = session.RPC.Remote.Disable(ctx)
+err = session.RPC.Remote.Disable(ctx)
 ```
 
 #### C#
 
-<!-- docs-validate: hidden -->
+<!-- docs-validate: skip -->
 ```csharp
-await using var client = new CopilotClient();
-await using var session = await client.CreateSessionAsync(new SessionConfig
-{
-    OnPermissionRequest = PermissionHandler.ApproveAll,
-});
-
-#pragma warning disable GHCP001 // The remote RPC API is experimental.
-var result = await session.Rpc.Remote.EnableAsync(mode: RemoteSessionMode.Export);
-Console.WriteLine($"Remote URL: {result.Url}");
-
-// Later: stop sharing
-await session.Rpc.Remote.DisableAsync();
-```
-<!-- /docs-validate: hidden -->
-
-```csharp
-#pragma warning disable GHCP001 // The remote RPC API is experimental.
-var result = await session.Rpc.Remote.EnableAsync(mode: RemoteSessionMode.Export);
+var result = await session.Rpc.Remote.EnableAsync();
 Console.WriteLine($"Remote URL: {result.Url}");
 
 // Later: stop sharing
@@ -153,16 +176,9 @@ await session.Rpc.Remote.DisableAsync();
 
 #### Rust
 
+<!-- docs-validate: skip -->
 ```rust
-use github_copilot_sdk::rpc::{RemoteEnableRequest, RemoteSessionMode};
-
-let result = session
-    .rpc()
-    .remote()
-    .enable(RemoteEnableRequest {
-        mode: Some(RemoteSessionMode::Export),
-    })
-    .await?;
+let result = session.rpc().remote().enable().await?;
 if let Some(url) = &result.url {
     println!("Remote URL: {url}");
 }
@@ -185,5 +201,6 @@ The remote URL can be rendered as a QR code for easy mobile access. The SDK prov
 
 ## Notes
 
-* If the working directory is not a GitHub repository, on-demand export returns an error.
+* The `enableRemoteSessions` client option applies when the SDK starts the runtime, either as a child process or as an in-process host. It is ignored when connecting to an already-running runtime.
+* If the working directory is not a GitHub repository, remote setup is silently skipped (always-on mode) or returns an error (on-demand mode).
 * Remote sessions require authentication. Ensure `gitHubToken` or `useLoggedInUser` is configured.

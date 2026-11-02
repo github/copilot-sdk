@@ -11,6 +11,8 @@ import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import com.github.copilot.CopilotExperimental;
+import java.util.List;
+import java.util.Map;
 import javax.annotation.processing.Generated;
 
 /**
@@ -27,6 +29,21 @@ public record SessionToolsUpdateSubagentSettingsParams(
     /** Target session identifier */
     @JsonProperty("sessionId") String sessionId,
     /** Subagent settings to apply, or null to clear the live session override */
-    @JsonProperty("subagents") SubagentSettingsConfig subagents
+    @JsonProperty("subagents") SessionToolsUpdateSubagentSettingsParamsSubagents subagents
 ) {
+
+    /** Configured per-agent subagent overrides */
+    @JsonIgnoreProperties(ignoreUnknown = true)
+    @JsonInclude(JsonInclude.Include.NON_NULL)
+    public record SessionToolsUpdateSubagentSettingsParamsSubagents(
+        /** Per-agent settings keyed by subagent agent_type */
+        @JsonProperty("agents") Map<String, SubagentSettingsEntry> agents,
+        /** Names of subagents the user has turned off; they cannot be dispatched */
+        @JsonProperty("disabledSubagents") List<String> disabledSubagents,
+        /** Maximum number of subagents that can run concurrently; applies to usage-based billing users only */
+        @JsonProperty("maxConcurrency") Long maxConcurrency,
+        /** Maximum subagent nesting depth; applies to usage-based billing users only */
+        @JsonProperty("maxDepth") Long maxDepth
+    ) {
+    }
 }

@@ -2,7 +2,6 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *--------------------------------------------------------------------------------------------*/
 
-using Microsoft.Win32.SafeHandles;
 using System.Diagnostics;
 using System.Net.Http;
 using System.Net.Http.Json;
@@ -17,7 +16,6 @@ namespace GitHub.Copilot.Test.Harness;
 public sealed partial class ReplayProxy : IAsyncDisposable
 {
     private Process? _process;
-    private SafeJobHandle? _processJob;
     private Task<string>? _startupTask;
 
     public string? ConnectProxyUrl { get; private set; }
@@ -106,7 +104,6 @@ public sealed partial class ReplayProxy : IAsyncDisposable
                 process.Dispose();
                 throw;
             }
-            _processJob = TryBindToKillOnCloseJob(process);
             _process = process;
             process.BeginOutputReadLine();
             process.BeginErrorReadLine();
@@ -225,8 +222,6 @@ public sealed partial class ReplayProxy : IAsyncDisposable
         {
             _process?.Dispose();
             _process = null;
-            _processJob?.Dispose();
-            _processJob = null;
             _startupTask = null;
         }
         if (shutdownFailure != null)
@@ -285,106 +280,6 @@ public sealed partial class ReplayProxy : IAsyncDisposable
             dir = dir.Parent;
         }
         throw new InvalidOperationException("Could not find repository root");
-    }
-
-    // On Windows, puts the proxy and everything it starts in a job that Windows terminates when
-    // its last handle closes. Only this process holds that handle (it is not inheritable), so the
-    // proxy dies with the test host even when the host crashes. Otherwise the orphaned proxy keeps
-    // the host's inherited stdout/stderr pipes open and `dotnet test` waits on them indefinitely.
-    private static SafeJobHandle? TryBindToKillOnCloseJob(Process process)
-    {
-        if (!RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
-        {
-            return null;
-        }
-
-        var job = CreateJobObjectW(IntPtr.Zero, IntPtr.Zero);
-        var limits = new JobObjectExtendedLimitInformation();
-        limits.BasicLimitInformation.LimitFlags = JobObjectLimitKillOnJobClose;
-        if (job.IsInvalid
-            || !SetInformationJobObject(
-                job,
-                JobObjectExtendedLimitInformationClass,
-                ref limits,
-                (uint)Marshal.SizeOf<JobObjectExtendedLimitInformation>())
-            || !AssignProcessToJobObject(job, process.SafeHandle))
-        {
-            var error = Marshal.GetLastWin32Error();
-            job.Dispose();
-            Console.Error.WriteLine(
-                $"[SDK proxy] Could not bind PID {process.Id} to a kill-on-close job (Win32 error {error}); it can outlive a crashed test host.");
-            return null;
-        }
-
-        return job;
-    }
-
-    private const int JobObjectExtendedLimitInformationClass = 9;
-    private const uint JobObjectLimitKillOnJobClose = 0x2000;
-
-    [DllImport("kernel32", SetLastError = true)]
-    private static extern SafeJobHandle CreateJobObjectW(IntPtr jobAttributes, IntPtr name);
-
-    [DllImport("kernel32", SetLastError = true)]
-    [return: MarshalAs(UnmanagedType.Bool)]
-    private static extern bool SetInformationJobObject(
-        SafeJobHandle job,
-        int infoClass,
-        ref JobObjectExtendedLimitInformation info,
-        uint infoLength);
-
-    [DllImport("kernel32", SetLastError = true)]
-    [return: MarshalAs(UnmanagedType.Bool)]
-    private static extern bool AssignProcessToJobObject(SafeJobHandle job, SafeHandle process);
-
-    [DllImport("kernel32", SetLastError = true)]
-    [return: MarshalAs(UnmanagedType.Bool)]
-    private static extern bool CloseHandle(IntPtr handle);
-
-    private sealed class SafeJobHandle : SafeHandleZeroOrMinusOneIsInvalid
-    {
-        public SafeJobHandle()
-            : base(ownsHandle: true)
-        {
-        }
-
-        protected override bool ReleaseHandle() => CloseHandle(handle);
-    }
-
-    [StructLayout(LayoutKind.Sequential)]
-    private struct JobObjectBasicLimitInformation
-    {
-        public long PerProcessUserTimeLimit;
-        public long PerJobUserTimeLimit;
-        public uint LimitFlags;
-        public UIntPtr MinimumWorkingSetSize;
-        public UIntPtr MaximumWorkingSetSize;
-        public uint ActiveProcessLimit;
-        public UIntPtr Affinity;
-        public uint PriorityClass;
-        public uint SchedulingClass;
-    }
-
-    [StructLayout(LayoutKind.Sequential)]
-    private struct IoCounters
-    {
-        public ulong ReadOperationCount;
-        public ulong WriteOperationCount;
-        public ulong OtherOperationCount;
-        public ulong ReadTransferCount;
-        public ulong WriteTransferCount;
-        public ulong OtherTransferCount;
-    }
-
-    [StructLayout(LayoutKind.Sequential)]
-    private struct JobObjectExtendedLimitInformation
-    {
-        public JobObjectBasicLimitInformation BasicLimitInformation;
-        public IoCounters IoInfo;
-        public UIntPtr ProcessMemoryLimit;
-        public UIntPtr JobMemoryLimit;
-        public UIntPtr PeakProcessMemoryUsed;
-        public UIntPtr PeakJobMemoryUsed;
     }
 
     [JsonSourceGenerationOptions(JsonSerializerDefaults.Web)]
