@@ -215,17 +215,20 @@ export class CopilotWebSocketForwarder extends CopilotWebSocketHandler {
     override async close(
         status: CopilotWebSocketCloseStatus = CopilotWebSocketCloseStatus.normalClosure
     ): Promise<void> {
+        const upstream = this.#upstream;
+        this.#upstream = null;
+        const completion = super.close(status);
         try {
             if (
-                this.#upstream?.readyState === WebSocket.OPEN ||
-                this.#upstream?.readyState === WebSocket.CONNECTING
+                upstream?.readyState === WebSocket.OPEN ||
+                upstream?.readyState === WebSocket.CONNECTING
             ) {
-                this.#upstream?.close();
+                upstream.close();
             }
         } catch {
             // Best-effort; the socket may already be closed.
         }
-        await super.close(status);
+        await completion;
     }
 
     override async [Symbol.asyncDispose](): Promise<void> {

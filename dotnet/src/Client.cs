@@ -3121,14 +3121,15 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
             client.DispatchLifecycleEvent(evt);
         }
 
-        public async ValueTask<UserInputRequestResponse> OnUserInputRequest(string sessionId, string question, IList<string>? choices = null, bool? allowFreeform = null)
+        public async ValueTask<UserInputRequestResponse> OnUserInputRequest(string sessionId, string question, IList<string>? choices = null, bool? allowFreeform = null, string? requestId = null)
         {
             var session = client.GetSession(sessionId) ?? throw new ArgumentException($"Unknown session {sessionId}");
             var request = new UserInputRequest
             {
                 Question = question,
                 Choices = choices,
-                AllowFreeform = allowFreeform
+                AllowFreeform = allowFreeform,
+                RequestId = requestId
             };
 
             var result = await session.HandleUserInputRequestAsync(request);
@@ -3140,7 +3141,8 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
             string summary,
             string? planContent = null,
             IList<string>? actions = null,
-            string? recommendedAction = null)
+            string? recommendedAction = null,
+            string? requestId = null)
         {
             var session = client.GetSession(sessionId) ?? throw new ArgumentException($"Unknown session {sessionId}");
             var request = new ExitPlanModeRequest
@@ -3148,7 +3150,8 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
                 Summary = summary,
                 PlanContent = planContent,
                 Actions = actions ?? [],
-                RecommendedAction = recommendedAction ?? "autopilot"
+                RecommendedAction = recommendedAction ?? "autopilot",
+                RequestId = requestId
             };
 
             return await session.HandleExitPlanModeRequestAsync(request);

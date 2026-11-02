@@ -244,6 +244,7 @@ impl UserInputHandler for RecordingUserInputHandler {
     async fn handle(
         &self,
         session_id: SessionId,
+        _request_id: Option<RequestId>,
         question: String,
         choices: Option<Vec<String>>,
         allow_freeform: Option<bool>,
@@ -292,6 +293,7 @@ impl UserInputHandler for SiblingAwareUserInputHandler {
     async fn handle(
         &self,
         _session_id: SessionId,
+        _request_id: Option<RequestId>,
         _question: String,
         choices: Option<Vec<String>>,
         _allow_freeform: Option<bool>,

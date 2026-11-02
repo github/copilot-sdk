@@ -12,7 +12,7 @@ use github_copilot_sdk::session_events::{
     ExitPlanModeCompletedData, ExitPlanModeRequestedData, SessionEventType, SessionMode,
     SessionModelChangeData,
 };
-use github_copilot_sdk::{ExitPlanModeData, SessionConfig, SessionId};
+use github_copilot_sdk::{ExitPlanModeData, RequestId, SessionConfig, SessionId};
 use tokio::sync::mpsc;
 
 use super::support::{recv_with_timeout, wait_for_event, wait_for_event_allowing_rate_limit};
@@ -35,7 +35,12 @@ struct AutoModeHandler {
 
 #[async_trait]
 impl ExitPlanModeHandler for ModeHandler {
-    async fn handle(&self, session_id: SessionId, data: ExitPlanModeData) -> ExitPlanModeResult {
+    async fn handle(
+        &self,
+        session_id: SessionId,
+        _request_id: Option<RequestId>,
+        data: ExitPlanModeData,
+    ) -> ExitPlanModeResult {
         let _ = self.requests.send((session_id, data));
         ExitPlanModeResult {
             approved: true,

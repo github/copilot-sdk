@@ -5998,6 +5998,9 @@ pub enum CatalogCapability {
     /// Captures the exact existing native session, account, host and connection for authenticated catalogue search, selection and planning. Requires catalog-search-credential-required; does not grant installation or create a session.
     #[serde(rename = "catalog-search-session-bound")]
     CatalogSearchSessionBound,
+    /// Understands initial-page official-product recommendations for a full task and product with fixed pageSize 10. Requires session-bound, credential-required catalogue support. No anonymous retry, broad-search fallback or continuation. Authentication uses the selected GitHub.com user credential; successful capability negotiation does not establish service acceptance.
+    #[serde(rename = "catalog-recommend")]
+    CatalogRecommend,
     /// Understands effect-free preparation, exact human-confirmed apply and owned removal for fully resolved personal remote MCP choices without supplied inputs or configured secrets. Advertised only when the real producer and lower owned admission are linked; requires original connection and bound session authority for new work.
     #[serde(rename = "mcp-confirmed-remote-installation")]
     McpConfirmedRemoteInstallation,
@@ -6077,6 +6080,9 @@ pub enum CatalogInvalidRequestField {
     /// The search query was empty or longer than permitted.
     #[serde(rename = "query")]
     Query,
+    /// The requested recommendation product was missing, blank or longer than permitted.
+    #[serde(rename = "product")]
+    Product,
     /// The requested result count fell outside its permitted range.
     #[serde(rename = "limit")]
     Limit,

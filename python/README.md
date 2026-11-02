@@ -325,6 +325,8 @@ templates, and assets, set its descriptor's `directory` to the absolute path of
 the folder that holds them:
 
 ```python
+from copilot import SkillProviderDescriptor
+
 SkillProviderDescriptor(
     name="release-notes",
     description="Writes release notes in the team's format.",
@@ -1616,6 +1618,8 @@ async def handle_user_input(request, invocation):
     # request["question"] - The question to ask
     # request.get("choices") - Optional list of choices for multiple choice
     # request.get("allowFreeform", True) - Whether freeform input is allowed
+    # request.get("requestId") - Runtime ID of the pending request (absent on older runtimes);
+    #   pass it as request_id to session.rpc.ui.handle_pending_user_input to answer out of band
 
     print(f"Agent asks: {request['question']}")
     if request.get("choices"):

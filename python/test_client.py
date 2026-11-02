@@ -2392,6 +2392,51 @@ class TestCreateSessionConfig:
             await client.force_stop()
 
     @pytest.mark.asyncio
+    async def test_create_and_resume_session_forward_explicit_empty_custom_agents(self):
+        client = CopilotClient(connection=RuntimeConnection.for_stdio(path=CLI_PATH))
+        await client.start()
+        try:
+            captured = {}
+
+            async def mock_request(method, params, **kwargs):
+                captured[method] = params
+                if method in ("session.create", "session.resume"):
+                    result = {"sessionId": params.get("sessionId") or "session-1"}
+                    callback = kwargs.get("on_response_inline")
+                    if callback is not None:
+                        callback(result)
+                    return result
+                return {}
+
+            client._client.request = mock_request
+
+            # An explicitly empty list must reach the runtime: on resume it replaces
+            # the session's custom agents with none, which omitting the key cannot express.
+            session = await client.create_session(
+                on_permission_request=PermissionHandler.approve_all,
+                custom_agents=[],
+            )
+            await client.resume_session(
+                session.session_id,
+                on_permission_request=PermissionHandler.approve_all,
+                custom_agents=[],
+            )
+            assert captured["session.create"]["customAgents"] == []
+            assert captured["session.resume"]["customAgents"] == []
+
+            omitted_session = await client.create_session(
+                on_permission_request=PermissionHandler.approve_all,
+            )
+            await client.resume_session(
+                omitted_session.session_id,
+                on_permission_request=PermissionHandler.approve_all,
+            )
+            assert "customAgents" not in captured["session.create"]
+            assert "customAgents" not in captured["session.resume"]
+        finally:
+            await client.force_stop()
+
+    @pytest.mark.asyncio
     async def test_create_and_resume_session_forward_explicit_empty_mcp_servers(self):
         client = CopilotClient(connection=RuntimeConnection.for_stdio(path=CLI_PATH))
         await client.start()
@@ -2433,6 +2478,52 @@ class TestCreateSessionConfig:
             )
             assert "mcpServers" not in captured["session.create"]
             assert "mcpServers" not in captured["session.resume"]
+        finally:
+            await client.force_stop()
+
+    @pytest.mark.asyncio
+    async def test_create_and_resume_session_forward_explicit_empty_tools(self):
+        client = CopilotClient(connection=RuntimeConnection.for_stdio(path=CLI_PATH))
+        await client.start()
+        try:
+            captured = {}
+
+            async def mock_request(method, params, **kwargs):
+                captured[method] = params
+                if method in ("session.create", "session.resume"):
+                    result = {"sessionId": params.get("sessionId") or "session-1"}
+                    callback = kwargs.get("on_response_inline")
+                    if callback is not None:
+                        callback(result)
+                    return result
+                return {}
+
+            client._client.request = mock_request
+
+            # An explicitly empty list must reach the runtime: on resume it replaces
+            # the session's external tools with none, which omitting the key cannot
+            # express.
+            session = await client.create_session(
+                on_permission_request=PermissionHandler.approve_all,
+                tools=[],
+            )
+            await client.resume_session(
+                session.session_id,
+                on_permission_request=PermissionHandler.approve_all,
+                tools=[],
+            )
+            assert captured["session.create"]["tools"] == []
+            assert captured["session.resume"]["tools"] == []
+
+            omitted_session = await client.create_session(
+                on_permission_request=PermissionHandler.approve_all,
+            )
+            await client.resume_session(
+                omitted_session.session_id,
+                on_permission_request=PermissionHandler.approve_all,
+            )
+            assert "tools" not in captured["session.create"]
+            assert "tools" not in captured["session.resume"]
         finally:
             await client.force_stop()
 

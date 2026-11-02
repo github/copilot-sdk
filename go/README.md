@@ -1777,6 +1777,7 @@ session, err := client.CreateSession(context.Background(), &copilot.SessionConfi
         // request.Question - The question to ask
         // request.Choices - Optional slice of choices for multiple choice
         // request.AllowFreeform - Whether freeform input is allowed (default: true)
+        // request.RequestID - Runtime ID of the pending request, for RPC.UI.HandlePendingUserInput (empty on older runtimes)
 
         fmt.Printf("Agent asks: %s\n", request.Question)
         if len(request.Choices) > 0 {

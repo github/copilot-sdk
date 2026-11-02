@@ -31,6 +31,8 @@ import org.junit.jupiter.api.Test;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ObjectNode;
+import com.github.copilot.rpc.ExitPlanModeRequest;
+import com.github.copilot.rpc.ExitPlanModeResult;
 import com.github.copilot.rpc.PermissionRequestResult;
 import com.github.copilot.rpc.PermissionRequestResultKind;
 import com.github.copilot.rpc.PreToolUseHookOutput;
@@ -38,6 +40,7 @@ import com.github.copilot.rpc.SessionHooks;
 import com.github.copilot.rpc.SessionLifecycleEvent;
 import com.github.copilot.rpc.ToolDefinition;
 import com.github.copilot.rpc.ToolResultObject;
+import com.github.copilot.rpc.UserInputRequest;
 import com.github.copilot.rpc.UserInputResponse;
 import com.github.copilot.generated.rpc.GitHubTokenAcquireReason;
 import com.github.copilot.rpc.GitHubTokenProviderArgs;
@@ -513,6 +516,101 @@ class RpcHandlerDispatcherTest {
         JsonNode response = readResponse();
         assertNotNull(response.get("error"));
         assertEquals(-32603, response.get("error").get("code").asInt());
+    }
+
+    @Test
+    void userInputRequestPassesRuntimeRequestIdToHandler() throws Exception {
+        CopilotSession session = createSession("s1");
+        var received = new CompletableFuture<UserInputRequest>();
+        session.registerUserInputHandler((request, invocation) -> {
+            received.complete(request);
+            return CompletableFuture.completedFuture(new UserInputResponse().setAnswer("yes").setWasFreeform(false));
+        });
+
+        ObjectNode params = MAPPER.createObjectNode();
+        params.put("sessionId", "s1");
+        params.put("question", "Proceed?");
+        params.put("requestId", "pending-user-input-1");
+
+        invokeHandler("userInput.request", "25", params);
+
+        JsonNode response = readResponse();
+        assertEquals("yes", response.get("result").get("answer").asText());
+        UserInputRequest request = received.get(SOCKET_TIMEOUT_MS, TimeUnit.MILLISECONDS);
+        assertEquals("pending-user-input-1", request.getRequestId());
+        assertEquals("Proceed?", request.getQuestion());
+    }
+
+    @Test
+    void userInputRequestWithoutRuntimeRequestIdLeavesItNull() throws Exception {
+        CopilotSession session = createSession("s1");
+        var received = new CompletableFuture<UserInputRequest>();
+        session.registerUserInputHandler((request, invocation) -> {
+            received.complete(request);
+            return CompletableFuture.completedFuture(new UserInputResponse().setAnswer("yes").setWasFreeform(false));
+        });
+
+        ObjectNode params = MAPPER.createObjectNode();
+        params.put("sessionId", "s1");
+        params.put("question", "Proceed?");
+
+        invokeHandler("userInput.request", "26", params);
+
+        JsonNode response = readResponse();
+        assertEquals("yes", response.get("result").get("answer").asText());
+        UserInputRequest request = received.get(SOCKET_TIMEOUT_MS, TimeUnit.MILLISECONDS);
+        assertNull(request.getRequestId());
+    }
+
+    // ===== exitPlanMode.request tests =====
+
+    @Test
+    void exitPlanModeRequestPassesRuntimeRequestIdToHandler() throws Exception {
+        CopilotSession session = createSession("s1");
+        var received = new CompletableFuture<ExitPlanModeRequest>();
+        session.registerExitPlanModeHandler((request, invocation) -> {
+            received.complete(request);
+            return CompletableFuture.completedFuture(new ExitPlanModeResult().setApproved(true));
+        });
+
+        ObjectNode params = MAPPER.createObjectNode();
+        params.put("sessionId", "s1");
+        params.put("summary", "Implement the plan");
+        params.putArray("actions").add("interactive").add("autopilot");
+        params.put("recommendedAction", "interactive");
+        params.put("requestId", "pending-exit-plan-mode-1");
+
+        invokeHandler("exitPlanMode.request", "27", params);
+
+        JsonNode response = readResponse();
+        assertTrue(response.get("result").get("approved").asBoolean());
+        ExitPlanModeRequest request = received.get(SOCKET_TIMEOUT_MS, TimeUnit.MILLISECONDS);
+        assertEquals("pending-exit-plan-mode-1", request.getRequestId());
+        assertEquals("Implement the plan", request.getSummary());
+        assertEquals("interactive", request.getRecommendedAction());
+    }
+
+    @Test
+    void exitPlanModeRequestWithoutRuntimeRequestIdLeavesItNull() throws Exception {
+        CopilotSession session = createSession("s1");
+        var received = new CompletableFuture<ExitPlanModeRequest>();
+        session.registerExitPlanModeHandler((request, invocation) -> {
+            received.complete(request);
+            return CompletableFuture.completedFuture(new ExitPlanModeResult().setApproved(true));
+        });
+
+        ObjectNode params = MAPPER.createObjectNode();
+        params.put("sessionId", "s1");
+        params.put("summary", "Implement the plan");
+        params.putArray("actions").add("interactive").add("autopilot");
+        params.put("recommendedAction", "interactive");
+
+        invokeHandler("exitPlanMode.request", "28", params);
+
+        JsonNode response = readResponse();
+        assertTrue(response.get("result").get("approved").asBoolean());
+        ExitPlanModeRequest request = received.get(SOCKET_TIMEOUT_MS, TimeUnit.MILLISECONDS);
+        assertNull(request.getRequestId());
     }
 
     // ===== skillProvider.* tests =====

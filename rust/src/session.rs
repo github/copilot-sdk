@@ -44,8 +44,8 @@ use crate::types::{
     GetMessagesResponse, MessageOptions, PermissionRequestData, RequestId, ResumeSessionConfig,
     ResumeSessionResult, SectionOverride, SessionCapabilities, SessionConfig, SessionEvent,
     SessionId, SetModelOptions, SystemMessageConfig, Tool, ToolHandlerMap, ToolInvocation,
-    ToolResult, ToolResultExpanded, TraceContext, TranscriptRecovery, UiInputOptions,
-    ensure_attachment_display_names, take_tool_handlers,
+    TraceContext, TranscriptRecovery, UiInputOptions, ensure_attachment_display_names,
+    take_tool_handlers,
 };
 use crate::{
     Client, Error, ErrorKind, JsonRpcResponse, ProtocolErrorKind, SessionErrorKind,
@@ -3355,19 +3355,6 @@ async fn register_mcp_auth_interest(client: &Client, session_id: &SessionId) -> 
     Ok(())
 }
 
-fn tool_failure_result(message: impl Into<String>) -> ToolResult {
-    let message = message.into();
-    ToolResult::Expanded(ToolResultExpanded {
-        text_result_for_llm: message.clone(),
-        result_type: "failure".to_string(),
-        binary_results_for_llm: None,
-        session_log: None,
-        error: Some(message),
-        tool_telemetry: None,
-        tool_references: None,
-    })
-}
-
 fn is_autopilot_continuation_idle(event: &SessionEvent) -> bool {
     event
         .typed_data::<SessionIdleData>()
@@ -3754,10 +3741,7 @@ async fn handle_notification(
                     let tool_result = tokio::select! {
                         biased;
                         _ = cancellation.cancelled() => return,
-                        result = tool_handler.call(invocation) => match result {
-                            Ok(r) => r,
-                            Err(e) => tool_failure_result(e.to_string()),
-                        },
+                        result = tool_handler.call(invocation) => result,
                     };
                     tracing::debug!(
                         elapsed_ms = handler_start.elapsed().as_millis(),
@@ -3770,17 +3754,25 @@ async fn handle_notification(
                     if !guard.claim() {
                         return;
                     }
-                    let result_value = serde_json::to_value(tool_result).unwrap_or(Value::Null);
+                    // A handler error goes on the top-level `error` param, which the
+                    // runtime logs and reports to the model as a generic failure. A
+                    // result the handler returns, including a failure result, is sent
+                    // as written.
+                    let params = match tool_result {
+                        Ok(result) => serde_json::json!({
+                            "sessionId": sid,
+                            "requestId": request_id,
+                            "result": serde_json::to_value(result).unwrap_or(Value::Null),
+                        }),
+                        Err(e) => serde_json::json!({
+                            "sessionId": sid,
+                            "requestId": request_id,
+                            "error": e.to_string(),
+                        }),
+                    };
                     let rpc_start = Instant::now();
                     let _ = client
-                        .call(
-                            "session.tools.handlePendingToolCall",
-                            Some(serde_json::json!({
-                                "sessionId": sid,
-                                "requestId": request_id,
-                                "result": result_value,
-                            })),
-                        )
+                        .call("session.tools.handlePendingToolCall", Some(params))
                         .await;
                     tracing::debug!(
                         elapsed_ms = rpc_start.elapsed().as_millis(),
@@ -4343,10 +4335,12 @@ async fn handle_request(
                 .and_then(|p| p.get("allowFreeform"))
                 .and_then(|v| v.as_bool());
 
+            let request_id = params.and_then(extract_request_id);
+
             let handler_start = Instant::now();
             let response = if let Some(user_input_handler) = handlers.user_input.as_ref() {
                 user_input_handler
-                    .handle(sid.clone(), question, choices, allow_freeform)
+                    .handle(sid.clone(), request_id, question, choices, allow_freeform)
                     .await
             } else {
                 None
@@ -4382,6 +4376,7 @@ async fn handle_request(
                 .as_ref()
                 .cloned()
                 .unwrap_or(Value::Object(serde_json::Map::new()));
+            let request_id = extract_request_id(&params);
             let data: ExitPlanModeData = match serde_json::from_value(params) {
                 Ok(d) => d,
                 Err(e) => {
@@ -4391,7 +4386,7 @@ async fn handle_request(
             };
 
             let rpc_result = if let Some(exit_plan_handler) = handlers.exit_plan_mode.as_ref() {
-                let result = exit_plan_handler.handle(sid, data).await;
+                let result = exit_plan_handler.handle(sid, request_id, data).await;
                 serde_json::to_value(result).expect("ExitPlanModeResult serialization cannot fail")
             } else {
                 serde_json::json!({ "approved": true })

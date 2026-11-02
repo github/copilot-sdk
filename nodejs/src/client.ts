@@ -3696,6 +3696,7 @@ export class CopilotClient {
                 question: string;
                 choices?: string[];
                 allowFreeform?: boolean;
+                requestId?: string;
             }): Promise<{ answer: string; wasFreeform: boolean }> =>
                 await this.handleUserInputRequest(params)
         );
@@ -4017,6 +4018,7 @@ export class CopilotClient {
         question: string;
         choices?: string[];
         allowFreeform?: boolean;
+        requestId?: string;
     }): Promise<{ answer: string; wasFreeform: boolean }> {
         if (
             !params ||
@@ -4035,6 +4037,7 @@ export class CopilotClient {
             question: params.question,
             choices: params.choices,
             allowFreeform: params.allowFreeform,
+            requestId: params.requestId,
         });
         return result;
     }
@@ -4062,6 +4065,7 @@ export class CopilotClient {
             planContent: params.planContent,
             actions: params.actions,
             recommendedAction: params.recommendedAction,
+            requestId: params.requestId,
         });
     }
 

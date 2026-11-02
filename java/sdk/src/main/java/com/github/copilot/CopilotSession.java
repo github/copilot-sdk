@@ -1910,7 +1910,11 @@ public final class CopilotSession implements AutoCloseable {
         }
         Map<String, ToolDefinition> handlers = new LinkedHashMap<>();
         for (ToolDefinition tool : tools) {
-            handlers.put(tool.name(), tool);
+            // A tool without a handler is declaration-only: its calls stay pending for
+            // the application or another connected client to answer.
+            if (tool.handler() != null) {
+                handlers.put(tool.name(), tool);
+            }
         }
         return Collections.unmodifiableMap(handlers);
     }

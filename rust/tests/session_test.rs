@@ -4085,6 +4085,7 @@ async fn user_input_request_dispatches_to_handler() {
         async fn handle(
             &self,
             _session_id: SessionId,
+            _request_id: Option<RequestId>,
             question: String,
             _choices: Option<Vec<String>>,
             _allow_freeform: Option<bool>,
@@ -4127,6 +4128,7 @@ async fn exit_plan_mode_request_dispatches_to_handler() {
         async fn handle(
             &self,
             _session_id: SessionId,
+            _request_id: Option<RequestId>,
             data: ExitPlanModeData,
         ) -> ExitPlanModeResult {
             assert_eq!(data.summary, "Ready to implement");
@@ -4167,6 +4169,90 @@ async fn exit_plan_mode_request_dispatches_to_handler() {
     assert_eq!(response["result"]["approved"], true);
     assert_eq!(response["result"]["selectedAction"], "interactive");
     assert_eq!(response["result"]["feedback"], "Looks good");
+}
+
+#[tokio::test]
+async fn legacy_callbacks_forward_runtime_request_ids() {
+    type Recorded = Arc<std::sync::Mutex<Vec<Option<RequestId>>>>;
+    struct RequestIdHandler(Recorded);
+    #[async_trait]
+    impl UserInputHandler for RequestIdHandler {
+        async fn handle(
+            &self,
+            _session_id: SessionId,
+            request_id: Option<RequestId>,
+            _question: String,
+            _choices: Option<Vec<String>>,
+            _allow_freeform: Option<bool>,
+        ) -> Option<UserInputResponse> {
+            self.0.lock().unwrap().push(request_id);
+            Some(UserInputResponse {
+                answer: "yes".to_string(),
+                was_freeform: true,
+            })
+        }
+    }
+    #[async_trait]
+    impl ExitPlanModeHandler for RequestIdHandler {
+        async fn handle(
+            &self,
+            _session_id: SessionId,
+            request_id: Option<RequestId>,
+            _data: ExitPlanModeData,
+        ) -> ExitPlanModeResult {
+            self.0.lock().unwrap().push(request_id);
+            ExitPlanModeResult::default()
+        }
+    }
+
+    let user_input: Recorded = Arc::default();
+    let exit_plan: Recorded = Arc::default();
+    let (_session, mut server) = create_session_pair_with_config({
+        let user_input = user_input.clone();
+        let exit_plan = exit_plan.clone();
+        move |cfg| {
+            cfg.with_user_input_handler(Arc::new(RequestIdHandler(user_input)))
+                .with_exit_plan_mode_handler(Arc::new(RequestIdHandler(exit_plan)))
+        }
+    })
+    .await;
+    for (id, request_id) in [(320, Some("input-1")), (321, None)] {
+        let mut params = serde_json::json!({
+            "sessionId": server.session_id,
+            "question": "Continue?",
+        });
+        if let Some(request_id) = request_id {
+            params["requestId"] = request_id.into();
+        }
+        server.send_request(id, "userInput.request", params).await;
+        let response = timeout(TIMEOUT, server.read_response()).await.unwrap();
+        assert_eq!(response["id"], id);
+        assert_eq!(response["result"]["answer"], "yes");
+    }
+    for (id, request_id) in [(322, Some("plan-1")), (323, None)] {
+        let mut params = serde_json::json!({
+            "sessionId": server.session_id,
+            "summary": "Ready to implement",
+        });
+        if let Some(request_id) = request_id {
+            params["requestId"] = request_id.into();
+        }
+        server
+            .send_request(id, "exitPlanMode.request", params)
+            .await;
+        let response = timeout(TIMEOUT, server.read_response()).await.unwrap();
+        assert_eq!(response["id"], id);
+        assert_eq!(response["result"]["approved"], true);
+    }
+
+    assert_eq!(
+        *user_input.lock().unwrap(),
+        vec![Some(RequestId::new("input-1")), None]
+    );
+    assert_eq!(
+        *exit_plan.lock().unwrap(),
+        vec![Some(RequestId::new("plan-1")), None]
+    );
 }
 
 #[tokio::test]
@@ -4249,6 +4335,7 @@ async fn user_input_requested_notification_does_not_double_dispatch() {
         async fn handle(
             &self,
             _session_id: SessionId,
+            _request_id: Option<RequestId>,
             _question: String,
             _choices: Option<Vec<String>>,
             _allow_freeform: Option<bool>,
@@ -6762,6 +6849,7 @@ async fn stop_event_loop_completes_in_flight_handler() {
         async fn handle(
             &self,
             _session_id: SessionId,
+            _request_id: Option<RequestId>,
             _question: String,
             _choices: Option<Vec<String>>,
             _allow_freeform: Option<bool>,
@@ -6835,6 +6923,7 @@ async fn panicking_request_handler_responds_with_internal_error() {
         async fn handle(
             &self,
             _session_id: SessionId,
+            _request_id: Option<RequestId>,
             _question: String,
             _choices: Option<Vec<String>>,
             _allow_freeform: Option<bool>,
@@ -6903,6 +6992,7 @@ async fn drop_session_does_not_abort_handler() {
         async fn handle(
             &self,
             _session_id: SessionId,
+            _request_id: Option<RequestId>,
             _question: String,
             _choices: Option<Vec<String>>,
             _allow_freeform: Option<bool>,
@@ -7364,6 +7454,66 @@ async fn external_tool_requested_dispatches_to_handler_and_responds() {
     assert_eq!(rpc_call["method"], "session.tools.handlePendingToolCall");
     assert_eq!(rpc_call["params"]["requestId"], "req-ext-1");
     assert_eq!(rpc_call["params"]["result"], "all tests passed");
+}
+
+#[tokio::test]
+async fn external_tool_handler_error_is_reported_on_error_param() {
+    struct FailingTool;
+    #[async_trait]
+    impl tool::ToolHandler for FailingTool {
+        async fn call(
+            &self,
+            _invocation: ToolInvocation,
+        ) -> Result<ToolResult, github_copilot_sdk::Error> {
+            Err(std::io::Error::other("backend unavailable").into())
+        }
+    }
+    struct FailureResultTool;
+    #[async_trait]
+    impl tool::ToolHandler for FailureResultTool {
+        async fn call(
+            &self,
+            _invocation: ToolInvocation,
+        ) -> Result<ToolResult, github_copilot_sdk::Error> {
+            Ok(ToolResult::Expanded(
+                github_copilot_sdk::ToolResultExpanded::new("quota exceeded", "failure"),
+            ))
+        }
+    }
+
+    let (_session, mut server) = create_session_pair_with_config(|cfg| {
+        cfg.with_tools(vec![
+            Tool::new("failing")
+                .with_description("Fails")
+                .with_parameters(serde_json::json!({"type": "object"}))
+                .with_handler(Arc::new(FailingTool)),
+            Tool::new("reports_failure")
+                .with_description("Returns a failure result")
+                .with_parameters(serde_json::json!({"type": "object"}))
+                .with_handler(Arc::new(FailureResultTool)),
+        ])
+    })
+    .await;
+
+    // A handler error goes on the top-level `error` param, like the other SDKs.
+    request_external_tool(&mut server, "req-err", "failing").await;
+    let reply = timeout(TIMEOUT, server.read_request()).await.unwrap();
+    assert_eq!(reply["method"], "session.tools.handlePendingToolCall");
+    assert_eq!(reply["params"]["requestId"], "req-err");
+    assert_eq!(
+        reply["params"]["error"],
+        github_copilot_sdk::Error::from(std::io::Error::other("backend unavailable")).to_string()
+    );
+    assert!(
+        reply["params"].get("result").is_none(),
+        "a handler error must not be sent as a result: {reply}"
+    );
+
+    // A failure result the handler returns is still sent as the result.
+    request_external_tool(&mut server, "req-failure", "reports_failure").await;
+    let result = read_tool_result(&mut server, "req-failure").await;
+    assert_eq!(result["textResultForLlm"], "quota exceeded");
+    assert_eq!(result["resultType"], "failure");
 }
 
 #[tokio::test]

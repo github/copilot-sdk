@@ -3008,7 +3008,7 @@ class CopilotClient:
             payload["isExperimentalMode"] = enable_experimental_mode
         if context_tier:
             payload["contextTier"] = context_tier
-        if tool_defs:
+        if tools is not None:
             payload["tools"] = tool_defs
 
         wire_system_message, transform_callbacks = _extract_transform_callbacks(system_message)
@@ -3160,7 +3160,7 @@ class CopilotClient:
         payload["envValueMode"] = "direct"
 
         # Add custom agents configuration if provided
-        if custom_agents:
+        if custom_agents is not None:
             payload["customAgents"] = [
                 self._convert_custom_agent_to_wire_format(agent) for agent in custom_agents
             ]
@@ -3677,7 +3677,9 @@ class CopilotClient:
                 runtime decides when omitted.
             context_tier: Context window tier for models that support it. Use
                 ``"long_context"`` to pin the session to the long-context tier.
-            tools: Custom tools to register with the session.
+            tools: Custom tools to register with the session. An empty list
+                replaces the tools previously registered for this session with
+                none; ``None`` leaves them unchanged.
             system_message: System message configuration.
             available_tools: Allowlist of tools to enable. When specified, only
                 these tools will be available. Applies to the full merged tool
@@ -3951,7 +3953,7 @@ class CopilotClient:
             payload["isExperimentalMode"] = enable_experimental_mode
         if context_tier:
             payload["contextTier"] = context_tier
-        if tool_defs:
+        if tools is not None:
             payload["tools"] = tool_defs
         wire_system_message, transform_callbacks = _extract_transform_callbacks(system_message)
         if wire_system_message:
@@ -4104,7 +4106,7 @@ class CopilotClient:
             payload["embeddingCacheStorage"] = embedding_cache_storage
         payload["envValueMode"] = "direct"
 
-        if custom_agents:
+        if custom_agents is not None:
             payload["customAgents"] = [
                 self._convert_custom_agent_to_wire_format(a) for a in custom_agents
             ]

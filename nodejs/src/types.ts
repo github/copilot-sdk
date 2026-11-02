@@ -1613,6 +1613,13 @@ export interface UserInputRequest {
      * @default true
      */
     allowFreeform?: boolean;
+
+    /**
+     * Runtime ID of the pending `user_input.requested` request. Pass it as `requestId`
+     * to answer this exact request through the session's UI RPCs. Absent when the
+     * runtime predates this field.
+     */
+    requestId?: string;
 }
 
 /**
@@ -1650,6 +1657,12 @@ export interface ExitPlanModeRequest {
     actions: string[];
     /** The action recommended by the runtime. */
     recommendedAction: string;
+    /**
+     * Runtime ID of the pending `exit_plan_mode.requested` request. Pass it as
+     * `requestId` to answer this exact request through the session's UI RPCs. Absent
+     * when the runtime predates this field.
+     */
+    requestId?: string;
 }
 
 /**

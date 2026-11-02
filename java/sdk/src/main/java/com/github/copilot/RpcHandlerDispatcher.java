@@ -496,6 +496,10 @@ final class RpcHandlerDispatcher {
                 if (allowFreeformNode != null) {
                     request.setAllowFreeform(allowFreeformNode.asBoolean());
                 }
+                JsonNode pendingRequestIdNode = params.get("requestId");
+                if (pendingRequestIdNode != null && pendingRequestIdNode.isTextual()) {
+                    request.setRequestId(pendingRequestIdNode.asText());
+                }
 
                 session.handleUserInputRequest(request).thenAccept(response -> {
                     try {
@@ -617,6 +621,10 @@ final class RpcHandlerDispatcher {
                 }
                 if (params.has("recommendedAction") && !params.get("recommendedAction").isNull()) {
                     request.setRecommendedAction(params.get("recommendedAction").asText());
+                }
+                JsonNode pendingRequestIdNode = params.get("requestId");
+                if (pendingRequestIdNode != null && pendingRequestIdNode.isTextual()) {
+                    request.setRequestId(pendingRequestIdNode.asText());
                 }
 
                 session.handleExitPlanModeRequest(request).thenAccept(result -> {

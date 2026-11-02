@@ -21,6 +21,7 @@ from copilot.generated.rpc import (
 from copilot.rpc import (
     AuthReadValue,
     BuiltinToolInputSchemaType,
+    CatalogInvalidRequestError,
     CommandsApi,
     CommandsInvokeRequest,
     CommandsRespondToQueuedCommandRequest,
@@ -45,6 +46,21 @@ from copilot.rpc import (
     UIElicitationSchemaType,
     UpdateSubagentSettingsRequest,
 )
+
+
+def test_catalog_product_validation_refusal_preserves_typed_field():
+    payload = {
+        "kind": "invalid-request",
+        "field": "product",
+        "message": "The product must contain between 1 and 256 characters.",
+    }
+
+    result = CatalogInvalidRequestError.from_dict(payload)
+
+    assert result.kind == "invalid-request"
+    assert result.field.value == "product"
+    assert result.field.name == "PRODUCT"
+    assert result.to_dict() == payload
 
 
 async def test_settings_redaction_keeps_required_opaque_null():

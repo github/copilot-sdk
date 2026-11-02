@@ -121,8 +121,6 @@ Here are language-specific implementations:
 <details open>
 <summary><strong>.NET</strong></summary>
 
-<!-- docs-validate: skip -->
-
 ```csharp
 using Azure.Core;
 using Azure.Identity;
@@ -133,6 +131,7 @@ DefaultAzureCredential credential = new(
 await using CopilotClient client = new();
 string foundryUrl = Environment.GetEnvironmentVariable("FOUNDRY_RESOURCE_URL")!;
 
+#pragma warning disable GHCP001 // Bearer token providers are experimental.
 await using CopilotSession session = await client.CreateSessionAsync(new SessionConfig
 {
     Model = "gpt-5.5",
@@ -154,6 +153,8 @@ AssistantMessageEvent? response = await session.SendAndWaitAsync(
     new MessageOptions { Prompt = "Hello from Managed Identity!" });
 Console.WriteLine(response?.Data.Content);
 ```
+
+The .NET `BearerTokenProvider` property raises the `GHCP001` experimental diagnostic. Suppress it with `#pragma warning disable GHCP001` or a project-level `<NoWarn>GHCP001</NoWarn>`.
 
 </details>
 <details>

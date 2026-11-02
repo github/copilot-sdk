@@ -2734,6 +2734,27 @@ pub struct CatalogPlanInstallFromReferenceRequest {
     pub reference: CatalogMaterializationReference,
 }
 
+/// Initial-page official-product recommendations for a complete task. The runtime fixes recommendationPolicy to official-product and pageSize to 10; callers cannot override the policy, request pagination or fall back to search.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct CatalogRecommendRequest {
+    /// Required contract, including catalog-recommend, catalog-search-session-bound and catalog-search-credential-required.
+    pub contract: CatalogClientContract,
+    /// Existing attached local session whose account, host and connection own the candidate references. Never creates or resumes a session.
+    pub policy_session_id: String,
+    /// Requested product. Agent Finder resolves aliases and applies its versioned official-product approvals before limiting results.
+    pub product: String,
+    /// Full original task, including action, account, output and host requirements. Forwarded without trimming or rewriting and excluded from telemetry.
+    pub query: String,
+}
+
 /// The reference pins a Skill. Apply the plan with skills.applyInstall.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -12821,7 +12842,7 @@ pub enum CatalogUnsupportedKindErrorKind {
     UnsupportedKind,
 }
 
-/// Outcome of a catalog.search call: either bounded inert candidates, or one typed refusal. Never a partial success.
+/// Outcome of catalog.search or catalog.recommend: either bounded inert candidates, or one typed refusal. Never a partial success.
 ///
 /// <div class="warning">
 ///

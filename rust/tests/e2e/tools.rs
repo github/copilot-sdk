@@ -608,10 +608,7 @@ fn error_tool() -> Tool {
 #[async_trait::async_trait]
 impl ToolHandler for ErrorTool {
     async fn call(&self, _invocation: ToolInvocation) -> Result<ToolResult, Error> {
-        Ok(ToolResult::Text(
-            "Failed to execute `get_user_location` tool with arguments: {} due to error: Error: Tool execution failed"
-                .to_string(),
-        ))
+        Err(std::io::Error::other("Melbourne").into())
     }
 }
 

@@ -3333,6 +3333,26 @@ type CatalogPluginRepositorySource struct {
 	Repository string `json:"repository"`
 }
 
+// Initial-page official-product recommendations for a complete task. The runtime fixes
+// recommendationPolicy to official-product and pageSize to 10; callers cannot override the
+// policy, request pagination or fall back to search.
+// Experimental: CatalogRecommendRequest is part of an experimental API and may change or be
+// removed.
+type CatalogRecommendRequest struct {
+	// Required contract, including catalog-recommend, catalog-search-session-bound and
+	// catalog-search-credential-required.
+	Contract CatalogClientContract `json:"contract"`
+	// Existing attached local session whose account, host and connection own the candidate
+	// references. Never creates or resumes a session.
+	PolicySessionID string `json:"policySessionId"`
+	// Requested product. Agent Finder resolves aliases and applies its versioned
+	// official-product approvals before limiting results.
+	Product string `json:"product"`
+	// Full original task, including action, account, output and host requirements. Forwarded
+	// without trimming or rewriting and excluded from telemetry.
+	Query string `json:"query"`
+}
+
 // Planning outcome for a materialisation reference. A plan names its kind, so the caller
 // applies it with that kind's apply method.
 // Experimental: CatalogReferenceInstallationOutcome is part of an experimental API and may
@@ -3813,8 +3833,8 @@ type CatalogSearchRequest struct {
 	Query string `json:"query"`
 }
 
-// Outcome of a catalog.search call: either bounded inert candidates, or one typed refusal.
-// Never a partial success.
+// Outcome of catalog.search or catalog.recommend: either bounded inert candidates, or one
+// typed refusal. Never a partial success.
 // Experimental: CatalogSearchResult is part of an experimental API and may change or be
 // removed.
 type CatalogSearchResult interface {
@@ -28904,6 +28924,12 @@ const (
 	// catalog-search-credential-required; add catalog-search-session-bound to bind the
 	// retrieval to a selected session.
 	CatalogCapabilityCatalogFeeds CatalogCapability = "catalog-feeds"
+	// Understands initial-page official-product recommendations for a full task and product
+	// with fixed pageSize 10. Requires session-bound, credential-required catalogue support. No
+	// anonymous retry, broad-search fallback or continuation. Authentication uses the selected
+	// GitHub.com user credential; successful capability negotiation does not establish service
+	// acceptance.
+	CatalogCapabilityCatalogRecommend CatalogCapability = "catalog-recommend"
 	// Understands catalog.planInstallFromReference, which plans installing whatever resource an
 	// Agent Finder materialisation reference pins. It plans only kinds whose installation
 	// capability the caller also requires: skill-confirmed-installation for Skills,
@@ -29094,6 +29120,8 @@ const (
 	CatalogInvalidRequestFieldPage CatalogInvalidRequestField = "page"
 	// The selected existing attached session was missing, malformed or unavailable.
 	CatalogInvalidRequestFieldPolicySessionID CatalogInvalidRequestField = "policySessionId"
+	// The requested recommendation product was missing, blank or longer than permitted.
+	CatalogInvalidRequestFieldProduct CatalogInvalidRequestField = "product"
 	// The search query was empty or longer than permitted.
 	CatalogInvalidRequestFieldQuery CatalogInvalidRequestField = "query"
 	// The requested configuration scope is not one this runtime writes.
@@ -34923,6 +34951,36 @@ func (a *ServerCatalogAPI) PlanInstallFromReference(ctx context.Context, params 
 	return result, nil
 }
 
+// Recommend requests the initial page of at most ten official-product recommendations for a
+// complete task and product, bound to an existing attached local session. Requires
+// catalog-recommend, catalog-search-session-bound and catalog-search-credential-required.
+// Uses the selected GitHub.com user credential on the fixed Agent Finder recommendations
+// route; successful capability negotiation does not establish service acceptance. Returns
+// the existing inert catalog candidates and retained install references with the typed
+// catalog refusal union. No anonymous retry, unfiltered search fallback or continuation is
+// performed. Server-owned product approvals establish provenance, not task suitability.
+// Read-only: nothing is installed, configured or persisted.
+//
+// RPC method: catalog.recommend.
+//
+// Parameters: Initial-page official-product recommendations for a complete task. The
+// runtime fixes recommendationPolicy to official-product and pageSize to 10; callers cannot
+// override the policy, request pagination or fall back to search.
+//
+// Returns: Outcome of catalog.search or catalog.recommend: either bounded inert candidates,
+// or one typed refusal. Never a partial success.
+func (a *ServerCatalogAPI) Recommend(ctx context.Context, params *CatalogRecommendRequest) (CatalogSearchResult, error) {
+	raw, err := a.client.Request(ctx, "catalog.recommend", params)
+	if err != nil {
+		return nil, err
+	}
+	result, err := unmarshalCatalogSearchResult(raw)
+	if err != nil {
+		return nil, err
+	}
+	return result, nil
+}
+
 // Search requests a bounded catalog search. This host-implemented server method is
 // available through SDK/TUI hosts; standalone and C-ABI runtimes whose host does not
 // implement server-method dispatch return JSON-RPC MethodNotFound. A runtime with search
@@ -34938,8 +34996,8 @@ func (a *ServerCatalogAPI) PlanInstallFromReference(ctx context.Context, params 
 // Parameters: A bounded catalog search. Both the query length and the result count are
 // capped by the schema so a caller cannot request an unbounded scan.
 //
-// Returns: Outcome of a catalog.search call: either bounded inert candidates, or one typed
-// refusal. Never a partial success.
+// Returns: Outcome of catalog.search or catalog.recommend: either bounded inert candidates,
+// or one typed refusal. Never a partial success.
 func (a *ServerCatalogAPI) Search(ctx context.Context, params *CatalogSearchRequest) (CatalogSearchResult, error) {
 	raw, err := a.client.Request(ctx, "catalog.search", params)
 	if err != nil {

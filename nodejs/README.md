@@ -782,6 +782,38 @@ See `SessionEvent` type in the source for full details.
 
 The SDK supports image attachments via the `attachments` parameter. You can attach images by providing their file path, or by passing base64-encoded data directly using a blob attachment:
 
+<!-- docs-validate: strict -->
+<!-- docs-validate: hidden -->
+```typescript
+import type { CopilotSession } from "@github/copilot-sdk";
+
+declare const session: CopilotSession;
+declare const base64ImageData: string;
+
+// File attachment — runtime reads from disk
+await session.send({
+    prompt: "What's in this image?",
+    attachments: [
+        {
+            type: "file",
+            path: "/path/to/image.jpg",
+        },
+    ],
+});
+
+// Blob attachment — provide base64 data directly
+await session.send({
+    prompt: "What's in this image?",
+    attachments: [
+        {
+            type: "blob",
+            data: base64ImageData,
+            mimeType: "image/png",
+        },
+    ],
+});
+```
+<!-- /docs-validate: hidden -->
 ```typescript
 // File attachment — runtime reads from disk
 await session.send({
@@ -809,6 +841,16 @@ await session.send({
 
 Supported image formats are PNG, JPEG, WebP, and GIF. Images in other formats, such as BMP or TIFF, are not sent to the model. The agent's `view` tool can also read images directly from the filesystem, so you can also ask questions like:
 
+<!-- docs-validate: strict -->
+<!-- docs-validate: hidden -->
+```typescript
+import type { CopilotSession } from "@github/copilot-sdk";
+
+declare const session: CopilotSession;
+
+await session.send({ prompt: "What does the most recent jpg in this directory portray?" });
+```
+<!-- /docs-validate: hidden -->
 ```typescript
 await session.send({ prompt: "What does the most recent jpg in this directory portray?" });
 ```
@@ -817,6 +859,51 @@ await session.send({ prompt: "What does the most recent jpg in this directory po
 
 Enable streaming to receive assistant response chunks as they're generated:
 
+<!-- docs-validate: strict -->
+<!-- docs-validate: hidden -->
+```typescript
+import { approveAll } from "@github/copilot-sdk";
+
+const session = await client.createSession({
+    model: "gpt-5",
+    streaming: true,
+    onPermissionRequest: approveAll,
+});
+
+// Wait for completion using typed event handlers
+const done = new Promise<void>((resolve) => {
+    session.on("assistant.message_delta", (event) => {
+        // Streaming message chunk - print incrementally
+        process.stdout.write(event.data.deltaContent);
+    });
+
+    session.on("assistant.reasoning_delta", (event) => {
+        // Streaming reasoning chunk (if model supports reasoning)
+        process.stdout.write(event.data.deltaContent);
+    });
+
+    session.on("assistant.message", (event) => {
+        // Final message - complete content
+        console.log("\n--- Final message ---");
+        console.log(event.data.content);
+    });
+
+    session.on("assistant.reasoning", (event) => {
+        // Final reasoning content (if model supports reasoning)
+        console.log("--- Reasoning ---");
+        console.log(event.data.content);
+    });
+
+    session.on("session.idle", () => {
+        // Session finished processing
+        resolve();
+    });
+});
+
+await session.send({ prompt: "Tell me a short story" });
+await done; // Wait for streaming to complete
+```
+<!-- /docs-validate: hidden -->
 ```typescript
 const session = await client.createSession({
     model: "gpt-5",
@@ -1776,6 +1863,7 @@ const session = await client.createSession({
         // request.question - The question to ask
         // request.choices - Optional array of choices for multiple choice
         // request.allowFreeform - Whether freeform input is allowed (default: true)
+        // request.requestId - Runtime ID of the pending request (absent on older runtimes)
 
         console.log(`Agent asks: ${request.question}`);
         if (request.choices) {

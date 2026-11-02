@@ -666,6 +666,14 @@ class UserInputRequest(TypedDict, total=False):
     question: str
     choices: list[str]
     allowFreeform: bool
+    requestId: str
+    """Runtime request ID of the pending ``user_input.requested`` event.
+
+    Pass it as ``request_id`` to ``session.rpc.ui.handle_pending_user_input``
+    (wire ``requestId`` of ``session.ui.handlePendingUserInput``, or the trusted
+    ``session.ui.handleHumanUserInput`` path) to correlate an out-of-band answer.
+    Absent when the runtime predates this field.
+    """
 
 
 class UserInputResponse(TypedDict):
@@ -688,6 +696,14 @@ class ExitPlanModeRequest(TypedDict, total=False):
     planContent: NotRequired[str]
     actions: Required[list[str]]
     recommendedAction: Required[str]
+    requestId: NotRequired[str]
+    """Runtime request ID of the pending ``exit_plan_mode.requested`` event.
+
+    Pass it as ``request_id`` to ``session.rpc.ui.handle_pending_exit_plan_mode``
+    (wire ``requestId`` of ``session.ui.handlePendingExitPlanMode``, or the trusted
+    ``session.ui.handleHumanExitPlanMode`` path) to correlate an out-of-band answer.
+    Absent when the runtime predates this field.
+    """
 
 
 class ExitPlanModeResult(TypedDict, total=False):
@@ -3784,14 +3800,15 @@ class CopilotSession:
 
         try:
             handler_start = time.perf_counter()
-            result = handler(
-                UserInputRequest(
-                    question=request.get("question", ""),
-                    choices=request.get("choices") or [],
-                    allowFreeform=request.get("allowFreeform", True),
-                ),
-                {"session_id": self.session_id},
+            typed_request = UserInputRequest(
+                question=request.get("question", ""),
+                choices=request.get("choices") or [],
+                allowFreeform=request.get("allowFreeform", True),
             )
+            request_id = request.get("requestId")
+            if isinstance(request_id, str) and request_id:
+                typed_request["requestId"] = request_id
+            result = handler(typed_request, {"session_id": self.session_id})
             if inspect.isawaitable(result):
                 result = await result
             log_timing(
@@ -3821,6 +3838,9 @@ class CopilotSession:
         )
         if request.get("planContent") is not None:
             typed_request["planContent"] = request["planContent"]
+        request_id = request.get("requestId")
+        if isinstance(request_id, str) and request_id:
+            typed_request["requestId"] = request_id
 
         result = handler(typed_request, {"session_id": self.session_id})
         if inspect.isawaitable(result):

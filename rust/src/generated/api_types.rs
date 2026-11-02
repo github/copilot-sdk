@@ -419,6 +419,8 @@ pub mod rpc_methods {
     pub const REGISTEREXTENSIONLAUNCHPROVIDER: &str = "registerExtensionLaunchProvider";
     /// `catalog.search`
     pub const CATALOG_SEARCH: &str = "catalog.search";
+    /// `catalog.recommend`
+    pub const CATALOG_RECOMMEND: &str = "catalog.recommend";
     /// `catalog.getSavedFeed`
     pub const CATALOG_GETSAVEDFEED: &str = "catalog.getSavedFeed";
     /// `catalog.getGeneratedFeed`
@@ -2324,8 +2326,9 @@ pub use sdk_api_services::{
     CatalogGetSavedFeedSucceededKind, CatalogMaterializationReference, CatalogMcpServerCandidate,
     CatalogMcpServerCandidateKind, CatalogMcpServerCandidateProvenance,
     CatalogMcpServerInstallability, CatalogPlanInstallFromReferenceRequest,
-    CatalogPluginRepositorySource, CatalogReferenceInstallationFailureReason,
-    CatalogReferenceInstallationOutcome, CatalogReferenceInstallationOutcomePluginInstallPlanned,
+    CatalogPluginRepositorySource, CatalogRecommendRequest,
+    CatalogReferenceInstallationFailureReason, CatalogReferenceInstallationOutcome,
+    CatalogReferenceInstallationOutcomePluginInstallPlanned,
     CatalogReferenceInstallationOutcomePluginInstallPlannedKind,
     CatalogReferenceInstallationOutcomeRefused, CatalogReferenceInstallationOutcomeRefusedKind,
     CatalogReferenceInstallationOutcomeSkillInstallPlanned,

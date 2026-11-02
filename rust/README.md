@@ -892,6 +892,7 @@ A single type can implement multiple handler traits — share one `Arc<Self>` ac
 #     async fn handle(
 #         &self,
 #         _: SessionId,
+#         _: Option<RequestId>,
 #         _: String,
 #         _: Option<Vec<String>>,
 #         _: Option<bool>,
@@ -1385,7 +1386,7 @@ Some sessions ask the user free-form questions (or multiple-choice prompts) outs
 use std::sync::Arc;
 use async_trait::async_trait;
 use github_copilot_sdk::handler::{UserInputHandler, UserInputResponse};
-use github_copilot_sdk::types::{SessionConfig, SessionId};
+use github_copilot_sdk::types::{RequestId, SessionConfig, SessionId};
 
 struct MyUserInput;
 
@@ -1394,6 +1395,7 @@ impl UserInputHandler for MyUserInput {
     async fn handle(
         &self,
         _sid: SessionId,
+        _request_id: Option<RequestId>,
         question: String,
         _choices: Option<Vec<String>>,
         _allow_freeform: Option<bool>,
@@ -1411,6 +1413,10 @@ let config = SessionConfig::default()
 ```
 
 Return `None` to signal "no answer available" (the CLI falls back to its own prompt).
+
+`request_id` is the runtime ID of the pending request; pass it as `requestId` to `session.ui.handlePendingUserInput` to answer that exact request out of band. `ExitPlanModeHandler::handle` receives the same ID for `session.ui.handlePendingExitPlanMode`. The ID is `None` when the runtime predates it.
+
+**Migration (breaking change):** `UserInputHandler::handle` and `ExitPlanModeHandler::handle` now take `request_id: Option<RequestId>` immediately after `session_id`. Add that parameter to existing implementations; handlers that don't need the ID can ignore it.
 
 ### Slash Commands
 
@@ -2215,3 +2221,13 @@ npm ci
 cd rust
 cargo test --features test-support
 ```
+
+CI also lints the shared platform-directory tests on Linux, macOS, and Windows:
+
+```bash
+cargo clippy --locked --manifest-path platform-dirs/Cargo.toml --all-targets -- --no-deps -D warnings -D clippy::unwrap_used
+```
+
+These modules are path-included by `cli_resolution_test` in unbundled builds
+with an extracted runtime, outside the library's test-only lint allowances.
+Checking the independent crate covers them without downloading a runtime.

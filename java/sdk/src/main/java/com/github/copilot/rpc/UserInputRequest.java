@@ -34,6 +34,9 @@ public class UserInputRequest {
     @JsonProperty("allowFreeform")
     private Boolean allowFreeform;
 
+    @JsonProperty("requestId")
+    private String requestId;
+
     /**
      * Gets the question to ask the user.
      *
@@ -107,6 +110,37 @@ public class UserInputRequest {
      */
     public UserInputRequest clearAllowFreeform() {
         this.allowFreeform = null;
+        return this;
+    }
+
+    /**
+     * Gets the runtime request ID of the pending {@code user_input.requested}
+     * request.
+     * <p>
+     * Pass it as {@code requestId} to the session's
+     * {@code session.ui.handlePendingUserInput} RPC (or the trusted
+     * {@code session.ui.handleHumanUserInput} path) to correlate an out-of-band
+     * answer with this exact request. This is not the JSON-RPC message ID.
+     *
+     * @return the runtime request ID, or {@code null} when the runtime predates
+     *         this field
+     * @since 1.0.15-preview.1
+     */
+    public String getRequestId() {
+        return requestId;
+    }
+
+    /**
+     * Sets the runtime request ID of the pending {@code user_input.requested}
+     * request.
+     *
+     * @param requestId
+     *            the runtime request ID, or {@code null} if unknown
+     * @return this instance for method chaining
+     * @since 1.0.15-preview.1
+     */
+    public UserInputRequest setRequestId(String requestId) {
+        this.requestId = requestId;
         return this;
     }
 

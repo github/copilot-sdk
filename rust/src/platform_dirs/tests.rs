@@ -252,7 +252,9 @@ fn actual_home_lookup_preserves_environment_and_passwd_fallback() {
         Some(" ".into()),
         Some(OsString::from_vec(b"/home/\xff".to_vec())),
     ] {
-        let mut child = std::process::Command::new(std::env::current_exe().unwrap());
+        let mut child = std::process::Command::new(
+            std::env::current_exe().expect("resolve current test executable"),
+        );
         child
             .current_dir(std::env::temp_dir())
             .args(["--exact", test, "--nocapture"])

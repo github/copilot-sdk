@@ -1137,6 +1137,8 @@ export type CatalogCapability =
   | "catalog-search-credential-required"
   /** Captures the exact existing native session, account, host and connection for authenticated catalogue search, selection and planning. Requires catalog-search-credential-required; does not grant installation or create a session. */
   | "catalog-search-session-bound"
+  /** Understands initial-page official-product recommendations for a full task and product with fixed pageSize 10. Requires session-bound, credential-required catalogue support. No anonymous retry, broad-search fallback or continuation. Authentication uses the selected GitHub.com user credential; successful capability negotiation does not establish service acceptance. */
+  | "catalog-recommend"
   /** Understands effect-free preparation, exact human-confirmed apply and owned removal for fully resolved personal remote MCP choices without supplied inputs or configured secrets. Advertised only when the real producer and lower owned admission are linked; requires original connection and bound session authority for new work. */
   | "mcp-confirmed-remote-installation"
   /** Extends mcp-confirmed-remote-installation to declared non-secret header and URL values and receipt-owned header secrets for personal remote MCP choices. Requires mcp-confirmed-remote-installation and bound session authority. Secret values are written only to the reviewed backend after confirmation and are never returned; package and stdio choices remain unsupported. Advertised only when owned secret effects and owned secret activation are linked. */
@@ -1267,6 +1269,8 @@ export type CatalogInvalidRequestField =
   | "policySessionId"
   /** The search query was empty or longer than permitted. */
   | "query"
+  /** The requested recommendation product was missing, blank or longer than permitted. */
+  | "product"
   /** The requested result count fell outside its permitted range. */
   | "limit"
   /** The requested candidate kinds were empty or contained a duplicate. */
@@ -1798,7 +1802,7 @@ export type CatalogSearchTotalCountRelation =
   /** No exact/full-query or lower-bound guarantee is available. */
   "unknown";
 /**
- * Outcome of a catalog.search call: either bounded inert candidates, or one typed refusal. Never a partial success.
+ * Outcome of catalog.search or catalog.recommend: either bounded inert candidates, or one typed refusal. Never a partial success.
  *
  * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
  * via the `definition` "CatalogSearchResult".
@@ -12450,6 +12454,31 @@ export interface CatalogPolicyRejectedError {
    * Human-readable explanation, safe to surface. Never contains a query, URL, handle, or secret.
    */
   message: string;
+}
+/**
+ * Initial-page official-product recommendations for a complete task. The runtime fixes recommendationPolicy to official-product and pageSize to 10; callers cannot override the policy, request pagination or fall back to search.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "CatalogRecommendRequest".
+ */
+/** @experimental */
+export interface CatalogRecommendRequest {
+  /**
+   * Required contract, including catalog-recommend, catalog-search-session-bound and catalog-search-credential-required.
+   */
+  contract: CatalogClientContract;
+  /**
+   * Existing attached local session whose account, host and connection own the candidate references. Never creates or resumes a session.
+   */
+  policySessionId: string;
+  /**
+   * Full original task, including action, account, output and host requirements. Forwarded without trimming or rewriting and excluded from telemetry.
+   */
+  query: string;
+  /**
+   * Requested product. Agent Finder resolves aliases and applies its versioned official-product approvals before limiting results.
+   */
+  product: string;
 }
 /**
  * A computed Skill install plan. Nothing has been applied.
@@ -43030,10 +43059,19 @@ export function createServerRpc(connection: MessageConnection) {
              *
              * @param params A bounded catalog search. Both the query length and the result count are capped by the schema so a caller cannot request an unbounded scan.
              *
-             * @returns Outcome of a catalog.search call: either bounded inert candidates, or one typed refusal. Never a partial success.
+             * @returns Outcome of catalog.search or catalog.recommend: either bounded inert candidates, or one typed refusal. Never a partial success.
              */
             search: async (params: CatalogSearchRequest): Promise<CatalogSearchResult> =>
                 connection.sendRequest("catalog.search", params),
+            /**
+             * Requests the initial page of at most ten official-product recommendations for a complete task and product, bound to an existing attached local session. Requires catalog-recommend, catalog-search-session-bound and catalog-search-credential-required. Uses the selected GitHub.com user credential on the fixed Agent Finder recommendations route; successful capability negotiation does not establish service acceptance. Returns the existing inert catalog candidates and retained install references with the typed catalog refusal union. No anonymous retry, unfiltered search fallback or continuation is performed. Server-owned product approvals establish provenance, not task suitability. Read-only: nothing is installed, configured or persisted.
+             *
+             * @param params Initial-page official-product recommendations for a complete task. The runtime fixes recommendationPolicy to official-product and pageSize to 10; callers cannot override the policy, request pagination or fall back to search.
+             *
+             * @returns Outcome of catalog.search or catalog.recommend: either bounded inert candidates, or one typed refusal. Never a partial success.
+             */
+            recommend: async (params: CatalogRecommendRequest): Promise<CatalogSearchResult> =>
+                connection.sendRequest("catalog.recommend", params),
             /**
              * Retrieves one saved feed by its opaque ID, optionally filtered by trust tier. Requires catalog-feeds and catalog-search-credential-required, and uses the same authority, credential policy, optional session binding and candidate projection as catalog.search, so available entries are the same inert candidates, with the same installability, handles and display metadata, and install through the same confirmed flows. Entries keep the feed's order; an entry the runtime cannot present is returned as unavailable with a reason rather than failing the feed. No anonymous retry. Read-only: nothing is installed, configured, or persisted.
              *

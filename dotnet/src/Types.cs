@@ -1073,6 +1073,18 @@ public sealed class UserInputRequest
     /// </summary>
     [JsonPropertyName("allowFreeform")]
     public bool? AllowFreeform { get; set; }
+
+    /// <summary>
+    /// Runtime request ID of the pending <c>user_input.requested</c> request.
+    /// </summary>
+    /// <remarks>
+    /// Pass it as <c>requestId</c> to the session's
+    /// <see cref="UiApi.HandlePendingUserInputAsync"/> (or the trusted
+    /// <c>session.ui.handleHumanUserInput</c> path) to correlate an out-of-band answer
+    /// with this request. <see langword="null"/> when the runtime predates this field.
+    /// </remarks>
+    [JsonPropertyName("requestId")]
+    public string? RequestId { get; set; }
 }
 
 /// <summary>
@@ -1132,6 +1144,18 @@ public sealed class ExitPlanModeRequest
     /// </summary>
     [JsonPropertyName("recommendedAction")]
     public string RecommendedAction { get; set; } = "autopilot";
+
+    /// <summary>
+    /// Runtime request ID of the pending <c>exit_plan_mode.requested</c> request.
+    /// </summary>
+    /// <remarks>
+    /// Pass it as <c>requestId</c> to the session's
+    /// <see cref="UiApi.HandlePendingExitPlanModeAsync"/> (or the trusted
+    /// <c>session.ui.handleHumanExitPlanMode</c> path) to correlate an out-of-band
+    /// decision with this request. <see langword="null"/> when the runtime predates this field.
+    /// </remarks>
+    [JsonPropertyName("requestId")]
+    public string? RequestId { get; set; }
 }
 
 /// <summary>

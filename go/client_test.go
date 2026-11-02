@@ -3057,6 +3057,74 @@ func TestSessionRequests_PluginDirectoriesAndLargeOutput(t *testing.T) {
 	})
 }
 
+func TestClient_ForwardsCustomAgentsPresenceToSessionRequests(t *testing.T) {
+	tests := []struct {
+		name   string
+		agents []CustomAgentConfig
+		want   any
+	}{
+		{"omitted", nil, nil},
+		// An explicitly empty list must reach the runtime: on resume it replaces the
+		// session's custom agents with none, which omitting the key cannot express.
+		{"empty", []CustomAgentConfig{}, []any{}},
+		{"one agent", []CustomAgentConfig{{Name: "alpha", Prompt: "you are alpha"}},
+			[]any{map[string]any{"name": "alpha", "prompt": "you are alpha"}}},
+	}
+
+	assertCustomAgents := func(t *testing.T, params json.RawMessage, want any) {
+		t.Helper()
+		var m map[string]any
+		if err := json.Unmarshal(params, &m); err != nil {
+			t.Fatalf("Failed to unmarshal: %v", err)
+		}
+		got, ok := m["customAgents"]
+		if want == nil {
+			if ok {
+				t.Errorf("Expected customAgents to be omitted, got %v", got)
+			}
+			return
+		}
+		if !ok || !reflect.DeepEqual(got, want) {
+			t.Errorf("Expected customAgents %v, got %v (present=%v)", want, got, ok)
+		}
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			rpcClient, server, _ := newRuntimeShutdownRpcPair(t)
+			t.Cleanup(server.Stop)
+			client := &Client{
+				client:   rpcClient,
+				RPC:      rpc.NewServerRPC(rpcClient),
+				sessions: make(map[string]*Session),
+			}
+
+			createParams := make(chan json.RawMessage, 1)
+			server.SetRequestHandler("session.create", func(params json.RawMessage) (json.RawMessage, *jsonrpc2.Error) {
+				createParams <- append(json.RawMessage(nil), params...)
+				sessionID := sessionIDFromParams(t, params)
+				return []byte(`{"sessionId":"` + sessionID + `","workspacePath":"/workspace"}`), nil
+			})
+
+			if _, err := client.CreateSession(t.Context(), &SessionConfig{Model: "auto", CustomAgents: tt.agents}); err != nil {
+				t.Fatalf("CreateSession failed: %v", err)
+			}
+			assertCustomAgents(t, <-createParams, tt.want)
+
+			resumeParams := make(chan json.RawMessage, 1)
+			server.SetRequestHandler("session.resume", func(params json.RawMessage) (json.RawMessage, *jsonrpc2.Error) {
+				resumeParams <- append(json.RawMessage(nil), params...)
+				return []byte(`{"sessionId":"resumed-agents","workspacePath":"/workspace"}`), nil
+			})
+
+			if _, err := client.ResumeSessionWithOptions(t.Context(), "resumed-agents", &ResumeSessionConfig{Model: "auto", CustomAgents: tt.agents}); err != nil {
+				t.Fatalf("ResumeSessionWithOptions failed: %v", err)
+			}
+			assertCustomAgents(t, <-resumeParams, tt.want)
+		})
+	}
+}
+
 func TestClient_ForwardsMCPServersPresenceToSessionRequests(t *testing.T) {
 	tests := []struct {
 		name    string
@@ -3122,6 +3190,75 @@ func TestClient_ForwardsMCPServersPresenceToSessionRequests(t *testing.T) {
 				t.Fatalf("ResumeSessionWithOptions failed: %v", err)
 			}
 			assertMCPServers(t, <-resumeParams, tt.want)
+		})
+	}
+}
+
+func TestClient_ForwardsToolsPresenceToSessionRequests(t *testing.T) {
+	tests := []struct {
+		name  string
+		tools []Tool
+		want  []any
+	}{
+		{"omitted", nil, nil},
+		// An explicitly empty slice must reach the runtime: on resume it replaces the
+		// session's external tools with none, which omitting the key cannot express.
+		{"empty", []Tool{}, []any{}},
+		{"one tool", []Tool{{Name: "probe_echo", Description: "echo"}}, []any{
+			map[string]any{"name": "probe_echo", "description": "echo"},
+		}},
+	}
+
+	assertTools := func(t *testing.T, params json.RawMessage, want []any) {
+		t.Helper()
+		var m map[string]any
+		if err := json.Unmarshal(params, &m); err != nil {
+			t.Fatalf("Failed to unmarshal: %v", err)
+		}
+		got, ok := m["tools"]
+		if want == nil {
+			if ok {
+				t.Errorf("Expected tools to be omitted, got %v", got)
+			}
+			return
+		}
+		if !ok || !reflect.DeepEqual(got, want) {
+			t.Errorf("Expected tools %v, got %v (present=%v)", want, got, ok)
+		}
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			rpcClient, server, _ := newRuntimeShutdownRpcPair(t)
+			t.Cleanup(server.Stop)
+			client := &Client{
+				client:   rpcClient,
+				RPC:      rpc.NewServerRPC(rpcClient),
+				sessions: make(map[string]*Session),
+			}
+
+			createParams := make(chan json.RawMessage, 1)
+			server.SetRequestHandler("session.create", func(params json.RawMessage) (json.RawMessage, *jsonrpc2.Error) {
+				createParams <- append(json.RawMessage(nil), params...)
+				sessionID := sessionIDFromParams(t, params)
+				return []byte(`{"sessionId":"` + sessionID + `","workspacePath":"/workspace"}`), nil
+			})
+
+			if _, err := client.CreateSession(t.Context(), &SessionConfig{Model: "auto", Tools: tt.tools}); err != nil {
+				t.Fatalf("CreateSession failed: %v", err)
+			}
+			assertTools(t, <-createParams, tt.want)
+
+			resumeParams := make(chan json.RawMessage, 1)
+			server.SetRequestHandler("session.resume", func(params json.RawMessage) (json.RawMessage, *jsonrpc2.Error) {
+				resumeParams <- append(json.RawMessage(nil), params...)
+				return []byte(`{"sessionId":"resumed-tools","workspacePath":"/workspace"}`), nil
+			})
+
+			if _, err := client.ResumeSessionWithOptions(t.Context(), "resumed-tools", &ResumeSessionConfig{Model: "auto", Tools: tt.tools}); err != nil {
+				t.Fatalf("ResumeSessionWithOptions failed: %v", err)
+			}
+			assertTools(t, <-resumeParams, tt.want)
 		})
 	}
 }
@@ -5049,6 +5186,76 @@ func TestModeCallbackRequestHandlers(t *testing.T) {
 	}
 	if autoResult.Response != AutoModeSwitchResponseYesAlways {
 		t.Fatalf("Expected yes_always, got %q", autoResult.Response)
+	}
+}
+
+func TestUserInputRequestCallbackRequestID(t *testing.T) {
+	for _, tc := range []struct {
+		name   string
+		params string
+		want   string
+	}{
+		{"present", `{"sessionId":"s1","question":"Continue?","requestId":"req-user-1"}`, "req-user-1"},
+		{"absent", `{"sessionId":"s1","question":"Continue?"}`, ""},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			session := &Session{SessionID: "s1"}
+			client := &Client{sessions: map[string]*Session{"s1": session}}
+			var got *UserInputRequest
+			session.registerUserInputHandler(func(request UserInputRequest, _ UserInputInvocation) (UserInputResponse, error) {
+				got = &request
+				return UserInputResponse{Answer: "yes"}, nil
+			})
+
+			handler := jsonrpc2.RequestHandlerFor(client.handleUserInputRequest)
+			if _, rpcErr := handler(json.RawMessage(tc.params)); rpcErr != nil {
+				t.Fatalf("Unexpected RPC error: %v", rpcErr)
+			}
+			if got == nil {
+				t.Fatal("Expected user input handler to be called")
+			}
+			if got.RequestID != tc.want {
+				t.Fatalf("Expected RequestID %q, got %q", tc.want, got.RequestID)
+			}
+			if got.Question != "Continue?" {
+				t.Fatalf("Expected question to round-trip, got %q", got.Question)
+			}
+		})
+	}
+}
+
+func TestExitPlanModeRequestCallbackRequestID(t *testing.T) {
+	for _, tc := range []struct {
+		name   string
+		params string
+		want   string
+	}{
+		{"present", `{"sessionId":"s1","summary":"Plan","actions":["autopilot"],"recommendedAction":"autopilot","requestId":"req-plan-1"}`, "req-plan-1"},
+		{"absent", `{"sessionId":"s1","summary":"Plan","actions":["autopilot"],"recommendedAction":"autopilot"}`, ""},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			session := &Session{SessionID: "s1"}
+			client := &Client{sessions: map[string]*Session{"s1": session}}
+			var got *ExitPlanModeRequest
+			session.registerExitPlanModeHandler(func(request ExitPlanModeRequest, _ ExitPlanModeInvocation) (ExitPlanModeResult, error) {
+				got = &request
+				return ExitPlanModeResult{Approved: true}, nil
+			})
+
+			handler := jsonrpc2.RequestHandlerFor(client.handleExitPlanModeRequest)
+			if _, rpcErr := handler(json.RawMessage(tc.params)); rpcErr != nil {
+				t.Fatalf("Unexpected RPC error: %v", rpcErr)
+			}
+			if got == nil {
+				t.Fatal("Expected exit-plan-mode handler to be called")
+			}
+			if got.RequestID != tc.want {
+				t.Fatalf("Expected RequestID %q, got %q", tc.want, got.RequestID)
+			}
+			if got.Summary != "Plan" {
+				t.Fatalf("Expected summary to round-trip, got %q", got.Summary)
+			}
+		})
 	}
 }
 

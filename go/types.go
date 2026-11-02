@@ -645,6 +645,12 @@ type UserInputRequest struct {
 	Question      string
 	Choices       []string
 	AllowFreeform *bool
+
+	// RequestID is the runtime request ID of the pending `user_input.requested`
+	// event. Pass it as RequestID to the session's RPC.UI.HandlePendingUserInput
+	// (or the trusted handleHumanUserInput path) to correlate an out-of-band
+	// answer. It is empty when the runtime predates this field.
+	RequestID string
 }
 
 // UserInputResponse represents the user's response to an input request
@@ -668,6 +674,11 @@ type ExitPlanModeRequest struct {
 	PlanContent       string   `json:"planContent,omitempty"`
 	Actions           []string `json:"actions"`
 	RecommendedAction string   `json:"recommendedAction"`
+	// RequestID is the runtime request ID of the pending `exit_plan_mode.requested`
+	// event. Pass it as RequestID to the session's RPC.UI.HandlePendingExitPlanMode
+	// (or the trusted handleHumanExitPlanMode path) to correlate an out-of-band
+	// answer. It is empty when the runtime predates this field.
+	RequestID string `json:"requestId,omitempty"`
 }
 
 // ExitPlanModeResult is the response to an exit-plan-mode request.
@@ -2402,6 +2413,8 @@ type ResumeSessionConfig struct {
 	Model string
 	// Tools exposes caller-implemented tools to the CLI. A Tool with a nil Handler
 	// is declaration-only; the consumer must resolve its calls via pending tool RPCs.
+	// An empty non-nil slice replaces the tools previously registered for this
+	// session with none; nil leaves them unchanged.
 	Tools []Tool
 	// SystemMessage configures system message customization
 	SystemMessage *SystemMessageConfig
@@ -3203,7 +3216,7 @@ type createSessionRequest struct {
 	ReasoningEffort                    string                                 `json:"reasoningEffort,omitempty"`
 	ReasoningSummary                   ReasoningSummary                       `json:"reasoningSummary,omitempty"`
 	ContextTier                        ContextTier                            `json:"contextTier,omitempty"`
-	Tools                              []Tool                                 `json:"tools,omitempty"`
+	Tools                              []Tool                                 `json:"tools,omitzero"`
 	SystemMessage                      *SystemMessageConfig                   `json:"systemMessage,omitempty"`
 	AvailableTools                     []string                               `json:"availableTools"`
 	ExcludedTools                      []string                               `json:"excludedTools,omitempty"`
@@ -3241,7 +3254,7 @@ type createSessionRequest struct {
 	MCPOAuthTokenStorage               string                                 `json:"mcpOAuthTokenStorage,omitempty"`
 	AuthClientIDMetadataURL            string                                 `json:"authClientIdMetadataUrl,omitempty"`
 	EnvValueMode                       string                                 `json:"envValueMode,omitempty"`
-	CustomAgents                       []CustomAgentConfig                    `json:"customAgents,omitempty"`
+	CustomAgents                       []CustomAgentConfig                    `json:"customAgents,omitzero"`
 	DefaultAgent                       *DefaultAgentConfig                    `json:"defaultAgent,omitempty"`
 	Agent                              string                                 `json:"agent,omitempty"`
 	ConfigDir                          string                                 `json:"configDir,omitempty"`
@@ -3315,7 +3328,7 @@ type resumeSessionRequest struct {
 	ReasoningEffort                    string                                 `json:"reasoningEffort,omitempty"`
 	ReasoningSummary                   ReasoningSummary                       `json:"reasoningSummary,omitempty"`
 	ContextTier                        ContextTier                            `json:"contextTier,omitempty"`
-	Tools                              []Tool                                 `json:"tools,omitempty"`
+	Tools                              []Tool                                 `json:"tools,omitzero"`
 	SystemMessage                      *SystemMessageConfig                   `json:"systemMessage,omitempty"`
 	AvailableTools                     []string                               `json:"availableTools"`
 	ExcludedTools                      []string                               `json:"excludedTools,omitempty"`
@@ -3366,7 +3379,7 @@ type resumeSessionRequest struct {
 	MCPOAuthTokenStorage               string                                 `json:"mcpOAuthTokenStorage,omitempty"`
 	AuthClientIDMetadataURL            string                                 `json:"authClientIdMetadataUrl,omitempty"`
 	EnvValueMode                       string                                 `json:"envValueMode,omitempty"`
-	CustomAgents                       []CustomAgentConfig                    `json:"customAgents,omitempty"`
+	CustomAgents                       []CustomAgentConfig                    `json:"customAgents,omitzero"`
 	DefaultAgent                       *DefaultAgentConfig                    `json:"defaultAgent,omitempty"`
 	Agent                              string                                 `json:"agent,omitempty"`
 	SkillDirectories                   []string                               `json:"skillDirectories,omitzero"`
@@ -3585,6 +3598,7 @@ type userInputRequest struct {
 	Question      string   `json:"question"`
 	Choices       []string `json:"choices,omitempty"`
 	AllowFreeform *bool    `json:"allowFreeform,omitempty"`
+	RequestID     string   `json:"requestId,omitempty"`
 }
 
 // userInputResponse represents the user's response to an input request
@@ -3599,6 +3613,7 @@ type exitPlanModeRequest struct {
 	PlanContent       string   `json:"planContent,omitempty"`
 	Actions           []string `json:"actions"`
 	RecommendedAction string   `json:"recommendedAction"`
+	RequestID         string   `json:"requestId,omitempty"`
 }
 
 type autoModeSwitchRequest struct {

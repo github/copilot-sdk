@@ -3153,6 +3153,7 @@ func (c *Client) handleUserInputRequest(req userInputRequest) (*userInputRespons
 		Question:      req.Question,
 		Choices:       req.Choices,
 		AllowFreeform: req.AllowFreeform,
+		RequestID:     req.RequestID,
 	})
 	if err != nil {
 		return nil, &jsonrpc2.Error{Code: -32603, Message: err.Error()}
@@ -3183,6 +3184,7 @@ func (c *Client) handleExitPlanModeRequest(req exitPlanModeRequest) (*ExitPlanMo
 		PlanContent:       req.PlanContent,
 		Actions:           req.Actions,
 		RecommendedAction: recommendedAction,
+		RequestID:         req.RequestID,
 	})
 	if err != nil {
 		return nil, &jsonrpc2.Error{Code: -32603, Message: err.Error()}

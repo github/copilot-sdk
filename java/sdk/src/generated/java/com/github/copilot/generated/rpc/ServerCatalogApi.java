@@ -52,6 +52,17 @@ public final class ServerCatalogApi {
     }
 
     /**
+     * Requests the initial page of at most ten official-product recommendations for a complete task and product, bound to an existing attached local session. Requires catalog-recommend, catalog-search-session-bound and catalog-search-credential-required. Uses the selected GitHub.com user credential on the fixed Agent Finder recommendations route; successful capability negotiation does not establish service acceptance. Returns the existing inert catalog candidates and retained install references with the typed catalog refusal union. No anonymous retry, unfiltered search fallback or continuation is performed. Server-owned product approvals establish provenance, not task suitability. Read-only: nothing is installed, configured or persisted.
+     *
+     * @apiNote This method is experimental and may change in a future version.
+     * @since 1.0.0
+     */
+    @CopilotExperimental
+    public CompletableFuture<CatalogSearchResult> recommend(CatalogRecommendParams params) {
+        return caller.invoke("catalog.recommend", params, CatalogSearchResult.class);
+    }
+
+    /**
      * Retrieves one saved feed by its opaque ID, optionally filtered by trust tier. Requires catalog-feeds and catalog-search-credential-required, and uses the same authority, credential policy, optional session binding and candidate projection as catalog.search, so available entries are the same inert candidates, with the same installability, handles and display metadata, and install through the same confirmed flows. Entries keep the feed's order; an entry the runtime cannot present is returned as unavailable with a reason rather than failing the feed. No anonymous retry. Read-only: nothing is installed, configured, or persisted.
      *
      * @apiNote This method is experimental and may change in a future version.

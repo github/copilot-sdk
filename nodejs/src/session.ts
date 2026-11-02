@@ -2200,6 +2200,12 @@ export class CopilotSession {
                     assertWorkflowResult(result);
                     return { result };
                 } finally {
+                    // The attempt is over once its body settles, and the runtime sends
+                    // workflow.abort only while an attempt is still running. Abort here
+                    // so work that outlived the body, such as a parallel() branch left
+                    // running after a sibling's fatal error, stops instead of continuing
+                    // on a finished run.
+                    controller.abort(new DOMException("Workflow run has settled", "AbortError"));
                     try {
                         await progress.close();
                     } finally {

@@ -1563,6 +1563,7 @@ var session = await client.CreateSessionAsync(new SessionConfig
         // request.Question - The question to ask
         // request.Choices - Optional list of choices for multiple choice
         // request.AllowFreeform - Whether freeform input is allowed (default: true)
+        // request.RequestId - Runtime ID of the pending request (null on older runtimes)
 
         Console.WriteLine($"Agent asks: {request.Question}");
         if (request.Choices?.Count > 0)
