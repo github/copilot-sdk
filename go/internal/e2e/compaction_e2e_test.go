@@ -192,8 +192,8 @@ func TestCompactionE2E(t *testing.T) {
 		}
 		content := strings.ToLower(ad.Content)
 		// Should remember it was about a dragon (context preserved via summary)
-		if !strings.Contains(content, "kaedrith") {
-			t.Errorf("Expected answer to mention 'Kaedrith', got: %q", ad.Content)
+		if !strings.Contains(content, "vessaryn") {
+			t.Errorf("Expected answer to mention 'Vessaryn', got: %q", ad.Content)
 		}
 		if !strings.Contains(content, "dragon") {
 			t.Errorf("Expected answer to mention 'dragon', got: %q", ad.Content)

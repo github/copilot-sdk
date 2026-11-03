@@ -134,6 +134,40 @@ pub(crate) struct AccountGetGistSupportResult {
     pub supported: bool,
 }
 
+/// Configured names of the GitHub host to resolve.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub(crate) struct AccountGetHostUrlRequest {
+    /// Host from the Copilot-specific setting, which wins when both are set. A bare hostname is normalized to `https://`.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub copilot_gh_host: Option<String>,
+    /// Host from the general GitHub CLI setting, used when the Copilot-specific one is absent.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub gh_host: Option<String>,
+}
+
+/// Absolute base URL of the GitHub host.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub(crate) struct AccountGetHostUrlResult {
+    /// Absolute base URL, for example `https://github.com`.
+    pub url: String,
+}
+
 /// Optional opaque account selection or compatibility GitHub token used to look up quota.
 ///
 /// <div class="warning">
@@ -496,6 +530,42 @@ pub struct AccountStatus {
     /// Whether the account is currently a valid switch target.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub switchable: Option<bool>,
+}
+
+/// The authentication identity to enroll in Copilot Free.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub(crate) struct AccountSubscribeCopilotFreeRequest {
+    /// Identity to enroll, in the shape `session.gitHubAuth.getCurrentAuthInfo` returns. The runtime resolves the credential for it, so no credential is sent.
+    pub identity: AuthIdentity,
+}
+
+/// What came of a Copilot Free enrollment attempt.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub(crate) struct AccountSubscribeCopilotFreeResult {
+    /// `subscribed` when GitHub answered, and `status` then carries its answer. `no-token` when no credential could be resolved for the identity, which is the caller's cue to ask the user to sign in again rather than to report a failure. `failed` when the attempt itself errored, and `message` then explains it.
+    pub kind: String,
+    /// Explanation to show the user. Present on `failed`, and optionally alongside a `subscribed` status.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub message: Option<String>,
+    /// GitHub's enrollment status when `kind` is `subscribed`, for example `subscribed` or `already_subscribed`. Absent otherwise.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub status: Option<String>,
 }
 
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
@@ -955,6 +1025,404 @@ pub(crate) struct GitCwdRequest {
     pub cwd: String,
 }
 
+/// One check reported against a pull request's head commit.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub(crate) struct GitHubPullRequestCheck {
+    /// Name the check reports itself under.
+    pub name: String,
+    /// Rolled-up state of the check.
+    #[doc(hidden)]
+    pub(crate) status: GitHubPullRequestCheckStatus,
+}
+
+/// The pull request a branch is open against, with the review state a caller needs to summarize it without a second request.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub(crate) struct GitHubBranchPullRequest {
+    /// Lines added across the pull request.
+    pub additions: i64,
+    /// Pull request description body. Empty when the pull request has none.
+    pub body: String,
+    /// Number of files the pull request changes.
+    pub changed_files: i64,
+    /// Checks reported against the pull request's head commit.
+    #[doc(hidden)]
+    pub(crate) checks: Vec<GitHubPullRequestCheck>,
+    /// Number of comments on the pull request.
+    pub comments: i64,
+    /// Lines deleted across the pull request.
+    pub deletions: i64,
+    /// Head branch name the pull request was opened from.
+    pub head_ref_name: String,
+    /// Whether the pull request is a draft.
+    pub is_draft: bool,
+    /// Label names applied to the pull request.
+    pub labels: Vec<String>,
+    /// Pull request number within its repository.
+    pub number: i64,
+    /// Owner login of the repository the pull request was opened against.
+    pub owner: String,
+    /// Name of the repository the pull request was opened against.
+    pub repo: String,
+    /// Logins of the requested reviewers.
+    pub reviewers: Vec<String>,
+    /// Pull request state as GitHub reports it, such as `OPEN`, `CLOSED` or `MERGED`.
+    pub state: String,
+    /// Pull request title.
+    pub title: String,
+    /// Web URL of the pull request.
+    pub url: String,
+}
+
+/// Owner and name of a GitHub repository. Deliberately distinct from `GitHubRepositoryIdentity`, which also carries a host: a by-id lookup takes the host as an input and the API's answer reports none, so there is no host here to report faithfully.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub(crate) struct GitHubRepositoryOwnerName {
+    /// Repository name, without the owner prefix or the `.git` suffix.
+    pub name: String,
+    /// Repository owner login (user or organization).
+    pub owner: String,
+}
+
+/// Selects the pull request a branch is open against, and the credential to look it up under. The branch is searched across every repository in `baseRepositories`, which lets a fork's branch find the pull request it opened against upstream.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub(crate) struct GitHubBranchPullRequestLookupRequest {
+    /// The credential the lookup runs under, carried opaquely because its shape is the host's own and the runtime only resolves a token and a GitHub host from it. Required: the search answers per-account, so a pull request invisible to this credential is reported as absent rather than refused.
+    pub auth_info: serde_json::Value,
+    /// Repositories to search for the pull request, in preference order. A fork supplies both its own repository and its upstream, because the branch may have opened the pull request against either.
+    #[doc(hidden)]
+    pub(crate) base_repositories: Vec<GitHubRepositoryOwnerName>,
+    /// Head branch name to find the pull request for, without a `refs/heads/` prefix.
+    pub branch: String,
+    /// Login that must own the pull request's head branch. A branch name alone is ambiguous across forks, so a candidate whose head is owned by anyone else is discarded.
+    pub head_owner: String,
+    /// Whether a closed or merged pull request counts as a match. False considers only open ones, so a caller acting on the branch's current pull request does not resurface a merged one.
+    pub include_closed: bool,
+}
+
+/// Outcome of a branch pull-request lookup. `status` carries why, because 'not authenticated', 'no pull request' and 'the search failed' are three different answers and only the first two are conclusive.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub(crate) struct GitHubBranchPullRequestLookupResult {
+    /// The matching pull request, or null for every status other than `found`.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub pull_request: Option<GitHubBranchPullRequest>,
+    /// Why the lookup reported what it did.
+    #[doc(hidden)]
+    pub(crate) status: GitHubBranchPullRequestLookupStatus,
+}
+
+/// Whether cancellation reached a registered GitHub request.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub(crate) struct GitHubFetchCancelResult {
+    /// True when cancellation reached a registered request.
+    pub canceled: bool,
+}
+
+/// One HTTP header in an ordered list.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub(crate) struct GitHubFetchHeader {
+    /// HTTP header name. The list preserves order and repeated names.
+    pub name: String,
+    /// HTTP header value.
+    pub value: String,
+}
+
+/// A user-facing HTTP failure formatted in the runtime.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub(crate) struct GitHubFetchHttpError {
+    /// Complete user-facing error text.
+    pub message: String,
+    /// Parsed response body serialized as JSON, when available.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub response_body_json: Option<String>,
+}
+
+/// Arguments for a named authenticated operation.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub(crate) struct GitHubFetchOperationRequest {
+    /// Opaque selector for a live host-owned credential binding. Only the owning host connection may use it.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub auth_owner_id: Option<String>,
+    /// JSON request body, preserved as supplied.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub body_json: Option<String>,
+    /// The operation to execute.
+    #[doc(hidden)]
+    pub(crate) operation: GitHubFetchOperation,
+    /// Named operation arguments, such as owner, repo, or jobId.
+    pub params: HashMap<String, String>,
+    /// A fresh request id.
+    pub request_id: i64,
+    /// Session whose auth manager to use. Omission selects the process manager.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub session_id: Option<SessionId>,
+}
+
+/// A pre-resolved address for a GitHub request.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct GitHubFetchPinnedAddress {
+    /// Address the network transport must use.
+    pub address: String,
+}
+
+/// Proxy environment for one authenticated GitHub request.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct GitHubFetchProxyEnvironment {
+    /// Proxy for HTTP requests.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub http_proxy: Option<String>,
+    /// Proxy for HTTPS requests.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub https_proxy: Option<String>,
+    /// Hosts that bypass the proxy.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub no_proxy: Option<String>,
+}
+
+/// Optional overrides for the runtime retry policy.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub(crate) struct GitHubFetchRetryConfig {
+    /// Delay multiplier; the runtime default is two.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub backoff_factor: Option<f64>,
+    /// Initial retry delay; the runtime default is five seconds.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub default_retry_delay_seconds: Option<f64>,
+    /// Whether repeated failures open the runtime circuit breaker. Defaults to true.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub enable_circuit_breaker: Option<bool>,
+    /// Maximum retries; the runtime default is five.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub max_retries: Option<i64>,
+}
+
+/// A GitHub API request without caller-supplied auth identity or credential fields.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub(crate) struct GitHubFetchRequest {
+    /// Whether the request permits loopback addresses. Defaults to true.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub allow_localhost: Option<bool>,
+    /// API label used in runtime diagnostics.
+    pub api_name: String,
+    /// Opaque selector for a live host-owned credential binding. Only the owning host connection may use it.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub auth_owner_id: Option<String>,
+    /// Request bytes encoded as base64. Absent for a request without a body.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub body_base64: Option<String>,
+    /// Maximum response body size in bytes.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub body_limit_bytes: Option<i64>,
+    /// Whether the request bypasses idle connections.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub disable_connection_reuse: Option<bool>,
+    /// Caller-supplied HTTP headers.
+    #[doc(hidden)]
+    pub(crate) headers: Vec<GitHubFetchHeader>,
+    /// HTTP method.
+    pub method: String,
+    /// Addresses to pin for this request, without another DNS lookup.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub pinned_addresses: Option<Vec<GitHubFetchPinnedAddress>>,
+    /// Explicit proxy environment. Omission uses the process environment.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub proxy_env: Option<GitHubFetchProxyEnvironment>,
+    /// Whether the proxy uses Negotiate authentication.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub proxy_negotiate_auth: Option<bool>,
+    /// Optional service principal for proxy Negotiate authentication.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub proxy_negotiate_spn: Option<String>,
+    /// Response read timeout in milliseconds. Defaults to 700000.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub read_timeout_ms: Option<i64>,
+    /// Redirect behavior. Defaults to following redirects.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub redirect: Option<String>,
+    /// A fresh request id.
+    pub request_id: i64,
+    /// Optional retry overrides.
+    #[doc(hidden)]
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub(crate) retry_options: Option<GitHubFetchRetryConfig>,
+    /// Session whose auth manager to use. Omission selects the process manager.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub session_id: Option<SessionId>,
+    /// Total request timeout in milliseconds.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub timeout_ms: Option<i64>,
+    /// Absolute URL on the resolved GitHub API origin.
+    pub url: String,
+}
+
+/// One registered GitHub request, shared by execution and cancellation.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub(crate) struct GitHubFetchRequestId {
+    /// One fresh id from `gitHubFetch.allocateRequestId`.
+    pub request_id: i64,
+}
+
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct GitHubFetchResultResponse {
+    /// Complete response bytes encoded as base64.
+    pub body_base64: String,
+    /// Response headers.
+    #[doc(hidden)]
+    pub(crate) headers: Vec<GitHubFetchHeader>,
+    /// Formatted non-success response for a named operation.
+    #[doc(hidden)]
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub(crate) http_error: Option<GitHubFetchHttpError>,
+    pub kind: GitHubFetchResultResponseKind,
+    /// HTTP status, including non-success responses.
+    pub status: i32,
+    /// HTTP status text.
+    pub status_text: String,
+    /// Final response URL.
+    pub url: String,
+}
+
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct GitHubFetchResultCircuitBreaker {
+    /// Host whose breaker is open.
+    pub host: String,
+    pub kind: GitHubFetchResultCircuitBreakerKind,
+    /// Complete circuit-breaker message.
+    pub message: String,
+    /// Remaining backoff in milliseconds.
+    pub time_until_retry_ms: i64,
+}
+
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct GitHubFetchResultProxyResponse {
+    pub kind: GitHubFetchResultProxyResponseKind,
+    /// Complete proxy failure message.
+    pub message: String,
+    /// HTTP proxy status.
+    pub status: i32,
+}
+
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct GitHubFetchResultFailed {
+    pub kind: GitHubFetchResultFailedKind,
+    /// Authentication, transport, or cancellation error.
+    pub message: String,
+}
+
 /// A GitHub login the authenticated user may act as: their own account, or an organization they belong to.
 ///
 /// <div class="warning">
@@ -1060,6 +1528,342 @@ pub(crate) struct GitHubOwnersRequestIdResult {
     pub request_id: i64,
 }
 
+/// An unused release allocation that this caller will never dispatch. This is separate from cancellation before a request arrives.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub(crate) struct GitHubReleaseAbandonRequestParams {
+    /// The unused request id owned by this connection.
+    pub request_id: i64,
+}
+
+/// Whether the runtime retired an unused allocation without affecting active work.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub(crate) struct GitHubReleaseAbandonRequestResult {
+    /// True only when this connection owned an unclaimed allocation with no active guard. False for active, foreign, unknown or previously retired ids. A successful abandonment prevents any later use of that id.
+    pub abandoned: bool,
+}
+
+/// The release lookup or asset download to abandon.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub(crate) struct GitHubReleaseCancelRequest {
+    /// Request id the lookup or download was started with.
+    pub request_id: i64,
+}
+
+/// Whether the cancel reached live work.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub(crate) struct GitHubReleaseCancelResult {
+    /// True when the cancel reached a registered lookup or download; that call's own result still says how it ended. False when the id names none, which is the normal answer for work that already finished.
+    pub canceled: bool,
+}
+
+/// Which release asset to download, the credential to download it under, and the request id that makes the download cancellable.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub(crate) struct GitHubReleaseDownloadAssetRequest {
+    /// The asset's `browser_download_url` from the release JSON: an HTTPS release download URL of a repository that `gitHubRelease.lookup` serves.
+    pub asset_url: String,
+    /// The credential the download runs under, carried opaquely because its shape is the host's own and the runtime only resolves a token from it. No credential travels: this selects one the runtime already holds. Omitted when the caller has no credential, which still succeeds against the public release repository at a lower rate limit.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub auth_info: Option<serde_json::Value>,
+    /// Expected SHA-256 of the asset: 64 hex digits in either case, or the release asset's `digest` value as is (`sha256:` and the hex digits). When given and the downloaded bytes differ, the file is removed and the result is `digest-mismatch`.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub expected_sha256: Option<String>,
+    /// Request id from `gitHubRelease.allocateRequestId`. An id that was never registered, or one already used, is refused rather than silently running uncancellable.
+    pub request_id: i64,
+    /// Snapshot request id from this connection. The download retains that snapshot's original credential source instead of authInfo. Missing, foreign, canceled, or revoked references fail without fallback. Omission preserves ordinary downloads. The download still uses its own requestId for progress and cancellation.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub snapshot_request_id: Option<i64>,
+}
+
+/// Outcome of an asset download. Each field is present only for the kinds its description names.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub(crate) struct GitHubReleaseDownloadAssetResult {
+    /// How the download ended.
+    #[doc(hidden)]
+    pub(crate) kind: GitHubReleaseDownloadKind,
+    /// Why the download produced no file, phrased for a user, for `digest-mismatch` and `failed`.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub message: Option<String>,
+    /// Absolute path of the downloaded file, for `downloaded`. The file is alone in a fresh directory that the caller deletes once it has used the file.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub path: Option<String>,
+    /// SHA-256 of the downloaded bytes as lowercase hex, for `downloaded` and `digest-mismatch`.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub sha256: Option<String>,
+    /// Size of the downloaded file in bytes, for `downloaded`.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub size_bytes: Option<i64>,
+    /// HTTP status of the final response, for `http-error`.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub status: Option<i64>,
+    /// HTTP status text of the final response, for `http-error`.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub status_text: Option<String>,
+}
+
+/// The download whose progress to report.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub(crate) struct GitHubReleaseDownloadProgressRequest {
+    /// Request id the download was started with.
+    pub request_id: i64,
+}
+
+/// Byte progress of a running download.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub(crate) struct GitHubReleaseDownloadProgressResult {
+    /// Bytes written so far.
+    pub received_bytes: i64,
+    /// Size the server announced for the body. Omitted when it announced none.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub total_bytes: Option<i64>,
+}
+
+/// Which release to look up, the credential to look it up under, and the request id that makes the lookup cancellable.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub(crate) struct GitHubReleaseLookupRequest {
+    /// The credential the lookup runs under, carried opaquely because its shape is the host's own and the runtime only resolves a token and a GitHub host from it. No credential travels: this selects one the runtime already holds. Omitted when the caller has no credential, which still succeeds against the public release repository at a lower rate limit.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub auth_info: Option<serde_json::Value>,
+    /// Which release to look up.
+    #[doc(hidden)]
+    pub(crate) query: GitHubReleaseQuery,
+    /// Request id from `gitHubRelease.allocateRequestId`. An id that was never registered, or one already used, is refused rather than silently running uncancellable.
+    pub request_id: i64,
+    /// The tag to look up. Required by the `tag` query and ignored by the others.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub value: Option<String>,
+}
+
+/// Outcome of a release lookup. `releaseJson` is present only for `found`, and `message` only for the kinds that carry an explanation.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub(crate) struct GitHubReleaseLookupResult {
+    /// How the lookup ended.
+    #[doc(hidden)]
+    pub(crate) kind: GitHubReleaseLookupKind,
+    /// Why the lookup produced no release, phrased for a user.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub message: Option<String>,
+    /// The release as GitHub's own JSON, verbatim. Carried as text rather than a modelled type so the contract does not have to track every field of GitHub's release payload, and so a caller reads the same shape the REST API documents.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub release_json: Option<String>,
+}
+
+/// A freshly registered request id. Registering it before the work starts is what lets a cancel that races the request still find something to cancel.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub(crate) struct GitHubReleaseRequestIdResult {
+    /// Request id to pass to `gitHubRelease.lookup` or `gitHubRelease.downloadAsset` and, to abandon the work, `gitHubRelease.cancel`.
+    pub request_id: i64,
+}
+
+/// An asset in the release snapshot. GitHub field names remain unchanged.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub(crate) struct GitHubReleaseSnapshotAsset {
+    /// The published download URL.
+    #[serde(rename = "browser_download_url")]
+    pub browser_download_url: String,
+    /// The published asset filename.
+    pub name: String,
+}
+
+/// Release facts needed for update selection and admission. GitHub field names remain unchanged.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub(crate) struct GitHubReleaseSnapshotEntry {
+    /// The published release assets.
+    #[doc(hidden)]
+    pub(crate) assets: Vec<GitHubReleaseSnapshotAsset>,
+    /// Whether GitHub marks this release as a draft.
+    pub draft: bool,
+    /// Whether GitHub marks this release as a prerelease.
+    pub prerelease: bool,
+    /// The release tag.
+    #[serde(rename = "tag_name")]
+    pub tag_name: String,
+}
+
+/// Immutable options for one connection-owned release snapshot.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub(crate) struct GitHubReleaseSnapshotRequest {
+    /// The version embedded in the caller's build.
+    pub build_version: String,
+    /// Optional runtime version override. Invalid or noncanonical values do not replace buildVersion.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub cli_version_override: Option<String>,
+    /// The embedded package identity. Omission uses the existing development-version fallback rule.
+    #[doc(hidden)]
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub(crate) package_identity: Option<GitHubReleasePackageIdentity>,
+    /// An unused id from gitHubRelease.allocateRequestId. Reuse the same id and options to read the same snapshot.
+    pub request_id: i64,
+    /// The release channel used for update selection.
+    #[doc(hidden)]
+    pub(crate) update_channel: GitHubReleaseUpdateChannel,
+}
+
+/// The release lookup succeeded.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub(crate) struct GitHubReleaseSnapshotResultSuccess {
+    /// The newest release in the selected update channel, when one exists.
+    #[doc(hidden)]
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub(crate) automatic_update_candidate: Option<GitHubReleaseSnapshotEntry>,
+    /// Whether the running release is eligible for release admission.
+    pub eligible: bool,
+    /// Up to three stable releases, newest first.
+    #[doc(hidden)]
+    pub(crate) latest_stable_releases: Vec<GitHubReleaseSnapshotEntry>,
+    /// The original lookup duration in milliseconds.
+    pub lookup_duration_ms: f64,
+    pub outcome: GitHubReleaseSnapshotResultSuccessOutcome,
+    /// Prereleases newer than the newest stable release, newest first.
+    #[doc(hidden)]
+    pub(crate) prereleases_newer_than_latest_stable: Vec<GitHubReleaseSnapshotEntry>,
+    /// The effective running version after the existing override rules.
+    pub running_version: String,
+    /// The original update channel.
+    #[doc(hidden)]
+    pub(crate) update_channel: GitHubReleaseUpdateChannel,
+}
+
+/// The release lookup failed.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub(crate) struct GitHubReleaseSnapshotResultFailed {
+    /// The original user-facing lookup failure.
+    pub error: String,
+    /// The original lookup duration in milliseconds.
+    pub lookup_duration_ms: f64,
+    pub outcome: GitHubReleaseSnapshotResultFailedOutcome,
+    /// The original update channel.
+    #[doc(hidden)]
+    pub(crate) update_channel: GitHubReleaseUpdateChannel,
+}
+
 /// Working-tree path whose owning GitHub repository should be resolved.
 ///
 /// <div class="warning">
@@ -1108,6 +1912,42 @@ pub(crate) struct GitHubRepositoryAtPathResult {
     /// Resolved repository identity, or null when the selected remote resolves to no GitHub host.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub repository: Option<GitHubRepositoryIdentity>,
+}
+
+/// Selects a GitHub repository by its numeric repository id, and the credential to look it up under.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub(crate) struct GitHubRepositoryByIdRequest {
+    /// Selects which stored credential to resolve when the host holds more than one. Omit it to resolve the default for the supplied `authInfo`.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub auth_context_id: Option<String>,
+    /// The credential the lookup runs under, carried opaquely because its shape is the host's own and the runtime only resolves a token and a GitHub host from it. Required: the endpoint answers per-account, so a repository invisible to this credential is reported as absent rather than refused.
+    pub auth_info: serde_json::Value,
+    /// GitHub's own numeric identifier for the repository, as carried by API payloads that reference a repository by id rather than by owner and name.
+    pub repository_id: i64,
+}
+
+/// The repository the requested id names, when the credential can see one.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub(crate) struct GitHubRepositoryByIdResult {
+    /// Owner and name of the repository, or null when the id names no repository visible to the credential.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub repository: Option<GitHubRepositoryOwnerName>,
 }
 
 /// Client environment metadata describing the process that produced a telemetry event.
@@ -2194,6 +3034,41 @@ pub struct WorkspacesWriteAutopilotObjectiveResult {
     pub operation: String,
 }
 
+/// The repository the requested id names, when the credential can see one.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub(crate) struct GitHubRepositoryGetByIdResult {
+    /// Owner and name of the repository, or null when the id names no repository visible to the credential.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub repository: Option<GitHubRepositoryOwnerName>,
+}
+
+/// Outcome of a branch pull-request lookup. `status` carries why, because 'not authenticated', 'no pull request' and 'the search failed' are three different answers and only the first two are conclusive.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub(crate) struct GitHubRepositoryLookupBranchPullRequestResult {
+    /// The matching pull request, or null for every status other than `found`.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub pull_request: Option<GitHubBranchPullRequest>,
+    /// Why the lookup reported what it did.
+    #[doc(hidden)]
+    pub(crate) status: GitHubBranchPullRequestLookupStatus,
+}
+
 /// A freshly registered request id. Registering it before the listing starts is what lets a cancel that races the request still find the owner listing slot. The id serves one listing only. Long-abandoned unused ids can be released by later allocations.
 ///
 /// <div class="warning">
@@ -2243,6 +3118,54 @@ pub struct GitWorkingDirectoryContextResult {
     /// Raw host string from the git remote URL (e.g. "github.com", "dev.azure.com")
     #[serde(skip_serializing_if = "Option::is_none")]
     pub repository_host: Option<String>,
+}
+
+/// One registered GitHub request, shared by execution and cancellation.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub(crate) struct GitHubFetchAllocateRequestIdResult {
+    /// One fresh id from `gitHubFetch.allocateRequestId`.
+    pub request_id: i64,
+}
+
+/// A freshly registered request id. Registering it before the work starts is what lets a cancel that races the request still find something to cancel.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub(crate) struct GitHubReleaseAllocateRequestIdResult {
+    /// Request id to pass to `gitHubRelease.lookup` or `gitHubRelease.downloadAsset` and, to abandon the work, `gitHubRelease.cancel`.
+    pub request_id: i64,
+}
+
+/// Byte progress of a running download.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub(crate) struct GitHubReleaseGetDownloadProgressResult {
+    /// Bytes written so far.
+    pub received_bytes: i64,
+    /// Size the server announced for the body. Omitted when it announced none.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub total_bytes: Option<i64>,
 }
 
 /// Validation errors from the most recent authentication attempt.
@@ -2579,6 +3502,310 @@ pub enum DiagnosticsReadResultEntriesItemSource {
     #[serde(rename = "mcp")]
     #[default]
     Mcp,
+}
+
+/// Rolled-up state of one pull-request check. GitHub's own conclusions are collapsed to these three so a caller renders a check without enumerating every API conclusion.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub(crate) enum GitHubPullRequestCheckStatus {
+    /// The check concluded successfully, or was neutral or skipped.
+    #[serde(rename = "pass")]
+    Pass,
+    /// The check concluded unsuccessfully, timed out, or was cancelled.
+    #[serde(rename = "fail")]
+    Fail,
+    /// The check has not concluded, or reported a conclusion with no settled meaning.
+    #[serde(rename = "pending")]
+    Pending,
+    /// Unknown variant for forward compatibility.
+    #[default]
+    #[serde(other)]
+    Unknown,
+}
+
+/// Why a branch pull-request lookup reported what it did. The three unsuccessful outcomes are kept apart because each one asks the caller for something different.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub(crate) enum GitHubBranchPullRequestLookupStatus {
+    /// A matching pull request was found and is carried in `pullRequest`.
+    #[serde(rename = "found")]
+    Found,
+    /// The credential resolved to no usable token, so the caller must authenticate.
+    #[serde(rename = "no-token")]
+    NoToken,
+    /// The search succeeded and the branch has no matching pull request.
+    #[serde(rename = "no-pr")]
+    NoPr,
+    /// The search itself could not be completed, so whether a pull request exists is unknown.
+    #[serde(rename = "lookup-failed")]
+    LookupFailed,
+    /// Unknown variant for forward compatibility.
+    #[default]
+    #[serde(other)]
+    Unknown,
+}
+
+/// A runtime-owned GitHub or Copilot operation.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub(crate) enum GitHubFetchOperation {
+    /// Check repository access.
+    #[serde(rename = "repository-access")]
+    RepositoryAccess,
+    /// Look up a branch.
+    #[serde(rename = "branch-exists")]
+    BranchExists,
+    /// Create a Copilot job.
+    #[serde(rename = "job-create")]
+    JobCreate,
+    /// Read a Copilot job.
+    #[serde(rename = "job-status")]
+    JobStatus,
+    /// List remote sessions.
+    #[serde(rename = "sessions-list")]
+    SessionsList,
+    /// Resolve pull requests through GraphQL.
+    #[serde(rename = "pull-requests-graphql")]
+    PullRequestsGraphql,
+    /// Read a pull request.
+    #[serde(rename = "pull-request")]
+    PullRequest,
+    /// Read pull request files.
+    #[serde(rename = "pull-request-files")]
+    PullRequestFiles,
+    /// Unknown variant for forward compatibility.
+    #[default]
+    #[serde(other)]
+    Unknown,
+}
+
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub enum GitHubFetchResultResponseKind {
+    #[serde(rename = "response")]
+    #[default]
+    Response,
+}
+
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub enum GitHubFetchResultCircuitBreakerKind {
+    #[serde(rename = "circuit-breaker")]
+    #[default]
+    CircuitBreaker,
+}
+
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub enum GitHubFetchResultProxyResponseKind {
+    #[serde(rename = "proxy-response")]
+    #[default]
+    ProxyResponse,
+}
+
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub enum GitHubFetchResultFailedKind {
+    #[serde(rename = "failed")]
+    #[default]
+    Failed,
+}
+
+/// The HTTP response or a classified request failure.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(untagged)]
+pub(crate) enum GitHubFetchResult {
+    Response(GitHubFetchResultResponse),
+    CircuitBreaker(GitHubFetchResultCircuitBreaker),
+    ProxyResponse(GitHubFetchResultProxyResponse),
+    Failed(GitHubFetchResultFailed),
+}
+
+/// How an asset download ended. A caller tells a refused response from a transport failure or a cancellation by this alone, without parsing `message`.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub(crate) enum GitHubReleaseDownloadKind {
+    /// The asset is on disk at `path`.
+    #[serde(rename = "downloaded")]
+    Downloaded,
+    /// GitHub answered with a status other than 2xx, including after the retry without the credential. `status` and `statusText` describe it.
+    #[serde(rename = "http-error")]
+    HttpError,
+    /// The downloaded bytes did not match `expectedSha256`, and the file was removed.
+    #[serde(rename = "digest-mismatch")]
+    DigestMismatch,
+    /// `gitHubRelease.cancel` abandoned the download, and any partial file was removed.
+    #[serde(rename = "cancelled")]
+    Cancelled,
+    /// The download failed for any other reason, described by `message`.
+    #[serde(rename = "failed")]
+    Failed,
+    /// Unknown variant for forward compatibility.
+    #[default]
+    #[serde(other)]
+    Unknown,
+}
+
+/// How a release lookup ended. A caller tells a conclusive absence from a transport error by this alone, without parsing `message`.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub(crate) enum GitHubReleaseLookupKind {
+    /// A release was found, and `releaseJson` carries it.
+    #[serde(rename = "found")]
+    Found,
+    /// The tag names no release. Conclusive, not a failure.
+    #[serde(rename = "not-found")]
+    NotFound,
+    /// The repository publishes no release matching the query at all.
+    #[serde(rename = "no-release")]
+    NoRelease,
+    /// GitHub refused the request for rate limiting. `message` is phrased for the user and already accounts for whether the lookup ran authenticated.
+    #[serde(rename = "rate-limited")]
+    RateLimited,
+    /// The lookup failed for any other reason, described by `message`.
+    #[serde(rename = "failed")]
+    Failed,
+    /// Unknown variant for forward compatibility.
+    #[default]
+    #[serde(other)]
+    Unknown,
+}
+
+/// Which release to look up. Enumerated rather than free text because the runtime accepts exactly these and rejects anything else.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub(crate) enum GitHubReleaseQuery {
+    /// The newest stable command-line release.
+    #[serde(rename = "latest-stable")]
+    LatestStable,
+    /// The newest prerelease command-line release, which is found by scanning recent releases rather than by asking for the latest one.
+    #[serde(rename = "latest-prerelease")]
+    LatestPrerelease,
+    /// The newest release of the desktop application.
+    #[serde(rename = "latest-app")]
+    LatestApp,
+    /// The release a specific tag names, supplied in `value`.
+    #[serde(rename = "tag")]
+    Tag,
+    /// Recent releases for process-scoped update and metrics decisions.
+    #[serde(rename = "release-list")]
+    ReleaseList,
+    /// Unknown variant for forward compatibility.
+    #[default]
+    #[serde(other)]
+    Unknown,
+}
+
+/// Whether the caller runs a development build or a release package.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub(crate) enum GitHubReleasePackageIdentity {
+    /// Development builds are not eligible for release admission.
+    #[serde(rename = "dev")]
+    Dev,
+    /// The caller runs a release package.
+    #[serde(rename = "release")]
+    Release,
+    /// Unknown variant for forward compatibility.
+    #[default]
+    #[serde(other)]
+    Unknown,
+}
+
+/// The release channel used for update selection.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub(crate) enum GitHubReleaseUpdateChannel {
+    /// Select the newest stable release.
+    #[serde(rename = "stable")]
+    Stable,
+    /// Select the newest published release marked as a prerelease. A stable-only feed has no candidate.
+    #[serde(rename = "prerelease")]
+    Prerelease,
+    /// Unknown variant for forward compatibility.
+    #[default]
+    #[serde(other)]
+    Unknown,
+}
+
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub(crate) enum GitHubReleaseSnapshotResultSuccessOutcome {
+    #[serde(rename = "success")]
+    #[default]
+    Success,
+}
+
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub(crate) enum GitHubReleaseSnapshotResultFailedOutcome {
+    #[serde(rename = "failed")]
+    #[default]
+    Failed,
+}
+
+/// The shared release result with its original lookup duration. Runtime worker faults remain RPC errors.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(untagged)]
+pub(crate) enum GitHubReleaseSnapshotResult {
+    Success(GitHubReleaseSnapshotResultSuccess),
+    Failed(GitHubReleaseSnapshotResultFailed),
 }
 
 /// Why the runtime is requesting a GitHub credential.

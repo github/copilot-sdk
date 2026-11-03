@@ -30,6 +30,8 @@ public record MarketplaceInfo(
     /** Whether enterprise managed settings provide and control this marketplace entry. */
     @JsonProperty("managed") Boolean managed,
     /** Whether the managed marketplace currently resolved into the runtime marketplace registry. Set to false when the desired managed entry is retained for governance visibility after loading or reconciliation failed. */
-    @JsonProperty("available") Boolean available
+    @JsonProperty("available") Boolean available,
+    /** True when the signed-in account's GitHub Team provides this marketplace and no user, repository, or default entry of the same name exists. Team marketplaces are not persisted, so they cannot be removed. */
+    @JsonProperty("team") Boolean team
 ) {
 }

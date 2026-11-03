@@ -10791,6 +10791,8 @@ class SessionCompactionStartData:
     # Internal: this field is an internal SDK API and is not part of the public surface.
     _execution: str | None = None
     model: str | None = None
+    # Internal: this field is an internal SDK API and is not part of the public surface.
+    _retained_input_messages: int | None = None
     switch_target_model: str | None = None
     system_tokens: int | None = None
     target_prompt_token_limit: int | None = None
@@ -10806,6 +10808,7 @@ class SessionCompactionStartData:
         current_tokens = from_union([from_none, from_int], obj.get("currentTokens"))
         _execution = from_union([from_none, from_str], obj.get("execution"))
         model = from_union([from_none, from_str], obj.get("model"))
+        _retained_input_messages = from_union([from_none, from_int], obj.get("retainedInputMessages"))
         switch_target_model = from_union([from_none, from_str], obj.get("switchTargetModel"))
         system_tokens = from_union([from_none, from_int], obj.get("systemTokens"))
         target_prompt_token_limit = from_union([from_none, from_int], obj.get("targetPromptTokenLimit"))
@@ -10818,6 +10821,7 @@ class SessionCompactionStartData:
             current_tokens=current_tokens,
             _execution=_execution,
             model=model,
+            _retained_input_messages=_retained_input_messages,
             switch_target_model=switch_target_model,
             system_tokens=system_tokens,
             target_prompt_token_limit=target_prompt_token_limit,
@@ -10838,6 +10842,8 @@ class SessionCompactionStartData:
             result["execution"] = from_union([from_none, from_str], self._execution)
         if self.model is not None:
             result["model"] = from_union([from_none, from_str], self.model)
+        if self._retained_input_messages is not None:
+            result["retainedInputMessages"] = from_union([from_none, to_int], self._retained_input_messages)
         if self.switch_target_model is not None:
             result["switchTargetModel"] = from_union([from_none, from_str], self.switch_target_model)
         if self.system_tokens is not None:
@@ -13698,6 +13704,7 @@ class SystemNotificationData:
     "System-generated notification for runtime events like background task completion"
     content: str
     kind: SystemNotification
+    causal_dependencies: list[str] | None = None
     responses_reasoning: ResponsesReasoning | None = None
 
     @staticmethod
@@ -13705,10 +13712,12 @@ class SystemNotificationData:
         assert isinstance(obj, dict)
         content = from_str(obj.get("content"))
         kind = _load_SystemNotification(obj.get("kind"))
+        causal_dependencies = from_union([from_none, lambda x: from_list(from_str, x)], obj.get("causalDependencies"))
         responses_reasoning = from_union([from_none, ResponsesReasoning.from_dict], obj.get("responsesReasoning"))
         return SystemNotificationData(
             content=content,
             kind=kind,
+            causal_dependencies=causal_dependencies,
             responses_reasoning=responses_reasoning,
         )
 
@@ -13716,6 +13725,8 @@ class SystemNotificationData:
         result: dict = {}
         result["content"] = from_str(self.content)
         result["kind"] = self.kind.to_dict()
+        if self.causal_dependencies is not None:
+            result["causalDependencies"] = from_union([from_none, lambda x: from_list(from_str, x)], self.causal_dependencies)
         if self.responses_reasoning is not None:
             result["responsesReasoning"] = from_union([from_none, lambda x: to_class(ResponsesReasoning, x)], self.responses_reasoning)
         return result
@@ -14182,6 +14193,7 @@ class ToolExecutionCompleteData:
     "Tool execution completion results including success status, detailed output, and error information"
     success: bool
     tool_call_id: str
+    causal_dependencies: list[str] | None = None
     error: ToolExecutionCompleteError | None = None
     # Experimental: this field is part of an experimental API and may change or be removed.
     file_edits: list[ToolExecutionCompleteFileEdit] | None = None
@@ -14210,6 +14222,7 @@ class ToolExecutionCompleteData:
         assert isinstance(obj, dict)
         success = from_bool(obj.get("success"))
         tool_call_id = from_str(obj.get("toolCallId"))
+        causal_dependencies = from_union([from_none, lambda x: from_list(from_str, x)], obj.get("causalDependencies"))
         error = from_union([from_none, ToolExecutionCompleteError.from_dict], obj.get("error"))
         file_edits = from_union([from_none, lambda x: from_list(ToolExecutionCompleteFileEdit.from_dict, x)], obj.get("fileEdits"))
         fusion = from_union([from_none, FusionAttribution.from_dict], obj.get("fusion"))
@@ -14229,6 +14242,7 @@ class ToolExecutionCompleteData:
         return ToolExecutionCompleteData(
             success=success,
             tool_call_id=tool_call_id,
+            causal_dependencies=causal_dependencies,
             error=error,
             file_edits=file_edits,
             fusion=fusion,
@@ -14251,6 +14265,8 @@ class ToolExecutionCompleteData:
         result: dict = {}
         result["success"] = from_bool(self.success)
         result["toolCallId"] = from_str(self.tool_call_id)
+        if self.causal_dependencies is not None:
+            result["causalDependencies"] = from_union([from_none, lambda x: from_list(from_str, x)], self.causal_dependencies)
         if self.error is not None:
             result["error"] = from_union([from_none, lambda x: to_class(ToolExecutionCompleteError, x)], self.error)
         if self.file_edits is not None:
@@ -15462,6 +15478,7 @@ class UserMessageData:
     content: str
     agent_mode: UserMessageAgentMode | None = None
     attachments: list[Attachment] | None = None
+    causal_dependencies: list[str] | None = None
     delivery: UserMessageDelivery | None = None
     interaction_id: str | None = None
     is_autopilot_continuation: bool | None = None
@@ -15480,6 +15497,7 @@ class UserMessageData:
         content = from_str(obj.get("content"))
         agent_mode = from_union([from_none, lambda x: parse_enum(UserMessageAgentMode, x)], obj.get("agentMode"))
         attachments = from_union([from_none, lambda x: from_list(_load_Attachment, x)], obj.get("attachments"))
+        causal_dependencies = from_union([from_none, lambda x: from_list(from_str, x)], obj.get("causalDependencies"))
         delivery = from_union([from_none, lambda x: parse_enum(UserMessageDelivery, x)], obj.get("delivery"))
         interaction_id = from_union([from_none, from_str], obj.get("interactionId"))
         is_autopilot_continuation = from_union([from_none, from_bool], obj.get("isAutopilotContinuation"))
@@ -15495,6 +15513,7 @@ class UserMessageData:
             content=content,
             agent_mode=agent_mode,
             attachments=attachments,
+            causal_dependencies=causal_dependencies,
             delivery=delivery,
             interaction_id=interaction_id,
             is_autopilot_continuation=is_autopilot_continuation,
@@ -15515,6 +15534,8 @@ class UserMessageData:
             result["agentMode"] = from_union([from_none, lambda x: to_enum(UserMessageAgentMode, x)], self.agent_mode)
         if self.attachments is not None:
             result["attachments"] = from_union([from_none, lambda x: from_list(lambda x: x.to_dict(), x)], self.attachments)
+        if self.causal_dependencies is not None:
+            result["causalDependencies"] = from_union([from_none, lambda x: from_list(from_str, x)], self.causal_dependencies)
         if self.delivery is not None:
             result["delivery"] = from_union([from_none, lambda x: to_enum(UserMessageDelivery, x)], self.delivery)
         if self.interaction_id is not None:

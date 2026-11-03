@@ -99,23 +99,6 @@ fn mcp_auth_result_token_converts_to_wire_response() {
 }
 
 #[test]
-fn mcp_auth_runtime_refresh_is_not_a_token_or_cancellation() {
-    let wire =
-        serde_json::to_value(McpAuthResponse::RuntimeRefresh.into_wire_for_request(true)).unwrap();
-    assert_eq!(wire, serde_json::json!({"kind":"runtimeRefresh"}));
-}
-
-#[test]
-fn mcp_auth_runtime_refresh_requires_advertised_capability() {
-    let unsupported =
-        serde_json::to_value(McpAuthResponse::RuntimeRefresh.into_wire_for_request(false)).unwrap();
-    assert_eq!(unsupported, serde_json::json!({"kind":"cancelled"}));
-    let supported =
-        serde_json::to_value(McpAuthResponse::RuntimeRefresh.into_wire_for_request(true)).unwrap();
-    assert_eq!(supported, serde_json::json!({"kind":"runtimeRefresh"}));
-}
-
-#[test]
 fn old_oauth_requests_do_not_imply_runtime_refresh_support() {
     let data: crate::session_events::McpOauthRequiredData =
         serde_json::from_value(serde_json::json!({

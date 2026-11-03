@@ -139,4 +139,26 @@ public final class ServerAccountApi {
         return caller.invoke("account.getTokenEnvVar", java.util.Map.of(), AccountGetTokenEnvVarResult.class);
     }
 
+    /**
+     * Enrolls the supplied identity in Copilot Free. A host offers this when a signed-in user has no Copilot subscription, so that signing up does not mean leaving for a browser. The runtime resolves the identity's credential itself, so the caller sends none. Read `kind` before `status`: an identity whose credential cannot be resolved answers `no-token` rather than failing the call, because that asks the user to sign in again rather than reporting that enrollment broke. Enrolling an already-enrolled account succeeds and reports `already_subscribed`. This does not refresh the caller's cached account state; a host that shows subscription status should re-read it afterwards.
+     *
+     * @apiNote This method is experimental and may change in a future version.
+     * @since 1.0.0
+     */
+    @CopilotExperimental
+    CompletableFuture<AccountSubscribeCopilotFreeResult> subscribeCopilotFree(AccountSubscribeCopilotFreeParams params) {
+        return caller.invoke("account.subscribeCopilotFree", params, AccountSubscribeCopilotFreeResult.class);
+    }
+
+    /**
+     * Resolves the base URL of the GitHub host from its configured names, normalizing a bare hostname into an `https://` URL and falling back to the public github.com host when neither name is set. Unlike `account.getWebUrl` this needs no identity, so a host can reach it before anyone has signed in -- which is when an enterprise instance must already be known.
+     *
+     * @apiNote This method is experimental and may change in a future version.
+     * @since 1.0.0
+     */
+    @CopilotExperimental
+    CompletableFuture<AccountGetHostUrlResult> getHostUrl(AccountGetHostUrlParams params) {
+        return caller.invoke("account.getHostUrl", params, AccountGetHostUrlResult.class);
+    }
+
 }

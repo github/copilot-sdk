@@ -2546,6 +2546,10 @@ pub struct SessionCompactionStartData {
     /// Model identifier used for compaction, when known
     #[serde(skip_serializing_if = "Option::is_none")]
     pub model: Option<String>,
+    /// Number of trailing conversation messages (the turn's not-yet-answered input) kept verbatim after the summary instead of being compacted. Omitted when every message at compaction start is summarized.
+    #[doc(hidden)]
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub(crate) retained_input_messages: Option<i64>,
     /// Destination model for a model-switch compaction when it differs from the compacting model; for a HydraFusion turn, the routed root model
     #[serde(skip_serializing_if = "Option::is_none")]
     pub switch_target_model: Option<String>,
@@ -3525,6 +3529,9 @@ pub struct UserMessageData {
     /// Files, selections, or GitHub references attached to the message
     #[serde(skip_serializing_if = "Option::is_none")]
     pub attachments: Option<Vec<serde_json::Value>>,
+    /// IDs of accepted assistant messages that caused this delivered inter-agent prompt, referring to assistant.message.data.messageId across the agent tree. Captured when sending and retained through queued or immediate delivery. An empty list means no model-produced dependency; absence means provenance is unavailable.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub causal_dependencies: Option<Vec<String>>,
     /// The user's message text as displayed in the timeline
     pub content: String,
     /// How this message was delivered to the agentic loop relative to loop state (idle-start vs. steering/queued while busy). The timing axis; combine with `source` (origin) for the full picture. Used for telemetry attribution.
@@ -5781,6 +5788,9 @@ pub struct ToolExecutionUsage {
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct ToolExecutionCompleteData {
+    /// IDs of accepted assistant messages whose output this tool result consumed, referring to assistant.message.data.messageId across the agent tree. Captured from the returned snapshot, including partial agent reads. An empty list means no model-produced dependency; absence means provenance is unavailable.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub causal_dependencies: Option<Vec<String>>,
     /// Error details when the tool execution failed
     #[serde(skip_serializing_if = "Option::is_none")]
     pub error: Option<ToolExecutionCompleteError>,
@@ -6620,6 +6630,9 @@ pub struct InstructionUpdateData {
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct SystemNotificationData {
+    /// IDs of accepted assistant messages whose output this notification consumed, referring to assistant.message.data.messageId across the agent tree. Captured from the delivered snapshot, not the sender's later state. An empty list means no model-produced dependency; absence means provenance is unavailable.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub causal_dependencies: Option<Vec<String>>,
     /// The notification text, typically wrapped in `<system_notification>` XML tags
     pub content: String,
     /// Structured metadata identifying what triggered this notification

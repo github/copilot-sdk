@@ -4015,6 +4015,9 @@ export interface MessageOptions {
      * sendAndWait still returns an assistant message event. For a typed result, pass a
      * Zod-compatible schema as sendAndWait's second argument instead.
      * Streaming events remain text and may include intermediate messages.
+     * Sent with strict: true and not rewritten, so provider schema restrictions apply: strict
+     * OpenAI output needs an object root with every property required (use Zod's .nullable()
+     * rather than .optional()).
      * Use rpc.send's responseFormat for provider-specific name, description and strict options.
      */
     responseSchema?: ZodSchema | Record<string, unknown>;
@@ -4124,6 +4127,18 @@ export interface SessionMetadata {
     isRemote: boolean;
     /** Working directory context (working directory, git info) from session creation */
     context?: SessionContext;
+    /**
+     * Name of the client that created the session (for example `github/cli`). Omitted when
+     * unknown.
+     */
+    clientName?: string;
+    /**
+     * Name of the client that most recently ran the session: the client that created it, or a
+     * client that resumed it and then ran it. Resuming a session only to observe it does not
+     * change this. Omitted when unknown, such as for sessions persisted before this field
+     * existed.
+     */
+    lastClientName?: string;
 }
 
 /**

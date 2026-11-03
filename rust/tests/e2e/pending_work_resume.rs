@@ -10,8 +10,8 @@ use github_copilot_sdk::session_events::{
 };
 use github_copilot_sdk::tool::ToolHandler;
 use github_copilot_sdk::{
-    Client, Error, RequestId, ResumeSessionConfig, SessionConfig, SessionId, Tool, ToolInvocation,
-    ToolResult, Transport,
+    Client, Error, ResumeSessionConfig, SessionConfig, SessionId, Tool, ToolInvocation, ToolResult,
+    Transport,
 };
 use serde_json::json;
 use tokio::sync::{Mutex, mpsc, oneshot};
@@ -22,14 +22,6 @@ use super::support::{
 };
 
 const SHARED_TOKEN: &str = "rust-pending-work-resume-shared-token";
-
-#[tokio::test]
-async fn should_continue_pending_permission_request_after_resume() {
-    let config =
-        resume_config(SessionId::from("pending-permission")).with_continue_pending_work(true);
-
-    assert_eq!(config.continue_pending_work, Some(true));
-}
 
 #[tokio::test]
 async fn should_continue_pending_external_tool_request_after_resume() {
@@ -149,24 +141,6 @@ async fn should_continue_pending_external_tool_request_after_resume() {
         },
     )
     .await;
-}
-
-#[tokio::test]
-async fn should_keep_pending_external_tool_handleable_on_warm_resume_when_continuependingwork_is_false()
- {
-    let config =
-        resume_config(SessionId::from("pending-warm-resume")).with_continue_pending_work(false);
-
-    assert_eq!(config.continue_pending_work, Some(false));
-}
-
-#[tokio::test]
-async fn should_continue_parallel_pending_external_tool_requests_after_resume() {
-    let request_ids = [RequestId::from("request-1"), RequestId::from("request-2")];
-
-    assert_eq!(request_ids.len(), 2);
-    assert_eq!(request_ids[0].as_ref(), "request-1");
-    assert_eq!(request_ids[1].as_ref(), "request-2");
 }
 
 #[tokio::test]

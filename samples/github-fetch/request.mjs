@@ -5,7 +5,7 @@
 import { CopilotClient, RuntimeConnection } from "../../nodejs/dist/index.js";
 
 const url = process.argv[2];
-if (!url) throw new Error("Usage: node samples/github-fetch/request.mjs <GitHub API URL>");
+if (!url) throw new Error("Usage: node samples/github-fetch/request.mjs <GitHub API URL> [Accept header]");
 const client = new CopilotClient({
     connection: RuntimeConnection.forStdio({ path: process.env.COPILOT_CLI_PATH }),
     gitHubToken: process.env.GITHUB_TOKEN,
@@ -14,12 +14,13 @@ const client = new CopilotClient({
 let failure;
 try {
     await client.start();
-    const api = client.internalRpc.gitHubFetch;
+    // Source-checkout samples use the same internal RPC surface as SDK integration tests.
+    const api = client["internalRpc"].gitHubFetch;
     const result = await api.request({
         ...(await api.allocateRequestId()),
         method: "GET",
         url,
-        headers: [],
+        headers: [{ name: "accept", value: process.argv[3] ?? "application/json" }],
         apiName: "GitHub source example",
         retryOptions: { maxRetries: 0, enableCircuitBreaker: false },
     });

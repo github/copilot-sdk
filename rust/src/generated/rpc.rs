@@ -50,9 +50,23 @@ impl<'a> ClientRpc<'a> {
         }
     }
 
+    /// `cafeMetrics.*` sub-namespace.
+    pub(crate) fn cafe_metrics(&self) -> ClientRpcCafeMetrics<'a> {
+        ClientRpcCafeMetrics {
+            client: self.client,
+        }
+    }
+
     /// `catalog.*` sub-namespace.
     pub fn catalog(&self) -> ClientRpcCatalog<'a> {
         ClientRpcCatalog {
+            client: self.client,
+        }
+    }
+
+    /// `cloudTasks.*` sub-namespace.
+    pub(crate) fn cloud_tasks(&self) -> ClientRpcCloudTasks<'a> {
+        ClientRpcCloudTasks {
             client: self.client,
         }
     }
@@ -106,9 +120,23 @@ impl<'a> ClientRpc<'a> {
         }
     }
 
+    /// `gitHubFetch.*` sub-namespace.
+    pub(crate) fn git_hub_fetch(&self) -> ClientRpcGitHubFetch<'a> {
+        ClientRpcGitHubFetch {
+            client: self.client,
+        }
+    }
+
     /// `gitHubOwners.*` sub-namespace.
     pub(crate) fn git_hub_owners(&self) -> ClientRpcGitHubOwners<'a> {
         ClientRpcGitHubOwners {
+            client: self.client,
+        }
+    }
+
+    /// `gitHubRelease.*` sub-namespace.
+    pub(crate) fn git_hub_release(&self) -> ClientRpcGitHubRelease<'a> {
+        ClientRpcGitHubRelease {
             client: self.client,
         }
     }
@@ -633,6 +661,68 @@ impl<'a> ClientRpcAccount<'a> {
         let _value = self
             .client
             .call(rpc_methods::ACCOUNT_GETTOKENENVVAR, Some(wire_params))
+            .await?;
+        Ok(serde_json::from_value(_value)?)
+    }
+
+    /// Enrolls the supplied identity in Copilot Free. A host offers this when a signed-in user has no Copilot subscription, so that signing up does not mean leaving for a browser. The runtime resolves the identity's credential itself, so the caller sends none. Read `kind` before `status`: an identity whose credential cannot be resolved answers `no-token` rather than failing the call, because that asks the user to sign in again rather than reporting that enrollment broke. Enrolling an already-enrolled account succeeds and reports `already_subscribed`. This does not refresh the caller's cached account state; a host that shows subscription status should re-read it afterwards.
+    ///
+    /// Wire method: `account.subscribeCopilotFree`.
+    ///
+    /// # Parameters
+    ///
+    /// * `params` - The authentication identity to enroll in Copilot Free.
+    ///
+    /// # Returns
+    ///
+    /// What came of a Copilot Free enrollment attempt.
+    ///
+    /// <div class="warning">
+    ///
+    /// **Experimental.** This API is part of an experimental wire-protocol surface
+    /// and may change or be removed in future SDK or CLI releases. Pin both the
+    /// SDK and CLI versions if your code depends on it.
+    ///
+    /// </div>
+    pub(crate) async fn subscribe_copilot_free(
+        &self,
+        params: AccountSubscribeCopilotFreeRequest,
+    ) -> Result<AccountSubscribeCopilotFreeResult, Error> {
+        let wire_params = serde_json::to_value(params)?;
+        let _value = self
+            .client
+            .call(rpc_methods::ACCOUNT_SUBSCRIBECOPILOTFREE, Some(wire_params))
+            .await?;
+        Ok(serde_json::from_value(_value)?)
+    }
+
+    /// Resolves the base URL of the GitHub host from its configured names, normalizing a bare hostname into an `https://` URL and falling back to the public github.com host when neither name is set. Unlike `account.getWebUrl` this needs no identity, so a host can reach it before anyone has signed in -- which is when an enterprise instance must already be known.
+    ///
+    /// Wire method: `account.getHostUrl`.
+    ///
+    /// # Parameters
+    ///
+    /// * `params` - Configured names of the GitHub host to resolve.
+    ///
+    /// # Returns
+    ///
+    /// Absolute base URL of the GitHub host.
+    ///
+    /// <div class="warning">
+    ///
+    /// **Experimental.** This API is part of an experimental wire-protocol surface
+    /// and may change or be removed in future SDK or CLI releases. Pin both the
+    /// SDK and CLI versions if your code depends on it.
+    ///
+    /// </div>
+    pub(crate) async fn get_host_url(
+        &self,
+        params: AccountGetHostUrlRequest,
+    ) -> Result<AccountGetHostUrlResult, Error> {
+        let wire_params = serde_json::to_value(params)?;
+        let _value = self
+            .client
+            .call(rpc_methods::ACCOUNT_GETHOSTURL, Some(wire_params))
             .await?;
         Ok(serde_json::from_value(_value)?)
     }
@@ -1338,6 +1428,153 @@ impl<'a> ClientRpcAzureMl<'a> {
     }
 }
 
+/// `cafeMetrics.*` RPCs.
+#[derive(Clone, Copy)]
+pub(crate) struct ClientRpcCafeMetrics<'a> {
+    pub(crate) client: &'a Client,
+}
+
+impl<'a> ClientRpcCafeMetrics<'a> {
+    /// Starts anonymous CAFE metrics for this process. The runtime selects the endpoint from COPILOT_CAFE_METRICS_URL or this connection's original auth owner. Offline and unsupported platforms refuse startup. Release eligibility must resolve before samples are sent. Requires the private trusted CLI host capability.
+    ///
+    /// Wire method: `cafeMetrics.start`.
+    ///
+    /// # Parameters
+    ///
+    /// * `params` - Versions and provider configuration for CAFE.
+    ///
+    /// # Returns
+    ///
+    /// CAFE startup result.
+    ///
+    /// <div class="warning">
+    ///
+    /// **Experimental.** This API is part of an experimental wire-protocol surface
+    /// and may change or be removed in future SDK or CLI releases. Pin both the
+    /// SDK and CLI versions if your code depends on it.
+    ///
+    /// </div>
+    pub(crate) async fn start(
+        &self,
+        params: CafeMetricsStartRequest,
+    ) -> Result<CafeMetricsStartResult, Error> {
+        let wire_params = serde_json::to_value(params)?;
+        let _value = self
+            .client
+            .call(rpc_methods::CAFEMETRICS_START, Some(wire_params))
+            .await?;
+        Ok(serde_json::from_value(_value)?)
+    }
+
+    /// Resolves release eligibility once from the immutable release lookup shared with auto-update. Requires the private trusted CLI host capability.
+    ///
+    /// Wire method: `cafeMetrics.resolveAdmission`.
+    ///
+    /// # Parameters
+    ///
+    /// * `params` - Immutable release lookup result.
+    ///
+    /// # Returns
+    ///
+    /// Admission result.
+    ///
+    /// <div class="warning">
+    ///
+    /// **Experimental.** This API is part of an experimental wire-protocol surface
+    /// and may change or be removed in future SDK or CLI releases. Pin both the
+    /// SDK and CLI versions if your code depends on it.
+    ///
+    /// </div>
+    pub(crate) async fn resolve_admission(
+        &self,
+        params: CafeMetricsResolveAdmissionRequest,
+    ) -> Result<CafeMetricsResolveAdmissionResult, Error> {
+        let wire_params = serde_json::to_value(params)?;
+        let _value = self
+            .client
+            .call(rpc_methods::CAFEMETRICS_RESOLVEADMISSION, Some(wire_params))
+            .await?;
+        Ok(serde_json::from_value(_value)?)
+    }
+
+    /// Records one terminal resume result. Does nothing before startup. Requires the private trusted CLI host capability.
+    ///
+    /// Wire method: `cafeMetrics.recordResumeResult`.
+    ///
+    /// # Parameters
+    ///
+    /// * `params` - Terminal result of one resume attempt.
+    ///
+    /// <div class="warning">
+    ///
+    /// **Experimental.** This API is part of an experimental wire-protocol surface
+    /// and may change or be removed in future SDK or CLI releases. Pin both the
+    /// SDK and CLI versions if your code depends on it.
+    ///
+    /// </div>
+    pub(crate) async fn record_resume_result(
+        &self,
+        params: CafeMetricsRecordResumeResultRequest,
+    ) -> Result<(), Error> {
+        let wire_params = serde_json::to_value(params)?;
+        let _value = self
+            .client
+            .call(
+                rpc_methods::CAFEMETRICS_RECORDRESUMERESULT,
+                Some(wire_params),
+            )
+            .await?;
+        Ok(())
+    }
+
+    /// Stops recording and drains within one 1.5-second deadline. flushOnly sends at most one batch without stopping recording. Requires the private trusted CLI host capability.
+    ///
+    /// Wire method: `cafeMetrics.shutdown`.
+    ///
+    /// <div class="warning">
+    ///
+    /// **Experimental.** This API is part of an experimental wire-protocol surface
+    /// and may change or be removed in future SDK or CLI releases. Pin both the
+    /// SDK and CLI versions if your code depends on it.
+    ///
+    /// </div>
+    pub(crate) async fn shutdown(&self) -> Result<(), Error> {
+        let wire_params = serde_json::json!({});
+        let _value = self
+            .client
+            .call(rpc_methods::CAFEMETRICS_SHUTDOWN, Some(wire_params))
+            .await?;
+        Ok(())
+    }
+
+    /// Stops recording and drains within one 1.5-second deadline. flushOnly sends at most one batch without stopping recording. Requires the private trusted CLI host capability.
+    ///
+    /// Wire method: `cafeMetrics.shutdown`.
+    ///
+    /// # Parameters
+    ///
+    /// * `params` - Preliminary flush or final disposal.
+    ///
+    /// <div class="warning">
+    ///
+    /// **Experimental.** This API is part of an experimental wire-protocol surface
+    /// and may change or be removed in future SDK or CLI releases. Pin both the
+    /// SDK and CLI versions if your code depends on it.
+    ///
+    /// </div>
+    pub(crate) async fn shutdown_with_params(
+        &self,
+        params: CafeMetricsShutdownRequest,
+    ) -> Result<(), Error> {
+        let wire_params = serde_json::to_value(params)?;
+        let _value = self
+            .client
+            .call(rpc_methods::CAFEMETRICS_SHUTDOWN, Some(wire_params))
+            .await?;
+        Ok(())
+    }
+}
+
 /// `catalog.*` RPCs.
 #[derive(Clone, Copy)]
 pub struct ClientRpcCatalog<'a> {
@@ -1560,6 +1797,262 @@ impl<'a> ClientRpcCatalog<'a> {
                 rpc_methods::CATALOG_PLANINSTALLFROMREFERENCE,
                 Some(wire_params),
             )
+            .await?;
+        Ok(serde_json::from_value(_value)?)
+    }
+}
+
+/// `cloudTasks.*` RPCs.
+#[derive(Clone, Copy)]
+pub(crate) struct ClientRpcCloudTasks<'a> {
+    pub(crate) client: &'a Client,
+}
+
+impl<'a> ClientRpcCloudTasks<'a> {
+    /// Starts a cloud coding-agent task, the remote run whose record `cloudTasks.get` later reads. Answered above any session because the task it creates is not a background task inside one. Hosts other than the CLI want this: a GitHub App or an SDK consumer that hands work to a cloud agent creates the same task under the same credential, and resolving it here keeps one credential, endpoint and validation path. Target the task either by repository, supplying both `repositoryOwner` and `repositoryName`, or by `owner` alone for an account-level run. The result separates a rejected request from a failed one: when `ok` is false, `reason` categorises the rejection and `message` carries the explanation to show, while `failure` describes the HTTP call itself and is present only when one was actually made.
+    ///
+    /// Wire method: `cloudTasks.create`.
+    ///
+    /// # Parameters
+    ///
+    /// * `params` - Describes the cloud coding-agent task to start and the credential to start it under. Target it either by repository, supplying both `repositoryOwner` and `repositoryName`, or by `owner` alone for an account-level run.
+    ///
+    /// # Returns
+    ///
+    /// The outcome of starting a cloud task. A rejected request and a failed one are reported separately: `reason` and `message` describe a request the service declined, while `statusCode` and `errorMessage` describe the HTTP call itself and appear only when one was actually made.
+    ///
+    /// <div class="warning">
+    ///
+    /// **Experimental.** This API is part of an experimental wire-protocol surface
+    /// and may change or be removed in future SDK or CLI releases. Pin both the
+    /// SDK and CLI versions if your code depends on it.
+    ///
+    /// </div>
+    pub(crate) async fn create(
+        &self,
+        params: CloudTasksCreateParams,
+    ) -> Result<CloudTasksCreateResult, Error> {
+        let wire_params = serde_json::to_value(params)?;
+        let _value = self
+            .client
+            .call(rpc_methods::CLOUDTASKS_CREATE, Some(wire_params))
+            .await?;
+        Ok(serde_json::from_value(_value)?)
+    }
+
+    /// Deletes one cloud coding-agent task, the remote run `cloudTasks.create` started. The deletion is a soft one: the service withdraws the task from its listings rather than destroying the record, so a host removing a run from its own UI is the intended caller. Answered above any session for the same reason as `cloudTasks.get` -- the task is remote and has no local counterpart. Hosts other than the CLI want this: a GitHub App or an SDK consumer that manages cloud agent runs withdraws the same record under the same credential, and resolving it here keeps one credential-resolution and endpoint path. The runtime resolves each token from `authInfo` or `authContextId`. A host may preserve an explicit `baseUrl`; omission derives the endpoint from `authInfo`. The result is the HTTP outcome rather than a bare success flag: the call returns no body, so `ok` alone describes a success, while a failure is reported through `statusCode`, `errorMessage` and `errorPayloadJson` instead of being raised as an error.
+    ///
+    /// Wire method: `cloudTasks.delete`.
+    ///
+    /// # Parameters
+    ///
+    /// * `params` - Identifies one cloud coding-agent task to delete, and the credential to delete it under.
+    ///
+    /// # Returns
+    ///
+    /// The HTTP outcome of deleting a cloud task. The deletion returns no body, so a successful call carries nothing beyond `ok`; a failed one is described by the remaining fields rather than raised as an error, so a caller can surface the service's own explanation.
+    ///
+    /// <div class="warning">
+    ///
+    /// **Experimental.** This API is part of an experimental wire-protocol surface
+    /// and may change or be removed in future SDK or CLI releases. Pin both the
+    /// SDK and CLI versions if your code depends on it.
+    ///
+    /// </div>
+    pub(crate) async fn delete(
+        &self,
+        params: CloudTasksDeleteParams,
+    ) -> Result<CloudTasksDeleteResult, Error> {
+        let wire_params = serde_json::to_value(params)?;
+        let _value = self
+            .client
+            .call(rpc_methods::CLOUDTASKS_DELETE, Some(wire_params))
+            .await?;
+        Ok(serde_json::from_value(_value)?)
+    }
+
+    /// Reads one cloud coding-agent task from the Copilot API. This is the task a cloud agent runs on a host's behalf, not a background task inside a session, so it is answered above any session and the `tasks` group does not cover it. Hosts other than the CLI want this: a GitHub App or an SDK consumer that shows the state of a cloud agent run must read the same task record, and resolving it here keeps one credential-resolution, task-URL and circuit-breaker path instead of each host rebuilding them. The result is the HTTP outcome rather than the task itself: a caller must read `ok` and `statusCode` before `payloadJson`, because a 404 is reported as a non-ok result rather than an error, which is what lets a caller tell "no such task" apart from "the API call failed".
+    ///
+    /// Wire method: `cloudTasks.get`.
+    ///
+    /// # Parameters
+    ///
+    /// * `params` - Identifies one cloud coding-agent task and the credential to read it under.
+    ///
+    /// # Returns
+    ///
+    /// The HTTP outcome of reading a cloud task, rather than the task alone. A 404 arrives here as a non-ok result with `statusCode` 404, not as an error, so a caller can tell an absent task apart from a failed call.
+    ///
+    /// <div class="warning">
+    ///
+    /// **Experimental.** This API is part of an experimental wire-protocol surface
+    /// and may change or be removed in future SDK or CLI releases. Pin both the
+    /// SDK and CLI versions if your code depends on it.
+    ///
+    /// </div>
+    pub(crate) async fn get(
+        &self,
+        params: CloudTasksGetParams,
+    ) -> Result<CloudTasksGetResult, Error> {
+        let wire_params = serde_json::to_value(params)?;
+        let _value = self
+            .client
+            .call(rpc_methods::CLOUDTASKS_GET, Some(wire_params))
+            .await?;
+        Ok(serde_json::from_value(_value)?)
+    }
+
+    /// Reads the logs a cloud coding-agent session produced, from the Copilot API. Answered above any session, for the same reason as `cloudTasks.get`: the session being asked about runs remotely and has no local counterpart. Read `resolved` first. It is false when no Copilot API URL could be resolved for the credential, which is a different outcome from a request that was made and failed, and a caller that treats the two alike will report a transport error for an account that simply has no API endpoint. When `resolved` is true, `debugMessages` carries the diagnostics the fetch produced and should be logged whatever the outcome, `errorString` reports a retrieval fault, and only then do `ok` and `statusCode` describe the HTTP result.
+    ///
+    /// Wire method: `cloudTasks.getSessionLogs`.
+    ///
+    /// # Parameters
+    ///
+    /// * `params` - Identifies one cloud coding-agent session whose logs are to be read, and the credential to read them under.
+    ///
+    /// # Returns
+    ///
+    /// The outcome of reading a cloud session's logs. `resolved` distinguishes "this credential has no Copilot API endpoint" from "the request was made and failed"; every other field describes a request that was actually attempted.
+    ///
+    /// <div class="warning">
+    ///
+    /// **Experimental.** This API is part of an experimental wire-protocol surface
+    /// and may change or be removed in future SDK or CLI releases. Pin both the
+    /// SDK and CLI versions if your code depends on it.
+    ///
+    /// </div>
+    pub(crate) async fn get_session_logs(
+        &self,
+        params: CloudTasksGetSessionLogsParams,
+    ) -> Result<CloudTasksGetSessionLogsResult, Error> {
+        let wire_params = serde_json::to_value(params)?;
+        let _value = self
+            .client
+            .call(rpc_methods::CLOUDTASKS_GETSESSIONLOGS, Some(wire_params))
+            .await?;
+        Ok(serde_json::from_value(_value)?)
+    }
+
+    /// Reconstructs the session a cloud coding-agent task recorded, by reading that task's events and ordering them for replay. Answered above any session, for the same reason as `cloudTasks.get`: the session being rebuilt ran remotely and has no local counterpart. Hosts other than the CLI want this: an SDK consumer attaching to a run in progress, an ACP client resuming one, or a GitHub App rendering a task's transcript all rebuild the same history from the same events, and resolving it here keeps one credential, endpoint, ordering and anchor-detection path. A newly created task has no events yet, so this polls for them and fails once they do not arrive. Read `preStart` before either list: when it is true the session has not started, `replayEventsJson` is deliberately empty because there is no history to reconstruct, and only `observedEventsJson` is meaningful.
+    ///
+    /// Wire method: `cloudTasks.getSessionReplay`.
+    ///
+    /// # Parameters
+    ///
+    /// * `params` - Identifies one cloud coding-agent task whose recorded session is to be replayed, and the credential to read it under.
+    ///
+    /// # Returns
+    ///
+    /// A cloud task's recorded events, ordered for replay. Read `preStart` first: it selects which of the two event lists a caller should use, and they differ deliberately.
+    ///
+    /// <div class="warning">
+    ///
+    /// **Experimental.** This API is part of an experimental wire-protocol surface
+    /// and may change or be removed in future SDK or CLI releases. Pin both the
+    /// SDK and CLI versions if your code depends on it.
+    ///
+    /// </div>
+    pub(crate) async fn get_session_replay(
+        &self,
+        params: CloudTasksGetSessionReplayParams,
+    ) -> Result<CloudTasksGetSessionReplayResult, Error> {
+        let wire_params = serde_json::to_value(params)?;
+        let _value = self
+            .client
+            .call(rpc_methods::CLOUDTASKS_GETSESSIONREPLAY, Some(wire_params))
+            .await?;
+        Ok(serde_json::from_value(_value)?)
+    }
+
+    /// Reads whether one cloud coding-agent task is shared, from the Mission Control service. Answered above any session, for the same reason as `cloudTasks.get`: the task is a remote record with no local counterpart. Hosts other than the CLI want this: an SDK consumer or a GitHub App that offers a "share this run" affordance must read the same flag from the same service, and resolving it here keeps one credential-resolution and endpoint path. The credential is resolved from `authInfo` inside the runtime rather than being carried across the door, so no caller handles a raw token. Read `credentialResolved` first: it is false when the account has no usable credential, in which case no request was made at all, which a caller must not report as a failed request.
+    ///
+    /// Wire method: `cloudTasks.getSharingStatus`.
+    ///
+    /// # Parameters
+    ///
+    /// * `params` - Identifies one cloud coding-agent task whose sharing status is to be read, and the credential to read it under.
+    ///
+    /// # Returns
+    ///
+    /// The sharing status a cloud task carries after the call. Read `credentialResolved` first: when it is false no request was attempted at all, which is a different outcome from a request the service declined.
+    ///
+    /// <div class="warning">
+    ///
+    /// **Experimental.** This API is part of an experimental wire-protocol surface
+    /// and may change or be removed in future SDK or CLI releases. Pin both the
+    /// SDK and CLI versions if your code depends on it.
+    ///
+    /// </div>
+    pub(crate) async fn get_sharing_status(
+        &self,
+        params: CloudTasksGetSharingStatusParams,
+    ) -> Result<CloudTasksSharingStatusResult, Error> {
+        let wire_params = serde_json::to_value(params)?;
+        let _value = self
+            .client
+            .call(rpc_methods::CLOUDTASKS_GETSHARINGSTATUS, Some(wire_params))
+            .await?;
+        Ok(serde_json::from_value(_value)?)
+    }
+
+    /// Changes whether one cloud coding-agent task is shared, through the Mission Control service, and reports the status the task carries afterwards. The companion to `cloudTasks.getSharingStatus` and answered above any session for the same reason. The status is sent verbatim and is not narrowed to a closed set, because the service owns these values. The credential is resolved from `authInfo` inside the runtime rather than being carried across the door. Read `credentialResolved` first: it is false when the account has no usable credential, in which case nothing was changed and no request was made.
+    ///
+    /// Wire method: `cloudTasks.setSharingStatus`.
+    ///
+    /// # Parameters
+    ///
+    /// * `params` - Identifies one cloud coding-agent task whose sharing status is to be changed, the status to set, and the credential to change it under.
+    ///
+    /// # Returns
+    ///
+    /// The sharing status a cloud task carries after the call. Read `credentialResolved` first: when it is false no request was attempted at all, which is a different outcome from a request the service declined.
+    ///
+    /// <div class="warning">
+    ///
+    /// **Experimental.** This API is part of an experimental wire-protocol surface
+    /// and may change or be removed in future SDK or CLI releases. Pin both the
+    /// SDK and CLI versions if your code depends on it.
+    ///
+    /// </div>
+    pub(crate) async fn set_sharing_status(
+        &self,
+        params: CloudTasksSetSharingStatusParams,
+    ) -> Result<CloudTasksSharingStatusResult, Error> {
+        let wire_params = serde_json::to_value(params)?;
+        let _value = self
+            .client
+            .call(rpc_methods::CLOUDTASKS_SETSHARINGSTATUS, Some(wire_params))
+            .await?;
+        Ok(serde_json::from_value(_value)?)
+    }
+
+    /// Finds the session a caller should open for one cloud coding-agent task. A task identifier alone does not say what to open: the run may already exist locally, it may exist only in the cloud, or it may be a task that cannot be resumed at all. Resolving that needs a local session scan and a Mission Control lookup that agree on identity, which is why it is answered here rather than left to each host. Hosts other than the CLI want it: an IDE or a GitHub App that opens a run from a task link faces the same three outcomes. Read `kind` before any other field. `local-session` carries `sessionId`, `remote-session` carries `metadataJson`, `unresumable-task` means the task exists but cannot be continued, and `none` means no session matched. A failed service call is reported as `error` rather than raised, so a caller can surface the service's own message. Pass every local session identifier already rejected in `ignoredLocalSessionIds` and call again to get the next candidate; that is how a host skips a local session it could not load.
+    ///
+    /// Wire method: `cloudTasks.resolveTaskId`.
+    ///
+    /// # Parameters
+    ///
+    /// * `params` - Identifies one cloud coding-agent task to resolve to an openable session, the credential to resolve it under, and the local candidates the caller has already rejected.
+    ///
+    /// # Returns
+    ///
+    /// What a caller should open for the task. The four outcomes are distinct and carry different payloads, so read `kind` before any other field.
+    ///
+    /// <div class="warning">
+    ///
+    /// **Experimental.** This API is part of an experimental wire-protocol surface
+    /// and may change or be removed in future SDK or CLI releases. Pin both the
+    /// SDK and CLI versions if your code depends on it.
+    ///
+    /// </div>
+    pub(crate) async fn resolve_task_id(
+        &self,
+        params: CloudTasksResolveTaskIdParams,
+    ) -> Result<CloudTasksResolveTaskIdResult, Error> {
+        let wire_params = serde_json::to_value(params)?;
+        let _value = self
+            .client
+            .call(rpc_methods::CLOUDTASKS_RESOLVETASKID, Some(wire_params))
             .await?;
         Ok(serde_json::from_value(_value)?)
     }
@@ -2136,6 +2629,134 @@ impl<'a> ClientRpcGit<'a> {
     }
 }
 
+/// `gitHubFetch.*` RPCs.
+#[derive(Clone, Copy)]
+pub(crate) struct ClientRpcGitHubFetch<'a> {
+    pub(crate) client: &'a Client,
+}
+
+impl<'a> ClientRpcGitHubFetch<'a> {
+    /// Registers one authenticated GitHub API request before it starts, so cancellation can name the operation. Each request claims its id once. Refused for extensions.
+    ///
+    /// Wire method: `gitHubFetch.allocateRequestId`.
+    ///
+    /// # Returns
+    ///
+    /// One registered GitHub request, shared by execution and cancellation.
+    ///
+    /// <div class="warning">
+    ///
+    /// **Experimental.** This API is part of an experimental wire-protocol surface
+    /// and may change or be removed in future SDK or CLI releases. Pin both the
+    /// SDK and CLI versions if your code depends on it.
+    ///
+    /// </div>
+    pub(crate) async fn allocate_request_id(&self) -> Result<GitHubFetchRequestId, Error> {
+        let wire_params = serde_json::json!({});
+        let _value = self
+            .client
+            .call(
+                rpc_methods::GITHUBFETCH_ALLOCATEREQUESTID,
+                Some(wire_params),
+            )
+            .await?;
+        Ok(serde_json::from_value(_value)?)
+    }
+
+    /// Calls the GitHub API with session credentials, or process credentials when sessionId is absent. A bound host can select its existing auth handle with authOwnerId. The URL must match that identity's API origin or the runtime's explicit debug API origin. Retries and eligible redirects resolve the current credential again. Explicit caller Authorization remains unchanged; cross-origin redirects discard credentials without restoring them on later hops. Release asset bodies require gitHubRelease.downloadAsset. JSON asset metadata and other response bodies remain supported. The runtime supplies a default User-Agent and records request diagnostics. Extensions cannot use this method.
+    ///
+    /// Wire method: `gitHubFetch.request`.
+    ///
+    /// # Parameters
+    ///
+    /// * `params` - A GitHub API request without caller-supplied auth identity or credential fields.
+    ///
+    /// # Returns
+    ///
+    /// The HTTP response or a classified request failure.
+    ///
+    /// <div class="warning">
+    ///
+    /// **Experimental.** This API is part of an experimental wire-protocol surface
+    /// and may change or be removed in future SDK or CLI releases. Pin both the
+    /// SDK and CLI versions if your code depends on it.
+    ///
+    /// </div>
+    pub(crate) async fn request(
+        &self,
+        params: GitHubFetchRequest,
+    ) -> Result<GitHubFetchResult, Error> {
+        let wire_params = serde_json::to_value(params)?;
+        let _value = self
+            .client
+            .call(rpc_methods::GITHUBFETCH_REQUEST, Some(wire_params))
+            .await?;
+        Ok(serde_json::from_value(_value)?)
+    }
+
+    /// Executes a named GitHub or Copilot job operation. The runtime derives its URL, headers, retry policy, and credential. sessionId selects session auth; omission selects process auth. A bound host connection can select its existing auth handle with authOwnerId. Retries and eligible redirects resolve the current credential again. Cross-origin redirects discard credentials without restoring them on later hops. Non-success HTTP responses include the formatted error for the host. Extensions cannot use this method.
+    ///
+    /// Wire method: `gitHubFetch.executeOperation`.
+    ///
+    /// # Parameters
+    ///
+    /// * `params` - Arguments for a named authenticated operation.
+    ///
+    /// # Returns
+    ///
+    /// The HTTP response or a classified request failure.
+    ///
+    /// <div class="warning">
+    ///
+    /// **Experimental.** This API is part of an experimental wire-protocol surface
+    /// and may change or be removed in future SDK or CLI releases. Pin both the
+    /// SDK and CLI versions if your code depends on it.
+    ///
+    /// </div>
+    pub(crate) async fn execute_operation(
+        &self,
+        params: GitHubFetchOperationRequest,
+    ) -> Result<GitHubFetchResult, Error> {
+        let wire_params = serde_json::to_value(params)?;
+        let _value = self
+            .client
+            .call(rpc_methods::GITHUBFETCH_EXECUTEOPERATION, Some(wire_params))
+            .await?;
+        Ok(serde_json::from_value(_value)?)
+    }
+
+    /// Cancels a registered GitHub request. False means the id is no longer registered. Uses the same runtime request registry as request and executeOperation. Refused for extensions.
+    ///
+    /// Wire method: `gitHubFetch.cancel`.
+    ///
+    /// # Parameters
+    ///
+    /// * `params` - One registered GitHub request, shared by execution and cancellation.
+    ///
+    /// # Returns
+    ///
+    /// Whether cancellation reached a registered GitHub request.
+    ///
+    /// <div class="warning">
+    ///
+    /// **Experimental.** This API is part of an experimental wire-protocol surface
+    /// and may change or be removed in future SDK or CLI releases. Pin both the
+    /// SDK and CLI versions if your code depends on it.
+    ///
+    /// </div>
+    pub(crate) async fn cancel(
+        &self,
+        params: GitHubFetchRequestId,
+    ) -> Result<GitHubFetchCancelResult, Error> {
+        let wire_params = serde_json::to_value(params)?;
+        let _value = self
+            .client
+            .call(rpc_methods::GITHUBFETCH_CANCEL, Some(wire_params))
+            .await?;
+        Ok(serde_json::from_value(_value)?)
+    }
+}
+
 /// `gitHubOwners.*` RPCs.
 #[derive(Clone, Copy)]
 pub(crate) struct ClientRpcGitHubOwners<'a> {
@@ -2230,6 +2851,230 @@ impl<'a> ClientRpcGitHubOwners<'a> {
     }
 }
 
+/// `gitHubRelease.*` RPCs.
+#[derive(Clone, Copy)]
+pub(crate) struct ClientRpcGitHubRelease<'a> {
+    pub(crate) client: &'a Client,
+}
+
+impl<'a> ClientRpcGitHubRelease<'a> {
+    /// Allocates a connection-owned request id before a release lookup, snapshot, or asset download starts. Use the id to cancel that operation. A snapshot retains its allocation until disposal or connection close.
+    ///
+    /// Wire method: `gitHubRelease.allocateRequestId`.
+    ///
+    /// # Returns
+    ///
+    /// A freshly registered request id. Registering it before the work starts is what lets a cancel that races the request still find something to cancel.
+    ///
+    /// <div class="warning">
+    ///
+    /// **Experimental.** This API is part of an experimental wire-protocol surface
+    /// and may change or be removed in future SDK or CLI releases. Pin both the
+    /// SDK and CLI versions if your code depends on it.
+    ///
+    /// </div>
+    pub(crate) async fn allocate_request_id(&self) -> Result<GitHubReleaseRequestIdResult, Error> {
+        let wire_params = serde_json::json!({});
+        let _value = self
+            .client
+            .call(
+                rpc_methods::GITHUBRELEASE_ALLOCATEREQUESTID,
+                Some(wire_params),
+            )
+            .await?;
+        Ok(serde_json::from_value(_value)?)
+    }
+
+    /// Retires an unused allocation that this caller will never dispatch. Only an unclaimed id on this connection with no active guard is eligible. Active, foreign, unknown and previously retired ids return abandoned: false. Ordinary cancellation still preserves the first canceled claim. This cleanup remains available during shutdown and is refused for extensions.
+    ///
+    /// Wire method: `gitHubRelease.abandonRequest`.
+    ///
+    /// # Parameters
+    ///
+    /// * `params` - An unused release allocation that this caller will never dispatch. This is separate from cancellation before a request arrives.
+    ///
+    /// # Returns
+    ///
+    /// Whether the runtime retired an unused allocation without affecting active work.
+    ///
+    /// <div class="warning">
+    ///
+    /// **Experimental.** This API is part of an experimental wire-protocol surface
+    /// and may change or be removed in future SDK or CLI releases. Pin both the
+    /// SDK and CLI versions if your code depends on it.
+    ///
+    /// </div>
+    pub(crate) async fn abandon_request(
+        &self,
+        params: GitHubReleaseAbandonRequestParams,
+    ) -> Result<GitHubReleaseAbandonRequestResult, Error> {
+        let wire_params = serde_json::to_value(params)?;
+        let _value = self
+            .client
+            .call(rpc_methods::GITHUBRELEASE_ABANDONREQUEST, Some(wire_params))
+            .await?;
+        Ok(serde_json::from_value(_value)?)
+    }
+
+    /// Looks up a published release or release list. A bound host connection uses its original auth source. Other SDK callers keep the existing authInfo path. The runtime resolves credentials for each request and redirect. Public releases also permit anonymous access. The kind field distinguishes a result, a missing tag, no release, a rate limit, and failure. This raw lookup does not return a shared snapshot.
+    ///
+    /// Wire method: `gitHubRelease.lookup`.
+    ///
+    /// # Parameters
+    ///
+    /// * `params` - Which release to look up, the credential to look it up under, and the request id that makes the lookup cancellable.
+    ///
+    /// # Returns
+    ///
+    /// Outcome of a release lookup. `releaseJson` is present only for `found`, and `message` only for the kinds that carry an explanation.
+    ///
+    /// <div class="warning">
+    ///
+    /// **Experimental.** This API is part of an experimental wire-protocol surface
+    /// and may change or be removed in future SDK or CLI releases. Pin both the
+    /// SDK and CLI versions if your code depends on it.
+    ///
+    /// </div>
+    pub(crate) async fn lookup(
+        &self,
+        params: GitHubReleaseLookupRequest,
+    ) -> Result<GitHubReleaseLookupResult, Error> {
+        let wire_params = serde_json::to_value(params)?;
+        let _value = self
+            .client
+            .call(rpc_methods::GITHUBRELEASE_LOOKUP, Some(wire_params))
+            .await?;
+        Ok(serde_json::from_value(_value)?)
+    }
+
+    /// Loads one immutable release snapshot for an update client or SDK host. The runtime retains the original credential source and resolves it for each request. Calls with the same allocated request id and options share one lookup and result. A dropped waiter does not cancel that lookup. Use gitHubRelease.cancel to dispose the operation. The runtime admits one failure report before it publishes a failed result. Extensions cannot use this method.
+    ///
+    /// Wire method: `gitHubRelease.getSnapshot`.
+    ///
+    /// # Parameters
+    ///
+    /// * `params` - Immutable options for one connection-owned release snapshot.
+    ///
+    /// # Returns
+    ///
+    /// The shared release result with its original lookup duration. Runtime worker faults remain RPC errors.
+    ///
+    /// <div class="warning">
+    ///
+    /// **Experimental.** This API is part of an experimental wire-protocol surface
+    /// and may change or be removed in future SDK or CLI releases. Pin both the
+    /// SDK and CLI versions if your code depends on it.
+    ///
+    /// </div>
+    pub(crate) async fn get_snapshot(
+        &self,
+        params: GitHubReleaseSnapshotRequest,
+    ) -> Result<GitHubReleaseSnapshotResult, Error> {
+        let wire_params = serde_json::to_value(params)?;
+        let _value = self
+            .client
+            .call(rpc_methods::GITHUBRELEASE_GETSNAPSHOT, Some(wire_params))
+            .await?;
+        Ok(serde_json::from_value(_value)?)
+    }
+
+    /// Cancels an allocated operation on this connection. For a snapshot, disposal also waits for its owned lookup and retires its credential authority. It does not delete completed caller-owned downloads. An unknown or foreign id returns canceled: false. A completed download still returns its owned file, which the caller must dispose.
+    ///
+    /// Wire method: `gitHubRelease.cancel`.
+    ///
+    /// # Parameters
+    ///
+    /// * `params` - The release lookup or asset download to abandon.
+    ///
+    /// # Returns
+    ///
+    /// Whether the cancel reached live work.
+    ///
+    /// <div class="warning">
+    ///
+    /// **Experimental.** This API is part of an experimental wire-protocol surface
+    /// and may change or be removed in future SDK or CLI releases. Pin both the
+    /// SDK and CLI versions if your code depends on it.
+    ///
+    /// </div>
+    pub(crate) async fn cancel(
+        &self,
+        params: GitHubReleaseCancelRequest,
+    ) -> Result<GitHubReleaseCancelResult, Error> {
+        let wire_params = serde_json::to_value(params)?;
+        let _value = self
+            .client
+            .call(rpc_methods::GITHUBRELEASE_CANCEL, Some(wire_params))
+            .await?;
+        Ok(serde_json::from_value(_value)?)
+    }
+
+    /// Streams a published Copilot release asset to a private file and computes its SHA-256. The URL must name an HTTPS release download in a supported repository. A snapshotRequestId retains that snapshot's original credential source. Otherwise, a bound host uses its original owner, and other SDK callers keep the authInfo path. Each request and redirect resolves credentials again. Revocation fails without an auth fallback. Ordinary credential rejection and transport fallback keep their existing behavior. A digest mismatch removes the file. The result contains file metadata, not archive bytes. The caller must dispose the completed file after use. The download's own requestId controls progress and cancellation. Extensions cannot use this method.
+    ///
+    /// Wire method: `gitHubRelease.downloadAsset`.
+    ///
+    /// # Parameters
+    ///
+    /// * `params` - Which release asset to download, the credential to download it under, and the request id that makes the download cancellable.
+    ///
+    /// # Returns
+    ///
+    /// Outcome of an asset download. Each field is present only for the kinds its description names.
+    ///
+    /// <div class="warning">
+    ///
+    /// **Experimental.** This API is part of an experimental wire-protocol surface
+    /// and may change or be removed in future SDK or CLI releases. Pin both the
+    /// SDK and CLI versions if your code depends on it.
+    ///
+    /// </div>
+    pub(crate) async fn download_asset(
+        &self,
+        params: GitHubReleaseDownloadAssetRequest,
+    ) -> Result<GitHubReleaseDownloadAssetResult, Error> {
+        let wire_params = serde_json::to_value(params)?;
+        let _value = self
+            .client
+            .call(rpc_methods::GITHUBRELEASE_DOWNLOADASSET, Some(wire_params))
+            .await?;
+        Ok(serde_json::from_value(_value)?)
+    }
+
+    /// Reports how many bytes a running `gitHubRelease.downloadAsset` has written, for a progress display. The runtime sends no progress notification for a download, so a host polls this while the download runs. An id with no running download reports zero bytes and no total, which is the normal answer before the body starts and after the download ends.
+    ///
+    /// Wire method: `gitHubRelease.getDownloadProgress`.
+    ///
+    /// # Parameters
+    ///
+    /// * `params` - The download whose progress to report.
+    ///
+    /// # Returns
+    ///
+    /// Byte progress of a running download.
+    ///
+    /// <div class="warning">
+    ///
+    /// **Experimental.** This API is part of an experimental wire-protocol surface
+    /// and may change or be removed in future SDK or CLI releases. Pin both the
+    /// SDK and CLI versions if your code depends on it.
+    ///
+    /// </div>
+    pub(crate) async fn get_download_progress(
+        &self,
+        params: GitHubReleaseDownloadProgressRequest,
+    ) -> Result<GitHubReleaseDownloadProgressResult, Error> {
+        let wire_params = serde_json::to_value(params)?;
+        let _value = self
+            .client
+            .call(
+                rpc_methods::GITHUBRELEASE_GETDOWNLOADPROGRESS,
+                Some(wire_params),
+            )
+            .await?;
+        Ok(serde_json::from_value(_value)?)
+    }
+}
+
 /// `gitHubRepository.*` RPCs.
 #[derive(Clone, Copy)]
 pub(crate) struct ClientRpcGitHubRepository<'a> {
@@ -2264,6 +3109,71 @@ impl<'a> ClientRpcGitHubRepository<'a> {
         let _value = self
             .client
             .call(rpc_methods::GITHUBREPOSITORY_ATPATH, Some(wire_params))
+            .await?;
+        Ok(serde_json::from_value(_value)?)
+    }
+
+    /// Resolves the owner and name of a GitHub repository from its numeric repository id, by asking the GitHub API under the supplied credential. Returns a null `repository` when the id names nothing the credential can see, which the API reports as a 404, so a caller can tell 'no such visible repository' apart from a request that failed. The host queried is derived from `authInfo` rather than supplied separately, so the lookup always runs against the account's own GitHub host.
+    ///
+    /// Wire method: `gitHubRepository.getById`.
+    ///
+    /// # Parameters
+    ///
+    /// * `params` - Selects a GitHub repository by its numeric repository id, and the credential to look it up under.
+    ///
+    /// # Returns
+    ///
+    /// The repository the requested id names, when the credential can see one.
+    ///
+    /// <div class="warning">
+    ///
+    /// **Experimental.** This API is part of an experimental wire-protocol surface
+    /// and may change or be removed in future SDK or CLI releases. Pin both the
+    /// SDK and CLI versions if your code depends on it.
+    ///
+    /// </div>
+    pub(crate) async fn get_by_id(
+        &self,
+        params: GitHubRepositoryByIdRequest,
+    ) -> Result<GitHubRepositoryByIdResult, Error> {
+        let wire_params = serde_json::to_value(params)?;
+        let _value = self
+            .client
+            .call(rpc_methods::GITHUBREPOSITORY_GETBYID, Some(wire_params))
+            .await?;
+        Ok(serde_json::from_value(_value)?)
+    }
+
+    /// Finds the pull request a branch is open against, searching every repository in `baseRepositories` so a fork's branch finds the pull request it opened upstream. A candidate is discarded unless `headOwner` owns its head branch, because a branch name alone is ambiguous across forks. `status` separates 'not authenticated', 'no such pull request' and 'the search failed', so a caller can tell a conclusive absence apart from an unknown one. The host queried is derived from `authInfo` rather than supplied separately, so the lookup always runs against the account's own GitHub host.
+    ///
+    /// Wire method: `gitHubRepository.lookupBranchPullRequest`.
+    ///
+    /// # Parameters
+    ///
+    /// * `params` - Selects the pull request a branch is open against, and the credential to look it up under. The branch is searched across every repository in `baseRepositories`, which lets a fork's branch find the pull request it opened against upstream.
+    ///
+    /// # Returns
+    ///
+    /// Outcome of a branch pull-request lookup. `status` carries why, because 'not authenticated', 'no pull request' and 'the search failed' are three different answers and only the first two are conclusive.
+    ///
+    /// <div class="warning">
+    ///
+    /// **Experimental.** This API is part of an experimental wire-protocol surface
+    /// and may change or be removed in future SDK or CLI releases. Pin both the
+    /// SDK and CLI versions if your code depends on it.
+    ///
+    /// </div>
+    pub(crate) async fn lookup_branch_pull_request(
+        &self,
+        params: GitHubBranchPullRequestLookupRequest,
+    ) -> Result<GitHubBranchPullRequestLookupResult, Error> {
+        let wire_params = serde_json::to_value(params)?;
+        let _value = self
+            .client
+            .call(
+                rpc_methods::GITHUBREPOSITORY_LOOKUPBRANCHPULLREQUEST,
+                Some(wire_params),
+            )
             .await?;
         Ok(serde_json::from_value(_value)?)
     }
@@ -6501,6 +7411,10 @@ impl<'a> ClientRpcSessions<'a> {
     ///
     /// Wire method: `sessions.open`.
     ///
+    /// # Parameters
+    ///
+    /// * `params` - Open a session by creating, resuming, attaching, connecting to a remote, or handing off.
+    ///
     /// # Returns
     ///
     /// Result of opening a session.
@@ -6512,8 +7426,8 @@ impl<'a> ClientRpcSessions<'a> {
     /// SDK and CLI versions if your code depends on it.
     ///
     /// </div>
-    pub async fn open(&self) -> Result<SessionOpenResult, Error> {
-        let wire_params = serde_json::json!({});
+    pub async fn open(&self, params: SessionOpenParams) -> Result<SessionOpenResult, Error> {
+        let wire_params = serde_json::to_value(params)?;
         let _value = self
             .client
             .call(rpc_methods::SESSIONS_OPEN, Some(wire_params))
@@ -9088,6 +10002,13 @@ impl<'a> SessionRpc<'a> {
         }
     }
 
+    /// `session.cafeMetrics.*` sub-namespace.
+    pub(crate) fn cafe_metrics(&self) -> SessionRpcCafeMetrics<'a> {
+        SessionRpcCafeMetrics {
+            session: self.session,
+        }
+    }
+
     /// `session.canvas.*` sub-namespace.
     pub fn canvas(&self) -> SessionRpcCanvas<'a> {
         SessionRpcCanvas {
@@ -10236,6 +11157,56 @@ impl<'a> SessionRpcAutopilotObjective<'a> {
                 rpc_methods::SESSION_AUTOPILOTOBJECTIVE_SETSTAYINAUTOPILOT,
                 Some(wire_params),
             )
+            .await?;
+        Ok(())
+    }
+}
+
+/// `session.cafeMetrics.*` RPCs.
+#[derive(Clone, Copy)]
+pub(crate) struct SessionRpcCafeMetrics<'a> {
+    pub(crate) session: &'a Session,
+}
+
+impl<'a> SessionRpcCafeMetrics<'a> {
+    /// Records live model-call events, including subagents, and root compaction events. Replaces any earlier recorder. Requires the private trusted CLI host capability.
+    ///
+    /// Wire method: `session.cafeMetrics.attach`.
+    ///
+    /// <div class="warning">
+    ///
+    /// **Experimental.** This API is part of an experimental wire-protocol surface
+    /// and may change or be removed in future SDK or CLI releases. Pin both the
+    /// SDK and CLI versions if your code depends on it.
+    ///
+    /// </div>
+    pub(crate) async fn attach(&self) -> Result<(), Error> {
+        let wire_params = serde_json::json!({ "sessionId": self.session.id() });
+        let _value = self
+            .session
+            .client()
+            .call(rpc_methods::SESSION_CAFEMETRICS_ATTACH, Some(wire_params))
+            .await?;
+        Ok(())
+    }
+
+    /// Stops recording this session. Does nothing if it has no recorder. Requires the private trusted CLI host capability.
+    ///
+    /// Wire method: `session.cafeMetrics.detach`.
+    ///
+    /// <div class="warning">
+    ///
+    /// **Experimental.** This API is part of an experimental wire-protocol surface
+    /// and may change or be removed in future SDK or CLI releases. Pin both the
+    /// SDK and CLI versions if your code depends on it.
+    ///
+    /// </div>
+    pub(crate) async fn detach(&self) -> Result<(), Error> {
+        let wire_params = serde_json::json!({ "sessionId": self.session.id() });
+        let _value = self
+            .session
+            .client()
+            .call(rpc_methods::SESSION_CAFEMETRICS_DETACH, Some(wire_params))
             .await?;
         Ok(())
     }

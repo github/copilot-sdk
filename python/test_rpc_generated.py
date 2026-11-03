@@ -296,6 +296,27 @@ def test_slash_command_prompt_preserves_existing_positional_parameters():
     assert restored.to_dict() == payload
 
 
+def test_local_session_metadata_preserves_existing_positional_parameters():
+    metadata = LocalSessionMetadataValue(
+        False, "2026-01-01T01:00:00Z", "s1", "2026-01-01T00:00:00Z", "github/cli"
+    )
+
+    assert list(inspect.signature(LocalSessionMetadataValue).parameters)[-1] == "last_client_name"
+    assert metadata.client_name == "github/cli"
+    assert metadata.last_client_name is None
+    payload = {
+        "clientName": "github/cli",
+        "isRemote": False,
+        "lastClientName": "vscode-agent-host",
+        "modifiedTime": "2026-01-01T01:00:00Z",
+        "sessionId": "s1",
+        "startTime": "2026-01-01T00:00:00Z",
+    }
+    restored = LocalSessionMetadataValue.from_dict(payload)
+    assert restored.last_client_name == "vscode-agent-host"
+    assert restored.to_dict() == payload
+
+
 def test_mcp_oauth_scopes_preserve_existing_positional_parameters():
     parameters = inspect.signature(MCPServerConfigHTTP).parameters
 

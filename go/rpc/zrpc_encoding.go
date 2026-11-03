@@ -1311,6 +1311,166 @@ func (r *BuiltinToolDescriptor) UnmarshalJSON(data []byte) error {
 	return nil
 }
 
+func unmarshalCafeMetricsResolveAdmissionRequest(data []byte) (CafeMetricsResolveAdmissionRequest, error) {
+	if string(data) == "null" {
+		return nil, nil
+	}
+	type rawUnion struct {
+		Kind CafeMetricsResolveAdmissionRequestKind `json:"kind"`
+	}
+	var raw rawUnion
+	if err := json.Unmarshal(data, &raw); err != nil {
+		return nil, err
+	}
+
+	switch raw.Kind {
+	case CafeMetricsResolveAdmissionRequestKindFailed:
+		var d CafeMetricsResolveAdmissionRequestFailed
+		if err := json.Unmarshal(data, &d); err != nil {
+			return nil, err
+		}
+		return &d, nil
+	case CafeMetricsResolveAdmissionRequestKindSuccess:
+		var d CafeMetricsResolveAdmissionRequestSuccess
+		if err := json.Unmarshal(data, &d); err != nil {
+			return nil, err
+		}
+		return &d, nil
+	default:
+		return &RawCafeMetricsResolveAdmissionRequestData{Discriminator: raw.Kind, Raw: data}, nil
+	}
+}
+
+func (r RawCafeMetricsResolveAdmissionRequestData) MarshalJSON() ([]byte, error) {
+	if r.Raw != nil {
+		return r.Raw, nil
+	}
+	return json.Marshal(struct {
+		Kind CafeMetricsResolveAdmissionRequestKind `json:"kind"`
+	}{
+		Kind: r.Discriminator,
+	})
+}
+
+func (r CafeMetricsResolveAdmissionRequestFailed) MarshalJSON() ([]byte, error) {
+	type alias CafeMetricsResolveAdmissionRequestFailed
+	return json.Marshal(struct {
+		Kind CafeMetricsResolveAdmissionRequestKind `json:"kind"`
+		alias
+	}{
+		Kind:  r.Kind(),
+		alias: alias(r),
+	})
+}
+
+func (r CafeMetricsResolveAdmissionRequestSuccess) MarshalJSON() ([]byte, error) {
+	type alias CafeMetricsResolveAdmissionRequestSuccess
+	return json.Marshal(struct {
+		Kind CafeMetricsResolveAdmissionRequestKind `json:"kind"`
+		alias
+	}{
+		Kind:  r.Kind(),
+		alias: alias(r),
+	})
+}
+
+func unmarshalCafeMetricsResolveAdmissionResult(data []byte) (CafeMetricsResolveAdmissionResult, error) {
+	if string(data) == "null" {
+		return nil, nil
+	}
+	type rawUnion struct {
+		Kind CafeMetricsResolveAdmissionResultKind `json:"kind"`
+	}
+	var raw rawUnion
+	if err := json.Unmarshal(data, &raw); err != nil {
+		return nil, err
+	}
+
+	switch raw.Kind {
+	case CafeMetricsResolveAdmissionResultKindAlreadyResolved:
+		var d CafeMetricsResolveAdmissionResultAlreadyResolved
+		if err := json.Unmarshal(data, &d); err != nil {
+			return nil, err
+		}
+		return &d, nil
+	case CafeMetricsResolveAdmissionResultKindApplied:
+		var d CafeMetricsResolveAdmissionResultApplied
+		if err := json.Unmarshal(data, &d); err != nil {
+			return nil, err
+		}
+		return &d, nil
+	case CafeMetricsResolveAdmissionResultKindNotStarted:
+		var d CafeMetricsResolveAdmissionResultNotStarted
+		if err := json.Unmarshal(data, &d); err != nil {
+			return nil, err
+		}
+		return &d, nil
+	case CafeMetricsResolveAdmissionResultKindShutdown:
+		var d CafeMetricsResolveAdmissionResultShutdown
+		if err := json.Unmarshal(data, &d); err != nil {
+			return nil, err
+		}
+		return &d, nil
+	default:
+		return &RawCafeMetricsResolveAdmissionResultData{Discriminator: raw.Kind, Raw: data}, nil
+	}
+}
+
+func (r RawCafeMetricsResolveAdmissionResultData) MarshalJSON() ([]byte, error) {
+	if r.Raw != nil {
+		return r.Raw, nil
+	}
+	return json.Marshal(struct {
+		Kind CafeMetricsResolveAdmissionResultKind `json:"kind"`
+	}{
+		Kind: r.Discriminator,
+	})
+}
+
+func (r CafeMetricsResolveAdmissionResultAlreadyResolved) MarshalJSON() ([]byte, error) {
+	type alias CafeMetricsResolveAdmissionResultAlreadyResolved
+	return json.Marshal(struct {
+		Kind CafeMetricsResolveAdmissionResultKind `json:"kind"`
+		alias
+	}{
+		Kind:  r.Kind(),
+		alias: alias(r),
+	})
+}
+
+func (r CafeMetricsResolveAdmissionResultApplied) MarshalJSON() ([]byte, error) {
+	type alias CafeMetricsResolveAdmissionResultApplied
+	return json.Marshal(struct {
+		Kind CafeMetricsResolveAdmissionResultKind `json:"kind"`
+		alias
+	}{
+		Kind:  r.Kind(),
+		alias: alias(r),
+	})
+}
+
+func (r CafeMetricsResolveAdmissionResultNotStarted) MarshalJSON() ([]byte, error) {
+	type alias CafeMetricsResolveAdmissionResultNotStarted
+	return json.Marshal(struct {
+		Kind CafeMetricsResolveAdmissionResultKind `json:"kind"`
+		alias
+	}{
+		Kind:  r.Kind(),
+		alias: alias(r),
+	})
+}
+
+func (r CafeMetricsResolveAdmissionResultShutdown) MarshalJSON() ([]byte, error) {
+	type alias CafeMetricsResolveAdmissionResultShutdown
+	return json.Marshal(struct {
+		Kind CafeMetricsResolveAdmissionResultKind `json:"kind"`
+		alias
+	}{
+		Kind:  r.Kind(),
+		alias: alias(r),
+	})
+}
+
 func unmarshalCatalogAgentPluginInstallSource(data []byte) (CatalogAgentPluginInstallSource, error) {
 	if string(data) == "null" {
 		return nil, nil
@@ -3955,6 +4115,166 @@ func (r *FleetStartRequest) UnmarshalJSON(data []byte) error {
 	r.Prompt = raw.Prompt
 	r.Wait = raw.Wait
 	return nil
+}
+
+func unmarshalGitHubFetchResult(data []byte) (GitHubFetchResult, error) {
+	if string(data) == "null" {
+		return nil, nil
+	}
+	type rawUnion struct {
+		Kind GitHubFetchResultKind `json:"kind"`
+	}
+	var raw rawUnion
+	if err := json.Unmarshal(data, &raw); err != nil {
+		return nil, err
+	}
+
+	switch raw.Kind {
+	case GitHubFetchResultKindCircuitBreaker:
+		var d GitHubFetchResultCircuitBreaker
+		if err := json.Unmarshal(data, &d); err != nil {
+			return nil, err
+		}
+		return &d, nil
+	case GitHubFetchResultKindFailed:
+		var d GitHubFetchResultFailed
+		if err := json.Unmarshal(data, &d); err != nil {
+			return nil, err
+		}
+		return &d, nil
+	case GitHubFetchResultKindProxyResponse:
+		var d GitHubFetchResultProxyResponse
+		if err := json.Unmarshal(data, &d); err != nil {
+			return nil, err
+		}
+		return &d, nil
+	case GitHubFetchResultKindResponse:
+		var d GitHubFetchResultResponse
+		if err := json.Unmarshal(data, &d); err != nil {
+			return nil, err
+		}
+		return &d, nil
+	default:
+		return &RawGitHubFetchResultData{Discriminator: raw.Kind, Raw: data}, nil
+	}
+}
+
+func (r RawGitHubFetchResultData) MarshalJSON() ([]byte, error) {
+	if r.Raw != nil {
+		return r.Raw, nil
+	}
+	return json.Marshal(struct {
+		Kind GitHubFetchResultKind `json:"kind"`
+	}{
+		Kind: r.Discriminator,
+	})
+}
+
+func (r GitHubFetchResultCircuitBreaker) MarshalJSON() ([]byte, error) {
+	type alias GitHubFetchResultCircuitBreaker
+	return json.Marshal(struct {
+		Kind GitHubFetchResultKind `json:"kind"`
+		alias
+	}{
+		Kind:  r.Kind(),
+		alias: alias(r),
+	})
+}
+
+func (r GitHubFetchResultFailed) MarshalJSON() ([]byte, error) {
+	type alias GitHubFetchResultFailed
+	return json.Marshal(struct {
+		Kind GitHubFetchResultKind `json:"kind"`
+		alias
+	}{
+		Kind:  r.Kind(),
+		alias: alias(r),
+	})
+}
+
+func (r GitHubFetchResultProxyResponse) MarshalJSON() ([]byte, error) {
+	type alias GitHubFetchResultProxyResponse
+	return json.Marshal(struct {
+		Kind GitHubFetchResultKind `json:"kind"`
+		alias
+	}{
+		Kind:  r.Kind(),
+		alias: alias(r),
+	})
+}
+
+func (r GitHubFetchResultResponse) MarshalJSON() ([]byte, error) {
+	type alias GitHubFetchResultResponse
+	return json.Marshal(struct {
+		Kind GitHubFetchResultKind `json:"kind"`
+		alias
+	}{
+		Kind:  r.Kind(),
+		alias: alias(r),
+	})
+}
+
+func unmarshalGitHubReleaseSnapshotResult(data []byte) (GitHubReleaseSnapshotResult, error) {
+	if string(data) == "null" {
+		return nil, nil
+	}
+	type rawUnion struct {
+		Outcome GitHubReleaseSnapshotResultOutcome `json:"outcome"`
+	}
+	var raw rawUnion
+	if err := json.Unmarshal(data, &raw); err != nil {
+		return nil, err
+	}
+
+	switch raw.Outcome {
+	case GitHubReleaseSnapshotResultOutcomeFailed:
+		var d GitHubReleaseSnapshotResultFailed
+		if err := json.Unmarshal(data, &d); err != nil {
+			return nil, err
+		}
+		return &d, nil
+	case GitHubReleaseSnapshotResultOutcomeSuccess:
+		var d GitHubReleaseSnapshotResultSuccess
+		if err := json.Unmarshal(data, &d); err != nil {
+			return nil, err
+		}
+		return &d, nil
+	default:
+		return &RawGitHubReleaseSnapshotResultData{Discriminator: raw.Outcome, Raw: data}, nil
+	}
+}
+
+func (r RawGitHubReleaseSnapshotResultData) MarshalJSON() ([]byte, error) {
+	if r.Raw != nil {
+		return r.Raw, nil
+	}
+	return json.Marshal(struct {
+		Outcome GitHubReleaseSnapshotResultOutcome `json:"outcome"`
+	}{
+		Outcome: r.Discriminator,
+	})
+}
+
+func (r GitHubReleaseSnapshotResultFailed) MarshalJSON() ([]byte, error) {
+	type alias GitHubReleaseSnapshotResultFailed
+	return json.Marshal(struct {
+		Outcome GitHubReleaseSnapshotResultOutcome `json:"outcome"`
+		alias
+	}{
+		Outcome: r.Outcome(),
+		alias:   alias(r),
+	})
+}
+
+func (r GitHubReleaseSnapshotResultSuccess) MarshalJSON() ([]byte, error) {
+	type alias GitHubReleaseSnapshotResultSuccess
+	return json.Marshal(struct {
+		Outcome GitHubReleaseSnapshotResultOutcome `json:"outcome"`
+		alias
+	}{
+		Outcome: r.Outcome(),
+		alias:   alias(r),
+	})
 }
 
 func unmarshalGitHubTokenAcquireResult(data []byte) (GitHubTokenAcquireResult, error) {

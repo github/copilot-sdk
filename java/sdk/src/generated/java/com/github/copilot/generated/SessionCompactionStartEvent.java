@@ -55,7 +55,9 @@ public final class SessionCompactionStartEvent extends SessionEvent {
         /** What initiated this compaction, when known */
         @JsonProperty("trigger") CompactionTrigger trigger,
         /** How the compaction ran relative to the conversation: "background" (alongside the turn), "turn_blocking" (the turn waited for it), "pre_prompt" (a non-interactive run waited before recording its prompt), or "direct" (an explicit compaction request). Open set; readers must tolerate other values. */
-        @JsonProperty("execution") String execution
+        @JsonProperty("execution") String execution,
+        /** Number of trailing conversation messages (the turn's not-yet-answered input) kept verbatim after the summary instead of being compacted. Omitted when every message at compaction start is summarized. */
+        @JsonProperty("retainedInputMessages") Long retainedInputMessages
     ) {
     }
 }

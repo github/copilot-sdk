@@ -5293,6 +5293,54 @@ internal sealed class AccountGetTokenEnvVarResult
     public string? Name { get; set; }
 }
 
+/// <summary>What came of a Copilot Free enrollment attempt.</summary>
+[Experimental(global::GitHub.Copilot.Diagnostics.Experimental)]
+internal sealed class AccountSubscribeCopilotFreeResult
+{
+    /// <summary>`subscribed` when GitHub answered, and `status` then carries its answer. `no-token` when no credential could be resolved for the identity, which is the caller's cue to ask the user to sign in again rather than to report a failure. `failed` when the attempt itself errored, and `message` then explains it.</summary>
+    [JsonPropertyName("kind")]
+    public string Kind { get; set; } = string.Empty;
+
+    /// <summary>Explanation to show the user. Present on `failed`, and optionally alongside a `subscribed` status.</summary>
+    [JsonPropertyName("message")]
+    public string? Message { get; set; }
+
+    /// <summary>GitHub's enrollment status when `kind` is `subscribed`, for example `subscribed` or `already_subscribed`. Absent otherwise.</summary>
+    [JsonPropertyName("status")]
+    public string? Status { get; set; }
+}
+
+/// <summary>The authentication identity to enroll in Copilot Free.</summary>
+[Experimental(global::GitHub.Copilot.Diagnostics.Experimental)]
+internal sealed class AccountSubscribeCopilotFreeRequest
+{
+    /// <summary>Identity to enroll, in the shape `session.gitHubAuth.getCurrentAuthInfo` returns. The runtime resolves the credential for it, so no credential is sent.</summary>
+    [JsonPropertyName("identity")]
+    public AuthIdentity Identity { get => field ??= new(); set; }
+}
+
+/// <summary>Absolute base URL of the GitHub host.</summary>
+[Experimental(global::GitHub.Copilot.Diagnostics.Experimental)]
+internal sealed class AccountGetHostUrlResult
+{
+    /// <summary>Absolute base URL, for example `https://github.com`.</summary>
+    [JsonPropertyName("url")]
+    public string Url { get; set; } = string.Empty;
+}
+
+/// <summary>Configured names of the GitHub host to resolve.</summary>
+[Experimental(global::GitHub.Copilot.Diagnostics.Experimental)]
+internal sealed class AccountGetHostUrlRequest
+{
+    /// <summary>Host from the Copilot-specific setting, which wins when both are set. A bare hostname is normalized to `https://`.</summary>
+    [JsonPropertyName("copilotGhHost")]
+    public string? CopilotGhHost { get; set; }
+
+    /// <summary>Host from the general GitHub CLI setting, used when the Copilot-specific one is absent.</summary>
+    [JsonPropertyName("ghHost")]
+    public string? GhHost { get; set; }
+}
+
 /// <summary>Confirmation that the secret values were registered.</summary>
 [Experimental(global::GitHub.Copilot.Diagnostics.Experimental)]
 public sealed class SecretsAddFilterValuesResult
@@ -10010,6 +10058,10 @@ public sealed class MarketplaceInfo
     /// <summary>Human-readable description of where the marketplace data is fetched from (e.g. "GitHub: owner/repo").</summary>
     [JsonPropertyName("source")]
     public string Source { get; set; } = string.Empty;
+
+    /// <summary>True when the signed-in account's GitHub Team provides this marketplace and no user, repository, or default entry of the same name exists. Team marketplaces are not persisted, so they cannot be removed.</summary>
+    [JsonPropertyName("team")]
+    public bool? Team { get; set; }
 }
 
 /// <summary>All registered marketplaces, including built-in defaults.</summary>
@@ -12902,6 +12954,169 @@ internal sealed class GitHubRepositoryAtPathRequest
     public string Path { get; set; } = string.Empty;
 }
 
+/// <summary>Owner and name of a GitHub repository. Deliberately distinct from `GitHubRepositoryIdentity`, which also carries a host: a by-id lookup takes the host as an input and the API's answer reports none, so there is no host here to report faithfully.</summary>
+[Experimental(global::GitHub.Copilot.Diagnostics.Experimental)]
+internal sealed class GitHubRepositoryOwnerName
+{
+    /// <summary>Repository name, without the owner prefix or the `.git` suffix.</summary>
+    [JsonPropertyName("name")]
+    public string Name { get; set; } = string.Empty;
+
+    /// <summary>Repository owner login (user or organization).</summary>
+    [JsonPropertyName("owner")]
+    public string Owner { get; set; } = string.Empty;
+}
+
+/// <summary>The repository the requested id names, when the credential can see one.</summary>
+[Experimental(global::GitHub.Copilot.Diagnostics.Experimental)]
+internal sealed class GitHubRepositoryByIdResult
+{
+    /// <summary>Owner and name of the repository, or null when the id names no repository visible to the credential.</summary>
+    [JsonPropertyName("repository")]
+    public GitHubRepositoryOwnerName? Repository { get; set; }
+}
+
+/// <summary>Selects a GitHub repository by its numeric repository id, and the credential to look it up under.</summary>
+[Experimental(global::GitHub.Copilot.Diagnostics.Experimental)]
+internal sealed class GitHubRepositoryByIdRequest
+{
+    /// <summary>Selects which stored credential to resolve when the host holds more than one. Omit it to resolve the default for the supplied `authInfo`.</summary>
+    [JsonPropertyName("authContextId")]
+    public string? AuthContextId { get; set; }
+
+    /// <summary>The credential the lookup runs under, carried opaquely because its shape is the host's own and the runtime only resolves a token and a GitHub host from it. Required: the endpoint answers per-account, so a repository invisible to this credential is reported as absent rather than refused.</summary>
+    [JsonPropertyName("authInfo")]
+    public JsonElement AuthInfo { get; set; }
+
+    /// <summary>GitHub's own numeric identifier for the repository, as carried by API payloads that reference a repository by id rather than by owner and name.</summary>
+    [JsonPropertyName("repositoryId")]
+    public long RepositoryId { get; set; }
+}
+
+/// <summary>One check reported against a pull request's head commit.</summary>
+[Experimental(global::GitHub.Copilot.Diagnostics.Experimental)]
+internal sealed class GitHubPullRequestCheck
+{
+    /// <summary>Name the check reports itself under.</summary>
+    [JsonPropertyName("name")]
+    public string Name { get; set; } = string.Empty;
+
+    /// <summary>Rolled-up state of the check.</summary>
+    [JsonPropertyName("status")]
+    public GitHubPullRequestCheckStatus Status { get; set; }
+}
+
+/// <summary>The pull request a branch is open against, with the review state a caller needs to summarize it without a second request.</summary>
+[Experimental(global::GitHub.Copilot.Diagnostics.Experimental)]
+internal sealed class GitHubBranchPullRequest
+{
+    /// <summary>Lines added across the pull request.</summary>
+    [JsonPropertyName("additions")]
+    public long Additions { get; set; }
+
+    /// <summary>Pull request description body. Empty when the pull request has none.</summary>
+    [JsonPropertyName("body")]
+    public string Body { get; set; } = string.Empty;
+
+    /// <summary>Number of files the pull request changes.</summary>
+    [JsonPropertyName("changedFiles")]
+    public long ChangedFiles { get; set; }
+
+    /// <summary>Checks reported against the pull request's head commit.</summary>
+    [JsonPropertyName("checks")]
+    public IList<GitHubPullRequestCheck> Checks { get => field ??= []; set; }
+
+    /// <summary>Number of comments on the pull request.</summary>
+    [JsonPropertyName("comments")]
+    public long Comments { get; set; }
+
+    /// <summary>Lines deleted across the pull request.</summary>
+    [JsonPropertyName("deletions")]
+    public long Deletions { get; set; }
+
+    /// <summary>Head branch name the pull request was opened from.</summary>
+    [JsonPropertyName("headRefName")]
+    public string HeadRefName { get; set; } = string.Empty;
+
+    /// <summary>Whether the pull request is a draft.</summary>
+    [JsonPropertyName("isDraft")]
+    public bool IsDraft { get; set; }
+
+    /// <summary>Label names applied to the pull request.</summary>
+    [JsonPropertyName("labels")]
+    public IList<string> Labels { get => field ??= []; set; }
+
+    /// <summary>Pull request number within its repository.</summary>
+    [JsonPropertyName("number")]
+    public long Number { get; set; }
+
+    /// <summary>Owner login of the repository the pull request was opened against.</summary>
+    [JsonPropertyName("owner")]
+    public string Owner { get; set; } = string.Empty;
+
+    /// <summary>Name of the repository the pull request was opened against.</summary>
+    [JsonPropertyName("repo")]
+    public string Repo { get; set; } = string.Empty;
+
+    /// <summary>Logins of the requested reviewers.</summary>
+    [JsonPropertyName("reviewers")]
+    public IList<string> Reviewers { get => field ??= []; set; }
+
+    /// <summary>Pull request state as GitHub reports it, such as `OPEN`, `CLOSED` or `MERGED`.</summary>
+    [JsonPropertyName("state")]
+    public string State { get; set; } = string.Empty;
+
+    /// <summary>Pull request title.</summary>
+    [JsonPropertyName("title")]
+    public string Title { get; set; } = string.Empty;
+
+    /// <summary>Web URL of the pull request.</summary>
+    [JsonPropertyName("url")]
+    public string Url { get; set; } = string.Empty;
+}
+
+/// <summary>Outcome of a branch pull-request lookup. `status` carries why, because 'not authenticated', 'no pull request' and 'the search failed' are three different answers and only the first two are conclusive.</summary>
+[Experimental(global::GitHub.Copilot.Diagnostics.Experimental)]
+internal sealed class GitHubBranchPullRequestLookupResult
+{
+    /// <summary>The matching pull request, or null for every status other than `found`.</summary>
+    [JsonPropertyName("pullRequest")]
+    public GitHubBranchPullRequest? PullRequest { get; set; }
+
+    /// <summary>Why the lookup reported what it did.</summary>
+    [JsonPropertyName("status")]
+    public GitHubBranchPullRequestLookupStatus Status { get; set; }
+}
+
+/// <summary>Selects the pull request a branch is open against, and the credential to look it up under. The branch is searched across every repository in `baseRepositories`, which lets a fork's branch find the pull request it opened against upstream.</summary>
+[Experimental(global::GitHub.Copilot.Diagnostics.Experimental)]
+internal sealed class GitHubBranchPullRequestLookupRequest
+{
+    /// <summary>The credential the lookup runs under, carried opaquely because its shape is the host's own and the runtime only resolves a token and a GitHub host from it. Required: the search answers per-account, so a pull request invisible to this credential is reported as absent rather than refused.</summary>
+    [JsonPropertyName("authInfo")]
+    public JsonElement AuthInfo { get; set; }
+
+    /// <summary>Repositories to search for the pull request, in preference order. A fork supplies both its own repository and its upstream, because the branch may have opened the pull request against either.</summary>
+    [JsonPropertyName("baseRepositories")]
+    public IList<GitHubRepositoryOwnerName> BaseRepositories { get => field ??= []; set; }
+
+    /// <summary>Head branch name to find the pull request for, without a `refs/heads/` prefix.</summary>
+    [UnconditionalSuppressMessage("Trimming", "IL2026", Justification = "Safe for generated string properties: JSON Schema minLength/maxLength map to string length validation, not reflection over trimmed Count members")]
+    [MinLength(1)]
+    [JsonPropertyName("branch")]
+    public string Branch { get; set; } = string.Empty;
+
+    /// <summary>Login that must own the pull request's head branch. A branch name alone is ambiguous across forks, so a candidate whose head is owned by anyone else is discarded.</summary>
+    [UnconditionalSuppressMessage("Trimming", "IL2026", Justification = "Safe for generated string properties: JSON Schema minLength/maxLength map to string length validation, not reflection over trimmed Count members")]
+    [MinLength(1)]
+    [JsonPropertyName("headOwner")]
+    public string HeadOwner { get; set; } = string.Empty;
+
+    /// <summary>Whether a closed or merged pull request counts as a match. False considers only open ones, so a caller acting on the branch's current pull request does not resurface a merged one.</summary>
+    [JsonPropertyName("includeClosed")]
+    public bool IncludeClosed { get; set; }
+}
+
 /// <summary>A freshly registered request id. Registering it before the listing starts is what lets a cancel that races the request still find the owner listing slot. The id serves one listing only. Long-abandoned unused ids can be released by later allocations.</summary>
 [Experimental(global::GitHub.Copilot.Diagnostics.Experimental)]
 internal sealed class GitHubOwnersRequestIdResult
@@ -14893,7 +15108,7 @@ public partial class SessionListEntry
     [JsonPropertyName("isRemote")]
     public bool IsRemote { get; set; }
 
-    /// <summary>Runtime client name that created/last resumed this session.</summary>
+    /// <summary>Runtime client name that created this session.</summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     [JsonPropertyName("clientName")]
     public string? ClientName { get; set; }
@@ -14917,6 +15132,11 @@ public partial class SessionListEntry
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     [JsonPropertyName("isDetached")]
     public bool? IsDetached { get; set; }
+
+    /// <summary>Runtime client name that most recently ran this session: the client that created it, or a client that resumed it and then ran it. Resuming a session only to observe it does not change this. Omitted when unknown, such as for sessions persisted before this field existed.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("lastClientName")]
+    public string? LastClientName { get; set; }
 
     /// <summary>GitHub task ID, when this local session is bound to one. Only present for local sessions exported to remote control.</summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
@@ -15040,7 +15260,7 @@ internal sealed class SessionsListRequest
 [Experimental(global::GitHub.Copilot.Diagnostics.Experimental)]
 public sealed class LocalSessionMetadataValue
 {
-    /// <summary>Runtime client name that created/last resumed this session.</summary>
+    /// <summary>Runtime client name that created this session.</summary>
     [JsonPropertyName("clientName")]
     public string? ClientName { get; set; }
 
@@ -15055,6 +15275,10 @@ public sealed class LocalSessionMetadataValue
     /// <summary>Always false for local sessions.</summary>
     [JsonPropertyName("isRemote")]
     public bool IsRemote { get; set; }
+
+    /// <summary>Runtime client name that most recently ran this session: the client that created it, or a client that resumed it and then ran it. Resuming a session only to observe it does not change this. Omitted when unknown, such as for sessions persisted before this field existed.</summary>
+    [JsonPropertyName("lastClientName")]
+    public string? LastClientName { get; set; }
 
     /// <summary>GitHub task ID, when this local session is bound to one. Only present for local sessions exported to remote control.</summary>
     [JsonPropertyName("mcTaskId")]
@@ -16419,6 +16643,1201 @@ internal sealed class ConnectorDiscoveryAccountRequest
     [MaxLength(2048)]
     [JsonPropertyName("accountId")]
     public string AccountId { get; set; } = string.Empty;
+}
+
+/// <summary>One registered GitHub request, shared by execution and cancellation.</summary>
+[Experimental(global::GitHub.Copilot.Diagnostics.Experimental)]
+internal sealed class GitHubFetchRequestId
+{
+    /// <summary>One fresh id from `gitHubFetch.allocateRequestId`.</summary>
+    [JsonPropertyName("requestId")]
+    public long RequestId { get; set; }
+}
+
+/// <summary>The HTTP response or a classified request failure.</summary>
+/// <remarks>Polymorphic base type discriminated by <c>kind</c>.</remarks>
+[Experimental(global::GitHub.Copilot.Diagnostics.Experimental)]
+[JsonPolymorphic(
+    TypeDiscriminatorPropertyName = "kind",
+    UnknownDerivedTypeHandling = JsonUnknownDerivedTypeHandling.FallBackToBaseType)]
+[JsonDerivedType(typeof(GitHubFetchResultResponse), "response")]
+[JsonDerivedType(typeof(GitHubFetchResultCircuitBreaker), "circuit-breaker")]
+[JsonDerivedType(typeof(GitHubFetchResultProxyResponse), "proxy-response")]
+[JsonDerivedType(typeof(GitHubFetchResultFailed), "failed")]
+internal partial class GitHubFetchResult
+{
+    /// <summary>The type discriminator.</summary>
+    [JsonPropertyName("kind")]
+    public virtual string Kind { get; set; } = string.Empty;
+}
+
+
+/// <summary>One HTTP header in an ordered list.</summary>
+[Experimental(global::GitHub.Copilot.Diagnostics.Experimental)]
+internal sealed class GitHubFetchHeader
+{
+    /// <summary>HTTP header name. The list preserves order and repeated names.</summary>
+    [JsonPropertyName("name")]
+    public string Name { get; set; } = string.Empty;
+
+    /// <summary>HTTP header value.</summary>
+    [JsonPropertyName("value")]
+    public string Value { get; set; } = string.Empty;
+}
+
+/// <summary>A user-facing HTTP failure formatted in the runtime.</summary>
+[Experimental(global::GitHub.Copilot.Diagnostics.Experimental)]
+internal sealed class GitHubFetchHttpError
+{
+    /// <summary>Complete user-facing error text.</summary>
+    [JsonPropertyName("message")]
+    public string Message { get; set; } = string.Empty;
+
+    /// <summary>Parsed response body serialized as JSON, when available.</summary>
+    [JsonPropertyName("responseBodyJson")]
+    public string? ResponseBodyJson { get; set; }
+}
+
+/// <summary>The <c>response</c> variant of <see cref="GitHubFetchResult"/>.</summary>
+[Experimental(global::GitHub.Copilot.Diagnostics.Experimental)]
+internal partial class GitHubFetchResultResponse : GitHubFetchResult
+{
+    /// <inheritdoc />
+    [JsonIgnore]
+    public override string Kind => "response";
+
+    /// <summary>Complete response bytes encoded as base64.</summary>
+    [JsonPropertyName("bodyBase64")]
+    public required string BodyBase64 { get; set; }
+
+    /// <summary>Response headers.</summary>
+    [JsonPropertyName("headers")]
+    public required IList<GitHubFetchHeader> Headers { get; set; }
+
+    /// <summary>Formatted non-success response for a named operation.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("httpError")]
+    public GitHubFetchHttpError? HttpError { get; set; }
+
+    /// <summary>HTTP status, including non-success responses.</summary>
+    [JsonPropertyName("status")]
+    public required int Status { get; set; }
+
+    /// <summary>HTTP status text.</summary>
+    [JsonPropertyName("statusText")]
+    public required string StatusText { get; set; }
+
+    /// <summary>Final response URL.</summary>
+    [JsonPropertyName("url")]
+    public required string Url { get; set; }
+}
+
+/// <summary>The <c>circuit-breaker</c> variant of <see cref="GitHubFetchResult"/>.</summary>
+[Experimental(global::GitHub.Copilot.Diagnostics.Experimental)]
+internal partial class GitHubFetchResultCircuitBreaker : GitHubFetchResult
+{
+    /// <inheritdoc />
+    [JsonIgnore]
+    public override string Kind => "circuit-breaker";
+
+    /// <summary>Host whose breaker is open.</summary>
+    [JsonPropertyName("host")]
+    public required string Host { get; set; }
+
+    /// <summary>Complete circuit-breaker message.</summary>
+    [JsonPropertyName("message")]
+    public required string Message { get; set; }
+
+    /// <summary>Remaining backoff in milliseconds.</summary>
+    [JsonPropertyName("timeUntilRetryMs")]
+    public required long TimeUntilRetryMs { get; set; }
+}
+
+/// <summary>The <c>proxy-response</c> variant of <see cref="GitHubFetchResult"/>.</summary>
+[Experimental(global::GitHub.Copilot.Diagnostics.Experimental)]
+internal partial class GitHubFetchResultProxyResponse : GitHubFetchResult
+{
+    /// <inheritdoc />
+    [JsonIgnore]
+    public override string Kind => "proxy-response";
+
+    /// <summary>Complete proxy failure message.</summary>
+    [JsonPropertyName("message")]
+    public required string Message { get; set; }
+
+    /// <summary>HTTP proxy status.</summary>
+    [JsonPropertyName("status")]
+    public required int Status { get; set; }
+}
+
+/// <summary>The <c>failed</c> variant of <see cref="GitHubFetchResult"/>.</summary>
+[Experimental(global::GitHub.Copilot.Diagnostics.Experimental)]
+internal partial class GitHubFetchResultFailed : GitHubFetchResult
+{
+    /// <inheritdoc />
+    [JsonIgnore]
+    public override string Kind => "failed";
+
+    /// <summary>Authentication, transport, or cancellation error.</summary>
+    [JsonPropertyName("message")]
+    public required string Message { get; set; }
+}
+
+/// <summary>A pre-resolved address for a GitHub request.</summary>
+[Experimental(global::GitHub.Copilot.Diagnostics.Experimental)]
+public sealed class GitHubFetchPinnedAddress
+{
+    /// <summary>Address the network transport must use.</summary>
+    [JsonPropertyName("address")]
+    public string Address { get; set; } = string.Empty;
+}
+
+/// <summary>Proxy environment for one authenticated GitHub request.</summary>
+[Experimental(global::GitHub.Copilot.Diagnostics.Experimental)]
+public sealed class GitHubFetchProxyEnvironment
+{
+    /// <summary>Proxy for HTTP requests.</summary>
+    [JsonPropertyName("httpProxy")]
+    public string? HttpProxy { get; set; }
+
+    /// <summary>Proxy for HTTPS requests.</summary>
+    [JsonPropertyName("httpsProxy")]
+    public string? HttpsProxy { get; set; }
+
+    /// <summary>Hosts that bypass the proxy.</summary>
+    [JsonPropertyName("noProxy")]
+    public string? NoProxy { get; set; }
+}
+
+/// <summary>Optional overrides for the runtime retry policy.</summary>
+[Experimental(global::GitHub.Copilot.Diagnostics.Experimental)]
+internal sealed class GitHubFetchRetryConfig
+{
+    /// <summary>Delay multiplier; the runtime default is two.</summary>
+    [JsonPropertyName("backoffFactor")]
+    public double? BackoffFactor { get; set; }
+
+    /// <summary>Initial retry delay; the runtime default is five seconds.</summary>
+    [JsonPropertyName("defaultRetryDelaySeconds")]
+    public double? DefaultRetryDelaySeconds { get; set; }
+
+    /// <summary>Whether repeated failures open the runtime circuit breaker. Defaults to true.</summary>
+    [JsonPropertyName("enableCircuitBreaker")]
+    public bool? EnableCircuitBreaker { get; set; }
+
+    /// <summary>Maximum retries; the runtime default is five.</summary>
+    [JsonPropertyName("maxRetries")]
+    public long? MaxRetries { get; set; }
+}
+
+/// <summary>A GitHub API request without caller-supplied auth identity or credential fields.</summary>
+[Experimental(global::GitHub.Copilot.Diagnostics.Experimental)]
+internal sealed class GitHubFetchRequest
+{
+    /// <summary>Whether the request permits loopback addresses. Defaults to true.</summary>
+    [JsonPropertyName("allowLocalhost")]
+    public bool? AllowLocalhost { get; set; }
+
+    /// <summary>API label used in runtime diagnostics.</summary>
+    [JsonPropertyName("apiName")]
+    public string ApiName { get; set; } = string.Empty;
+
+    /// <summary>Opaque selector for a live host-owned credential binding. Only the owning host connection may use it.</summary>
+    [JsonPropertyName("authOwnerId")]
+    public string? AuthOwnerId { get; set; }
+
+    /// <summary>Request bytes encoded as base64. Absent for a request without a body.</summary>
+    [JsonPropertyName("bodyBase64")]
+    public string? BodyBase64 { get; set; }
+
+    /// <summary>Maximum response body size in bytes.</summary>
+    [JsonPropertyName("bodyLimitBytes")]
+    public long? BodyLimitBytes { get; set; }
+
+    /// <summary>Whether the request bypasses idle connections.</summary>
+    [JsonPropertyName("disableConnectionReuse")]
+    public bool? DisableConnectionReuse { get; set; }
+
+    /// <summary>Caller-supplied HTTP headers.</summary>
+    [JsonPropertyName("headers")]
+    public IList<GitHubFetchHeader> Headers { get => field ??= []; set; }
+
+    /// <summary>HTTP method.</summary>
+    [JsonPropertyName("method")]
+    public string Method { get; set; } = string.Empty;
+
+    /// <summary>Addresses to pin for this request, without another DNS lookup.</summary>
+    [JsonPropertyName("pinnedAddresses")]
+    public IList<GitHubFetchPinnedAddress>? PinnedAddresses { get; set; }
+
+    /// <summary>Explicit proxy environment. Omission uses the process environment.</summary>
+    [JsonPropertyName("proxyEnv")]
+    public GitHubFetchProxyEnvironment? ProxyEnv { get; set; }
+
+    /// <summary>Whether the proxy uses Negotiate authentication.</summary>
+    [JsonPropertyName("proxyNegotiateAuth")]
+    public bool? ProxyNegotiateAuth { get; set; }
+
+    /// <summary>Optional service principal for proxy Negotiate authentication.</summary>
+    [JsonPropertyName("proxyNegotiateSpn")]
+    public string? ProxyNegotiateSpn { get; set; }
+
+    /// <summary>Response read timeout in milliseconds. Defaults to 700000.</summary>
+    [JsonPropertyName("readTimeoutMs")]
+    public long? ReadTimeoutMs { get; set; }
+
+    /// <summary>Redirect behavior. Defaults to following redirects.</summary>
+    [JsonPropertyName("redirect")]
+    public string? Redirect { get; set; }
+
+    /// <summary>A fresh request id.</summary>
+    [JsonPropertyName("requestId")]
+    public long RequestId { get; set; }
+
+    /// <summary>Optional retry overrides.</summary>
+    [JsonPropertyName("retryOptions")]
+    public GitHubFetchRetryConfig? RetryOptions { get; set; }
+
+    /// <summary>Session whose auth manager to use. Omission selects the process manager.</summary>
+    [JsonPropertyName("sessionId")]
+    public string? SessionId { get; set; }
+
+    /// <summary>Total request timeout in milliseconds.</summary>
+    [JsonPropertyName("timeoutMs")]
+    public long? TimeoutMs { get; set; }
+
+    /// <summary>Absolute URL on the resolved GitHub API origin.</summary>
+    [JsonPropertyName("url")]
+    public string Url { get; set; } = string.Empty;
+}
+
+/// <summary>Arguments for a named authenticated operation.</summary>
+[Experimental(global::GitHub.Copilot.Diagnostics.Experimental)]
+internal sealed class GitHubFetchOperationRequest
+{
+    /// <summary>Opaque selector for a live host-owned credential binding. Only the owning host connection may use it.</summary>
+    [JsonPropertyName("authOwnerId")]
+    public string? AuthOwnerId { get; set; }
+
+    /// <summary>JSON request body, preserved as supplied.</summary>
+    [JsonPropertyName("bodyJson")]
+    public string? BodyJson { get; set; }
+
+    /// <summary>The operation to execute.</summary>
+    [JsonPropertyName("operation")]
+    public GitHubFetchOperation Operation { get; set; }
+
+    /// <summary>Named operation arguments, such as owner, repo, or jobId.</summary>
+    [JsonPropertyName("params")]
+    public IDictionary<string, string> Params { get => field ??= new Dictionary<string, string>(); set; }
+
+    /// <summary>A fresh request id.</summary>
+    [JsonPropertyName("requestId")]
+    public long RequestId { get; set; }
+
+    /// <summary>Session whose auth manager to use. Omission selects the process manager.</summary>
+    [JsonPropertyName("sessionId")]
+    public string? SessionId { get; set; }
+}
+
+/// <summary>Whether cancellation reached a registered GitHub request.</summary>
+[Experimental(global::GitHub.Copilot.Diagnostics.Experimental)]
+internal sealed class GitHubFetchCancelResult
+{
+    /// <summary>True when cancellation reached a registered request.</summary>
+    [JsonPropertyName("canceled")]
+    public bool Canceled { get; set; }
+}
+
+/// <summary>A freshly registered request id. Registering it before the work starts is what lets a cancel that races the request still find something to cancel.</summary>
+[Experimental(global::GitHub.Copilot.Diagnostics.Experimental)]
+internal sealed class GitHubReleaseRequestIdResult
+{
+    /// <summary>Request id to pass to `gitHubRelease.lookup` or `gitHubRelease.downloadAsset` and, to abandon the work, `gitHubRelease.cancel`.</summary>
+    [JsonPropertyName("requestId")]
+    public long RequestId { get; set; }
+}
+
+/// <summary>Whether the runtime retired an unused allocation without affecting active work.</summary>
+[Experimental(global::GitHub.Copilot.Diagnostics.Experimental)]
+internal sealed class GitHubReleaseAbandonRequestResult
+{
+    /// <summary>True only when this connection owned an unclaimed allocation with no active guard. False for active, foreign, unknown or previously retired ids. A successful abandonment prevents any later use of that id.</summary>
+    [JsonPropertyName("abandoned")]
+    public bool Abandoned { get; set; }
+}
+
+/// <summary>An unused release allocation that this caller will never dispatch. This is separate from cancellation before a request arrives.</summary>
+[Experimental(global::GitHub.Copilot.Diagnostics.Experimental)]
+internal sealed class GitHubReleaseAbandonRequestParams
+{
+    /// <summary>The unused request id owned by this connection.</summary>
+    [JsonPropertyName("requestId")]
+    public long RequestId { get; set; }
+}
+
+/// <summary>Outcome of a release lookup. `releaseJson` is present only for `found`, and `message` only for the kinds that carry an explanation.</summary>
+[Experimental(global::GitHub.Copilot.Diagnostics.Experimental)]
+internal sealed class GitHubReleaseLookupResult
+{
+    /// <summary>How the lookup ended.</summary>
+    [JsonPropertyName("kind")]
+    public GitHubReleaseLookupKind Kind { get; set; }
+
+    /// <summary>Why the lookup produced no release, phrased for a user.</summary>
+    [JsonPropertyName("message")]
+    public string? Message { get; set; }
+
+    /// <summary>The release as GitHub's own JSON, verbatim. Carried as text rather than a modelled type so the contract does not have to track every field of GitHub's release payload, and so a caller reads the same shape the REST API documents.</summary>
+    [JsonPropertyName("releaseJson")]
+    public string? ReleaseJson { get; set; }
+}
+
+/// <summary>Which release to look up, the credential to look it up under, and the request id that makes the lookup cancellable.</summary>
+[Experimental(global::GitHub.Copilot.Diagnostics.Experimental)]
+internal sealed class GitHubReleaseLookupRequest
+{
+    /// <summary>The credential the lookup runs under, carried opaquely because its shape is the host's own and the runtime only resolves a token and a GitHub host from it. No credential travels: this selects one the runtime already holds. Omitted when the caller has no credential, which still succeeds against the public release repository at a lower rate limit.</summary>
+    [JsonPropertyName("authInfo")]
+    public JsonElement? AuthInfo { get; set; }
+
+    /// <summary>Which release to look up.</summary>
+    [JsonPropertyName("query")]
+    public GitHubReleaseQuery Query { get; set; }
+
+    /// <summary>Request id from `gitHubRelease.allocateRequestId`. An id that was never registered, or one already used, is refused rather than silently running uncancellable.</summary>
+    [JsonPropertyName("requestId")]
+    public long RequestId { get; set; }
+
+    /// <summary>The tag to look up. Required by the `tag` query and ignored by the others.</summary>
+    [JsonPropertyName("value")]
+    public string? Value { get; set; }
+}
+
+/// <summary>The shared release result with its original lookup duration. Runtime worker faults remain RPC errors.</summary>
+/// <remarks>Polymorphic base type discriminated by <c>outcome</c>.</remarks>
+[Experimental(global::GitHub.Copilot.Diagnostics.Experimental)]
+[JsonPolymorphic(
+    TypeDiscriminatorPropertyName = "outcome",
+    UnknownDerivedTypeHandling = JsonUnknownDerivedTypeHandling.FallBackToBaseType)]
+[JsonDerivedType(typeof(GitHubReleaseSnapshotResultSuccess), "success")]
+[JsonDerivedType(typeof(GitHubReleaseSnapshotResultFailed), "failed")]
+internal partial class GitHubReleaseSnapshotResult
+{
+    /// <summary>The type discriminator.</summary>
+    [JsonPropertyName("outcome")]
+    public virtual string Outcome { get; set; } = string.Empty;
+}
+
+
+/// <summary>An asset in the release snapshot. GitHub field names remain unchanged.</summary>
+[Experimental(global::GitHub.Copilot.Diagnostics.Experimental)]
+internal sealed class GitHubReleaseSnapshotAsset
+{
+    /// <summary>The published download URL.</summary>
+    [JsonPropertyName("browser_download_url")]
+    public string BrowserDownloadUrl { get; set; } = string.Empty;
+
+    /// <summary>The published asset filename.</summary>
+    [JsonPropertyName("name")]
+    public string Name { get; set; } = string.Empty;
+}
+
+/// <summary>Release facts needed for update selection and admission. GitHub field names remain unchanged.</summary>
+[Experimental(global::GitHub.Copilot.Diagnostics.Experimental)]
+internal sealed class GitHubReleaseSnapshotEntry
+{
+    /// <summary>The published release assets.</summary>
+    [JsonPropertyName("assets")]
+    public IList<GitHubReleaseSnapshotAsset> Assets { get => field ??= []; set; }
+
+    /// <summary>Whether GitHub marks this release as a draft.</summary>
+    [JsonPropertyName("draft")]
+    public bool Draft { get; set; }
+
+    /// <summary>Whether GitHub marks this release as a prerelease.</summary>
+    [JsonPropertyName("prerelease")]
+    public bool Prerelease { get; set; }
+
+    /// <summary>The release tag.</summary>
+    [JsonPropertyName("tag_name")]
+    public string TagName { get; set; } = string.Empty;
+}
+
+/// <summary>The release lookup succeeded.</summary>
+/// <remarks>The <c>success</c> variant of <see cref="GitHubReleaseSnapshotResult"/>.</remarks>
+[Experimental(global::GitHub.Copilot.Diagnostics.Experimental)]
+internal partial class GitHubReleaseSnapshotResultSuccess : GitHubReleaseSnapshotResult
+{
+    /// <inheritdoc />
+    [JsonIgnore]
+    public override string Outcome => "success";
+
+    /// <summary>The newest release in the selected update channel, when one exists.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("automaticUpdateCandidate")]
+    public GitHubReleaseSnapshotEntry? AutomaticUpdateCandidate { get; set; }
+
+    /// <summary>Whether the running release is eligible for release admission.</summary>
+    [JsonPropertyName("eligible")]
+    public required bool Eligible { get; set; }
+
+    /// <summary>Up to three stable releases, newest first.</summary>
+    [JsonPropertyName("latestStableReleases")]
+    public required IList<GitHubReleaseSnapshotEntry> LatestStableReleases { get; set; }
+
+    /// <summary>The original lookup duration in milliseconds.</summary>
+    [JsonPropertyName("lookupDurationMs")]
+    public required double LookupDurationMs { get; set; }
+
+    /// <summary>Prereleases newer than the newest stable release, newest first.</summary>
+    [JsonPropertyName("prereleasesNewerThanLatestStable")]
+    public required IList<GitHubReleaseSnapshotEntry> PrereleasesNewerThanLatestStable { get; set; }
+
+    /// <summary>The effective running version after the existing override rules.</summary>
+    [JsonPropertyName("runningVersion")]
+    public required string RunningVersion { get; set; }
+
+    /// <summary>The original update channel.</summary>
+    [JsonPropertyName("updateChannel")]
+    public required GitHubReleaseUpdateChannel UpdateChannel { get; set; }
+}
+
+/// <summary>The release lookup failed.</summary>
+/// <remarks>The <c>failed</c> variant of <see cref="GitHubReleaseSnapshotResult"/>.</remarks>
+[Experimental(global::GitHub.Copilot.Diagnostics.Experimental)]
+internal partial class GitHubReleaseSnapshotResultFailed : GitHubReleaseSnapshotResult
+{
+    /// <inheritdoc />
+    [JsonIgnore]
+    public override string Outcome => "failed";
+
+    /// <summary>The original user-facing lookup failure.</summary>
+    [JsonPropertyName("error")]
+    public required string Error { get; set; }
+
+    /// <summary>The original lookup duration in milliseconds.</summary>
+    [JsonPropertyName("lookupDurationMs")]
+    public required double LookupDurationMs { get; set; }
+
+    /// <summary>The original update channel.</summary>
+    [JsonPropertyName("updateChannel")]
+    public required GitHubReleaseUpdateChannel UpdateChannel { get; set; }
+}
+
+/// <summary>Immutable options for one connection-owned release snapshot.</summary>
+[Experimental(global::GitHub.Copilot.Diagnostics.Experimental)]
+internal sealed class GitHubReleaseSnapshotRequest
+{
+    /// <summary>The version embedded in the caller's build.</summary>
+    [JsonPropertyName("buildVersion")]
+    public string BuildVersion { get; set; } = string.Empty;
+
+    /// <summary>Optional runtime version override. Invalid or noncanonical values do not replace buildVersion.</summary>
+    [JsonPropertyName("cliVersionOverride")]
+    public string? CliVersionOverride { get; set; }
+
+    /// <summary>The embedded package identity. Omission uses the existing development-version fallback rule.</summary>
+    [JsonPropertyName("packageIdentity")]
+    public GitHubReleasePackageIdentity? PackageIdentity { get; set; }
+
+    /// <summary>An unused id from gitHubRelease.allocateRequestId. Reuse the same id and options to read the same snapshot.</summary>
+    [JsonPropertyName("requestId")]
+    public long RequestId { get; set; }
+
+    /// <summary>The release channel used for update selection.</summary>
+    [JsonPropertyName("updateChannel")]
+    public GitHubReleaseUpdateChannel UpdateChannel { get; set; }
+}
+
+/// <summary>Whether the cancel reached live work.</summary>
+[Experimental(global::GitHub.Copilot.Diagnostics.Experimental)]
+internal sealed class GitHubReleaseCancelResult
+{
+    /// <summary>True when the cancel reached a registered lookup or download; that call's own result still says how it ended. False when the id names none, which is the normal answer for work that already finished.</summary>
+    [JsonPropertyName("canceled")]
+    public bool Canceled { get; set; }
+}
+
+/// <summary>The release lookup or asset download to abandon.</summary>
+[Experimental(global::GitHub.Copilot.Diagnostics.Experimental)]
+internal sealed class GitHubReleaseCancelRequest
+{
+    /// <summary>Request id the lookup or download was started with.</summary>
+    [JsonPropertyName("requestId")]
+    public long RequestId { get; set; }
+}
+
+/// <summary>Outcome of an asset download. Each field is present only for the kinds its description names.</summary>
+[Experimental(global::GitHub.Copilot.Diagnostics.Experimental)]
+internal sealed class GitHubReleaseDownloadAssetResult
+{
+    /// <summary>How the download ended.</summary>
+    [JsonPropertyName("kind")]
+    public GitHubReleaseDownloadKind Kind { get; set; }
+
+    /// <summary>Why the download produced no file, phrased for a user, for `digest-mismatch` and `failed`.</summary>
+    [JsonPropertyName("message")]
+    public string? Message { get; set; }
+
+    /// <summary>Absolute path of the downloaded file, for `downloaded`. The file is alone in a fresh directory that the caller deletes once it has used the file.</summary>
+    [JsonPropertyName("path")]
+    public string? Path { get; set; }
+
+    /// <summary>SHA-256 of the downloaded bytes as lowercase hex, for `downloaded` and `digest-mismatch`.</summary>
+    [JsonPropertyName("sha256")]
+    public string? Sha256 { get; set; }
+
+    /// <summary>Size of the downloaded file in bytes, for `downloaded`.</summary>
+    [JsonPropertyName("sizeBytes")]
+    public long? SizeBytes { get; set; }
+
+    /// <summary>HTTP status of the final response, for `http-error`.</summary>
+    [JsonPropertyName("status")]
+    public long? Status { get; set; }
+
+    /// <summary>HTTP status text of the final response, for `http-error`.</summary>
+    [JsonPropertyName("statusText")]
+    public string? StatusText { get; set; }
+}
+
+/// <summary>Which release asset to download, the credential to download it under, and the request id that makes the download cancellable.</summary>
+[Experimental(global::GitHub.Copilot.Diagnostics.Experimental)]
+internal sealed class GitHubReleaseDownloadAssetRequest
+{
+    /// <summary>The asset's `browser_download_url` from the release JSON: an HTTPS release download URL of a repository that `gitHubRelease.lookup` serves.</summary>
+    [JsonPropertyName("assetUrl")]
+    public string AssetUrl { get; set; } = string.Empty;
+
+    /// <summary>The credential the download runs under, carried opaquely because its shape is the host's own and the runtime only resolves a token from it. No credential travels: this selects one the runtime already holds. Omitted when the caller has no credential, which still succeeds against the public release repository at a lower rate limit.</summary>
+    [JsonPropertyName("authInfo")]
+    public JsonElement? AuthInfo { get; set; }
+
+    /// <summary>Expected SHA-256 of the asset: 64 hex digits in either case, or the release asset's `digest` value as is (`sha256:` and the hex digits). When given and the downloaded bytes differ, the file is removed and the result is `digest-mismatch`.</summary>
+    [JsonPropertyName("expectedSha256")]
+    public string? ExpectedSha256 { get; set; }
+
+    /// <summary>Request id from `gitHubRelease.allocateRequestId`. An id that was never registered, or one already used, is refused rather than silently running uncancellable.</summary>
+    [JsonPropertyName("requestId")]
+    public long RequestId { get; set; }
+
+    /// <summary>Snapshot request id from this connection. The download retains that snapshot's original credential source instead of authInfo. Missing, foreign, canceled, or revoked references fail without fallback. Omission preserves ordinary downloads. The download still uses its own requestId for progress and cancellation.</summary>
+    [JsonPropertyName("snapshotRequestId")]
+    public long? SnapshotRequestId { get; set; }
+}
+
+/// <summary>Byte progress of a running download.</summary>
+[Experimental(global::GitHub.Copilot.Diagnostics.Experimental)]
+internal sealed class GitHubReleaseDownloadProgressResult
+{
+    /// <summary>Bytes written so far.</summary>
+    [JsonPropertyName("receivedBytes")]
+    public long ReceivedBytes { get; set; }
+
+    /// <summary>Size the server announced for the body. Omitted when it announced none.</summary>
+    [JsonPropertyName("totalBytes")]
+    public long? TotalBytes { get; set; }
+}
+
+/// <summary>The download whose progress to report.</summary>
+[Experimental(global::GitHub.Copilot.Diagnostics.Experimental)]
+internal sealed class GitHubReleaseDownloadProgressRequest
+{
+    /// <summary>Request id the download was started with.</summary>
+    [JsonPropertyName("requestId")]
+    public long RequestId { get; set; }
+}
+
+/// <summary>The outcome of starting a cloud task. A rejected request and a failed one are reported separately: `reason` and `message` describe a request the service declined, while `statusCode` and `errorMessage` describe the HTTP call itself and appear only when one was actually made.</summary>
+[Experimental(global::GitHub.Copilot.Diagnostics.Experimental)]
+internal sealed class CloudTasksCreateResult
+{
+    /// <summary>Human-readable explanation of a failed HTTP call, when one failed.</summary>
+    [JsonPropertyName("errorMessage")]
+    public string? ErrorMessage { get; set; }
+
+    /// <summary>The error body the service returned, preserved verbatim so a host can surface the service's own message.</summary>
+    [JsonPropertyName("errorPayloadJson")]
+    public string? ErrorPayloadJson { get; set; }
+
+    /// <summary>The explanation to show for a declined request, when the service supplied one. This describes the rejection itself, unlike `errorMessage`, which describes a failed HTTP call.</summary>
+    [JsonPropertyName("message")]
+    public string? Message { get; set; }
+
+    /// <summary>Whether the task was created.</summary>
+    [JsonPropertyName("ok")]
+    public bool Ok { get; set; }
+
+    /// <summary>Why the request was declined, when it was. Carried as a free-form string rather than a fixed set because the vocabulary is the service's and grows with it; `policy_blocked`, `validation`, `rate_limited` and `error` are the values seen so far, and a caller should treat an unrecognised one as a generic failure rather than rejecting the response.</summary>
+    [JsonPropertyName("reason")]
+    public string? Reason { get; set; }
+
+    /// <summary>The created task record, as returned by the service. Present only when `ok` is true; a caller parses it itself because the runtime does not narrow the service's own shape.</summary>
+    [JsonPropertyName("responseJson")]
+    public string? ResponseJson { get; set; }
+
+    /// <summary>HTTP status code of the response, when one was received.</summary>
+    [JsonPropertyName("statusCode")]
+    public int? StatusCode { get; set; }
+}
+
+/// <summary>Describes the cloud coding-agent task to start and the credential to start it under. Target it either by repository, supplying both `repositoryOwner` and `repositoryName`, or by `owner` alone for an account-level run.</summary>
+[Experimental(global::GitHub.Copilot.Diagnostics.Experimental)]
+internal sealed class CloudTasksCreateParams
+{
+    /// <summary>Selects which stored credential to resolve when the host holds more than one. Omit it to resolve the default for the supplied `authInfo`.</summary>
+    [JsonPropertyName("authContextId")]
+    public string? AuthContextId { get; set; }
+
+    /// <summary>The credential the task is created under, carried opaquely because its shape is the host's own and the runtime only resolves a token and an API endpoint from it.</summary>
+    [JsonPropertyName("authInfo")]
+    public JsonElement AuthInfo { get; set; }
+
+    /// <summary>Explicit Mission Control endpoint selected by the host. Omission derives it from the identity.</summary>
+    [JsonPropertyName("baseUrl")]
+    public string? BaseUrl { get; set; }
+
+    /// <summary>Name of the embedding client, reported to the service so it can attribute the request.</summary>
+    [JsonPropertyName("integrationId")]
+    public string IntegrationId { get; set; } = string.Empty;
+
+    /// <summary>Account the task is created for when it is not tied to a repository. Supply it only when `repositoryOwner` and `repositoryName` are omitted.</summary>
+    [JsonPropertyName("owner")]
+    public string? Owner { get; set; }
+
+    /// <summary>Name of the repository the task runs against. Supply it together with `repositoryOwner`.</summary>
+    [JsonPropertyName("repositoryName")]
+    public string? RepositoryName { get; set; }
+
+    /// <summary>Account or organization owning the repository the task runs against. Supply it together with `repositoryName`.</summary>
+    [JsonPropertyName("repositoryOwner")]
+    public string? RepositoryOwner { get; set; }
+}
+
+/// <summary>The HTTP outcome of deleting a cloud task. The deletion returns no body, so a successful call carries nothing beyond `ok`; a failed one is described by the remaining fields rather than raised as an error, so a caller can surface the service's own explanation.</summary>
+[Experimental(global::GitHub.Copilot.Diagnostics.Experimental)]
+internal sealed class CloudTasksDeleteResult
+{
+    /// <summary>Human-readable failure explanation, when the call failed.</summary>
+    [JsonPropertyName("errorMessage")]
+    public string? ErrorMessage { get; set; }
+
+    /// <summary>The error body the service returned, preserved verbatim so a host can surface the service's own message.</summary>
+    [JsonPropertyName("errorPayloadJson")]
+    public string? ErrorPayloadJson { get; set; }
+
+    /// <summary>Whether the service accepted the deletion.</summary>
+    [JsonPropertyName("ok")]
+    public bool Ok { get; set; }
+
+    /// <summary>HTTP status code of the response, when one was received.</summary>
+    [JsonPropertyName("statusCode")]
+    public int? StatusCode { get; set; }
+}
+
+/// <summary>Identifies one cloud coding-agent task to delete, and the credential to delete it under.</summary>
+[Experimental(global::GitHub.Copilot.Diagnostics.Experimental)]
+internal sealed class CloudTasksDeleteParams
+{
+    /// <summary>Selects which stored credential to resolve when the host holds more than one. Omit it to resolve the default for the supplied `authInfo`.</summary>
+    [JsonPropertyName("authContextId")]
+    public string? AuthContextId { get; set; }
+
+    /// <summary>The credential the deletion is performed under, carried opaquely because its shape is the host's own and the runtime only resolves a token and an API endpoint from it. Required: the task endpoint is per-account, so there is no unauthenticated form of this call.</summary>
+    [JsonPropertyName("authInfo")]
+    public JsonElement AuthInfo { get; set; }
+
+    /// <summary>Explicit Mission Control endpoint selected by the host. Omission derives it from the identity.</summary>
+    [JsonPropertyName("baseUrl")]
+    public string? BaseUrl { get; set; }
+
+    /// <summary>Name of the embedding client, reported to Mission Control so the service can attribute the request.</summary>
+    [JsonPropertyName("integrationId")]
+    public string IntegrationId { get; set; } = string.Empty;
+
+    /// <summary>Identifier of the cloud task to delete.</summary>
+    [JsonPropertyName("taskId")]
+    public string TaskId { get; set; } = string.Empty;
+}
+
+/// <summary>The HTTP outcome of reading a cloud task, rather than the task alone. A 404 arrives here as a non-ok result with `statusCode` 404, not as an error, so a caller can tell an absent task apart from a failed call.</summary>
+[Experimental(global::GitHub.Copilot.Diagnostics.Experimental)]
+internal sealed class CloudTasksGetResult
+{
+    /// <summary>Categorised failure kind, when the call failed.</summary>
+    [JsonPropertyName("errorKind")]
+    public string? ErrorKind { get; set; }
+
+    /// <summary>Human-readable failure explanation, when the call failed.</summary>
+    [JsonPropertyName("errorMessage")]
+    public string? ErrorMessage { get; set; }
+
+    /// <summary>The error body the API returned, preserved verbatim so a host can surface the service's own message.</summary>
+    [JsonPropertyName("errorPayloadJson")]
+    public string? ErrorPayloadJson { get; set; }
+
+    /// <summary>Whether the API returned the task successfully.</summary>
+    [JsonPropertyName("ok")]
+    public bool Ok { get; set; }
+
+    /// <summary>The task record, as returned by the API. Present only when `ok` is true; a caller parses it itself because the runtime does not narrow the API's own shape.</summary>
+    [JsonPropertyName("payloadJson")]
+    public string? PayloadJson { get; set; }
+
+    /// <summary>HTTP status code of the response, when one was received.</summary>
+    [JsonPropertyName("statusCode")]
+    public int? StatusCode { get; set; }
+}
+
+/// <summary>Identifies one cloud coding-agent task and the credential to read it under.</summary>
+[Experimental(global::GitHub.Copilot.Diagnostics.Experimental)]
+internal sealed class CloudTasksGetParams
+{
+    /// <summary>Selects which stored credential to resolve when the host holds more than one. Omit it to resolve the default for the supplied `authInfo`.</summary>
+    [JsonPropertyName("authContextId")]
+    public string? AuthContextId { get; set; }
+
+    /// <summary>The credential the read is performed under, carried opaquely because its shape is the host's own and the runtime only resolves a token from it. Required: the task endpoint is per-account, so there is no unauthenticated form of this read.</summary>
+    [JsonPropertyName("authInfo")]
+    public JsonElement AuthInfo { get; set; }
+
+    /// <summary>Name of the embedding client, reported to the task API so the service can attribute the request.</summary>
+    [JsonPropertyName("integrationId")]
+    public string IntegrationId { get; set; } = string.Empty;
+
+    /// <summary>Identifier of the cloud task to read.</summary>
+    [JsonPropertyName("taskId")]
+    public string TaskId { get; set; } = string.Empty;
+}
+
+/// <summary>The outcome of reading a cloud session's logs. `resolved` distinguishes "this credential has no Copilot API endpoint" from "the request was made and failed"; every other field describes a request that was actually attempted.</summary>
+[Experimental(global::GitHub.Copilot.Diagnostics.Experimental)]
+internal sealed class CloudTasksGetSessionLogsResult
+{
+    /// <summary>Diagnostics the retrieval produced, in order. Worth logging whatever the outcome, because they explain a partial or empty result that is otherwise reported as success.</summary>
+    [JsonPropertyName("debugMessages")]
+    public IList<string>? DebugMessages { get; set; }
+
+    /// <summary>Categorised failure kind, when the call failed.</summary>
+    [JsonPropertyName("errorKind")]
+    public string? ErrorKind { get; set; }
+
+    /// <summary>Human-readable failure explanation, when the call failed.</summary>
+    [JsonPropertyName("errorMessage")]
+    public string? ErrorMessage { get; set; }
+
+    /// <summary>The error body the API returned, preserved verbatim so a host can surface the service's own message.</summary>
+    [JsonPropertyName("errorPayloadJson")]
+    public string? ErrorPayloadJson { get; set; }
+
+    /// <summary>A retrieval fault that is not an HTTP status, such as a malformed response body.</summary>
+    [JsonPropertyName("errorString")]
+    public string? ErrorString { get; set; }
+
+    /// <summary>The logs, as returned by the API. Absent when none were returned; a caller that wants a list should treat absence as empty.</summary>
+    [JsonPropertyName("logsJson")]
+    public string? LogsJson { get; set; }
+
+    /// <summary>Whether the API returned the logs successfully. Meaningful only when `resolved` is true.</summary>
+    [JsonPropertyName("ok")]
+    public bool Ok { get; set; }
+
+    /// <summary>Whether a Copilot API endpoint could be resolved for the credential at all. When false no request was attempted and every other field is absent or empty, which a caller must not report as a transport failure.</summary>
+    [JsonPropertyName("resolved")]
+    public bool Resolved { get; set; }
+
+    /// <summary>HTTP status code of the response, when one was received.</summary>
+    [JsonPropertyName("statusCode")]
+    public int? StatusCode { get; set; }
+}
+
+/// <summary>Identifies one cloud coding-agent session whose logs are to be read, and the credential to read them under.</summary>
+[Experimental(global::GitHub.Copilot.Diagnostics.Experimental)]
+internal sealed class CloudTasksGetSessionLogsParams
+{
+    /// <summary>Selects which stored credential to resolve when the host holds more than one. Omit it to resolve the default for the supplied `authInfo`.</summary>
+    [JsonPropertyName("authContextId")]
+    public string? AuthContextId { get; set; }
+
+    /// <summary>The credential the read is performed under, carried opaquely because its shape is the host's own and the runtime only resolves a token and an API endpoint from it.</summary>
+    [JsonPropertyName("authInfo")]
+    public JsonElement AuthInfo { get; set; }
+
+    /// <summary>Identifier of the cloud session whose logs are read.</summary>
+    [JsonPropertyName("sessionId")]
+    public string SessionId { get; set; } = string.Empty;
+}
+
+/// <summary>A cloud task's recorded events, ordered for replay. Read `preStart` first: it selects which of the two event lists a caller should use, and they differ deliberately.</summary>
+[Experimental(global::GitHub.Copilot.Diagnostics.Experimental)]
+internal sealed class CloudTasksGetSessionReplayResult
+{
+    /// <summary>Every recorded event in the same replay order, as a JSON array, whether or not the session has started. This is the list to hand to a subsequent ingress so it can tell which events it has already seen, and unlike `replayEventsJson` it is never emptied.</summary>
+    [JsonPropertyName("observedEventsJson")]
+    public string ObservedEventsJson { get; set; } = string.Empty;
+
+    /// <summary>True when the task has recorded events but the session has not started yet, so only queued work exists. A started session is anchored by either `session.start` or, for a resumed one, `session.resume`.</summary>
+    [JsonPropertyName("preStart")]
+    public bool PreStart { get; set; }
+
+    /// <summary>The events to replay in order to reconstruct the session, as a JSON array. Empty when `preStart` is true, because a session that has not started has nothing to reconstruct and replaying its pending events would invent a history it never had.</summary>
+    [JsonPropertyName("replayEventsJson")]
+    public string ReplayEventsJson { get; set; } = string.Empty;
+}
+
+/// <summary>Identifies one cloud coding-agent task whose recorded session is to be replayed, and the credential to read it under.</summary>
+[Experimental(global::GitHub.Copilot.Diagnostics.Experimental)]
+internal sealed class CloudTasksGetSessionReplayParams
+{
+    /// <summary>Selects which stored credential to resolve when the host holds more than one. Omit it to resolve the default for the supplied `authInfo`.</summary>
+    [JsonPropertyName("authContextId")]
+    public string? AuthContextId { get; set; }
+
+    /// <summary>The credential the read is performed under, carried opaquely because its shape is the host's own and the runtime only resolves a token and an API endpoint from it.</summary>
+    [JsonPropertyName("authInfo")]
+    public JsonElement AuthInfo { get; set; }
+
+    /// <summary>Explicit Mission Control endpoint selected by the host. Omission derives it from the identity.</summary>
+    [JsonPropertyName("baseUrl")]
+    public string? BaseUrl { get; set; }
+
+    /// <summary>Name of the embedding client, reported to the service so it can attribute the request.</summary>
+    [JsonPropertyName("integrationId")]
+    public string IntegrationId { get; set; } = string.Empty;
+
+    /// <summary>Identifier of the cloud task whose recorded events are replayed.</summary>
+    [JsonPropertyName("taskId")]
+    public string TaskId { get; set; } = string.Empty;
+}
+
+/// <summary>The sharing status a cloud task carries after the call. Read `credentialResolved` first: when it is false no request was attempted at all, which is a different outcome from a request the service declined.</summary>
+[Experimental(global::GitHub.Copilot.Diagnostics.Experimental)]
+internal sealed class CloudTasksSharingStatusResult
+{
+    /// <summary>Whether a credential could be resolved for the supplied `authInfo` at all. When false no request was attempted and every other field is absent, which a caller must not report as a transport failure: the account simply has no usable credential.</summary>
+    [JsonPropertyName("credentialResolved")]
+    public bool CredentialResolved { get; set; }
+
+    /// <summary>Whether the service returned the task successfully. Meaningful only when `credentialResolved` is true.</summary>
+    [JsonPropertyName("ok")]
+    public bool Ok { get; set; }
+
+    /// <summary>The task's sharing status, as the service reported it. Absent when the call did not succeed, and also when the service returned a task that carries no sharing status at all. It is a free-form string rather than a closed set because the service owns these values; a caller that only understands some of them should treat an unrecognized one as unknown rather than as an error.</summary>
+    [JsonPropertyName("sharingStatus")]
+    public string? SharingStatus { get; set; }
+}
+
+/// <summary>Identifies one cloud coding-agent task whose sharing status is to be read, and the credential to read it under.</summary>
+[Experimental(global::GitHub.Copilot.Diagnostics.Experimental)]
+internal sealed class CloudTasksGetSharingStatusParams
+{
+    /// <summary>Selects which stored credential to resolve when the host holds more than one. Omit it to resolve the default for the supplied `authInfo`.</summary>
+    [JsonPropertyName("authContextId")]
+    public string? AuthContextId { get; set; }
+
+    /// <summary>The credential the read is performed under, carried opaquely because its shape is the host's own and the runtime only resolves a token and an API endpoint from it. The token itself is never carried across the door.</summary>
+    [JsonPropertyName("authInfo")]
+    public JsonElement AuthInfo { get; set; }
+
+    /// <summary>Explicit Mission Control endpoint selected by the host. Omission derives it from the identity.</summary>
+    [JsonPropertyName("baseUrl")]
+    public string? BaseUrl { get; set; }
+
+    /// <summary>Name of the embedding client, reported to the service so it can attribute the request.</summary>
+    [JsonPropertyName("integrationId")]
+    public string IntegrationId { get; set; } = string.Empty;
+
+    /// <summary>Identifier of the cloud task whose sharing status is read.</summary>
+    [JsonPropertyName("taskId")]
+    public string TaskId { get; set; } = string.Empty;
+}
+
+/// <summary>Identifies one cloud coding-agent task whose sharing status is to be changed, the status to set, and the credential to change it under.</summary>
+[Experimental(global::GitHub.Copilot.Diagnostics.Experimental)]
+internal sealed class CloudTasksSetSharingStatusParams
+{
+    /// <summary>Selects which stored credential to resolve when the host holds more than one. Omit it to resolve the default for the supplied `authInfo`.</summary>
+    [JsonPropertyName("authContextId")]
+    public string? AuthContextId { get; set; }
+
+    /// <summary>The credential the change is performed under, carried opaquely because its shape is the host's own and the runtime only resolves a token and an API endpoint from it. The token itself is never carried across the door.</summary>
+    [JsonPropertyName("authInfo")]
+    public JsonElement AuthInfo { get; set; }
+
+    /// <summary>Explicit Mission Control endpoint selected by the host. Omission derives it from the identity.</summary>
+    [JsonPropertyName("baseUrl")]
+    public string? BaseUrl { get; set; }
+
+    /// <summary>Name of the embedding client, reported to the service so it can attribute the request.</summary>
+    [JsonPropertyName("integrationId")]
+    public string IntegrationId { get; set; } = string.Empty;
+
+    /// <summary>The sharing status to set, sent to the service verbatim. It is a free-form string rather than a closed set because the service owns these values and may add one; narrowing it here would reject a status the service accepts.</summary>
+    [JsonPropertyName("sharingStatus")]
+    public string SharingStatus { get; set; } = string.Empty;
+
+    /// <summary>Identifier of the cloud task whose sharing status is changed.</summary>
+    [JsonPropertyName("taskId")]
+    public string TaskId { get; set; } = string.Empty;
+}
+
+/// <summary>What a caller should open for the task. The four outcomes are distinct and carry different payloads, so read `kind` before any other field.</summary>
+[Experimental(global::GitHub.Copilot.Diagnostics.Experimental)]
+internal sealed class CloudTasksResolveTaskIdResult
+{
+    /// <summary>Why the cloud lookup produced less than it could have, for logging. It accompanies a successful outcome as well, so it is not a failure signal.</summary>
+    [JsonPropertyName("diagnostic")]
+    public string? Diagnostic { get; set; }
+
+    /// <summary>Machine-readable classification of the failure, when the service supplied one. The vocabulary is the service's and grows with it, so treat an unrecognized value as a generic failure.</summary>
+    [JsonPropertyName("errorKind")]
+    public string? ErrorKind { get; set; }
+
+    /// <summary>Human-readable explanation of a failed service call. Present only when `kind` is `error`.</summary>
+    [JsonPropertyName("errorMessage")]
+    public string? ErrorMessage { get; set; }
+
+    /// <summary>The error body the service returned, preserved verbatim so a host can surface the service's own message.</summary>
+    [JsonPropertyName("errorPayloadJson")]
+    public string? ErrorPayloadJson { get; set; }
+
+    /// <summary>HTTP status code of the failed call, when one was received.</summary>
+    [JsonPropertyName("errorStatusCode")]
+    public int? ErrorStatusCode { get; set; }
+
+    /// <summary>Outcome of the resolution: `local-session` when a persisted session matched, `remote-session` when only a cloud run did, `unresumable-task` when the task exists but cannot be continued, `none` when nothing matched, and `error` when the service call failed.</summary>
+    [JsonPropertyName("kind")]
+    public string Kind { get; set; } = string.Empty;
+
+    /// <summary>The cloud session record, serialized, describing the run to open. Present only when `kind` is `remote-session`. It is carried as text because its shape is the service's own and the runtime does not narrow it.</summary>
+    [JsonPropertyName("metadataJson")]
+    public string? MetadataJson { get; set; }
+
+    /// <summary>Identifier of the matched local session. Present only when `kind` is `local-session`.</summary>
+    [JsonPropertyName("sessionId")]
+    public string? SessionId { get; set; }
+}
+
+/// <summary>Identifies one cloud coding-agent task to resolve to an openable session, the credential to resolve it under, and the local candidates the caller has already rejected.</summary>
+[Experimental(global::GitHub.Copilot.Diagnostics.Experimental)]
+internal sealed class CloudTasksResolveTaskIdParams
+{
+    /// <summary>Whether a task carrying no recorded CLI run still counts as a match. Set it when the caller wants the task itself, not only a run that already produced a session.</summary>
+    [JsonPropertyName("allowEmptyCliTask")]
+    public bool AllowEmptyCliTask { get; set; }
+
+    /// <summary>Selects which stored credential to resolve when the host holds more than one. Omit it to resolve the default for the supplied `authInfo`.</summary>
+    [JsonPropertyName("authContextId")]
+    public string? AuthContextId { get; set; }
+
+    /// <summary>The credential the lookup is performed under, carried opaquely because its shape is the host's own and the runtime only resolves a token and an API endpoint from it. Required: the task endpoint is per-account, so there is no unauthenticated form of this call.</summary>
+    [JsonPropertyName("authInfo")]
+    public JsonElement AuthInfo { get; set; }
+
+    /// <summary>Overrides the GitHub API base URL the task lookup goes to. Intended for testing against a non-production service; omit it in normal use.</summary>
+    [JsonPropertyName("debugGithubApiUrl")]
+    public string? DebugGitHubApiUrl { get; set; }
+
+    /// <summary>Whether the caller can open a cloud session. When false, a task that resolves only to a remote run is reported as unresumable instead, because the caller could not act on it.</summary>
+    [JsonPropertyName("hasRemoteSessionManager")]
+    public bool HasRemoteSessionManager { get; set; }
+
+    /// <summary>Local session identifiers the caller has already rejected, so resolution skips them and returns the next candidate. Pass the identifiers accumulated across earlier calls, not only the last one.</summary>
+    [JsonPropertyName("ignoredLocalSessionIds")]
+    public IList<string> IgnoredLocalSessionIds { get => field ??= []; set; }
+
+    /// <summary>Name of the embedding client, reported to Mission Control so the service can attribute the request.</summary>
+    [JsonPropertyName("integrationId")]
+    public string IntegrationId { get; set; } = string.Empty;
+
+    /// <summary>Directory holding persisted session state to scan for a local match. Omit it to use the default session home.</summary>
+    [JsonPropertyName("sessionsHome")]
+    public string? SessionsHome { get; set; }
+
+    /// <summary>Identifier of the cloud task to resolve.</summary>
+    [JsonPropertyName("taskId")]
+    public string TaskId { get; set; } = string.Empty;
+}
+
+/// <summary>CAFE startup result.</summary>
+[Experimental(global::GitHub.Copilot.Diagnostics.Experimental)]
+internal sealed class CafeMetricsStartResult
+{
+    /// <summary>Refusal reason, absent on success.</summary>
+    [JsonPropertyName("reason")]
+    public CafeMetricsStartRefusal? Reason { get; set; }
+
+    /// <summary>Whether this call started CAFE.</summary>
+    [JsonPropertyName("started")]
+    public bool Started { get; set; }
+}
+
+/// <summary>Versions and provider configuration for CAFE.</summary>
+[Experimental(global::GitHub.Copilot.Diagnostics.Experimental)]
+internal sealed class CafeMetricsStartRequest
+{
+    /// <summary>Effective comparison version and appVersion tag.</summary>
+    [JsonPropertyName("appVersion")]
+    public string AppVersion { get; set; } = string.Empty;
+
+    /// <summary>Raw package build version.</summary>
+    [JsonPropertyName("buildVersion")]
+    public string BuildVersion { get; set; } = string.Empty;
+
+    /// <summary>Whether the host uses a custom model provider.</summary>
+    [JsonPropertyName("customProviderConfigured")]
+    public bool CustomProviderConfigured { get; set; }
+
+    /// <summary>Embedded package identity. Omission enables the unbundled development fallback.</summary>
+    [JsonPropertyName("embeddedPackageIdentity")]
+    public CafeMetricsEmbeddedPackageIdentity? EmbeddedPackageIdentity { get; set; }
+}
+
+/// <summary>Admission result.</summary>
+/// <remarks>Polymorphic base type discriminated by <c>kind</c>.</remarks>
+[Experimental(global::GitHub.Copilot.Diagnostics.Experimental)]
+[JsonPolymorphic(
+    TypeDiscriminatorPropertyName = "kind",
+    UnknownDerivedTypeHandling = JsonUnknownDerivedTypeHandling.FallBackToBaseType)]
+[JsonDerivedType(typeof(CafeMetricsResolveAdmissionResultApplied), "applied")]
+[JsonDerivedType(typeof(CafeMetricsResolveAdmissionResultNotStarted), "not-started")]
+[JsonDerivedType(typeof(CafeMetricsResolveAdmissionResultAlreadyResolved), "already-resolved")]
+[JsonDerivedType(typeof(CafeMetricsResolveAdmissionResultShutdown), "shutdown")]
+internal partial class CafeMetricsResolveAdmissionResult
+{
+    /// <summary>The type discriminator.</summary>
+    [JsonPropertyName("kind")]
+    public virtual string Kind { get; set; } = string.Empty;
+}
+
+
+/// <summary>The <c>applied</c> variant of <see cref="CafeMetricsResolveAdmissionResult"/>.</summary>
+[Experimental(global::GitHub.Copilot.Diagnostics.Experimental)]
+internal partial class CafeMetricsResolveAdmissionResultApplied : CafeMetricsResolveAdmissionResult
+{
+    /// <inheritdoc />
+    [JsonIgnore]
+    public override string Kind => "applied";
+}
+
+/// <summary>The <c>not-started</c> variant of <see cref="CafeMetricsResolveAdmissionResult"/>.</summary>
+[Experimental(global::GitHub.Copilot.Diagnostics.Experimental)]
+internal partial class CafeMetricsResolveAdmissionResultNotStarted : CafeMetricsResolveAdmissionResult
+{
+    /// <inheritdoc />
+    [JsonIgnore]
+    public override string Kind => "not-started";
+}
+
+/// <summary>The <c>already-resolved</c> variant of <see cref="CafeMetricsResolveAdmissionResult"/>.</summary>
+[Experimental(global::GitHub.Copilot.Diagnostics.Experimental)]
+internal partial class CafeMetricsResolveAdmissionResultAlreadyResolved : CafeMetricsResolveAdmissionResult
+{
+    /// <inheritdoc />
+    [JsonIgnore]
+    public override string Kind => "already-resolved";
+}
+
+/// <summary>The <c>shutdown</c> variant of <see cref="CafeMetricsResolveAdmissionResult"/>.</summary>
+[Experimental(global::GitHub.Copilot.Diagnostics.Experimental)]
+internal partial class CafeMetricsResolveAdmissionResultShutdown : CafeMetricsResolveAdmissionResult
+{
+    /// <inheritdoc />
+    [JsonIgnore]
+    public override string Kind => "shutdown";
+}
+
+/// <summary>Immutable release lookup result.</summary>
+/// <remarks>Polymorphic base type discriminated by <c>kind</c>.</remarks>
+[Experimental(global::GitHub.Copilot.Diagnostics.Experimental)]
+[JsonPolymorphic(
+    TypeDiscriminatorPropertyName = "kind",
+    UnknownDerivedTypeHandling = JsonUnknownDerivedTypeHandling.FallBackToBaseType)]
+[JsonDerivedType(typeof(CafeMetricsResolveAdmissionRequestSuccess), "success")]
+[JsonDerivedType(typeof(CafeMetricsResolveAdmissionRequestFailed), "failed")]
+internal partial class CafeMetricsResolveAdmissionRequest
+{
+    /// <summary>The type discriminator.</summary>
+    [JsonPropertyName("kind")]
+    public virtual string Kind { get; set; } = string.Empty;
+}
+
+
+/// <summary>Release metadata without credentials or links.</summary>
+[Experimental(global::GitHub.Copilot.Diagnostics.Experimental)]
+internal sealed class CafeMetricsRelease
+{
+    /// <summary>Whether this is a draft.</summary>
+    [JsonPropertyName("draft")]
+    public bool? Draft { get; set; }
+
+    /// <summary>Whether this is a prerelease.</summary>
+    [JsonPropertyName("prerelease")]
+    public bool Prerelease { get; set; }
+
+    /// <summary>Raw release tag.</summary>
+    [JsonPropertyName("tagName")]
+    public string TagName { get; set; } = string.Empty;
+}
+
+/// <summary>The <c>success</c> variant of <see cref="CafeMetricsResolveAdmissionRequest"/>.</summary>
+[Experimental(global::GitHub.Copilot.Diagnostics.Experimental)]
+internal partial class CafeMetricsResolveAdmissionRequestSuccess : CafeMetricsResolveAdmissionRequest
+{
+    /// <inheritdoc />
+    [JsonIgnore]
+    public override string Kind => "success";
+
+    /// <summary>Finite non-negative lookup duration in milliseconds.</summary>
+    [JsonPropertyName("lookupDurationMs")]
+    public required double LookupDurationMs { get; set; }
+
+    /// <summary>Release metadata from the lookup shared with auto-update.</summary>
+    [JsonPropertyName("releases")]
+    public required IList<CafeMetricsRelease> Releases { get; set; }
+}
+
+/// <summary>The <c>failed</c> variant of <see cref="CafeMetricsResolveAdmissionRequest"/>.</summary>
+[Experimental(global::GitHub.Copilot.Diagnostics.Experimental)]
+internal partial class CafeMetricsResolveAdmissionRequestFailed : CafeMetricsResolveAdmissionRequest
+{
+    /// <inheritdoc />
+    [JsonIgnore]
+    public override string Kind => "failed";
+
+    /// <summary>Finite non-negative lookup duration in milliseconds.</summary>
+    [JsonPropertyName("lookupDurationMs")]
+    public required double LookupDurationMs { get; set; }
+}
+
+/// <summary>Terminal result of one resume attempt.</summary>
+[Experimental(global::GitHub.Copilot.Diagnostics.Experimental)]
+internal sealed class CafeMetricsRecordResumeResultRequest
+{
+    /// <summary>Terminal outcome.</summary>
+    [JsonPropertyName("outcome")]
+    public CafeMetricsResumeOutcome Outcome { get; set; }
+
+    /// <summary>Bounded result classification.</summary>
+    [JsonPropertyName("reason")]
+    public CafeMetricsResumeReason Reason { get; set; }
+
+    /// <summary>Whether an event-log recovery projection was used.</summary>
+    [JsonPropertyName("recovered")]
+    public bool Recovered { get; set; }
+
+    /// <summary>Last phase reached.</summary>
+    [JsonPropertyName("stage")]
+    public CafeMetricsResumeStage Stage { get; set; }
+}
+
+/// <summary>Preliminary flush or final disposal.</summary>
+[Experimental(global::GitHub.Copilot.Diagnostics.Experimental)]
+internal sealed class CafeMetricsShutdownRequest
+{
+    /// <summary>Send at most one batch without stopping recording. Omission means disposal.</summary>
+    [JsonPropertyName("flushOnly")]
+    public bool? FlushOnly { get; set; }
 }
 
 /// <summary>Identifies the target session.</summary>
@@ -33729,6 +35148,24 @@ internal sealed class ScheduleStopRequest
     public string SessionId { get; set; } = string.Empty;
 }
 
+/// <summary>Identifies the target session.</summary>
+[Experimental(global::GitHub.Copilot.Diagnostics.Experimental)]
+internal sealed class SessionCafeMetricsAttachRequest
+{
+    /// <summary>Target session identifier.</summary>
+    [JsonPropertyName("sessionId")]
+    public string SessionId { get; set; } = string.Empty;
+}
+
+/// <summary>Identifies the target session.</summary>
+[Experimental(global::GitHub.Copilot.Diagnostics.Experimental)]
+internal sealed class SessionCafeMetricsDetachRequest
+{
+    /// <summary>Target session identifier.</summary>
+    [JsonPropertyName("sessionId")]
+    public string SessionId { get; set; } = string.Empty;
+}
+
 /// <summary>A bearer token supplied by the SDK client for a BYOK provider. The runtime sets it as `Authorization: Bearer &lt;token&gt;` on the outbound request and does no caching; the SDK consumer owns token caching and refresh.</summary>
 [Experimental(global::GitHub.Copilot.Diagnostics.Experimental)]
 public sealed class ProviderTokenAcquireResult
@@ -42319,6 +43756,141 @@ public readonly struct SlashCommandKind : IEquatable<SlashCommandKind>
 }
 
 
+/// <summary>Rolled-up state of one pull-request check. GitHub's own conclusions are collapsed to these three so a caller renders a check without enumerating every API conclusion.</summary>
+[Experimental(global::GitHub.Copilot.Diagnostics.Experimental)]
+[JsonConverter(typeof(Converter))]
+[DebuggerDisplay("{Value,nq}")]
+internal readonly struct GitHubPullRequestCheckStatus : IEquatable<GitHubPullRequestCheckStatus>
+{
+    private readonly string? _value;
+
+    /// <summary>Initializes a new instance of the <see cref="GitHubPullRequestCheckStatus"/> struct.</summary>
+    /// <param name="value">The value to associate with this <see cref="GitHubPullRequestCheckStatus"/>.</param>
+    [JsonConstructor]
+    public GitHubPullRequestCheckStatus(string value)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(value);
+        _value = value;
+    }
+
+    /// <summary>Gets the value associated with this <see cref="GitHubPullRequestCheckStatus"/>.</summary>
+    public string Value => _value ?? string.Empty;
+
+    /// <summary>The check concluded successfully, or was neutral or skipped.</summary>
+    public static GitHubPullRequestCheckStatus Pass { get; } = new("pass");
+
+    /// <summary>The check concluded unsuccessfully, timed out, or was cancelled.</summary>
+    public static GitHubPullRequestCheckStatus Fail { get; } = new("fail");
+
+    /// <summary>The check has not concluded, or reported a conclusion with no settled meaning.</summary>
+    public static GitHubPullRequestCheckStatus Pending { get; } = new("pending");
+
+    /// <summary>Returns a value indicating whether two <see cref="GitHubPullRequestCheckStatus"/> instances are equivalent.</summary>
+    public static bool operator ==(GitHubPullRequestCheckStatus left, GitHubPullRequestCheckStatus right) => left.Equals(right);
+
+    /// <summary>Returns a value indicating whether two <see cref="GitHubPullRequestCheckStatus"/> instances are not equivalent.</summary>
+    public static bool operator !=(GitHubPullRequestCheckStatus left, GitHubPullRequestCheckStatus right) => !(left == right);
+
+    /// <inheritdoc />
+    public override bool Equals(object? obj) => obj is GitHubPullRequestCheckStatus other && Equals(other);
+
+    /// <inheritdoc />
+    public bool Equals(GitHubPullRequestCheckStatus other) => string.Equals(Value, other.Value, StringComparison.OrdinalIgnoreCase);
+
+    /// <inheritdoc />
+    public override int GetHashCode() => StringComparer.OrdinalIgnoreCase.GetHashCode(Value);
+
+    /// <inheritdoc />
+    public override string ToString() => Value;
+
+    /// <summary>Provides a <see cref="JsonConverter{GitHubPullRequestCheckStatus}"/> for serializing <see cref="GitHubPullRequestCheckStatus"/> instances.</summary>
+    [EditorBrowsable(EditorBrowsableState.Never)]
+    public sealed class Converter : JsonConverter<GitHubPullRequestCheckStatus>
+    {
+        /// <inheritdoc />
+        public override GitHubPullRequestCheckStatus Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
+        {
+            return new(GeneratedStringEnumJson.ReadValue(ref reader, typeToConvert));
+        }
+
+        /// <inheritdoc />
+        public override void Write(Utf8JsonWriter writer, GitHubPullRequestCheckStatus value, JsonSerializerOptions options)
+        {
+            GeneratedStringEnumJson.WriteValue(writer, value.Value, typeof(GitHubPullRequestCheckStatus));
+        }
+    }
+}
+
+
+/// <summary>Why a branch pull-request lookup reported what it did. The three unsuccessful outcomes are kept apart because each one asks the caller for something different.</summary>
+[Experimental(global::GitHub.Copilot.Diagnostics.Experimental)]
+[JsonConverter(typeof(Converter))]
+[DebuggerDisplay("{Value,nq}")]
+internal readonly struct GitHubBranchPullRequestLookupStatus : IEquatable<GitHubBranchPullRequestLookupStatus>
+{
+    private readonly string? _value;
+
+    /// <summary>Initializes a new instance of the <see cref="GitHubBranchPullRequestLookupStatus"/> struct.</summary>
+    /// <param name="value">The value to associate with this <see cref="GitHubBranchPullRequestLookupStatus"/>.</param>
+    [JsonConstructor]
+    public GitHubBranchPullRequestLookupStatus(string value)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(value);
+        _value = value;
+    }
+
+    /// <summary>Gets the value associated with this <see cref="GitHubBranchPullRequestLookupStatus"/>.</summary>
+    public string Value => _value ?? string.Empty;
+
+    /// <summary>A matching pull request was found and is carried in `pullRequest`.</summary>
+    public static GitHubBranchPullRequestLookupStatus Found { get; } = new("found");
+
+    /// <summary>The credential resolved to no usable token, so the caller must authenticate.</summary>
+    public static GitHubBranchPullRequestLookupStatus NoToken { get; } = new("no-token");
+
+    /// <summary>The search succeeded and the branch has no matching pull request.</summary>
+    public static GitHubBranchPullRequestLookupStatus NoPr { get; } = new("no-pr");
+
+    /// <summary>The search itself could not be completed, so whether a pull request exists is unknown.</summary>
+    public static GitHubBranchPullRequestLookupStatus LookupFailed { get; } = new("lookup-failed");
+
+    /// <summary>Returns a value indicating whether two <see cref="GitHubBranchPullRequestLookupStatus"/> instances are equivalent.</summary>
+    public static bool operator ==(GitHubBranchPullRequestLookupStatus left, GitHubBranchPullRequestLookupStatus right) => left.Equals(right);
+
+    /// <summary>Returns a value indicating whether two <see cref="GitHubBranchPullRequestLookupStatus"/> instances are not equivalent.</summary>
+    public static bool operator !=(GitHubBranchPullRequestLookupStatus left, GitHubBranchPullRequestLookupStatus right) => !(left == right);
+
+    /// <inheritdoc />
+    public override bool Equals(object? obj) => obj is GitHubBranchPullRequestLookupStatus other && Equals(other);
+
+    /// <inheritdoc />
+    public bool Equals(GitHubBranchPullRequestLookupStatus other) => string.Equals(Value, other.Value, StringComparison.OrdinalIgnoreCase);
+
+    /// <inheritdoc />
+    public override int GetHashCode() => StringComparer.OrdinalIgnoreCase.GetHashCode(Value);
+
+    /// <inheritdoc />
+    public override string ToString() => Value;
+
+    /// <summary>Provides a <see cref="JsonConverter{GitHubBranchPullRequestLookupStatus}"/> for serializing <see cref="GitHubBranchPullRequestLookupStatus"/> instances.</summary>
+    [EditorBrowsable(EditorBrowsableState.Never)]
+    public sealed class Converter : JsonConverter<GitHubBranchPullRequestLookupStatus>
+    {
+        /// <inheritdoc />
+        public override GitHubBranchPullRequestLookupStatus Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
+        {
+            return new(GeneratedStringEnumJson.ReadValue(ref reader, typeToConvert));
+        }
+
+        /// <inheritdoc />
+        public override void Write(Utf8JsonWriter writer, GitHubBranchPullRequestLookupStatus value, JsonSerializerOptions options)
+        {
+            GeneratedStringEnumJson.WriteValue(writer, value.Value, typeof(GitHubBranchPullRequestLookupStatus));
+        }
+    }
+}
+
+
 /// <summary>Hosting platform type of the repository.</summary>
 [Experimental(global::GitHub.Copilot.Diagnostics.Experimental)]
 [JsonConverter(typeof(Converter))]
@@ -45038,6 +46610,780 @@ public readonly struct ConnectorCatalogStatus : IEquatable<ConnectorCatalogStatu
         public override void Write(Utf8JsonWriter writer, ConnectorCatalogStatus value, JsonSerializerOptions options)
         {
             GeneratedStringEnumJson.WriteValue(writer, value.Value, typeof(ConnectorCatalogStatus));
+        }
+    }
+}
+
+
+/// <summary>A runtime-owned GitHub or Copilot operation.</summary>
+[Experimental(global::GitHub.Copilot.Diagnostics.Experimental)]
+[JsonConverter(typeof(Converter))]
+[DebuggerDisplay("{Value,nq}")]
+internal readonly struct GitHubFetchOperation : IEquatable<GitHubFetchOperation>
+{
+    private readonly string? _value;
+
+    /// <summary>Initializes a new instance of the <see cref="GitHubFetchOperation"/> struct.</summary>
+    /// <param name="value">The value to associate with this <see cref="GitHubFetchOperation"/>.</param>
+    [JsonConstructor]
+    public GitHubFetchOperation(string value)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(value);
+        _value = value;
+    }
+
+    /// <summary>Gets the value associated with this <see cref="GitHubFetchOperation"/>.</summary>
+    public string Value => _value ?? string.Empty;
+
+    /// <summary>Check repository access.</summary>
+    public static GitHubFetchOperation RepositoryAccess { get; } = new("repository-access");
+
+    /// <summary>Look up a branch.</summary>
+    public static GitHubFetchOperation BranchExists { get; } = new("branch-exists");
+
+    /// <summary>Create a Copilot job.</summary>
+    public static GitHubFetchOperation JobCreate { get; } = new("job-create");
+
+    /// <summary>Read a Copilot job.</summary>
+    public static GitHubFetchOperation JobStatus { get; } = new("job-status");
+
+    /// <summary>List remote sessions.</summary>
+    public static GitHubFetchOperation SessionsList { get; } = new("sessions-list");
+
+    /// <summary>Resolve pull requests through GraphQL.</summary>
+    public static GitHubFetchOperation PullRequestsGraphql { get; } = new("pull-requests-graphql");
+
+    /// <summary>Read a pull request.</summary>
+    public static GitHubFetchOperation PullRequest { get; } = new("pull-request");
+
+    /// <summary>Read pull request files.</summary>
+    public static GitHubFetchOperation PullRequestFiles { get; } = new("pull-request-files");
+
+    /// <summary>Returns a value indicating whether two <see cref="GitHubFetchOperation"/> instances are equivalent.</summary>
+    public static bool operator ==(GitHubFetchOperation left, GitHubFetchOperation right) => left.Equals(right);
+
+    /// <summary>Returns a value indicating whether two <see cref="GitHubFetchOperation"/> instances are not equivalent.</summary>
+    public static bool operator !=(GitHubFetchOperation left, GitHubFetchOperation right) => !(left == right);
+
+    /// <inheritdoc />
+    public override bool Equals(object? obj) => obj is GitHubFetchOperation other && Equals(other);
+
+    /// <inheritdoc />
+    public bool Equals(GitHubFetchOperation other) => string.Equals(Value, other.Value, StringComparison.OrdinalIgnoreCase);
+
+    /// <inheritdoc />
+    public override int GetHashCode() => StringComparer.OrdinalIgnoreCase.GetHashCode(Value);
+
+    /// <inheritdoc />
+    public override string ToString() => Value;
+
+    /// <summary>Provides a <see cref="JsonConverter{GitHubFetchOperation}"/> for serializing <see cref="GitHubFetchOperation"/> instances.</summary>
+    [EditorBrowsable(EditorBrowsableState.Never)]
+    public sealed class Converter : JsonConverter<GitHubFetchOperation>
+    {
+        /// <inheritdoc />
+        public override GitHubFetchOperation Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
+        {
+            return new(GeneratedStringEnumJson.ReadValue(ref reader, typeToConvert));
+        }
+
+        /// <inheritdoc />
+        public override void Write(Utf8JsonWriter writer, GitHubFetchOperation value, JsonSerializerOptions options)
+        {
+            GeneratedStringEnumJson.WriteValue(writer, value.Value, typeof(GitHubFetchOperation));
+        }
+    }
+}
+
+
+/// <summary>How a release lookup ended. A caller tells a conclusive absence from a transport error by this alone, without parsing `message`.</summary>
+[Experimental(global::GitHub.Copilot.Diagnostics.Experimental)]
+[JsonConverter(typeof(Converter))]
+[DebuggerDisplay("{Value,nq}")]
+internal readonly struct GitHubReleaseLookupKind : IEquatable<GitHubReleaseLookupKind>
+{
+    private readonly string? _value;
+
+    /// <summary>Initializes a new instance of the <see cref="GitHubReleaseLookupKind"/> struct.</summary>
+    /// <param name="value">The value to associate with this <see cref="GitHubReleaseLookupKind"/>.</param>
+    [JsonConstructor]
+    public GitHubReleaseLookupKind(string value)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(value);
+        _value = value;
+    }
+
+    /// <summary>Gets the value associated with this <see cref="GitHubReleaseLookupKind"/>.</summary>
+    public string Value => _value ?? string.Empty;
+
+    /// <summary>A release was found, and `releaseJson` carries it.</summary>
+    public static GitHubReleaseLookupKind Found { get; } = new("found");
+
+    /// <summary>The tag names no release. Conclusive, not a failure.</summary>
+    public static GitHubReleaseLookupKind NotFound { get; } = new("not-found");
+
+    /// <summary>The repository publishes no release matching the query at all.</summary>
+    public static GitHubReleaseLookupKind NoRelease { get; } = new("no-release");
+
+    /// <summary>GitHub refused the request for rate limiting. `message` is phrased for the user and already accounts for whether the lookup ran authenticated.</summary>
+    public static GitHubReleaseLookupKind RateLimited { get; } = new("rate-limited");
+
+    /// <summary>The lookup failed for any other reason, described by `message`.</summary>
+    public static GitHubReleaseLookupKind Failed { get; } = new("failed");
+
+    /// <summary>Returns a value indicating whether two <see cref="GitHubReleaseLookupKind"/> instances are equivalent.</summary>
+    public static bool operator ==(GitHubReleaseLookupKind left, GitHubReleaseLookupKind right) => left.Equals(right);
+
+    /// <summary>Returns a value indicating whether two <see cref="GitHubReleaseLookupKind"/> instances are not equivalent.</summary>
+    public static bool operator !=(GitHubReleaseLookupKind left, GitHubReleaseLookupKind right) => !(left == right);
+
+    /// <inheritdoc />
+    public override bool Equals(object? obj) => obj is GitHubReleaseLookupKind other && Equals(other);
+
+    /// <inheritdoc />
+    public bool Equals(GitHubReleaseLookupKind other) => string.Equals(Value, other.Value, StringComparison.OrdinalIgnoreCase);
+
+    /// <inheritdoc />
+    public override int GetHashCode() => StringComparer.OrdinalIgnoreCase.GetHashCode(Value);
+
+    /// <inheritdoc />
+    public override string ToString() => Value;
+
+    /// <summary>Provides a <see cref="JsonConverter{GitHubReleaseLookupKind}"/> for serializing <see cref="GitHubReleaseLookupKind"/> instances.</summary>
+    [EditorBrowsable(EditorBrowsableState.Never)]
+    public sealed class Converter : JsonConverter<GitHubReleaseLookupKind>
+    {
+        /// <inheritdoc />
+        public override GitHubReleaseLookupKind Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
+        {
+            return new(GeneratedStringEnumJson.ReadValue(ref reader, typeToConvert));
+        }
+
+        /// <inheritdoc />
+        public override void Write(Utf8JsonWriter writer, GitHubReleaseLookupKind value, JsonSerializerOptions options)
+        {
+            GeneratedStringEnumJson.WriteValue(writer, value.Value, typeof(GitHubReleaseLookupKind));
+        }
+    }
+}
+
+
+/// <summary>Which release to look up. Enumerated rather than free text because the runtime accepts exactly these and rejects anything else.</summary>
+[Experimental(global::GitHub.Copilot.Diagnostics.Experimental)]
+[JsonConverter(typeof(Converter))]
+[DebuggerDisplay("{Value,nq}")]
+internal readonly struct GitHubReleaseQuery : IEquatable<GitHubReleaseQuery>
+{
+    private readonly string? _value;
+
+    /// <summary>Initializes a new instance of the <see cref="GitHubReleaseQuery"/> struct.</summary>
+    /// <param name="value">The value to associate with this <see cref="GitHubReleaseQuery"/>.</param>
+    [JsonConstructor]
+    public GitHubReleaseQuery(string value)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(value);
+        _value = value;
+    }
+
+    /// <summary>Gets the value associated with this <see cref="GitHubReleaseQuery"/>.</summary>
+    public string Value => _value ?? string.Empty;
+
+    /// <summary>The newest stable command-line release.</summary>
+    public static GitHubReleaseQuery LatestStable { get; } = new("latest-stable");
+
+    /// <summary>The newest prerelease command-line release, which is found by scanning recent releases rather than by asking for the latest one.</summary>
+    public static GitHubReleaseQuery LatestPrerelease { get; } = new("latest-prerelease");
+
+    /// <summary>The newest release of the desktop application.</summary>
+    public static GitHubReleaseQuery LatestApp { get; } = new("latest-app");
+
+    /// <summary>The release a specific tag names, supplied in `value`.</summary>
+    public static GitHubReleaseQuery Tag { get; } = new("tag");
+
+    /// <summary>Recent releases for process-scoped update and metrics decisions.</summary>
+    public static GitHubReleaseQuery ReleaseList { get; } = new("release-list");
+
+    /// <summary>Returns a value indicating whether two <see cref="GitHubReleaseQuery"/> instances are equivalent.</summary>
+    public static bool operator ==(GitHubReleaseQuery left, GitHubReleaseQuery right) => left.Equals(right);
+
+    /// <summary>Returns a value indicating whether two <see cref="GitHubReleaseQuery"/> instances are not equivalent.</summary>
+    public static bool operator !=(GitHubReleaseQuery left, GitHubReleaseQuery right) => !(left == right);
+
+    /// <inheritdoc />
+    public override bool Equals(object? obj) => obj is GitHubReleaseQuery other && Equals(other);
+
+    /// <inheritdoc />
+    public bool Equals(GitHubReleaseQuery other) => string.Equals(Value, other.Value, StringComparison.OrdinalIgnoreCase);
+
+    /// <inheritdoc />
+    public override int GetHashCode() => StringComparer.OrdinalIgnoreCase.GetHashCode(Value);
+
+    /// <inheritdoc />
+    public override string ToString() => Value;
+
+    /// <summary>Provides a <see cref="JsonConverter{GitHubReleaseQuery}"/> for serializing <see cref="GitHubReleaseQuery"/> instances.</summary>
+    [EditorBrowsable(EditorBrowsableState.Never)]
+    public sealed class Converter : JsonConverter<GitHubReleaseQuery>
+    {
+        /// <inheritdoc />
+        public override GitHubReleaseQuery Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
+        {
+            return new(GeneratedStringEnumJson.ReadValue(ref reader, typeToConvert));
+        }
+
+        /// <inheritdoc />
+        public override void Write(Utf8JsonWriter writer, GitHubReleaseQuery value, JsonSerializerOptions options)
+        {
+            GeneratedStringEnumJson.WriteValue(writer, value.Value, typeof(GitHubReleaseQuery));
+        }
+    }
+}
+
+
+/// <summary>The release channel used for update selection.</summary>
+[Experimental(global::GitHub.Copilot.Diagnostics.Experimental)]
+[JsonConverter(typeof(Converter))]
+[DebuggerDisplay("{Value,nq}")]
+internal readonly struct GitHubReleaseUpdateChannel : IEquatable<GitHubReleaseUpdateChannel>
+{
+    private readonly string? _value;
+
+    /// <summary>Initializes a new instance of the <see cref="GitHubReleaseUpdateChannel"/> struct.</summary>
+    /// <param name="value">The value to associate with this <see cref="GitHubReleaseUpdateChannel"/>.</param>
+    [JsonConstructor]
+    public GitHubReleaseUpdateChannel(string value)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(value);
+        _value = value;
+    }
+
+    /// <summary>Gets the value associated with this <see cref="GitHubReleaseUpdateChannel"/>.</summary>
+    public string Value => _value ?? string.Empty;
+
+    /// <summary>Select the newest stable release.</summary>
+    public static GitHubReleaseUpdateChannel Stable { get; } = new("stable");
+
+    /// <summary>Select the newest published release marked as a prerelease. A stable-only feed has no candidate.</summary>
+    public static GitHubReleaseUpdateChannel Prerelease { get; } = new("prerelease");
+
+    /// <summary>Returns a value indicating whether two <see cref="GitHubReleaseUpdateChannel"/> instances are equivalent.</summary>
+    public static bool operator ==(GitHubReleaseUpdateChannel left, GitHubReleaseUpdateChannel right) => left.Equals(right);
+
+    /// <summary>Returns a value indicating whether two <see cref="GitHubReleaseUpdateChannel"/> instances are not equivalent.</summary>
+    public static bool operator !=(GitHubReleaseUpdateChannel left, GitHubReleaseUpdateChannel right) => !(left == right);
+
+    /// <inheritdoc />
+    public override bool Equals(object? obj) => obj is GitHubReleaseUpdateChannel other && Equals(other);
+
+    /// <inheritdoc />
+    public bool Equals(GitHubReleaseUpdateChannel other) => string.Equals(Value, other.Value, StringComparison.OrdinalIgnoreCase);
+
+    /// <inheritdoc />
+    public override int GetHashCode() => StringComparer.OrdinalIgnoreCase.GetHashCode(Value);
+
+    /// <inheritdoc />
+    public override string ToString() => Value;
+
+    /// <summary>Provides a <see cref="JsonConverter{GitHubReleaseUpdateChannel}"/> for serializing <see cref="GitHubReleaseUpdateChannel"/> instances.</summary>
+    [EditorBrowsable(EditorBrowsableState.Never)]
+    public sealed class Converter : JsonConverter<GitHubReleaseUpdateChannel>
+    {
+        /// <inheritdoc />
+        public override GitHubReleaseUpdateChannel Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
+        {
+            return new(GeneratedStringEnumJson.ReadValue(ref reader, typeToConvert));
+        }
+
+        /// <inheritdoc />
+        public override void Write(Utf8JsonWriter writer, GitHubReleaseUpdateChannel value, JsonSerializerOptions options)
+        {
+            GeneratedStringEnumJson.WriteValue(writer, value.Value, typeof(GitHubReleaseUpdateChannel));
+        }
+    }
+}
+
+
+/// <summary>Whether the caller runs a development build or a release package.</summary>
+[Experimental(global::GitHub.Copilot.Diagnostics.Experimental)]
+[JsonConverter(typeof(Converter))]
+[DebuggerDisplay("{Value,nq}")]
+internal readonly struct GitHubReleasePackageIdentity : IEquatable<GitHubReleasePackageIdentity>
+{
+    private readonly string? _value;
+
+    /// <summary>Initializes a new instance of the <see cref="GitHubReleasePackageIdentity"/> struct.</summary>
+    /// <param name="value">The value to associate with this <see cref="GitHubReleasePackageIdentity"/>.</param>
+    [JsonConstructor]
+    public GitHubReleasePackageIdentity(string value)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(value);
+        _value = value;
+    }
+
+    /// <summary>Gets the value associated with this <see cref="GitHubReleasePackageIdentity"/>.</summary>
+    public string Value => _value ?? string.Empty;
+
+    /// <summary>Development builds are not eligible for release admission.</summary>
+    public static GitHubReleasePackageIdentity Dev { get; } = new("dev");
+
+    /// <summary>The caller runs a release package.</summary>
+    public static GitHubReleasePackageIdentity Release { get; } = new("release");
+
+    /// <summary>Returns a value indicating whether two <see cref="GitHubReleasePackageIdentity"/> instances are equivalent.</summary>
+    public static bool operator ==(GitHubReleasePackageIdentity left, GitHubReleasePackageIdentity right) => left.Equals(right);
+
+    /// <summary>Returns a value indicating whether two <see cref="GitHubReleasePackageIdentity"/> instances are not equivalent.</summary>
+    public static bool operator !=(GitHubReleasePackageIdentity left, GitHubReleasePackageIdentity right) => !(left == right);
+
+    /// <inheritdoc />
+    public override bool Equals(object? obj) => obj is GitHubReleasePackageIdentity other && Equals(other);
+
+    /// <inheritdoc />
+    public bool Equals(GitHubReleasePackageIdentity other) => string.Equals(Value, other.Value, StringComparison.OrdinalIgnoreCase);
+
+    /// <inheritdoc />
+    public override int GetHashCode() => StringComparer.OrdinalIgnoreCase.GetHashCode(Value);
+
+    /// <inheritdoc />
+    public override string ToString() => Value;
+
+    /// <summary>Provides a <see cref="JsonConverter{GitHubReleasePackageIdentity}"/> for serializing <see cref="GitHubReleasePackageIdentity"/> instances.</summary>
+    [EditorBrowsable(EditorBrowsableState.Never)]
+    public sealed class Converter : JsonConverter<GitHubReleasePackageIdentity>
+    {
+        /// <inheritdoc />
+        public override GitHubReleasePackageIdentity Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
+        {
+            return new(GeneratedStringEnumJson.ReadValue(ref reader, typeToConvert));
+        }
+
+        /// <inheritdoc />
+        public override void Write(Utf8JsonWriter writer, GitHubReleasePackageIdentity value, JsonSerializerOptions options)
+        {
+            GeneratedStringEnumJson.WriteValue(writer, value.Value, typeof(GitHubReleasePackageIdentity));
+        }
+    }
+}
+
+
+/// <summary>How an asset download ended. A caller tells a refused response from a transport failure or a cancellation by this alone, without parsing `message`.</summary>
+[Experimental(global::GitHub.Copilot.Diagnostics.Experimental)]
+[JsonConverter(typeof(Converter))]
+[DebuggerDisplay("{Value,nq}")]
+internal readonly struct GitHubReleaseDownloadKind : IEquatable<GitHubReleaseDownloadKind>
+{
+    private readonly string? _value;
+
+    /// <summary>Initializes a new instance of the <see cref="GitHubReleaseDownloadKind"/> struct.</summary>
+    /// <param name="value">The value to associate with this <see cref="GitHubReleaseDownloadKind"/>.</param>
+    [JsonConstructor]
+    public GitHubReleaseDownloadKind(string value)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(value);
+        _value = value;
+    }
+
+    /// <summary>Gets the value associated with this <see cref="GitHubReleaseDownloadKind"/>.</summary>
+    public string Value => _value ?? string.Empty;
+
+    /// <summary>The asset is on disk at `path`.</summary>
+    public static GitHubReleaseDownloadKind Downloaded { get; } = new("downloaded");
+
+    /// <summary>GitHub answered with a status other than 2xx, including after the retry without the credential. `status` and `statusText` describe it.</summary>
+    public static GitHubReleaseDownloadKind HttpError { get; } = new("http-error");
+
+    /// <summary>The downloaded bytes did not match `expectedSha256`, and the file was removed.</summary>
+    public static GitHubReleaseDownloadKind DigestMismatch { get; } = new("digest-mismatch");
+
+    /// <summary>`gitHubRelease.cancel` abandoned the download, and any partial file was removed.</summary>
+    public static GitHubReleaseDownloadKind Cancelled { get; } = new("cancelled");
+
+    /// <summary>The download failed for any other reason, described by `message`.</summary>
+    public static GitHubReleaseDownloadKind Failed { get; } = new("failed");
+
+    /// <summary>Returns a value indicating whether two <see cref="GitHubReleaseDownloadKind"/> instances are equivalent.</summary>
+    public static bool operator ==(GitHubReleaseDownloadKind left, GitHubReleaseDownloadKind right) => left.Equals(right);
+
+    /// <summary>Returns a value indicating whether two <see cref="GitHubReleaseDownloadKind"/> instances are not equivalent.</summary>
+    public static bool operator !=(GitHubReleaseDownloadKind left, GitHubReleaseDownloadKind right) => !(left == right);
+
+    /// <inheritdoc />
+    public override bool Equals(object? obj) => obj is GitHubReleaseDownloadKind other && Equals(other);
+
+    /// <inheritdoc />
+    public bool Equals(GitHubReleaseDownloadKind other) => string.Equals(Value, other.Value, StringComparison.OrdinalIgnoreCase);
+
+    /// <inheritdoc />
+    public override int GetHashCode() => StringComparer.OrdinalIgnoreCase.GetHashCode(Value);
+
+    /// <inheritdoc />
+    public override string ToString() => Value;
+
+    /// <summary>Provides a <see cref="JsonConverter{GitHubReleaseDownloadKind}"/> for serializing <see cref="GitHubReleaseDownloadKind"/> instances.</summary>
+    [EditorBrowsable(EditorBrowsableState.Never)]
+    public sealed class Converter : JsonConverter<GitHubReleaseDownloadKind>
+    {
+        /// <inheritdoc />
+        public override GitHubReleaseDownloadKind Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
+        {
+            return new(GeneratedStringEnumJson.ReadValue(ref reader, typeToConvert));
+        }
+
+        /// <inheritdoc />
+        public override void Write(Utf8JsonWriter writer, GitHubReleaseDownloadKind value, JsonSerializerOptions options)
+        {
+            GeneratedStringEnumJson.WriteValue(writer, value.Value, typeof(GitHubReleaseDownloadKind));
+        }
+    }
+}
+
+
+/// <summary>Reason startup was refused.</summary>
+[Experimental(global::GitHub.Copilot.Diagnostics.Experimental)]
+[JsonConverter(typeof(Converter))]
+[DebuggerDisplay("{Value,nq}")]
+internal readonly struct CafeMetricsStartRefusal : IEquatable<CafeMetricsStartRefusal>
+{
+    private readonly string? _value;
+
+    /// <summary>Initializes a new instance of the <see cref="CafeMetricsStartRefusal"/> struct.</summary>
+    /// <param name="value">The value to associate with this <see cref="CafeMetricsStartRefusal"/>.</param>
+    [JsonConstructor]
+    public CafeMetricsStartRefusal(string value)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(value);
+        _value = value;
+    }
+
+    /// <summary>Gets the value associated with this <see cref="CafeMetricsStartRefusal"/>.</summary>
+    public string Value => _value ?? string.Empty;
+
+    /// <summary>The process is offline.</summary>
+    public static CafeMetricsStartRefusal Offline { get; } = new("offline");
+
+    /// <summary>Unsupported platform.</summary>
+    public static CafeMetricsStartRefusal UnsupportedPlatform { get; } = new("unsupportedPlatform");
+
+    /// <summary>The process already started CAFE.</summary>
+    public static CafeMetricsStartRefusal AlreadyStarted { get; } = new("alreadyStarted");
+
+    /// <summary>Returns a value indicating whether two <see cref="CafeMetricsStartRefusal"/> instances are equivalent.</summary>
+    public static bool operator ==(CafeMetricsStartRefusal left, CafeMetricsStartRefusal right) => left.Equals(right);
+
+    /// <summary>Returns a value indicating whether two <see cref="CafeMetricsStartRefusal"/> instances are not equivalent.</summary>
+    public static bool operator !=(CafeMetricsStartRefusal left, CafeMetricsStartRefusal right) => !(left == right);
+
+    /// <inheritdoc />
+    public override bool Equals(object? obj) => obj is CafeMetricsStartRefusal other && Equals(other);
+
+    /// <inheritdoc />
+    public bool Equals(CafeMetricsStartRefusal other) => string.Equals(Value, other.Value, StringComparison.OrdinalIgnoreCase);
+
+    /// <inheritdoc />
+    public override int GetHashCode() => StringComparer.OrdinalIgnoreCase.GetHashCode(Value);
+
+    /// <inheritdoc />
+    public override string ToString() => Value;
+
+    /// <summary>Provides a <see cref="JsonConverter{CafeMetricsStartRefusal}"/> for serializing <see cref="CafeMetricsStartRefusal"/> instances.</summary>
+    [EditorBrowsable(EditorBrowsableState.Never)]
+    public sealed class Converter : JsonConverter<CafeMetricsStartRefusal>
+    {
+        /// <inheritdoc />
+        public override CafeMetricsStartRefusal Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
+        {
+            return new(GeneratedStringEnumJson.ReadValue(ref reader, typeToConvert));
+        }
+
+        /// <inheritdoc />
+        public override void Write(Utf8JsonWriter writer, CafeMetricsStartRefusal value, JsonSerializerOptions options)
+        {
+            GeneratedStringEnumJson.WriteValue(writer, value.Value, typeof(CafeMetricsStartRefusal));
+        }
+    }
+}
+
+
+/// <summary>Embedded package identity.</summary>
+[Experimental(global::GitHub.Copilot.Diagnostics.Experimental)]
+[JsonConverter(typeof(Converter))]
+[DebuggerDisplay("{Value,nq}")]
+internal readonly struct CafeMetricsEmbeddedPackageIdentity : IEquatable<CafeMetricsEmbeddedPackageIdentity>
+{
+    private readonly string? _value;
+
+    /// <summary>Initializes a new instance of the <see cref="CafeMetricsEmbeddedPackageIdentity"/> struct.</summary>
+    /// <param name="value">The value to associate with this <see cref="CafeMetricsEmbeddedPackageIdentity"/>.</param>
+    [JsonConstructor]
+    public CafeMetricsEmbeddedPackageIdentity(string value)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(value);
+        _value = value;
+    }
+
+    /// <summary>Gets the value associated with this <see cref="CafeMetricsEmbeddedPackageIdentity"/>.</summary>
+    public string Value => _value ?? string.Empty;
+
+    /// <summary>Development package.</summary>
+    public static CafeMetricsEmbeddedPackageIdentity Dev { get; } = new("dev");
+
+    /// <summary>Release package.</summary>
+    public static CafeMetricsEmbeddedPackageIdentity Release { get; } = new("release");
+
+    /// <summary>Returns a value indicating whether two <see cref="CafeMetricsEmbeddedPackageIdentity"/> instances are equivalent.</summary>
+    public static bool operator ==(CafeMetricsEmbeddedPackageIdentity left, CafeMetricsEmbeddedPackageIdentity right) => left.Equals(right);
+
+    /// <summary>Returns a value indicating whether two <see cref="CafeMetricsEmbeddedPackageIdentity"/> instances are not equivalent.</summary>
+    public static bool operator !=(CafeMetricsEmbeddedPackageIdentity left, CafeMetricsEmbeddedPackageIdentity right) => !(left == right);
+
+    /// <inheritdoc />
+    public override bool Equals(object? obj) => obj is CafeMetricsEmbeddedPackageIdentity other && Equals(other);
+
+    /// <inheritdoc />
+    public bool Equals(CafeMetricsEmbeddedPackageIdentity other) => string.Equals(Value, other.Value, StringComparison.OrdinalIgnoreCase);
+
+    /// <inheritdoc />
+    public override int GetHashCode() => StringComparer.OrdinalIgnoreCase.GetHashCode(Value);
+
+    /// <inheritdoc />
+    public override string ToString() => Value;
+
+    /// <summary>Provides a <see cref="JsonConverter{CafeMetricsEmbeddedPackageIdentity}"/> for serializing <see cref="CafeMetricsEmbeddedPackageIdentity"/> instances.</summary>
+    [EditorBrowsable(EditorBrowsableState.Never)]
+    public sealed class Converter : JsonConverter<CafeMetricsEmbeddedPackageIdentity>
+    {
+        /// <inheritdoc />
+        public override CafeMetricsEmbeddedPackageIdentity Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
+        {
+            return new(GeneratedStringEnumJson.ReadValue(ref reader, typeToConvert));
+        }
+
+        /// <inheritdoc />
+        public override void Write(Utf8JsonWriter writer, CafeMetricsEmbeddedPackageIdentity value, JsonSerializerOptions options)
+        {
+            GeneratedStringEnumJson.WriteValue(writer, value.Value, typeof(CafeMetricsEmbeddedPackageIdentity));
+        }
+    }
+}
+
+
+/// <summary>Terminal resume outcome.</summary>
+[Experimental(global::GitHub.Copilot.Diagnostics.Experimental)]
+[JsonConverter(typeof(Converter))]
+[DebuggerDisplay("{Value,nq}")]
+internal readonly struct CafeMetricsResumeOutcome : IEquatable<CafeMetricsResumeOutcome>
+{
+    private readonly string? _value;
+
+    /// <summary>Initializes a new instance of the <see cref="CafeMetricsResumeOutcome"/> struct.</summary>
+    /// <param name="value">The value to associate with this <see cref="CafeMetricsResumeOutcome"/>.</param>
+    [JsonConstructor]
+    public CafeMetricsResumeOutcome(string value)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(value);
+        _value = value;
+    }
+
+    /// <summary>Gets the value associated with this <see cref="CafeMetricsResumeOutcome"/>.</summary>
+    public string Value => _value ?? string.Empty;
+
+    /// <summary>Resumed.</summary>
+    public static CafeMetricsResumeOutcome Success { get; } = new("success");
+
+    /// <summary>Recovered and resumed.</summary>
+    public static CafeMetricsResumeOutcome Recovered { get; } = new("recovered");
+
+    /// <summary>Resume failed.</summary>
+    public static CafeMetricsResumeOutcome Failed { get; } = new("failed");
+
+    /// <summary>No session found.</summary>
+    public static CafeMetricsResumeOutcome NotFound { get; } = new("not_found");
+
+    /// <summary>Returns a value indicating whether two <see cref="CafeMetricsResumeOutcome"/> instances are equivalent.</summary>
+    public static bool operator ==(CafeMetricsResumeOutcome left, CafeMetricsResumeOutcome right) => left.Equals(right);
+
+    /// <summary>Returns a value indicating whether two <see cref="CafeMetricsResumeOutcome"/> instances are not equivalent.</summary>
+    public static bool operator !=(CafeMetricsResumeOutcome left, CafeMetricsResumeOutcome right) => !(left == right);
+
+    /// <inheritdoc />
+    public override bool Equals(object? obj) => obj is CafeMetricsResumeOutcome other && Equals(other);
+
+    /// <inheritdoc />
+    public bool Equals(CafeMetricsResumeOutcome other) => string.Equals(Value, other.Value, StringComparison.OrdinalIgnoreCase);
+
+    /// <inheritdoc />
+    public override int GetHashCode() => StringComparer.OrdinalIgnoreCase.GetHashCode(Value);
+
+    /// <inheritdoc />
+    public override string ToString() => Value;
+
+    /// <summary>Provides a <see cref="JsonConverter{CafeMetricsResumeOutcome}"/> for serializing <see cref="CafeMetricsResumeOutcome"/> instances.</summary>
+    [EditorBrowsable(EditorBrowsableState.Never)]
+    public sealed class Converter : JsonConverter<CafeMetricsResumeOutcome>
+    {
+        /// <inheritdoc />
+        public override CafeMetricsResumeOutcome Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
+        {
+            return new(GeneratedStringEnumJson.ReadValue(ref reader, typeToConvert));
+        }
+
+        /// <inheritdoc />
+        public override void Write(Utf8JsonWriter writer, CafeMetricsResumeOutcome value, JsonSerializerOptions options)
+        {
+            GeneratedStringEnumJson.WriteValue(writer, value.Value, typeof(CafeMetricsResumeOutcome));
+        }
+    }
+}
+
+
+/// <summary>Bounded resume reason, without error text.</summary>
+[Experimental(global::GitHub.Copilot.Diagnostics.Experimental)]
+[JsonConverter(typeof(Converter))]
+[DebuggerDisplay("{Value,nq}")]
+internal readonly struct CafeMetricsResumeReason : IEquatable<CafeMetricsResumeReason>
+{
+    private readonly string? _value;
+
+    /// <summary>Initializes a new instance of the <see cref="CafeMetricsResumeReason"/> struct.</summary>
+    /// <param name="value">The value to associate with this <see cref="CafeMetricsResumeReason"/>.</param>
+    [JsonConstructor]
+    public CafeMetricsResumeReason(string value)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(value);
+        _value = value;
+    }
+
+    /// <summary>Gets the value associated with this <see cref="CafeMetricsResumeReason"/>.</summary>
+    public string Value => _value ?? string.Empty;
+
+    /// <summary>No detail.</summary>
+    public static CafeMetricsResumeReason None { get; } = new("none");
+
+    /// <summary>Recovered event log.</summary>
+    public static CafeMetricsResumeReason LogRecovered { get; } = new("log_recovered");
+
+    /// <summary>Corrupt event log.</summary>
+    public static CafeMetricsResumeReason LogCorrupt { get; } = new("log_corrupt");
+
+    /// <summary>Legacy format.</summary>
+    public static CafeMetricsResumeReason LegacyFormat { get; } = new("legacy_format");
+
+    /// <summary>Recovery I/O failed.</summary>
+    public static CafeMetricsResumeReason RecoveryIo { get; } = new("recovery_io");
+
+    /// <summary>Hydration failed.</summary>
+    public static CafeMetricsResumeReason Hydration { get; } = new("hydration");
+
+    /// <summary>Construction failed.</summary>
+    public static CafeMetricsResumeReason Construction { get; } = new("construction");
+
+    /// <summary>Queue restore failed.</summary>
+    public static CafeMetricsResumeReason Queue { get; } = new("queue");
+
+    /// <summary>Session not found.</summary>
+    public static CafeMetricsResumeReason NotFound { get; } = new("not_found");
+
+    /// <summary>Returns a value indicating whether two <see cref="CafeMetricsResumeReason"/> instances are equivalent.</summary>
+    public static bool operator ==(CafeMetricsResumeReason left, CafeMetricsResumeReason right) => left.Equals(right);
+
+    /// <summary>Returns a value indicating whether two <see cref="CafeMetricsResumeReason"/> instances are not equivalent.</summary>
+    public static bool operator !=(CafeMetricsResumeReason left, CafeMetricsResumeReason right) => !(left == right);
+
+    /// <inheritdoc />
+    public override bool Equals(object? obj) => obj is CafeMetricsResumeReason other && Equals(other);
+
+    /// <inheritdoc />
+    public bool Equals(CafeMetricsResumeReason other) => string.Equals(Value, other.Value, StringComparison.OrdinalIgnoreCase);
+
+    /// <inheritdoc />
+    public override int GetHashCode() => StringComparer.OrdinalIgnoreCase.GetHashCode(Value);
+
+    /// <inheritdoc />
+    public override string ToString() => Value;
+
+    /// <summary>Provides a <see cref="JsonConverter{CafeMetricsResumeReason}"/> for serializing <see cref="CafeMetricsResumeReason"/> instances.</summary>
+    [EditorBrowsable(EditorBrowsableState.Never)]
+    public sealed class Converter : JsonConverter<CafeMetricsResumeReason>
+    {
+        /// <inheritdoc />
+        public override CafeMetricsResumeReason Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
+        {
+            return new(GeneratedStringEnumJson.ReadValue(ref reader, typeToConvert));
+        }
+
+        /// <inheritdoc />
+        public override void Write(Utf8JsonWriter writer, CafeMetricsResumeReason value, JsonSerializerOptions options)
+        {
+            GeneratedStringEnumJson.WriteValue(writer, value.Value, typeof(CafeMetricsResumeReason));
+        }
+    }
+}
+
+
+/// <summary>Last resume phase.</summary>
+[Experimental(global::GitHub.Copilot.Diagnostics.Experimental)]
+[JsonConverter(typeof(Converter))]
+[DebuggerDisplay("{Value,nq}")]
+internal readonly struct CafeMetricsResumeStage : IEquatable<CafeMetricsResumeStage>
+{
+    private readonly string? _value;
+
+    /// <summary>Initializes a new instance of the <see cref="CafeMetricsResumeStage"/> struct.</summary>
+    /// <param name="value">The value to associate with this <see cref="CafeMetricsResumeStage"/>.</param>
+    [JsonConstructor]
+    public CafeMetricsResumeStage(string value)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(value);
+        _value = value;
+    }
+
+    /// <summary>Gets the value associated with this <see cref="CafeMetricsResumeStage"/>.</summary>
+    public string Value => _value ?? string.Empty;
+
+    /// <summary>Read the event log.</summary>
+    public static CafeMetricsResumeStage EventLog { get; } = new("event_log");
+
+    /// <summary>Construct the session.</summary>
+    public static CafeMetricsResumeStage Construction { get; } = new("construction");
+
+    /// <summary>Restore the queue.</summary>
+    public static CafeMetricsResumeStage QueueRestore { get; } = new("queue_restore");
+
+    /// <summary>Resume complete.</summary>
+    public static CafeMetricsResumeStage Complete { get; } = new("complete");
+
+    /// <summary>Returns a value indicating whether two <see cref="CafeMetricsResumeStage"/> instances are equivalent.</summary>
+    public static bool operator ==(CafeMetricsResumeStage left, CafeMetricsResumeStage right) => left.Equals(right);
+
+    /// <summary>Returns a value indicating whether two <see cref="CafeMetricsResumeStage"/> instances are not equivalent.</summary>
+    public static bool operator !=(CafeMetricsResumeStage left, CafeMetricsResumeStage right) => !(left == right);
+
+    /// <inheritdoc />
+    public override bool Equals(object? obj) => obj is CafeMetricsResumeStage other && Equals(other);
+
+    /// <inheritdoc />
+    public bool Equals(CafeMetricsResumeStage other) => string.Equals(Value, other.Value, StringComparison.OrdinalIgnoreCase);
+
+    /// <inheritdoc />
+    public override int GetHashCode() => StringComparer.OrdinalIgnoreCase.GetHashCode(Value);
+
+    /// <inheritdoc />
+    public override string ToString() => Value;
+
+    /// <summary>Provides a <see cref="JsonConverter{CafeMetricsResumeStage}"/> for serializing <see cref="CafeMetricsResumeStage"/> instances.</summary>
+    [EditorBrowsable(EditorBrowsableState.Never)]
+    public sealed class Converter : JsonConverter<CafeMetricsResumeStage>
+    {
+        /// <inheritdoc />
+        public override CafeMetricsResumeStage Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
+        {
+            return new(GeneratedStringEnumJson.ReadValue(ref reader, typeToConvert));
+        }
+
+        /// <inheritdoc />
+        public override void Write(Utf8JsonWriter writer, CafeMetricsResumeStage value, JsonSerializerOptions options)
+        {
+            GeneratedStringEnumJson.WriteValue(writer, value.Value, typeof(CafeMetricsResumeStage));
         }
     }
 }
@@ -54071,6 +56417,30 @@ public sealed class ServerRpc
         field ??
         Interlocked.CompareExchange(ref field, new(_rpc), null) ??
         field;
+
+    /// <summary>GitHubFetch APIs.</summary>
+    public ServerGitHubFetchApi GitHubFetch =>
+        field ??
+        Interlocked.CompareExchange(ref field, new(_rpc), null) ??
+        field;
+
+    /// <summary>GitHubRelease APIs.</summary>
+    public ServerGitHubReleaseApi GitHubRelease =>
+        field ??
+        Interlocked.CompareExchange(ref field, new(_rpc), null) ??
+        field;
+
+    /// <summary>CloudTasks APIs.</summary>
+    public ServerCloudTasksApi CloudTasks =>
+        field ??
+        Interlocked.CompareExchange(ref field, new(_rpc), null) ??
+        field;
+
+    /// <summary>CafeMetrics APIs.</summary>
+    public ServerCafeMetricsApi CafeMetrics =>
+        field ??
+        Interlocked.CompareExchange(ref field, new(_rpc), null) ??
+        field;
 }
 
 /// <summary>Provides server-scoped Sandbox APIs.</summary>
@@ -55918,6 +58288,29 @@ public sealed class ServerAccountApi
     {
         return await CopilotClient.InvokeRpcAsync<AccountGetTokenEnvVarResult>(_rpc, "account.getTokenEnvVar", [], cancellationToken);
     }
+
+    /// <summary>Enrolls the supplied identity in Copilot Free. A host offers this when a signed-in user has no Copilot subscription, so that signing up does not mean leaving for a browser. The runtime resolves the identity's credential itself, so the caller sends none. Read `kind` before `status`: an identity whose credential cannot be resolved answers `no-token` rather than failing the call, because that asks the user to sign in again rather than reporting that enrollment broke. Enrolling an already-enrolled account succeeds and reports `already_subscribed`. This does not refresh the caller's cached account state; a host that shows subscription status should re-read it afterwards.</summary>
+    /// <param name="identity">Identity to enroll, in the shape `session.gitHubAuth.getCurrentAuthInfo` returns. The runtime resolves the credential for it, so no credential is sent.</param>
+    /// <param name="cancellationToken">The <see cref="CancellationToken"/> to monitor for cancellation requests. The default is <see cref="CancellationToken.None"/>.</param>
+    /// <returns>What came of a Copilot Free enrollment attempt.</returns>
+    internal async Task<AccountSubscribeCopilotFreeResult> SubscribeCopilotFreeAsync(AuthIdentity identity, CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(identity);
+
+        var request = new AccountSubscribeCopilotFreeRequest { Identity = identity };
+        return await CopilotClient.InvokeRpcAsync<AccountSubscribeCopilotFreeResult>(_rpc, "account.subscribeCopilotFree", [request], cancellationToken);
+    }
+
+    /// <summary>Resolves the base URL of the GitHub host from its configured names, normalizing a bare hostname into an `https://` URL and falling back to the public github.com host when neither name is set. Unlike `account.getWebUrl` this needs no identity, so a host can reach it before anyone has signed in -- which is when an enterprise instance must already be known.</summary>
+    /// <param name="copilotGhHost">Host from the Copilot-specific setting, which wins when both are set. A bare hostname is normalized to `https://`.</param>
+    /// <param name="ghHost">Host from the general GitHub CLI setting, used when the Copilot-specific one is absent.</param>
+    /// <param name="cancellationToken">The <see cref="CancellationToken"/> to monitor for cancellation requests. The default is <see cref="CancellationToken.None"/>.</param>
+    /// <returns>Absolute base URL of the GitHub host.</returns>
+    internal async Task<AccountGetHostUrlResult> GetHostUrlAsync(string? copilotGhHost = null, string? ghHost = null, CancellationToken cancellationToken = default)
+    {
+        var request = new AccountGetHostUrlRequest { CopilotGhHost = copilotGhHost, GhHost = ghHost };
+        return await CopilotClient.InvokeRpcAsync<AccountGetHostUrlResult>(_rpc, "account.getHostUrl", [request], cancellationToken);
+    }
 }
 
 /// <summary>Provides server-scoped Secrets APIs.</summary>
@@ -57343,6 +59736,36 @@ public sealed class ServerGitHubRepositoryApi
         var request = new GitHubRepositoryAtPathRequest { Path = path };
         return await CopilotClient.InvokeRpcAsync<GitHubRepositoryAtPathResult>(_rpc, "gitHubRepository.atPath", [request], cancellationToken);
     }
+
+    /// <summary>Resolves the owner and name of a GitHub repository from its numeric repository id, by asking the GitHub API under the supplied credential. Returns a null `repository` when the id names nothing the credential can see, which the API reports as a 404, so a caller can tell 'no such visible repository' apart from a request that failed. The host queried is derived from `authInfo` rather than supplied separately, so the lookup always runs against the account's own GitHub host.</summary>
+    /// <param name="authInfo">The credential the lookup runs under, carried opaquely because its shape is the host's own and the runtime only resolves a token and a GitHub host from it. Required: the endpoint answers per-account, so a repository invisible to this credential is reported as absent rather than refused.</param>
+    /// <param name="repositoryId">GitHub's own numeric identifier for the repository, as carried by API payloads that reference a repository by id rather than by owner and name.</param>
+    /// <param name="authContextId">Selects which stored credential to resolve when the host holds more than one. Omit it to resolve the default for the supplied `authInfo`.</param>
+    /// <param name="cancellationToken">The <see cref="CancellationToken"/> to monitor for cancellation requests. The default is <see cref="CancellationToken.None"/>.</param>
+    /// <returns>The repository the requested id names, when the credential can see one.</returns>
+    internal async Task<GitHubRepositoryByIdResult> GetByIdAsync(object? authInfo, long repositoryId, string? authContextId = null, CancellationToken cancellationToken = default)
+    {
+        var request = new GitHubRepositoryByIdRequest { AuthInfo = CopilotClient.ToJsonElementForWire(authInfo) ?? JsonElement.Parse("null"), RepositoryId = repositoryId, AuthContextId = authContextId };
+        return await CopilotClient.InvokeRpcAsync<GitHubRepositoryByIdResult>(_rpc, "gitHubRepository.getById", [request], cancellationToken);
+    }
+
+    /// <summary>Finds the pull request a branch is open against, searching every repository in `baseRepositories` so a fork's branch finds the pull request it opened upstream. A candidate is discarded unless `headOwner` owns its head branch, because a branch name alone is ambiguous across forks. `status` separates 'not authenticated', 'no such pull request' and 'the search failed', so a caller can tell a conclusive absence apart from an unknown one. The host queried is derived from `authInfo` rather than supplied separately, so the lookup always runs against the account's own GitHub host.</summary>
+    /// <param name="authInfo">The credential the lookup runs under, carried opaquely because its shape is the host's own and the runtime only resolves a token and a GitHub host from it. Required: the search answers per-account, so a pull request invisible to this credential is reported as absent rather than refused.</param>
+    /// <param name="headOwner">Login that must own the pull request's head branch. A branch name alone is ambiguous across forks, so a candidate whose head is owned by anyone else is discarded.</param>
+    /// <param name="baseRepositories">Repositories to search for the pull request, in preference order. A fork supplies both its own repository and its upstream, because the branch may have opened the pull request against either.</param>
+    /// <param name="branch">Head branch name to find the pull request for, without a `refs/heads/` prefix.</param>
+    /// <param name="includeClosed">Whether a closed or merged pull request counts as a match. False considers only open ones, so a caller acting on the branch's current pull request does not resurface a merged one.</param>
+    /// <param name="cancellationToken">The <see cref="CancellationToken"/> to monitor for cancellation requests. The default is <see cref="CancellationToken.None"/>.</param>
+    /// <returns>Outcome of a branch pull-request lookup. `status` carries why, because 'not authenticated', 'no pull request' and 'the search failed' are three different answers and only the first two are conclusive.</returns>
+    internal async Task<GitHubBranchPullRequestLookupResult> LookupBranchPullRequestAsync(object? authInfo, string headOwner, IList<GitHubRepositoryOwnerName> baseRepositories, string branch, bool includeClosed, CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(headOwner);
+        ArgumentNullException.ThrowIfNull(baseRepositories);
+        ArgumentNullException.ThrowIfNull(branch);
+
+        var request = new GitHubBranchPullRequestLookupRequest { AuthInfo = CopilotClient.ToJsonElementForWire(authInfo) ?? JsonElement.Parse("null"), HeadOwner = headOwner, BaseRepositories = baseRepositories, Branch = branch, IncludeClosed = includeClosed };
+        return await CopilotClient.InvokeRpcAsync<GitHubBranchPullRequestLookupResult>(_rpc, "gitHubRepository.lookupBranchPullRequest", [request], cancellationToken);
+    }
 }
 
 /// <summary>Provides server-scoped GitHubOwners APIs.</summary>
@@ -58132,6 +60555,400 @@ public sealed class ServerConnectorsApi
     }
 }
 
+/// <summary>Provides server-scoped GitHubFetch APIs.</summary>
+[Experimental(global::GitHub.Copilot.Diagnostics.Experimental)]
+public sealed class ServerGitHubFetchApi
+{
+    private readonly JsonRpc _rpc;
+
+    internal ServerGitHubFetchApi(JsonRpc rpc)
+    {
+        _rpc = rpc;
+    }
+
+    /// <summary>Registers one authenticated GitHub API request before it starts, so cancellation can name the operation. Each request claims its id once. Refused for extensions.</summary>
+    /// <param name="cancellationToken">The <see cref="CancellationToken"/> to monitor for cancellation requests. The default is <see cref="CancellationToken.None"/>.</param>
+    /// <returns>One registered GitHub request, shared by execution and cancellation.</returns>
+    internal async Task<GitHubFetchRequestId> AllocateRequestIdAsync(CancellationToken cancellationToken = default)
+    {
+        return await CopilotClient.InvokeRpcAsync<GitHubFetchRequestId>(_rpc, "gitHubFetch.allocateRequestId", [], cancellationToken);
+    }
+
+    /// <summary>Calls the GitHub API with session credentials, or process credentials when sessionId is absent. A bound host can select its existing auth handle with authOwnerId. The URL must match that identity's API origin or the runtime's explicit debug API origin. Retries and eligible redirects resolve the current credential again. Explicit caller Authorization remains unchanged; cross-origin redirects discard credentials without restoring them on later hops. Release asset bodies require gitHubRelease.downloadAsset. JSON asset metadata and other response bodies remain supported. The runtime supplies a default User-Agent and records request diagnostics. Extensions cannot use this method.</summary>
+    /// <param name="requestId">A fresh request id.</param>
+    /// <param name="method">HTTP method.</param>
+    /// <param name="url">Absolute URL on the resolved GitHub API origin.</param>
+    /// <param name="headers">Caller-supplied HTTP headers.</param>
+    /// <param name="apiName">API label used in runtime diagnostics.</param>
+    /// <param name="sessionId">Session whose auth manager to use. Omission selects the process manager.</param>
+    /// <param name="authOwnerId">Opaque selector for a live host-owned credential binding. Only the owning host connection may use it.</param>
+    /// <param name="bodyBase64">Request bytes encoded as base64. Absent for a request without a body.</param>
+    /// <param name="retryOptions">Optional retry overrides.</param>
+    /// <param name="redirect">Redirect behavior. Defaults to following redirects.</param>
+    /// <param name="timeoutMs">Total request timeout in milliseconds.</param>
+    /// <param name="readTimeoutMs">Response read timeout in milliseconds. Defaults to 700000.</param>
+    /// <param name="bodyLimitBytes">Maximum response body size in bytes.</param>
+    /// <param name="disableConnectionReuse">Whether the request bypasses idle connections.</param>
+    /// <param name="proxyEnv">Explicit proxy environment. Omission uses the process environment.</param>
+    /// <param name="pinnedAddresses">Addresses to pin for this request, without another DNS lookup.</param>
+    /// <param name="allowLocalhost">Whether the request permits loopback addresses. Defaults to true.</param>
+    /// <param name="proxyNegotiateAuth">Whether the proxy uses Negotiate authentication.</param>
+    /// <param name="proxyNegotiateSpn">Optional service principal for proxy Negotiate authentication.</param>
+    /// <param name="cancellationToken">The <see cref="CancellationToken"/> to monitor for cancellation requests. The default is <see cref="CancellationToken.None"/>.</param>
+    /// <returns>The HTTP response or a classified request failure.</returns>
+    internal async Task<GitHubFetchResult> RequestAsync(long requestId, string method, string url, IList<GitHubFetchHeader> headers, string apiName, string? sessionId = null, string? authOwnerId = null, string? bodyBase64 = null, GitHubFetchRetryConfig? retryOptions = null, string? redirect = null, long? timeoutMs = null, long? readTimeoutMs = null, long? bodyLimitBytes = null, bool? disableConnectionReuse = null, GitHubFetchProxyEnvironment? proxyEnv = null, IList<GitHubFetchPinnedAddress>? pinnedAddresses = null, bool? allowLocalhost = null, bool? proxyNegotiateAuth = null, string? proxyNegotiateSpn = null, CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(method);
+        ArgumentNullException.ThrowIfNull(url);
+        ArgumentNullException.ThrowIfNull(headers);
+        ArgumentNullException.ThrowIfNull(apiName);
+
+        var request = new GitHubFetchRequest { RequestId = requestId, Method = method, Url = url, Headers = headers, ApiName = apiName, SessionId = sessionId, AuthOwnerId = authOwnerId, BodyBase64 = bodyBase64, RetryOptions = retryOptions, Redirect = redirect, TimeoutMs = timeoutMs, ReadTimeoutMs = readTimeoutMs, BodyLimitBytes = bodyLimitBytes, DisableConnectionReuse = disableConnectionReuse, ProxyEnv = proxyEnv, PinnedAddresses = pinnedAddresses, AllowLocalhost = allowLocalhost, ProxyNegotiateAuth = proxyNegotiateAuth, ProxyNegotiateSpn = proxyNegotiateSpn };
+        return await CopilotClient.InvokeRpcAsync<GitHubFetchResult>(_rpc, "gitHubFetch.request", [request], cancellationToken);
+    }
+
+    /// <summary>Executes a named GitHub or Copilot job operation. The runtime derives its URL, headers, retry policy, and credential. sessionId selects session auth; omission selects process auth. A bound host connection can select its existing auth handle with authOwnerId. Retries and eligible redirects resolve the current credential again. Cross-origin redirects discard credentials without restoring them on later hops. Non-success HTTP responses include the formatted error for the host. Extensions cannot use this method.</summary>
+    /// <param name="requestId">A fresh request id.</param>
+    /// <param name="operation">The operation to execute.</param>
+    /// <param name="params">Named operation arguments, such as owner, repo, or jobId.</param>
+    /// <param name="sessionId">Session whose auth manager to use. Omission selects the process manager.</param>
+    /// <param name="authOwnerId">Opaque selector for a live host-owned credential binding. Only the owning host connection may use it.</param>
+    /// <param name="bodyJson">JSON request body, preserved as supplied.</param>
+    /// <param name="cancellationToken">The <see cref="CancellationToken"/> to monitor for cancellation requests. The default is <see cref="CancellationToken.None"/>.</param>
+    /// <returns>The HTTP response or a classified request failure.</returns>
+    internal async Task<GitHubFetchResult> ExecuteOperationAsync(long requestId, GitHubFetchOperation operation, IDictionary<string, string> @params, string? sessionId = null, string? authOwnerId = null, string? bodyJson = null, CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(@params);
+
+        var request = new GitHubFetchOperationRequest { RequestId = requestId, Operation = operation, Params = @params, SessionId = sessionId, AuthOwnerId = authOwnerId, BodyJson = bodyJson };
+        return await CopilotClient.InvokeRpcAsync<GitHubFetchResult>(_rpc, "gitHubFetch.executeOperation", [request], cancellationToken);
+    }
+
+    /// <summary>Cancels a registered GitHub request. False means the id is no longer registered. Uses the same runtime request registry as request and executeOperation. Refused for extensions.</summary>
+    /// <param name="requestId">One fresh id from `gitHubFetch.allocateRequestId`.</param>
+    /// <param name="cancellationToken">The <see cref="CancellationToken"/> to monitor for cancellation requests. The default is <see cref="CancellationToken.None"/>.</param>
+    /// <returns>Whether cancellation reached a registered GitHub request.</returns>
+    internal async Task<GitHubFetchCancelResult> CancelAsync(long requestId, CancellationToken cancellationToken = default)
+    {
+        var request = new GitHubFetchRequestId { RequestId = requestId };
+        return await CopilotClient.InvokeRpcAsync<GitHubFetchCancelResult>(_rpc, "gitHubFetch.cancel", [request], cancellationToken);
+    }
+}
+
+/// <summary>Provides server-scoped GitHubRelease APIs.</summary>
+[Experimental(global::GitHub.Copilot.Diagnostics.Experimental)]
+public sealed class ServerGitHubReleaseApi
+{
+    private readonly JsonRpc _rpc;
+
+    internal ServerGitHubReleaseApi(JsonRpc rpc)
+    {
+        _rpc = rpc;
+    }
+
+    /// <summary>Allocates a connection-owned request id before a release lookup, snapshot, or asset download starts. Use the id to cancel that operation. A snapshot retains its allocation until disposal or connection close.</summary>
+    /// <param name="cancellationToken">The <see cref="CancellationToken"/> to monitor for cancellation requests. The default is <see cref="CancellationToken.None"/>.</param>
+    /// <returns>A freshly registered request id. Registering it before the work starts is what lets a cancel that races the request still find something to cancel.</returns>
+    internal async Task<GitHubReleaseRequestIdResult> AllocateRequestIdAsync(CancellationToken cancellationToken = default)
+    {
+        return await CopilotClient.InvokeRpcAsync<GitHubReleaseRequestIdResult>(_rpc, "gitHubRelease.allocateRequestId", [], cancellationToken);
+    }
+
+    /// <summary>Retires an unused allocation that this caller will never dispatch. Only an unclaimed id on this connection with no active guard is eligible. Active, foreign, unknown and previously retired ids return abandoned: false. Ordinary cancellation still preserves the first canceled claim. This cleanup remains available during shutdown and is refused for extensions.</summary>
+    /// <param name="requestId">The unused request id owned by this connection.</param>
+    /// <param name="cancellationToken">The <see cref="CancellationToken"/> to monitor for cancellation requests. The default is <see cref="CancellationToken.None"/>.</param>
+    /// <returns>Whether the runtime retired an unused allocation without affecting active work.</returns>
+    internal async Task<GitHubReleaseAbandonRequestResult> AbandonRequestAsync(long requestId, CancellationToken cancellationToken = default)
+    {
+        var request = new GitHubReleaseAbandonRequestParams { RequestId = requestId };
+        return await CopilotClient.InvokeRpcAsync<GitHubReleaseAbandonRequestResult>(_rpc, "gitHubRelease.abandonRequest", [request], cancellationToken);
+    }
+
+    /// <summary>Looks up a published release or release list. A bound host connection uses its original auth source. Other SDK callers keep the existing authInfo path. The runtime resolves credentials for each request and redirect. Public releases also permit anonymous access. The kind field distinguishes a result, a missing tag, no release, a rate limit, and failure. This raw lookup does not return a shared snapshot.</summary>
+    /// <param name="requestId">Request id from `gitHubRelease.allocateRequestId`. An id that was never registered, or one already used, is refused rather than silently running uncancellable.</param>
+    /// <param name="query">Which release to look up.</param>
+    /// <param name="authInfo">The credential the lookup runs under, carried opaquely because its shape is the host's own and the runtime only resolves a token and a GitHub host from it. No credential travels: this selects one the runtime already holds. Omitted when the caller has no credential, which still succeeds against the public release repository at a lower rate limit.</param>
+    /// <param name="value">The tag to look up. Required by the `tag` query and ignored by the others.</param>
+    /// <param name="cancellationToken">The <see cref="CancellationToken"/> to monitor for cancellation requests. The default is <see cref="CancellationToken.None"/>.</param>
+    /// <returns>Outcome of a release lookup. `releaseJson` is present only for `found`, and `message` only for the kinds that carry an explanation.</returns>
+    internal async Task<GitHubReleaseLookupResult> LookupAsync(long requestId, GitHubReleaseQuery query, object? authInfo = null, string? value = null, CancellationToken cancellationToken = default)
+    {
+        var request = new GitHubReleaseLookupRequest { RequestId = requestId, Query = query, AuthInfo = CopilotClient.ToJsonElementForWire(authInfo), Value = value };
+        return await CopilotClient.InvokeRpcAsync<GitHubReleaseLookupResult>(_rpc, "gitHubRelease.lookup", [request], cancellationToken);
+    }
+
+    /// <summary>Loads one immutable release snapshot for an update client or SDK host. The runtime retains the original credential source and resolves it for each request. Calls with the same allocated request id and options share one lookup and result. A dropped waiter does not cancel that lookup. Use gitHubRelease.cancel to dispose the operation. The runtime admits one failure report before it publishes a failed result. Extensions cannot use this method.</summary>
+    /// <param name="requestId">An unused id from gitHubRelease.allocateRequestId. Reuse the same id and options to read the same snapshot.</param>
+    /// <param name="updateChannel">The release channel used for update selection.</param>
+    /// <param name="buildVersion">The version embedded in the caller's build.</param>
+    /// <param name="cliVersionOverride">Optional runtime version override. Invalid or noncanonical values do not replace buildVersion.</param>
+    /// <param name="packageIdentity">The embedded package identity. Omission uses the existing development-version fallback rule.</param>
+    /// <param name="cancellationToken">The <see cref="CancellationToken"/> to monitor for cancellation requests. The default is <see cref="CancellationToken.None"/>.</param>
+    /// <returns>The shared release result with its original lookup duration. Runtime worker faults remain RPC errors.</returns>
+    internal async Task<GitHubReleaseSnapshotResult> GetSnapshotAsync(long requestId, GitHubReleaseUpdateChannel updateChannel, string buildVersion, string? cliVersionOverride = null, GitHubReleasePackageIdentity? packageIdentity = null, CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(buildVersion);
+
+        var request = new GitHubReleaseSnapshotRequest { RequestId = requestId, UpdateChannel = updateChannel, BuildVersion = buildVersion, CliVersionOverride = cliVersionOverride, PackageIdentity = packageIdentity };
+        return await CopilotClient.InvokeRpcAsync<GitHubReleaseSnapshotResult>(_rpc, "gitHubRelease.getSnapshot", [request], cancellationToken);
+    }
+
+    /// <summary>Cancels an allocated operation on this connection. For a snapshot, disposal also waits for its owned lookup and retires its credential authority. It does not delete completed caller-owned downloads. An unknown or foreign id returns canceled: false. A completed download still returns its owned file, which the caller must dispose.</summary>
+    /// <param name="requestId">Request id the lookup or download was started with.</param>
+    /// <param name="cancellationToken">The <see cref="CancellationToken"/> to monitor for cancellation requests. The default is <see cref="CancellationToken.None"/>.</param>
+    /// <returns>Whether the cancel reached live work.</returns>
+    internal async Task<GitHubReleaseCancelResult> CancelAsync(long requestId, CancellationToken cancellationToken = default)
+    {
+        var request = new GitHubReleaseCancelRequest { RequestId = requestId };
+        return await CopilotClient.InvokeRpcAsync<GitHubReleaseCancelResult>(_rpc, "gitHubRelease.cancel", [request], cancellationToken);
+    }
+
+    /// <summary>Streams a published Copilot release asset to a private file and computes its SHA-256. The URL must name an HTTPS release download in a supported repository. A snapshotRequestId retains that snapshot's original credential source. Otherwise, a bound host uses its original owner, and other SDK callers keep the authInfo path. Each request and redirect resolves credentials again. Revocation fails without an auth fallback. Ordinary credential rejection and transport fallback keep their existing behavior. A digest mismatch removes the file. The result contains file metadata, not archive bytes. The caller must dispose the completed file after use. The download's own requestId controls progress and cancellation. Extensions cannot use this method.</summary>
+    /// <param name="requestId">Request id from `gitHubRelease.allocateRequestId`. An id that was never registered, or one already used, is refused rather than silently running uncancellable.</param>
+    /// <param name="assetUrl">The asset's `browser_download_url` from the release JSON: an HTTPS release download URL of a repository that `gitHubRelease.lookup` serves.</param>
+    /// <param name="authInfo">The credential the download runs under, carried opaquely because its shape is the host's own and the runtime only resolves a token from it. No credential travels: this selects one the runtime already holds. Omitted when the caller has no credential, which still succeeds against the public release repository at a lower rate limit.</param>
+    /// <param name="expectedSha256">Expected SHA-256 of the asset: 64 hex digits in either case, or the release asset's `digest` value as is (`sha256:` and the hex digits). When given and the downloaded bytes differ, the file is removed and the result is `digest-mismatch`.</param>
+    /// <param name="snapshotRequestId">Snapshot request id from this connection. The download retains that snapshot's original credential source instead of authInfo. Missing, foreign, canceled, or revoked references fail without fallback. Omission preserves ordinary downloads. The download still uses its own requestId for progress and cancellation.</param>
+    /// <param name="cancellationToken">The <see cref="CancellationToken"/> to monitor for cancellation requests. The default is <see cref="CancellationToken.None"/>.</param>
+    /// <returns>Outcome of an asset download. Each field is present only for the kinds its description names.</returns>
+    internal async Task<GitHubReleaseDownloadAssetResult> DownloadAssetAsync(long requestId, string assetUrl, object? authInfo = null, string? expectedSha256 = null, long? snapshotRequestId = null, CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(assetUrl);
+
+        var request = new GitHubReleaseDownloadAssetRequest { RequestId = requestId, AssetUrl = assetUrl, AuthInfo = CopilotClient.ToJsonElementForWire(authInfo), ExpectedSha256 = expectedSha256, SnapshotRequestId = snapshotRequestId };
+        return await CopilotClient.InvokeRpcAsync<GitHubReleaseDownloadAssetResult>(_rpc, "gitHubRelease.downloadAsset", [request], cancellationToken);
+    }
+
+    /// <summary>Reports how many bytes a running `gitHubRelease.downloadAsset` has written, for a progress display. The runtime sends no progress notification for a download, so a host polls this while the download runs. An id with no running download reports zero bytes and no total, which is the normal answer before the body starts and after the download ends.</summary>
+    /// <param name="requestId">Request id the download was started with.</param>
+    /// <param name="cancellationToken">The <see cref="CancellationToken"/> to monitor for cancellation requests. The default is <see cref="CancellationToken.None"/>.</param>
+    /// <returns>Byte progress of a running download.</returns>
+    internal async Task<GitHubReleaseDownloadProgressResult> GetDownloadProgressAsync(long requestId, CancellationToken cancellationToken = default)
+    {
+        var request = new GitHubReleaseDownloadProgressRequest { RequestId = requestId };
+        return await CopilotClient.InvokeRpcAsync<GitHubReleaseDownloadProgressResult>(_rpc, "gitHubRelease.getDownloadProgress", [request], cancellationToken);
+    }
+}
+
+/// <summary>Provides server-scoped CloudTasks APIs.</summary>
+[Experimental(global::GitHub.Copilot.Diagnostics.Experimental)]
+public sealed class ServerCloudTasksApi
+{
+    private readonly JsonRpc _rpc;
+
+    internal ServerCloudTasksApi(JsonRpc rpc)
+    {
+        _rpc = rpc;
+    }
+
+    /// <summary>Starts a cloud coding-agent task, the remote run whose record `cloudTasks.get` later reads. Answered above any session because the task it creates is not a background task inside one. Hosts other than the CLI want this: a GitHub App or an SDK consumer that hands work to a cloud agent creates the same task under the same credential, and resolving it here keeps one credential, endpoint and validation path. Target the task either by repository, supplying both `repositoryOwner` and `repositoryName`, or by `owner` alone for an account-level run. The result separates a rejected request from a failed one: when `ok` is false, `reason` categorises the rejection and `message` carries the explanation to show, while `failure` describes the HTTP call itself and is present only when one was actually made.</summary>
+    /// <param name="authInfo">The credential the task is created under, carried opaquely because its shape is the host's own and the runtime only resolves a token and an API endpoint from it.</param>
+    /// <param name="integrationId">Name of the embedding client, reported to the service so it can attribute the request.</param>
+    /// <param name="baseUrl">Explicit Mission Control endpoint selected by the host. Omission derives it from the identity.</param>
+    /// <param name="authContextId">Selects which stored credential to resolve when the host holds more than one. Omit it to resolve the default for the supplied `authInfo`.</param>
+    /// <param name="repositoryOwner">Account or organization owning the repository the task runs against. Supply it together with `repositoryName`.</param>
+    /// <param name="repositoryName">Name of the repository the task runs against. Supply it together with `repositoryOwner`.</param>
+    /// <param name="owner">Account the task is created for when it is not tied to a repository. Supply it only when `repositoryOwner` and `repositoryName` are omitted.</param>
+    /// <param name="cancellationToken">The <see cref="CancellationToken"/> to monitor for cancellation requests. The default is <see cref="CancellationToken.None"/>.</param>
+    /// <returns>The outcome of starting a cloud task. A rejected request and a failed one are reported separately: `reason` and `message` describe a request the service declined, while `statusCode` and `errorMessage` describe the HTTP call itself and appear only when one was actually made.</returns>
+    internal async Task<CloudTasksCreateResult> CreateAsync(object? authInfo, string integrationId, string? baseUrl = null, string? authContextId = null, string? repositoryOwner = null, string? repositoryName = null, string? owner = null, CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(integrationId);
+
+        var request = new CloudTasksCreateParams { AuthInfo = CopilotClient.ToJsonElementForWire(authInfo) ?? JsonElement.Parse("null"), IntegrationId = integrationId, BaseUrl = baseUrl, AuthContextId = authContextId, RepositoryOwner = repositoryOwner, RepositoryName = repositoryName, Owner = owner };
+        return await CopilotClient.InvokeRpcAsync<CloudTasksCreateResult>(_rpc, "cloudTasks.create", [request], cancellationToken);
+    }
+
+    /// <summary>Deletes one cloud coding-agent task, the remote run `cloudTasks.create` started. The deletion is a soft one: the service withdraws the task from its listings rather than destroying the record, so a host removing a run from its own UI is the intended caller. Answered above any session for the same reason as `cloudTasks.get` -- the task is remote and has no local counterpart. Hosts other than the CLI want this: a GitHub App or an SDK consumer that manages cloud agent runs withdraws the same record under the same credential, and resolving it here keeps one credential-resolution and endpoint path. The runtime resolves each token from `authInfo` or `authContextId`. A host may preserve an explicit `baseUrl`; omission derives the endpoint from `authInfo`. The result is the HTTP outcome rather than a bare success flag: the call returns no body, so `ok` alone describes a success, while a failure is reported through `statusCode`, `errorMessage` and `errorPayloadJson` instead of being raised as an error.</summary>
+    /// <param name="authInfo">The credential the deletion is performed under, carried opaquely because its shape is the host's own and the runtime only resolves a token and an API endpoint from it. Required: the task endpoint is per-account, so there is no unauthenticated form of this call.</param>
+    /// <param name="integrationId">Name of the embedding client, reported to Mission Control so the service can attribute the request.</param>
+    /// <param name="taskId">Identifier of the cloud task to delete.</param>
+    /// <param name="baseUrl">Explicit Mission Control endpoint selected by the host. Omission derives it from the identity.</param>
+    /// <param name="authContextId">Selects which stored credential to resolve when the host holds more than one. Omit it to resolve the default for the supplied `authInfo`.</param>
+    /// <param name="cancellationToken">The <see cref="CancellationToken"/> to monitor for cancellation requests. The default is <see cref="CancellationToken.None"/>.</param>
+    /// <returns>The HTTP outcome of deleting a cloud task. The deletion returns no body, so a successful call carries nothing beyond `ok`; a failed one is described by the remaining fields rather than raised as an error, so a caller can surface the service's own explanation.</returns>
+    internal async Task<CloudTasksDeleteResult> DeleteAsync(object? authInfo, string integrationId, string taskId, string? baseUrl = null, string? authContextId = null, CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(integrationId);
+        ArgumentNullException.ThrowIfNull(taskId);
+
+        var request = new CloudTasksDeleteParams { AuthInfo = CopilotClient.ToJsonElementForWire(authInfo) ?? JsonElement.Parse("null"), IntegrationId = integrationId, TaskId = taskId, BaseUrl = baseUrl, AuthContextId = authContextId };
+        return await CopilotClient.InvokeRpcAsync<CloudTasksDeleteResult>(_rpc, "cloudTasks.delete", [request], cancellationToken);
+    }
+
+    /// <summary>Reads one cloud coding-agent task from the Copilot API. This is the task a cloud agent runs on a host's behalf, not a background task inside a session, so it is answered above any session and the `tasks` group does not cover it. Hosts other than the CLI want this: a GitHub App or an SDK consumer that shows the state of a cloud agent run must read the same task record, and resolving it here keeps one credential-resolution, task-URL and circuit-breaker path instead of each host rebuilding them. The result is the HTTP outcome rather than the task itself: a caller must read `ok` and `statusCode` before `payloadJson`, because a 404 is reported as a non-ok result rather than an error, which is what lets a caller tell "no such task" apart from "the API call failed".</summary>
+    /// <param name="authInfo">The credential the read is performed under, carried opaquely because its shape is the host's own and the runtime only resolves a token from it. Required: the task endpoint is per-account, so there is no unauthenticated form of this read.</param>
+    /// <param name="integrationId">Name of the embedding client, reported to the task API so the service can attribute the request.</param>
+    /// <param name="taskId">Identifier of the cloud task to read.</param>
+    /// <param name="authContextId">Selects which stored credential to resolve when the host holds more than one. Omit it to resolve the default for the supplied `authInfo`.</param>
+    /// <param name="cancellationToken">The <see cref="CancellationToken"/> to monitor for cancellation requests. The default is <see cref="CancellationToken.None"/>.</param>
+    /// <returns>The HTTP outcome of reading a cloud task, rather than the task alone. A 404 arrives here as a non-ok result with `statusCode` 404, not as an error, so a caller can tell an absent task apart from a failed call.</returns>
+    internal async Task<CloudTasksGetResult> GetAsync(object? authInfo, string integrationId, string taskId, string? authContextId = null, CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(integrationId);
+        ArgumentNullException.ThrowIfNull(taskId);
+
+        var request = new CloudTasksGetParams { AuthInfo = CopilotClient.ToJsonElementForWire(authInfo) ?? JsonElement.Parse("null"), IntegrationId = integrationId, TaskId = taskId, AuthContextId = authContextId };
+        return await CopilotClient.InvokeRpcAsync<CloudTasksGetResult>(_rpc, "cloudTasks.get", [request], cancellationToken);
+    }
+
+    /// <summary>Reads the logs a cloud coding-agent session produced, from the Copilot API. Answered above any session, for the same reason as `cloudTasks.get`: the session being asked about runs remotely and has no local counterpart. Read `resolved` first. It is false when no Copilot API URL could be resolved for the credential, which is a different outcome from a request that was made and failed, and a caller that treats the two alike will report a transport error for an account that simply has no API endpoint. When `resolved` is true, `debugMessages` carries the diagnostics the fetch produced and should be logged whatever the outcome, `errorString` reports a retrieval fault, and only then do `ok` and `statusCode` describe the HTTP result.</summary>
+    /// <param name="authInfo">The credential the read is performed under, carried opaquely because its shape is the host's own and the runtime only resolves a token and an API endpoint from it.</param>
+    /// <param name="sessionId">Identifier of the cloud session whose logs are read.</param>
+    /// <param name="authContextId">Selects which stored credential to resolve when the host holds more than one. Omit it to resolve the default for the supplied `authInfo`.</param>
+    /// <param name="cancellationToken">The <see cref="CancellationToken"/> to monitor for cancellation requests. The default is <see cref="CancellationToken.None"/>.</param>
+    /// <returns>The outcome of reading a cloud session's logs. `resolved` distinguishes "this credential has no Copilot API endpoint" from "the request was made and failed"; every other field describes a request that was actually attempted.</returns>
+    internal async Task<CloudTasksGetSessionLogsResult> GetSessionLogsAsync(object? authInfo, string sessionId, string? authContextId = null, CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(sessionId);
+
+        var request = new CloudTasksGetSessionLogsParams { AuthInfo = CopilotClient.ToJsonElementForWire(authInfo) ?? JsonElement.Parse("null"), SessionId = sessionId, AuthContextId = authContextId };
+        return await CopilotClient.InvokeRpcAsync<CloudTasksGetSessionLogsResult>(_rpc, "cloudTasks.getSessionLogs", [request], cancellationToken);
+    }
+
+    /// <summary>Reconstructs the session a cloud coding-agent task recorded, by reading that task's events and ordering them for replay. Answered above any session, for the same reason as `cloudTasks.get`: the session being rebuilt ran remotely and has no local counterpart. Hosts other than the CLI want this: an SDK consumer attaching to a run in progress, an ACP client resuming one, or a GitHub App rendering a task's transcript all rebuild the same history from the same events, and resolving it here keeps one credential, endpoint, ordering and anchor-detection path. A newly created task has no events yet, so this polls for them and fails once they do not arrive. Read `preStart` before either list: when it is true the session has not started, `replayEventsJson` is deliberately empty because there is no history to reconstruct, and only `observedEventsJson` is meaningful.</summary>
+    /// <param name="authInfo">The credential the read is performed under, carried opaquely because its shape is the host's own and the runtime only resolves a token and an API endpoint from it.</param>
+    /// <param name="integrationId">Name of the embedding client, reported to the service so it can attribute the request.</param>
+    /// <param name="taskId">Identifier of the cloud task whose recorded events are replayed.</param>
+    /// <param name="baseUrl">Explicit Mission Control endpoint selected by the host. Omission derives it from the identity.</param>
+    /// <param name="authContextId">Selects which stored credential to resolve when the host holds more than one. Omit it to resolve the default for the supplied `authInfo`.</param>
+    /// <param name="cancellationToken">The <see cref="CancellationToken"/> to monitor for cancellation requests. The default is <see cref="CancellationToken.None"/>.</param>
+    /// <returns>A cloud task's recorded events, ordered for replay. Read `preStart` first: it selects which of the two event lists a caller should use, and they differ deliberately.</returns>
+    internal async Task<CloudTasksGetSessionReplayResult> GetSessionReplayAsync(object? authInfo, string integrationId, string taskId, string? baseUrl = null, string? authContextId = null, CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(integrationId);
+        ArgumentNullException.ThrowIfNull(taskId);
+
+        var request = new CloudTasksGetSessionReplayParams { AuthInfo = CopilotClient.ToJsonElementForWire(authInfo) ?? JsonElement.Parse("null"), IntegrationId = integrationId, TaskId = taskId, BaseUrl = baseUrl, AuthContextId = authContextId };
+        return await CopilotClient.InvokeRpcAsync<CloudTasksGetSessionReplayResult>(_rpc, "cloudTasks.getSessionReplay", [request], cancellationToken);
+    }
+
+    /// <summary>Reads whether one cloud coding-agent task is shared, from the Mission Control service. Answered above any session, for the same reason as `cloudTasks.get`: the task is a remote record with no local counterpart. Hosts other than the CLI want this: an SDK consumer or a GitHub App that offers a "share this run" affordance must read the same flag from the same service, and resolving it here keeps one credential-resolution and endpoint path. The credential is resolved from `authInfo` inside the runtime rather than being carried across the door, so no caller handles a raw token. Read `credentialResolved` first: it is false when the account has no usable credential, in which case no request was made at all, which a caller must not report as a failed request.</summary>
+    /// <param name="authInfo">The credential the read is performed under, carried opaquely because its shape is the host's own and the runtime only resolves a token and an API endpoint from it. The token itself is never carried across the door.</param>
+    /// <param name="integrationId">Name of the embedding client, reported to the service so it can attribute the request.</param>
+    /// <param name="taskId">Identifier of the cloud task whose sharing status is read.</param>
+    /// <param name="baseUrl">Explicit Mission Control endpoint selected by the host. Omission derives it from the identity.</param>
+    /// <param name="authContextId">Selects which stored credential to resolve when the host holds more than one. Omit it to resolve the default for the supplied `authInfo`.</param>
+    /// <param name="cancellationToken">The <see cref="CancellationToken"/> to monitor for cancellation requests. The default is <see cref="CancellationToken.None"/>.</param>
+    /// <returns>The sharing status a cloud task carries after the call. Read `credentialResolved` first: when it is false no request was attempted at all, which is a different outcome from a request the service declined.</returns>
+    internal async Task<CloudTasksSharingStatusResult> GetSharingStatusAsync(object? authInfo, string integrationId, string taskId, string? baseUrl = null, string? authContextId = null, CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(integrationId);
+        ArgumentNullException.ThrowIfNull(taskId);
+
+        var request = new CloudTasksGetSharingStatusParams { AuthInfo = CopilotClient.ToJsonElementForWire(authInfo) ?? JsonElement.Parse("null"), IntegrationId = integrationId, TaskId = taskId, BaseUrl = baseUrl, AuthContextId = authContextId };
+        return await CopilotClient.InvokeRpcAsync<CloudTasksSharingStatusResult>(_rpc, "cloudTasks.getSharingStatus", [request], cancellationToken);
+    }
+
+    /// <summary>Changes whether one cloud coding-agent task is shared, through the Mission Control service, and reports the status the task carries afterwards. The companion to `cloudTasks.getSharingStatus` and answered above any session for the same reason. The status is sent verbatim and is not narrowed to a closed set, because the service owns these values. The credential is resolved from `authInfo` inside the runtime rather than being carried across the door. Read `credentialResolved` first: it is false when the account has no usable credential, in which case nothing was changed and no request was made.</summary>
+    /// <param name="authInfo">The credential the change is performed under, carried opaquely because its shape is the host's own and the runtime only resolves a token and an API endpoint from it. The token itself is never carried across the door.</param>
+    /// <param name="integrationId">Name of the embedding client, reported to the service so it can attribute the request.</param>
+    /// <param name="taskId">Identifier of the cloud task whose sharing status is changed.</param>
+    /// <param name="sharingStatus">The sharing status to set, sent to the service verbatim. It is a free-form string rather than a closed set because the service owns these values and may add one; narrowing it here would reject a status the service accepts.</param>
+    /// <param name="baseUrl">Explicit Mission Control endpoint selected by the host. Omission derives it from the identity.</param>
+    /// <param name="authContextId">Selects which stored credential to resolve when the host holds more than one. Omit it to resolve the default for the supplied `authInfo`.</param>
+    /// <param name="cancellationToken">The <see cref="CancellationToken"/> to monitor for cancellation requests. The default is <see cref="CancellationToken.None"/>.</param>
+    /// <returns>The sharing status a cloud task carries after the call. Read `credentialResolved` first: when it is false no request was attempted at all, which is a different outcome from a request the service declined.</returns>
+    internal async Task<CloudTasksSharingStatusResult> SetSharingStatusAsync(object? authInfo, string integrationId, string taskId, string sharingStatus, string? baseUrl = null, string? authContextId = null, CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(integrationId);
+        ArgumentNullException.ThrowIfNull(taskId);
+        ArgumentNullException.ThrowIfNull(sharingStatus);
+
+        var request = new CloudTasksSetSharingStatusParams { AuthInfo = CopilotClient.ToJsonElementForWire(authInfo) ?? JsonElement.Parse("null"), IntegrationId = integrationId, TaskId = taskId, SharingStatus = sharingStatus, BaseUrl = baseUrl, AuthContextId = authContextId };
+        return await CopilotClient.InvokeRpcAsync<CloudTasksSharingStatusResult>(_rpc, "cloudTasks.setSharingStatus", [request], cancellationToken);
+    }
+
+    /// <summary>Finds the session a caller should open for one cloud coding-agent task. A task identifier alone does not say what to open: the run may already exist locally, it may exist only in the cloud, or it may be a task that cannot be resumed at all. Resolving that needs a local session scan and a Mission Control lookup that agree on identity, which is why it is answered here rather than left to each host. Hosts other than the CLI want it: an IDE or a GitHub App that opens a run from a task link faces the same three outcomes. Read `kind` before any other field. `local-session` carries `sessionId`, `remote-session` carries `metadataJson`, `unresumable-task` means the task exists but cannot be continued, and `none` means no session matched. A failed service call is reported as `error` rather than raised, so a caller can surface the service's own message. Pass every local session identifier already rejected in `ignoredLocalSessionIds` and call again to get the next candidate; that is how a host skips a local session it could not load.</summary>
+    /// <param name="taskId">Identifier of the cloud task to resolve.</param>
+    /// <param name="authInfo">The credential the lookup is performed under, carried opaquely because its shape is the host's own and the runtime only resolves a token and an API endpoint from it. Required: the task endpoint is per-account, so there is no unauthenticated form of this call.</param>
+    /// <param name="integrationId">Name of the embedding client, reported to Mission Control so the service can attribute the request.</param>
+    /// <param name="allowEmptyCliTask">Whether a task carrying no recorded CLI run still counts as a match. Set it when the caller wants the task itself, not only a run that already produced a session.</param>
+    /// <param name="hasRemoteSessionManager">Whether the caller can open a cloud session. When false, a task that resolves only to a remote run is reported as unresumable instead, because the caller could not act on it.</param>
+    /// <param name="ignoredLocalSessionIds">Local session identifiers the caller has already rejected, so resolution skips them and returns the next candidate. Pass the identifiers accumulated across earlier calls, not only the last one.</param>
+    /// <param name="authContextId">Selects which stored credential to resolve when the host holds more than one. Omit it to resolve the default for the supplied `authInfo`.</param>
+    /// <param name="debugGithubApiUrl">Overrides the GitHub API base URL the task lookup goes to. Intended for testing against a non-production service; omit it in normal use.</param>
+    /// <param name="sessionsHome">Directory holding persisted session state to scan for a local match. Omit it to use the default session home.</param>
+    /// <param name="cancellationToken">The <see cref="CancellationToken"/> to monitor for cancellation requests. The default is <see cref="CancellationToken.None"/>.</param>
+    /// <returns>What a caller should open for the task. The four outcomes are distinct and carry different payloads, so read `kind` before any other field.</returns>
+    internal async Task<CloudTasksResolveTaskIdResult> ResolveTaskIdAsync(string taskId, object? authInfo, string integrationId, bool allowEmptyCliTask, bool hasRemoteSessionManager, IList<string> ignoredLocalSessionIds, string? authContextId = null, string? debugGithubApiUrl = null, string? sessionsHome = null, CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(taskId);
+        ArgumentNullException.ThrowIfNull(integrationId);
+        ArgumentNullException.ThrowIfNull(ignoredLocalSessionIds);
+
+        var request = new CloudTasksResolveTaskIdParams { TaskId = taskId, AuthInfo = CopilotClient.ToJsonElementForWire(authInfo) ?? JsonElement.Parse("null"), IntegrationId = integrationId, AllowEmptyCliTask = allowEmptyCliTask, HasRemoteSessionManager = hasRemoteSessionManager, IgnoredLocalSessionIds = ignoredLocalSessionIds, AuthContextId = authContextId, DebugGitHubApiUrl = debugGithubApiUrl, SessionsHome = sessionsHome };
+        return await CopilotClient.InvokeRpcAsync<CloudTasksResolveTaskIdResult>(_rpc, "cloudTasks.resolveTaskId", [request], cancellationToken);
+    }
+}
+
+/// <summary>Provides server-scoped CafeMetrics APIs.</summary>
+[Experimental(global::GitHub.Copilot.Diagnostics.Experimental)]
+public sealed class ServerCafeMetricsApi
+{
+    private readonly JsonRpc _rpc;
+
+    internal ServerCafeMetricsApi(JsonRpc rpc)
+    {
+        _rpc = rpc;
+    }
+
+    /// <summary>Starts anonymous CAFE metrics for this process. The runtime selects the endpoint from COPILOT_CAFE_METRICS_URL or this connection's original auth owner. Offline and unsupported platforms refuse startup. Release eligibility must resolve before samples are sent. Requires the private trusted CLI host capability.</summary>
+    /// <param name="appVersion">Effective comparison version and appVersion tag.</param>
+    /// <param name="buildVersion">Raw package build version.</param>
+    /// <param name="customProviderConfigured">Whether the host uses a custom model provider.</param>
+    /// <param name="embeddedPackageIdentity">Embedded package identity. Omission enables the unbundled development fallback.</param>
+    /// <param name="cancellationToken">The <see cref="CancellationToken"/> to monitor for cancellation requests. The default is <see cref="CancellationToken.None"/>.</param>
+    /// <returns>CAFE startup result.</returns>
+    internal async Task<CafeMetricsStartResult> StartAsync(string appVersion, string buildVersion, bool customProviderConfigured, CafeMetricsEmbeddedPackageIdentity? embeddedPackageIdentity = null, CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(appVersion);
+        ArgumentNullException.ThrowIfNull(buildVersion);
+
+        var request = new CafeMetricsStartRequest { AppVersion = appVersion, BuildVersion = buildVersion, CustomProviderConfigured = customProviderConfigured, EmbeddedPackageIdentity = embeddedPackageIdentity };
+        return await CopilotClient.InvokeRpcAsync<CafeMetricsStartResult>(_rpc, "cafeMetrics.start", [request], cancellationToken);
+    }
+
+    /// <summary>Resolves release eligibility once from the immutable release lookup shared with auto-update. Requires the private trusted CLI host capability.</summary>
+    /// <param name="request">Immutable release lookup result.</param>
+    /// <param name="cancellationToken">The <see cref="CancellationToken"/> to monitor for cancellation requests. The default is <see cref="CancellationToken.None"/>.</param>
+    /// <returns>Admission result.</returns>
+    internal async Task<CafeMetricsResolveAdmissionResult> ResolveAdmissionAsync(CafeMetricsResolveAdmissionRequest request, CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(request);
+        var payload = JsonSerializer.SerializeToNode(request, RpcJsonContext.Default.CafeMetricsResolveAdmissionRequest);
+        return await CopilotClient.InvokeRpcAsync<CafeMetricsResolveAdmissionResult>(_rpc, "cafeMetrics.resolveAdmission", [payload], cancellationToken);
+    }
+
+    /// <summary>Records one terminal resume result. Does nothing before startup. Requires the private trusted CLI host capability.</summary>
+    /// <param name="stage">Last phase reached.</param>
+    /// <param name="outcome">Terminal outcome.</param>
+    /// <param name="reason">Bounded result classification.</param>
+    /// <param name="recovered">Whether an event-log recovery projection was used.</param>
+    /// <param name="cancellationToken">The <see cref="CancellationToken"/> to monitor for cancellation requests. The default is <see cref="CancellationToken.None"/>.</param>
+    internal async Task RecordResumeResultAsync(CafeMetricsResumeStage stage, CafeMetricsResumeOutcome outcome, CafeMetricsResumeReason reason, bool recovered, CancellationToken cancellationToken = default)
+    {
+        var request = new CafeMetricsRecordResumeResultRequest { Stage = stage, Outcome = outcome, Reason = reason, Recovered = recovered };
+        await CopilotClient.InvokeRpcAsync(_rpc, "cafeMetrics.recordResumeResult", [request], cancellationToken);
+    }
+
+    /// <summary>Stops recording and drains within one 1.5-second deadline. flushOnly sends at most one batch without stopping recording. Requires the private trusted CLI host capability.</summary>
+    /// <param name="cancellationToken">The <see cref="CancellationToken"/> to monitor for cancellation requests. The default is <see cref="CancellationToken.None"/>.</param>
+    internal async Task ShutdownAsync(CancellationToken cancellationToken = default)
+    {
+        await CopilotClient.InvokeRpcAsync(_rpc, "cafeMetrics.shutdown", [], cancellationToken);
+    }
+
+    /// <summary>Stops recording and drains within one 1.5-second deadline. flushOnly sends at most one batch without stopping recording. Requires the private trusted CLI host capability.</summary>
+    /// <param name="request">Preliminary flush or final disposal.</param>
+    /// <param name="cancellationToken">The <see cref="CancellationToken"/> to monitor for cancellation requests. The default is <see cref="CancellationToken.None"/>.</param>
+    internal async Task ShutdownAsync(CafeMetricsShutdownRequest request, CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(request);
+        await CopilotClient.InvokeRpcAsync(_rpc, "cafeMetrics.shutdown", [request], cancellationToken);
+    }
+}
+
 /// <summary>Provides typed session-scoped RPC methods.</summary>
 public sealed class SessionRpc
 {
@@ -58434,6 +61251,12 @@ public sealed class SessionRpc
 
     /// <summary>Schedule APIs.</summary>
     public ScheduleApi Schedule =>
+        field ??
+        Interlocked.CompareExchange(ref field, new(_session), null) ??
+        field;
+
+    /// <summary>CafeMetrics APIs.</summary>
+    internal CafeMetricsApi CafeMetrics =>
         field ??
         Interlocked.CompareExchange(ref field, new(_session), null) ??
         field;
@@ -64111,6 +66934,38 @@ public sealed class ScheduleApi
     }
 }
 
+/// <summary>Provides session-scoped CafeMetrics APIs.</summary>
+[Experimental(global::GitHub.Copilot.Diagnostics.Experimental)]
+internal sealed class CafeMetricsApi
+{
+    private readonly CopilotSession _session;
+
+    internal CafeMetricsApi(CopilotSession session)
+    {
+        _session = session;
+    }
+
+    /// <summary>Records live model-call events, including subagents, and root compaction events. Replaces any earlier recorder. Requires the private trusted CLI host capability.</summary>
+    /// <param name="cancellationToken">The <see cref="CancellationToken"/> to monitor for cancellation requests. The default is <see cref="CancellationToken.None"/>.</param>
+    internal async Task AttachAsync(CancellationToken cancellationToken = default)
+    {
+        _session.ThrowIfDisposed();
+
+        var request = new SessionCafeMetricsAttachRequest { SessionId = _session.SessionId };
+        await CopilotClient.InvokeRpcAsync(_session.Rpc, "session.cafeMetrics.attach", [request], cancellationToken);
+    }
+
+    /// <summary>Stops recording this session. Does nothing if it has no recorder. Requires the private trusted CLI host capability.</summary>
+    /// <param name="cancellationToken">The <see cref="CancellationToken"/> to monitor for cancellation requests. The default is <see cref="CancellationToken.None"/>.</param>
+    internal async Task DetachAsync(CancellationToken cancellationToken = default)
+    {
+        _session.ThrowIfDisposed();
+
+        var request = new SessionCafeMetricsDetachRequest { SessionId = _session.SessionId };
+        await CopilotClient.InvokeRpcAsync(_session.Rpc, "session.cafeMetrics.detach", [request], cancellationToken);
+    }
+}
+
 /// <summary>Handles `providerToken` client session API methods.</summary>
 [Experimental(global::GitHub.Copilot.Diagnostics.Experimental)]
 public interface IProviderTokenHandler
@@ -65173,6 +68028,8 @@ internal static class ClientGlobalApiRegistration
 [JsonSerializable(typeof(AccountGetCurrentAuthResult))]
 [JsonSerializable(typeof(AccountGetGistSupportRequest))]
 [JsonSerializable(typeof(AccountGetGistSupportResult))]
+[JsonSerializable(typeof(AccountGetHostUrlRequest))]
+[JsonSerializable(typeof(AccountGetHostUrlResult))]
 [JsonSerializable(typeof(AccountGetQuotaRequest))]
 [JsonSerializable(typeof(AccountGetQuotaResult))]
 [JsonSerializable(typeof(AccountGetTokenEnvVarResult))]
@@ -65184,6 +68041,8 @@ internal static class ClientGlobalApiRegistration
 [JsonSerializable(typeof(AccountLogoutResult))]
 [JsonSerializable(typeof(AccountQuotaSnapshot))]
 [JsonSerializable(typeof(AccountStatus))]
+[JsonSerializable(typeof(AccountSubscribeCopilotFreeRequest))]
+[JsonSerializable(typeof(AccountSubscribeCopilotFreeResult))]
 [JsonSerializable(typeof(AccountsEnumerateRequest))]
 [JsonSerializable(typeof(AccountsGetRequest))]
 [JsonSerializable(typeof(AccountsSetRequest))]
@@ -65278,6 +68137,13 @@ internal static class ClientGlobalApiRegistration
 [JsonSerializable(typeof(BuiltinToolDescriptor))]
 [JsonSerializable(typeof(BuiltinToolFormat))]
 [JsonSerializable(typeof(BuiltinToolInputSchema))]
+[JsonSerializable(typeof(CafeMetricsRecordResumeResultRequest))]
+[JsonSerializable(typeof(CafeMetricsRelease))]
+[JsonSerializable(typeof(CafeMetricsResolveAdmissionRequest))]
+[JsonSerializable(typeof(CafeMetricsResolveAdmissionResult))]
+[JsonSerializable(typeof(CafeMetricsShutdownRequest))]
+[JsonSerializable(typeof(CafeMetricsStartRequest))]
+[JsonSerializable(typeof(CafeMetricsStartResult))]
 [JsonSerializable(typeof(CancelUserRequestedShellCommandResult))]
 [JsonSerializable(typeof(CanvasAction))]
 [JsonSerializable(typeof(CanvasActionInvokeRequest))]
@@ -65329,6 +68195,21 @@ internal static class ClientGlobalApiRegistration
 [JsonSerializable(typeof(CatalogTrustSnapshot))]
 [JsonSerializable(typeof(ClientTaskCancelRequest))]
 [JsonSerializable(typeof(ClientTaskCancelResult))]
+[JsonSerializable(typeof(CloudTasksCreateParams))]
+[JsonSerializable(typeof(CloudTasksCreateResult))]
+[JsonSerializable(typeof(CloudTasksDeleteParams))]
+[JsonSerializable(typeof(CloudTasksDeleteResult))]
+[JsonSerializable(typeof(CloudTasksGetParams))]
+[JsonSerializable(typeof(CloudTasksGetResult))]
+[JsonSerializable(typeof(CloudTasksGetSessionLogsParams))]
+[JsonSerializable(typeof(CloudTasksGetSessionLogsResult))]
+[JsonSerializable(typeof(CloudTasksGetSessionReplayParams))]
+[JsonSerializable(typeof(CloudTasksGetSessionReplayResult))]
+[JsonSerializable(typeof(CloudTasksGetSharingStatusParams))]
+[JsonSerializable(typeof(CloudTasksResolveTaskIdParams))]
+[JsonSerializable(typeof(CloudTasksResolveTaskIdResult))]
+[JsonSerializable(typeof(CloudTasksSetSharingStatusParams))]
+[JsonSerializable(typeof(CloudTasksSharingStatusResult))]
 [JsonSerializable(typeof(CommandList))]
 [JsonSerializable(typeof(CommandsFinalizeInvocationEffectRequest))]
 [JsonSerializable(typeof(CommandsFinalizeInvocationEffectResult))]
@@ -65456,16 +68337,48 @@ internal static class ClientGlobalApiRegistration
 [JsonSerializable(typeof(ForceLoginOrgsDecision))]
 [JsonSerializable(typeof(GitCurrentBranchRemoteResult))]
 [JsonSerializable(typeof(GitCwdRequest))]
+[JsonSerializable(typeof(GitHubBranchPullRequest))]
+[JsonSerializable(typeof(GitHubBranchPullRequestLookupRequest))]
+[JsonSerializable(typeof(GitHubBranchPullRequestLookupResult))]
 [JsonSerializable(typeof(GitHubEnvironment))]
+[JsonSerializable(typeof(GitHubFetchCancelResult))]
+[JsonSerializable(typeof(GitHubFetchHeader))]
+[JsonSerializable(typeof(GitHubFetchHttpError))]
+[JsonSerializable(typeof(GitHubFetchOperationRequest))]
+[JsonSerializable(typeof(GitHubFetchPinnedAddress))]
+[JsonSerializable(typeof(GitHubFetchProxyEnvironment))]
+[JsonSerializable(typeof(GitHubFetchRequest))]
+[JsonSerializable(typeof(GitHubFetchRequestId))]
+[JsonSerializable(typeof(GitHubFetchResult))]
+[JsonSerializable(typeof(GitHubFetchRetryConfig))]
 [JsonSerializable(typeof(GitHubOwnerOption))]
 [JsonSerializable(typeof(GitHubOwnersCancelRequest))]
 [JsonSerializable(typeof(GitHubOwnersCancelResult))]
 [JsonSerializable(typeof(GitHubOwnersListRequest))]
 [JsonSerializable(typeof(GitHubOwnersListResult))]
 [JsonSerializable(typeof(GitHubOwnersRequestIdResult))]
+[JsonSerializable(typeof(GitHubPullRequestCheck))]
+[JsonSerializable(typeof(GitHubReleaseAbandonRequestParams))]
+[JsonSerializable(typeof(GitHubReleaseAbandonRequestResult))]
+[JsonSerializable(typeof(GitHubReleaseCancelRequest))]
+[JsonSerializable(typeof(GitHubReleaseCancelResult))]
+[JsonSerializable(typeof(GitHubReleaseDownloadAssetRequest))]
+[JsonSerializable(typeof(GitHubReleaseDownloadAssetResult))]
+[JsonSerializable(typeof(GitHubReleaseDownloadProgressRequest))]
+[JsonSerializable(typeof(GitHubReleaseDownloadProgressResult))]
+[JsonSerializable(typeof(GitHubReleaseLookupRequest))]
+[JsonSerializable(typeof(GitHubReleaseLookupResult))]
+[JsonSerializable(typeof(GitHubReleaseRequestIdResult))]
+[JsonSerializable(typeof(GitHubReleaseSnapshotAsset))]
+[JsonSerializable(typeof(GitHubReleaseSnapshotEntry))]
+[JsonSerializable(typeof(GitHubReleaseSnapshotRequest))]
+[JsonSerializable(typeof(GitHubReleaseSnapshotResult))]
 [JsonSerializable(typeof(GitHubRepositoryAtPathRequest))]
 [JsonSerializable(typeof(GitHubRepositoryAtPathResult))]
+[JsonSerializable(typeof(GitHubRepositoryByIdRequest))]
+[JsonSerializable(typeof(GitHubRepositoryByIdResult))]
 [JsonSerializable(typeof(GitHubRepositoryIdentity))]
+[JsonSerializable(typeof(GitHubRepositoryOwnerName))]
 [JsonSerializable(typeof(GitHubTelemetryClientInfo))]
 [JsonSerializable(typeof(GitHubTelemetryEvent))]
 [JsonSerializable(typeof(GitHubTelemetryNotification))]
@@ -66146,6 +69059,8 @@ internal static class ClientGlobalApiRegistration
 [JsonSerializable(typeof(SessionAutopilotEvaluateIdleContinuationRequest))]
 [JsonSerializable(typeof(SessionAutopilotObjectiveGetStateRequest))]
 [JsonSerializable(typeof(SessionBulkDeleteResult))]
+[JsonSerializable(typeof(SessionCafeMetricsAttachRequest))]
+[JsonSerializable(typeof(SessionCafeMetricsDetachRequest))]
 [JsonSerializable(typeof(SessionCancelAllBackgroundAgentsRequest))]
 [JsonSerializable(typeof(SessionCanvasListOpenRequest))]
 [JsonSerializable(typeof(SessionCanvasListRequest))]

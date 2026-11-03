@@ -16,6 +16,10 @@
 
 #[path = "api_facade.rs"]
 pub mod api_types;
+#[cfg(feature = "local-runtime")]
+pub(crate) mod cli_api_types;
+#[cfg(feature = "local-runtime")]
+pub(crate) mod cli_rpc;
 pub mod lifecycle_diagnostics;
 pub mod rpc;
 #[path = "event_facade.rs"]

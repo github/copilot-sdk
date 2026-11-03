@@ -325,7 +325,7 @@ When resuming a session, you can optionally reconfigure many settings. This is u
 | `reasoningEffort` | Adjust reasoning effort level |
 | `streaming` | Enable/disable streaming responses |
 | `workingDirectory` | Change the working directory |
-| `configDir` | Override configuration directory |
+| `configDirectory` | Override configuration directory |
 | `mcpServers` | Configure MCP servers |
 | `customAgents` | Configure custom agents |
 | `agent` | Pre-select a custom agent by name |
@@ -653,7 +653,7 @@ Each SDK also provides idiomatic automatic cleanup patterns:
 | **Go** | `defer` | `defer session.Disconnect()` |
 
 > [!NOTE]
-> `destroy()` is deprecated in favor of `disconnect()`. Existing code using `destroy()` will continue to work but should be migrated.
+> The Rust SDK's `destroy()` is a deprecated alias for `disconnect()`; use `disconnect()` there. The other SDKs only provide `disconnect()`.
 
 ### Permanently deleting a session (`deleteSession`)
 

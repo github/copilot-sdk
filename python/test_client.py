@@ -221,6 +221,29 @@ def test_copilot_cli_path_does_not_require_runtime_bundle(tmp_path):
     assert connection.path == str(explicit)
 
 
+def test_session_metadata_reads_and_writes_client_names():
+    wire = {
+        "sessionId": "session-1",
+        "startTime": "2026-01-01T00:00:00+00:00",
+        "modifiedTime": "2026-01-02T00:00:00+00:00",
+        "isRemote": False,
+    }
+    client_names = {"clientName": "github/cli", "lastClientName": "vscode"}
+    with_clients = client_module.SessionMetadata.from_dict({**wire, **client_names})
+    without_clients = client_module.SessionMetadata.from_dict(wire)
+
+    assert (
+        with_clients.client_name,
+        with_clients.last_client_name,
+        with_clients.to_dict(),
+    ) == ("github/cli", "vscode", {**wire, **client_names})
+    assert (
+        without_clients.client_name,
+        without_clients.last_client_name,
+        without_clients.to_dict(),
+    ) == (None, None, wire)
+
+
 class TestBuiltinPluginDirectories:
     @staticmethod
     async def _start_client(paths=None):

@@ -2864,6 +2864,9 @@ pub struct MarketplaceInfo {
     pub name: String,
     /// Human-readable description of where the marketplace data is fetched from (e.g. "GitHub: owner/repo").
     pub source: String,
+    /// True when the signed-in account's GitHub Team provides this marketplace and no user, repository, or default entry of the same name exists. Team marketplaces are not persisted, so they cannot be removed.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub team: Option<bool>,
 }
 
 /// Per-marketplace refresh result, including marketplace name, success flag, and optional failure error.

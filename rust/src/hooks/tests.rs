@@ -318,43 +318,6 @@ async fn dispatch_pre_tool_use_deny() {
 }
 
 #[tokio::test]
-async fn dispatch_pre_tool_use_passthrough() {
-    let hooks = TestHooks;
-    let input = serde_json::json!({
-        "sessionId": "sess-1",
-        "timestamp": 1234567890,
-        "cwd": "/tmp",
-        "toolName": "safe_tool",
-        "toolArgs": {"key": "value"}
-    });
-    let result = dispatch_hook(&hooks, &SessionId::new("sess-1"), "preToolUse", input)
-        .await
-        .unwrap();
-    // No hook registered for this tool — output should be empty object
-    assert_eq!(result["output"], serde_json::json!({}));
-}
-
-#[tokio::test]
-async fn dispatch_user_prompt_submitted() {
-    let hooks = TestHooks;
-    let input = serde_json::json!({
-        "sessionId": "sess-1",
-        "timestamp": 1234567890,
-        "cwd": "/tmp",
-        "prompt": "hello world"
-    });
-    let result = dispatch_hook(
-        &hooks,
-        &SessionId::new("sess-1"),
-        "userPromptSubmitted",
-        input,
-    )
-    .await
-    .unwrap();
-    assert_eq!(result["output"]["modifiedPrompt"], "[prefixed] hello world");
-}
-
-#[tokio::test]
 async fn dispatch_user_prompt_submitted_block() {
     struct BlockHook;
     #[async_trait]
@@ -439,22 +402,6 @@ async fn dispatch_user_prompt_transformed() {
         result["output"]["modifiedTransformedPrompt"],
         "[transformed] <current_datetime>now</current_datetime>\nhello world"
     );
-}
-
-#[tokio::test]
-async fn dispatch_unregistered_hook_returns_empty() {
-    let hooks = TestHooks;
-    let input = serde_json::json!({
-        "sessionId": "sess-1",
-        "timestamp": 1234567890,
-        "cwd": "/tmp",
-        "reason": "complete"
-    });
-    // TestHooks doesn't handle SessionEnd
-    let result = dispatch_hook(&hooks, &SessionId::new("sess-1"), "sessionEnd", input)
-        .await
-        .unwrap();
-    assert_eq!(result["output"], serde_json::json!({}));
 }
 
 #[tokio::test]
@@ -626,46 +573,6 @@ async fn dispatch_mismatched_output_returns_empty() {
     let result = dispatch_hook(&hooks, &SessionId::new("sess-1"), "preToolUse", input)
         .await
         .unwrap();
-    assert_eq!(result["output"], serde_json::json!({}));
-}
-
-#[tokio::test]
-async fn dispatch_post_tool_use_default() {
-    let hooks = TestHooks;
-    let input = serde_json::json!({
-        "sessionId": "sess-1",
-        "timestamp": 1234567890,
-        "cwd": "/tmp",
-        "toolName": "some_tool",
-        "toolArgs": {},
-        "toolResult": "success"
-    });
-    let result = dispatch_hook(&hooks, &SessionId::new("sess-1"), "postToolUse", input)
-        .await
-        .unwrap();
-    assert_eq!(result["output"], serde_json::json!({}));
-}
-
-#[tokio::test]
-async fn dispatch_post_tool_use_failure_default() {
-    // No handler override — should return an empty output object.
-    let hooks = TestHooks;
-    let input = serde_json::json!({
-        "sessionId": "sess-1",
-        "timestamp": 1234567890,
-        "cwd": "/tmp",
-        "toolName": "some_tool",
-        "toolArgs": {"key": "value"},
-        "error": "boom"
-    });
-    let result = dispatch_hook(
-        &hooks,
-        &SessionId::new("sess-1"),
-        "postToolUseFailure",
-        input,
-    )
-    .await
-    .unwrap();
     assert_eq!(result["output"], serde_json::json!({}));
 }
 

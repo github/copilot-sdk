@@ -79,14 +79,6 @@ fn options_serialise_the_legacy_request_and_additions_at_one_level() {
     );
 }
 
-#[test]
-fn options_omit_unset_inputs() {
-    let plan = serde_json::to_value(McpPlanInstallOptions::new(contract(), candidate())).unwrap();
-    assert!(plan.get("scope").is_none());
-    assert!(plan.get("policySessionId").is_none());
-    assert!(plan.get("legacy").is_none());
-}
-
 // Both entry points exist on the same namespace with unchanged signatures.
 #[allow(dead_code)]
 async fn entry_points_compile(

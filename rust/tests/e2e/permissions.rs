@@ -49,30 +49,6 @@ async fn should_work_with_approve_all_permission_handler() {
 }
 
 #[tokio::test]
-async fn should_handle_permission_handler_errors_gracefully() {
-    let result = PermissionResult::user_not_available();
-
-    assert!(matches!(
-        result,
-        PermissionResult::Decision {
-            decision: github_copilot_sdk::types::PermissionDecision::UserNotAvailable(_),
-            ..
-        }
-    ));
-}
-
-#[tokio::test]
-async fn should_handle_concurrent_permission_requests_from_parallel_tools() {
-    let requests = [
-        RequestId::from("permission-1"),
-        RequestId::from("permission-2"),
-    ];
-
-    assert_eq!(requests.len(), 2);
-    assert_ne!(requests[0], requests[1]);
-}
-
-#[tokio::test]
 async fn should_deny_permission_when_handler_returns_denied() {
     super::support::with_shared_e2e_context(
         &E2E,

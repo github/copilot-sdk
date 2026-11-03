@@ -388,6 +388,14 @@ The runtime has two ways to install plugins, and both end up looking the same to
 
 For SDK-driven applications, use `--plugin-dir` for shared process-level plugins or `pluginDirectories` for session-specific additions. Both keep explicit directories under your application's control instead of relying only on per-machine user state.
 
+### Team marketplace sources
+
+The server and session `plugins.marketplaces.list` APIs include marketplaces assigned to the signed-in user's teams. These sources can be browsed, refreshed, and used for plugin installation and updates through the existing plugin APIs without adding them to the user's settings.
+
+Team marketplaces are fallback defaults, not mandatory managed settings. A same-named marketplace from user settings, repository settings, legacy registrations, Claude-compatible configuration, or runtime defaults takes precedence. A server-level install or update without `configOverride` reads only the user's settings, as it does for other marketplaces, so an untrusted working directory cannot redirect a Team source. Managed `strictKnownMarketplaces` restrictions still apply. Team sources are fetched through the runtime's account-scoped assignment cache and are not persisted as user marketplace registrations. If an uncached lookup does not finish promptly, the operation continues without Team sources while the lookup completes in the background.
+
+A listed marketplace that only the Team supplies has `team: true`. Because it is not registered in the user's settings, it cannot be removed: `plugins.marketplaces.remove` rejects it with an error. Hide removal for these entries the same way as for `isDefault` ones.
+
 ## Making plugin sets deterministic
 
 When the host machine may have other plugins installed (marketplace or personal), set `COPILOT_PLUGIN_DIR_ONLY=true` in the runtime's environment to suppress ambient plugin discovery. Explicit directories supplied through either `--plugin-dir` or session `pluginDirectories` still load. This setting does not disable host-registered built-in plugins, whose activation is handled separately.

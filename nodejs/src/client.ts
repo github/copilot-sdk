@@ -18,6 +18,7 @@ import { isIPv6, Socket } from "node:net";
 import { dirname, isAbsolute, join, resolve } from "node:path";
 import {
     type CancellationToken,
+    type ContentTypeEncoder,
     createMessageConnection as createRpcMessageConnection,
     type DataCallback,
     ErrorCodes,
@@ -126,6 +127,26 @@ const RUNTIME_SHUTDOWN_TIMEOUT_MS = 10_000;
 const CLOUD_SESSION_CLEANUP_TIMEOUT_MS = 10_000;
 
 type DrainingMessageConnection = MessageConnection & { drain: () => Promise<void> };
+
+/** Errors from serializing one outgoing message; see {@link TeardownResilientStreamMessageWriter}. */
+const messageEncodeErrors = new WeakSet<Error>();
+
+/**
+ * Encodes messages the same way as vscode-jsonrpc's default JSON encoder, and records
+ * serialization failures in {@link messageEncodeErrors}.
+ */
+const jsonMessageEncoder: ContentTypeEncoder = {
+    name: "application/json",
+    encode: (msg, options) => {
+        try {
+            return Promise.resolve(Buffer.from(JSON.stringify(msg), options.charset));
+        } catch (thrown) {
+            const error = thrown instanceof Error ? thrown : new Error(String(thrown));
+            messageEncodeErrors.add(error);
+            return Promise.reject(error);
+        }
+    },
+};
 
 function createMessageConnection(
     reader: StreamMessageReader,
@@ -522,9 +543,19 @@ function getBundledRuntimePath(): Promise<string> {
  * {@link MessageConnection.onError}), so swallowing the rejected promise during
  * teardown loses no signal. Outside teardown the flag stays `false`, so write
  * failures propagate normally and in-flight requests still fail fast.
+ *
+ * A message that cannot be serialized (a `BigInt` or a circular reference in
+ * its params) fails only the request that carried it, but vscode-jsonrpc also
+ * reports the encode error through the writer's `error` event. The writer's
+ * encoder records those errors so the connection's error handler can tell them
+ * apart from a broken transport.
  */
 class TeardownResilientStreamMessageWriter extends StreamMessageWriter {
     public suppressWriteErrors = false;
+
+    constructor(writable: NodeJS.WritableStream) {
+        super(writable, { contentTypeEncoder: jsonMessageEncoder });
+    }
 
     public override async write(msg: Message): Promise<void> {
         try {
@@ -3001,6 +3032,8 @@ export class CopilotClient {
                 summary?: string;
                 isRemote: boolean;
                 context?: { cwd: string; gitRoot?: string; repository?: string; branch?: string };
+                clientName?: string;
+                lastClientName?: string;
             }>;
         };
 
@@ -3039,6 +3072,8 @@ export class CopilotClient {
                 summary?: string;
                 isRemote: boolean;
                 context?: { cwd: string; gitRoot?: string; repository?: string; branch?: string };
+                clientName?: string;
+                lastClientName?: string;
             };
         };
 
@@ -3056,6 +3091,8 @@ export class CopilotClient {
         summary?: string;
         isRemote: boolean;
         context?: { cwd: string; gitRoot?: string; repository?: string; branch?: string };
+        clientName?: string;
+        lastClientName?: string;
     }): SessionMetadata {
         const { context } = raw;
         return {
@@ -3072,6 +3109,8 @@ export class CopilotClient {
                       branch: context.branch,
                   }
                 : undefined,
+            clientName: raw.clientName,
+            lastClientName: raw.lastClientName,
         };
     }
 
@@ -3933,7 +3972,10 @@ export class CopilotClient {
                 exitFallback.unref?.();
             });
         }
-        this.connection.onError(() => {
+        this.connection.onError(([error]) => {
+            if (messageEncodeErrors.has(error)) {
+                return;
+            }
             if (connectionEpoch === this.connectionEpoch && this.connection === connection) {
                 this.state = "disconnected";
             }

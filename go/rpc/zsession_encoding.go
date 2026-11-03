@@ -1040,6 +1040,7 @@ func (r *UserMessageData) UnmarshalJSON(data []byte) error {
 	type rawUserMessageData struct {
 		AgentMode                        *UserMessageAgentMode `json:"agentMode,omitempty"`
 		Attachments                      []json.RawMessage     `json:"attachments,omitzero"`
+		CausalDependencies               []string              `json:"causalDependencies,omitzero"`
 		Content                          string                `json:"content"`
 		Delivery                         *UserMessageDelivery  `json:"delivery,omitempty"`
 		InteractionID                    *string               `json:"interactionId,omitempty"`
@@ -1068,6 +1069,7 @@ func (r *UserMessageData) UnmarshalJSON(data []byte) error {
 			r.Attachments = append(r.Attachments, value)
 		}
 	}
+	r.CausalDependencies = raw.CausalDependencies
 	r.Content = raw.Content
 	r.Delivery = raw.Delivery
 	r.InteractionID = raw.InteractionID
@@ -1893,6 +1895,7 @@ func (r SystemNotificationWorkflowCompleted) MarshalJSON() ([]byte, error) {
 
 func (r *SystemNotificationData) UnmarshalJSON(data []byte) error {
 	type rawSystemNotificationData struct {
+		CausalDependencies []string            `json:"causalDependencies,omitzero"`
 		Content            string              `json:"content"`
 		Kind               json.RawMessage     `json:"kind"`
 		ResponsesReasoning *ResponsesReasoning `json:"responsesReasoning,omitempty"`
@@ -1901,6 +1904,7 @@ func (r *SystemNotificationData) UnmarshalJSON(data []byte) error {
 	if err := json.Unmarshal(data, &raw); err != nil {
 		return err
 	}
+	r.CausalDependencies = raw.CausalDependencies
 	r.Content = raw.Content
 	if raw.Kind != nil {
 		value, err := unmarshalSystemNotification(raw.Kind)

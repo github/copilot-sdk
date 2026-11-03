@@ -78,7 +78,7 @@ public class CompactionE2ETests(E2ETestFixture fixture, ITestOutputHelper output
         });
 
         var content = answer?.Data.Content ?? string.Empty;
-        Assert.Contains("Kaedrith", content, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("Vessaryn", content, StringComparison.OrdinalIgnoreCase);
         Assert.Contains("dragon", content, StringComparison.OrdinalIgnoreCase);
     }
 

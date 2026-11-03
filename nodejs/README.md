@@ -438,6 +438,8 @@ List all available sessions. Optionally filter by working directory context.
 - `summary?: string` - Optional session summary
 - `isRemote: boolean` - Whether the session is remote
 - `context?: SessionContext` - Working directory context from session creation
+- `clientName?: string` - Client that created the session (for example `github/cli`)
+- `lastClientName?: string` - Client that most recently ran the session: the client that created it, or a client that resumed it and then ran it. Resuming a session only to observe it does not change it. Omitted when unknown, such as for sessions persisted before this field existed.
 
 **SessionContext:**
 
@@ -589,6 +591,10 @@ sends do not inherit it. Ordinary immediate steering inherits the active schema
 and originating message ID, even when it arrives too late for the current model
 request and is promoted into a follow-up run. Specifying a schema with
 `mode: "immediate"` is rejected, even while idle.
+Provider schema restrictions still apply, and schemas are not rewritten. Strict
+OpenAI output needs an object root with every property listed in `required`.
+Zod leaves `.optional()` properties out of `required`, so use `.nullable()` for a
+field the model may leave empty.
 The generated `session.rpc.send` and `session.rpc.sendMessages` wrappers expose
 the full `responseFormat` contract when you need to set its name, description,
 or strict option rather than using the convenience defaults (`name: "response"`,
@@ -756,10 +762,6 @@ Capabilities may update during the session. For example, when another client joi
 ##### `ui: SessionUiApi`
 
 Interactive UI methods for showing dialogs to the user. Only available when the CLI host supports elicitation (`session.capabilities.ui?.elicitation === true`). See [UI Elicitation](#ui-elicitation) for full details.
-
-##### `destroy(): Promise<void>` _(deprecated)_
-
-Deprecated — use `disconnect()` instead.
 
 ---
 
@@ -1715,6 +1717,17 @@ Callbacks receive optional derived prompt context as `invocation.promptRequest`.
 
 Use the built-in `approveAll` helper when managed settings are disabled:
 
+<!-- docs-validate: strict -->
+<!-- docs-validate: hidden -->
+```typescript
+import { approveAll } from "@github/copilot-sdk";
+
+const session = await client.createSession({
+    model: "gpt-5",
+    onPermissionRequest: approveAll,
+});
+```
+<!-- /docs-validate: hidden -->
 ```typescript
 import { CopilotClient, approveAll } from "@github/copilot-sdk";
 
@@ -1730,6 +1743,7 @@ When `enableManagedSettings` is true for the session, `approveAll` throws. Use a
 
 Provide your own function to inspect each request and apply custom logic. Check `managedApprovalRequired` before any automatic approval:
 
+<!-- docs-validate: strict -->
 ```typescript
 import type { PermissionRequest, PermissionRequestResult } from "@github/copilot-sdk";
 
@@ -1803,6 +1817,26 @@ Recheck requires session opt-in through `enableManagedSettings: true`.
 Treat helper text as untrusted plain text, keep `diagnostic` secondary,
 and sanitize `helpLink` before navigation.
 
+<!-- docs-validate: strict -->
+<!-- docs-validate: hidden -->
+```typescript
+import type { CopilotSession } from "@github/copilot-sdk";
+
+declare const session: CopilotSession;
+
+const snapshot = await session.rpc.managedSettings.get();
+
+if (snapshot.policyHelperFailure) {
+    console.warn(snapshot.policyHelperFailure.message);
+}
+
+if (snapshot.policyHelperCapabilities?.recheck === true) {
+    const refreshed = await session.rpc.managedSettings.recheckPolicyHelper();
+    // Only a current capable snapshot without policyHelperFailure establishes recovery.
+    console.log(refreshed.policyHelperFailure ?? "Policy Helper recovered");
+}
+```
+<!-- /docs-validate: hidden -->
 ```typescript
 const snapshot = await session.rpc.managedSettings.get();
 
@@ -1841,6 +1875,16 @@ The handler must return one of the `PermissionDecision` shapes (or `{ kind: "no-
 
 You may pass `onPermissionRequest` when resuming a session too:
 
+<!-- docs-validate: strict -->
+<!-- docs-validate: hidden -->
+```typescript
+import { approveAll } from "@github/copilot-sdk";
+
+const session = await client.resumeSession("session-id", {
+    onPermissionRequest: approveAll,
+});
+```
+<!-- /docs-validate: hidden -->
 ```typescript
 const session = await client.resumeSession("session-id", {
     onPermissionRequest: approveAll,

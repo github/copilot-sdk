@@ -97,6 +97,14 @@ public final class ServerRpc {
     public final ServerAgentRegistryApi agentRegistry;
     /** API methods for the {@code connectors} namespace. */
     public final ServerConnectorsApi connectors;
+    /** API methods for the {@code gitHubFetch} namespace. */
+    final ServerGitHubFetchApi gitHubFetch;
+    /** API methods for the {@code gitHubRelease} namespace. */
+    final ServerGitHubReleaseApi gitHubRelease;
+    /** API methods for the {@code cloudTasks} namespace. */
+    final ServerCloudTasksApi cloudTasks;
+    /** API methods for the {@code cafeMetrics} namespace. */
+    final ServerCafeMetricsApi cafeMetrics;
 
     /**
      * Creates a new server RPC client.
@@ -141,6 +149,10 @@ public final class ServerRpc {
         this.sessions = new ServerSessionsApi(caller);
         this.agentRegistry = new ServerAgentRegistryApi(caller);
         this.connectors = new ServerConnectorsApi(caller);
+        this.gitHubFetch = new ServerGitHubFetchApi(caller);
+        this.gitHubRelease = new ServerGitHubReleaseApi(caller);
+        this.cloudTasks = new ServerCloudTasksApi(caller);
+        this.cafeMetrics = new ServerCafeMetricsApi(caller);
     }
 
     /**

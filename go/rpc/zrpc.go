@@ -100,6 +100,29 @@ type AccountGetGistSupportResult struct {
 	Supported bool `json:"supported"`
 }
 
+// Configured names of the GitHub host to resolve.
+// Experimental: AccountGetHostURLRequest is part of an experimental API and may change or
+// be removed.
+// Internal: AccountGetHostURLRequest is an internal SDK API and is not part of the public
+// surface.
+type AccountGetHostURLRequest struct {
+	// Host from the Copilot-specific setting, which wins when both are set. A bare hostname is
+	// normalized to `https://`.
+	CopilotGhHost *string `json:"copilotGhHost,omitempty"`
+	// Host from the general GitHub CLI setting, used when the Copilot-specific one is absent.
+	GhHost *string `json:"ghHost,omitempty"`
+}
+
+// Absolute base URL of the GitHub host.
+// Experimental: AccountGetHostURLResult is part of an experimental API and may change or be
+// removed.
+// Internal: AccountGetHostURLResult is an internal SDK API and is not part of the public
+// surface.
+type AccountGetHostURLResult struct {
+	// Absolute base URL, for example `https://github.com`.
+	URL string `json:"url"`
+}
+
 // Experimental: AccountGetQuotaRequest is part of an experimental API and may change or be
 // removed.
 type AccountGetQuotaRequest struct {
@@ -271,6 +294,36 @@ type AccountStatus struct {
 	StatusMessage *string `json:"statusMessage,omitempty"`
 	// Whether the account is currently a valid switch target.
 	Switchable *bool `json:"switchable,omitempty"`
+}
+
+// The authentication identity to enroll in Copilot Free.
+// Experimental: AccountSubscribeCopilotFreeRequest is part of an experimental API and may
+// change or be removed.
+// Internal: AccountSubscribeCopilotFreeRequest is an internal SDK API and is not part of
+// the public surface.
+type AccountSubscribeCopilotFreeRequest struct {
+	// Identity to enroll, in the shape `session.gitHubAuth.getCurrentAuthInfo` returns. The
+	// runtime resolves the credential for it, so no credential is sent.
+	Identity AuthIdentity `json:"identity"`
+}
+
+// What came of a Copilot Free enrollment attempt.
+// Experimental: AccountSubscribeCopilotFreeResult is part of an experimental API and may
+// change or be removed.
+// Internal: AccountSubscribeCopilotFreeResult is an internal SDK API and is not part of the
+// public surface.
+type AccountSubscribeCopilotFreeResult struct {
+	// `subscribed` when GitHub answered, and `status` then carries its answer. `no-token` when
+	// no credential could be resolved for the identity, which is the caller's cue to ask the
+	// user to sign in again rather than to report a failure. `failed` when the attempt itself
+	// errored, and `message` then explains it.
+	Kind string `json:"kind"`
+	// Explanation to show the user. Present on `failed`, and optionally alongside a
+	// `subscribed` status.
+	Message *string `json:"message,omitempty"`
+	// GitHub's enrollment status when `kind` is `subscribed`, for example `subscribed` or
+	// `already_subscribed`. Absent otherwise.
+	Status *string `json:"status,omitempty"`
 }
 
 // Canonical directory where custom agents can be discovered or created, with scope,
@@ -2487,6 +2540,185 @@ type BuiltinToolSafeTelemetryFields struct {
 	Name *bool `json:"name,omitempty"`
 }
 
+// Terminal result of one resume attempt.
+// Experimental: CafeMetricsRecordResumeResultRequest is part of an experimental API and may
+// change or be removed.
+// Internal: CafeMetricsRecordResumeResultRequest is an internal SDK API and is not part of
+// the public surface.
+type CafeMetricsRecordResumeResultRequest struct {
+	// Terminal outcome.
+	// Internal: Outcome is part of the SDK's internal API surface and is not intended for
+	// external use.
+	Outcome CafeMetricsResumeOutcome `json:"outcome"`
+	// Bounded result classification.
+	// Internal: Reason is part of the SDK's internal API surface and is not intended for
+	// external use.
+	Reason CafeMetricsResumeReason `json:"reason"`
+	// Whether an event-log recovery projection was used.
+	Recovered bool `json:"recovered"`
+	// Last phase reached.
+	// Internal: Stage is part of the SDK's internal API surface and is not intended for
+	// external use.
+	Stage CafeMetricsResumeStage `json:"stage"`
+}
+
+// Experimental: CafeMetricsRecordResumeResultResult is part of an experimental API and may
+// change or be removed.
+type CafeMetricsRecordResumeResultResult struct {
+}
+
+// Release metadata without credentials or links.
+// Experimental: CafeMetricsRelease is part of an experimental API and may change or be
+// removed.
+// Internal: CafeMetricsRelease is an internal SDK API and is not part of the public surface.
+type CafeMetricsRelease struct {
+	// Whether this is a draft.
+	Draft *bool `json:"draft,omitempty"`
+	// Whether this is a prerelease.
+	Prerelease bool `json:"prerelease"`
+	// Raw release tag.
+	TagName string `json:"tagName"`
+}
+
+// Immutable release lookup result.
+// Experimental: CafeMetricsResolveAdmissionRequest is part of an experimental API and may
+// change or be removed.
+type CafeMetricsResolveAdmissionRequest interface {
+	cafeMetricsResolveAdmissionRequest()
+	Kind() CafeMetricsResolveAdmissionRequestKind
+}
+
+type RawCafeMetricsResolveAdmissionRequestData struct {
+	Discriminator CafeMetricsResolveAdmissionRequestKind
+	Raw           json.RawMessage
+}
+
+func (RawCafeMetricsResolveAdmissionRequestData) cafeMetricsResolveAdmissionRequest() {}
+func (r RawCafeMetricsResolveAdmissionRequestData) Kind() CafeMetricsResolveAdmissionRequestKind {
+	return r.Discriminator
+}
+
+type CafeMetricsResolveAdmissionRequestFailed struct {
+	// Finite non-negative lookup duration in milliseconds.
+	LookupDurationMs float64 `json:"lookupDurationMs"`
+}
+
+func (CafeMetricsResolveAdmissionRequestFailed) cafeMetricsResolveAdmissionRequest() {}
+func (CafeMetricsResolveAdmissionRequestFailed) Kind() CafeMetricsResolveAdmissionRequestKind {
+	return CafeMetricsResolveAdmissionRequestKindFailed
+}
+
+type CafeMetricsResolveAdmissionRequestSuccess struct {
+	// Finite non-negative lookup duration in milliseconds.
+	LookupDurationMs float64 `json:"lookupDurationMs"`
+	// Release metadata from the lookup shared with auto-update.
+	// Internal: Releases is part of the SDK's internal API surface and is not intended for
+	// external use.
+	Releases []CafeMetricsRelease `json:"releases"`
+}
+
+func (CafeMetricsResolveAdmissionRequestSuccess) cafeMetricsResolveAdmissionRequest() {}
+func (CafeMetricsResolveAdmissionRequestSuccess) Kind() CafeMetricsResolveAdmissionRequestKind {
+	return CafeMetricsResolveAdmissionRequestKindSuccess
+}
+
+// Admission result.
+// Experimental: CafeMetricsResolveAdmissionResult is part of an experimental API and may
+// change or be removed.
+type CafeMetricsResolveAdmissionResult interface {
+	cafeMetricsResolveAdmissionResult()
+	Kind() CafeMetricsResolveAdmissionResultKind
+}
+
+type RawCafeMetricsResolveAdmissionResultData struct {
+	Discriminator CafeMetricsResolveAdmissionResultKind
+	Raw           json.RawMessage
+}
+
+func (RawCafeMetricsResolveAdmissionResultData) cafeMetricsResolveAdmissionResult() {}
+func (r RawCafeMetricsResolveAdmissionResultData) Kind() CafeMetricsResolveAdmissionResultKind {
+	return r.Discriminator
+}
+
+type CafeMetricsResolveAdmissionResultAlreadyResolved struct {
+}
+
+func (CafeMetricsResolveAdmissionResultAlreadyResolved) cafeMetricsResolveAdmissionResult() {}
+func (CafeMetricsResolveAdmissionResultAlreadyResolved) Kind() CafeMetricsResolveAdmissionResultKind {
+	return CafeMetricsResolveAdmissionResultKindAlreadyResolved
+}
+
+type CafeMetricsResolveAdmissionResultApplied struct {
+}
+
+func (CafeMetricsResolveAdmissionResultApplied) cafeMetricsResolveAdmissionResult() {}
+func (CafeMetricsResolveAdmissionResultApplied) Kind() CafeMetricsResolveAdmissionResultKind {
+	return CafeMetricsResolveAdmissionResultKindApplied
+}
+
+type CafeMetricsResolveAdmissionResultNotStarted struct {
+}
+
+func (CafeMetricsResolveAdmissionResultNotStarted) cafeMetricsResolveAdmissionResult() {}
+func (CafeMetricsResolveAdmissionResultNotStarted) Kind() CafeMetricsResolveAdmissionResultKind {
+	return CafeMetricsResolveAdmissionResultKindNotStarted
+}
+
+type CafeMetricsResolveAdmissionResultShutdown struct {
+}
+
+func (CafeMetricsResolveAdmissionResultShutdown) cafeMetricsResolveAdmissionResult() {}
+func (CafeMetricsResolveAdmissionResultShutdown) Kind() CafeMetricsResolveAdmissionResultKind {
+	return CafeMetricsResolveAdmissionResultKindShutdown
+}
+
+// Preliminary flush or final disposal.
+// Experimental: CafeMetricsShutdownRequest is part of an experimental API and may change or
+// be removed.
+// Internal: CafeMetricsShutdownRequest is an internal SDK API and is not part of the public
+// surface.
+type CafeMetricsShutdownRequest struct {
+	// Send at most one batch without stopping recording. Omission means disposal.
+	FlushOnly *bool `json:"flushOnly,omitempty"`
+}
+
+// Experimental: CafeMetricsShutdownResult is part of an experimental API and may change or
+// be removed.
+type CafeMetricsShutdownResult struct {
+}
+
+// Versions and provider configuration for CAFE.
+// Experimental: CafeMetricsStartRequest is part of an experimental API and may change or be
+// removed.
+// Internal: CafeMetricsStartRequest is an internal SDK API and is not part of the public
+// surface.
+type CafeMetricsStartRequest struct {
+	// Effective comparison version and appVersion tag.
+	AppVersion string `json:"appVersion"`
+	// Raw package build version.
+	BuildVersion string `json:"buildVersion"`
+	// Whether the host uses a custom model provider.
+	CustomProviderConfigured bool `json:"customProviderConfigured"`
+	// Embedded package identity. Omission enables the unbundled development fallback.
+	// Internal: EmbeddedPackageIdentity is part of the SDK's internal API surface and is not
+	// intended for external use.
+	EmbeddedPackageIdentity *CafeMetricsEmbeddedPackageIdentity `json:"embeddedPackageIdentity,omitempty"`
+}
+
+// CAFE startup result.
+// Experimental: CafeMetricsStartResult is part of an experimental API and may change or be
+// removed.
+// Internal: CafeMetricsStartResult is an internal SDK API and is not part of the public
+// surface.
+type CafeMetricsStartResult struct {
+	// Refusal reason, absent on success.
+	// Internal: Reason is part of the SDK's internal API surface and is not intended for
+	// external use.
+	Reason *CafeMetricsStartRefusal `json:"reason,omitempty"`
+	// Whether this call started CAFE.
+	Started bool `json:"started"`
+}
+
 // Cancellation result for a user-requested shell command.
 // Experimental: CancelUserRequestedShellCommandResult is part of an experimental API and
 // may change or be removed.
@@ -4329,6 +4561,389 @@ type ClientTaskCancelRequest struct {
 type ClientTaskCancelResult struct {
 	// True only when the owner confirms that external work stopped before responding
 	Cancelled bool `json:"cancelled"`
+}
+
+// Describes the cloud coding-agent task to start and the credential to start it under.
+// Target it either by repository, supplying both `repositoryOwner` and `repositoryName`, or
+// by `owner` alone for an account-level run.
+// Experimental: CloudTasksCreateParams is part of an experimental API and may change or be
+// removed.
+// Internal: CloudTasksCreateParams is an internal SDK API and is not part of the public
+// surface.
+type CloudTasksCreateParams struct {
+	// Selects which stored credential to resolve when the host holds more than one. Omit it to
+	// resolve the default for the supplied `authInfo`.
+	AuthContextID *string `json:"authContextId,omitempty"`
+	// The credential the task is created under, carried opaquely because its shape is the
+	// host's own and the runtime only resolves a token and an API endpoint from it.
+	AuthInfo any `json:"authInfo"`
+	// Explicit Mission Control endpoint selected by the host. Omission derives it from the
+	// identity.
+	BaseURL *string `json:"baseUrl,omitempty"`
+	// Name of the embedding client, reported to the service so it can attribute the request.
+	IntegrationID string `json:"integrationId"`
+	// Account the task is created for when it is not tied to a repository. Supply it only when
+	// `repositoryOwner` and `repositoryName` are omitted.
+	Owner *string `json:"owner,omitempty"`
+	// Name of the repository the task runs against. Supply it together with `repositoryOwner`.
+	RepositoryName *string `json:"repositoryName,omitempty"`
+	// Account or organization owning the repository the task runs against. Supply it together
+	// with `repositoryName`.
+	RepositoryOwner *string `json:"repositoryOwner,omitempty"`
+}
+
+// The outcome of starting a cloud task. A rejected request and a failed one are reported
+// separately: `reason` and `message` describe a request the service declined, while
+// `statusCode` and `errorMessage` describe the HTTP call itself and appear only when one
+// was actually made.
+// Experimental: CloudTasksCreateResult is part of an experimental API and may change or be
+// removed.
+// Internal: CloudTasksCreateResult is an internal SDK API and is not part of the public
+// surface.
+type CloudTasksCreateResult struct {
+	// Human-readable explanation of a failed HTTP call, when one failed.
+	ErrorMessage *string `json:"errorMessage,omitempty"`
+	// The error body the service returned, preserved verbatim so a host can surface the
+	// service's own message.
+	ErrorPayloadJSON *string `json:"errorPayloadJson,omitempty"`
+	// The explanation to show for a declined request, when the service supplied one. This
+	// describes the rejection itself, unlike `errorMessage`, which describes a failed HTTP call.
+	Message *string `json:"message,omitempty"`
+	// Whether the task was created.
+	Ok bool `json:"ok"`
+	// Why the request was declined, when it was. Carried as a free-form string rather than a
+	// fixed set because the vocabulary is the service's and grows with it; `policy_blocked`,
+	// `validation`, `rate_limited` and `error` are the values seen so far, and a caller should
+	// treat an unrecognised one as a generic failure rather than rejecting the response.
+	Reason *string `json:"reason,omitempty"`
+	// The created task record, as returned by the service. Present only when `ok` is true; a
+	// caller parses it itself because the runtime does not narrow the service's own shape.
+	ResponseJSON *string `json:"responseJson,omitempty"`
+	// HTTP status code of the response, when one was received.
+	StatusCode *int32 `json:"statusCode,omitempty"`
+}
+
+// Identifies one cloud coding-agent task to delete, and the credential to delete it under.
+// Experimental: CloudTasksDeleteParams is part of an experimental API and may change or be
+// removed.
+// Internal: CloudTasksDeleteParams is an internal SDK API and is not part of the public
+// surface.
+type CloudTasksDeleteParams struct {
+	// Selects which stored credential to resolve when the host holds more than one. Omit it to
+	// resolve the default for the supplied `authInfo`.
+	AuthContextID *string `json:"authContextId,omitempty"`
+	// The credential the deletion is performed under, carried opaquely because its shape is the
+	// host's own and the runtime only resolves a token and an API endpoint from it. Required:
+	// the task endpoint is per-account, so there is no unauthenticated form of this call.
+	AuthInfo any `json:"authInfo"`
+	// Explicit Mission Control endpoint selected by the host. Omission derives it from the
+	// identity.
+	BaseURL *string `json:"baseUrl,omitempty"`
+	// Name of the embedding client, reported to Mission Control so the service can attribute
+	// the request.
+	IntegrationID string `json:"integrationId"`
+	// Identifier of the cloud task to delete.
+	TaskID string `json:"taskId"`
+}
+
+// The HTTP outcome of deleting a cloud task. The deletion returns no body, so a successful
+// call carries nothing beyond `ok`; a failed one is described by the remaining fields
+// rather than raised as an error, so a caller can surface the service's own explanation.
+// Experimental: CloudTasksDeleteResult is part of an experimental API and may change or be
+// removed.
+// Internal: CloudTasksDeleteResult is an internal SDK API and is not part of the public
+// surface.
+type CloudTasksDeleteResult struct {
+	// Human-readable failure explanation, when the call failed.
+	ErrorMessage *string `json:"errorMessage,omitempty"`
+	// The error body the service returned, preserved verbatim so a host can surface the
+	// service's own message.
+	ErrorPayloadJSON *string `json:"errorPayloadJson,omitempty"`
+	// Whether the service accepted the deletion.
+	Ok bool `json:"ok"`
+	// HTTP status code of the response, when one was received.
+	StatusCode *int32 `json:"statusCode,omitempty"`
+}
+
+// Identifies one cloud coding-agent task and the credential to read it under.
+// Experimental: CloudTasksGetParams is part of an experimental API and may change or be
+// removed.
+// Internal: CloudTasksGetParams is an internal SDK API and is not part of the public
+// surface.
+type CloudTasksGetParams struct {
+	// Selects which stored credential to resolve when the host holds more than one. Omit it to
+	// resolve the default for the supplied `authInfo`.
+	AuthContextID *string `json:"authContextId,omitempty"`
+	// The credential the read is performed under, carried opaquely because its shape is the
+	// host's own and the runtime only resolves a token from it. Required: the task endpoint is
+	// per-account, so there is no unauthenticated form of this read.
+	AuthInfo any `json:"authInfo"`
+	// Name of the embedding client, reported to the task API so the service can attribute the
+	// request.
+	IntegrationID string `json:"integrationId"`
+	// Identifier of the cloud task to read.
+	TaskID string `json:"taskId"`
+}
+
+// The HTTP outcome of reading a cloud task, rather than the task alone. A 404 arrives here
+// as a non-ok result with `statusCode` 404, not as an error, so a caller can tell an absent
+// task apart from a failed call.
+// Experimental: CloudTasksGetResult is part of an experimental API and may change or be
+// removed.
+// Internal: CloudTasksGetResult is an internal SDK API and is not part of the public
+// surface.
+type CloudTasksGetResult struct {
+	// Categorised failure kind, when the call failed.
+	ErrorKind *string `json:"errorKind,omitempty"`
+	// Human-readable failure explanation, when the call failed.
+	ErrorMessage *string `json:"errorMessage,omitempty"`
+	// The error body the API returned, preserved verbatim so a host can surface the service's
+	// own message.
+	ErrorPayloadJSON *string `json:"errorPayloadJson,omitempty"`
+	// Whether the API returned the task successfully.
+	Ok bool `json:"ok"`
+	// The task record, as returned by the API. Present only when `ok` is true; a caller parses
+	// it itself because the runtime does not narrow the API's own shape.
+	PayloadJSON *string `json:"payloadJson,omitempty"`
+	// HTTP status code of the response, when one was received.
+	StatusCode *int32 `json:"statusCode,omitempty"`
+}
+
+// Identifies one cloud coding-agent session whose logs are to be read, and the credential
+// to read them under.
+// Experimental: CloudTasksGetSessionLogsParams is part of an experimental API and may
+// change or be removed.
+// Internal: CloudTasksGetSessionLogsParams is an internal SDK API and is not part of the
+// public surface.
+type CloudTasksGetSessionLogsParams struct {
+	// Selects which stored credential to resolve when the host holds more than one. Omit it to
+	// resolve the default for the supplied `authInfo`.
+	AuthContextID *string `json:"authContextId,omitempty"`
+	// The credential the read is performed under, carried opaquely because its shape is the
+	// host's own and the runtime only resolves a token and an API endpoint from it.
+	AuthInfo any `json:"authInfo"`
+	// Identifier of the cloud session whose logs are read.
+	SessionID string `json:"sessionId"`
+}
+
+// The outcome of reading a cloud session's logs. `resolved` distinguishes "this credential
+// has no Copilot API endpoint" from "the request was made and failed"; every other field
+// describes a request that was actually attempted.
+// Experimental: CloudTasksGetSessionLogsResult is part of an experimental API and may
+// change or be removed.
+// Internal: CloudTasksGetSessionLogsResult is an internal SDK API and is not part of the
+// public surface.
+type CloudTasksGetSessionLogsResult struct {
+	// Diagnostics the retrieval produced, in order. Worth logging whatever the outcome, because
+	// they explain a partial or empty result that is otherwise reported as success.
+	DebugMessages []string `json:"debugMessages,omitzero"`
+	// Categorised failure kind, when the call failed.
+	ErrorKind *string `json:"errorKind,omitempty"`
+	// Human-readable failure explanation, when the call failed.
+	ErrorMessage *string `json:"errorMessage,omitempty"`
+	// The error body the API returned, preserved verbatim so a host can surface the service's
+	// own message.
+	ErrorPayloadJSON *string `json:"errorPayloadJson,omitempty"`
+	// A retrieval fault that is not an HTTP status, such as a malformed response body.
+	ErrorString *string `json:"errorString,omitempty"`
+	// The logs, as returned by the API. Absent when none were returned; a caller that wants a
+	// list should treat absence as empty.
+	LogsJSON *string `json:"logsJson,omitempty"`
+	// Whether the API returned the logs successfully. Meaningful only when `resolved` is true.
+	Ok bool `json:"ok"`
+	// Whether a Copilot API endpoint could be resolved for the credential at all. When false no
+	// request was attempted and every other field is absent or empty, which a caller must not
+	// report as a transport failure.
+	Resolved bool `json:"resolved"`
+	// HTTP status code of the response, when one was received.
+	StatusCode *int32 `json:"statusCode,omitempty"`
+}
+
+// Identifies one cloud coding-agent task whose recorded session is to be replayed, and the
+// credential to read it under.
+// Experimental: CloudTasksGetSessionReplayParams is part of an experimental API and may
+// change or be removed.
+// Internal: CloudTasksGetSessionReplayParams is an internal SDK API and is not part of the
+// public surface.
+type CloudTasksGetSessionReplayParams struct {
+	// Selects which stored credential to resolve when the host holds more than one. Omit it to
+	// resolve the default for the supplied `authInfo`.
+	AuthContextID *string `json:"authContextId,omitempty"`
+	// The credential the read is performed under, carried opaquely because its shape is the
+	// host's own and the runtime only resolves a token and an API endpoint from it.
+	AuthInfo any `json:"authInfo"`
+	// Explicit Mission Control endpoint selected by the host. Omission derives it from the
+	// identity.
+	BaseURL *string `json:"baseUrl,omitempty"`
+	// Name of the embedding client, reported to the service so it can attribute the request.
+	IntegrationID string `json:"integrationId"`
+	// Identifier of the cloud task whose recorded events are replayed.
+	TaskID string `json:"taskId"`
+}
+
+// A cloud task's recorded events, ordered for replay. Read `preStart` first: it selects
+// which of the two event lists a caller should use, and they differ deliberately.
+// Experimental: CloudTasksGetSessionReplayResult is part of an experimental API and may
+// change or be removed.
+// Internal: CloudTasksGetSessionReplayResult is an internal SDK API and is not part of the
+// public surface.
+type CloudTasksGetSessionReplayResult struct {
+	// Every recorded event in the same replay order, as a JSON array, whether or not the
+	// session has started. This is the list to hand to a subsequent ingress so it can tell
+	// which events it has already seen, and unlike `replayEventsJson` it is never emptied.
+	ObservedEventsJSON string `json:"observedEventsJson"`
+	// True when the task has recorded events but the session has not started yet, so only
+	// queued work exists. A started session is anchored by either `session.start` or, for a
+	// resumed one, `session.resume`.
+	PreStart bool `json:"preStart"`
+	// The events to replay in order to reconstruct the session, as a JSON array. Empty when
+	// `preStart` is true, because a session that has not started has nothing to reconstruct and
+	// replaying its pending events would invent a history it never had.
+	ReplayEventsJSON string `json:"replayEventsJson"`
+}
+
+// Identifies one cloud coding-agent task whose sharing status is to be read, and the
+// credential to read it under.
+// Experimental: CloudTasksGetSharingStatusParams is part of an experimental API and may
+// change or be removed.
+// Internal: CloudTasksGetSharingStatusParams is an internal SDK API and is not part of the
+// public surface.
+type CloudTasksGetSharingStatusParams struct {
+	// Selects which stored credential to resolve when the host holds more than one. Omit it to
+	// resolve the default for the supplied `authInfo`.
+	AuthContextID *string `json:"authContextId,omitempty"`
+	// The credential the read is performed under, carried opaquely because its shape is the
+	// host's own and the runtime only resolves a token and an API endpoint from it. The token
+	// itself is never carried across the door.
+	AuthInfo any `json:"authInfo"`
+	// Explicit Mission Control endpoint selected by the host. Omission derives it from the
+	// identity.
+	BaseURL *string `json:"baseUrl,omitempty"`
+	// Name of the embedding client, reported to the service so it can attribute the request.
+	IntegrationID string `json:"integrationId"`
+	// Identifier of the cloud task whose sharing status is read.
+	TaskID string `json:"taskId"`
+}
+
+// Identifies one cloud coding-agent task to resolve to an openable session, the credential
+// to resolve it under, and the local candidates the caller has already rejected.
+// Experimental: CloudTasksResolveTaskIDParams is part of an experimental API and may change
+// or be removed.
+// Internal: CloudTasksResolveTaskIDParams is an internal SDK API and is not part of the
+// public surface.
+type CloudTasksResolveTaskIDParams struct {
+	// Whether a task carrying no recorded CLI run still counts as a match. Set it when the
+	// caller wants the task itself, not only a run that already produced a session.
+	AllowEmptyCLITask bool `json:"allowEmptyCliTask"`
+	// Selects which stored credential to resolve when the host holds more than one. Omit it to
+	// resolve the default for the supplied `authInfo`.
+	AuthContextID *string `json:"authContextId,omitempty"`
+	// The credential the lookup is performed under, carried opaquely because its shape is the
+	// host's own and the runtime only resolves a token and an API endpoint from it. Required:
+	// the task endpoint is per-account, so there is no unauthenticated form of this call.
+	AuthInfo any `json:"authInfo"`
+	// Overrides the GitHub API base URL the task lookup goes to. Intended for testing against a
+	// non-production service; omit it in normal use.
+	DebugGitHubAPIURL *string `json:"debugGithubApiUrl,omitempty"`
+	// Whether the caller can open a cloud session. When false, a task that resolves only to a
+	// remote run is reported as unresumable instead, because the caller could not act on it.
+	HasRemoteSessionManager bool `json:"hasRemoteSessionManager"`
+	// Local session identifiers the caller has already rejected, so resolution skips them and
+	// returns the next candidate. Pass the identifiers accumulated across earlier calls, not
+	// only the last one.
+	IgnoredLocalSessionIDs []string `json:"ignoredLocalSessionIds"`
+	// Name of the embedding client, reported to Mission Control so the service can attribute
+	// the request.
+	IntegrationID string `json:"integrationId"`
+	// Directory holding persisted session state to scan for a local match. Omit it to use the
+	// default session home.
+	SessionsHome *string `json:"sessionsHome,omitempty"`
+	// Identifier of the cloud task to resolve.
+	TaskID string `json:"taskId"`
+}
+
+// What a caller should open for the task. The four outcomes are distinct and carry
+// different payloads, so read `kind` before any other field.
+// Experimental: CloudTasksResolveTaskIDResult is part of an experimental API and may change
+// or be removed.
+// Internal: CloudTasksResolveTaskIDResult is an internal SDK API and is not part of the
+// public surface.
+type CloudTasksResolveTaskIDResult struct {
+	// Why the cloud lookup produced less than it could have, for logging. It accompanies a
+	// successful outcome as well, so it is not a failure signal.
+	Diagnostic *string `json:"diagnostic,omitempty"`
+	// Machine-readable classification of the failure, when the service supplied one. The
+	// vocabulary is the service's and grows with it, so treat an unrecognized value as a
+	// generic failure.
+	ErrorKind *string `json:"errorKind,omitempty"`
+	// Human-readable explanation of a failed service call. Present only when `kind` is `error`.
+	ErrorMessage *string `json:"errorMessage,omitempty"`
+	// The error body the service returned, preserved verbatim so a host can surface the
+	// service's own message.
+	ErrorPayloadJSON *string `json:"errorPayloadJson,omitempty"`
+	// HTTP status code of the failed call, when one was received.
+	ErrorStatusCode *int32 `json:"errorStatusCode,omitempty"`
+	// Outcome of the resolution: `local-session` when a persisted session matched,
+	// `remote-session` when only a cloud run did, `unresumable-task` when the task exists but
+	// cannot be continued, `none` when nothing matched, and `error` when the service call
+	// failed.
+	Kind string `json:"kind"`
+	// The cloud session record, serialized, describing the run to open. Present only when
+	// `kind` is `remote-session`. It is carried as text because its shape is the service's own
+	// and the runtime does not narrow it.
+	MetadataJSON *string `json:"metadataJson,omitempty"`
+	// Identifier of the matched local session. Present only when `kind` is `local-session`.
+	SessionID *string `json:"sessionId,omitempty"`
+}
+
+// Identifies one cloud coding-agent task whose sharing status is to be changed, the status
+// to set, and the credential to change it under.
+// Experimental: CloudTasksSetSharingStatusParams is part of an experimental API and may
+// change or be removed.
+// Internal: CloudTasksSetSharingStatusParams is an internal SDK API and is not part of the
+// public surface.
+type CloudTasksSetSharingStatusParams struct {
+	// Selects which stored credential to resolve when the host holds more than one. Omit it to
+	// resolve the default for the supplied `authInfo`.
+	AuthContextID *string `json:"authContextId,omitempty"`
+	// The credential the change is performed under, carried opaquely because its shape is the
+	// host's own and the runtime only resolves a token and an API endpoint from it. The token
+	// itself is never carried across the door.
+	AuthInfo any `json:"authInfo"`
+	// Explicit Mission Control endpoint selected by the host. Omission derives it from the
+	// identity.
+	BaseURL *string `json:"baseUrl,omitempty"`
+	// Name of the embedding client, reported to the service so it can attribute the request.
+	IntegrationID string `json:"integrationId"`
+	// The sharing status to set, sent to the service verbatim. It is a free-form string rather
+	// than a closed set because the service owns these values and may add one; narrowing it
+	// here would reject a status the service accepts.
+	SharingStatus string `json:"sharingStatus"`
+	// Identifier of the cloud task whose sharing status is changed.
+	TaskID string `json:"taskId"`
+}
+
+// The sharing status a cloud task carries after the call. Read `credentialResolved` first:
+// when it is false no request was attempted at all, which is a different outcome from a
+// request the service declined.
+// Experimental: CloudTasksSharingStatusResult is part of an experimental API and may change
+// or be removed.
+// Internal: CloudTasksSharingStatusResult is an internal SDK API and is not part of the
+// public surface.
+type CloudTasksSharingStatusResult struct {
+	// Whether a credential could be resolved for the supplied `authInfo` at all. When false no
+	// request was attempted and every other field is absent, which a caller must not report as
+	// a transport failure: the account simply has no usable credential.
+	CredentialResolved bool `json:"credentialResolved"`
+	// Whether the service returned the task successfully. Meaningful only when
+	// `credentialResolved` is true.
+	Ok bool `json:"ok"`
+	// The task's sharing status, as the service reported it. Absent when the call did not
+	// succeed, and also when the service returned a task that carries no sharing status at all.
+	// It is a free-form string rather than a closed set because the service owns these values;
+	// a caller that only understands some of them should treat an unrecognized one as unknown
+	// rather than as an error.
+	SharingStatus *string `json:"sharingStatus,omitempty"`
 }
 
 // Slash commands available in the session, after applying any include/exclude filters.
@@ -6687,6 +7302,95 @@ type GitCwdRequest struct {
 	Cwd string `json:"cwd"`
 }
 
+// The pull request a branch is open against, with the review state a caller needs to
+// summarize it without a second request.
+// Experimental: GitHubBranchPullRequest is part of an experimental API and may change or be
+// removed.
+// Internal: GitHubBranchPullRequest is an internal SDK API and is not part of the public
+// surface.
+type GitHubBranchPullRequest struct {
+	// Lines added across the pull request.
+	Additions int64 `json:"additions"`
+	// Pull request description body. Empty when the pull request has none.
+	Body string `json:"body"`
+	// Number of files the pull request changes.
+	ChangedFiles int64 `json:"changedFiles"`
+	// Checks reported against the pull request's head commit.
+	// Internal: Checks is part of the SDK's internal API surface and is not intended for
+	// external use.
+	Checks []GitHubPullRequestCheck `json:"checks"`
+	// Number of comments on the pull request.
+	Comments int64 `json:"comments"`
+	// Lines deleted across the pull request.
+	Deletions int64 `json:"deletions"`
+	// Head branch name the pull request was opened from.
+	HeadRefName string `json:"headRefName"`
+	// Whether the pull request is a draft.
+	IsDraft bool `json:"isDraft"`
+	// Label names applied to the pull request.
+	Labels []string `json:"labels"`
+	// Pull request number within its repository.
+	Number int64 `json:"number"`
+	// Owner login of the repository the pull request was opened against.
+	Owner string `json:"owner"`
+	// Name of the repository the pull request was opened against.
+	Repo string `json:"repo"`
+	// Logins of the requested reviewers.
+	Reviewers []string `json:"reviewers"`
+	// Pull request state as GitHub reports it, such as `OPEN`, `CLOSED` or `MERGED`.
+	State string `json:"state"`
+	// Pull request title.
+	Title string `json:"title"`
+	// Web URL of the pull request.
+	URL string `json:"url"`
+}
+
+// Selects the pull request a branch is open against, and the credential to look it up
+// under. The branch is searched across every repository in `baseRepositories`, which lets a
+// fork's branch find the pull request it opened against upstream.
+// Experimental: GitHubBranchPullRequestLookupRequest is part of an experimental API and may
+// change or be removed.
+// Internal: GitHubBranchPullRequestLookupRequest is an internal SDK API and is not part of
+// the public surface.
+type GitHubBranchPullRequestLookupRequest struct {
+	// The credential the lookup runs under, carried opaquely because its shape is the host's
+	// own and the runtime only resolves a token and a GitHub host from it. Required: the search
+	// answers per-account, so a pull request invisible to this credential is reported as absent
+	// rather than refused.
+	AuthInfo any `json:"authInfo"`
+	// Repositories to search for the pull request, in preference order. A fork supplies both
+	// its own repository and its upstream, because the branch may have opened the pull request
+	// against either.
+	// Internal: BaseRepositories is part of the SDK's internal API surface and is not intended
+	// for external use.
+	BaseRepositories []GitHubRepositoryOwnerName `json:"baseRepositories"`
+	// Head branch name to find the pull request for, without a `refs/heads/` prefix.
+	Branch string `json:"branch"`
+	// Login that must own the pull request's head branch. A branch name alone is ambiguous
+	// across forks, so a candidate whose head is owned by anyone else is discarded.
+	HeadOwner string `json:"headOwner"`
+	// Whether a closed or merged pull request counts as a match. False considers only open
+	// ones, so a caller acting on the branch's current pull request does not resurface a merged
+	// one.
+	IncludeClosed bool `json:"includeClosed"`
+}
+
+// Outcome of a branch pull-request lookup. `status` carries why, because 'not
+// authenticated', 'no pull request' and 'the search failed' are three different answers and
+// only the first two are conclusive.
+// Experimental: GitHubBranchPullRequestLookupResult is part of an experimental API and may
+// change or be removed.
+// Internal: GitHubBranchPullRequestLookupResult is an internal SDK API and is not part of
+// the public surface.
+type GitHubBranchPullRequestLookupResult struct {
+	// The matching pull request, or null for every status other than `found`.
+	PullRequest *GitHubBranchPullRequest `json:"pullRequest,omitempty"`
+	// Why the lookup reported what it did.
+	// Internal: Status is part of the SDK's internal API surface and is not intended for
+	// external use.
+	Status GitHubBranchPullRequestLookupStatus `json:"status"`
+}
+
 // Safe discovery information. Host-side relay bootstrap credentials are never included.
 // Experimental: GitHubEnvironment is part of an experimental API and may change or be
 // removed.
@@ -6711,6 +7415,236 @@ type GitHubEnvironment struct {
 	OwnerType *string `json:"ownerType,omitempty"`
 	// Open-ended operational status vocabulary.
 	Status string `json:"status"`
+}
+
+// Whether cancellation reached a registered GitHub request.
+// Experimental: GitHubFetchCancelResult is part of an experimental API and may change or be
+// removed.
+// Internal: GitHubFetchCancelResult is an internal SDK API and is not part of the public
+// surface.
+type GitHubFetchCancelResult struct {
+	// True when cancellation reached a registered request.
+	Canceled bool `json:"canceled"`
+}
+
+// One HTTP header in an ordered list.
+// Experimental: GitHubFetchHeader is part of an experimental API and may change or be
+// removed.
+// Internal: GitHubFetchHeader is an internal SDK API and is not part of the public surface.
+type GitHubFetchHeader struct {
+	// HTTP header name. The list preserves order and repeated names.
+	Name string `json:"name"`
+	// HTTP header value.
+	Value string `json:"value"`
+}
+
+// A user-facing HTTP failure formatted in the runtime.
+// Experimental: GitHubFetchHTTPError is part of an experimental API and may change or be
+// removed.
+// Internal: GitHubFetchHTTPError is an internal SDK API and is not part of the public
+// surface.
+type GitHubFetchHTTPError struct {
+	// Complete user-facing error text.
+	Message string `json:"message"`
+	// Parsed response body serialized as JSON, when available.
+	ResponseBodyJSON *string `json:"responseBodyJson,omitempty"`
+}
+
+// Arguments for a named authenticated operation.
+// Experimental: GitHubFetchOperationRequest is part of an experimental API and may change
+// or be removed.
+// Internal: GitHubFetchOperationRequest is an internal SDK API and is not part of the
+// public surface.
+type GitHubFetchOperationRequest struct {
+	// Opaque selector for a live host-owned credential binding. Only the owning host connection
+	// may use it.
+	AuthOwnerID *string `json:"authOwnerId,omitempty"`
+	// JSON request body, preserved as supplied.
+	BodyJSON *string `json:"bodyJson,omitempty"`
+	// The operation to execute.
+	// Internal: Operation is part of the SDK's internal API surface and is not intended for
+	// external use.
+	Operation GitHubFetchOperation `json:"operation"`
+	// Named operation arguments, such as owner, repo, or jobId.
+	Params map[string]string `json:"params"`
+	// A fresh request id.
+	RequestID int64 `json:"requestId"`
+	// Session whose auth manager to use. Omission selects the process manager.
+	SessionID *string `json:"sessionId,omitempty"`
+}
+
+// A pre-resolved address for a GitHub request.
+// Experimental: GitHubFetchPinnedAddress is part of an experimental API and may change or
+// be removed.
+type GitHubFetchPinnedAddress struct {
+	// Address the network transport must use.
+	Address string `json:"address"`
+}
+
+// Proxy environment for one authenticated GitHub request.
+// Experimental: GitHubFetchProxyEnvironment is part of an experimental API and may change
+// or be removed.
+type GitHubFetchProxyEnvironment struct {
+	// Proxy for HTTP requests.
+	HTTPProxy *string `json:"httpProxy,omitempty"`
+	// Proxy for HTTPS requests.
+	HTTPSProxy *string `json:"httpsProxy,omitempty"`
+	// Hosts that bypass the proxy.
+	NoProxy *string `json:"noProxy,omitempty"`
+}
+
+// A GitHub API request without caller-supplied auth identity or credential fields.
+// Experimental: GitHubFetchRequest is part of an experimental API and may change or be
+// removed.
+// Internal: GitHubFetchRequest is an internal SDK API and is not part of the public surface.
+type GitHubFetchRequest struct {
+	// Whether the request permits loopback addresses. Defaults to true.
+	AllowLocalhost *bool `json:"allowLocalhost,omitempty"`
+	// API label used in runtime diagnostics.
+	APIName string `json:"apiName"`
+	// Opaque selector for a live host-owned credential binding. Only the owning host connection
+	// may use it.
+	AuthOwnerID *string `json:"authOwnerId,omitempty"`
+	// Request bytes encoded as base64. Absent for a request without a body.
+	BodyBase64 *string `json:"bodyBase64,omitempty"`
+	// Maximum response body size in bytes.
+	BodyLimitBytes *int64 `json:"bodyLimitBytes,omitempty"`
+	// Whether the request bypasses idle connections.
+	DisableConnectionReuse *bool `json:"disableConnectionReuse,omitempty"`
+	// Caller-supplied HTTP headers.
+	// Internal: Headers is part of the SDK's internal API surface and is not intended for
+	// external use.
+	Headers []GitHubFetchHeader `json:"headers"`
+	// HTTP method.
+	Method string `json:"method"`
+	// Addresses to pin for this request, without another DNS lookup.
+	PinnedAddresses []GitHubFetchPinnedAddress `json:"pinnedAddresses,omitzero"`
+	// Explicit proxy environment. Omission uses the process environment.
+	ProxyEnv *GitHubFetchProxyEnvironment `json:"proxyEnv,omitempty"`
+	// Whether the proxy uses Negotiate authentication.
+	ProxyNegotiateAuth *bool `json:"proxyNegotiateAuth,omitempty"`
+	// Optional service principal for proxy Negotiate authentication.
+	ProxyNegotiateSpn *string `json:"proxyNegotiateSpn,omitempty"`
+	// Response read timeout in milliseconds. Defaults to 700000.
+	ReadTimeoutMs *int64 `json:"readTimeoutMs,omitempty"`
+	// Redirect behavior. Defaults to following redirects.
+	Redirect *string `json:"redirect,omitempty"`
+	// A fresh request id.
+	RequestID int64 `json:"requestId"`
+	// Optional retry overrides.
+	// Internal: RetryOptions is part of the SDK's internal API surface and is not intended for
+	// external use.
+	RetryOptions *GitHubFetchRetryConfig `json:"retryOptions,omitempty"`
+	// Session whose auth manager to use. Omission selects the process manager.
+	SessionID *string `json:"sessionId,omitempty"`
+	// Total request timeout in milliseconds.
+	TimeoutMs *int64 `json:"timeoutMs,omitempty"`
+	// Absolute URL on the resolved GitHub API origin.
+	URL string `json:"url"`
+}
+
+// One registered GitHub request, shared by execution and cancellation.
+// Experimental: GitHubFetchRequestID is part of an experimental API and may change or be
+// removed.
+// Internal: GitHubFetchRequestID is an internal SDK API and is not part of the public
+// surface.
+type GitHubFetchRequestID struct {
+	// One fresh id from `gitHubFetch.allocateRequestId`.
+	RequestID int64 `json:"requestId"`
+}
+
+// The HTTP response or a classified request failure.
+// Experimental: GitHubFetchResult is part of an experimental API and may change or be
+// removed.
+type GitHubFetchResult interface {
+	githubFetchResult()
+	Kind() GitHubFetchResultKind
+}
+
+type RawGitHubFetchResultData struct {
+	Discriminator GitHubFetchResultKind
+	Raw           json.RawMessage
+}
+
+func (RawGitHubFetchResultData) githubFetchResult() {}
+func (r RawGitHubFetchResultData) Kind() GitHubFetchResultKind {
+	return r.Discriminator
+}
+
+type GitHubFetchResultCircuitBreaker struct {
+	// Host whose breaker is open.
+	Host string `json:"host"`
+	// Complete circuit-breaker message.
+	Message string `json:"message"`
+	// Remaining backoff in milliseconds.
+	TimeUntilRetryMs int64 `json:"timeUntilRetryMs"`
+}
+
+func (GitHubFetchResultCircuitBreaker) githubFetchResult() {}
+func (GitHubFetchResultCircuitBreaker) Kind() GitHubFetchResultKind {
+	return GitHubFetchResultKindCircuitBreaker
+}
+
+type GitHubFetchResultFailed struct {
+	// Authentication, transport, or cancellation error.
+	Message string `json:"message"`
+}
+
+func (GitHubFetchResultFailed) githubFetchResult() {}
+func (GitHubFetchResultFailed) Kind() GitHubFetchResultKind {
+	return GitHubFetchResultKindFailed
+}
+
+type GitHubFetchResultProxyResponse struct {
+	// Complete proxy failure message.
+	Message string `json:"message"`
+	// HTTP proxy status.
+	Status int32 `json:"status"`
+}
+
+func (GitHubFetchResultProxyResponse) githubFetchResult() {}
+func (GitHubFetchResultProxyResponse) Kind() GitHubFetchResultKind {
+	return GitHubFetchResultKindProxyResponse
+}
+
+type GitHubFetchResultResponse struct {
+	// Complete response bytes encoded as base64.
+	BodyBase64 string `json:"bodyBase64"`
+	// Response headers.
+	// Internal: Headers is part of the SDK's internal API surface and is not intended for
+	// external use.
+	Headers []GitHubFetchHeader `json:"headers"`
+	// Formatted non-success response for a named operation.
+	// Internal: HTTPError is part of the SDK's internal API surface and is not intended for
+	// external use.
+	HTTPError *GitHubFetchHTTPError `json:"httpError,omitempty"`
+	// HTTP status, including non-success responses.
+	Status int32 `json:"status"`
+	// HTTP status text.
+	StatusText string `json:"statusText"`
+	// Final response URL.
+	URL string `json:"url"`
+}
+
+func (GitHubFetchResultResponse) githubFetchResult() {}
+func (GitHubFetchResultResponse) Kind() GitHubFetchResultKind {
+	return GitHubFetchResultKindResponse
+}
+
+// Optional overrides for the runtime retry policy.
+// Experimental: GitHubFetchRetryConfig is part of an experimental API and may change or be
+// removed.
+// Internal: GitHubFetchRetryConfig is an internal SDK API and is not part of the public
+// surface.
+type GitHubFetchRetryConfig struct {
+	// Delay multiplier; the runtime default is two.
+	BackoffFactor *float64 `json:"backoffFactor,omitempty"`
+	// Initial retry delay; the runtime default is five seconds.
+	DefaultRetryDelaySeconds *float64 `json:"defaultRetryDelaySeconds,omitempty"`
+	// Whether repeated failures open the runtime circuit breaker. Defaults to true.
+	EnableCircuitBreaker *bool `json:"enableCircuitBreaker,omitempty"`
+	// Maximum retries; the runtime default is five.
+	MaxRetries *int64 `json:"maxRetries,omitempty"`
 }
 
 // A GitHub login the authenticated user may act as: their own account, or an organization
@@ -6800,6 +7734,320 @@ type GitHubOwnersRequestIDResult struct {
 	RequestID int64 `json:"requestId"`
 }
 
+// One check reported against a pull request's head commit.
+// Experimental: GitHubPullRequestCheck is part of an experimental API and may change or be
+// removed.
+// Internal: GitHubPullRequestCheck is an internal SDK API and is not part of the public
+// surface.
+type GitHubPullRequestCheck struct {
+	// Name the check reports itself under.
+	Name string `json:"name"`
+	// Rolled-up state of the check.
+	// Internal: Status is part of the SDK's internal API surface and is not intended for
+	// external use.
+	Status GitHubPullRequestCheckStatus `json:"status"`
+}
+
+// An unused release allocation that this caller will never dispatch. This is separate from
+// cancellation before a request arrives.
+// Experimental: GitHubReleaseAbandonRequestParams is part of an experimental API and may
+// change or be removed.
+// Internal: GitHubReleaseAbandonRequestParams is an internal SDK API and is not part of the
+// public surface.
+type GitHubReleaseAbandonRequestParams struct {
+	// The unused request id owned by this connection.
+	RequestID int64 `json:"requestId"`
+}
+
+// Whether the runtime retired an unused allocation without affecting active work.
+// Experimental: GitHubReleaseAbandonRequestResult is part of an experimental API and may
+// change or be removed.
+// Internal: GitHubReleaseAbandonRequestResult is an internal SDK API and is not part of the
+// public surface.
+type GitHubReleaseAbandonRequestResult struct {
+	// True only when this connection owned an unclaimed allocation with no active guard. False
+	// for active, foreign, unknown or previously retired ids. A successful abandonment prevents
+	// any later use of that id.
+	Abandoned bool `json:"abandoned"`
+}
+
+// The release lookup or asset download to abandon.
+// Experimental: GitHubReleaseCancelRequest is part of an experimental API and may change or
+// be removed.
+// Internal: GitHubReleaseCancelRequest is an internal SDK API and is not part of the public
+// surface.
+type GitHubReleaseCancelRequest struct {
+	// Request id the lookup or download was started with.
+	RequestID int64 `json:"requestId"`
+}
+
+// Whether the cancel reached live work.
+// Experimental: GitHubReleaseCancelResult is part of an experimental API and may change or
+// be removed.
+// Internal: GitHubReleaseCancelResult is an internal SDK API and is not part of the public
+// surface.
+type GitHubReleaseCancelResult struct {
+	// True when the cancel reached a registered lookup or download; that call's own result
+	// still says how it ended. False when the id names none, which is the normal answer for
+	// work that already finished.
+	Canceled bool `json:"canceled"`
+}
+
+// Which release asset to download, the credential to download it under, and the request id
+// that makes the download cancellable.
+// Experimental: GitHubReleaseDownloadAssetRequest is part of an experimental API and may
+// change or be removed.
+// Internal: GitHubReleaseDownloadAssetRequest is an internal SDK API and is not part of the
+// public surface.
+type GitHubReleaseDownloadAssetRequest struct {
+	// The asset's `browser_download_url` from the release JSON: an HTTPS release download URL
+	// of a repository that `gitHubRelease.lookup` serves.
+	AssetURL string `json:"assetUrl"`
+	// The credential the download runs under, carried opaquely because its shape is the host's
+	// own and the runtime only resolves a token from it. No credential travels: this selects
+	// one the runtime already holds. Omitted when the caller has no credential, which still
+	// succeeds against the public release repository at a lower rate limit.
+	AuthInfo any `json:"authInfo,omitempty"`
+	// Expected SHA-256 of the asset: 64 hex digits in either case, or the release asset's
+	// `digest` value as is (`sha256:` and the hex digits). When given and the downloaded bytes
+	// differ, the file is removed and the result is `digest-mismatch`.
+	ExpectedSha256 *string `json:"expectedSha256,omitempty"`
+	// Request id from `gitHubRelease.allocateRequestId`. An id that was never registered, or
+	// one already used, is refused rather than silently running uncancellable.
+	RequestID int64 `json:"requestId"`
+	// Snapshot request id from this connection. The download retains that snapshot's original
+	// credential source instead of authInfo. Missing, foreign, canceled, or revoked references
+	// fail without fallback. Omission preserves ordinary downloads. The download still uses its
+	// own requestId for progress and cancellation.
+	SnapshotRequestID *int64 `json:"snapshotRequestId,omitempty"`
+}
+
+// Outcome of an asset download. Each field is present only for the kinds its description
+// names.
+// Experimental: GitHubReleaseDownloadAssetResult is part of an experimental API and may
+// change or be removed.
+// Internal: GitHubReleaseDownloadAssetResult is an internal SDK API and is not part of the
+// public surface.
+type GitHubReleaseDownloadAssetResult struct {
+	// How the download ended.
+	// Internal: Kind is part of the SDK's internal API surface and is not intended for external
+	// use.
+	Kind GitHubReleaseDownloadKind `json:"kind"`
+	// Why the download produced no file, phrased for a user, for `digest-mismatch` and `failed`.
+	Message *string `json:"message,omitempty"`
+	// Absolute path of the downloaded file, for `downloaded`. The file is alone in a fresh
+	// directory that the caller deletes once it has used the file.
+	Path *string `json:"path,omitempty"`
+	// SHA-256 of the downloaded bytes as lowercase hex, for `downloaded` and `digest-mismatch`.
+	Sha256 *string `json:"sha256,omitempty"`
+	// Size of the downloaded file in bytes, for `downloaded`.
+	SizeBytes *int64 `json:"sizeBytes,omitempty"`
+	// HTTP status of the final response, for `http-error`.
+	Status *int64 `json:"status,omitempty"`
+	// HTTP status text of the final response, for `http-error`.
+	StatusText *string `json:"statusText,omitempty"`
+}
+
+// The download whose progress to report.
+// Experimental: GitHubReleaseDownloadProgressRequest is part of an experimental API and may
+// change or be removed.
+// Internal: GitHubReleaseDownloadProgressRequest is an internal SDK API and is not part of
+// the public surface.
+type GitHubReleaseDownloadProgressRequest struct {
+	// Request id the download was started with.
+	RequestID int64 `json:"requestId"`
+}
+
+// Byte progress of a running download.
+// Experimental: GitHubReleaseDownloadProgressResult is part of an experimental API and may
+// change or be removed.
+// Internal: GitHubReleaseDownloadProgressResult is an internal SDK API and is not part of
+// the public surface.
+type GitHubReleaseDownloadProgressResult struct {
+	// Bytes written so far.
+	ReceivedBytes int64 `json:"receivedBytes"`
+	// Size the server announced for the body. Omitted when it announced none.
+	TotalBytes *int64 `json:"totalBytes,omitempty"`
+}
+
+// Which release to look up, the credential to look it up under, and the request id that
+// makes the lookup cancellable.
+// Experimental: GitHubReleaseLookupRequest is part of an experimental API and may change or
+// be removed.
+// Internal: GitHubReleaseLookupRequest is an internal SDK API and is not part of the public
+// surface.
+type GitHubReleaseLookupRequest struct {
+	// The credential the lookup runs under, carried opaquely because its shape is the host's
+	// own and the runtime only resolves a token and a GitHub host from it. No credential
+	// travels: this selects one the runtime already holds. Omitted when the caller has no
+	// credential, which still succeeds against the public release repository at a lower rate
+	// limit.
+	AuthInfo any `json:"authInfo,omitempty"`
+	// Which release to look up.
+	// Internal: Query is part of the SDK's internal API surface and is not intended for
+	// external use.
+	Query GitHubReleaseQuery `json:"query"`
+	// Request id from `gitHubRelease.allocateRequestId`. An id that was never registered, or
+	// one already used, is refused rather than silently running uncancellable.
+	RequestID int64 `json:"requestId"`
+	// The tag to look up. Required by the `tag` query and ignored by the others.
+	Value *string `json:"value,omitempty"`
+}
+
+// Outcome of a release lookup. `releaseJson` is present only for `found`, and `message`
+// only for the kinds that carry an explanation.
+// Experimental: GitHubReleaseLookupResult is part of an experimental API and may change or
+// be removed.
+// Internal: GitHubReleaseLookupResult is an internal SDK API and is not part of the public
+// surface.
+type GitHubReleaseLookupResult struct {
+	// How the lookup ended.
+	// Internal: Kind is part of the SDK's internal API surface and is not intended for external
+	// use.
+	Kind GitHubReleaseLookupKind `json:"kind"`
+	// Why the lookup produced no release, phrased for a user.
+	Message *string `json:"message,omitempty"`
+	// The release as GitHub's own JSON, verbatim. Carried as text rather than a modelled type
+	// so the contract does not have to track every field of GitHub's release payload, and so a
+	// caller reads the same shape the REST API documents.
+	ReleaseJSON *string `json:"releaseJson,omitempty"`
+}
+
+// A freshly registered request id. Registering it before the work starts is what lets a
+// cancel that races the request still find something to cancel.
+// Experimental: GitHubReleaseRequestIDResult is part of an experimental API and may change
+// or be removed.
+// Internal: GitHubReleaseRequestIDResult is an internal SDK API and is not part of the
+// public surface.
+type GitHubReleaseRequestIDResult struct {
+	// Request id to pass to `gitHubRelease.lookup` or `gitHubRelease.downloadAsset` and, to
+	// abandon the work, `gitHubRelease.cancel`.
+	RequestID int64 `json:"requestId"`
+}
+
+// An asset in the release snapshot. GitHub field names remain unchanged.
+// Experimental: GitHubReleaseSnapshotAsset is part of an experimental API and may change or
+// be removed.
+// Internal: GitHubReleaseSnapshotAsset is an internal SDK API and is not part of the public
+// surface.
+type GitHubReleaseSnapshotAsset struct {
+	// The published download URL.
+	BrowserDownloadURL string `json:"browser_download_url"`
+	// The published asset filename.
+	Name string `json:"name"`
+}
+
+// Release facts needed for update selection and admission. GitHub field names remain
+// unchanged.
+// Experimental: GitHubReleaseSnapshotEntry is part of an experimental API and may change or
+// be removed.
+// Internal: GitHubReleaseSnapshotEntry is an internal SDK API and is not part of the public
+// surface.
+type GitHubReleaseSnapshotEntry struct {
+	// The published release assets.
+	// Internal: Assets is part of the SDK's internal API surface and is not intended for
+	// external use.
+	Assets []GitHubReleaseSnapshotAsset `json:"assets"`
+	// Whether GitHub marks this release as a draft.
+	Draft bool `json:"draft"`
+	// Whether GitHub marks this release as a prerelease.
+	Prerelease bool `json:"prerelease"`
+	// The release tag.
+	TagName string `json:"tag_name"`
+}
+
+// Immutable options for one connection-owned release snapshot.
+// Experimental: GitHubReleaseSnapshotRequest is part of an experimental API and may change
+// or be removed.
+// Internal: GitHubReleaseSnapshotRequest is an internal SDK API and is not part of the
+// public surface.
+type GitHubReleaseSnapshotRequest struct {
+	// The version embedded in the caller's build.
+	BuildVersion string `json:"buildVersion"`
+	// Optional runtime version override. Invalid or noncanonical values do not replace
+	// buildVersion.
+	CLIVersionOverride *string `json:"cliVersionOverride,omitempty"`
+	// The embedded package identity. Omission uses the existing development-version fallback
+	// rule.
+	// Internal: PackageIdentity is part of the SDK's internal API surface and is not intended
+	// for external use.
+	PackageIdentity *GitHubReleasePackageIdentity `json:"packageIdentity,omitempty"`
+	// An unused id from gitHubRelease.allocateRequestId. Reuse the same id and options to read
+	// the same snapshot.
+	RequestID int64 `json:"requestId"`
+	// The release channel used for update selection.
+	// Internal: UpdateChannel is part of the SDK's internal API surface and is not intended for
+	// external use.
+	UpdateChannel GitHubReleaseUpdateChannel `json:"updateChannel"`
+}
+
+// The shared release result with its original lookup duration. Runtime worker faults remain
+// RPC errors.
+// Experimental: GitHubReleaseSnapshotResult is part of an experimental API and may change
+// or be removed.
+type GitHubReleaseSnapshotResult interface {
+	githubReleaseSnapshotResult()
+	Outcome() GitHubReleaseSnapshotResultOutcome
+}
+
+type RawGitHubReleaseSnapshotResultData struct {
+	Discriminator GitHubReleaseSnapshotResultOutcome
+	Raw           json.RawMessage
+}
+
+func (RawGitHubReleaseSnapshotResultData) githubReleaseSnapshotResult() {}
+func (r RawGitHubReleaseSnapshotResultData) Outcome() GitHubReleaseSnapshotResultOutcome {
+	return r.Discriminator
+}
+
+// The release lookup failed.
+type GitHubReleaseSnapshotResultFailed struct {
+	// The original user-facing lookup failure.
+	Error string `json:"error"`
+	// The original lookup duration in milliseconds.
+	LookupDurationMs float64 `json:"lookupDurationMs"`
+	// The original update channel.
+	// Internal: UpdateChannel is part of the SDK's internal API surface and is not intended for
+	// external use.
+	UpdateChannel GitHubReleaseUpdateChannel `json:"updateChannel"`
+}
+
+func (GitHubReleaseSnapshotResultFailed) githubReleaseSnapshotResult() {}
+func (GitHubReleaseSnapshotResultFailed) Outcome() GitHubReleaseSnapshotResultOutcome {
+	return GitHubReleaseSnapshotResultOutcomeFailed
+}
+
+// The release lookup succeeded.
+type GitHubReleaseSnapshotResultSuccess struct {
+	// The newest release in the selected update channel, when one exists.
+	// Internal: AutomaticUpdateCandidate is part of the SDK's internal API surface and is not
+	// intended for external use.
+	AutomaticUpdateCandidate *GitHubReleaseSnapshotEntry `json:"automaticUpdateCandidate,omitempty"`
+	// Whether the running release is eligible for release admission.
+	Eligible bool `json:"eligible"`
+	// Up to three stable releases, newest first.
+	// Internal: LatestStableReleases is part of the SDK's internal API surface and is not
+	// intended for external use.
+	LatestStableReleases []GitHubReleaseSnapshotEntry `json:"latestStableReleases"`
+	// The original lookup duration in milliseconds.
+	LookupDurationMs float64 `json:"lookupDurationMs"`
+	// Prereleases newer than the newest stable release, newest first.
+	// Internal: PrereleasesNewerThanLatestStable is part of the SDK's internal API surface and
+	// is not intended for external use.
+	PrereleasesNewerThanLatestStable []GitHubReleaseSnapshotEntry `json:"prereleasesNewerThanLatestStable"`
+	// The effective running version after the existing override rules.
+	RunningVersion string `json:"runningVersion"`
+	// The original update channel.
+	// Internal: UpdateChannel is part of the SDK's internal API surface and is not intended for
+	// external use.
+	UpdateChannel GitHubReleaseUpdateChannel `json:"updateChannel"`
+}
+
+func (GitHubReleaseSnapshotResultSuccess) githubReleaseSnapshotResult() {}
+func (GitHubReleaseSnapshotResultSuccess) Outcome() GitHubReleaseSnapshotResultOutcome {
+	return GitHubReleaseSnapshotResultOutcomeSuccess
+}
+
 // Pointer to a GitHub repository.
 // Experimental: GitHubRepoRef is part of an experimental API and may change or be removed.
 type GitHubRepoRef struct {
@@ -6832,12 +8080,57 @@ type GitHubRepositoryAtPathResult struct {
 	Repository *GitHubRepositoryIdentity `json:"repository,omitempty"`
 }
 
+// Selects a GitHub repository by its numeric repository id, and the credential to look it
+// up under.
+// Experimental: GitHubRepositoryByIDRequest is part of an experimental API and may change
+// or be removed.
+// Internal: GitHubRepositoryByIDRequest is an internal SDK API and is not part of the
+// public surface.
+type GitHubRepositoryByIDRequest struct {
+	// Selects which stored credential to resolve when the host holds more than one. Omit it to
+	// resolve the default for the supplied `authInfo`.
+	AuthContextID *string `json:"authContextId,omitempty"`
+	// The credential the lookup runs under, carried opaquely because its shape is the host's
+	// own and the runtime only resolves a token and a GitHub host from it. Required: the
+	// endpoint answers per-account, so a repository invisible to this credential is reported as
+	// absent rather than refused.
+	AuthInfo any `json:"authInfo"`
+	// GitHub's own numeric identifier for the repository, as carried by API payloads that
+	// reference a repository by id rather than by owner and name.
+	RepositoryID int64 `json:"repositoryId"`
+}
+
+// The repository the requested id names, when the credential can see one.
+// Experimental: GitHubRepositoryByIDResult is part of an experimental API and may change or
+// be removed.
+// Internal: GitHubRepositoryByIDResult is an internal SDK API and is not part of the public
+// surface.
+type GitHubRepositoryByIDResult struct {
+	// Owner and name of the repository, or null when the id names no repository visible to the
+	// credential.
+	Repository *GitHubRepositoryOwnerName `json:"repository,omitempty"`
+}
+
 // Owner, name, and host of a GitHub repository, as resolved from a git remote URL.
 // Experimental: GitHubRepositoryIdentity is part of an experimental API and may change or
 // be removed.
 type GitHubRepositoryIdentity struct {
 	// Host the remote points at, for example `github.com` or a GitHub Enterprise hostname.
 	Host string `json:"host"`
+	// Repository name, without the owner prefix or the `.git` suffix.
+	Name string `json:"name"`
+	// Repository owner login (user or organization).
+	Owner string `json:"owner"`
+}
+
+// Owner and name of a GitHub repository. Deliberately distinct from
+// `GitHubRepositoryIdentity`, which also carries a host: a by-id lookup takes the host as
+// an input and the API's answer reports none, so there is no host here to report faithfully.
+// Experimental: GitHubRepositoryOwnerName is part of an experimental API and may change or
+// be removed.
+// Internal: GitHubRepositoryOwnerName is an internal SDK API and is not part of the public
+// surface.
+type GitHubRepositoryOwnerName struct {
 	// Repository name, without the owner prefix or the `.git` suffix.
 	Name string `json:"name"`
 	// Repository owner login (user or organization).
@@ -8819,7 +10112,7 @@ type LlmInferenceSetProviderResult struct {
 // Experimental: LocalSessionMetadataValue is part of an experimental API and may change or
 // be removed.
 type LocalSessionMetadataValue struct {
-	// Runtime client name that created/last resumed this session
+	// Runtime client name that created this session
 	ClientName *string `json:"clientName,omitempty"`
 	// Pre-resolved working-directory context for session startup.
 	Context *SessionContext `json:"context,omitempty"`
@@ -8827,6 +10120,11 @@ type LocalSessionMetadataValue struct {
 	IsDetached *bool `json:"isDetached,omitempty"`
 	// Always false for local sessions.
 	IsRemote bool `json:"isRemote"`
+	// Runtime client name that most recently ran this session: the client that created it, or a
+	// client that resumed it and then ran it. Resuming a session only to observe it does not
+	// change this. Omitted when unknown, such as for sessions persisted before this field
+	// existed.
+	LastClientName *string `json:"lastClientName,omitempty"`
 	// GitHub task ID, when this local session is bound to one. Only present for local sessions
 	// exported to remote control.
 	McTaskID *string `json:"mcTaskId,omitempty"`
@@ -9947,6 +11245,10 @@ type MarketplaceInfo struct {
 	// Human-readable description of where the marketplace data is fetched from (e.g. "GitHub:
 	// owner/repo").
 	Source string `json:"source"`
+	// True when the signed-in account's GitHub Team provides this marketplace and no user,
+	// repository, or default entry of the same name exists. Team marketplaces are not
+	// persisted, so they cannot be removed.
+	Team *bool `json:"team,omitempty"`
 }
 
 // All registered marketplaces, including built-in defaults.
@@ -19707,6 +21009,16 @@ type SessionBulkDeleteResult struct {
 	FreedBytes map[string]int64 `json:"freedBytes"`
 }
 
+// Experimental: SessionCafeMetricsAttachResult is part of an experimental API and may
+// change or be removed.
+type SessionCafeMetricsAttachResult struct {
+}
+
+// Experimental: SessionCafeMetricsDetachResult is part of an experimental API and may
+// change or be removed.
+type SessionCafeMetricsDetachResult struct {
+}
+
 // The number of running background agents (task-registry agents) that were cancelled.
 // Experimental: SessionCancelAllBackgroundAgentsResult is part of an experimental API and
 // may change or be removed.
@@ -28685,6 +29997,112 @@ const (
 	BuiltinToolInputSchemaTypeObject BuiltinToolInputSchemaType = "object"
 )
 
+// Embedded package identity.
+// Experimental: CafeMetricsEmbeddedPackageIdentity is part of an experimental API and may
+// change or be removed.
+type CafeMetricsEmbeddedPackageIdentity string
+
+const (
+	// Development package.
+	CafeMetricsEmbeddedPackageIdentityDev CafeMetricsEmbeddedPackageIdentity = "dev"
+	// Release package.
+	CafeMetricsEmbeddedPackageIdentityRelease CafeMetricsEmbeddedPackageIdentity = "release"
+)
+
+// Kind discriminator for CafeMetricsResolveAdmissionRequest.
+// Experimental: CafeMetricsResolveAdmissionRequestKind is part of an experimental API and
+// may change or be removed.
+type CafeMetricsResolveAdmissionRequestKind string
+
+const (
+	CafeMetricsResolveAdmissionRequestKindFailed  CafeMetricsResolveAdmissionRequestKind = "failed"
+	CafeMetricsResolveAdmissionRequestKindSuccess CafeMetricsResolveAdmissionRequestKind = "success"
+)
+
+// Kind discriminator for CafeMetricsResolveAdmissionResult.
+// Experimental: CafeMetricsResolveAdmissionResultKind is part of an experimental API and
+// may change or be removed.
+type CafeMetricsResolveAdmissionResultKind string
+
+const (
+	CafeMetricsResolveAdmissionResultKindAlreadyResolved CafeMetricsResolveAdmissionResultKind = "already-resolved"
+	CafeMetricsResolveAdmissionResultKindApplied         CafeMetricsResolveAdmissionResultKind = "applied"
+	CafeMetricsResolveAdmissionResultKindNotStarted      CafeMetricsResolveAdmissionResultKind = "not-started"
+	CafeMetricsResolveAdmissionResultKindShutdown        CafeMetricsResolveAdmissionResultKind = "shutdown"
+)
+
+// Terminal resume outcome.
+// Experimental: CafeMetricsResumeOutcome is part of an experimental API and may change or
+// be removed.
+type CafeMetricsResumeOutcome string
+
+const (
+	// Resume failed.
+	CafeMetricsResumeOutcomeFailed CafeMetricsResumeOutcome = "failed"
+	// No session found.
+	CafeMetricsResumeOutcomeNotFound CafeMetricsResumeOutcome = "not_found"
+	// Recovered and resumed.
+	CafeMetricsResumeOutcomeRecovered CafeMetricsResumeOutcome = "recovered"
+	// Resumed.
+	CafeMetricsResumeOutcomeSuccess CafeMetricsResumeOutcome = "success"
+)
+
+// Bounded resume reason, without error text.
+// Experimental: CafeMetricsResumeReason is part of an experimental API and may change or be
+// removed.
+type CafeMetricsResumeReason string
+
+const (
+	// Construction failed.
+	CafeMetricsResumeReasonConstruction CafeMetricsResumeReason = "construction"
+	// Hydration failed.
+	CafeMetricsResumeReasonHydration CafeMetricsResumeReason = "hydration"
+	// Legacy format.
+	CafeMetricsResumeReasonLegacyFormat CafeMetricsResumeReason = "legacy_format"
+	// Corrupt event log.
+	CafeMetricsResumeReasonLogCorrupt CafeMetricsResumeReason = "log_corrupt"
+	// Recovered event log.
+	CafeMetricsResumeReasonLogRecovered CafeMetricsResumeReason = "log_recovered"
+	// No detail.
+	CafeMetricsResumeReasonNone CafeMetricsResumeReason = "none"
+	// Session not found.
+	CafeMetricsResumeReasonNotFound CafeMetricsResumeReason = "not_found"
+	// Queue restore failed.
+	CafeMetricsResumeReasonQueue CafeMetricsResumeReason = "queue"
+	// Recovery I/O failed.
+	CafeMetricsResumeReasonRecoveryIo CafeMetricsResumeReason = "recovery_io"
+)
+
+// Last resume phase.
+// Experimental: CafeMetricsResumeStage is part of an experimental API and may change or be
+// removed.
+type CafeMetricsResumeStage string
+
+const (
+	// Resume complete.
+	CafeMetricsResumeStageComplete CafeMetricsResumeStage = "complete"
+	// Construct the session.
+	CafeMetricsResumeStageConstruction CafeMetricsResumeStage = "construction"
+	// Read the event log.
+	CafeMetricsResumeStageEventLog CafeMetricsResumeStage = "event_log"
+	// Restore the queue.
+	CafeMetricsResumeStageQueueRestore CafeMetricsResumeStage = "queue_restore"
+)
+
+// Reason startup was refused.
+// Experimental: CafeMetricsStartRefusal is part of an experimental API and may change or be
+// removed.
+type CafeMetricsStartRefusal string
+
+const (
+	// The process already started CAFE.
+	CafeMetricsStartRefusalAlreadyStarted CafeMetricsStartRefusal = "alreadyStarted"
+	// The process is offline.
+	CafeMetricsStartRefusalOffline CafeMetricsStartRefusal = "offline"
+	// Unsupported platform.
+	CafeMetricsStartRefusalUnsupportedPlatform CafeMetricsStartRefusal = "unsupportedPlatform"
+)
+
 // Canonical digest algorithm for a validated MCP card
 // Experimental: CardDigestAlgorithm is part of an experimental API and may change or be
 // removed.
@@ -30191,6 +31609,169 @@ const (
 	FeatureFlagAvailabilityStaffOrExperimental FeatureFlagAvailability = "staff-or-experimental"
 	// Enabled only for accounts on the owning team.
 	FeatureFlagAvailabilityTeam FeatureFlagAvailability = "team"
+)
+
+// Why a branch pull-request lookup reported what it did. The three unsuccessful outcomes
+// are kept apart because each one asks the caller for something different.
+// Experimental: GitHubBranchPullRequestLookupStatus is part of an experimental API and may
+// change or be removed.
+type GitHubBranchPullRequestLookupStatus string
+
+const (
+	// A matching pull request was found and is carried in `pullRequest`.
+	GitHubBranchPullRequestLookupStatusFound GitHubBranchPullRequestLookupStatus = "found"
+	// The search itself could not be completed, so whether a pull request exists is unknown.
+	GitHubBranchPullRequestLookupStatusLookupFailed GitHubBranchPullRequestLookupStatus = "lookup-failed"
+	// The search succeeded and the branch has no matching pull request.
+	GitHubBranchPullRequestLookupStatusNoPr GitHubBranchPullRequestLookupStatus = "no-pr"
+	// The credential resolved to no usable token, so the caller must authenticate.
+	GitHubBranchPullRequestLookupStatusNoToken GitHubBranchPullRequestLookupStatus = "no-token"
+)
+
+// A runtime-owned GitHub or Copilot operation.
+// Experimental: GitHubFetchOperation is part of an experimental API and may change or be
+// removed.
+type GitHubFetchOperation string
+
+const (
+	// Look up a branch.
+	GitHubFetchOperationBranchExists GitHubFetchOperation = "branch-exists"
+	// Create a Copilot job.
+	GitHubFetchOperationJobCreate GitHubFetchOperation = "job-create"
+	// Read a Copilot job.
+	GitHubFetchOperationJobStatus GitHubFetchOperation = "job-status"
+	// Read a pull request.
+	GitHubFetchOperationPullRequest GitHubFetchOperation = "pull-request"
+	// Read pull request files.
+	GitHubFetchOperationPullRequestFiles GitHubFetchOperation = "pull-request-files"
+	// Resolve pull requests through GraphQL.
+	GitHubFetchOperationPullRequestsGraphql GitHubFetchOperation = "pull-requests-graphql"
+	// Check repository access.
+	GitHubFetchOperationRepositoryAccess GitHubFetchOperation = "repository-access"
+	// List remote sessions.
+	GitHubFetchOperationSessionsList GitHubFetchOperation = "sessions-list"
+)
+
+// Kind discriminator for GitHubFetchResult.
+// Experimental: GitHubFetchResultKind is part of an experimental API and may change or be
+// removed.
+type GitHubFetchResultKind string
+
+const (
+	GitHubFetchResultKindCircuitBreaker GitHubFetchResultKind = "circuit-breaker"
+	GitHubFetchResultKindFailed         GitHubFetchResultKind = "failed"
+	GitHubFetchResultKindProxyResponse  GitHubFetchResultKind = "proxy-response"
+	GitHubFetchResultKindResponse       GitHubFetchResultKind = "response"
+)
+
+// Rolled-up state of one pull-request check. GitHub's own conclusions are collapsed to
+// these three so a caller renders a check without enumerating every API conclusion.
+// Experimental: GitHubPullRequestCheckStatus is part of an experimental API and may change
+// or be removed.
+type GitHubPullRequestCheckStatus string
+
+const (
+	// The check concluded unsuccessfully, timed out, or was cancelled.
+	GitHubPullRequestCheckStatusFail GitHubPullRequestCheckStatus = "fail"
+	// The check concluded successfully, or was neutral or skipped.
+	GitHubPullRequestCheckStatusPass GitHubPullRequestCheckStatus = "pass"
+	// The check has not concluded, or reported a conclusion with no settled meaning.
+	GitHubPullRequestCheckStatusPending GitHubPullRequestCheckStatus = "pending"
+)
+
+// How an asset download ended. A caller tells a refused response from a transport failure
+// or a cancellation by this alone, without parsing `message`.
+// Experimental: GitHubReleaseDownloadKind is part of an experimental API and may change or
+// be removed.
+type GitHubReleaseDownloadKind string
+
+const (
+	// `gitHubRelease.cancel` abandoned the download, and any partial file was removed.
+	GitHubReleaseDownloadKindCancelled GitHubReleaseDownloadKind = "cancelled"
+	// The downloaded bytes did not match `expectedSha256`, and the file was removed.
+	GitHubReleaseDownloadKindDigestMismatch GitHubReleaseDownloadKind = "digest-mismatch"
+	// The asset is on disk at `path`.
+	GitHubReleaseDownloadKindDownloaded GitHubReleaseDownloadKind = "downloaded"
+	// The download failed for any other reason, described by `message`.
+	GitHubReleaseDownloadKindFailed GitHubReleaseDownloadKind = "failed"
+	// GitHub answered with a status other than 2xx, including after the retry without the
+	// credential. `status` and `statusText` describe it.
+	GitHubReleaseDownloadKindHTTPError GitHubReleaseDownloadKind = "http-error"
+)
+
+// How a release lookup ended. A caller tells a conclusive absence from a transport error by
+// this alone, without parsing `message`.
+// Experimental: GitHubReleaseLookupKind is part of an experimental API and may change or be
+// removed.
+type GitHubReleaseLookupKind string
+
+const (
+	// The lookup failed for any other reason, described by `message`.
+	GitHubReleaseLookupKindFailed GitHubReleaseLookupKind = "failed"
+	// A release was found, and `releaseJson` carries it.
+	GitHubReleaseLookupKindFound GitHubReleaseLookupKind = "found"
+	// The repository publishes no release matching the query at all.
+	GitHubReleaseLookupKindNoRelease GitHubReleaseLookupKind = "no-release"
+	// The tag names no release. Conclusive, not a failure.
+	GitHubReleaseLookupKindNotFound GitHubReleaseLookupKind = "not-found"
+	// GitHub refused the request for rate limiting. `message` is phrased for the user and
+	// already accounts for whether the lookup ran authenticated.
+	GitHubReleaseLookupKindRateLimited GitHubReleaseLookupKind = "rate-limited"
+)
+
+// Whether the caller runs a development build or a release package.
+// Experimental: GitHubReleasePackageIdentity is part of an experimental API and may change
+// or be removed.
+type GitHubReleasePackageIdentity string
+
+const (
+	// Development builds are not eligible for release admission.
+	GitHubReleasePackageIdentityDev GitHubReleasePackageIdentity = "dev"
+	// The caller runs a release package.
+	GitHubReleasePackageIdentityRelease GitHubReleasePackageIdentity = "release"
+)
+
+// Which release to look up. Enumerated rather than free text because the runtime accepts
+// exactly these and rejects anything else.
+// Experimental: GitHubReleaseQuery is part of an experimental API and may change or be
+// removed.
+type GitHubReleaseQuery string
+
+const (
+	// The newest release of the desktop application.
+	GitHubReleaseQueryLatestApp GitHubReleaseQuery = "latest-app"
+	// The newest prerelease command-line release, which is found by scanning recent releases
+	// rather than by asking for the latest one.
+	GitHubReleaseQueryLatestPrerelease GitHubReleaseQuery = "latest-prerelease"
+	// The newest stable command-line release.
+	GitHubReleaseQueryLatestStable GitHubReleaseQuery = "latest-stable"
+	// Recent releases for process-scoped update and metrics decisions.
+	GitHubReleaseQueryReleaseList GitHubReleaseQuery = "release-list"
+	// The release a specific tag names, supplied in `value`.
+	GitHubReleaseQueryTag GitHubReleaseQuery = "tag"
+)
+
+// Outcome discriminator for GitHubReleaseSnapshotResult.
+// Experimental: GitHubReleaseSnapshotResultOutcome is part of an experimental API and may
+// change or be removed.
+type GitHubReleaseSnapshotResultOutcome string
+
+const (
+	GitHubReleaseSnapshotResultOutcomeFailed  GitHubReleaseSnapshotResultOutcome = "failed"
+	GitHubReleaseSnapshotResultOutcomeSuccess GitHubReleaseSnapshotResultOutcome = "success"
+)
+
+// The release channel used for update selection.
+// Experimental: GitHubReleaseUpdateChannel is part of an experimental API and may change or
+// be removed.
+type GitHubReleaseUpdateChannel string
+
+const (
+	// Select the newest published release marked as a prerelease. A stable-only feed has no
+	// candidate.
+	GitHubReleaseUpdateChannelPrerelease GitHubReleaseUpdateChannel = "prerelease"
+	// Select the newest stable release.
+	GitHubReleaseUpdateChannelStable GitHubReleaseUpdateChannel = "stable"
 )
 
 // Why the runtime is requesting a GitHub credential.
@@ -37861,6 +39442,31 @@ func (a *InternalServerAccountAPI) GetGistSupport(ctx context.Context, params *A
 	return &result, nil
 }
 
+// GetHostUrl resolves the base URL of the GitHub host from its configured names,
+// normalizing a bare hostname into an `https://` URL and falling back to the public
+// github.com host when neither name is set. Unlike `account.getWebUrl` this needs no
+// identity, so a host can reach it before anyone has signed in -- which is when an
+// enterprise instance must already be known.
+//
+// RPC method: account.getHostUrl.
+//
+// Parameters: Configured names of the GitHub host to resolve.
+//
+// Returns: Absolute base URL of the GitHub host.
+// Internal: GetHostUrl is part of the SDK's internal handshake/plumbing; external callers
+// should not use it.
+func (a *InternalServerAccountAPI) GetHostUrl(ctx context.Context, params *AccountGetHostURLRequest) (*AccountGetHostURLResult, error) {
+	raw, err := a.client.Request(ctx, "account.getHostUrl", params)
+	if err != nil {
+		return nil, err
+	}
+	var result AccountGetHostURLResult
+	if err := json.Unmarshal(raw, &result); err != nil {
+		return nil, err
+	}
+	return &result, nil
+}
+
 // GetTokenEnvVar names the environment variable supplying a classic personal access token,
 // if one is set. A classic token cannot be upgraded in place, so a host that finds one
 // should tell the user which variable to unset rather than starting an interactive sign-in
@@ -37901,6 +39507,34 @@ func (a *InternalServerAccountAPI) GetWebUrl(ctx context.Context, params *Accoun
 		return nil, err
 	}
 	var result AccountGetWebURLResult
+	if err := json.Unmarshal(raw, &result); err != nil {
+		return nil, err
+	}
+	return &result, nil
+}
+
+// SubscribeCopilotFree enrolls the supplied identity in Copilot Free. A host offers this
+// when a signed-in user has no Copilot subscription, so that signing up does not mean
+// leaving for a browser. The runtime resolves the identity's credential itself, so the
+// caller sends none. Read `kind` before `status`: an identity whose credential cannot be
+// resolved answers `no-token` rather than failing the call, because that asks the user to
+// sign in again rather than reporting that enrollment broke. Enrolling an already-enrolled
+// account succeeds and reports `already_subscribed`. This does not refresh the caller's
+// cached account state; a host that shows subscription status should re-read it afterwards.
+//
+// RPC method: account.subscribeCopilotFree.
+//
+// Parameters: The authentication identity to enroll in Copilot Free.
+//
+// Returns: What came of a Copilot Free enrollment attempt.
+// Internal: SubscribeCopilotFree is part of the SDK's internal handshake/plumbing; external
+// callers should not use it.
+func (a *InternalServerAccountAPI) SubscribeCopilotFree(ctx context.Context, params *AccountSubscribeCopilotFreeRequest) (*AccountSubscribeCopilotFreeResult, error) {
+	raw, err := a.client.Request(ctx, "account.subscribeCopilotFree", params)
+	if err != nil {
+		return nil, err
+	}
+	var result AccountSubscribeCopilotFreeResult
 	if err := json.Unmarshal(raw, &result); err != nil {
 		return nil, err
 	}
@@ -38116,6 +39750,370 @@ func (a *InternalServerAgentsAPI) GetBuiltins(ctx context.Context) (*AgentsGetBu
 	return &result, nil
 }
 
+// Experimental: InternalServerCafeMetricsAPI contains experimental APIs that may change or
+// be removed.
+type InternalServerCafeMetricsAPI internalServerAPI
+
+// RecordResumeResult records one terminal resume result. Does nothing before startup.
+// Requires the private trusted CLI host capability.
+//
+// RPC method: cafeMetrics.recordResumeResult.
+//
+// Parameters: Terminal result of one resume attempt.
+// Internal: RecordResumeResult is part of the SDK's internal handshake/plumbing; external
+// callers should not use it.
+func (a *InternalServerCafeMetricsAPI) RecordResumeResult(ctx context.Context, params *CafeMetricsRecordResumeResultRequest) (*CafeMetricsRecordResumeResultResult, error) {
+	raw, err := a.client.Request(ctx, "cafeMetrics.recordResumeResult", params)
+	if err != nil {
+		return nil, err
+	}
+	var result CafeMetricsRecordResumeResultResult
+	if err := json.Unmarshal(raw, &result); err != nil {
+		return nil, err
+	}
+	return &result, nil
+}
+
+// ResolveAdmission resolves release eligibility once from the immutable release lookup
+// shared with auto-update. Requires the private trusted CLI host capability.
+//
+// RPC method: cafeMetrics.resolveAdmission.
+//
+// Parameters: Immutable release lookup result.
+//
+// Returns: Admission result.
+// Internal: ResolveAdmission is part of the SDK's internal handshake/plumbing; external
+// callers should not use it.
+func (a *InternalServerCafeMetricsAPI) ResolveAdmission(ctx context.Context, params *CafeMetricsResolveAdmissionRequest) (CafeMetricsResolveAdmissionResult, error) {
+	raw, err := a.client.Request(ctx, "cafeMetrics.resolveAdmission", params)
+	if err != nil {
+		return nil, err
+	}
+	result, err := unmarshalCafeMetricsResolveAdmissionResult(raw)
+	if err != nil {
+		return nil, err
+	}
+	return result, nil
+}
+
+// Shutdown stops recording and drains within one 1.5-second deadline. flushOnly sends at
+// most one batch without stopping recording. Requires the private trusted CLI host
+// capability.
+//
+// RPC method: cafeMetrics.shutdown.
+//
+// Parameters: Preliminary flush or final disposal.
+// Internal: Shutdown is part of the SDK's internal handshake/plumbing; external callers
+// should not use it.
+func (a *InternalServerCafeMetricsAPI) Shutdown(ctx context.Context, params ...*CafeMetricsShutdownRequest) (*CafeMetricsShutdownResult, error) {
+	var requestParams *CafeMetricsShutdownRequest
+	if len(params) > 0 {
+		requestParams = params[0]
+	}
+	raw, err := a.client.Request(ctx, "cafeMetrics.shutdown", requestParams)
+	if err != nil {
+		return nil, err
+	}
+	var result CafeMetricsShutdownResult
+	if err := json.Unmarshal(raw, &result); err != nil {
+		return nil, err
+	}
+	return &result, nil
+}
+
+// Starts anonymous CAFE metrics for this process. The runtime selects the endpoint from
+// COPILOT_CAFE_METRICS_URL or this connection's original auth owner. Offline and
+// unsupported platforms refuse startup. Release eligibility must resolve before samples are
+// sent. Requires the private trusted CLI host capability.
+//
+// RPC method: cafeMetrics.start.
+//
+// Parameters: Versions and provider configuration for CAFE.
+//
+// Returns: CAFE startup result.
+// Internal: Start is part of the SDK's internal handshake/plumbing; external callers should
+// not use it.
+func (a *InternalServerCafeMetricsAPI) Start(ctx context.Context, params *CafeMetricsStartRequest) (*CafeMetricsStartResult, error) {
+	raw, err := a.client.Request(ctx, "cafeMetrics.start", params)
+	if err != nil {
+		return nil, err
+	}
+	var result CafeMetricsStartResult
+	if err := json.Unmarshal(raw, &result); err != nil {
+		return nil, err
+	}
+	return &result, nil
+}
+
+// Experimental: InternalServerCloudTasksAPI contains experimental APIs that may change or
+// be removed.
+type InternalServerCloudTasksAPI internalServerAPI
+
+// Create starts a cloud coding-agent task, the remote run whose record `cloudTasks.get`
+// later reads. Answered above any session because the task it creates is not a background
+// task inside one. Hosts other than the CLI want this: a GitHub App or an SDK consumer that
+// hands work to a cloud agent creates the same task under the same credential, and
+// resolving it here keeps one credential, endpoint and validation path. Target the task
+// either by repository, supplying both `repositoryOwner` and `repositoryName`, or by
+// `owner` alone for an account-level run. The result separates a rejected request from a
+// failed one: when `ok` is false, `reason` categorises the rejection and `message` carries
+// the explanation to show, while `failure` describes the HTTP call itself and is present
+// only when one was actually made.
+//
+// RPC method: cloudTasks.create.
+//
+// Parameters: Describes the cloud coding-agent task to start and the credential to start it
+// under. Target it either by repository, supplying both `repositoryOwner` and
+// `repositoryName`, or by `owner` alone for an account-level run.
+//
+// Returns: The outcome of starting a cloud task. A rejected request and a failed one are
+// reported separately: `reason` and `message` describe a request the service declined,
+// while `statusCode` and `errorMessage` describe the HTTP call itself and appear only when
+// one was actually made.
+// Internal: Create is part of the SDK's internal handshake/plumbing; external callers
+// should not use it.
+func (a *InternalServerCloudTasksAPI) Create(ctx context.Context, params *CloudTasksCreateParams) (*CloudTasksCreateResult, error) {
+	raw, err := a.client.Request(ctx, "cloudTasks.create", params)
+	if err != nil {
+		return nil, err
+	}
+	var result CloudTasksCreateResult
+	if err := json.Unmarshal(raw, &result); err != nil {
+		return nil, err
+	}
+	return &result, nil
+}
+
+// Deletes one cloud coding-agent task, the remote run `cloudTasks.create` started. The
+// deletion is a soft one: the service withdraws the task from its listings rather than
+// destroying the record, so a host removing a run from its own UI is the intended caller.
+// Answered above any session for the same reason as `cloudTasks.get` -- the task is remote
+// and has no local counterpart. Hosts other than the CLI want this: a GitHub App or an SDK
+// consumer that manages cloud agent runs withdraws the same record under the same
+// credential, and resolving it here keeps one credential-resolution and endpoint path. The
+// runtime resolves each token from `authInfo` or `authContextId`. A host may preserve an
+// explicit `baseUrl`; omission derives the endpoint from `authInfo`. The result is the HTTP
+// outcome rather than a bare success flag: the call returns no body, so `ok` alone
+// describes a success, while a failure is reported through `statusCode`, `errorMessage` and
+// `errorPayloadJson` instead of being raised as an error.
+//
+// RPC method: cloudTasks.delete.
+//
+// Parameters: Identifies one cloud coding-agent task to delete, and the credential to
+// delete it under.
+//
+// Returns: The HTTP outcome of deleting a cloud task. The deletion returns no body, so a
+// successful call carries nothing beyond `ok`; a failed one is described by the remaining
+// fields rather than raised as an error, so a caller can surface the service's own
+// explanation.
+// Internal: Delete is part of the SDK's internal handshake/plumbing; external callers
+// should not use it.
+func (a *InternalServerCloudTasksAPI) Delete(ctx context.Context, params *CloudTasksDeleteParams) (*CloudTasksDeleteResult, error) {
+	raw, err := a.client.Request(ctx, "cloudTasks.delete", params)
+	if err != nil {
+		return nil, err
+	}
+	var result CloudTasksDeleteResult
+	if err := json.Unmarshal(raw, &result); err != nil {
+		return nil, err
+	}
+	return &result, nil
+}
+
+// Get reads one cloud coding-agent task from the Copilot API. This is the task a cloud
+// agent runs on a host's behalf, not a background task inside a session, so it is answered
+// above any session and the `tasks` group does not cover it. Hosts other than the CLI want
+// this: a GitHub App or an SDK consumer that shows the state of a cloud agent run must read
+// the same task record, and resolving it here keeps one credential-resolution, task-URL and
+// circuit-breaker path instead of each host rebuilding them. The result is the HTTP outcome
+// rather than the task itself: a caller must read `ok` and `statusCode` before
+// `payloadJson`, because a 404 is reported as a non-ok result rather than an error, which
+// is what lets a caller tell "no such task" apart from "the API call failed".
+//
+// RPC method: cloudTasks.get.
+//
+// Parameters: Identifies one cloud coding-agent task and the credential to read it under.
+//
+// Returns: The HTTP outcome of reading a cloud task, rather than the task alone. A 404
+// arrives here as a non-ok result with `statusCode` 404, not as an error, so a caller can
+// tell an absent task apart from a failed call.
+// Internal: Get is part of the SDK's internal handshake/plumbing; external callers should
+// not use it.
+func (a *InternalServerCloudTasksAPI) Get(ctx context.Context, params *CloudTasksGetParams) (*CloudTasksGetResult, error) {
+	raw, err := a.client.Request(ctx, "cloudTasks.get", params)
+	if err != nil {
+		return nil, err
+	}
+	var result CloudTasksGetResult
+	if err := json.Unmarshal(raw, &result); err != nil {
+		return nil, err
+	}
+	return &result, nil
+}
+
+// GetSessionLogs reads the logs a cloud coding-agent session produced, from the Copilot
+// API. Answered above any session, for the same reason as `cloudTasks.get`: the session
+// being asked about runs remotely and has no local counterpart. Read `resolved` first. It
+// is false when no Copilot API URL could be resolved for the credential, which is a
+// different outcome from a request that was made and failed, and a caller that treats the
+// two alike will report a transport error for an account that simply has no API endpoint.
+// When `resolved` is true, `debugMessages` carries the diagnostics the fetch produced and
+// should be logged whatever the outcome, `errorString` reports a retrieval fault, and only
+// then do `ok` and `statusCode` describe the HTTP result.
+//
+// RPC method: cloudTasks.getSessionLogs.
+//
+// Parameters: Identifies one cloud coding-agent session whose logs are to be read, and the
+// credential to read them under.
+//
+// Returns: The outcome of reading a cloud session's logs. `resolved` distinguishes "this
+// credential has no Copilot API endpoint" from "the request was made and failed"; every
+// other field describes a request that was actually attempted.
+// Internal: GetSessionLogs is part of the SDK's internal handshake/plumbing; external
+// callers should not use it.
+func (a *InternalServerCloudTasksAPI) GetSessionLogs(ctx context.Context, params *CloudTasksGetSessionLogsParams) (*CloudTasksGetSessionLogsResult, error) {
+	raw, err := a.client.Request(ctx, "cloudTasks.getSessionLogs", params)
+	if err != nil {
+		return nil, err
+	}
+	var result CloudTasksGetSessionLogsResult
+	if err := json.Unmarshal(raw, &result); err != nil {
+		return nil, err
+	}
+	return &result, nil
+}
+
+// GetSessionReplay reconstructs the session a cloud coding-agent task recorded, by reading
+// that task's events and ordering them for replay. Answered above any session, for the same
+// reason as `cloudTasks.get`: the session being rebuilt ran remotely and has no local
+// counterpart. Hosts other than the CLI want this: an SDK consumer attaching to a run in
+// progress, an ACP client resuming one, or a GitHub App rendering a task's transcript all
+// rebuild the same history from the same events, and resolving it here keeps one
+// credential, endpoint, ordering and anchor-detection path. A newly created task has no
+// events yet, so this polls for them and fails once they do not arrive. Read `preStart`
+// before either list: when it is true the session has not started, `replayEventsJson` is
+// deliberately empty because there is no history to reconstruct, and only
+// `observedEventsJson` is meaningful.
+//
+// RPC method: cloudTasks.getSessionReplay.
+//
+// Parameters: Identifies one cloud coding-agent task whose recorded session is to be
+// replayed, and the credential to read it under.
+//
+// Returns: A cloud task's recorded events, ordered for replay. Read `preStart` first: it
+// selects which of the two event lists a caller should use, and they differ deliberately.
+// Internal: GetSessionReplay is part of the SDK's internal handshake/plumbing; external
+// callers should not use it.
+func (a *InternalServerCloudTasksAPI) GetSessionReplay(ctx context.Context, params *CloudTasksGetSessionReplayParams) (*CloudTasksGetSessionReplayResult, error) {
+	raw, err := a.client.Request(ctx, "cloudTasks.getSessionReplay", params)
+	if err != nil {
+		return nil, err
+	}
+	var result CloudTasksGetSessionReplayResult
+	if err := json.Unmarshal(raw, &result); err != nil {
+		return nil, err
+	}
+	return &result, nil
+}
+
+// GetSharingStatus reads whether one cloud coding-agent task is shared, from the Mission
+// Control service. Answered above any session, for the same reason as `cloudTasks.get`: the
+// task is a remote record with no local counterpart. Hosts other than the CLI want this: an
+// SDK consumer or a GitHub App that offers a "share this run" affordance must read the same
+// flag from the same service, and resolving it here keeps one credential-resolution and
+// endpoint path. The credential is resolved from `authInfo` inside the runtime rather than
+// being carried across the door, so no caller handles a raw token. Read
+// `credentialResolved` first: it is false when the account has no usable credential, in
+// which case no request was made at all, which a caller must not report as a failed request.
+//
+// RPC method: cloudTasks.getSharingStatus.
+//
+// Parameters: Identifies one cloud coding-agent task whose sharing status is to be read,
+// and the credential to read it under.
+//
+// Returns: The sharing status a cloud task carries after the call. Read
+// `credentialResolved` first: when it is false no request was attempted at all, which is a
+// different outcome from a request the service declined.
+// Internal: GetSharingStatus is part of the SDK's internal handshake/plumbing; external
+// callers should not use it.
+func (a *InternalServerCloudTasksAPI) GetSharingStatus(ctx context.Context, params *CloudTasksGetSharingStatusParams) (*CloudTasksSharingStatusResult, error) {
+	raw, err := a.client.Request(ctx, "cloudTasks.getSharingStatus", params)
+	if err != nil {
+		return nil, err
+	}
+	var result CloudTasksSharingStatusResult
+	if err := json.Unmarshal(raw, &result); err != nil {
+		return nil, err
+	}
+	return &result, nil
+}
+
+// ResolveTaskId finds the session a caller should open for one cloud coding-agent task. A
+// task identifier alone does not say what to open: the run may already exist locally, it
+// may exist only in the cloud, or it may be a task that cannot be resumed at all. Resolving
+// that needs a local session scan and a Mission Control lookup that agree on identity,
+// which is why it is answered here rather than left to each host. Hosts other than the CLI
+// want it: an IDE or a GitHub App that opens a run from a task link faces the same three
+// outcomes. Read `kind` before any other field. `local-session` carries `sessionId`,
+// `remote-session` carries `metadataJson`, `unresumable-task` means the task exists but
+// cannot be continued, and `none` means no session matched. A failed service call is
+// reported as `error` rather than raised, so a caller can surface the service's own
+// message. Pass every local session identifier already rejected in `ignoredLocalSessionIds`
+// and call again to get the next candidate; that is how a host skips a local session it
+// could not load.
+//
+// RPC method: cloudTasks.resolveTaskId.
+//
+// Parameters: Identifies one cloud coding-agent task to resolve to an openable session, the
+// credential to resolve it under, and the local candidates the caller has already rejected.
+//
+// Returns: What a caller should open for the task. The four outcomes are distinct and carry
+// different payloads, so read `kind` before any other field.
+// Internal: ResolveTaskId is part of the SDK's internal handshake/plumbing; external
+// callers should not use it.
+func (a *InternalServerCloudTasksAPI) ResolveTaskId(ctx context.Context, params *CloudTasksResolveTaskIDParams) (*CloudTasksResolveTaskIDResult, error) {
+	raw, err := a.client.Request(ctx, "cloudTasks.resolveTaskId", params)
+	if err != nil {
+		return nil, err
+	}
+	var result CloudTasksResolveTaskIDResult
+	if err := json.Unmarshal(raw, &result); err != nil {
+		return nil, err
+	}
+	return &result, nil
+}
+
+// SetSharingStatus changes whether one cloud coding-agent task is shared, through the
+// Mission Control service, and reports the status the task carries afterwards. The
+// companion to `cloudTasks.getSharingStatus` and answered above any session for the same
+// reason. The status is sent verbatim and is not narrowed to a closed set, because the
+// service owns these values. The credential is resolved from `authInfo` inside the runtime
+// rather than being carried across the door. Read `credentialResolved` first: it is false
+// when the account has no usable credential, in which case nothing was changed and no
+// request was made.
+//
+// RPC method: cloudTasks.setSharingStatus.
+//
+// Parameters: Identifies one cloud coding-agent task whose sharing status is to be changed,
+// the status to set, and the credential to change it under.
+//
+// Returns: The sharing status a cloud task carries after the call. Read
+// `credentialResolved` first: when it is false no request was attempted at all, which is a
+// different outcome from a request the service declined.
+// Internal: SetSharingStatus is part of the SDK's internal handshake/plumbing; external
+// callers should not use it.
+func (a *InternalServerCloudTasksAPI) SetSharingStatus(ctx context.Context, params *CloudTasksSetSharingStatusParams) (*CloudTasksSharingStatusResult, error) {
+	raw, err := a.client.Request(ctx, "cloudTasks.setSharingStatus", params)
+	if err != nil {
+		return nil, err
+	}
+	var result CloudTasksSharingStatusResult
+	if err := json.Unmarshal(raw, &result); err != nil {
+		return nil, err
+	}
+	return &result, nil
+}
+
 // Experimental: InternalServerFeatureFlagsAPI contains experimental APIs that may change or
 // be removed.
 type InternalServerFeatureFlagsAPI internalServerAPI
@@ -38295,6 +40293,109 @@ func (a *InternalServerGitAPI) WorkingDirectoryContext(ctx context.Context, para
 	return &result, nil
 }
 
+// Experimental: InternalServerGitHubFetchAPI contains experimental APIs that may change or
+// be removed.
+type InternalServerGitHubFetchAPI internalServerAPI
+
+// AllocateRequestId registers one authenticated GitHub API request before it starts, so
+// cancellation can name the operation. Each request claims its id once. Refused for
+// extensions.
+//
+// RPC method: gitHubFetch.allocateRequestId.
+//
+// Returns: One registered GitHub request, shared by execution and cancellation.
+// Internal: AllocateRequestId is part of the SDK's internal handshake/plumbing; external
+// callers should not use it.
+func (a *InternalServerGitHubFetchAPI) AllocateRequestId(ctx context.Context) (*GitHubFetchRequestID, error) {
+	raw, err := a.client.Request(ctx, "gitHubFetch.allocateRequestId", nil)
+	if err != nil {
+		return nil, err
+	}
+	var result GitHubFetchRequestID
+	if err := json.Unmarshal(raw, &result); err != nil {
+		return nil, err
+	}
+	return &result, nil
+}
+
+// Cancels a registered GitHub request. False means the id is no longer registered. Uses the
+// same runtime request registry as request and executeOperation. Refused for extensions.
+//
+// RPC method: gitHubFetch.cancel.
+//
+// Parameters: One registered GitHub request, shared by execution and cancellation.
+//
+// Returns: Whether cancellation reached a registered GitHub request.
+// Internal: Cancel is part of the SDK's internal handshake/plumbing; external callers
+// should not use it.
+func (a *InternalServerGitHubFetchAPI) Cancel(ctx context.Context, params *GitHubFetchRequestID) (*GitHubFetchCancelResult, error) {
+	raw, err := a.client.Request(ctx, "gitHubFetch.cancel", params)
+	if err != nil {
+		return nil, err
+	}
+	var result GitHubFetchCancelResult
+	if err := json.Unmarshal(raw, &result); err != nil {
+		return nil, err
+	}
+	return &result, nil
+}
+
+// ExecuteOperation executes a named GitHub or Copilot job operation. The runtime derives
+// its URL, headers, retry policy, and credential. sessionId selects session auth; omission
+// selects process auth. A bound host connection can select its existing auth handle with
+// authOwnerId. Retries and eligible redirects resolve the current credential again.
+// Cross-origin redirects discard credentials without restoring them on later hops.
+// Non-success HTTP responses include the formatted error for the host. Extensions cannot
+// use this method.
+//
+// RPC method: gitHubFetch.executeOperation.
+//
+// Parameters: Arguments for a named authenticated operation.
+//
+// Returns: The HTTP response or a classified request failure.
+// Internal: ExecuteOperation is part of the SDK's internal handshake/plumbing; external
+// callers should not use it.
+func (a *InternalServerGitHubFetchAPI) ExecuteOperation(ctx context.Context, params *GitHubFetchOperationRequest) (GitHubFetchResult, error) {
+	raw, err := a.client.Request(ctx, "gitHubFetch.executeOperation", params)
+	if err != nil {
+		return nil, err
+	}
+	result, err := unmarshalGitHubFetchResult(raw)
+	if err != nil {
+		return nil, err
+	}
+	return result, nil
+}
+
+// Request calls the GitHub API with session credentials, or process credentials when
+// sessionId is absent. A bound host can select its existing auth handle with authOwnerId.
+// The URL must match that identity's API origin or the runtime's explicit debug API origin.
+// Retries and eligible redirects resolve the current credential again. Explicit caller
+// Authorization remains unchanged; cross-origin redirects discard credentials without
+// restoring them on later hops. Release asset bodies require gitHubRelease.downloadAsset.
+// JSON asset metadata and other response bodies remain supported. The runtime supplies a
+// default User-Agent and records request diagnostics. Extensions cannot use this method.
+//
+// RPC method: gitHubFetch.request.
+//
+// Parameters: A GitHub API request without caller-supplied auth identity or credential
+// fields.
+//
+// Returns: The HTTP response or a classified request failure.
+// Internal: Request is part of the SDK's internal handshake/plumbing; external callers
+// should not use it.
+func (a *InternalServerGitHubFetchAPI) Request(ctx context.Context, params *GitHubFetchRequest) (GitHubFetchResult, error) {
+	raw, err := a.client.Request(ctx, "gitHubFetch.request", params)
+	if err != nil {
+		return nil, err
+	}
+	result, err := unmarshalGitHubFetchResult(raw)
+	if err != nil {
+		return nil, err
+	}
+	return result, nil
+}
+
 // Experimental: InternalServerGitHubOwnersAPI contains experimental APIs that may change or
 // be removed.
 type InternalServerGitHubOwnersAPI internalServerAPI
@@ -38378,6 +40479,192 @@ func (a *InternalServerGitHubOwnersAPI) NextRequestId(ctx context.Context) (*Git
 	return &result, nil
 }
 
+// Experimental: InternalServerGitHubReleaseAPI contains experimental APIs that may change
+// or be removed.
+type InternalServerGitHubReleaseAPI internalServerAPI
+
+// AbandonRequest retires an unused allocation that this caller will never dispatch. Only an
+// unclaimed id on this connection with no active guard is eligible. Active, foreign,
+// unknown and previously retired ids return abandoned: false. Ordinary cancellation still
+// preserves the first canceled claim. This cleanup remains available during shutdown and is
+// refused for extensions.
+//
+// RPC method: gitHubRelease.abandonRequest.
+//
+// Parameters: An unused release allocation that this caller will never dispatch. This is
+// separate from cancellation before a request arrives.
+//
+// Returns: Whether the runtime retired an unused allocation without affecting active work.
+// Internal: AbandonRequest is part of the SDK's internal handshake/plumbing; external
+// callers should not use it.
+func (a *InternalServerGitHubReleaseAPI) AbandonRequest(ctx context.Context, params *GitHubReleaseAbandonRequestParams) (*GitHubReleaseAbandonRequestResult, error) {
+	raw, err := a.client.Request(ctx, "gitHubRelease.abandonRequest", params)
+	if err != nil {
+		return nil, err
+	}
+	var result GitHubReleaseAbandonRequestResult
+	if err := json.Unmarshal(raw, &result); err != nil {
+		return nil, err
+	}
+	return &result, nil
+}
+
+// AllocateRequestId allocates a connection-owned request id before a release lookup,
+// snapshot, or asset download starts. Use the id to cancel that operation. A snapshot
+// retains its allocation until disposal or connection close.
+//
+// RPC method: gitHubRelease.allocateRequestId.
+//
+// Returns: A freshly registered request id. Registering it before the work starts is what
+// lets a cancel that races the request still find something to cancel.
+// Internal: AllocateRequestId is part of the SDK's internal handshake/plumbing; external
+// callers should not use it.
+func (a *InternalServerGitHubReleaseAPI) AllocateRequestId(ctx context.Context) (*GitHubReleaseRequestIDResult, error) {
+	raw, err := a.client.Request(ctx, "gitHubRelease.allocateRequestId", nil)
+	if err != nil {
+		return nil, err
+	}
+	var result GitHubReleaseRequestIDResult
+	if err := json.Unmarshal(raw, &result); err != nil {
+		return nil, err
+	}
+	return &result, nil
+}
+
+// Cancels an allocated operation on this connection. For a snapshot, disposal also waits
+// for its owned lookup and retires its credential authority. It does not delete completed
+// caller-owned downloads. An unknown or foreign id returns canceled: false. A completed
+// download still returns its owned file, which the caller must dispose.
+//
+// RPC method: gitHubRelease.cancel.
+//
+// Parameters: The release lookup or asset download to abandon.
+//
+// Returns: Whether the cancel reached live work.
+// Internal: Cancel is part of the SDK's internal handshake/plumbing; external callers
+// should not use it.
+func (a *InternalServerGitHubReleaseAPI) Cancel(ctx context.Context, params *GitHubReleaseCancelRequest) (*GitHubReleaseCancelResult, error) {
+	raw, err := a.client.Request(ctx, "gitHubRelease.cancel", params)
+	if err != nil {
+		return nil, err
+	}
+	var result GitHubReleaseCancelResult
+	if err := json.Unmarshal(raw, &result); err != nil {
+		return nil, err
+	}
+	return &result, nil
+}
+
+// DownloadAsset streams a published Copilot release asset to a private file and computes
+// its SHA-256. The URL must name an HTTPS release download in a supported repository. A
+// snapshotRequestId retains that snapshot's original credential source. Otherwise, a bound
+// host uses its original owner, and other SDK callers keep the authInfo path. Each request
+// and redirect resolves credentials again. Revocation fails without an auth fallback.
+// Ordinary credential rejection and transport fallback keep their existing behavior. A
+// digest mismatch removes the file. The result contains file metadata, not archive bytes.
+// The caller must dispose the completed file after use. The download's own requestId
+// controls progress and cancellation. Extensions cannot use this method.
+//
+// RPC method: gitHubRelease.downloadAsset.
+//
+// Parameters: Which release asset to download, the credential to download it under, and the
+// request id that makes the download cancellable.
+//
+// Returns: Outcome of an asset download. Each field is present only for the kinds its
+// description names.
+// Internal: DownloadAsset is part of the SDK's internal handshake/plumbing; external
+// callers should not use it.
+func (a *InternalServerGitHubReleaseAPI) DownloadAsset(ctx context.Context, params *GitHubReleaseDownloadAssetRequest) (*GitHubReleaseDownloadAssetResult, error) {
+	raw, err := a.client.Request(ctx, "gitHubRelease.downloadAsset", params)
+	if err != nil {
+		return nil, err
+	}
+	var result GitHubReleaseDownloadAssetResult
+	if err := json.Unmarshal(raw, &result); err != nil {
+		return nil, err
+	}
+	return &result, nil
+}
+
+// GetDownloadProgress reports how many bytes a running `gitHubRelease.downloadAsset` has
+// written, for a progress display. The runtime sends no progress notification for a
+// download, so a host polls this while the download runs. An id with no running download
+// reports zero bytes and no total, which is the normal answer before the body starts and
+// after the download ends.
+//
+// RPC method: gitHubRelease.getDownloadProgress.
+//
+// Parameters: The download whose progress to report.
+//
+// Returns: Byte progress of a running download.
+// Internal: GetDownloadProgress is part of the SDK's internal handshake/plumbing; external
+// callers should not use it.
+func (a *InternalServerGitHubReleaseAPI) GetDownloadProgress(ctx context.Context, params *GitHubReleaseDownloadProgressRequest) (*GitHubReleaseDownloadProgressResult, error) {
+	raw, err := a.client.Request(ctx, "gitHubRelease.getDownloadProgress", params)
+	if err != nil {
+		return nil, err
+	}
+	var result GitHubReleaseDownloadProgressResult
+	if err := json.Unmarshal(raw, &result); err != nil {
+		return nil, err
+	}
+	return &result, nil
+}
+
+// GetSnapshot loads one immutable release snapshot for an update client or SDK host. The
+// runtime retains the original credential source and resolves it for each request. Calls
+// with the same allocated request id and options share one lookup and result. A dropped
+// waiter does not cancel that lookup. Use gitHubRelease.cancel to dispose the operation.
+// The runtime admits one failure report before it publishes a failed result. Extensions
+// cannot use this method.
+//
+// RPC method: gitHubRelease.getSnapshot.
+//
+// Parameters: Immutable options for one connection-owned release snapshot.
+//
+// Returns: The shared release result with its original lookup duration. Runtime worker
+// faults remain RPC errors.
+// Internal: GetSnapshot is part of the SDK's internal handshake/plumbing; external callers
+// should not use it.
+func (a *InternalServerGitHubReleaseAPI) GetSnapshot(ctx context.Context, params *GitHubReleaseSnapshotRequest) (GitHubReleaseSnapshotResult, error) {
+	raw, err := a.client.Request(ctx, "gitHubRelease.getSnapshot", params)
+	if err != nil {
+		return nil, err
+	}
+	result, err := unmarshalGitHubReleaseSnapshotResult(raw)
+	if err != nil {
+		return nil, err
+	}
+	return result, nil
+}
+
+// Lookup looks up a published release or release list. A bound host connection uses its
+// original auth source. Other SDK callers keep the existing authInfo path. The runtime
+// resolves credentials for each request and redirect. Public releases also permit anonymous
+// access. The kind field distinguishes a result, a missing tag, no release, a rate limit,
+// and failure. This raw lookup does not return a shared snapshot.
+//
+// RPC method: gitHubRelease.lookup.
+//
+// Parameters: Which release to look up, the credential to look it up under, and the request
+// id that makes the lookup cancellable.
+//
+// Returns: Outcome of a release lookup. `releaseJson` is present only for `found`, and
+// `message` only for the kinds that carry an explanation.
+// Internal: Lookup is part of the SDK's internal handshake/plumbing; external callers
+// should not use it.
+func (a *InternalServerGitHubReleaseAPI) Lookup(ctx context.Context, params *GitHubReleaseLookupRequest) (*GitHubReleaseLookupResult, error) {
+	raw, err := a.client.Request(ctx, "gitHubRelease.lookup", params)
+	if err != nil {
+		return nil, err
+	}
+	var result GitHubReleaseLookupResult
+	if err := json.Unmarshal(raw, &result); err != nil {
+		return nil, err
+	}
+	return &result, nil
+}
+
 // Experimental: InternalServerGitHubRepositoryAPI contains experimental APIs that may
 // change or be removed.
 type InternalServerGitHubRepositoryAPI internalServerAPI
@@ -38402,6 +40689,64 @@ func (a *InternalServerGitHubRepositoryAPI) AtPath(ctx context.Context, params *
 		return nil, err
 	}
 	var result GitHubRepositoryAtPathResult
+	if err := json.Unmarshal(raw, &result); err != nil {
+		return nil, err
+	}
+	return &result, nil
+}
+
+// GetById resolves the owner and name of a GitHub repository from its numeric repository
+// id, by asking the GitHub API under the supplied credential. Returns a null `repository`
+// when the id names nothing the credential can see, which the API reports as a 404, so a
+// caller can tell 'no such visible repository' apart from a request that failed. The host
+// queried is derived from `authInfo` rather than supplied separately, so the lookup always
+// runs against the account's own GitHub host.
+//
+// RPC method: gitHubRepository.getById.
+//
+// Parameters: Selects a GitHub repository by its numeric repository id, and the credential
+// to look it up under.
+//
+// Returns: The repository the requested id names, when the credential can see one.
+// Internal: GetById is part of the SDK's internal handshake/plumbing; external callers
+// should not use it.
+func (a *InternalServerGitHubRepositoryAPI) GetById(ctx context.Context, params *GitHubRepositoryByIDRequest) (*GitHubRepositoryByIDResult, error) {
+	raw, err := a.client.Request(ctx, "gitHubRepository.getById", params)
+	if err != nil {
+		return nil, err
+	}
+	var result GitHubRepositoryByIDResult
+	if err := json.Unmarshal(raw, &result); err != nil {
+		return nil, err
+	}
+	return &result, nil
+}
+
+// LookupBranchPullRequest finds the pull request a branch is open against, searching every
+// repository in `baseRepositories` so a fork's branch finds the pull request it opened
+// upstream. A candidate is discarded unless `headOwner` owns its head branch, because a
+// branch name alone is ambiguous across forks. `status` separates 'not authenticated', 'no
+// such pull request' and 'the search failed', so a caller can tell a conclusive absence
+// apart from an unknown one. The host queried is derived from `authInfo` rather than
+// supplied separately, so the lookup always runs against the account's own GitHub host.
+//
+// RPC method: gitHubRepository.lookupBranchPullRequest.
+//
+// Parameters: Selects the pull request a branch is open against, and the credential to look
+// it up under. The branch is searched across every repository in `baseRepositories`, which
+// lets a fork's branch find the pull request it opened against upstream.
+//
+// Returns: Outcome of a branch pull-request lookup. `status` carries why, because 'not
+// authenticated', 'no pull request' and 'the search failed' are three different answers and
+// only the first two are conclusive.
+// Internal: LookupBranchPullRequest is part of the SDK's internal handshake/plumbing;
+// external callers should not use it.
+func (a *InternalServerGitHubRepositoryAPI) LookupBranchPullRequest(ctx context.Context, params *GitHubBranchPullRequestLookupRequest) (*GitHubBranchPullRequestLookupResult, error) {
+	raw, err := a.client.Request(ctx, "gitHubRepository.lookupBranchPullRequest", params)
+	if err != nil {
+		return nil, err
+	}
+	var result GitHubBranchPullRequestLookupResult
 	if err := json.Unmarshal(raw, &result); err != nil {
 		return nil, err
 	}
@@ -41094,9 +43439,13 @@ type InternalServerRPC struct {
 	Account          *InternalServerAccountAPI
 	AgentRegistry    *InternalServerAgentRegistryAPI
 	Agents           *InternalServerAgentsAPI
+	CafeMetrics      *InternalServerCafeMetricsAPI
+	CloudTasks       *InternalServerCloudTasksAPI
 	FeatureFlags     *InternalServerFeatureFlagsAPI
 	Git              *InternalServerGitAPI
+	GitHubFetch      *InternalServerGitHubFetchAPI
 	GitHubOwners     *InternalServerGitHubOwnersAPI
+	GitHubRelease    *InternalServerGitHubReleaseAPI
 	GitHubRepository *InternalServerGitHubRepositoryAPI
 	GlobalState      *InternalServerGlobalStateAPI
 	Host             *InternalServerHostAPI
@@ -41149,9 +43498,13 @@ func NewInternalServerRPC(client *jsonrpc2.Client) *InternalServerRPC {
 	r.Account = (*InternalServerAccountAPI)(&r.common)
 	r.AgentRegistry = (*InternalServerAgentRegistryAPI)(&r.common)
 	r.Agents = (*InternalServerAgentsAPI)(&r.common)
+	r.CafeMetrics = (*InternalServerCafeMetricsAPI)(&r.common)
+	r.CloudTasks = (*InternalServerCloudTasksAPI)(&r.common)
 	r.FeatureFlags = (*InternalServerFeatureFlagsAPI)(&r.common)
 	r.Git = (*InternalServerGitAPI)(&r.common)
+	r.GitHubFetch = (*InternalServerGitHubFetchAPI)(&r.common)
 	r.GitHubOwners = (*InternalServerGitHubOwnersAPI)(&r.common)
+	r.GitHubRelease = (*InternalServerGitHubReleaseAPI)(&r.common)
 	r.GitHubRepository = (*InternalServerGitHubRepositoryAPI)(&r.common)
 	r.GlobalState = (*InternalServerGlobalStateAPI)(&r.common)
 	r.Host = (*InternalServerHostAPI)(&r.common)
@@ -49459,6 +51812,48 @@ func (a *InternalAutopilotAPI) EvaluateIdleContinuation(ctx context.Context) (*A
 	return &result, nil
 }
 
+// Experimental: InternalCafeMetricsAPI contains experimental APIs that may change or be
+// removed.
+type InternalCafeMetricsAPI internalSessionAPI
+
+// Attach records live model-call events, including subagents, and root compaction events.
+// Replaces any earlier recorder. Requires the private trusted CLI host capability.
+//
+// RPC method: session.cafeMetrics.attach.
+// Internal: Attach is part of the SDK's internal handshake/plumbing; external callers
+// should not use it.
+func (a *InternalCafeMetricsAPI) Attach(ctx context.Context) (*SessionCafeMetricsAttachResult, error) {
+	req := map[string]any{"sessionId": a.sessionID}
+	raw, err := a.client.Request(ctx, "session.cafeMetrics.attach", req)
+	if err != nil {
+		return nil, err
+	}
+	var result SessionCafeMetricsAttachResult
+	if err := json.Unmarshal(raw, &result); err != nil {
+		return nil, err
+	}
+	return &result, nil
+}
+
+// Detach stops recording this session. Does nothing if it has no recorder. Requires the
+// private trusted CLI host capability.
+//
+// RPC method: session.cafeMetrics.detach.
+// Internal: Detach is part of the SDK's internal handshake/plumbing; external callers
+// should not use it.
+func (a *InternalCafeMetricsAPI) Detach(ctx context.Context) (*SessionCafeMetricsDetachResult, error) {
+	req := map[string]any{"sessionId": a.sessionID}
+	raw, err := a.client.Request(ctx, "session.cafeMetrics.detach", req)
+	if err != nil {
+		return nil, err
+	}
+	var result SessionCafeMetricsDetachResult
+	if err := json.Unmarshal(raw, &result); err != nil {
+		return nil, err
+	}
+	return &result, nil
+}
+
 // Experimental: InternalCanvasAPI contains experimental APIs that may change or be removed.
 type InternalCanvasAPI internalSessionAPI
 
@@ -50767,6 +53162,7 @@ type InternalSessionRPC struct {
 	common internalSessionAPI
 
 	Autopilot   *InternalAutopilotAPI
+	CafeMetrics *InternalCafeMetricsAPI
 	Canvas      *InternalCanvasAPI
 	Commands    *InternalCommandsAPI
 	Connectors  *InternalConnectorsAPI
@@ -50887,6 +53283,7 @@ func NewInternalSessionRPC(client *jsonrpc2.Client, sessionID string) *InternalS
 	r := &InternalSessionRPC{}
 	r.common = internalSessionAPI{client: client, sessionID: sessionID}
 	r.Autopilot = (*InternalAutopilotAPI)(&r.common)
+	r.CafeMetrics = (*InternalCafeMetricsAPI)(&r.common)
 	r.Canvas = (*InternalCanvasAPI)(&r.common)
 	r.Commands = (*InternalCommandsAPI)(&r.common)
 	r.Connectors = (*InternalConnectorsAPI)(&r.common)

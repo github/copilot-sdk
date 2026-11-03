@@ -5026,6 +5026,18 @@ public sealed class SessionMetadata
     public bool IsRemote { get; set; }
     /// <summary>Working directory context (cwd, git info) from session creation.</summary>
     public SessionContext? Context { get; set; }
+    /// <summary>
+    /// Name of the client that created the session (for example <c>github/cli</c>).
+    /// <see langword="null"/> when unknown.
+    /// </summary>
+    public string? ClientName { get; set; }
+    /// <summary>
+    /// Name of the client that most recently ran the session: the client that created it, or a
+    /// client that resumed it and then ran it. Resuming a session only to observe it does not
+    /// change this. <see langword="null"/> when unknown, such as for sessions persisted before
+    /// this field existed.
+    /// </summary>
+    public string? LastClientName { get; set; }
 }
 
 internal class PingRequest

@@ -877,6 +877,7 @@ export class CopilotSession {
      * Events are still delivered to handlers registered via {@link on} while waiting.
      * Sub-agent events with a non-empty `agentId` do not complete the wait or supply its reply.
      * With a schema as the second argument, returns its parsed, validated result.
+     * Provider schema restrictions apply to that schema; see {@link MessageOptions.responseSchema}.
      * Structured waits select only root-agent output originating from this send;
      * other queued work may delay session.idle but cannot replace the result.
      *

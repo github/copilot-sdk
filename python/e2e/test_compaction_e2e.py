@@ -133,7 +133,7 @@ class TestCompaction:
         assert answer is not None
         content = (answer.data.content or "").lower()
         # Should remember it was about a dragon (context preserved via summary)
-        assert "kaedrith" in content, f"Expected answer to mention 'Kaedrith', got: {content!r}"
+        assert "vessaryn" in content, f"Expected answer to mention 'Vessaryn', got: {content!r}"
         assert "dragon" in content, f"Expected answer to mention 'dragon', got: {content!r}"
 
     async def test_should_not_emit_compaction_events_when_infinite_sessions_disabled(

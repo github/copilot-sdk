@@ -1,0 +1,45 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *--------------------------------------------------------------------------------------------*/
+
+// AUTO-GENERATED FILE - DO NOT EDIT
+// Generated from: api.schema.json
+
+package com.github.copilot.generated.rpc;
+
+import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
+import com.fasterxml.jackson.annotation.JsonInclude;
+import com.fasterxml.jackson.annotation.JsonProperty;
+import java.util.List;
+import javax.annotation.processing.Generated;
+
+/**
+ * Variant {@code success} of {@link CafeMetricsResolveAdmissionParams}.
+ *
+ * @since 1.0.0
+ */
+@JsonIgnoreProperties(ignoreUnknown = true)
+@JsonInclude(JsonInclude.Include.NON_NULL)
+@javax.annotation.processing.Generated("copilot-sdk-codegen")
+final class CafeMetricsResolveAdmissionParamsSuccess extends CafeMetricsResolveAdmissionParams {
+
+    @JsonProperty("kind")
+    private final String kind = "success";
+
+    @Override
+    public String getKind() { return kind; }
+
+    /** Finite non-negative lookup duration in milliseconds. */
+    @JsonProperty("lookupDurationMs")
+    private Double lookupDurationMs;
+
+    /** Release metadata from the lookup shared with auto-update. */
+    @JsonProperty("releases")
+    private List<CafeMetricsRelease> releases;
+
+    public Double getLookupDurationMs() { return lookupDurationMs; }
+    public void setLookupDurationMs(Double lookupDurationMs) { this.lookupDurationMs = lookupDurationMs; }
+
+    public List<CafeMetricsRelease> getReleases() { return releases; }
+    public void setReleases(List<CafeMetricsRelease> releases) { this.releases = releases; }
+}

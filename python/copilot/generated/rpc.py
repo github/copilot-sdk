@@ -441,6 +441,26 @@ class _AccountGetGistSupportResult:
         return result
 
 # Experimental: this type is part of an experimental API and may change or be removed.
+# Internal: this type is an internal SDK API and is not part of the public surface.
+@dataclass
+class _AccountGetHostURLResult:
+    """Absolute base URL of the GitHub host."""
+
+    url: str
+    """Absolute base URL, for example `https://github.com`."""
+
+    @staticmethod
+    def from_dict(obj: Any) -> '_AccountGetHostURLResult':
+        assert isinstance(obj, dict)
+        url = from_str(obj.get("url"))
+        return _AccountGetHostURLResult(url)
+
+    def to_dict(self) -> dict:
+        result: dict = {}
+        result["url"] = from_str(self.url)
+        return result
+
+# Experimental: this type is part of an experimental API and may change or be removed.
 @dataclass
 class AccountGetQuotaRequest:
     git_hub_token: str | None = None
@@ -697,6 +717,44 @@ class AccountLogoutResult:
     def to_dict(self) -> dict:
         result: dict = {}
         result["hasMoreUsers"] = from_bool(self.has_more_users)
+        return result
+
+# Experimental: this type is part of an experimental API and may change or be removed.
+# Internal: this type is an internal SDK API and is not part of the public surface.
+@dataclass
+class _AccountSubscribeCopilotFreeResult:
+    """What came of a Copilot Free enrollment attempt."""
+
+    kind: str
+    """`subscribed` when GitHub answered, and `status` then carries its answer. `no-token` when
+    no credential could be resolved for the identity, which is the caller's cue to ask the
+    user to sign in again rather than to report a failure. `failed` when the attempt itself
+    errored, and `message` then explains it.
+    """
+    message: str | None = None
+    """Explanation to show the user. Present on `failed`, and optionally alongside a
+    `subscribed` status.
+    """
+    status: str | None = None
+    """GitHub's enrollment status when `kind` is `subscribed`, for example `subscribed` or
+    `already_subscribed`. Absent otherwise.
+    """
+
+    @staticmethod
+    def from_dict(obj: Any) -> '_AccountSubscribeCopilotFreeResult':
+        assert isinstance(obj, dict)
+        kind = from_str(obj.get("kind"))
+        message = from_union([from_str, from_none], obj.get("message"))
+        status = from_union([from_str, from_none], obj.get("status"))
+        return _AccountSubscribeCopilotFreeResult(kind, message, status)
+
+    def to_dict(self) -> dict:
+        result: dict = {}
+        result["kind"] = from_str(self.kind)
+        if self.message is not None:
+            result["message"] = from_union([from_str, from_none], self.message)
+        if self.status is not None:
+            result["status"] = from_union([from_str, from_none], self.status)
         return result
 
 # Experimental: this type is part of an experimental API and may change or be removed.
@@ -2141,6 +2199,136 @@ class BuiltinToolSafeTelemetryFields:
         return result
 
 # Experimental: this type is part of an experimental API and may change or be removed.
+# Internal: this type is an internal SDK API and is not part of the public surface.
+class PackageIdentity(Enum):
+    """Embedded package identity.
+
+    Embedded package identity. Omission enables the unbundled development fallback.
+
+    Whether the caller runs a development build or a release package.
+
+    The embedded package identity. Omission uses the existing development-version fallback
+    rule.
+    """
+    DEV = "dev"
+    RELEASE = "release"
+
+# Experimental: this type is part of an experimental API and may change or be removed.
+# Internal: this type is an internal SDK API and is not part of the public surface.
+class _CafeMetricsResumeOutcome(Enum):
+    """Terminal outcome.
+
+    Terminal resume outcome.
+    """
+    FAILED = "failed"
+    NOT_FOUND = "not_found"
+    RECOVERED = "recovered"
+    SUCCESS = "success"
+
+# Experimental: this type is part of an experimental API and may change or be removed.
+# Internal: this type is an internal SDK API and is not part of the public surface.
+class _CafeMetricsResumeReason(Enum):
+    """Bounded result classification.
+
+    Bounded resume reason, without error text.
+    """
+    CONSTRUCTION = "construction"
+    HYDRATION = "hydration"
+    LEGACY_FORMAT = "legacy_format"
+    LOG_CORRUPT = "log_corrupt"
+    LOG_RECOVERED = "log_recovered"
+    NONE = "none"
+    NOT_FOUND = "not_found"
+    QUEUE = "queue"
+    RECOVERY_IO = "recovery_io"
+
+# Experimental: this type is part of an experimental API and may change or be removed.
+# Internal: this type is an internal SDK API and is not part of the public surface.
+class _CafeMetricsResumeStage(Enum):
+    """Last phase reached.
+
+    Last resume phase.
+    """
+    COMPLETE = "complete"
+    CONSTRUCTION = "construction"
+    EVENT_LOG = "event_log"
+    QUEUE_RESTORE = "queue_restore"
+
+# Experimental: this type is part of an experimental API and may change or be removed.
+# Internal: this type is an internal SDK API and is not part of the public surface.
+@dataclass
+class _CafeMetricsRelease:
+    """Release metadata without credentials or links."""
+
+    prerelease: bool
+    """Whether this is a prerelease."""
+
+    tag_name: str
+    """Raw release tag."""
+
+    draft: bool | None = None
+    """Whether this is a draft."""
+
+    @staticmethod
+    def from_dict(obj: Any) -> '_CafeMetricsRelease':
+        assert isinstance(obj, dict)
+        prerelease = from_bool(obj.get("prerelease"))
+        tag_name = from_str(obj.get("tagName"))
+        draft = from_union([from_bool, from_none], obj.get("draft"))
+        return _CafeMetricsRelease(prerelease, tag_name, draft)
+
+    def to_dict(self) -> dict:
+        result: dict = {}
+        result["prerelease"] = from_bool(self.prerelease)
+        result["tagName"] = from_str(self.tag_name)
+        if self.draft is not None:
+            result["draft"] = from_union([from_bool, from_none], self.draft)
+        return result
+
+class OutcomeEnum(Enum):
+    FAILED = "failed"
+    SUCCESS = "success"
+
+# Experimental: this type is part of an experimental API and may change or be removed.
+class CafeMetricsResolveAdmissionResultKind(Enum):
+    ALREADY_RESOLVED = "already-resolved"
+    APPLIED = "applied"
+    NOT_STARTED = "not-started"
+    SHUTDOWN = "shutdown"
+
+# Experimental: this type is part of an experimental API and may change or be removed.
+# Internal: this type is an internal SDK API and is not part of the public surface.
+@dataclass
+class _CafeMetricsShutdownRequest:
+    """Preliminary flush or final disposal."""
+
+    flush_only: bool | None = None
+    """Send at most one batch without stopping recording. Omission means disposal."""
+
+    @staticmethod
+    def from_dict(obj: Any) -> '_CafeMetricsShutdownRequest':
+        assert isinstance(obj, dict)
+        flush_only = from_union([from_bool, from_none], obj.get("flushOnly"))
+        return _CafeMetricsShutdownRequest(flush_only)
+
+    def to_dict(self) -> dict:
+        result: dict = {}
+        if self.flush_only is not None:
+            result["flushOnly"] = from_union([from_bool, from_none], self.flush_only)
+        return result
+
+# Experimental: this type is part of an experimental API and may change or be removed.
+# Internal: this type is an internal SDK API and is not part of the public surface.
+class _CafeMetricsStartRefusal(Enum):
+    """Reason startup was refused.
+
+    Refusal reason, absent on success.
+    """
+    ALREADY_STARTED = "alreadyStarted"
+    OFFLINE = "offline"
+    UNSUPPORTED_PLATFORM = "unsupportedPlatform"
+
+# Experimental: this type is part of an experimental API and may change or be removed.
 @dataclass
 class CancelUserRequestedShellCommandResult:
     """Cancellation result for a user-requested shell command."""
@@ -3470,6 +3658,803 @@ class ClientTaskCancelResult:
     def to_dict(self) -> dict:
         result: dict = {}
         result["cancelled"] = from_bool(self.cancelled)
+        return result
+
+# Experimental: this type is part of an experimental API and may change or be removed.
+# Internal: this type is an internal SDK API and is not part of the public surface.
+@dataclass
+class _CloudTasksCreateParams:
+    """Describes the cloud coding-agent task to start and the credential to start it under.
+    Target it either by repository, supplying both `repositoryOwner` and `repositoryName`, or
+    by `owner` alone for an account-level run.
+    """
+    auth_info: Any
+    """The credential the task is created under, carried opaquely because its shape is the
+    host's own and the runtime only resolves a token and an API endpoint from it.
+    """
+    integration_id: str
+    """Name of the embedding client, reported to the service so it can attribute the request."""
+
+    auth_context_id: str | None = None
+    """Selects which stored credential to resolve when the host holds more than one. Omit it to
+    resolve the default for the supplied `authInfo`.
+    """
+    base_url: str | None = None
+    """Explicit Mission Control endpoint selected by the host. Omission derives it from the
+    identity.
+    """
+    owner: str | None = None
+    """Account the task is created for when it is not tied to a repository. Supply it only when
+    `repositoryOwner` and `repositoryName` are omitted.
+    """
+    repository_name: str | None = None
+    """Name of the repository the task runs against. Supply it together with `repositoryOwner`."""
+
+    repository_owner: str | None = None
+    """Account or organization owning the repository the task runs against. Supply it together
+    with `repositoryName`.
+    """
+
+    @staticmethod
+    def from_dict(obj: Any) -> '_CloudTasksCreateParams':
+        assert isinstance(obj, dict)
+        auth_info = obj.get("authInfo")
+        integration_id = from_str(obj.get("integrationId"))
+        auth_context_id = from_union([from_str, from_none], obj.get("authContextId"))
+        base_url = from_union([from_str, from_none], obj.get("baseUrl"))
+        owner = from_union([from_str, from_none], obj.get("owner"))
+        repository_name = from_union([from_str, from_none], obj.get("repositoryName"))
+        repository_owner = from_union([from_str, from_none], obj.get("repositoryOwner"))
+        return _CloudTasksCreateParams(auth_info, integration_id, auth_context_id, base_url, owner, repository_name, repository_owner)
+
+    def to_dict(self) -> dict:
+        result: dict = {}
+        result["authInfo"] = self.auth_info
+        result["integrationId"] = from_str(self.integration_id)
+        if self.auth_context_id is not None:
+            result["authContextId"] = from_union([from_str, from_none], self.auth_context_id)
+        if self.base_url is not None:
+            result["baseUrl"] = from_union([from_str, from_none], self.base_url)
+        if self.owner is not None:
+            result["owner"] = from_union([from_str, from_none], self.owner)
+        if self.repository_name is not None:
+            result["repositoryName"] = from_union([from_str, from_none], self.repository_name)
+        if self.repository_owner is not None:
+            result["repositoryOwner"] = from_union([from_str, from_none], self.repository_owner)
+        return result
+
+# Experimental: this type is part of an experimental API and may change or be removed.
+# Internal: this type is an internal SDK API and is not part of the public surface.
+@dataclass
+class _CloudTasksCreateResult:
+    """The outcome of starting a cloud task. A rejected request and a failed one are reported
+    separately: `reason` and `message` describe a request the service declined, while
+    `statusCode` and `errorMessage` describe the HTTP call itself and appear only when one
+    was actually made.
+    """
+    ok: bool
+    """Whether the task was created."""
+
+    error_message: str | None = None
+    """Human-readable explanation of a failed HTTP call, when one failed."""
+
+    error_payload_json: str | None = None
+    """The error body the service returned, preserved verbatim so a host can surface the
+    service's own message.
+    """
+    message: str | None = None
+    """The explanation to show for a declined request, when the service supplied one. This
+    describes the rejection itself, unlike `errorMessage`, which describes a failed HTTP call.
+    """
+    reason: str | None = None
+    """Why the request was declined, when it was. Carried as a free-form string rather than a
+    fixed set because the vocabulary is the service's and grows with it; `policy_blocked`,
+    `validation`, `rate_limited` and `error` are the values seen so far, and a caller should
+    treat an unrecognised one as a generic failure rather than rejecting the response.
+    """
+    response_json: str | None = None
+    """The created task record, as returned by the service. Present only when `ok` is true; a
+    caller parses it itself because the runtime does not narrow the service's own shape.
+    """
+    status_code: int | None = None
+    """HTTP status code of the response, when one was received."""
+
+    @staticmethod
+    def from_dict(obj: Any) -> '_CloudTasksCreateResult':
+        assert isinstance(obj, dict)
+        ok = from_bool(obj.get("ok"))
+        error_message = from_union([from_str, from_none], obj.get("errorMessage"))
+        error_payload_json = from_union([from_str, from_none], obj.get("errorPayloadJson"))
+        message = from_union([from_str, from_none], obj.get("message"))
+        reason = from_union([from_str, from_none], obj.get("reason"))
+        response_json = from_union([from_str, from_none], obj.get("responseJson"))
+        status_code = from_union([from_int, from_none], obj.get("statusCode"))
+        return _CloudTasksCreateResult(ok, error_message, error_payload_json, message, reason, response_json, status_code)
+
+    def to_dict(self) -> dict:
+        result: dict = {}
+        result["ok"] = from_bool(self.ok)
+        if self.error_message is not None:
+            result["errorMessage"] = from_union([from_str, from_none], self.error_message)
+        if self.error_payload_json is not None:
+            result["errorPayloadJson"] = from_union([from_str, from_none], self.error_payload_json)
+        if self.message is not None:
+            result["message"] = from_union([from_str, from_none], self.message)
+        if self.reason is not None:
+            result["reason"] = from_union([from_str, from_none], self.reason)
+        if self.response_json is not None:
+            result["responseJson"] = from_union([from_str, from_none], self.response_json)
+        if self.status_code is not None:
+            result["statusCode"] = from_union([from_int, from_none], self.status_code)
+        return result
+
+# Experimental: this type is part of an experimental API and may change or be removed.
+# Internal: this type is an internal SDK API and is not part of the public surface.
+@dataclass
+class _CloudTasksDeleteParams:
+    """Identifies one cloud coding-agent task to delete, and the credential to delete it under."""
+
+    auth_info: Any
+    """The credential the deletion is performed under, carried opaquely because its shape is the
+    host's own and the runtime only resolves a token and an API endpoint from it. Required:
+    the task endpoint is per-account, so there is no unauthenticated form of this call.
+    """
+    integration_id: str
+    """Name of the embedding client, reported to Mission Control so the service can attribute
+    the request.
+    """
+    task_id: str
+    """Identifier of the cloud task to delete."""
+
+    auth_context_id: str | None = None
+    """Selects which stored credential to resolve when the host holds more than one. Omit it to
+    resolve the default for the supplied `authInfo`.
+    """
+    base_url: str | None = None
+    """Explicit Mission Control endpoint selected by the host. Omission derives it from the
+    identity.
+    """
+
+    @staticmethod
+    def from_dict(obj: Any) -> '_CloudTasksDeleteParams':
+        assert isinstance(obj, dict)
+        auth_info = obj.get("authInfo")
+        integration_id = from_str(obj.get("integrationId"))
+        task_id = from_str(obj.get("taskId"))
+        auth_context_id = from_union([from_str, from_none], obj.get("authContextId"))
+        base_url = from_union([from_str, from_none], obj.get("baseUrl"))
+        return _CloudTasksDeleteParams(auth_info, integration_id, task_id, auth_context_id, base_url)
+
+    def to_dict(self) -> dict:
+        result: dict = {}
+        result["authInfo"] = self.auth_info
+        result["integrationId"] = from_str(self.integration_id)
+        result["taskId"] = from_str(self.task_id)
+        if self.auth_context_id is not None:
+            result["authContextId"] = from_union([from_str, from_none], self.auth_context_id)
+        if self.base_url is not None:
+            result["baseUrl"] = from_union([from_str, from_none], self.base_url)
+        return result
+
+# Experimental: this type is part of an experimental API and may change or be removed.
+# Internal: this type is an internal SDK API and is not part of the public surface.
+@dataclass
+class _CloudTasksDeleteResult:
+    """The HTTP outcome of deleting a cloud task. The deletion returns no body, so a successful
+    call carries nothing beyond `ok`; a failed one is described by the remaining fields
+    rather than raised as an error, so a caller can surface the service's own explanation.
+    """
+    ok: bool
+    """Whether the service accepted the deletion."""
+
+    error_message: str | None = None
+    """Human-readable failure explanation, when the call failed."""
+
+    error_payload_json: str | None = None
+    """The error body the service returned, preserved verbatim so a host can surface the
+    service's own message.
+    """
+    status_code: int | None = None
+    """HTTP status code of the response, when one was received."""
+
+    @staticmethod
+    def from_dict(obj: Any) -> '_CloudTasksDeleteResult':
+        assert isinstance(obj, dict)
+        ok = from_bool(obj.get("ok"))
+        error_message = from_union([from_str, from_none], obj.get("errorMessage"))
+        error_payload_json = from_union([from_str, from_none], obj.get("errorPayloadJson"))
+        status_code = from_union([from_int, from_none], obj.get("statusCode"))
+        return _CloudTasksDeleteResult(ok, error_message, error_payload_json, status_code)
+
+    def to_dict(self) -> dict:
+        result: dict = {}
+        result["ok"] = from_bool(self.ok)
+        if self.error_message is not None:
+            result["errorMessage"] = from_union([from_str, from_none], self.error_message)
+        if self.error_payload_json is not None:
+            result["errorPayloadJson"] = from_union([from_str, from_none], self.error_payload_json)
+        if self.status_code is not None:
+            result["statusCode"] = from_union([from_int, from_none], self.status_code)
+        return result
+
+# Experimental: this type is part of an experimental API and may change or be removed.
+# Internal: this type is an internal SDK API and is not part of the public surface.
+@dataclass
+class _CloudTasksGetParams:
+    """Identifies one cloud coding-agent task and the credential to read it under."""
+
+    auth_info: Any
+    """The credential the read is performed under, carried opaquely because its shape is the
+    host's own and the runtime only resolves a token from it. Required: the task endpoint is
+    per-account, so there is no unauthenticated form of this read.
+    """
+    integration_id: str
+    """Name of the embedding client, reported to the task API so the service can attribute the
+    request.
+    """
+    task_id: str
+    """Identifier of the cloud task to read."""
+
+    auth_context_id: str | None = None
+    """Selects which stored credential to resolve when the host holds more than one. Omit it to
+    resolve the default for the supplied `authInfo`.
+    """
+
+    @staticmethod
+    def from_dict(obj: Any) -> '_CloudTasksGetParams':
+        assert isinstance(obj, dict)
+        auth_info = obj.get("authInfo")
+        integration_id = from_str(obj.get("integrationId"))
+        task_id = from_str(obj.get("taskId"))
+        auth_context_id = from_union([from_str, from_none], obj.get("authContextId"))
+        return _CloudTasksGetParams(auth_info, integration_id, task_id, auth_context_id)
+
+    def to_dict(self) -> dict:
+        result: dict = {}
+        result["authInfo"] = self.auth_info
+        result["integrationId"] = from_str(self.integration_id)
+        result["taskId"] = from_str(self.task_id)
+        if self.auth_context_id is not None:
+            result["authContextId"] = from_union([from_str, from_none], self.auth_context_id)
+        return result
+
+# Experimental: this type is part of an experimental API and may change or be removed.
+# Internal: this type is an internal SDK API and is not part of the public surface.
+@dataclass
+class _CloudTasksGetResult:
+    """The HTTP outcome of reading a cloud task, rather than the task alone. A 404 arrives here
+    as a non-ok result with `statusCode` 404, not as an error, so a caller can tell an absent
+    task apart from a failed call.
+    """
+    ok: bool
+    """Whether the API returned the task successfully."""
+
+    error_kind: str | None = None
+    """Categorised failure kind, when the call failed."""
+
+    error_message: str | None = None
+    """Human-readable failure explanation, when the call failed."""
+
+    error_payload_json: str | None = None
+    """The error body the API returned, preserved verbatim so a host can surface the service's
+    own message.
+    """
+    payload_json: str | None = None
+    """The task record, as returned by the API. Present only when `ok` is true; a caller parses
+    it itself because the runtime does not narrow the API's own shape.
+    """
+    status_code: int | None = None
+    """HTTP status code of the response, when one was received."""
+
+    @staticmethod
+    def from_dict(obj: Any) -> '_CloudTasksGetResult':
+        assert isinstance(obj, dict)
+        ok = from_bool(obj.get("ok"))
+        error_kind = from_union([from_str, from_none], obj.get("errorKind"))
+        error_message = from_union([from_str, from_none], obj.get("errorMessage"))
+        error_payload_json = from_union([from_str, from_none], obj.get("errorPayloadJson"))
+        payload_json = from_union([from_str, from_none], obj.get("payloadJson"))
+        status_code = from_union([from_int, from_none], obj.get("statusCode"))
+        return _CloudTasksGetResult(ok, error_kind, error_message, error_payload_json, payload_json, status_code)
+
+    def to_dict(self) -> dict:
+        result: dict = {}
+        result["ok"] = from_bool(self.ok)
+        if self.error_kind is not None:
+            result["errorKind"] = from_union([from_str, from_none], self.error_kind)
+        if self.error_message is not None:
+            result["errorMessage"] = from_union([from_str, from_none], self.error_message)
+        if self.error_payload_json is not None:
+            result["errorPayloadJson"] = from_union([from_str, from_none], self.error_payload_json)
+        if self.payload_json is not None:
+            result["payloadJson"] = from_union([from_str, from_none], self.payload_json)
+        if self.status_code is not None:
+            result["statusCode"] = from_union([from_int, from_none], self.status_code)
+        return result
+
+# Experimental: this type is part of an experimental API and may change or be removed.
+# Internal: this type is an internal SDK API and is not part of the public surface.
+@dataclass
+class _CloudTasksGetSessionLogsParams:
+    """Identifies one cloud coding-agent session whose logs are to be read, and the credential
+    to read them under.
+    """
+    auth_info: Any
+    """The credential the read is performed under, carried opaquely because its shape is the
+    host's own and the runtime only resolves a token and an API endpoint from it.
+    """
+    session_id: str
+    """Identifier of the cloud session whose logs are read."""
+
+    auth_context_id: str | None = None
+    """Selects which stored credential to resolve when the host holds more than one. Omit it to
+    resolve the default for the supplied `authInfo`.
+    """
+
+    @staticmethod
+    def from_dict(obj: Any) -> '_CloudTasksGetSessionLogsParams':
+        assert isinstance(obj, dict)
+        auth_info = obj.get("authInfo")
+        session_id = from_str(obj.get("sessionId"))
+        auth_context_id = from_union([from_str, from_none], obj.get("authContextId"))
+        return _CloudTasksGetSessionLogsParams(auth_info, session_id, auth_context_id)
+
+    def to_dict(self) -> dict:
+        result: dict = {}
+        result["authInfo"] = self.auth_info
+        result["sessionId"] = from_str(self.session_id)
+        if self.auth_context_id is not None:
+            result["authContextId"] = from_union([from_str, from_none], self.auth_context_id)
+        return result
+
+# Experimental: this type is part of an experimental API and may change or be removed.
+# Internal: this type is an internal SDK API and is not part of the public surface.
+@dataclass
+class _CloudTasksGetSessionLogsResult:
+    """The outcome of reading a cloud session's logs. `resolved` distinguishes "this credential
+    has no Copilot API endpoint" from "the request was made and failed"; every other field
+    describes a request that was actually attempted.
+    """
+    ok: bool
+    """Whether the API returned the logs successfully. Meaningful only when `resolved` is true."""
+
+    resolved: bool
+    """Whether a Copilot API endpoint could be resolved for the credential at all. When false no
+    request was attempted and every other field is absent or empty, which a caller must not
+    report as a transport failure.
+    """
+    debug_messages: list[str] | None = None
+    """Diagnostics the retrieval produced, in order. Worth logging whatever the outcome, because
+    they explain a partial or empty result that is otherwise reported as success.
+    """
+    error_kind: str | None = None
+    """Categorised failure kind, when the call failed."""
+
+    error_message: str | None = None
+    """Human-readable failure explanation, when the call failed."""
+
+    error_payload_json: str | None = None
+    """The error body the API returned, preserved verbatim so a host can surface the service's
+    own message.
+    """
+    error_string: str | None = None
+    """A retrieval fault that is not an HTTP status, such as a malformed response body."""
+
+    logs_json: str | None = None
+    """The logs, as returned by the API. Absent when none were returned; a caller that wants a
+    list should treat absence as empty.
+    """
+    status_code: int | None = None
+    """HTTP status code of the response, when one was received."""
+
+    @staticmethod
+    def from_dict(obj: Any) -> '_CloudTasksGetSessionLogsResult':
+        assert isinstance(obj, dict)
+        ok = from_bool(obj.get("ok"))
+        resolved = from_bool(obj.get("resolved"))
+        debug_messages = from_union([lambda x: from_list(from_str, x), from_none], obj.get("debugMessages"))
+        error_kind = from_union([from_str, from_none], obj.get("errorKind"))
+        error_message = from_union([from_str, from_none], obj.get("errorMessage"))
+        error_payload_json = from_union([from_str, from_none], obj.get("errorPayloadJson"))
+        error_string = from_union([from_str, from_none], obj.get("errorString"))
+        logs_json = from_union([from_str, from_none], obj.get("logsJson"))
+        status_code = from_union([from_int, from_none], obj.get("statusCode"))
+        return _CloudTasksGetSessionLogsResult(ok, resolved, debug_messages, error_kind, error_message, error_payload_json, error_string, logs_json, status_code)
+
+    def to_dict(self) -> dict:
+        result: dict = {}
+        result["ok"] = from_bool(self.ok)
+        result["resolved"] = from_bool(self.resolved)
+        if self.debug_messages is not None:
+            result["debugMessages"] = from_union([lambda x: from_list(from_str, x), from_none], self.debug_messages)
+        if self.error_kind is not None:
+            result["errorKind"] = from_union([from_str, from_none], self.error_kind)
+        if self.error_message is not None:
+            result["errorMessage"] = from_union([from_str, from_none], self.error_message)
+        if self.error_payload_json is not None:
+            result["errorPayloadJson"] = from_union([from_str, from_none], self.error_payload_json)
+        if self.error_string is not None:
+            result["errorString"] = from_union([from_str, from_none], self.error_string)
+        if self.logs_json is not None:
+            result["logsJson"] = from_union([from_str, from_none], self.logs_json)
+        if self.status_code is not None:
+            result["statusCode"] = from_union([from_int, from_none], self.status_code)
+        return result
+
+# Experimental: this type is part of an experimental API and may change or be removed.
+# Internal: this type is an internal SDK API and is not part of the public surface.
+@dataclass
+class _CloudTasksGetSessionReplayParams:
+    """Identifies one cloud coding-agent task whose recorded session is to be replayed, and the
+    credential to read it under.
+    """
+    auth_info: Any
+    """The credential the read is performed under, carried opaquely because its shape is the
+    host's own and the runtime only resolves a token and an API endpoint from it.
+    """
+    integration_id: str
+    """Name of the embedding client, reported to the service so it can attribute the request."""
+
+    task_id: str
+    """Identifier of the cloud task whose recorded events are replayed."""
+
+    auth_context_id: str | None = None
+    """Selects which stored credential to resolve when the host holds more than one. Omit it to
+    resolve the default for the supplied `authInfo`.
+    """
+    base_url: str | None = None
+    """Explicit Mission Control endpoint selected by the host. Omission derives it from the
+    identity.
+    """
+
+    @staticmethod
+    def from_dict(obj: Any) -> '_CloudTasksGetSessionReplayParams':
+        assert isinstance(obj, dict)
+        auth_info = obj.get("authInfo")
+        integration_id = from_str(obj.get("integrationId"))
+        task_id = from_str(obj.get("taskId"))
+        auth_context_id = from_union([from_str, from_none], obj.get("authContextId"))
+        base_url = from_union([from_str, from_none], obj.get("baseUrl"))
+        return _CloudTasksGetSessionReplayParams(auth_info, integration_id, task_id, auth_context_id, base_url)
+
+    def to_dict(self) -> dict:
+        result: dict = {}
+        result["authInfo"] = self.auth_info
+        result["integrationId"] = from_str(self.integration_id)
+        result["taskId"] = from_str(self.task_id)
+        if self.auth_context_id is not None:
+            result["authContextId"] = from_union([from_str, from_none], self.auth_context_id)
+        if self.base_url is not None:
+            result["baseUrl"] = from_union([from_str, from_none], self.base_url)
+        return result
+
+# Experimental: this type is part of an experimental API and may change or be removed.
+# Internal: this type is an internal SDK API and is not part of the public surface.
+@dataclass
+class _CloudTasksGetSessionReplayResult:
+    """A cloud task's recorded events, ordered for replay. Read `preStart` first: it selects
+    which of the two event lists a caller should use, and they differ deliberately.
+    """
+    observed_events_json: str
+    """Every recorded event in the same replay order, as a JSON array, whether or not the
+    session has started. This is the list to hand to a subsequent ingress so it can tell
+    which events it has already seen, and unlike `replayEventsJson` it is never emptied.
+    """
+    pre_start: bool
+    """True when the task has recorded events but the session has not started yet, so only
+    queued work exists. A started session is anchored by either `session.start` or, for a
+    resumed one, `session.resume`.
+    """
+    replay_events_json: str
+    """The events to replay in order to reconstruct the session, as a JSON array. Empty when
+    `preStart` is true, because a session that has not started has nothing to reconstruct and
+    replaying its pending events would invent a history it never had.
+    """
+
+    @staticmethod
+    def from_dict(obj: Any) -> '_CloudTasksGetSessionReplayResult':
+        assert isinstance(obj, dict)
+        observed_events_json = from_str(obj.get("observedEventsJson"))
+        pre_start = from_bool(obj.get("preStart"))
+        replay_events_json = from_str(obj.get("replayEventsJson"))
+        return _CloudTasksGetSessionReplayResult(observed_events_json, pre_start, replay_events_json)
+
+    def to_dict(self) -> dict:
+        result: dict = {}
+        result["observedEventsJson"] = from_str(self.observed_events_json)
+        result["preStart"] = from_bool(self.pre_start)
+        result["replayEventsJson"] = from_str(self.replay_events_json)
+        return result
+
+# Experimental: this type is part of an experimental API and may change or be removed.
+# Internal: this type is an internal SDK API and is not part of the public surface.
+@dataclass
+class _CloudTasksGetSharingStatusParams:
+    """Identifies one cloud coding-agent task whose sharing status is to be read, and the
+    credential to read it under.
+    """
+    auth_info: Any
+    """The credential the read is performed under, carried opaquely because its shape is the
+    host's own and the runtime only resolves a token and an API endpoint from it. The token
+    itself is never carried across the door.
+    """
+    integration_id: str
+    """Name of the embedding client, reported to the service so it can attribute the request."""
+
+    task_id: str
+    """Identifier of the cloud task whose sharing status is read."""
+
+    auth_context_id: str | None = None
+    """Selects which stored credential to resolve when the host holds more than one. Omit it to
+    resolve the default for the supplied `authInfo`.
+    """
+    base_url: str | None = None
+    """Explicit Mission Control endpoint selected by the host. Omission derives it from the
+    identity.
+    """
+
+    @staticmethod
+    def from_dict(obj: Any) -> '_CloudTasksGetSharingStatusParams':
+        assert isinstance(obj, dict)
+        auth_info = obj.get("authInfo")
+        integration_id = from_str(obj.get("integrationId"))
+        task_id = from_str(obj.get("taskId"))
+        auth_context_id = from_union([from_str, from_none], obj.get("authContextId"))
+        base_url = from_union([from_str, from_none], obj.get("baseUrl"))
+        return _CloudTasksGetSharingStatusParams(auth_info, integration_id, task_id, auth_context_id, base_url)
+
+    def to_dict(self) -> dict:
+        result: dict = {}
+        result["authInfo"] = self.auth_info
+        result["integrationId"] = from_str(self.integration_id)
+        result["taskId"] = from_str(self.task_id)
+        if self.auth_context_id is not None:
+            result["authContextId"] = from_union([from_str, from_none], self.auth_context_id)
+        if self.base_url is not None:
+            result["baseUrl"] = from_union([from_str, from_none], self.base_url)
+        return result
+
+# Experimental: this type is part of an experimental API and may change or be removed.
+# Internal: this type is an internal SDK API and is not part of the public surface.
+@dataclass
+class _CloudTasksResolveTaskIDParams:
+    """Identifies one cloud coding-agent task to resolve to an openable session, the credential
+    to resolve it under, and the local candidates the caller has already rejected.
+    """
+    allow_empty_cli_task: bool
+    """Whether a task carrying no recorded CLI run still counts as a match. Set it when the
+    caller wants the task itself, not only a run that already produced a session.
+    """
+    auth_info: Any
+    """The credential the lookup is performed under, carried opaquely because its shape is the
+    host's own and the runtime only resolves a token and an API endpoint from it. Required:
+    the task endpoint is per-account, so there is no unauthenticated form of this call.
+    """
+    has_remote_session_manager: bool
+    """Whether the caller can open a cloud session. When false, a task that resolves only to a
+    remote run is reported as unresumable instead, because the caller could not act on it.
+    """
+    ignored_local_session_ids: list[str]
+    """Local session identifiers the caller has already rejected, so resolution skips them and
+    returns the next candidate. Pass the identifiers accumulated across earlier calls, not
+    only the last one.
+    """
+    integration_id: str
+    """Name of the embedding client, reported to Mission Control so the service can attribute
+    the request.
+    """
+    task_id: str
+    """Identifier of the cloud task to resolve."""
+
+    auth_context_id: str | None = None
+    """Selects which stored credential to resolve when the host holds more than one. Omit it to
+    resolve the default for the supplied `authInfo`.
+    """
+    debug_github_api_url: str | None = None
+    """Overrides the GitHub API base URL the task lookup goes to. Intended for testing against a
+    non-production service; omit it in normal use.
+    """
+    sessions_home: str | None = None
+    """Directory holding persisted session state to scan for a local match. Omit it to use the
+    default session home.
+    """
+
+    @staticmethod
+    def from_dict(obj: Any) -> '_CloudTasksResolveTaskIDParams':
+        assert isinstance(obj, dict)
+        allow_empty_cli_task = from_bool(obj.get("allowEmptyCliTask"))
+        auth_info = obj.get("authInfo")
+        has_remote_session_manager = from_bool(obj.get("hasRemoteSessionManager"))
+        ignored_local_session_ids = from_list(from_str, obj.get("ignoredLocalSessionIds"))
+        integration_id = from_str(obj.get("integrationId"))
+        task_id = from_str(obj.get("taskId"))
+        auth_context_id = from_union([from_str, from_none], obj.get("authContextId"))
+        debug_github_api_url = from_union([from_str, from_none], obj.get("debugGithubApiUrl"))
+        sessions_home = from_union([from_str, from_none], obj.get("sessionsHome"))
+        return _CloudTasksResolveTaskIDParams(allow_empty_cli_task, auth_info, has_remote_session_manager, ignored_local_session_ids, integration_id, task_id, auth_context_id, debug_github_api_url, sessions_home)
+
+    def to_dict(self) -> dict:
+        result: dict = {}
+        result["allowEmptyCliTask"] = from_bool(self.allow_empty_cli_task)
+        result["authInfo"] = self.auth_info
+        result["hasRemoteSessionManager"] = from_bool(self.has_remote_session_manager)
+        result["ignoredLocalSessionIds"] = from_list(from_str, self.ignored_local_session_ids)
+        result["integrationId"] = from_str(self.integration_id)
+        result["taskId"] = from_str(self.task_id)
+        if self.auth_context_id is not None:
+            result["authContextId"] = from_union([from_str, from_none], self.auth_context_id)
+        if self.debug_github_api_url is not None:
+            result["debugGithubApiUrl"] = from_union([from_str, from_none], self.debug_github_api_url)
+        if self.sessions_home is not None:
+            result["sessionsHome"] = from_union([from_str, from_none], self.sessions_home)
+        return result
+
+# Experimental: this type is part of an experimental API and may change or be removed.
+# Internal: this type is an internal SDK API and is not part of the public surface.
+@dataclass
+class _CloudTasksResolveTaskIDResult:
+    """What a caller should open for the task. The four outcomes are distinct and carry
+    different payloads, so read `kind` before any other field.
+    """
+    kind: str
+    """Outcome of the resolution: `local-session` when a persisted session matched,
+    `remote-session` when only a cloud run did, `unresumable-task` when the task exists but
+    cannot be continued, `none` when nothing matched, and `error` when the service call
+    failed.
+    """
+    diagnostic: str | None = None
+    """Why the cloud lookup produced less than it could have, for logging. It accompanies a
+    successful outcome as well, so it is not a failure signal.
+    """
+    error_kind: str | None = None
+    """Machine-readable classification of the failure, when the service supplied one. The
+    vocabulary is the service's and grows with it, so treat an unrecognized value as a
+    generic failure.
+    """
+    error_message: str | None = None
+    """Human-readable explanation of a failed service call. Present only when `kind` is `error`."""
+
+    error_payload_json: str | None = None
+    """The error body the service returned, preserved verbatim so a host can surface the
+    service's own message.
+    """
+    error_status_code: int | None = None
+    """HTTP status code of the failed call, when one was received."""
+
+    metadata_json: str | None = None
+    """The cloud session record, serialized, describing the run to open. Present only when
+    `kind` is `remote-session`. It is carried as text because its shape is the service's own
+    and the runtime does not narrow it.
+    """
+    session_id: str | None = None
+    """Identifier of the matched local session. Present only when `kind` is `local-session`."""
+
+    @staticmethod
+    def from_dict(obj: Any) -> '_CloudTasksResolveTaskIDResult':
+        assert isinstance(obj, dict)
+        kind = from_str(obj.get("kind"))
+        diagnostic = from_union([from_str, from_none], obj.get("diagnostic"))
+        error_kind = from_union([from_str, from_none], obj.get("errorKind"))
+        error_message = from_union([from_str, from_none], obj.get("errorMessage"))
+        error_payload_json = from_union([from_str, from_none], obj.get("errorPayloadJson"))
+        error_status_code = from_union([from_int, from_none], obj.get("errorStatusCode"))
+        metadata_json = from_union([from_str, from_none], obj.get("metadataJson"))
+        session_id = from_union([from_str, from_none], obj.get("sessionId"))
+        return _CloudTasksResolveTaskIDResult(kind, diagnostic, error_kind, error_message, error_payload_json, error_status_code, metadata_json, session_id)
+
+    def to_dict(self) -> dict:
+        result: dict = {}
+        result["kind"] = from_str(self.kind)
+        if self.diagnostic is not None:
+            result["diagnostic"] = from_union([from_str, from_none], self.diagnostic)
+        if self.error_kind is not None:
+            result["errorKind"] = from_union([from_str, from_none], self.error_kind)
+        if self.error_message is not None:
+            result["errorMessage"] = from_union([from_str, from_none], self.error_message)
+        if self.error_payload_json is not None:
+            result["errorPayloadJson"] = from_union([from_str, from_none], self.error_payload_json)
+        if self.error_status_code is not None:
+            result["errorStatusCode"] = from_union([from_int, from_none], self.error_status_code)
+        if self.metadata_json is not None:
+            result["metadataJson"] = from_union([from_str, from_none], self.metadata_json)
+        if self.session_id is not None:
+            result["sessionId"] = from_union([from_str, from_none], self.session_id)
+        return result
+
+# Experimental: this type is part of an experimental API and may change or be removed.
+# Internal: this type is an internal SDK API and is not part of the public surface.
+@dataclass
+class _CloudTasksSetSharingStatusParams:
+    """Identifies one cloud coding-agent task whose sharing status is to be changed, the status
+    to set, and the credential to change it under.
+    """
+    auth_info: Any
+    """The credential the change is performed under, carried opaquely because its shape is the
+    host's own and the runtime only resolves a token and an API endpoint from it. The token
+    itself is never carried across the door.
+    """
+    integration_id: str
+    """Name of the embedding client, reported to the service so it can attribute the request."""
+
+    sharing_status: str
+    """The sharing status to set, sent to the service verbatim. It is a free-form string rather
+    than a closed set because the service owns these values and may add one; narrowing it
+    here would reject a status the service accepts.
+    """
+    task_id: str
+    """Identifier of the cloud task whose sharing status is changed."""
+
+    auth_context_id: str | None = None
+    """Selects which stored credential to resolve when the host holds more than one. Omit it to
+    resolve the default for the supplied `authInfo`.
+    """
+    base_url: str | None = None
+    """Explicit Mission Control endpoint selected by the host. Omission derives it from the
+    identity.
+    """
+
+    @staticmethod
+    def from_dict(obj: Any) -> '_CloudTasksSetSharingStatusParams':
+        assert isinstance(obj, dict)
+        auth_info = obj.get("authInfo")
+        integration_id = from_str(obj.get("integrationId"))
+        sharing_status = from_str(obj.get("sharingStatus"))
+        task_id = from_str(obj.get("taskId"))
+        auth_context_id = from_union([from_str, from_none], obj.get("authContextId"))
+        base_url = from_union([from_str, from_none], obj.get("baseUrl"))
+        return _CloudTasksSetSharingStatusParams(auth_info, integration_id, sharing_status, task_id, auth_context_id, base_url)
+
+    def to_dict(self) -> dict:
+        result: dict = {}
+        result["authInfo"] = self.auth_info
+        result["integrationId"] = from_str(self.integration_id)
+        result["sharingStatus"] = from_str(self.sharing_status)
+        result["taskId"] = from_str(self.task_id)
+        if self.auth_context_id is not None:
+            result["authContextId"] = from_union([from_str, from_none], self.auth_context_id)
+        if self.base_url is not None:
+            result["baseUrl"] = from_union([from_str, from_none], self.base_url)
+        return result
+
+# Experimental: this type is part of an experimental API and may change or be removed.
+# Internal: this type is an internal SDK API and is not part of the public surface.
+@dataclass
+class _CloudTasksSharingStatusResult:
+    """The sharing status a cloud task carries after the call. Read `credentialResolved` first:
+    when it is false no request was attempted at all, which is a different outcome from a
+    request the service declined.
+    """
+    credential_resolved: bool
+    """Whether a credential could be resolved for the supplied `authInfo` at all. When false no
+    request was attempted and every other field is absent, which a caller must not report as
+    a transport failure: the account simply has no usable credential.
+    """
+    ok: bool
+    """Whether the service returned the task successfully. Meaningful only when
+    `credentialResolved` is true.
+    """
+    sharing_status: str | None = None
+    """The task's sharing status, as the service reported it. Absent when the call did not
+    succeed, and also when the service returned a task that carries no sharing status at all.
+    It is a free-form string rather than a closed set because the service owns these values;
+    a caller that only understands some of them should treat an unrecognized one as unknown
+    rather than as an error.
+    """
+
+    @staticmethod
+    def from_dict(obj: Any) -> '_CloudTasksSharingStatusResult':
+        assert isinstance(obj, dict)
+        credential_resolved = from_bool(obj.get("credentialResolved"))
+        ok = from_bool(obj.get("ok"))
+        sharing_status = from_union([from_str, from_none], obj.get("sharingStatus"))
+        return _CloudTasksSharingStatusResult(credential_resolved, ok, sharing_status)
+
+    def to_dict(self) -> dict:
+        result: dict = {}
+        result["credentialResolved"] = from_bool(self.credential_resolved)
+        result["ok"] = from_bool(self.ok)
+        if self.sharing_status is not None:
+            result["sharingStatus"] = from_union([from_str, from_none], self.sharing_status)
         return result
 
 # Experimental: this type is part of an experimental API and may change or be removed.
@@ -5979,6 +6964,241 @@ class _GitCwdRequest:
 
 # Experimental: this type is part of an experimental API and may change or be removed.
 # Internal: this type is an internal SDK API and is not part of the public surface.
+class _GitHubPullRequestCheckStatus(Enum):
+    """Rolled-up state of the check.
+
+    Rolled-up state of one pull-request check. GitHub's own conclusions are collapsed to
+    these three so a caller renders a check without enumerating every API conclusion.
+    """
+    FAIL = "fail"
+    PASS = "pass"
+    PENDING = "pending"
+
+# Experimental: this type is part of an experimental API and may change or be removed.
+# Internal: this type is an internal SDK API and is not part of the public surface.
+class _GitHubBranchPullRequestLookupStatus(Enum):
+    """Why the lookup reported what it did.
+
+    Why a branch pull-request lookup reported what it did. The three unsuccessful outcomes
+    are kept apart because each one asks the caller for something different.
+    """
+    FOUND = "found"
+    LOOKUP_FAILED = "lookup-failed"
+    NO_PR = "no-pr"
+    NO_TOKEN = "no-token"
+
+# Experimental: this type is part of an experimental API and may change or be removed.
+# Internal: this type is an internal SDK API and is not part of the public surface.
+@dataclass
+class _GitHubFetchCancelResult:
+    """Whether cancellation reached a registered GitHub request."""
+
+    canceled: bool
+    """True when cancellation reached a registered request."""
+
+    @staticmethod
+    def from_dict(obj: Any) -> '_GitHubFetchCancelResult':
+        assert isinstance(obj, dict)
+        canceled = from_bool(obj.get("canceled"))
+        return _GitHubFetchCancelResult(canceled)
+
+    def to_dict(self) -> dict:
+        result: dict = {}
+        result["canceled"] = from_bool(self.canceled)
+        return result
+
+# Experimental: this type is part of an experimental API and may change or be removed.
+# Internal: this type is an internal SDK API and is not part of the public surface.
+@dataclass
+class _GitHubFetchHeader:
+    """One HTTP header in an ordered list."""
+
+    name: str
+    """HTTP header name. The list preserves order and repeated names."""
+
+    value: str
+    """HTTP header value."""
+
+    @staticmethod
+    def from_dict(obj: Any) -> '_GitHubFetchHeader':
+        assert isinstance(obj, dict)
+        name = from_str(obj.get("name"))
+        value = from_str(obj.get("value"))
+        return _GitHubFetchHeader(name, value)
+
+    def to_dict(self) -> dict:
+        result: dict = {}
+        result["name"] = from_str(self.name)
+        result["value"] = from_str(self.value)
+        return result
+
+# Experimental: this type is part of an experimental API and may change or be removed.
+# Internal: this type is an internal SDK API and is not part of the public surface.
+@dataclass
+class _GitHubFetchHTTPError:
+    """A user-facing HTTP failure formatted in the runtime.
+
+    Formatted non-success response for a named operation.
+    """
+    message: str
+    """Complete user-facing error text."""
+
+    response_body_json: str | None = None
+    """Parsed response body serialized as JSON, when available."""
+
+    @staticmethod
+    def from_dict(obj: Any) -> '_GitHubFetchHTTPError':
+        assert isinstance(obj, dict)
+        message = from_str(obj.get("message"))
+        response_body_json = from_union([from_str, from_none], obj.get("responseBodyJson"))
+        return _GitHubFetchHTTPError(message, response_body_json)
+
+    def to_dict(self) -> dict:
+        result: dict = {}
+        result["message"] = from_str(self.message)
+        if self.response_body_json is not None:
+            result["responseBodyJson"] = from_union([from_str, from_none], self.response_body_json)
+        return result
+
+# Experimental: this type is part of an experimental API and may change or be removed.
+# Internal: this type is an internal SDK API and is not part of the public surface.
+class _GitHubFetchOperation(Enum):
+    """A runtime-owned GitHub or Copilot operation.
+
+    The operation to execute.
+    """
+    BRANCH_EXISTS = "branch-exists"
+    JOB_CREATE = "job-create"
+    JOB_STATUS = "job-status"
+    PULL_REQUEST = "pull-request"
+    PULL_REQUESTS_GRAPHQL = "pull-requests-graphql"
+    PULL_REQUEST_FILES = "pull-request-files"
+    REPOSITORY_ACCESS = "repository-access"
+    SESSIONS_LIST = "sessions-list"
+
+# Experimental: this type is part of an experimental API and may change or be removed.
+@dataclass
+class GitHubFetchPinnedAddress:
+    """A pre-resolved address for a GitHub request."""
+
+    address: str
+    """Address the network transport must use."""
+
+    @staticmethod
+    def from_dict(obj: Any) -> 'GitHubFetchPinnedAddress':
+        assert isinstance(obj, dict)
+        address = from_str(obj.get("address"))
+        return GitHubFetchPinnedAddress(address)
+
+    def to_dict(self) -> dict:
+        result: dict = {}
+        result["address"] = from_str(self.address)
+        return result
+
+# Experimental: this type is part of an experimental API and may change or be removed.
+@dataclass
+class GitHubFetchProxyEnvironment:
+    """Proxy environment for one authenticated GitHub request.
+
+    Explicit proxy environment. Omission uses the process environment.
+    """
+    http_proxy: str | None = None
+    """Proxy for HTTP requests."""
+
+    https_proxy: str | None = None
+    """Proxy for HTTPS requests."""
+
+    no_proxy: str | None = None
+    """Hosts that bypass the proxy."""
+
+    @staticmethod
+    def from_dict(obj: Any) -> 'GitHubFetchProxyEnvironment':
+        assert isinstance(obj, dict)
+        http_proxy = from_union([from_str, from_none], obj.get("httpProxy"))
+        https_proxy = from_union([from_str, from_none], obj.get("httpsProxy"))
+        no_proxy = from_union([from_str, from_none], obj.get("noProxy"))
+        return GitHubFetchProxyEnvironment(http_proxy, https_proxy, no_proxy)
+
+    def to_dict(self) -> dict:
+        result: dict = {}
+        if self.http_proxy is not None:
+            result["httpProxy"] = from_union([from_str, from_none], self.http_proxy)
+        if self.https_proxy is not None:
+            result["httpsProxy"] = from_union([from_str, from_none], self.https_proxy)
+        if self.no_proxy is not None:
+            result["noProxy"] = from_union([from_str, from_none], self.no_proxy)
+        return result
+
+# Experimental: this type is part of an experimental API and may change or be removed.
+# Internal: this type is an internal SDK API and is not part of the public surface.
+@dataclass
+class _GitHubFetchRetryConfig:
+    """Optional retry overrides.
+
+    Optional overrides for the runtime retry policy.
+    """
+    backoff_factor: float | None = None
+    """Delay multiplier; the runtime default is two."""
+
+    default_retry_delay_seconds: float | None = None
+    """Initial retry delay; the runtime default is five seconds."""
+
+    enable_circuit_breaker: bool | None = None
+    """Whether repeated failures open the runtime circuit breaker. Defaults to true."""
+
+    max_retries: int | None = None
+    """Maximum retries; the runtime default is five."""
+
+    @staticmethod
+    def from_dict(obj: Any) -> '_GitHubFetchRetryConfig':
+        assert isinstance(obj, dict)
+        backoff_factor = from_union([from_float, from_none], obj.get("backoffFactor"))
+        default_retry_delay_seconds = from_union([from_float, from_none], obj.get("defaultRetryDelaySeconds"))
+        enable_circuit_breaker = from_union([from_bool, from_none], obj.get("enableCircuitBreaker"))
+        max_retries = from_union([from_int, from_none], obj.get("maxRetries"))
+        return _GitHubFetchRetryConfig(backoff_factor, default_retry_delay_seconds, enable_circuit_breaker, max_retries)
+
+    def to_dict(self) -> dict:
+        result: dict = {}
+        if self.backoff_factor is not None:
+            result["backoffFactor"] = from_union([to_float, from_none], self.backoff_factor)
+        if self.default_retry_delay_seconds is not None:
+            result["defaultRetryDelaySeconds"] = from_union([to_float, from_none], self.default_retry_delay_seconds)
+        if self.enable_circuit_breaker is not None:
+            result["enableCircuitBreaker"] = from_union([from_bool, from_none], self.enable_circuit_breaker)
+        if self.max_retries is not None:
+            result["maxRetries"] = from_union([from_int, from_none], self.max_retries)
+        return result
+
+# Experimental: this type is part of an experimental API and may change or be removed.
+# Internal: this type is an internal SDK API and is not part of the public surface.
+@dataclass
+class _GitHubFetchRequestID:
+    """One registered GitHub request, shared by execution and cancellation."""
+
+    request_id: int
+    """One fresh id from `gitHubFetch.allocateRequestId`."""
+
+    @staticmethod
+    def from_dict(obj: Any) -> '_GitHubFetchRequestID':
+        assert isinstance(obj, dict)
+        request_id = from_int(obj.get("requestId"))
+        return _GitHubFetchRequestID(request_id)
+
+    def to_dict(self) -> dict:
+        result: dict = {}
+        result["requestId"] = from_int(self.request_id)
+        return result
+
+# Experimental: this type is part of an experimental API and may change or be removed.
+class GitHubFetchResultKind(Enum):
+    CIRCUIT_BREAKER = "circuit-breaker"
+    FAILED = "failed"
+    PROXY_RESPONSE = "proxy-response"
+    RESPONSE = "response"
+
+# Experimental: this type is part of an experimental API and may change or be removed.
+# Internal: this type is an internal SDK API and is not part of the public surface.
 @dataclass
 class _GitHubOwnerOption:
     """A GitHub login the authenticated user may act as: their own account, or an organization
@@ -6103,6 +7323,294 @@ class _GitHubOwnersRequestIDResult:
 # Experimental: this type is part of an experimental API and may change or be removed.
 # Internal: this type is an internal SDK API and is not part of the public surface.
 @dataclass
+class _GitHubReleaseAbandonRequestParams:
+    """An unused release allocation that this caller will never dispatch. This is separate from
+    cancellation before a request arrives.
+    """
+    request_id: int
+    """The unused request id owned by this connection."""
+
+    @staticmethod
+    def from_dict(obj: Any) -> '_GitHubReleaseAbandonRequestParams':
+        assert isinstance(obj, dict)
+        request_id = from_int(obj.get("requestId"))
+        return _GitHubReleaseAbandonRequestParams(request_id)
+
+    def to_dict(self) -> dict:
+        result: dict = {}
+        result["requestId"] = from_int(self.request_id)
+        return result
+
+# Experimental: this type is part of an experimental API and may change or be removed.
+# Internal: this type is an internal SDK API and is not part of the public surface.
+@dataclass
+class _GitHubReleaseAbandonRequestResult:
+    """Whether the runtime retired an unused allocation without affecting active work."""
+
+    abandoned: bool
+    """True only when this connection owned an unclaimed allocation with no active guard. False
+    for active, foreign, unknown or previously retired ids. A successful abandonment prevents
+    any later use of that id.
+    """
+
+    @staticmethod
+    def from_dict(obj: Any) -> '_GitHubReleaseAbandonRequestResult':
+        assert isinstance(obj, dict)
+        abandoned = from_bool(obj.get("abandoned"))
+        return _GitHubReleaseAbandonRequestResult(abandoned)
+
+    def to_dict(self) -> dict:
+        result: dict = {}
+        result["abandoned"] = from_bool(self.abandoned)
+        return result
+
+# Experimental: this type is part of an experimental API and may change or be removed.
+# Internal: this type is an internal SDK API and is not part of the public surface.
+@dataclass
+class _GitHubReleaseCancelRequest:
+    """The release lookup or asset download to abandon."""
+
+    request_id: int
+    """Request id the lookup or download was started with."""
+
+    @staticmethod
+    def from_dict(obj: Any) -> '_GitHubReleaseCancelRequest':
+        assert isinstance(obj, dict)
+        request_id = from_int(obj.get("requestId"))
+        return _GitHubReleaseCancelRequest(request_id)
+
+    def to_dict(self) -> dict:
+        result: dict = {}
+        result["requestId"] = from_int(self.request_id)
+        return result
+
+# Experimental: this type is part of an experimental API and may change or be removed.
+# Internal: this type is an internal SDK API and is not part of the public surface.
+@dataclass
+class _GitHubReleaseCancelResult:
+    """Whether the cancel reached live work."""
+
+    canceled: bool
+    """True when the cancel reached a registered lookup or download; that call's own result
+    still says how it ended. False when the id names none, which is the normal answer for
+    work that already finished.
+    """
+
+    @staticmethod
+    def from_dict(obj: Any) -> '_GitHubReleaseCancelResult':
+        assert isinstance(obj, dict)
+        canceled = from_bool(obj.get("canceled"))
+        return _GitHubReleaseCancelResult(canceled)
+
+    def to_dict(self) -> dict:
+        result: dict = {}
+        result["canceled"] = from_bool(self.canceled)
+        return result
+
+# Experimental: this type is part of an experimental API and may change or be removed.
+# Internal: this type is an internal SDK API and is not part of the public surface.
+@dataclass
+class _GitHubReleaseDownloadAssetRequest:
+    """Which release asset to download, the credential to download it under, and the request id
+    that makes the download cancellable.
+    """
+    asset_url: str
+    """The asset's `browser_download_url` from the release JSON: an HTTPS release download URL
+    of a repository that `gitHubRelease.lookup` serves.
+    """
+    request_id: int
+    """Request id from `gitHubRelease.allocateRequestId`. An id that was never registered, or
+    one already used, is refused rather than silently running uncancellable.
+    """
+    auth_info: Any = None
+    """The credential the download runs under, carried opaquely because its shape is the host's
+    own and the runtime only resolves a token from it. No credential travels: this selects
+    one the runtime already holds. Omitted when the caller has no credential, which still
+    succeeds against the public release repository at a lower rate limit.
+    """
+    expected_sha256: str | None = None
+    """Expected SHA-256 of the asset: 64 hex digits in either case, or the release asset's
+    `digest` value as is (`sha256:` and the hex digits). When given and the downloaded bytes
+    differ, the file is removed and the result is `digest-mismatch`.
+    """
+    snapshot_request_id: int | None = None
+    """Snapshot request id from this connection. The download retains that snapshot's original
+    credential source instead of authInfo. Missing, foreign, canceled, or revoked references
+    fail without fallback. Omission preserves ordinary downloads. The download still uses its
+    own requestId for progress and cancellation.
+    """
+
+    @staticmethod
+    def from_dict(obj: Any) -> '_GitHubReleaseDownloadAssetRequest':
+        assert isinstance(obj, dict)
+        asset_url = from_str(obj.get("assetUrl"))
+        request_id = from_int(obj.get("requestId"))
+        auth_info = obj.get("authInfo")
+        expected_sha256 = from_union([from_str, from_none], obj.get("expectedSha256"))
+        snapshot_request_id = from_union([from_int, from_none], obj.get("snapshotRequestId"))
+        return _GitHubReleaseDownloadAssetRequest(asset_url, request_id, auth_info, expected_sha256, snapshot_request_id)
+
+    def to_dict(self) -> dict:
+        result: dict = {}
+        result["assetUrl"] = from_str(self.asset_url)
+        result["requestId"] = from_int(self.request_id)
+        if self.auth_info is not None:
+            result["authInfo"] = self.auth_info
+        if self.expected_sha256 is not None:
+            result["expectedSha256"] = from_union([from_str, from_none], self.expected_sha256)
+        if self.snapshot_request_id is not None:
+            result["snapshotRequestId"] = from_union([from_int, from_none], self.snapshot_request_id)
+        return result
+
+# Experimental: this type is part of an experimental API and may change or be removed.
+# Internal: this type is an internal SDK API and is not part of the public surface.
+class _GitHubReleaseDownloadKind(Enum):
+    """How the download ended.
+
+    How an asset download ended. A caller tells a refused response from a transport failure
+    or a cancellation by this alone, without parsing `message`.
+    """
+    CANCELLED = "cancelled"
+    DIGEST_MISMATCH = "digest-mismatch"
+    DOWNLOADED = "downloaded"
+    FAILED = "failed"
+    HTTP_ERROR = "http-error"
+
+# Experimental: this type is part of an experimental API and may change or be removed.
+# Internal: this type is an internal SDK API and is not part of the public surface.
+@dataclass
+class _GitHubReleaseDownloadProgressRequest:
+    """The download whose progress to report."""
+
+    request_id: int
+    """Request id the download was started with."""
+
+    @staticmethod
+    def from_dict(obj: Any) -> '_GitHubReleaseDownloadProgressRequest':
+        assert isinstance(obj, dict)
+        request_id = from_int(obj.get("requestId"))
+        return _GitHubReleaseDownloadProgressRequest(request_id)
+
+    def to_dict(self) -> dict:
+        result: dict = {}
+        result["requestId"] = from_int(self.request_id)
+        return result
+
+# Experimental: this type is part of an experimental API and may change or be removed.
+# Internal: this type is an internal SDK API and is not part of the public surface.
+@dataclass
+class _GitHubReleaseDownloadProgressResult:
+    """Byte progress of a running download."""
+
+    received_bytes: int
+    """Bytes written so far."""
+
+    total_bytes: int | None = None
+    """Size the server announced for the body. Omitted when it announced none."""
+
+    @staticmethod
+    def from_dict(obj: Any) -> '_GitHubReleaseDownloadProgressResult':
+        assert isinstance(obj, dict)
+        received_bytes = from_int(obj.get("receivedBytes"))
+        total_bytes = from_union([from_int, from_none], obj.get("totalBytes"))
+        return _GitHubReleaseDownloadProgressResult(received_bytes, total_bytes)
+
+    def to_dict(self) -> dict:
+        result: dict = {}
+        result["receivedBytes"] = from_int(self.received_bytes)
+        if self.total_bytes is not None:
+            result["totalBytes"] = from_union([from_int, from_none], self.total_bytes)
+        return result
+
+# Experimental: this type is part of an experimental API and may change or be removed.
+# Internal: this type is an internal SDK API and is not part of the public surface.
+class _GitHubReleaseLookupKind(Enum):
+    """How a release lookup ended. A caller tells a conclusive absence from a transport error by
+    this alone, without parsing `message`.
+
+    How the lookup ended.
+    """
+    FAILED = "failed"
+    FOUND = "found"
+    NOT_FOUND = "not-found"
+    NO_RELEASE = "no-release"
+    RATE_LIMITED = "rate-limited"
+
+# Experimental: this type is part of an experimental API and may change or be removed.
+# Internal: this type is an internal SDK API and is not part of the public surface.
+class _GitHubReleaseQuery(Enum):
+    """Which release to look up.
+
+    Which release to look up. Enumerated rather than free text because the runtime accepts
+    exactly these and rejects anything else.
+    """
+    LATEST_APP = "latest-app"
+    LATEST_PRERELEASE = "latest-prerelease"
+    LATEST_STABLE = "latest-stable"
+    RELEASE_LIST = "release-list"
+    TAG = "tag"
+
+# Experimental: this type is part of an experimental API and may change or be removed.
+# Internal: this type is an internal SDK API and is not part of the public surface.
+@dataclass
+class _GitHubReleaseRequestIDResult:
+    """A freshly registered request id. Registering it before the work starts is what lets a
+    cancel that races the request still find something to cancel.
+    """
+    request_id: int
+    """Request id to pass to `gitHubRelease.lookup` or `gitHubRelease.downloadAsset` and, to
+    abandon the work, `gitHubRelease.cancel`.
+    """
+
+    @staticmethod
+    def from_dict(obj: Any) -> '_GitHubReleaseRequestIDResult':
+        assert isinstance(obj, dict)
+        request_id = from_int(obj.get("requestId"))
+        return _GitHubReleaseRequestIDResult(request_id)
+
+    def to_dict(self) -> dict:
+        result: dict = {}
+        result["requestId"] = from_int(self.request_id)
+        return result
+
+# Experimental: this type is part of an experimental API and may change or be removed.
+# Internal: this type is an internal SDK API and is not part of the public surface.
+@dataclass
+class _GitHubReleaseSnapshotAsset:
+    """An asset in the release snapshot. GitHub field names remain unchanged."""
+
+    browser_download_url: str
+    """The published download URL."""
+
+    name: str
+    """The published asset filename."""
+
+    @staticmethod
+    def from_dict(obj: Any) -> '_GitHubReleaseSnapshotAsset':
+        assert isinstance(obj, dict)
+        browser_download_url = from_str(obj.get("browser_download_url"))
+        name = from_str(obj.get("name"))
+        return _GitHubReleaseSnapshotAsset(browser_download_url, name)
+
+    def to_dict(self) -> dict:
+        result: dict = {}
+        result["browser_download_url"] = from_str(self.browser_download_url)
+        result["name"] = from_str(self.name)
+        return result
+
+# Experimental: this type is part of an experimental API and may change or be removed.
+# Internal: this type is an internal SDK API and is not part of the public surface.
+class _GitHubReleaseUpdateChannel(Enum):
+    """The release channel used for update selection.
+
+    The original update channel.
+    """
+    PRERELEASE = "prerelease"
+    STABLE = "stable"
+
+# Experimental: this type is part of an experimental API and may change or be removed.
+# Internal: this type is an internal SDK API and is not part of the public surface.
+@dataclass
 class _GitHubRepositoryAtPathRequest:
     """Working-tree path whose owning GitHub repository should be resolved."""
 
@@ -6118,6 +7626,44 @@ class _GitHubRepositoryAtPathRequest:
     def to_dict(self) -> dict:
         result: dict = {}
         result["path"] = from_str(self.path)
+        return result
+
+# Experimental: this type is part of an experimental API and may change or be removed.
+# Internal: this type is an internal SDK API and is not part of the public surface.
+@dataclass
+class _GitHubRepositoryByIDRequest:
+    """Selects a GitHub repository by its numeric repository id, and the credential to look it
+    up under.
+    """
+    auth_info: Any
+    """The credential the lookup runs under, carried opaquely because its shape is the host's
+    own and the runtime only resolves a token and a GitHub host from it. Required: the
+    endpoint answers per-account, so a repository invisible to this credential is reported as
+    absent rather than refused.
+    """
+    repository_id: int
+    """GitHub's own numeric identifier for the repository, as carried by API payloads that
+    reference a repository by id rather than by owner and name.
+    """
+    auth_context_id: str | None = None
+    """Selects which stored credential to resolve when the host holds more than one. Omit it to
+    resolve the default for the supplied `authInfo`.
+    """
+
+    @staticmethod
+    def from_dict(obj: Any) -> '_GitHubRepositoryByIDRequest':
+        assert isinstance(obj, dict)
+        auth_info = obj.get("authInfo")
+        repository_id = from_int(obj.get("repositoryId"))
+        auth_context_id = from_union([from_str, from_none], obj.get("authContextId"))
+        return _GitHubRepositoryByIDRequest(auth_info, repository_id, auth_context_id)
+
+    def to_dict(self) -> dict:
+        result: dict = {}
+        result["authInfo"] = self.auth_info
+        result["repositoryId"] = from_int(self.repository_id)
+        if self.auth_context_id is not None:
+            result["authContextId"] = from_union([from_str, from_none], self.auth_context_id)
         return result
 
 # Experimental: this type is part of an experimental API and may change or be removed.
@@ -9516,6 +11062,12 @@ class MarketplaceInfo:
     managed: bool | None = None
     """Whether enterprise managed settings provide and control this marketplace entry."""
 
+    team: bool | None = None
+    """True when the signed-in account's GitHub Team provides this marketplace and no user,
+    repository, or default entry of the same name exists. Team marketplaces are not
+    persisted, so they cannot be removed.
+    """
+
     @staticmethod
     def from_dict(obj: Any) -> 'MarketplaceInfo':
         assert isinstance(obj, dict)
@@ -9524,7 +11076,8 @@ class MarketplaceInfo:
         available = from_union([from_bool, from_none], obj.get("available"))
         is_default = from_union([from_bool, from_none], obj.get("isDefault"))
         managed = from_union([from_bool, from_none], obj.get("managed"))
-        return MarketplaceInfo(name, source, available, is_default, managed)
+        team = from_union([from_bool, from_none], obj.get("team"))
+        return MarketplaceInfo(name, source, available, is_default, managed, team)
 
     def to_dict(self) -> dict:
         result: dict = {}
@@ -9536,6 +11089,8 @@ class MarketplaceInfo:
             result["isDefault"] = from_union([from_bool, from_none], self.is_default)
         if self.managed is not None:
             result["managed"] = from_union([from_bool, from_none], self.managed)
+        if self.team is not None:
+            result["team"] = from_union([from_bool, from_none], self.team)
         return result
 
 # Experimental: this type is part of an experimental API and may change or be removed.
@@ -26000,6 +27555,151 @@ class Tool:
         return result
 
 # Experimental: this type is part of an experimental API and may change or be removed.
+# Internal: this type is an internal SDK API and is not part of the public surface.
+@dataclass
+class _CafeMetricsStartRequest:
+    """Versions and provider configuration for CAFE."""
+
+    app_version: str
+    """Effective comparison version and appVersion tag."""
+
+    build_version: str
+    """Raw package build version."""
+
+    custom_provider_configured: bool
+    """Whether the host uses a custom model provider."""
+
+    embedded_package_identity: PackageIdentity | None = None
+    """Embedded package identity. Omission enables the unbundled development fallback."""
+
+    @staticmethod
+    def from_dict(obj: Any) -> '_CafeMetricsStartRequest':
+        assert isinstance(obj, dict)
+        app_version = from_str(obj.get("appVersion"))
+        build_version = from_str(obj.get("buildVersion"))
+        custom_provider_configured = from_bool(obj.get("customProviderConfigured"))
+        embedded_package_identity = from_union([PackageIdentity, from_none], obj.get("embeddedPackageIdentity"))
+        return _CafeMetricsStartRequest(app_version, build_version, custom_provider_configured, embedded_package_identity)
+
+    def to_dict(self) -> dict:
+        result: dict = {}
+        result["appVersion"] = from_str(self.app_version)
+        result["buildVersion"] = from_str(self.build_version)
+        result["customProviderConfigured"] = from_bool(self.custom_provider_configured)
+        if self.embedded_package_identity is not None:
+            result["embeddedPackageIdentity"] = from_union([lambda x: to_enum(PackageIdentity, x), from_none], self.embedded_package_identity)
+        return result
+
+# Experimental: this type is part of an experimental API and may change or be removed.
+# Internal: this type is an internal SDK API and is not part of the public surface.
+@dataclass
+class _CafeMetricsRecordResumeResultRequest:
+    """Terminal result of one resume attempt."""
+
+    outcome: _CafeMetricsResumeOutcome
+    """Terminal outcome."""
+
+    reason: _CafeMetricsResumeReason
+    """Bounded result classification."""
+
+    recovered: bool
+    """Whether an event-log recovery projection was used."""
+
+    stage: _CafeMetricsResumeStage
+    """Last phase reached."""
+
+    @staticmethod
+    def from_dict(obj: Any) -> '_CafeMetricsRecordResumeResultRequest':
+        assert isinstance(obj, dict)
+        outcome = _CafeMetricsResumeOutcome(obj.get("outcome"))
+        reason = _CafeMetricsResumeReason(obj.get("reason"))
+        recovered = from_bool(obj.get("recovered"))
+        stage = _CafeMetricsResumeStage(obj.get("stage"))
+        return _CafeMetricsRecordResumeResultRequest(outcome, reason, recovered, stage)
+
+    def to_dict(self) -> dict:
+        result: dict = {}
+        result["outcome"] = to_enum(_CafeMetricsResumeOutcome, self.outcome)
+        result["reason"] = to_enum(_CafeMetricsResumeReason, self.reason)
+        result["recovered"] = from_bool(self.recovered)
+        result["stage"] = to_enum(_CafeMetricsResumeStage, self.stage)
+        return result
+
+# Experimental: this type is part of an experimental API and may change or be removed.
+# Internal: this type is an internal SDK API and is not part of the public surface.
+@dataclass
+class _CafeMetricsResolveAdmissionRequest:
+    """Immutable release lookup result."""
+
+    kind: OutcomeEnum
+    lookup_duration_ms: float
+    """Finite non-negative lookup duration in milliseconds."""
+
+    releases: list[_CafeMetricsRelease] | None = None
+    """Release metadata from the lookup shared with auto-update."""
+
+    @staticmethod
+    def from_dict(obj: Any) -> '_CafeMetricsResolveAdmissionRequest':
+        assert isinstance(obj, dict)
+        kind = OutcomeEnum(obj.get("kind"))
+        lookup_duration_ms = from_float(obj.get("lookupDurationMs"))
+        releases = from_union([lambda x: from_list(_CafeMetricsRelease.from_dict, x), from_none], obj.get("releases"))
+        return _CafeMetricsResolveAdmissionRequest(kind, lookup_duration_ms, releases)
+
+    def to_dict(self) -> dict:
+        result: dict = {}
+        result["kind"] = to_enum(OutcomeEnum, self.kind)
+        result["lookupDurationMs"] = to_float(self.lookup_duration_ms)
+        if self.releases is not None:
+            result["releases"] = from_union([lambda x: from_list(lambda x: to_class(_CafeMetricsRelease, x), x), from_none], self.releases)
+        return result
+
+# Experimental: this type is part of an experimental API and may change or be removed.
+# Internal: this type is an internal SDK API and is not part of the public surface.
+@dataclass
+class _CafeMetricsResolveAdmissionResult:
+    """Admission result."""
+
+    kind: CafeMetricsResolveAdmissionResultKind
+
+    @staticmethod
+    def from_dict(obj: Any) -> '_CafeMetricsResolveAdmissionResult':
+        assert isinstance(obj, dict)
+        kind = CafeMetricsResolveAdmissionResultKind(obj.get("kind"))
+        return _CafeMetricsResolveAdmissionResult(kind)
+
+    def to_dict(self) -> dict:
+        result: dict = {}
+        result["kind"] = to_enum(CafeMetricsResolveAdmissionResultKind, self.kind)
+        return result
+
+# Experimental: this type is part of an experimental API and may change or be removed.
+# Internal: this type is an internal SDK API and is not part of the public surface.
+@dataclass
+class _CafeMetricsStartResult:
+    """CAFE startup result."""
+
+    started: bool
+    """Whether this call started CAFE."""
+
+    reason: _CafeMetricsStartRefusal | None = None
+    """Refusal reason, absent on success."""
+
+    @staticmethod
+    def from_dict(obj: Any) -> '_CafeMetricsStartResult':
+        assert isinstance(obj, dict)
+        started = from_bool(obj.get("started"))
+        reason = from_union([_CafeMetricsStartRefusal, from_none], obj.get("reason"))
+        return _CafeMetricsStartResult(started, reason)
+
+    def to_dict(self) -> dict:
+        result: dict = {}
+        result["started"] = from_bool(self.started)
+        if self.reason is not None:
+            result["reason"] = from_union([lambda x: to_enum(_CafeMetricsStartRefusal, x), from_none], self.reason)
+        return result
+
+# Experimental: this type is part of an experimental API and may change or be removed.
 @dataclass
 class CardDigest:
     """Semantic digest of a strictly parsed and schema-validated JSON MCP card. Both URL-backed
@@ -27802,6 +29502,34 @@ class AccountAuthInfo:
         result["host"] = from_str(self.host)
         result["login"] = from_str(self.login)
         result["type"] = self.type
+        return result
+
+# Experimental: this type is part of an experimental API and may change or be removed.
+# Internal: this type is an internal SDK API and is not part of the public surface.
+@dataclass
+class _AccountGetHostURLRequest:
+    """Configured names of the GitHub host to resolve."""
+
+    copilot_gh_host: str | None = None
+    """Host from the Copilot-specific setting, which wins when both are set. A bare hostname is
+    normalized to `https://`.
+    """
+    gh_host: str | None = None
+    """Host from the general GitHub CLI setting, used when the Copilot-specific one is absent."""
+
+    @staticmethod
+    def from_dict(obj: Any) -> '_AccountGetHostURLRequest':
+        assert isinstance(obj, dict)
+        copilot_gh_host = from_union([from_str, from_none], obj.get("copilotGhHost"))
+        gh_host = from_union([from_str, from_none], obj.get("ghHost"))
+        return _AccountGetHostURLRequest(copilot_gh_host, gh_host)
+
+    def to_dict(self) -> dict:
+        result: dict = {}
+        if self.copilot_gh_host is not None:
+            result["copilotGhHost"] = from_union([from_str, from_none], self.copilot_gh_host)
+        if self.gh_host is not None:
+            result["ghHost"] = from_union([from_str, from_none], self.gh_host)
         return result
 
 # Experimental: this type is part of an experimental API and may change or be removed.
@@ -29794,6 +31522,283 @@ class _FeatureFlagMetadata:
 # Experimental: this type is part of an experimental API and may change or be removed.
 # Internal: this type is an internal SDK API and is not part of the public surface.
 @dataclass
+class _GitHubPullRequestCheck:
+    """One check reported against a pull request's head commit."""
+
+    name: str
+    """Name the check reports itself under."""
+
+    status: _GitHubPullRequestCheckStatus
+    """Rolled-up state of the check."""
+
+    @staticmethod
+    def from_dict(obj: Any) -> '_GitHubPullRequestCheck':
+        assert isinstance(obj, dict)
+        name = from_str(obj.get("name"))
+        status = _GitHubPullRequestCheckStatus(obj.get("status"))
+        return _GitHubPullRequestCheck(name, status)
+
+    def to_dict(self) -> dict:
+        result: dict = {}
+        result["name"] = from_str(self.name)
+        result["status"] = to_enum(_GitHubPullRequestCheckStatus, self.status)
+        return result
+
+# Experimental: this type is part of an experimental API and may change or be removed.
+# Internal: this type is an internal SDK API and is not part of the public surface.
+@dataclass
+class _GitHubFetchOperationRequest:
+    """Arguments for a named authenticated operation."""
+
+    operation: _GitHubFetchOperation
+    """The operation to execute."""
+
+    params: dict[str, str]
+    """Named operation arguments, such as owner, repo, or jobId."""
+
+    request_id: int
+    """A fresh request id."""
+
+    auth_owner_id: str | None = None
+    """Opaque selector for a live host-owned credential binding. Only the owning host connection
+    may use it.
+    """
+    body_json: str | None = None
+    """JSON request body, preserved as supplied."""
+
+    session_id: str | None = None
+    """Session whose auth manager to use. Omission selects the process manager."""
+
+    @staticmethod
+    def from_dict(obj: Any) -> '_GitHubFetchOperationRequest':
+        assert isinstance(obj, dict)
+        operation = _GitHubFetchOperation(obj.get("operation"))
+        params = from_dict(from_str, obj.get("params"))
+        request_id = from_int(obj.get("requestId"))
+        auth_owner_id = from_union([from_str, from_none], obj.get("authOwnerId"))
+        body_json = from_union([from_str, from_none], obj.get("bodyJson"))
+        session_id = from_union([from_str, from_none], obj.get("sessionId"))
+        return _GitHubFetchOperationRequest(operation, params, request_id, auth_owner_id, body_json, session_id)
+
+    def to_dict(self) -> dict:
+        result: dict = {}
+        result["operation"] = to_enum(_GitHubFetchOperation, self.operation)
+        result["params"] = from_dict(from_str, self.params)
+        result["requestId"] = from_int(self.request_id)
+        if self.auth_owner_id is not None:
+            result["authOwnerId"] = from_union([from_str, from_none], self.auth_owner_id)
+        if self.body_json is not None:
+            result["bodyJson"] = from_union([from_str, from_none], self.body_json)
+        if self.session_id is not None:
+            result["sessionId"] = from_union([from_str, from_none], self.session_id)
+        return result
+
+# Experimental: this type is part of an experimental API and may change or be removed.
+# Internal: this type is an internal SDK API and is not part of the public surface.
+@dataclass
+class _GitHubFetchRequest:
+    """A GitHub API request without caller-supplied auth identity or credential fields."""
+
+    api_name: str
+    """API label used in runtime diagnostics."""
+
+    headers: list[_GitHubFetchHeader]
+    """Caller-supplied HTTP headers."""
+
+    method: str
+    """HTTP method."""
+
+    request_id: int
+    """A fresh request id."""
+
+    url: str
+    """Absolute URL on the resolved GitHub API origin."""
+
+    allow_localhost: bool | None = None
+    """Whether the request permits loopback addresses. Defaults to true."""
+
+    auth_owner_id: str | None = None
+    """Opaque selector for a live host-owned credential binding. Only the owning host connection
+    may use it.
+    """
+    body_base64: str | None = None
+    """Request bytes encoded as base64. Absent for a request without a body."""
+
+    body_limit_bytes: int | None = None
+    """Maximum response body size in bytes."""
+
+    disable_connection_reuse: bool | None = None
+    """Whether the request bypasses idle connections."""
+
+    pinned_addresses: list[GitHubFetchPinnedAddress] | None = None
+    """Addresses to pin for this request, without another DNS lookup."""
+
+    proxy_env: GitHubFetchProxyEnvironment | None = None
+    """Explicit proxy environment. Omission uses the process environment."""
+
+    proxy_negotiate_auth: bool | None = None
+    """Whether the proxy uses Negotiate authentication."""
+
+    proxy_negotiate_spn: str | None = None
+    """Optional service principal for proxy Negotiate authentication."""
+
+    read_timeout_ms: int | None = None
+    """Response read timeout in milliseconds. Defaults to 700000."""
+
+    redirect: str | None = None
+    """Redirect behavior. Defaults to following redirects."""
+
+    retry_options: _GitHubFetchRetryConfig | None = None
+    """Optional retry overrides."""
+
+    session_id: str | None = None
+    """Session whose auth manager to use. Omission selects the process manager."""
+
+    timeout_ms: int | None = None
+    """Total request timeout in milliseconds."""
+
+    @staticmethod
+    def from_dict(obj: Any) -> '_GitHubFetchRequest':
+        assert isinstance(obj, dict)
+        api_name = from_str(obj.get("apiName"))
+        headers = from_list(_GitHubFetchHeader.from_dict, obj.get("headers"))
+        method = from_str(obj.get("method"))
+        request_id = from_int(obj.get("requestId"))
+        url = from_str(obj.get("url"))
+        allow_localhost = from_union([from_bool, from_none], obj.get("allowLocalhost"))
+        auth_owner_id = from_union([from_str, from_none], obj.get("authOwnerId"))
+        body_base64 = from_union([from_str, from_none], obj.get("bodyBase64"))
+        body_limit_bytes = from_union([from_int, from_none], obj.get("bodyLimitBytes"))
+        disable_connection_reuse = from_union([from_bool, from_none], obj.get("disableConnectionReuse"))
+        pinned_addresses = from_union([lambda x: from_list(GitHubFetchPinnedAddress.from_dict, x), from_none], obj.get("pinnedAddresses"))
+        proxy_env = from_union([GitHubFetchProxyEnvironment.from_dict, from_none], obj.get("proxyEnv"))
+        proxy_negotiate_auth = from_union([from_bool, from_none], obj.get("proxyNegotiateAuth"))
+        proxy_negotiate_spn = from_union([from_str, from_none], obj.get("proxyNegotiateSpn"))
+        read_timeout_ms = from_union([from_int, from_none], obj.get("readTimeoutMs"))
+        redirect = from_union([from_str, from_none], obj.get("redirect"))
+        retry_options = from_union([_GitHubFetchRetryConfig.from_dict, from_none], obj.get("retryOptions"))
+        session_id = from_union([from_str, from_none], obj.get("sessionId"))
+        timeout_ms = from_union([from_int, from_none], obj.get("timeoutMs"))
+        return _GitHubFetchRequest(api_name, headers, method, request_id, url, allow_localhost, auth_owner_id, body_base64, body_limit_bytes, disable_connection_reuse, pinned_addresses, proxy_env, proxy_negotiate_auth, proxy_negotiate_spn, read_timeout_ms, redirect, retry_options, session_id, timeout_ms)
+
+    def to_dict(self) -> dict:
+        result: dict = {}
+        result["apiName"] = from_str(self.api_name)
+        result["headers"] = from_list(lambda x: to_class(_GitHubFetchHeader, x), self.headers)
+        result["method"] = from_str(self.method)
+        result["requestId"] = from_int(self.request_id)
+        result["url"] = from_str(self.url)
+        if self.allow_localhost is not None:
+            result["allowLocalhost"] = from_union([from_bool, from_none], self.allow_localhost)
+        if self.auth_owner_id is not None:
+            result["authOwnerId"] = from_union([from_str, from_none], self.auth_owner_id)
+        if self.body_base64 is not None:
+            result["bodyBase64"] = from_union([from_str, from_none], self.body_base64)
+        if self.body_limit_bytes is not None:
+            result["bodyLimitBytes"] = from_union([from_int, from_none], self.body_limit_bytes)
+        if self.disable_connection_reuse is not None:
+            result["disableConnectionReuse"] = from_union([from_bool, from_none], self.disable_connection_reuse)
+        if self.pinned_addresses is not None:
+            result["pinnedAddresses"] = from_union([lambda x: from_list(lambda x: to_class(GitHubFetchPinnedAddress, x), x), from_none], self.pinned_addresses)
+        if self.proxy_env is not None:
+            result["proxyEnv"] = from_union([lambda x: to_class(GitHubFetchProxyEnvironment, x), from_none], self.proxy_env)
+        if self.proxy_negotiate_auth is not None:
+            result["proxyNegotiateAuth"] = from_union([from_bool, from_none], self.proxy_negotiate_auth)
+        if self.proxy_negotiate_spn is not None:
+            result["proxyNegotiateSpn"] = from_union([from_str, from_none], self.proxy_negotiate_spn)
+        if self.read_timeout_ms is not None:
+            result["readTimeoutMs"] = from_union([from_int, from_none], self.read_timeout_ms)
+        if self.redirect is not None:
+            result["redirect"] = from_union([from_str, from_none], self.redirect)
+        if self.retry_options is not None:
+            result["retryOptions"] = from_union([lambda x: to_class(_GitHubFetchRetryConfig, x), from_none], self.retry_options)
+        if self.session_id is not None:
+            result["sessionId"] = from_union([from_str, from_none], self.session_id)
+        if self.timeout_ms is not None:
+            result["timeoutMs"] = from_union([from_int, from_none], self.timeout_ms)
+        return result
+
+# Experimental: this type is part of an experimental API and may change or be removed.
+# Internal: this type is an internal SDK API and is not part of the public surface.
+@dataclass
+class _GitHubFetchResult:
+    """The HTTP response or a classified request failure."""
+
+    kind: GitHubFetchResultKind
+    body_base64: str | None = None
+    """Complete response bytes encoded as base64."""
+
+    headers: list[_GitHubFetchHeader] | None = None
+    """Response headers."""
+
+    http_error: _GitHubFetchHTTPError | None = None
+    """Formatted non-success response for a named operation."""
+
+    status: int | None = None
+    """HTTP status, including non-success responses.
+
+    HTTP proxy status.
+    """
+    status_text: str | None = None
+    """HTTP status text."""
+
+    url: str | None = None
+    """Final response URL."""
+
+    host: str | None = None
+    """Host whose breaker is open."""
+
+    message: str | None = None
+    """Complete circuit-breaker message.
+
+    Complete proxy failure message.
+
+    Authentication, transport, or cancellation error.
+    """
+    time_until_retry_ms: int | None = None
+    """Remaining backoff in milliseconds."""
+
+    @staticmethod
+    def from_dict(obj: Any) -> '_GitHubFetchResult':
+        assert isinstance(obj, dict)
+        kind = GitHubFetchResultKind(obj.get("kind"))
+        body_base64 = from_union([from_str, from_none], obj.get("bodyBase64"))
+        headers = from_union([lambda x: from_list(_GitHubFetchHeader.from_dict, x), from_none], obj.get("headers"))
+        http_error = from_union([_GitHubFetchHTTPError.from_dict, from_none], obj.get("httpError"))
+        status = from_union([from_int, from_none], obj.get("status"))
+        status_text = from_union([from_str, from_none], obj.get("statusText"))
+        url = from_union([from_str, from_none], obj.get("url"))
+        host = from_union([from_str, from_none], obj.get("host"))
+        message = from_union([from_str, from_none], obj.get("message"))
+        time_until_retry_ms = from_union([from_int, from_none], obj.get("timeUntilRetryMs"))
+        return _GitHubFetchResult(kind, body_base64, headers, http_error, status, status_text, url, host, message, time_until_retry_ms)
+
+    def to_dict(self) -> dict:
+        result: dict = {}
+        result["kind"] = to_enum(GitHubFetchResultKind, self.kind)
+        if self.body_base64 is not None:
+            result["bodyBase64"] = from_union([from_str, from_none], self.body_base64)
+        if self.headers is not None:
+            result["headers"] = from_union([lambda x: from_list(lambda x: to_class(_GitHubFetchHeader, x), x), from_none], self.headers)
+        if self.http_error is not None:
+            result["httpError"] = from_union([lambda x: to_class(_GitHubFetchHTTPError, x), from_none], self.http_error)
+        if self.status is not None:
+            result["status"] = from_union([from_int, from_none], self.status)
+        if self.status_text is not None:
+            result["statusText"] = from_union([from_str, from_none], self.status_text)
+        if self.url is not None:
+            result["url"] = from_union([from_str, from_none], self.url)
+        if self.host is not None:
+            result["host"] = from_union([from_str, from_none], self.host)
+        if self.message is not None:
+            result["message"] = from_union([from_str, from_none], self.message)
+        if self.time_until_retry_ms is not None:
+            result["timeUntilRetryMs"] = from_union([from_int, from_none], self.time_until_retry_ms)
+        return result
+
+# Experimental: this type is part of an experimental API and may change or be removed.
+# Internal: this type is an internal SDK API and is not part of the public surface.
+@dataclass
 class _GitHubOwnersListResult:
     """Outcome of an owner listing. Exactly one of `owners` and `message` is present, except
     that `throwError` reports a failure the caller is expected to raise rather than render.
@@ -29835,6 +31840,227 @@ class _GitHubOwnersListResult:
             result["throwError"] = from_union([from_str, from_none], self.throw_error)
         if self.warning is not None:
             result["warning"] = from_union([from_str, from_none], self.warning)
+        return result
+
+# Experimental: this type is part of an experimental API and may change or be removed.
+# Internal: this type is an internal SDK API and is not part of the public surface.
+@dataclass
+class _GitHubReleaseDownloadAssetResult:
+    """Outcome of an asset download. Each field is present only for the kinds its description
+    names.
+    """
+    kind: _GitHubReleaseDownloadKind
+    """How the download ended."""
+
+    message: str | None = None
+    """Why the download produced no file, phrased for a user, for `digest-mismatch` and `failed`."""
+
+    path: str | None = None
+    """Absolute path of the downloaded file, for `downloaded`. The file is alone in a fresh
+    directory that the caller deletes once it has used the file.
+    """
+    sha256: str | None = None
+    """SHA-256 of the downloaded bytes as lowercase hex, for `downloaded` and `digest-mismatch`."""
+
+    size_bytes: int | None = None
+    """Size of the downloaded file in bytes, for `downloaded`."""
+
+    status: int | None = None
+    """HTTP status of the final response, for `http-error`."""
+
+    status_text: str | None = None
+    """HTTP status text of the final response, for `http-error`."""
+
+    @staticmethod
+    def from_dict(obj: Any) -> '_GitHubReleaseDownloadAssetResult':
+        assert isinstance(obj, dict)
+        kind = _GitHubReleaseDownloadKind(obj.get("kind"))
+        message = from_union([from_str, from_none], obj.get("message"))
+        path = from_union([from_str, from_none], obj.get("path"))
+        sha256 = from_union([from_str, from_none], obj.get("sha256"))
+        size_bytes = from_union([from_int, from_none], obj.get("sizeBytes"))
+        status = from_union([from_int, from_none], obj.get("status"))
+        status_text = from_union([from_str, from_none], obj.get("statusText"))
+        return _GitHubReleaseDownloadAssetResult(kind, message, path, sha256, size_bytes, status, status_text)
+
+    def to_dict(self) -> dict:
+        result: dict = {}
+        result["kind"] = to_enum(_GitHubReleaseDownloadKind, self.kind)
+        if self.message is not None:
+            result["message"] = from_union([from_str, from_none], self.message)
+        if self.path is not None:
+            result["path"] = from_union([from_str, from_none], self.path)
+        if self.sha256 is not None:
+            result["sha256"] = from_union([from_str, from_none], self.sha256)
+        if self.size_bytes is not None:
+            result["sizeBytes"] = from_union([from_int, from_none], self.size_bytes)
+        if self.status is not None:
+            result["status"] = from_union([from_int, from_none], self.status)
+        if self.status_text is not None:
+            result["statusText"] = from_union([from_str, from_none], self.status_text)
+        return result
+
+# Experimental: this type is part of an experimental API and may change or be removed.
+# Internal: this type is an internal SDK API and is not part of the public surface.
+@dataclass
+class _GitHubReleaseLookupResult:
+    """Outcome of a release lookup. `releaseJson` is present only for `found`, and `message`
+    only for the kinds that carry an explanation.
+    """
+    kind: _GitHubReleaseLookupKind
+    """How the lookup ended."""
+
+    message: str | None = None
+    """Why the lookup produced no release, phrased for a user."""
+
+    release_json: str | None = None
+    """The release as GitHub's own JSON, verbatim. Carried as text rather than a modelled type
+    so the contract does not have to track every field of GitHub's release payload, and so a
+    caller reads the same shape the REST API documents.
+    """
+
+    @staticmethod
+    def from_dict(obj: Any) -> '_GitHubReleaseLookupResult':
+        assert isinstance(obj, dict)
+        kind = _GitHubReleaseLookupKind(obj.get("kind"))
+        message = from_union([from_str, from_none], obj.get("message"))
+        release_json = from_union([from_str, from_none], obj.get("releaseJson"))
+        return _GitHubReleaseLookupResult(kind, message, release_json)
+
+    def to_dict(self) -> dict:
+        result: dict = {}
+        result["kind"] = to_enum(_GitHubReleaseLookupKind, self.kind)
+        if self.message is not None:
+            result["message"] = from_union([from_str, from_none], self.message)
+        if self.release_json is not None:
+            result["releaseJson"] = from_union([from_str, from_none], self.release_json)
+        return result
+
+# Experimental: this type is part of an experimental API and may change or be removed.
+# Internal: this type is an internal SDK API and is not part of the public surface.
+@dataclass
+class _GitHubReleaseLookupRequest:
+    """Which release to look up, the credential to look it up under, and the request id that
+    makes the lookup cancellable.
+    """
+    query: _GitHubReleaseQuery
+    """Which release to look up."""
+
+    request_id: int
+    """Request id from `gitHubRelease.allocateRequestId`. An id that was never registered, or
+    one already used, is refused rather than silently running uncancellable.
+    """
+    auth_info: Any = None
+    """The credential the lookup runs under, carried opaquely because its shape is the host's
+    own and the runtime only resolves a token and a GitHub host from it. No credential
+    travels: this selects one the runtime already holds. Omitted when the caller has no
+    credential, which still succeeds against the public release repository at a lower rate
+    limit.
+    """
+    value: str | None = None
+    """The tag to look up. Required by the `tag` query and ignored by the others."""
+
+    @staticmethod
+    def from_dict(obj: Any) -> '_GitHubReleaseLookupRequest':
+        assert isinstance(obj, dict)
+        query = _GitHubReleaseQuery(obj.get("query"))
+        request_id = from_int(obj.get("requestId"))
+        auth_info = obj.get("authInfo")
+        value = from_union([from_str, from_none], obj.get("value"))
+        return _GitHubReleaseLookupRequest(query, request_id, auth_info, value)
+
+    def to_dict(self) -> dict:
+        result: dict = {}
+        result["query"] = to_enum(_GitHubReleaseQuery, self.query)
+        result["requestId"] = from_int(self.request_id)
+        if self.auth_info is not None:
+            result["authInfo"] = self.auth_info
+        if self.value is not None:
+            result["value"] = from_union([from_str, from_none], self.value)
+        return result
+
+# Experimental: this type is part of an experimental API and may change or be removed.
+# Internal: this type is an internal SDK API and is not part of the public surface.
+@dataclass
+class _GitHubReleaseSnapshotEntry:
+    """Release facts needed for update selection and admission. GitHub field names remain
+    unchanged.
+
+    The newest release in the selected update channel, when one exists.
+    """
+    assets: list[_GitHubReleaseSnapshotAsset]
+    """The published release assets."""
+
+    draft: bool
+    """Whether GitHub marks this release as a draft."""
+
+    prerelease: bool
+    """Whether GitHub marks this release as a prerelease."""
+
+    tag_name: str
+    """The release tag."""
+
+    @staticmethod
+    def from_dict(obj: Any) -> '_GitHubReleaseSnapshotEntry':
+        assert isinstance(obj, dict)
+        assets = from_list(_GitHubReleaseSnapshotAsset.from_dict, obj.get("assets"))
+        draft = from_bool(obj.get("draft"))
+        prerelease = from_bool(obj.get("prerelease"))
+        tag_name = from_str(obj.get("tag_name"))
+        return _GitHubReleaseSnapshotEntry(assets, draft, prerelease, tag_name)
+
+    def to_dict(self) -> dict:
+        result: dict = {}
+        result["assets"] = from_list(lambda x: to_class(_GitHubReleaseSnapshotAsset, x), self.assets)
+        result["draft"] = from_bool(self.draft)
+        result["prerelease"] = from_bool(self.prerelease)
+        result["tag_name"] = from_str(self.tag_name)
+        return result
+
+# Experimental: this type is part of an experimental API and may change or be removed.
+# Internal: this type is an internal SDK API and is not part of the public surface.
+@dataclass
+class _GitHubReleaseSnapshotRequest:
+    """Immutable options for one connection-owned release snapshot."""
+
+    build_version: str
+    """The version embedded in the caller's build."""
+
+    request_id: int
+    """An unused id from gitHubRelease.allocateRequestId. Reuse the same id and options to read
+    the same snapshot.
+    """
+    update_channel: _GitHubReleaseUpdateChannel
+    """The release channel used for update selection."""
+
+    cli_version_override: str | None = None
+    """Optional runtime version override. Invalid or noncanonical values do not replace
+    buildVersion.
+    """
+    package_identity: PackageIdentity | None = None
+    """The embedded package identity. Omission uses the existing development-version fallback
+    rule.
+    """
+
+    @staticmethod
+    def from_dict(obj: Any) -> '_GitHubReleaseSnapshotRequest':
+        assert isinstance(obj, dict)
+        build_version = from_str(obj.get("buildVersion"))
+        request_id = from_int(obj.get("requestId"))
+        update_channel = _GitHubReleaseUpdateChannel(obj.get("updateChannel"))
+        cli_version_override = from_union([from_str, from_none], obj.get("cliVersionOverride"))
+        package_identity = from_union([PackageIdentity, from_none], obj.get("packageIdentity"))
+        return _GitHubReleaseSnapshotRequest(build_version, request_id, update_channel, cli_version_override, package_identity)
+
+    def to_dict(self) -> dict:
+        result: dict = {}
+        result["buildVersion"] = from_str(self.build_version)
+        result["requestId"] = from_int(self.request_id)
+        result["updateChannel"] = to_enum(_GitHubReleaseUpdateChannel, self.update_channel)
+        if self.cli_version_override is not None:
+            result["cliVersionOverride"] = from_union([from_str, from_none], self.cli_version_override)
+        if self.package_identity is not None:
+            result["packageIdentity"] = from_union([lambda x: to_enum(PackageIdentity, x), from_none], self.package_identity)
         return result
 
 # Experimental: this type is part of an experimental API and may change or be removed.
@@ -43102,6 +45328,33 @@ class GitHubEnvironment:
 # Experimental: this type is part of an experimental API and may change or be removed.
 # Internal: this type is an internal SDK API and is not part of the public surface.
 @dataclass
+class _GitHubRepositoryOwnerName:
+    """Owner and name of a GitHub repository. Deliberately distinct from
+    `GitHubRepositoryIdentity`, which also carries a host: a by-id lookup takes the host as
+    an input and the API's answer reports none, so there is no host here to report faithfully.
+    """
+    name: str
+    """Repository name, without the owner prefix or the `.git` suffix."""
+
+    owner: str
+    """Repository owner login (user or organization)."""
+
+    @staticmethod
+    def from_dict(obj: Any) -> '_GitHubRepositoryOwnerName':
+        assert isinstance(obj, dict)
+        name = from_str(obj.get("name"))
+        owner = from_str(obj.get("owner"))
+        return _GitHubRepositoryOwnerName(name, owner)
+
+    def to_dict(self) -> dict:
+        result: dict = {}
+        result["name"] = from_str(self.name)
+        result["owner"] = from_str(self.owner)
+        return result
+
+# Experimental: this type is part of an experimental API and may change or be removed.
+# Internal: this type is an internal SDK API and is not part of the public surface.
+@dataclass
 class _GitHubRepositoryAtPathResult:
     """The GitHub repository that owns the requested path, when the selected remote (`origin`,
     else the first) is on a GitHub host.
@@ -43942,6 +46195,102 @@ class _FeatureFlagsMetadataResult:
     def to_dict(self) -> dict:
         result: dict = {}
         result["flags"] = from_dict(lambda x: to_class(_FeatureFlagMetadata, x), self.flags)
+        return result
+
+# Experimental: this type is part of an experimental API and may change or be removed.
+# Internal: this type is an internal SDK API and is not part of the public surface.
+@dataclass
+class _GitHubBranchPullRequest:
+    """The pull request a branch is open against, with the review state a caller needs to
+    summarize it without a second request.
+    """
+    additions: int
+    """Lines added across the pull request."""
+
+    body: str
+    """Pull request description body. Empty when the pull request has none."""
+
+    changed_files: int
+    """Number of files the pull request changes."""
+
+    checks: list[_GitHubPullRequestCheck]
+    """Checks reported against the pull request's head commit."""
+
+    comments: int
+    """Number of comments on the pull request."""
+
+    deletions: int
+    """Lines deleted across the pull request."""
+
+    head_ref_name: str
+    """Head branch name the pull request was opened from."""
+
+    is_draft: bool
+    """Whether the pull request is a draft."""
+
+    labels: list[str]
+    """Label names applied to the pull request."""
+
+    number: int
+    """Pull request number within its repository."""
+
+    owner: str
+    """Owner login of the repository the pull request was opened against."""
+
+    repo: str
+    """Name of the repository the pull request was opened against."""
+
+    reviewers: list[str]
+    """Logins of the requested reviewers."""
+
+    state: str
+    """Pull request state as GitHub reports it, such as `OPEN`, `CLOSED` or `MERGED`."""
+
+    title: str
+    """Pull request title."""
+
+    url: str
+    """Web URL of the pull request."""
+
+    @staticmethod
+    def from_dict(obj: Any) -> '_GitHubBranchPullRequest':
+        assert isinstance(obj, dict)
+        additions = from_int(obj.get("additions"))
+        body = from_str(obj.get("body"))
+        changed_files = from_int(obj.get("changedFiles"))
+        checks = from_list(_GitHubPullRequestCheck.from_dict, obj.get("checks"))
+        comments = from_int(obj.get("comments"))
+        deletions = from_int(obj.get("deletions"))
+        head_ref_name = from_str(obj.get("headRefName"))
+        is_draft = from_bool(obj.get("isDraft"))
+        labels = from_list(from_str, obj.get("labels"))
+        number = from_int(obj.get("number"))
+        owner = from_str(obj.get("owner"))
+        repo = from_str(obj.get("repo"))
+        reviewers = from_list(from_str, obj.get("reviewers"))
+        state = from_str(obj.get("state"))
+        title = from_str(obj.get("title"))
+        url = from_str(obj.get("url"))
+        return _GitHubBranchPullRequest(additions, body, changed_files, checks, comments, deletions, head_ref_name, is_draft, labels, number, owner, repo, reviewers, state, title, url)
+
+    def to_dict(self) -> dict:
+        result: dict = {}
+        result["additions"] = from_int(self.additions)
+        result["body"] = from_str(self.body)
+        result["changedFiles"] = from_int(self.changed_files)
+        result["checks"] = from_list(lambda x: to_class(_GitHubPullRequestCheck, x), self.checks)
+        result["comments"] = from_int(self.comments)
+        result["deletions"] = from_int(self.deletions)
+        result["headRefName"] = from_str(self.head_ref_name)
+        result["isDraft"] = from_bool(self.is_draft)
+        result["labels"] = from_list(from_str, self.labels)
+        result["number"] = from_int(self.number)
+        result["owner"] = from_str(self.owner)
+        result["repo"] = from_str(self.repo)
+        result["reviewers"] = from_list(from_str, self.reviewers)
+        result["state"] = from_str(self.state)
+        result["title"] = from_str(self.title)
+        result["url"] = from_str(self.url)
         return result
 
 # Experimental: this type is part of an experimental API and may change or be removed.
@@ -44845,34 +47194,32 @@ class LocalSessionMetadataValue:
     """
     is_remote: bool
     """Always false for local sessions."""
-
     modified_time: str
     """Last-modified time of the session's persisted state, as ISO 8601"""
-
     session_id: str
     """Stable session identifier"""
-
     start_time: str
     """Session creation time as an ISO 8601 timestamp"""
-
     client_name: str | None = None
-    """Runtime client name that created/last resumed this session"""
-
+    """Runtime client name that created this session"""
     context: SessionContext | None = None
     """Pre-resolved working-directory context for session startup."""
-
     is_detached: bool | None = None
     """True for detached maintenance sessions that should be hidden from normal resume lists."""
-
     mc_task_id: str | None = None
     """GitHub task ID, when this local session is bound to one. Only present for local sessions
     exported to remote control.
     """
     name: str | None = None
     """Optional human-friendly name set via /rename"""
-
     summary: str | None = None
     """Short summary of the session, when one has been derived"""
+    last_client_name: str | None = None
+    """Runtime client name that most recently ran this session: the client that created it, or a
+    client that resumed it and then ran it. Resuming a session only to observe it does not
+    change this. Omitted when unknown, such as for sessions persisted before this field
+    existed.
+    """
 
     @staticmethod
     def from_dict(obj: Any) -> 'LocalSessionMetadataValue':
@@ -44884,10 +47231,11 @@ class LocalSessionMetadataValue:
         client_name = from_union([from_str, from_none], obj.get("clientName"))
         context = from_union([SessionContext.from_dict, from_none], obj.get("context"))
         is_detached = from_union([from_bool, from_none], obj.get("isDetached"))
+        last_client_name = from_union([from_str, from_none], obj.get("lastClientName"))
         mc_task_id = from_union([from_str, from_none], obj.get("mcTaskId"))
         name = from_union([from_str, from_none], obj.get("name"))
         summary = from_union([from_str, from_none], obj.get("summary"))
-        return LocalSessionMetadataValue(is_remote, modified_time, session_id, start_time, client_name, context, is_detached, mc_task_id, name, summary)
+        return LocalSessionMetadataValue(is_remote, modified_time, session_id, start_time, client_name, context, is_detached, mc_task_id, name, summary, last_client_name)
 
     def to_dict(self) -> dict:
         result: dict = {}
@@ -44901,6 +47249,8 @@ class LocalSessionMetadataValue:
             result["context"] = from_union([lambda x: to_class(SessionContext, x), from_none], self.context)
         if self.is_detached is not None:
             result["isDetached"] = from_union([from_bool, from_none], self.is_detached)
+        if self.last_client_name is not None:
+            result["lastClientName"] = from_union([from_str, from_none], self.last_client_name)
         if self.mc_task_id is not None:
             result["mcTaskId"] = from_union([from_str, from_none], self.mc_task_id)
         if self.name is not None:
@@ -50830,6 +53180,80 @@ class EnvironmentsListResult:
         return result
 
 # Experimental: this type is part of an experimental API and may change or be removed.
+# Internal: this type is an internal SDK API and is not part of the public surface.
+@dataclass
+class _GitHubBranchPullRequestLookupRequest:
+    """Selects the pull request a branch is open against, and the credential to look it up
+    under. The branch is searched across every repository in `baseRepositories`, which lets a
+    fork's branch find the pull request it opened against upstream.
+    """
+    auth_info: Any
+    """The credential the lookup runs under, carried opaquely because its shape is the host's
+    own and the runtime only resolves a token and a GitHub host from it. Required: the search
+    answers per-account, so a pull request invisible to this credential is reported as absent
+    rather than refused.
+    """
+    base_repositories: list[_GitHubRepositoryOwnerName]
+    """Repositories to search for the pull request, in preference order. A fork supplies both
+    its own repository and its upstream, because the branch may have opened the pull request
+    against either.
+    """
+    branch: str
+    """Head branch name to find the pull request for, without a `refs/heads/` prefix."""
+
+    head_owner: str
+    """Login that must own the pull request's head branch. A branch name alone is ambiguous
+    across forks, so a candidate whose head is owned by anyone else is discarded.
+    """
+    include_closed: bool
+    """Whether a closed or merged pull request counts as a match. False considers only open
+    ones, so a caller acting on the branch's current pull request does not resurface a merged
+    one.
+    """
+
+    @staticmethod
+    def from_dict(obj: Any) -> '_GitHubBranchPullRequestLookupRequest':
+        assert isinstance(obj, dict)
+        auth_info = obj.get("authInfo")
+        base_repositories = from_list(_GitHubRepositoryOwnerName.from_dict, obj.get("baseRepositories"))
+        branch = from_str(obj.get("branch"))
+        head_owner = from_str(obj.get("headOwner"))
+        include_closed = from_bool(obj.get("includeClosed"))
+        return _GitHubBranchPullRequestLookupRequest(auth_info, base_repositories, branch, head_owner, include_closed)
+
+    def to_dict(self) -> dict:
+        result: dict = {}
+        result["authInfo"] = self.auth_info
+        result["baseRepositories"] = from_list(lambda x: to_class(_GitHubRepositoryOwnerName, x), self.base_repositories)
+        result["branch"] = from_str(self.branch)
+        result["headOwner"] = from_str(self.head_owner)
+        result["includeClosed"] = from_bool(self.include_closed)
+        return result
+
+# Experimental: this type is part of an experimental API and may change or be removed.
+# Internal: this type is an internal SDK API and is not part of the public surface.
+@dataclass
+class _GitHubRepositoryByIDResult:
+    """The repository the requested id names, when the credential can see one."""
+
+    repository: _GitHubRepositoryOwnerName | None = None
+    """Owner and name of the repository, or null when the id names no repository visible to the
+    credential.
+    """
+
+    @staticmethod
+    def from_dict(obj: Any) -> '_GitHubRepositoryByIDResult':
+        assert isinstance(obj, dict)
+        repository = from_union([_GitHubRepositoryOwnerName.from_dict, from_none], obj.get("repository"))
+        return _GitHubRepositoryByIDResult(repository)
+
+    def to_dict(self) -> dict:
+        result: dict = {}
+        if self.repository is not None:
+            result["repository"] = from_union([lambda x: to_class(_GitHubRepositoryOwnerName, x), from_none], self.repository)
+        return result
+
+# Experimental: this type is part of an experimental API and may change or be removed.
 @dataclass
 class DiagnosticsConfiguration:
     """Per-source session diagnostics configuration."""
@@ -51021,6 +53445,34 @@ class MCPPromptsListResult:
             result["additionalProperties"] = from_union([lambda x: from_dict(lambda x: x, x), from_none], self.additional_properties)
         if self.next_cursor is not None:
             result["nextCursor"] = from_union([from_str, from_none], self.next_cursor)
+        return result
+
+# Experimental: this type is part of an experimental API and may change or be removed.
+# Internal: this type is an internal SDK API and is not part of the public surface.
+@dataclass
+class _GitHubBranchPullRequestLookupResult:
+    """Outcome of a branch pull-request lookup. `status` carries why, because 'not
+    authenticated', 'no pull request' and 'the search failed' are three different answers and
+    only the first two are conclusive.
+    """
+    status: _GitHubBranchPullRequestLookupStatus
+    """Why the lookup reported what it did."""
+
+    pull_request: _GitHubBranchPullRequest | None = None
+    """The matching pull request, or null for every status other than `found`."""
+
+    @staticmethod
+    def from_dict(obj: Any) -> '_GitHubBranchPullRequestLookupResult':
+        assert isinstance(obj, dict)
+        status = _GitHubBranchPullRequestLookupStatus(obj.get("status"))
+        pull_request = from_union([_GitHubBranchPullRequest.from_dict, from_none], obj.get("pullRequest"))
+        return _GitHubBranchPullRequestLookupResult(status, pull_request)
+
+    def to_dict(self) -> dict:
+        result: dict = {}
+        result["status"] = to_enum(_GitHubBranchPullRequestLookupStatus, self.status)
+        if self.pull_request is not None:
+            result["pullRequest"] = from_union([lambda x: to_class(_GitHubBranchPullRequest, x), from_none], self.pull_request)
         return result
 
 # Experimental: this type is part of an experimental API and may change or be removed.
@@ -56355,6 +58807,9 @@ class AuthIdentity:
     Identity whose host the path resolves against. Omit to resolve against the public
     github.com host.
 
+    Identity to enroll, in the shape `session.gitHubAuth.getCurrentAuthInfo` returns. The
+    runtime resolves the credential for it, so no credential is sent.
+
     Credential-free identity metadata for the active account, including resolved Copilot user
     information when available.
     """
@@ -56469,6 +58924,28 @@ class _AccountGetWebURLRequest:
         result["path"] = from_str(self.path)
         if self.identity is not None:
             result["identity"] = from_union([lambda x: to_class(AuthIdentity, x), from_none], self.identity)
+        return result
+
+# Experimental: this type is part of an experimental API and may change or be removed.
+# Internal: this type is an internal SDK API and is not part of the public surface.
+@dataclass
+class _AccountSubscribeCopilotFreeRequest:
+    """The authentication identity to enroll in Copilot Free."""
+
+    identity: AuthIdentity
+    """Identity to enroll, in the shape `session.gitHubAuth.getCurrentAuthInfo` returns. The
+    runtime resolves the credential for it, so no credential is sent.
+    """
+
+    @staticmethod
+    def from_dict(obj: Any) -> '_AccountSubscribeCopilotFreeRequest':
+        assert isinstance(obj, dict)
+        identity = AuthIdentity.from_dict(obj.get("identity"))
+        return _AccountSubscribeCopilotFreeRequest(identity)
+
+    def to_dict(self) -> dict:
+        result: dict = {}
+        result["identity"] = to_class(AuthIdentity, self.identity)
         return result
 
 # Experimental: this type is part of an experimental API and may change or be removed.
@@ -57392,6 +59869,75 @@ class GhCLIAuthInfo:
         result["type"] = self.type
         if self.copilot_user is not None:
             result["copilotUser"] = from_union([lambda x: to_class(CopilotUserResponse, x), from_none], self.copilot_user)
+        return result
+
+# Experimental: this type is part of an experimental API and may change or be removed.
+# Internal: this type is an internal SDK API and is not part of the public surface.
+@dataclass
+class _GitHubReleaseSnapshotResult:
+    """The shared release result with its original lookup duration. Runtime worker faults remain
+    RPC errors.
+
+    The release lookup succeeded.
+
+    The release lookup failed.
+    """
+    lookup_duration_ms: float
+    """The original lookup duration in milliseconds."""
+
+    outcome: OutcomeEnum
+    update_channel: _GitHubReleaseUpdateChannel
+    """The original update channel."""
+
+    automatic_update_candidate: _GitHubReleaseSnapshotEntry | None = None
+    """The newest release in the selected update channel, when one exists."""
+
+    eligible: bool | None = None
+    """Whether the running release is eligible for release admission."""
+
+    latest_stable_releases: list[_GitHubReleaseSnapshotEntry] | None = None
+    """Up to three stable releases, newest first."""
+
+    prereleases_newer_than_latest_stable: list[_GitHubReleaseSnapshotEntry] | None = None
+    """Prereleases newer than the newest stable release, newest first."""
+
+    running_version: str | None = None
+    """The effective running version after the existing override rules."""
+
+    error: str | None = None
+    """The original user-facing lookup failure."""
+
+    @staticmethod
+    def from_dict(obj: Any) -> '_GitHubReleaseSnapshotResult':
+        assert isinstance(obj, dict)
+        lookup_duration_ms = from_float(obj.get("lookupDurationMs"))
+        outcome = OutcomeEnum(obj.get("outcome"))
+        update_channel = _GitHubReleaseUpdateChannel(obj.get("updateChannel"))
+        automatic_update_candidate = from_union([_GitHubReleaseSnapshotEntry.from_dict, from_none], obj.get("automaticUpdateCandidate"))
+        eligible = from_union([from_bool, from_none], obj.get("eligible"))
+        latest_stable_releases = from_union([lambda x: from_list(_GitHubReleaseSnapshotEntry.from_dict, x), from_none], obj.get("latestStableReleases"))
+        prereleases_newer_than_latest_stable = from_union([lambda x: from_list(_GitHubReleaseSnapshotEntry.from_dict, x), from_none], obj.get("prereleasesNewerThanLatestStable"))
+        running_version = from_union([from_str, from_none], obj.get("runningVersion"))
+        error = from_union([from_str, from_none], obj.get("error"))
+        return _GitHubReleaseSnapshotResult(lookup_duration_ms, outcome, update_channel, automatic_update_candidate, eligible, latest_stable_releases, prereleases_newer_than_latest_stable, running_version, error)
+
+    def to_dict(self) -> dict:
+        result: dict = {}
+        result["lookupDurationMs"] = to_float(self.lookup_duration_ms)
+        result["outcome"] = to_enum(OutcomeEnum, self.outcome)
+        result["updateChannel"] = to_enum(_GitHubReleaseUpdateChannel, self.update_channel)
+        if self.automatic_update_candidate is not None:
+            result["automaticUpdateCandidate"] = from_union([lambda x: to_class(_GitHubReleaseSnapshotEntry, x), from_none], self.automatic_update_candidate)
+        if self.eligible is not None:
+            result["eligible"] = from_union([from_bool, from_none], self.eligible)
+        if self.latest_stable_releases is not None:
+            result["latestStableReleases"] = from_union([lambda x: from_list(lambda x: to_class(_GitHubReleaseSnapshotEntry, x), x), from_none], self.latest_stable_releases)
+        if self.prereleases_newer_than_latest_stable is not None:
+            result["prereleasesNewerThanLatestStable"] = from_union([lambda x: from_list(lambda x: to_class(_GitHubReleaseSnapshotEntry, x), x), from_none], self.prereleases_newer_than_latest_stable)
+        if self.running_version is not None:
+            result["runningVersion"] = from_union([from_str, from_none], self.running_version)
+        if self.error is not None:
+            result["error"] = from_union([from_str, from_none], self.error)
         return result
 
 # Experimental: this type is part of an experimental API and may change or be removed.
@@ -61369,6 +63915,8 @@ class RPC:
     account_get_current_auth_result: AccountGetCurrentAuthResult
     account_get_gist_support_request: _AccountGetGistSupportRequest
     account_get_gist_support_result: _AccountGetGistSupportResult
+    account_get_host_url_request: _AccountGetHostURLRequest
+    account_get_host_url_result: _AccountGetHostURLResult
     account_get_quota_request: AccountGetQuotaRequest
     account_get_quota_result: AccountGetQuotaResult
     account_get_token_env_var_result: _AccountGetTokenEnvVarResult
@@ -61385,6 +63933,8 @@ class RPC:
     accounts_get_request: AccountsGetRequest
     accounts_set_request: AccountsSetRequest
     account_status: AccountStatus
+    account_subscribe_copilot_free_request: _AccountSubscribeCopilotFreeRequest
+    account_subscribe_copilot_free_result: _AccountSubscribeCopilotFreeResult
     adaptive_thinking_support: AdaptiveThinkingSupport
     agent_discovery_path: AgentDiscoveryPath
     agent_discovery_path_list: AgentDiscoveryPathList
@@ -61504,6 +64054,18 @@ class RPC:
     builtin_tool_input_schema_type: BuiltinToolInputSchemaType
     builtin_tool_safe_for_telemetry: bool | BuiltinToolSafeTelemetryFields
     builtin_tool_safe_telemetry_fields: BuiltinToolSafeTelemetryFields
+    cafe_metrics_embedded_package_identity: PackageIdentity
+    cafe_metrics_record_resume_result_request: _CafeMetricsRecordResumeResultRequest
+    cafe_metrics_release: _CafeMetricsRelease
+    cafe_metrics_resolve_admission_request: _CafeMetricsResolveAdmissionRequest
+    cafe_metrics_resolve_admission_result: _CafeMetricsResolveAdmissionResult
+    cafe_metrics_resume_outcome: _CafeMetricsResumeOutcome
+    cafe_metrics_resume_reason: _CafeMetricsResumeReason
+    cafe_metrics_resume_stage: _CafeMetricsResumeStage
+    cafe_metrics_shutdown_request: _CafeMetricsShutdownRequest
+    cafe_metrics_start_refusal: _CafeMetricsStartRefusal
+    cafe_metrics_start_request: _CafeMetricsStartRequest
+    cafe_metrics_start_result: _CafeMetricsStartResult
     cancel_user_requested_shell_command_result: CancelUserRequestedShellCommandResult
     canvas_action: CanvasAction
     canvas_action_invoke_request: CanvasActionInvokeRequest
@@ -61652,6 +64214,21 @@ class RPC:
     client_task_cancel_reason: ClientTaskCancelReason
     client_task_cancel_request: ClientTaskCancelRequest
     client_task_cancel_result: ClientTaskCancelResult
+    cloud_tasks_create_params: _CloudTasksCreateParams
+    cloud_tasks_create_result: _CloudTasksCreateResult
+    cloud_tasks_delete_params: _CloudTasksDeleteParams
+    cloud_tasks_delete_result: _CloudTasksDeleteResult
+    cloud_tasks_get_params: _CloudTasksGetParams
+    cloud_tasks_get_result: _CloudTasksGetResult
+    cloud_tasks_get_session_logs_params: _CloudTasksGetSessionLogsParams
+    cloud_tasks_get_session_logs_result: _CloudTasksGetSessionLogsResult
+    cloud_tasks_get_session_replay_params: _CloudTasksGetSessionReplayParams
+    cloud_tasks_get_session_replay_result: _CloudTasksGetSessionReplayResult
+    cloud_tasks_get_sharing_status_params: _CloudTasksGetSharingStatusParams
+    cloud_tasks_resolve_task_id_params: _CloudTasksResolveTaskIDParams
+    cloud_tasks_resolve_task_id_result: _CloudTasksResolveTaskIDResult
+    cloud_tasks_set_sharing_status_params: _CloudTasksSetSharingStatusParams
+    cloud_tasks_sharing_status_result: _CloudTasksSharingStatusResult
     command_list: CommandList
     commands_finalize_invocation_effect_request: CommandsFinalizeInvocationEffectRequest
     commands_finalize_invocation_effect_result: CommandsFinalizeInvocationEffectResult
@@ -61827,16 +64404,56 @@ class RPC:
     gh_cli_auth_info: GhCLIAuthInfo
     git_current_branch_remote_result: _GitCurrentBranchRemoteResult
     git_cwd_request: _GitCwdRequest
+    git_hub_branch_pull_request: _GitHubBranchPullRequest
+    git_hub_branch_pull_request_lookup_request: _GitHubBranchPullRequestLookupRequest
+    git_hub_branch_pull_request_lookup_result: _GitHubBranchPullRequestLookupResult
+    git_hub_branch_pull_request_lookup_status: _GitHubBranchPullRequestLookupStatus
     git_hub_environment: GitHubEnvironment
+    git_hub_fetch_cancel_result: _GitHubFetchCancelResult
+    git_hub_fetch_header: _GitHubFetchHeader
+    git_hub_fetch_http_error: _GitHubFetchHTTPError
+    git_hub_fetch_operation: _GitHubFetchOperation
+    git_hub_fetch_operation_request: _GitHubFetchOperationRequest
+    git_hub_fetch_pinned_address: GitHubFetchPinnedAddress
+    git_hub_fetch_proxy_environment: GitHubFetchProxyEnvironment
+    git_hub_fetch_request: _GitHubFetchRequest
+    git_hub_fetch_request_id: _GitHubFetchRequestID
+    git_hub_fetch_result: _GitHubFetchResult
+    git_hub_fetch_retry_config: _GitHubFetchRetryConfig
     git_hub_owner_option: _GitHubOwnerOption
     git_hub_owners_cancel_request: _GitHubOwnersCancelRequest
     git_hub_owners_cancel_result: _GitHubOwnersCancelResult
     git_hub_owners_list_request: _GitHubOwnersListRequest
     git_hub_owners_list_result: _GitHubOwnersListResult
     git_hub_owners_request_id_result: _GitHubOwnersRequestIDResult
+    git_hub_pull_request_check: _GitHubPullRequestCheck
+    git_hub_pull_request_check_status: _GitHubPullRequestCheckStatus
+    git_hub_release_abandon_request_params: _GitHubReleaseAbandonRequestParams
+    git_hub_release_abandon_request_result: _GitHubReleaseAbandonRequestResult
+    git_hub_release_cancel_request: _GitHubReleaseCancelRequest
+    git_hub_release_cancel_result: _GitHubReleaseCancelResult
+    git_hub_release_download_asset_request: _GitHubReleaseDownloadAssetRequest
+    git_hub_release_download_asset_result: _GitHubReleaseDownloadAssetResult
+    git_hub_release_download_kind: _GitHubReleaseDownloadKind
+    git_hub_release_download_progress_request: _GitHubReleaseDownloadProgressRequest
+    git_hub_release_download_progress_result: _GitHubReleaseDownloadProgressResult
+    git_hub_release_lookup_kind: _GitHubReleaseLookupKind
+    git_hub_release_lookup_request: _GitHubReleaseLookupRequest
+    git_hub_release_lookup_result: _GitHubReleaseLookupResult
+    git_hub_release_package_identity: PackageIdentity
+    git_hub_release_query: _GitHubReleaseQuery
+    git_hub_release_request_id_result: _GitHubReleaseRequestIDResult
+    git_hub_release_snapshot_asset: _GitHubReleaseSnapshotAsset
+    git_hub_release_snapshot_entry: _GitHubReleaseSnapshotEntry
+    git_hub_release_snapshot_request: _GitHubReleaseSnapshotRequest
+    git_hub_release_snapshot_result: _GitHubReleaseSnapshotResult
+    git_hub_release_update_channel: _GitHubReleaseUpdateChannel
     git_hub_repository_at_path_request: _GitHubRepositoryAtPathRequest
     git_hub_repository_at_path_result: _GitHubRepositoryAtPathResult
+    git_hub_repository_by_id_request: _GitHubRepositoryByIDRequest
+    git_hub_repository_by_id_result: _GitHubRepositoryByIDResult
     git_hub_repository_identity: GitHubRepositoryIdentity
+    git_hub_repository_owner_name: _GitHubRepositoryOwnerName
     git_hub_telemetry_client_info: GitHubTelemetryClientInfo
     git_hub_telemetry_event: GitHubTelemetryEvent
     git_hub_telemetry_notification: GitHubTelemetryNotification
@@ -63307,6 +65924,8 @@ class RPC:
         account_get_current_auth_result = AccountGetCurrentAuthResult.from_dict(obj.get("AccountGetCurrentAuthResult"))
         account_get_gist_support_request = _AccountGetGistSupportRequest.from_dict(obj.get("AccountGetGistSupportRequest"))
         account_get_gist_support_result = _AccountGetGistSupportResult.from_dict(obj.get("AccountGetGistSupportResult"))
+        account_get_host_url_request = _AccountGetHostURLRequest.from_dict(obj.get("AccountGetHostUrlRequest"))
+        account_get_host_url_result = _AccountGetHostURLResult.from_dict(obj.get("AccountGetHostUrlResult"))
         account_get_quota_request = AccountGetQuotaRequest.from_dict(obj.get("AccountGetQuotaRequest"))
         account_get_quota_result = AccountGetQuotaResult.from_dict(obj.get("AccountGetQuotaResult"))
         account_get_token_env_var_result = _AccountGetTokenEnvVarResult.from_dict(obj.get("AccountGetTokenEnvVarResult"))
@@ -63323,6 +65942,8 @@ class RPC:
         accounts_get_request = AccountsGetRequest.from_dict(obj.get("AccountsGetRequest"))
         accounts_set_request = AccountsSetRequest.from_dict(obj.get("AccountsSetRequest"))
         account_status = AccountStatus.from_dict(obj.get("AccountStatus"))
+        account_subscribe_copilot_free_request = _AccountSubscribeCopilotFreeRequest.from_dict(obj.get("AccountSubscribeCopilotFreeRequest"))
+        account_subscribe_copilot_free_result = _AccountSubscribeCopilotFreeResult.from_dict(obj.get("AccountSubscribeCopilotFreeResult"))
         adaptive_thinking_support = AdaptiveThinkingSupport(obj.get("AdaptiveThinkingSupport"))
         agent_discovery_path = AgentDiscoveryPath.from_dict(obj.get("AgentDiscoveryPath"))
         agent_discovery_path_list = AgentDiscoveryPathList.from_dict(obj.get("AgentDiscoveryPathList"))
@@ -63442,6 +66063,18 @@ class RPC:
         builtin_tool_input_schema_type = BuiltinToolInputSchemaType(obj.get("BuiltinToolInputSchemaType"))
         builtin_tool_safe_for_telemetry = from_union([from_bool, BuiltinToolSafeTelemetryFields.from_dict], obj.get("BuiltinToolSafeForTelemetry"))
         builtin_tool_safe_telemetry_fields = BuiltinToolSafeTelemetryFields.from_dict(obj.get("BuiltinToolSafeTelemetryFields"))
+        cafe_metrics_embedded_package_identity = PackageIdentity(obj.get("CafeMetricsEmbeddedPackageIdentity"))
+        cafe_metrics_record_resume_result_request = _CafeMetricsRecordResumeResultRequest.from_dict(obj.get("CafeMetricsRecordResumeResultRequest"))
+        cafe_metrics_release = _CafeMetricsRelease.from_dict(obj.get("CafeMetricsRelease"))
+        cafe_metrics_resolve_admission_request = _CafeMetricsResolveAdmissionRequest.from_dict(obj.get("CafeMetricsResolveAdmissionRequest"))
+        cafe_metrics_resolve_admission_result = _CafeMetricsResolveAdmissionResult.from_dict(obj.get("CafeMetricsResolveAdmissionResult"))
+        cafe_metrics_resume_outcome = _CafeMetricsResumeOutcome(obj.get("CafeMetricsResumeOutcome"))
+        cafe_metrics_resume_reason = _CafeMetricsResumeReason(obj.get("CafeMetricsResumeReason"))
+        cafe_metrics_resume_stage = _CafeMetricsResumeStage(obj.get("CafeMetricsResumeStage"))
+        cafe_metrics_shutdown_request = _CafeMetricsShutdownRequest.from_dict(obj.get("CafeMetricsShutdownRequest"))
+        cafe_metrics_start_refusal = _CafeMetricsStartRefusal(obj.get("CafeMetricsStartRefusal"))
+        cafe_metrics_start_request = _CafeMetricsStartRequest.from_dict(obj.get("CafeMetricsStartRequest"))
+        cafe_metrics_start_result = _CafeMetricsStartResult.from_dict(obj.get("CafeMetricsStartResult"))
         cancel_user_requested_shell_command_result = CancelUserRequestedShellCommandResult.from_dict(obj.get("CancelUserRequestedShellCommandResult"))
         canvas_action = CanvasAction.from_dict(obj.get("CanvasAction"))
         canvas_action_invoke_request = CanvasActionInvokeRequest.from_dict(obj.get("CanvasActionInvokeRequest"))
@@ -63590,6 +66223,21 @@ class RPC:
         client_task_cancel_reason = ClientTaskCancelReason(obj.get("ClientTaskCancelReason"))
         client_task_cancel_request = ClientTaskCancelRequest.from_dict(obj.get("ClientTaskCancelRequest"))
         client_task_cancel_result = ClientTaskCancelResult.from_dict(obj.get("ClientTaskCancelResult"))
+        cloud_tasks_create_params = _CloudTasksCreateParams.from_dict(obj.get("CloudTasksCreateParams"))
+        cloud_tasks_create_result = _CloudTasksCreateResult.from_dict(obj.get("CloudTasksCreateResult"))
+        cloud_tasks_delete_params = _CloudTasksDeleteParams.from_dict(obj.get("CloudTasksDeleteParams"))
+        cloud_tasks_delete_result = _CloudTasksDeleteResult.from_dict(obj.get("CloudTasksDeleteResult"))
+        cloud_tasks_get_params = _CloudTasksGetParams.from_dict(obj.get("CloudTasksGetParams"))
+        cloud_tasks_get_result = _CloudTasksGetResult.from_dict(obj.get("CloudTasksGetResult"))
+        cloud_tasks_get_session_logs_params = _CloudTasksGetSessionLogsParams.from_dict(obj.get("CloudTasksGetSessionLogsParams"))
+        cloud_tasks_get_session_logs_result = _CloudTasksGetSessionLogsResult.from_dict(obj.get("CloudTasksGetSessionLogsResult"))
+        cloud_tasks_get_session_replay_params = _CloudTasksGetSessionReplayParams.from_dict(obj.get("CloudTasksGetSessionReplayParams"))
+        cloud_tasks_get_session_replay_result = _CloudTasksGetSessionReplayResult.from_dict(obj.get("CloudTasksGetSessionReplayResult"))
+        cloud_tasks_get_sharing_status_params = _CloudTasksGetSharingStatusParams.from_dict(obj.get("CloudTasksGetSharingStatusParams"))
+        cloud_tasks_resolve_task_id_params = _CloudTasksResolveTaskIDParams.from_dict(obj.get("CloudTasksResolveTaskIdParams"))
+        cloud_tasks_resolve_task_id_result = _CloudTasksResolveTaskIDResult.from_dict(obj.get("CloudTasksResolveTaskIdResult"))
+        cloud_tasks_set_sharing_status_params = _CloudTasksSetSharingStatusParams.from_dict(obj.get("CloudTasksSetSharingStatusParams"))
+        cloud_tasks_sharing_status_result = _CloudTasksSharingStatusResult.from_dict(obj.get("CloudTasksSharingStatusResult"))
         command_list = CommandList.from_dict(obj.get("CommandList"))
         commands_finalize_invocation_effect_request = CommandsFinalizeInvocationEffectRequest.from_dict(obj.get("CommandsFinalizeInvocationEffectRequest"))
         commands_finalize_invocation_effect_result = CommandsFinalizeInvocationEffectResult.from_dict(obj.get("CommandsFinalizeInvocationEffectResult"))
@@ -63765,16 +66413,56 @@ class RPC:
         gh_cli_auth_info = GhCLIAuthInfo.from_dict(obj.get("GhCliAuthInfo"))
         git_current_branch_remote_result = _GitCurrentBranchRemoteResult.from_dict(obj.get("GitCurrentBranchRemoteResult"))
         git_cwd_request = _GitCwdRequest.from_dict(obj.get("GitCwdRequest"))
+        git_hub_branch_pull_request = _GitHubBranchPullRequest.from_dict(obj.get("GitHubBranchPullRequest"))
+        git_hub_branch_pull_request_lookup_request = _GitHubBranchPullRequestLookupRequest.from_dict(obj.get("GitHubBranchPullRequestLookupRequest"))
+        git_hub_branch_pull_request_lookup_result = _GitHubBranchPullRequestLookupResult.from_dict(obj.get("GitHubBranchPullRequestLookupResult"))
+        git_hub_branch_pull_request_lookup_status = _GitHubBranchPullRequestLookupStatus(obj.get("GitHubBranchPullRequestLookupStatus"))
         git_hub_environment = GitHubEnvironment.from_dict(obj.get("GitHubEnvironment"))
+        git_hub_fetch_cancel_result = _GitHubFetchCancelResult.from_dict(obj.get("GitHubFetchCancelResult"))
+        git_hub_fetch_header = _GitHubFetchHeader.from_dict(obj.get("GitHubFetchHeader"))
+        git_hub_fetch_http_error = _GitHubFetchHTTPError.from_dict(obj.get("GitHubFetchHttpError"))
+        git_hub_fetch_operation = _GitHubFetchOperation(obj.get("GitHubFetchOperation"))
+        git_hub_fetch_operation_request = _GitHubFetchOperationRequest.from_dict(obj.get("GitHubFetchOperationRequest"))
+        git_hub_fetch_pinned_address = GitHubFetchPinnedAddress.from_dict(obj.get("GitHubFetchPinnedAddress"))
+        git_hub_fetch_proxy_environment = GitHubFetchProxyEnvironment.from_dict(obj.get("GitHubFetchProxyEnvironment"))
+        git_hub_fetch_request = _GitHubFetchRequest.from_dict(obj.get("GitHubFetchRequest"))
+        git_hub_fetch_request_id = _GitHubFetchRequestID.from_dict(obj.get("GitHubFetchRequestId"))
+        git_hub_fetch_result = _GitHubFetchResult.from_dict(obj.get("GitHubFetchResult"))
+        git_hub_fetch_retry_config = _GitHubFetchRetryConfig.from_dict(obj.get("GitHubFetchRetryConfig"))
         git_hub_owner_option = _GitHubOwnerOption.from_dict(obj.get("GitHubOwnerOption"))
         git_hub_owners_cancel_request = _GitHubOwnersCancelRequest.from_dict(obj.get("GitHubOwnersCancelRequest"))
         git_hub_owners_cancel_result = _GitHubOwnersCancelResult.from_dict(obj.get("GitHubOwnersCancelResult"))
         git_hub_owners_list_request = _GitHubOwnersListRequest.from_dict(obj.get("GitHubOwnersListRequest"))
         git_hub_owners_list_result = _GitHubOwnersListResult.from_dict(obj.get("GitHubOwnersListResult"))
         git_hub_owners_request_id_result = _GitHubOwnersRequestIDResult.from_dict(obj.get("GitHubOwnersRequestIdResult"))
+        git_hub_pull_request_check = _GitHubPullRequestCheck.from_dict(obj.get("GitHubPullRequestCheck"))
+        git_hub_pull_request_check_status = _GitHubPullRequestCheckStatus(obj.get("GitHubPullRequestCheckStatus"))
+        git_hub_release_abandon_request_params = _GitHubReleaseAbandonRequestParams.from_dict(obj.get("GitHubReleaseAbandonRequestParams"))
+        git_hub_release_abandon_request_result = _GitHubReleaseAbandonRequestResult.from_dict(obj.get("GitHubReleaseAbandonRequestResult"))
+        git_hub_release_cancel_request = _GitHubReleaseCancelRequest.from_dict(obj.get("GitHubReleaseCancelRequest"))
+        git_hub_release_cancel_result = _GitHubReleaseCancelResult.from_dict(obj.get("GitHubReleaseCancelResult"))
+        git_hub_release_download_asset_request = _GitHubReleaseDownloadAssetRequest.from_dict(obj.get("GitHubReleaseDownloadAssetRequest"))
+        git_hub_release_download_asset_result = _GitHubReleaseDownloadAssetResult.from_dict(obj.get("GitHubReleaseDownloadAssetResult"))
+        git_hub_release_download_kind = _GitHubReleaseDownloadKind(obj.get("GitHubReleaseDownloadKind"))
+        git_hub_release_download_progress_request = _GitHubReleaseDownloadProgressRequest.from_dict(obj.get("GitHubReleaseDownloadProgressRequest"))
+        git_hub_release_download_progress_result = _GitHubReleaseDownloadProgressResult.from_dict(obj.get("GitHubReleaseDownloadProgressResult"))
+        git_hub_release_lookup_kind = _GitHubReleaseLookupKind(obj.get("GitHubReleaseLookupKind"))
+        git_hub_release_lookup_request = _GitHubReleaseLookupRequest.from_dict(obj.get("GitHubReleaseLookupRequest"))
+        git_hub_release_lookup_result = _GitHubReleaseLookupResult.from_dict(obj.get("GitHubReleaseLookupResult"))
+        git_hub_release_package_identity = PackageIdentity(obj.get("GitHubReleasePackageIdentity"))
+        git_hub_release_query = _GitHubReleaseQuery(obj.get("GitHubReleaseQuery"))
+        git_hub_release_request_id_result = _GitHubReleaseRequestIDResult.from_dict(obj.get("GitHubReleaseRequestIdResult"))
+        git_hub_release_snapshot_asset = _GitHubReleaseSnapshotAsset.from_dict(obj.get("GitHubReleaseSnapshotAsset"))
+        git_hub_release_snapshot_entry = _GitHubReleaseSnapshotEntry.from_dict(obj.get("GitHubReleaseSnapshotEntry"))
+        git_hub_release_snapshot_request = _GitHubReleaseSnapshotRequest.from_dict(obj.get("GitHubReleaseSnapshotRequest"))
+        git_hub_release_snapshot_result = _GitHubReleaseSnapshotResult.from_dict(obj.get("GitHubReleaseSnapshotResult"))
+        git_hub_release_update_channel = _GitHubReleaseUpdateChannel(obj.get("GitHubReleaseUpdateChannel"))
         git_hub_repository_at_path_request = _GitHubRepositoryAtPathRequest.from_dict(obj.get("GitHubRepositoryAtPathRequest"))
         git_hub_repository_at_path_result = _GitHubRepositoryAtPathResult.from_dict(obj.get("GitHubRepositoryAtPathResult"))
+        git_hub_repository_by_id_request = _GitHubRepositoryByIDRequest.from_dict(obj.get("GitHubRepositoryByIdRequest"))
+        git_hub_repository_by_id_result = _GitHubRepositoryByIDResult.from_dict(obj.get("GitHubRepositoryByIdResult"))
         git_hub_repository_identity = GitHubRepositoryIdentity.from_dict(obj.get("GitHubRepositoryIdentity"))
+        git_hub_repository_owner_name = _GitHubRepositoryOwnerName.from_dict(obj.get("GitHubRepositoryOwnerName"))
         git_hub_telemetry_client_info = GitHubTelemetryClientInfo.from_dict(obj.get("GitHubTelemetryClientInfo"))
         git_hub_telemetry_event = GitHubTelemetryEvent.from_dict(obj.get("GitHubTelemetryEvent"))
         git_hub_telemetry_notification = GitHubTelemetryNotification.from_dict(obj.get("GitHubTelemetryNotification"))
@@ -65230,7 +67918,7 @@ class RPC:
         subagent_settings = from_union([SubagentSettingsConfig.from_dict, from_none], obj.get("SubagentSettings"))
         task_progress = from_union([TaskProgress.from_dict, from_none], obj.get("TaskProgress"))
         workspace_summary = from_union([WorkspaceSummary.from_dict, from_none], obj.get("WorkspaceSummary"))
-        return RPC(abort_request, abort_result, accepted_enqueue_command_result, account_all_users, account_auth_info, account_describe_auth_info_request, account_describe_auth_info_result, account_get_all_users_result, account_get_current_auth_result, account_get_gist_support_request, account_get_gist_support_result, account_get_quota_request, account_get_quota_result, account_get_token_env_var_result, account_get_web_url_request, account_get_web_url_result, account_health, account_kind, account_login_request, account_login_result, account_logout_request, account_logout_result, account_quota_snapshot, accounts_enumerate_request, accounts_get_request, accounts_set_request, account_status, adaptive_thinking_support, agent_discovery_path, agent_discovery_path_list, agent_discovery_path_scope, agent_get_current_result, agent_info, agent_info_source, agent_list, agent_list_request, agent_registry_ensure_dir_result, agent_registry_error, agent_registry_list_entries_request, agent_registry_list_entries_result, agent_registry_live_target_entry, agent_registry_live_target_entry_attention_kind, agent_registry_live_target_entry_kind, agent_registry_live_target_entry_last_terminal_event, agent_registry_live_target_entry_status, agent_registry_location_request, agent_registry_log_capture, agent_registry_log_capture_open_error_reason, agent_registry_pid_request, agent_registry_remove_entry_result, agent_registry_spawn_error, agent_registry_spawn_permission_mode, agent_registry_spawn_registry_timeout, agent_registry_spawn_request, agent_registry_spawn_result, agent_registry_spawn_spawned, agent_registry_spawn_validation_error, agent_registry_spawn_validation_error_field, agent_registry_spawn_validation_error_reason, agent_reload_result, agents_custom_agent_initial_model_decision_params, agents_custom_agent_initial_model_decision_result, agents_discover_request, agent_select_request, agent_select_result, agent_set_prompt_request, agents_get_available_builtins_request, agents_get_available_builtins_result, agents_get_builtin_definition_request, agents_get_builtin_definition_result, agents_get_builtin_listing_definition_request, agents_get_builtin_listing_definition_result, agents_get_builtins_result, agents_get_discovery_paths_request, api_key_auth_info, authenticated_authority_grant, authenticated_authority_update, auth_enumerate_query, auth_enumerate_value, auth_enumerate_value_accounts, auth_enumerate_value_login_accounts, auth_enumerate_value_providers, auth_identity, auth_identity_metadata, auth_info, auth_info_type, auth_login_account, auth_login_advance_request, auth_login_begin_request, auth_login_begun, auth_login_cancel_request, auth_login_identity, auth_login_mode, auth_login_result_dto, auth_login_result_status, auth_login_step, auth_read_query, auth_read_value, auth_status_dto, auth_validation_error, auth_validation_errors, auth_write, auth_write_result, autopilot_evaluate_idle_continuation_outcome, autopilot_evaluate_idle_continuation_result, autopilot_objective_credit_limit, autopilot_objective_get_state_result, autopilot_objective_set_stay_in_autopilot_request, autopilot_objective_state, autopilot_objective_status, autopilot_options, auto_tier_billing, auto_tier_billing_promo, auto_tier_descriptor, auto_tier_metadata, auto_tier_status, azure_ml_cancel_result, azure_ml_catalog_request, azure_ml_catalog_result, azure_ml_catalog_retry_mode, azure_ml_catalog_warning, azure_ml_discard_request, azure_ml_download_id_request, azure_ml_download_request, azure_ml_download_result, azure_ml_download_status, azure_ml_family_lease_result, azure_ml_family_release_request, azure_ml_family_request, azure_ml_latest_request, azure_ml_license, azure_ml_model, azure_ml_profile, azure_ml_registry, azure_ml_resolve_request, azure_ml_resolve_result, builtin_agent_summary, built_in_model_catalog, built_in_model_catalog_entry, builtin_tool_descriptor, builtin_tool_format, builtin_tool_format_type, builtin_tool_input_schema, builtin_tool_input_schema_type, builtin_tool_safe_for_telemetry, builtin_tool_safe_telemetry_fields, cancel_user_requested_shell_command_result, canvas_action, canvas_action_invoke_request, canvas_action_invoke_result, canvas_close_request, canvas_host_context, canvas_host_context_capabilities, canvas_json_schema, canvas_list, canvas_list_open_result, canvas_open_request, canvas_provider_close_request, canvas_provider_invoke_action_request, canvas_provider_open_request, canvas_provider_open_result, canvas_provider_register_request, canvas_provider_unregister_request, canvas_session_context, capi_session_options, card_digest, card_digest_algorithm, card_digest_value, catalog_agent_plugin_candidate, catalog_agent_plugin_candidate_kind, catalog_agent_plugin_candidate_provenance, catalog_agent_plugin_compatibility_tag, catalog_agent_plugin_component, catalog_agent_plugin_installability, catalog_agent_plugin_install_plan, catalog_agent_plugin_install_source, catalog_agent_plugin_marketplace_source, catalog_agent_plugin_marketplace_source_kind, catalog_agent_plugin_materialization_source, catalog_agent_plugin_materialization_source_kind, catalog_agent_plugin_media_type, catalog_agent_plugin_repository_source, catalog_agent_plugin_repository_source_kind, catalog_ai_skill_candidate, catalog_ai_skill_candidate_kind, catalog_ai_skill_candidate_provenance, catalog_ai_skill_installability, catalog_ai_skill_media_type, catalog_authentication_required_error, catalog_authentication_required_reason, catalog_candidate, catalog_candidate_kind, catalog_candidate_source, catalog_candidate_source_embedded, catalog_candidate_source_url, catalog_capability, catalog_capability_id, catalog_client_contract, catalog_contract_violation_error, catalog_contract_violation_reason, catalog_feed_available_entry, catalog_feed_available_status, catalog_feed_entry, catalog_feed_filtered_entry, catalog_feed_filtered_status, catalog_feed_unavailable_entry, catalog_feed_unavailable_reason, catalog_feed_unavailable_status, catalog_generated_feed_description, catalog_get_generated_feed_request, catalog_get_generated_feed_succeeded, catalog_get_saved_feed_request, catalog_get_saved_feed_succeeded, catalog_handle_rejected_error, catalog_handle_rejection_reason, catalog_handle_type, catalog_invalid_request_error, catalog_invalid_request_field, catalog_malformed_card_error, catalog_malformed_card_reason, catalog_materialization_reference, catalog_mcp_server_candidate, catalog_mcp_server_candidate_kind, catalog_mcp_server_candidate_provenance, catalog_mcp_server_installability, catalog_media_type, catalog_negotiated_contract, catalog_negotiation_refused_error, catalog_negotiation_refused_reason, catalog_network_failure_error, catalog_network_failure_reason, catalog_not_installable_error, catalog_not_installable_reason, catalog_plan_install_from_reference_request, catalog_plugin_repository_source, catalog_policy_rejected_error, catalog_recommend_request, catalog_reference_installation_failure_reason, catalog_reference_installation_outcome, catalog_reference_installation_result, catalog_resource_generated_feed_result, catalog_resource_identity, catalog_resource_saved_feed_result, catalog_resource_version, catalog_saved_feed_description, catalog_search_page, catalog_search_pagination, catalog_search_request, catalog_search_result, catalog_search_succeeded, catalog_search_total_count_relation, catalog_selection_cancelled, catalog_selection_decision, catalog_selection_declined, catalog_selection_foreign, catalog_selection_invalid, catalog_selection_replayed, catalog_selection_request, catalog_selection_result, catalog_selection_selected, catalog_selection_stale, catalog_selection_timed_out, catalog_selection_wrong_kind, catalog_trust_eligibility, catalog_trust_provenance, catalog_trust_snapshot, catalog_trust_snapshot_absent, catalog_trust_snapshot_absent_status, catalog_trust_snapshot_current, catalog_trust_snapshot_current_status, catalog_trust_snapshot_downgraded, catalog_trust_snapshot_downgraded_status, catalog_trust_snapshot_malformed, catalog_trust_snapshot_malformed_status, catalog_trust_snapshot_revoked, catalog_trust_snapshot_revoked_status, catalog_trust_snapshot_schema_version, catalog_trust_snapshot_stale, catalog_trust_snapshot_stale_status, catalog_trust_snapshot_unsupported, catalog_trust_snapshot_unsupported_status, catalog_trust_source, catalog_trust_tier, catalog_unavailable_error, catalog_unavailable_reason, catalog_unavailable_transport_error, catalog_unavailable_transport_reason, catalog_unsafe_retrieval_error, catalog_unsafe_retrieval_reason, catalog_unsupported_kind_error, client_metadata, client_task_cancel_reason, client_task_cancel_request, client_task_cancel_result, command_list, commands_finalize_invocation_effect_request, commands_finalize_invocation_effect_result, commands_handle_pending_command_request, commands_handle_pending_command_result, commands_invocation_effect_outcome, commands_invocation_origin, commands_invoke_request, commands_list_request, commands_report_queued_command_wait_request, commands_report_queued_command_wait_result, commands_respond_to_queued_command_request, commands_respond_to_queued_command_result, completions_get_trigger_characters_result, completions_request_request, completions_request_result, configure_session_extensions_params, connect_client_info, connected_remote_session_metadata, connected_remote_session_metadata_kind, connected_remote_session_metadata_repository, connector_account_request, connector_authorization_requirement, connector_authorization_scope, connector_availability, connector_capabilities, connector_catalog_entry, connector_catalog_result, connector_catalog_status, connector_connect_request, connector_connect_result, connector_continue_request, connector_disconnect_result, connector_discovery_account, connector_discovery_account_list, connector_discovery_account_request, connector_discovery_auth_info, connector_discovery_availability, connector_discovery_capabilities, connector_discovery_catalog_entry, connector_discovery_catalog_result, connector_mcp_status, connector_reconcile_request, connector_runtime_status, connector_session_account, connector_status, connect_remote_session_params, connect_request, connect_result, content_exclusion_check_paths_request, content_exclusion_check_paths_result, content_exclusion_path_check, content_exclusion_validate_policies_request, content_exclusion_validate_policies_result, content_filter_mode, context_heaviest_message, copilot_api_token_auth_info, copilot_user_response, copilot_user_response_endpoints, copilot_user_response_quota_snapshots, copilot_user_response_quota_snapshots_chat, copilot_user_response_quota_snapshots_completions, copilot_user_response_quota_snapshots_premium_interactions, current_model, current_tool_metadata, customization_reload_outcome, customization_reload_status, customization_reload_subsystem, customizations_reload_result, debug_collect_logs_collected_entry, debug_collect_logs_destination, debug_collect_logs_entry, debug_collect_logs_entry_kind, debug_collect_logs_include, debug_collect_logs_redaction, debug_collect_logs_request, debug_collect_logs_result, debug_collect_logs_result_kind, debug_collect_logs_skipped_entry, debug_collect_logs_source, diagnostic_cursor_status, diagnostic_entry, diagnostic_log_level, diagnostics_configuration, diagnostics_configure_request, diagnostic_severity, diagnostic_source, diagnostic_sources_configuration, diagnostics_read_request, diagnostics_read_result, discovered_canvas, discovered_extension, discovered_extension_mode, discovered_extension_plugin, discovered_extensions, discovered_extensions_disable_request, discovered_extensions_enable_request, discovered_extension_source, discovered_hook, discovered_mcp_server, discovered_mcp_server_type, discovered_model, discovered_model_list, eligible_plugin_extension_entry, enqueue_command_params, enqueue_command_result, entra_auth_config, entra_token_acquire_reason, entra_token_acquire_request, entra_token_acquire_result, entra_token_get_token_request, env_auth_info, environment_capabilities, environment_kind, environments_delete_request, environments_delete_result, environments_get_request, environments_get_result, environments_list_request, environments_list_result, event_log_read_request, event_log_release_interest_result, event_log_tail_result, event_log_types, events_agent_scope, events_cursor_status, events_read_direction, events_read_result, events_read_view, execute_command_params, execute_command_result, extension, extension_context_push_input, extension_launch_profile, extension_launch_provider_resolve_request, extension_launch_provider_resolve_result, extension_list, extension_managed_policy, extensions_disable_request, extensions_enable_request, extension_source, extension_status, external_tool_result, external_tool_text_result_for_llm, external_tool_text_result_for_llm_binary_results_for_llm, external_tool_text_result_for_llm_binary_results_for_llm_type, external_tool_text_result_for_llm_content, external_tool_text_result_for_llm_content_audio, external_tool_text_result_for_llm_content_image, external_tool_text_result_for_llm_content_resource, external_tool_text_result_for_llm_content_resource_details, external_tool_text_result_for_llm_content_resource_link, external_tool_text_result_for_llm_content_resource_link_icon, external_tool_text_result_for_llm_content_resource_link_icon_theme, external_tool_text_result_for_llm_content_shell_exit, external_tool_text_result_for_llm_content_terminal, external_tool_text_result_for_llm_content_text, feature_flag_availability, feature_flag_metadata, feature_flags_metadata_result, feature_flags_resolve_request, feature_flags_resolve_result, feature_flags_resolve_startup_gates_request, feature_flags_resolve_startup_gates_result, filter_mapping, fleet_start_request, fleet_start_result, folder_trust_add_params, folder_trust_check_params, folder_trust_check_result, folder_trust_is_trusted_params, force_login_orgs_decision, gh_cli_auth_info, git_current_branch_remote_result, git_cwd_request, git_hub_environment, git_hub_owner_option, git_hub_owners_cancel_request, git_hub_owners_cancel_result, git_hub_owners_list_request, git_hub_owners_list_result, git_hub_owners_request_id_result, git_hub_repository_at_path_request, git_hub_repository_at_path_result, git_hub_repository_identity, git_hub_telemetry_client_info, git_hub_telemetry_event, git_hub_telemetry_notification, git_hub_token_acquire_reason, git_hub_token_acquire_request, git_hub_token_acquire_result, git_remote_repository, git_repos_from_remotes_request, git_repos_from_remotes_result, global_state_load_for_config_dir_request, global_state_load_result, global_state_write_key_request, handle_pending_tool_call_request, handle_pending_tool_call_result, history_abort_manual_compaction_result, history_cancel_background_compaction_result, history_clear_context_request, history_clear_context_result, history_compact_context_window, history_compact_request, history_compact_result, history_file_restore_skip_reason, history_list_rewind_points_result, history_preview_rewind_request, history_preview_rewind_result, history_rewind_change_type, history_rewind_file_preview, history_rewind_mode, history_rewind_outcome, history_rewind_point, history_rewind_request, history_rewind_result, history_rewind_unavailable_reason, history_skipped_file_restore, history_summarize_for_handoff_result, history_truncate_request, history_truncate_result, hmac_auth_info, hook_invoke_request, hook_invoke_response, hook_origin, hooks_discover_request, hooks_discover_result, hook_type, host_authenticate_request, host_authentication, host_authentication_cancelled_notification, host_authentication_result, host_cancel_authentication_request, host_configuration, host_diagnostics, host_dispose_request, host_empty_result, host_environment_credentials, host_error_reporting_status, host_exited_notification, host_exit_reason, host_git_hub_environment_options, host_list_sessions_request, host_list_sessions_result, host_local_server_configuration, host_local_server_options, host_publish_session_request, host_publish_session_result, host_ready_request, host_register_session_request, host_session_authentication, host_session_create_callback, host_session_create_request, host_session_create_result, host_session_released_notification, host_session_release_request, host_session_summary, host_set_session_creation_policy_request, host_start_request, host_start_result, host_unpublish_session_request, host_unpublish_session_result, host_unregister_session_request, host_validate_authentication_request, image_tool_model, image_tool_model_availability, image_tool_model_operation, image_tool_model_pricing, installation_catalogue_identity, installation_confirmation_request, installation_confirmation_response, installation_decision, installation_review, installed_plugin, installed_plugin_info, installed_plugin_source, installed_plugin_source_git_hub, installed_plugin_source_local, installed_plugin_source_url, installed_plugin_verified_source, instruction_discovery_path, instruction_discovery_path_kind, instruction_discovery_path_list, instruction_discovery_path_location, instructions_discover_repo_sources_request, instructions_discover_request, instructions_get_discovery_paths_request, instructions_get_sources_result, instructions_init_prompt_result, instruction_source, instruction_source_location, instruction_source_type, interrupt_main_turn_request, interrupt_main_turn_result, json_schema_response_format, kerberos_auth_acquire_request, kerberos_auth_acquire_result, kerberos_auth_mode, kerberos_auth_scope, kerberos_auth_set_provider_request, lifecycle_diagnostics_configuration, lifecycle_diagnostics_read_request, lifecycle_diagnostics_read_result, llm_inference_headers, llm_inference_http_request_chunk_request, llm_inference_http_request_chunk_result, llm_inference_http_request_start_request, llm_inference_http_request_start_result, llm_inference_http_request_start_transport, llm_inference_http_response_chunk_error, llm_inference_http_response_chunk_request, llm_inference_http_response_chunk_result, llm_inference_http_response_start_request, llm_inference_http_response_start_result, llm_inference_set_provider_result, local_session_metadata_value, location_permissions_cleanup_result, logged_in_user, login_provider_kind, log_request, log_result, lsp_initialize_request, managed_communication_settings, managed_communication_support, managed_fusion_tier, managed_mcp_server_config, managed_permission_evaluation, managed_permission_operation, managed_permission_operation_kind, managed_permissions_evaluate_request, managed_permissions_evaluate_result, managed_permission_verdict, managed_plugin_retry_entry, managed_plugin_retry_status, managed_session_info, managed_setting_meta, managed_settings_apply_controls_params, managed_settings_apply_controls_result, managed_settings_bypass_disable_source, managed_settings_bypass_policy_resolution, managed_settings_channel, managed_settings_compose_layer, managed_settings_compose_request, managed_settings_compose_result, managed_settings_diagnostic, managed_settings_diagnostic_severity, managed_settings_ingest_params, managed_settings_ingest_result, managed_settings_layer, managed_settings_load_remote_control_params, managed_settings_load_remote_control_result, managed_settings_log_level, managed_settings_log_message, managed_settings_meta, managed_settings_parse_client_value_params, managed_settings_parse_client_value_result, managed_settings_policy_helper_authority, managed_settings_policy_helper_reason, managed_settings_read_device_result, managed_settings_read_result, managed_settings_resolve_bypass_disable_transition_params, managed_settings_resolve_bypass_disable_transition_result, managed_settings_resolved_data, managed_settings_resolve_device_force_login_orgs_gate_params, managed_settings_resolve_effective_value_params, managed_settings_resolve_effective_value_result, managed_settings_resolve_request, managed_settings_resolve_result, managed_settings_resolve_startup_policy_params, managed_settings_resolve_startup_policy_result, managed_settings_retain_policy_params, managed_settings_schema_result, managed_settings_server_policy_cache_mode, managed_settings_server_policy_resolution, managed_settings_validate_request, managed_settings_validate_result, managed_settings_values, marketplace_add_result, marketplace_browse_result, marketplace_info, marketplace_list_result, marketplace_plugin_info, marketplace_refresh_entry, marketplace_refresh_result, marketplace_remove_result, mcp_allowed_server, mcp_apply_install_request, mcp_apply_uninstall_request, mcp_apps_call_tool_request, mcp_apps_diagnose_capability, mcp_apps_diagnose_request, mcp_apps_diagnose_result, mcp_apps_diagnose_server, mcp_apps_host_context, mcp_apps_host_context_details, mcp_apps_host_context_details_available_display_mode, mcp_apps_host_context_details_display_mode, mcp_apps_host_context_details_platform, mcp_apps_host_context_details_theme, mcp_apps_list_tools_request, mcp_apps_list_tools_result, mcp_apps_read_resource_request, mcp_apps_read_resource_result, mcp_apps_resource_content, mcp_apps_set_host_context_details, mcp_apps_set_host_context_details_available_display_mode, mcp_apps_set_host_context_details_display_mode, mcp_apps_set_host_context_details_platform, mcp_apps_set_host_context_details_theme, mcp_apps_set_host_context_request, mcp_cancel_sampling_execution_params, mcp_cancel_sampling_execution_result, mcp_config_add_request, mcp_config_disable_request, mcp_config_enable_request, mcp_config_list, mcp_config_remove_request, mcp_config_update_request, mcp_configured_server, mcp_configured_server_list, mcp_configured_server_state, mcp_configure_git_hub_request, mcp_configure_git_hub_result, mcp_diagnostic_details, mcp_diagnostic_direction, mcp_diagnostic_kind, mcp_diagnostic_source_configuration, mcp_disable_request, mcp_discover_request, mcp_discover_result, mcp_elicitation_form_mode, mcp_enable_request, mcp_execute_sampling_params, mcp_execute_sampling_request, mcp_execute_sampling_result, mcp_failed_server, mcp_filtered_server, mcp_headers_handle_pending_headers_refresh_request, mcp_headers_handle_pending_headers_refresh_request_request, mcp_headers_handle_pending_headers_refresh_request_result, mcp_host_state, mcp_installation_failure_reason, mcp_installation_input, mcp_installation_management_outcome, mcp_installation_management_result, mcp_installation_operation_request, mcp_installation_operation_status, mcp_installation_outcome, mcp_installation_remote_configuration, mcp_installation_result, mcp_installation_review, mcp_installation_secret, mcp_installation_secret_storage, mcp_installations_request, mcp_installation_state, mcp_installation_summary, mcp_install_plan, mcp_is_server_running_request, mcp_is_server_running_result, mcp_list_builtin_server_names_result, mcp_list_tools_request, mcp_list_tools_result, mcp_oauth_authentication_state_changed_request, mcp_oauth_cancel_login_request, mcp_oauth_cancel_login_result, mcp_oauth_check_dcr_support_request, mcp_oauth_check_dcr_support_result, mcp_oauth_complete_request, mcp_oauth_fetch_protected_resource_metadata_request, mcp_oauth_fetch_protected_resource_metadata_result, mcp_oauth_handle_pending_request, mcp_oauth_handle_pending_result, mcp_oauth_is_microsoft_authorization_server_request, mcp_oauth_is_microsoft_authorization_server_result, mcp_oauth_login_grant_type, mcp_oauth_login_request, mcp_oauth_login_result, mcp_oauth_pending_request_response, mcp_oauth_prepare_login_request, mcp_oauth_prepare_login_result, mcp_oauth_probe_needs_auth_reason, mcp_oauth_probe_request, mcp_oauth_probe_result, mcp_oauth_respond_request, mcp_oauth_respond_result, mcp_oauth_static_client_config, mcp_oauth_static_client_config_request, mcp_oauth_static_client_config_result, mcp_owned_oauth_login_status, mcp_plan_configuration_change, mcp_plan_configuration_operation, mcp_plan_enum_value_type, mcp_plan_install_planned, mcp_plan_install_request, mcp_plan_install_result, mcp_plan_install_source, mcp_plan_install_source_candidate, mcp_plan_install_source_candidate_kind, mcp_plan_install_source_card, mcp_plan_install_source_card_kind, mcp_plan_package_install_method, mcp_plan_package_transport, mcp_plan_policy_decision, mcp_plan_policy_result, mcp_plan_policy_source, mcp_plan_provenance, mcp_plan_remote_install_method, mcp_plan_remote_transport, mcp_plan_required_value, mcp_plan_required_value_enum, mcp_plan_required_value_enum_kind, mcp_plan_required_value_scalar, mcp_plan_required_value_scalar_kind, mcp_plan_resource_identity, mcp_plan_scalar_value_type, mcp_plan_scope, mcp_plan_secret_placeholder, mcp_plan_secret_reference, mcp_plan_target, mcp_plan_transport_choice, mcp_plan_transport_choice_package, mcp_plan_transport_choice_remote, mcp_plan_uninstall_request, mcp_plan_value_category, mcp_prepared_install, mcp_prepare_install_request, mcp_prompt, mcp_prompt_argument, mcp_prompt_icon, mcp_prompt_message, mcp_prompt_role, mcp_prompts_get_request, mcp_prompts_get_result, mcp_prompts_list_request, mcp_prompts_list_result, mcp_register_external_client_request, mcp_registry_cancel_request, mcp_registry_cancel_result, mcp_registry_request_id_result, mcp_registry_search_request, mcp_registry_search_result, mcp_reload_config, mcp_reload_with_config_request, mcp_remove_git_hub_result, mcp_resource, mcp_resource_annotations, mcp_resource_content, mcp_resource_icon, mcp_resources_list_request, mcp_resources_list_result, mcp_resources_list_templates_request, mcp_resources_list_templates_result, mcp_resources_read_request, mcp_resources_read_result, mcp_resource_template, mcp_restart_server_request, mcp_safe_for_telemetry, mcp_safe_for_telemetry_fields, mcp_sampling_execution_action, mcp_sampling_execution_result, mcp_serializable_server_config, mcp_server, mcp_server_auth_config, mcp_server_auth_config_redirect_port, mcp_server_card_embedded, mcp_server_card_embedded_kind, mcp_server_card_media_type, mcp_server_card_reference, mcp_server_card_url, mcp_server_card_url_kind, mcp_server_config, mcp_server_config_defer_tools, mcp_server_config_http, mcp_server_config_http_oauth_grant_type, mcp_server_config_http_type, mcp_server_config_memory, mcp_server_config_memory_type, mcp_server_config_stdio, mcp_server_config_stdio_type, mcp_server_failure_info, mcp_server_list, mcp_server_needs_auth_info, mcp_server_ownership, mcp_set_env_value_mode_details, mcp_set_env_value_mode_params, mcp_set_env_value_mode_result, mcp_should_exclude_git_hub_tools_request, mcp_should_exclude_git_hub_tools_result, mcp_source_file, mcp_source_plugin, mcp_source_ref, mcp_start_server_request, mcp_start_servers_result, mcp_stop_server_request, mcp_task_metadata, mcp_tools, mcp_tool_ui, mcp_tool_ui_visibility, mcp_uninstall_plan, mcp_unregister_external_client_request, memory_configuration, memory_mode, metadata_context_attribution_result, metadata_context_heaviest_messages_request, metadata_context_heaviest_messages_result, metadata_context_info_request, metadata_context_info_result, metadata_is_processing_result, metadata_recompute_context_tokens_request, metadata_recompute_context_tokens_result, metadata_record_context_change_request, metadata_record_context_change_result, metadata_set_working_directory_request, metadata_set_working_directory_result, metadata_snapshot_current_mode, metadata_snapshot_remote_metadata, metadata_snapshot_remote_metadata_repository, metadata_snapshot_remote_metadata_task_type, metadata_update_client_metadata_request, model, model_apply_startup_overlay_request, model_artifact_details, model_billing, model_billing_promo, model_billing_token_prices, model_billing_token_prices_long_context, model_capabilities, model_capabilities_limits, model_capabilities_limits_vision, model_capabilities_override, model_capabilities_override_limits, model_capabilities_override_limits_vision, model_capabilities_override_supports, model_capabilities_supports, model_clear_startup_seed_request, model_clear_startup_seed_result, model_get_reasoning_summaries_request, model_get_reasoning_summaries_result, model_list, model_list_request, model_message, model_picker_category, model_picker_persistence_request, model_picker_price_category, model_picker_settings_context, model_policy, model_policy_state, model_provider_adapter_catalog, model_provider_adapter_descriptor, model_provider_adapter_operation_descriptor, model_provider_attribution, model_provider_automatic_discovery_mode, model_provider_automatic_discovery_policy, model_provider_configuration_disposition, model_provider_configuration_plan, model_provider_descriptor, model_provider_discover_request, model_provider_discover_result, model_provider_discovery_network_scope, model_provider_get_status_request, model_provider_instance, model_provider_instance_reference, model_provider_models_list_request, model_provider_operation_outcome, model_provider_operation_outcome_code, model_provider_prepare_configuration_request, model_provider_provenance, model_provider_provenance_source, model_provider_status, model_provider_warning, model_set_allowed_models_request, model_set_allowed_models_result, model_set_reasoning_effort_request, model_set_reasoning_effort_result, models_list_request, models_list_token_price_units_request, model_switch_auto_tier_request, model_switch_auto_tier_result, model_switch_auto_tier_status, model_switch_confirmation, model_switch_to_request, model_switch_to_result, model_token_price_unit, model_token_price_unit_list, model_warning_text, mode_set_request, mode_set_result, move_mcp_loading_to_background_result, named_provider_config, name_get_result, name_set_auto_request, name_set_auto_result, name_set_request, open_canvas_instance, options_update_additional_content_exclusion_policy, options_update_additional_content_exclusion_policy_rule, options_update_additional_content_exclusion_policy_rule_source, options_update_additional_content_exclusion_policy_scope, options_update_context_tier, options_update_env_value_mode, options_update_reasoning_summary, options_update_tool_filter_precedence, pending_external_tool_request, pending_external_tool_request_list, pending_permission_request, pending_permission_request_list, permission_decision, permission_decision_approved, permission_decision_approved_for_location, permission_decision_approved_for_session, permission_decision_approve_for_location, permission_decision_approve_for_location_approval, permission_decision_approve_for_location_approval_commands, permission_decision_approve_for_location_approval_custom_tool, permission_decision_approve_for_location_approval_extension_env_access, permission_decision_approve_for_location_approval_extension_management, permission_decision_approve_for_location_approval_extension_permission_access, permission_decision_approve_for_location_approval_mcp, permission_decision_approve_for_location_approval_mcp_sampling, permission_decision_approve_for_location_approval_memory, permission_decision_approve_for_location_approval_read, permission_decision_approve_for_location_approval_workflow, permission_decision_approve_for_location_approval_write, permission_decision_approve_for_session, permission_decision_approve_for_session_approval, permission_decision_approve_for_session_approval_commands, permission_decision_approve_for_session_approval_custom_tool, permission_decision_approve_for_session_approval_extension_env_access, permission_decision_approve_for_session_approval_extension_management, permission_decision_approve_for_session_approval_extension_permission_access, permission_decision_approve_for_session_approval_mcp, permission_decision_approve_for_session_approval_mcp_sampling, permission_decision_approve_for_session_approval_memory, permission_decision_approve_for_session_approval_read, permission_decision_approve_for_session_approval_workflow, permission_decision_approve_for_session_approval_write, permission_decision_approve_once, permission_decision_approve_permanently, permission_decision_approve_read_only_for_session, permission_decision_cancelled, permission_decision_context, permission_decision_denied_by_content_exclusion_policy, permission_decision_denied_by_permission_request_hook, permission_decision_denied_by_rules, permission_decision_denied_interactively_by_user, permission_decision_denied_no_approval_rule_and_could_not_request_from_user, permission_decision_outcome, permission_decision_reject, permission_decision_request, permission_decision_surface, permission_decision_user_not_available, permission_location_add_tool_approval_params, permission_location_apply_params, permission_location_apply_result, permission_location_resolve_params, permission_location_resolve_result, permission_location_type, permission_mode_source, permission_paths_add_params, permission_paths_allowed_check_params, permission_paths_allowed_check_result, permission_paths_config, permission_paths_list, permission_paths_update_primary_params, permission_paths_workspace_check_params, permission_paths_workspace_check_result, permission_prompt_shown_notification, permission_request_result, permission_response_capability, permission_rules_set, permissions_capabilities, permissions_clear_resume_escalation_request, permissions_clear_resume_escalation_result, permissions_configure_additional_content_exclusion_policy, permissions_configure_additional_content_exclusion_policy_rule, permissions_configure_additional_content_exclusion_policy_rule_source, permissions_configure_additional_content_exclusion_policy_scope, permissions_configure_assisted_approval_context, permissions_configure_params, permissions_configure_result, permissions_evaluate_managed_policy_params, permissions_evaluate_managed_policy_result, permissions_folder_trust_add_trusted_result, permissions_get_mode_request, permissions_get_mode_result, permissions_locations_add_tool_approval_details, permissions_locations_add_tool_approval_details_commands, permissions_locations_add_tool_approval_details_custom_tool, permissions_locations_add_tool_approval_details_extension_env_access, permissions_locations_add_tool_approval_details_extension_management, permissions_locations_add_tool_approval_details_extension_permission_access, permissions_locations_add_tool_approval_details_mcp, permissions_locations_add_tool_approval_details_mcp_sampling, permissions_locations_add_tool_approval_details_memory, permissions_locations_add_tool_approval_details_read, permissions_locations_add_tool_approval_details_workflow, permissions_locations_add_tool_approval_details_write, permissions_locations_add_tool_approval_result, permissions_modify_rules_params, permissions_modify_rules_result, permissions_modify_rules_scope, permissions_notify_prompt_shown_result, permissions_paths_add_result, permissions_paths_list_request, permissions_paths_update_primary_result, permissions_pending_requests_request, permissions_reset_session_approvals_request, permissions_reset_session_approvals_result, permissions_set_approve_all_request, permissions_set_approve_all_result, permissions_set_approve_all_source, permissions_set_mode_request, permissions_set_mode_result, permissions_set_required_request, permissions_set_required_result, permissions_urls_set_unrestricted_mode_result, permission_urls_config, permission_urls_set_unrestricted_mode_params, persistence_write_raw_json_locked_request, persistence_write_raw_json_locked_result, ping_request, ping_result, plan_read_result, plan_read_sql_todos_result, plan_read_sql_todos_with_dependencies_result, plan_sql_todo_dependency, plan_sql_todos_row, plan_update_request, plugin, plugin_apply_install_request, plugin_installation_failure_reason, plugin_installation_file_review, plugin_installation_location, plugin_installation_management_outcome, plugin_installation_management_result, plugin_installation_mcp_server_review, plugin_installation_mcp_transport, plugin_installation_outcome, plugin_installation_result, plugin_installation_review, plugin_installation_source, plugin_installation_summary, plugin_install_plan, plugin_install_result, plugin_install_staging_mode, plugin_list, plugin_list_result, plugin_plan_install_request, plugins_builtin_set_request, plugins_disable_request, plugins_enable_request, plugins_install_request, plugins_marketplaces_add_request, plugins_marketplaces_browse_request, plugins_marketplaces_refresh_request, plugins_marketplaces_remove_request, plugins_reload_request, plugins_uninstall_request, plugins_update_request, plugin_update_all_entry, plugin_update_all_result, plugin_update_result, protocol_append_mode, protocol_customize_mode, protocol_external_tool_defer, protocol_external_tool_definition, protocol_external_tool_namespace, protocol_image_generation_options, protocol_marker_section_override, protocol_replace_mode, protocol_section_override, protocol_static_section_action, protocol_static_section_override, protocol_status_response, protocol_system_message_append_config, protocol_system_message_config, protocol_system_message_customize_config, protocol_system_message_replace_config, provider_add_request, provider_add_result, provider_config, provider_config_azure, provider_config_model_provider, provider_config_transport, provider_config_type, provider_config_wire_api, provider_descriptor, provider_endpoint, provider_endpoint_transport, provider_endpoint_type, provider_endpoint_wire_api, provider_get_endpoint_request, provider_model_config, provider_session_token, provider_status, provider_sync_request, provider_sync_result, provider_token_acquire_request, provider_token_acquire_result, provider_withdraw_request, provider_withdraw_result, push_attachment, push_attachment_blob, push_attachment_directory, push_attachment_file, push_attachment_file_line_range, push_attachment_git_hub_actions_job, push_attachment_git_hub_commit, push_attachment_git_hub_file, push_attachment_git_hub_file_diff, push_attachment_git_hub_file_diff_side, push_attachment_git_hub_reference, push_attachment_git_hub_reference_type, push_attachment_git_hub_release, push_attachment_git_hub_repository, push_attachment_git_hub_snippet, push_attachment_git_hub_tree_comparison, push_attachment_git_hub_tree_comparison_side, push_attachment_git_hub_url, push_attachment_selection, push_attachment_selection_details, push_attachment_selection_details_end, push_attachment_selection_details_start, push_git_hub_repo_ref, queue_append_steering_request, queue_begin_deferred_idle_drain_request, queue_begin_deferred_idle_drain_result, queue_consume_system_notifications_request, queued_command_handled, queued_command_not_handled, queued_command_result, queued_command_wait_requirement, queue_defer_session_idle_request, queue_duplicate_at_request, queue_duplicate_at_result, queue_enqueue_resume_pending_result, queue_finish_deferred_idle_drain_request, queue_finish_deferred_idle_drain_result, queue_has_pending_result, queue_insert_at_request, queue_insert_at_result, queue_insert_message, queue_move_item_request, queue_move_item_result, queue_pending_items, queue_pending_items_kind, queue_pending_items_result, queue_remove_at_request, queue_remove_at_result, queue_remove_most_recent_result, queue_send_now_request, queue_send_now_result, queue_set_drain_paused_request, queue_snapshot_result, queue_update_text_request, queue_update_text_result, queue_withdraw_message_request, queue_withdraw_message_result, quota_take_warnings_result, quota_warning_projection, register_event_interest_params, register_event_interest_result, release_event_interest_params, remote_control_config, remote_control_config_existing_mc_session, remote_control_status, remote_control_status_active, remote_control_status_connecting, remote_control_status_error, remote_control_status_off, remote_control_status_result, remote_control_stop_result, remote_control_transfer_result, remote_enable_request, remote_enable_result, remote_notify_steerable_changed_request, remote_notify_steerable_changed_result, remote_session_connection_result, remote_session_host_status, remote_session_metadata_repository, remote_session_metadata_task_type, remote_session_metadata_value, remote_session_mode, remote_session_repository, repo_settings_edit_request, repo_settings_edit_scope, repo_settings_read_raw_request, repo_settings_read_raw_result, repo_settings_write_all_request, repo_settings_write_key_request, response_format, runtime_open_browser_request, sandbox_apply_defaults_request, sandbox_check_enforcement_command_result, sandbox_check_platform_support_result, sandbox_check_windows_host_loopback_support_result, sandbox_config, sandbox_config_auth, sandbox_config_source, sandbox_config_user_policy, sandbox_config_user_policy_experimental, sandbox_config_user_policy_experimental_seatbelt, sandbox_config_user_policy_filesystem, sandbox_config_user_policy_network, sandbox_config_user_policy_network_proxy, sandbox_config_user_policy_seatbelt, sandbox_credentials_config, sandbox_credential_suggestion, sandbox_credential_suggestions_result, sandbox_disable_for_session_request, sandbox_disable_for_session_result, sandbox_docs_url_result, sandbox_effective_for_optional_params, sandbox_effective_for_optional_result, sandbox_enforcement_command_allowed_params, sandbox_enforcement_status, sandbox_filter_picker_candidates_params, sandbox_filter_picker_candidates_result, sandbox_get_unsupported_message_result, sandbox_get_unsupported_setting_disabled_notice_result, sandbox_grant_path_for_request_request, sandbox_grant_path_for_request_result, sandbox_host_capability, sandbox_host_capability_name, sandbox_host_support, sandbox_masked_env_var, sandbox_path_grant_warning_params, sandbox_path_grant_warning_result, sandbox_picker_candidate, sandbox_prepare_picker_policy_params, sandbox_prepare_picker_policy_result, sandbox_proxy_ca_check_installation_support_result, sandbox_proxy_ca_check_relevance_result, sandbox_proxy_ca_create_result, sandbox_proxy_ca_request, sandbox_proxy_ca_state, sandbox_proxy_ca_status, sandbox_proxy_secret_get_result, sandbox_proxy_secret_location, sandbox_proxy_secret_save_request, sandbox_proxy_secret_save_result, sandbox_resolve_floored_config_params, sandbox_resolve_floored_config_result, sandbox_session_change, sandbox_settings_apply_defaults_result, sandbox_unsupported_startup_notice_params, sandbox_unsupported_startup_notice_result, schedule_add_at_request, schedule_add_cron_request, schedule_add_request, schedule_add_result, schedule_add_self_paced_request, schedule_entry, schedule_has_self_paced_result, schedule_list, schedule_rearm_self_paced_request, schedule_stop_request, schedule_stop_result, secrets_add_filter_values_request, secrets_add_filter_values_result, send_agent_mode, send_and_wait_result, send_attachments_to_message_params, send_message_item, send_messages_request, send_messages_result, send_mode, send_request, send_result, send_system_notification_request, server_agent_list, server_instruction_source_list, server_skill, server_skill_list, session_activity, session_agent_list_request, session_auth_login_request, session_auth_logout_user_request, session_auth_status, session_auth_switch_request, session_bulk_delete_result, session_cancel_all_background_agents_result, session_capability, session_commands_list_request, session_completion_item, session_connected_ide_info, session_context, session_context_host_type, session_enrich_metadata_result, session_fs_append_file_request, session_fs_error, session_fs_error_code, session_fs_exists_request, session_fs_exists_result, session_fs_mkdir_request, session_fs_readdir_request, session_fs_readdir_result, session_fs_readdir_with_types_entry, session_fs_readdir_with_types_entry_type, session_fs_readdir_with_types_request, session_fs_readdir_with_types_result, session_fs_read_file_bytes_request, session_fs_read_file_bytes_result, session_fs_read_file_range_request, session_fs_read_file_range_result, session_fs_read_file_request, session_fs_read_file_result, session_fs_rename_request, session_fs_rm_request, session_fs_set_provider_capabilities, session_fs_set_provider_conventions, session_fs_set_provider_request, session_fs_set_provider_result, session_fs_sqlite_exists_request, session_fs_sqlite_exists_result, session_fs_sqlite_query_request, session_fs_sqlite_query_result, session_fs_sqlite_query_type, session_fs_sqlite_transaction_error, session_fs_sqlite_transaction_error_class, session_fs_sqlite_transaction_request, session_fs_sqlite_transaction_result, session_fs_sqlite_transaction_statement, session_fs_stat_request, session_fs_stat_result, session_fs_write_file_bytes_request, session_fs_write_file_request, session_git_hub_auth_get_all_auth_available_result, session_git_hub_auth_logout_result, session_git_hub_auth_logout_user_result, session_history_compact_request, session_installed_plugin, session_installed_plugin_source, session_installed_plugin_source_git_hub, session_installed_plugin_source_local, session_installed_plugin_source_url, session_limit_prediction_baseline_data, session_limit_prediction_client_type, session_limit_prediction_details, session_limit_prediction_predict_request, session_limit_prediction_request, session_limit_prediction_result, session_limit_prediction_source, session_limit_prediction_tier, session_limit_prediction_tier_option, session_limit_prediction_unavailable_reason, session_list, session_list_entry, session_list_filter, session_load_deferred_repo_hooks_result, session_log_level, session_managed_permissions, session_managed_settings, session_management_close_request, session_management_close_result, session_management_configure_request, session_management_create_host_request, session_management_create_request, session_management_create_result, session_management_list_request, session_management_list_result, session_management_message_request, session_management_message_result, session_management_policy, session_management_scope, session_management_tool_overrides, session_mcp_apps_call_tool_result, session_mcp_oauth_cancel_login_request, session_mcp_oauth_cancel_login_result, session_mcp_oauth_prepare_login_request, session_mcp_oauth_prepare_login_result, session_mcp_set_connected_ide_info_params, session_metadata_snapshot, session_mode, session_model_clear_startup_seed_request, session_model_clear_startup_seed_result, session_model_list, session_model_list_request, session_model_price_category, session_open_options, session_open_options_additional_content_exclusion_policy, session_open_options_additional_content_exclusion_policy_rule, session_open_options_additional_content_exclusion_policy_rule_source, session_open_options_additional_content_exclusion_policy_scope, session_open_options_env_value_mode, session_open_options_reasoning_summary, session_open_params, session_open_result, session_plugins_disable_request, session_plugins_enable_request, session_plugins_install_request, session_plugins_marketplaces_refresh_request, session_plugins_reload_request, session_plugins_retry_managed_request, session_plugins_retry_managed_result, session_provider_get_endpoint_request, session_prune_result, session_quota_delegate_warning, session_quota_get_result, session_quota_plan_tier, session_quota_projection, session_quota_refresh_result, session_quota_snapshot, session_quota_take_warnings_result, sessions_bulk_delete_request, sessions_check_in_use_request, sessions_check_in_use_result, sessions_client_metadata_entry, sessions_close_request, sessions_close_result, sessions_create_workspace_request, sessions_create_workspace_result, sessions_delete_request, sessions_enrich_metadata_request, session_set_credentials_params, session_set_credentials_result, session_settings_built_in_tool_availability_snapshot, session_settings_evaluate_predicate_request, session_settings_evaluate_predicate_result, session_settings_job_snapshot, session_settings_model_snapshot, session_settings_online_evaluation_snapshot, session_settings_predicate_name, session_settings_repo_snapshot, session_settings_snapshot, session_settings_validation_snapshot, sessions_find_by_prefix_request, sessions_find_by_prefix_result, sessions_find_by_task_id_request, sessions_find_by_task_id_result, sessions_fork_request, sessions_fork_result, sessions_get_board_entry_count_request, sessions_get_board_entry_count_result, sessions_get_client_metadata_request, sessions_get_client_metadata_result, sessions_get_event_file_path_request, sessions_get_event_file_path_result, sessions_get_last_for_context_request, sessions_get_last_for_context_result, sessions_get_metadata_request, sessions_get_metadata_result, sessions_get_persisted_remote_steerable_request, sessions_get_persisted_remote_steerable_result, session_sizes, sessions_list_non_empty_session_ids_request, sessions_list_non_empty_session_ids_result, sessions_list_request, sessions_load_deferred_repo_hooks_request, sessions_load_workspace_request, sessions_load_workspace_result, sessions_open_attach, sessions_open_cloud, sessions_open_create, sessions_open_handoff, sessions_open_handoff_task_type, sessions_open_progress, sessions_open_progress_status, sessions_open_progress_step, sessions_open_remote, sessions_open_resume, sessions_open_resume_last, sessions_open_status, session_source, sessions_prune_old_request, sessions_read_persisted_events_request, sessions_release_lock_request, sessions_release_lock_result, sessions_reload_plugin_hooks_request, sessions_reload_plugin_hooks_result, sessions_save_request, sessions_save_result, sessions_set_additional_plugins_request, sessions_set_additional_plugins_result, sessions_set_remote_control_steering_request, sessions_start_remote_control_request, sessions_stop_remote_control_request, sessions_transfer_remote_control_request, sessions_update_workspace_fields_request, sessions_update_workspace_fields_result, session_telemetry_engagement, session_update_options_params, session_update_options_result, session_usage_set_code_changes_request, session_visibility_status, session_workflow_pause_at_checkpoint_result, session_working_directory_context, session_working_directory_context_host_type, session_working_directory_context_with_client, settable_auth_info, settable_token_auth_info, settings_edit_operation, settings_edit_result, settings_edit_status, settings_redact_value_for_display_request, settings_redact_value_for_display_result, settings_remove_raw_key_request, settings_remove_raw_key_result, shell_cancel_user_requested_request, shell_credentials, shell_exec_request, shell_exec_result, shell_execute_user_requested_request, shell_init_profile, shell_init_script, shell_init_script_shell, shell_kill_request, shell_kill_result, shell_kill_signal, shell_options, shutdown_request, skill, skill_apply_install_request, skill_apply_uninstall_request, skill_discovery_path, skill_discovery_path_list, skill_discovery_scope, skill_installation_failure_reason, skill_installation_file_review, skill_installation_location, skill_installation_management_outcome, skill_installation_management_result, skill_installation_operation_request, skill_installation_operation_status, skill_installation_outcome, skill_installation_ownership_state, skill_installation_result, skill_installation_review, skill_installation_scope, skill_installation_session_state, skill_installation_source, skill_installations_request, skill_installation_summary, skill_install_plan, skill_list, skill_plan_install_request, skill_plan_uninstall_request, skill_provider_descriptor, skill_provider_list_request, skill_provider_list_result, skill_provider_read_request, skill_provider_read_result, skills_config_set_disabled_skills_request, skills_config_set_skill_disabled_request, skills_disable_request, skills_discover_request, skills_enable_request, skill_set_enabled_request, skills_get_discovery_paths_request, skills_get_invoked_result, skills_invoked_skill, skills_load_diagnostics, skill_uninstall_plan, slash_command_add_timeline_entry_result, slash_command_agent_prompt_result, slash_command_completed_result, slash_command_info, slash_command_input, slash_command_input_choice, slash_command_input_completion, slash_command_invocation_result, slash_command_kind, slash_command_model_picker_dialog, slash_command_select_subcommand_option, slash_command_select_subcommand_result, slash_command_set_model_result, slash_command_set_plan_model_result, slash_command_show_dialog_result, slash_command_text_result, slash_command_timeline_entry, staff_log_level_migration_status, staff_update_channel_migration_status, standalone_extension_admission, subagent_settings_config, subagent_settings_entry, subagent_settings_entry_context_tier, system_message_block, task_agent_info, task_agent_progress, task_client_active_status, task_client_execution_mode, task_client_info, task_client_owner, task_client_owner_kind, task_client_owner_presence, task_client_progress, task_client_status, task_client_type, task_client_update, task_complete_data, task_completion_decision, task_execution_mode, task_info, task_kind, task_list, task_progress_line, tasks_cancel_request, tasks_cancel_result, tasks_get_current_promotable_result, tasks_get_progress_request, tasks_get_progress_result, task_shell_info, task_shell_info_attachment_mode, task_shell_output_exit, task_shell_progress, tasks_promote_current_to_background_result, tasks_promote_to_background_request, tasks_promote_to_background_result, tasks_read_output_request, tasks_read_output_result, tasks_refresh_result, tasks_register_request, tasks_register_result, tasks_remove_request, tasks_remove_result, tasks_send_message_request, tasks_send_message_result, tasks_start_agent_request, tasks_start_agent_result, task_status, tasks_update_request, tasks_update_result, tasks_wait_for_pending_result, telemetry_set_feature_overrides_request, token_auth_info, token_price_unit, token_provider_auth_info, tool, tool_list, tool_result, tool_result_expanded, tool_result_new_message, tool_result_type, tools_execute_request, tools_get_builtin_descriptors_request, tools_get_builtin_descriptors_result, tools_get_current_metadata_result, tools_get_subagent_settings_result, tools_initialize_and_validate_result, tools_list_pending_requests_request, tools_list_request, tools_set_request, tools_set_result, tools_shell_descriptor_config, tools_task_complete_event_data_request, tools_update_subagent_settings_result, ui_auto_mode_switch_response, ui_elicitation_array_any_of_field, ui_elicitation_array_any_of_field_items, ui_elicitation_array_any_of_field_items_any_of, ui_elicitation_array_enum_field, ui_elicitation_array_enum_field_items, ui_elicitation_field_value, ui_elicitation_request, ui_elicitation_response, ui_elicitation_response_action, ui_elicitation_response_content, ui_elicitation_result, ui_elicitation_schema, ui_elicitation_schema_property, ui_elicitation_schema_property_boolean, ui_elicitation_schema_property_number, ui_elicitation_schema_property_number_type, ui_elicitation_schema_property_string, ui_elicitation_schema_property_string_format, ui_elicitation_string_enum_field, ui_elicitation_string_one_of_field, ui_elicitation_string_one_of_field_one_of, ui_ephemeral_query_request, ui_ephemeral_query_result, ui_exit_plan_mode_action, ui_exit_plan_mode_response, ui_handle_pending_auto_mode_switch_request, ui_handle_pending_elicitation_request, ui_handle_pending_exit_plan_mode_request, ui_handle_pending_result, ui_handle_pending_sampling_request, ui_handle_pending_sampling_response, ui_handle_pending_session_limits_exhausted_request, ui_handle_pending_user_input_request, ui_register_direct_auto_mode_switch_handler_result, ui_session_limits_exhausted_response, ui_session_limits_exhausted_response_action, ui_thread_run_request, ui_unregister_direct_auto_mode_switch_handler_request, ui_unregister_direct_auto_mode_switch_handler_result, ui_user_input_response, unsupported_enqueue_command_result, update_subagent_settings_request, usage_get_metrics_result, usage_set_code_changes_request, user_auth_info, user_requested_shell_command_result, user_setting_metadata, user_settings_apply_top_key_request, user_settings_apply_top_key_result, user_settings_build_runtime_request, user_settings_build_runtime_result, user_settings_edit_request, user_settings_get_paths_request, user_settings_get_paths_result, user_settings_get_result, user_settings_governance_keys_result, user_settings_host_context, user_settings_load_and_merge_repo_request, user_settings_load_and_merge_repo_result, user_settings_load_for_config_dir_request, user_settings_load_for_config_dir_result, user_settings_load_for_edit_result, user_settings_load_repo_request, user_settings_load_repo_result, user_settings_load_with_warning_result, user_settings_merge_managed_and_user_params, user_settings_merge_managed_and_user_result, user_settings_merge_repo_value_params, user_settings_merge_repo_value_result, user_settings_migrate_obsolete_on_disk_request, user_settings_migrate_obsolete_on_disk_result, user_settings_migrate_obsolete_on_disk_status, user_settings_migrate_staff_log_level_once_request, user_settings_migrate_staff_log_level_once_result, user_settings_migrate_staff_update_channel_once_result, user_settings_normalize_request, user_settings_normalize_result, user_settings_path_result, user_settings_problem, user_settings_problem_location, user_settings_problem_source, user_settings_problems_request, user_settings_problems_result, user_settings_reset_staff_model_selection_once_request, user_settings_reset_staff_model_selection_once_result, user_settings_set_hook_disabled_request, user_settings_set_hook_disabled_result, user_settings_set_request, user_settings_unknown_keys_warning_request, user_settings_unknown_keys_warning_result, user_settings_update_request, user_settings_update_result, user_settings_validate_request, user_settings_validate_result, user_settings_validation_issue, user_settings_write_all_request, visibility_get_result, visibility_set_request, visibility_set_result, workflow_abort_request, workflow_ack_result, workflow_agent_context_observation, workflow_agent_model_observation, workflow_agent_options, workflow_agent_reasoning_effort_observation, workflow_agent_request, workflow_agent_result, workflow_agent_summary, workflow_cancel_request, workflow_current_phase, workflow_declared_limits, workflow_durable_operation, workflow_execute_request, workflow_execute_result, workflow_get_run_progress_request, workflow_get_run_request, workflow_journal_get_request, workflow_journal_get_result, workflow_journal_put_request, workflow_list_runs_request, workflow_list_runs_result, workflow_log_line, workflow_log_line_kind, workflow_log_request, workflow_pause_checkpoint_action, workflow_pause_checkpoint_request, workflow_pause_checkpoint_result, workflow_pause_info, workflow_pause_request, workflow_phase_observation, workflow_phase_status, workflow_progress_line, workflow_progress_page, workflow_resume_request, workflow_resume_result, workflow_run_consumed, workflow_run_detail, workflow_run_failure, workflow_run_failure_kind, workflow_run_limits, workflow_run_options, workflow_run_request, workflow_run_result, workflow_run_status, workflow_run_summary, workflow_run_terminal, workflow_tool_resume_request, workflow_tool_run_options, workflow_tool_run_request, workspace_diff_contents, workspace_diff_file_change, workspace_diff_file_change_type, workspace_diff_mode, workspace_diff_result, workspaces_add_summary_request, workspaces_add_summary_result, workspaces_autopilot_objective_exists_result, workspaces_checkpoints, workspaces_create_directory_request, workspaces_create_file_request, workspaces_delete_autopilot_objective_result, workspaces_diff_request, workspaces_ensure_request, workspaces_get_workspace_result, workspaces_list_checkpoints_result, workspaces_list_files_result, workspaces_read_autopilot_objective_result, workspaces_read_checkpoint_request, workspaces_read_checkpoint_result, workspaces_read_file_request, workspaces_read_file_result, workspaces_remove_path_request, workspaces_rename_path_request, workspaces_save_large_paste_request, workspaces_save_large_paste_result, workspaces_stat_file_request, workspaces_stat_file_result, workspaces_truncate_summaries_request, workspace_summary_host_type, workspaces_update_metadata_request, workspaces_workspace_details_host_type, workspaces_write_autopilot_objective_request, workspaces_write_autopilot_objective_result, azure_ml_status_result, connector_session_account_result, host_authenticate_result, session_auth_info_result, session_context_attribution, session_context_info, subagent_settings, task_progress, workspace_summary)
+        return RPC(abort_request, abort_result, accepted_enqueue_command_result, account_all_users, account_auth_info, account_describe_auth_info_request, account_describe_auth_info_result, account_get_all_users_result, account_get_current_auth_result, account_get_gist_support_request, account_get_gist_support_result, account_get_host_url_request, account_get_host_url_result, account_get_quota_request, account_get_quota_result, account_get_token_env_var_result, account_get_web_url_request, account_get_web_url_result, account_health, account_kind, account_login_request, account_login_result, account_logout_request, account_logout_result, account_quota_snapshot, accounts_enumerate_request, accounts_get_request, accounts_set_request, account_status, account_subscribe_copilot_free_request, account_subscribe_copilot_free_result, adaptive_thinking_support, agent_discovery_path, agent_discovery_path_list, agent_discovery_path_scope, agent_get_current_result, agent_info, agent_info_source, agent_list, agent_list_request, agent_registry_ensure_dir_result, agent_registry_error, agent_registry_list_entries_request, agent_registry_list_entries_result, agent_registry_live_target_entry, agent_registry_live_target_entry_attention_kind, agent_registry_live_target_entry_kind, agent_registry_live_target_entry_last_terminal_event, agent_registry_live_target_entry_status, agent_registry_location_request, agent_registry_log_capture, agent_registry_log_capture_open_error_reason, agent_registry_pid_request, agent_registry_remove_entry_result, agent_registry_spawn_error, agent_registry_spawn_permission_mode, agent_registry_spawn_registry_timeout, agent_registry_spawn_request, agent_registry_spawn_result, agent_registry_spawn_spawned, agent_registry_spawn_validation_error, agent_registry_spawn_validation_error_field, agent_registry_spawn_validation_error_reason, agent_reload_result, agents_custom_agent_initial_model_decision_params, agents_custom_agent_initial_model_decision_result, agents_discover_request, agent_select_request, agent_select_result, agent_set_prompt_request, agents_get_available_builtins_request, agents_get_available_builtins_result, agents_get_builtin_definition_request, agents_get_builtin_definition_result, agents_get_builtin_listing_definition_request, agents_get_builtin_listing_definition_result, agents_get_builtins_result, agents_get_discovery_paths_request, api_key_auth_info, authenticated_authority_grant, authenticated_authority_update, auth_enumerate_query, auth_enumerate_value, auth_enumerate_value_accounts, auth_enumerate_value_login_accounts, auth_enumerate_value_providers, auth_identity, auth_identity_metadata, auth_info, auth_info_type, auth_login_account, auth_login_advance_request, auth_login_begin_request, auth_login_begun, auth_login_cancel_request, auth_login_identity, auth_login_mode, auth_login_result_dto, auth_login_result_status, auth_login_step, auth_read_query, auth_read_value, auth_status_dto, auth_validation_error, auth_validation_errors, auth_write, auth_write_result, autopilot_evaluate_idle_continuation_outcome, autopilot_evaluate_idle_continuation_result, autopilot_objective_credit_limit, autopilot_objective_get_state_result, autopilot_objective_set_stay_in_autopilot_request, autopilot_objective_state, autopilot_objective_status, autopilot_options, auto_tier_billing, auto_tier_billing_promo, auto_tier_descriptor, auto_tier_metadata, auto_tier_status, azure_ml_cancel_result, azure_ml_catalog_request, azure_ml_catalog_result, azure_ml_catalog_retry_mode, azure_ml_catalog_warning, azure_ml_discard_request, azure_ml_download_id_request, azure_ml_download_request, azure_ml_download_result, azure_ml_download_status, azure_ml_family_lease_result, azure_ml_family_release_request, azure_ml_family_request, azure_ml_latest_request, azure_ml_license, azure_ml_model, azure_ml_profile, azure_ml_registry, azure_ml_resolve_request, azure_ml_resolve_result, builtin_agent_summary, built_in_model_catalog, built_in_model_catalog_entry, builtin_tool_descriptor, builtin_tool_format, builtin_tool_format_type, builtin_tool_input_schema, builtin_tool_input_schema_type, builtin_tool_safe_for_telemetry, builtin_tool_safe_telemetry_fields, cafe_metrics_embedded_package_identity, cafe_metrics_record_resume_result_request, cafe_metrics_release, cafe_metrics_resolve_admission_request, cafe_metrics_resolve_admission_result, cafe_metrics_resume_outcome, cafe_metrics_resume_reason, cafe_metrics_resume_stage, cafe_metrics_shutdown_request, cafe_metrics_start_refusal, cafe_metrics_start_request, cafe_metrics_start_result, cancel_user_requested_shell_command_result, canvas_action, canvas_action_invoke_request, canvas_action_invoke_result, canvas_close_request, canvas_host_context, canvas_host_context_capabilities, canvas_json_schema, canvas_list, canvas_list_open_result, canvas_open_request, canvas_provider_close_request, canvas_provider_invoke_action_request, canvas_provider_open_request, canvas_provider_open_result, canvas_provider_register_request, canvas_provider_unregister_request, canvas_session_context, capi_session_options, card_digest, card_digest_algorithm, card_digest_value, catalog_agent_plugin_candidate, catalog_agent_plugin_candidate_kind, catalog_agent_plugin_candidate_provenance, catalog_agent_plugin_compatibility_tag, catalog_agent_plugin_component, catalog_agent_plugin_installability, catalog_agent_plugin_install_plan, catalog_agent_plugin_install_source, catalog_agent_plugin_marketplace_source, catalog_agent_plugin_marketplace_source_kind, catalog_agent_plugin_materialization_source, catalog_agent_plugin_materialization_source_kind, catalog_agent_plugin_media_type, catalog_agent_plugin_repository_source, catalog_agent_plugin_repository_source_kind, catalog_ai_skill_candidate, catalog_ai_skill_candidate_kind, catalog_ai_skill_candidate_provenance, catalog_ai_skill_installability, catalog_ai_skill_media_type, catalog_authentication_required_error, catalog_authentication_required_reason, catalog_candidate, catalog_candidate_kind, catalog_candidate_source, catalog_candidate_source_embedded, catalog_candidate_source_url, catalog_capability, catalog_capability_id, catalog_client_contract, catalog_contract_violation_error, catalog_contract_violation_reason, catalog_feed_available_entry, catalog_feed_available_status, catalog_feed_entry, catalog_feed_filtered_entry, catalog_feed_filtered_status, catalog_feed_unavailable_entry, catalog_feed_unavailable_reason, catalog_feed_unavailable_status, catalog_generated_feed_description, catalog_get_generated_feed_request, catalog_get_generated_feed_succeeded, catalog_get_saved_feed_request, catalog_get_saved_feed_succeeded, catalog_handle_rejected_error, catalog_handle_rejection_reason, catalog_handle_type, catalog_invalid_request_error, catalog_invalid_request_field, catalog_malformed_card_error, catalog_malformed_card_reason, catalog_materialization_reference, catalog_mcp_server_candidate, catalog_mcp_server_candidate_kind, catalog_mcp_server_candidate_provenance, catalog_mcp_server_installability, catalog_media_type, catalog_negotiated_contract, catalog_negotiation_refused_error, catalog_negotiation_refused_reason, catalog_network_failure_error, catalog_network_failure_reason, catalog_not_installable_error, catalog_not_installable_reason, catalog_plan_install_from_reference_request, catalog_plugin_repository_source, catalog_policy_rejected_error, catalog_recommend_request, catalog_reference_installation_failure_reason, catalog_reference_installation_outcome, catalog_reference_installation_result, catalog_resource_generated_feed_result, catalog_resource_identity, catalog_resource_saved_feed_result, catalog_resource_version, catalog_saved_feed_description, catalog_search_page, catalog_search_pagination, catalog_search_request, catalog_search_result, catalog_search_succeeded, catalog_search_total_count_relation, catalog_selection_cancelled, catalog_selection_decision, catalog_selection_declined, catalog_selection_foreign, catalog_selection_invalid, catalog_selection_replayed, catalog_selection_request, catalog_selection_result, catalog_selection_selected, catalog_selection_stale, catalog_selection_timed_out, catalog_selection_wrong_kind, catalog_trust_eligibility, catalog_trust_provenance, catalog_trust_snapshot, catalog_trust_snapshot_absent, catalog_trust_snapshot_absent_status, catalog_trust_snapshot_current, catalog_trust_snapshot_current_status, catalog_trust_snapshot_downgraded, catalog_trust_snapshot_downgraded_status, catalog_trust_snapshot_malformed, catalog_trust_snapshot_malformed_status, catalog_trust_snapshot_revoked, catalog_trust_snapshot_revoked_status, catalog_trust_snapshot_schema_version, catalog_trust_snapshot_stale, catalog_trust_snapshot_stale_status, catalog_trust_snapshot_unsupported, catalog_trust_snapshot_unsupported_status, catalog_trust_source, catalog_trust_tier, catalog_unavailable_error, catalog_unavailable_reason, catalog_unavailable_transport_error, catalog_unavailable_transport_reason, catalog_unsafe_retrieval_error, catalog_unsafe_retrieval_reason, catalog_unsupported_kind_error, client_metadata, client_task_cancel_reason, client_task_cancel_request, client_task_cancel_result, cloud_tasks_create_params, cloud_tasks_create_result, cloud_tasks_delete_params, cloud_tasks_delete_result, cloud_tasks_get_params, cloud_tasks_get_result, cloud_tasks_get_session_logs_params, cloud_tasks_get_session_logs_result, cloud_tasks_get_session_replay_params, cloud_tasks_get_session_replay_result, cloud_tasks_get_sharing_status_params, cloud_tasks_resolve_task_id_params, cloud_tasks_resolve_task_id_result, cloud_tasks_set_sharing_status_params, cloud_tasks_sharing_status_result, command_list, commands_finalize_invocation_effect_request, commands_finalize_invocation_effect_result, commands_handle_pending_command_request, commands_handle_pending_command_result, commands_invocation_effect_outcome, commands_invocation_origin, commands_invoke_request, commands_list_request, commands_report_queued_command_wait_request, commands_report_queued_command_wait_result, commands_respond_to_queued_command_request, commands_respond_to_queued_command_result, completions_get_trigger_characters_result, completions_request_request, completions_request_result, configure_session_extensions_params, connect_client_info, connected_remote_session_metadata, connected_remote_session_metadata_kind, connected_remote_session_metadata_repository, connector_account_request, connector_authorization_requirement, connector_authorization_scope, connector_availability, connector_capabilities, connector_catalog_entry, connector_catalog_result, connector_catalog_status, connector_connect_request, connector_connect_result, connector_continue_request, connector_disconnect_result, connector_discovery_account, connector_discovery_account_list, connector_discovery_account_request, connector_discovery_auth_info, connector_discovery_availability, connector_discovery_capabilities, connector_discovery_catalog_entry, connector_discovery_catalog_result, connector_mcp_status, connector_reconcile_request, connector_runtime_status, connector_session_account, connector_status, connect_remote_session_params, connect_request, connect_result, content_exclusion_check_paths_request, content_exclusion_check_paths_result, content_exclusion_path_check, content_exclusion_validate_policies_request, content_exclusion_validate_policies_result, content_filter_mode, context_heaviest_message, copilot_api_token_auth_info, copilot_user_response, copilot_user_response_endpoints, copilot_user_response_quota_snapshots, copilot_user_response_quota_snapshots_chat, copilot_user_response_quota_snapshots_completions, copilot_user_response_quota_snapshots_premium_interactions, current_model, current_tool_metadata, customization_reload_outcome, customization_reload_status, customization_reload_subsystem, customizations_reload_result, debug_collect_logs_collected_entry, debug_collect_logs_destination, debug_collect_logs_entry, debug_collect_logs_entry_kind, debug_collect_logs_include, debug_collect_logs_redaction, debug_collect_logs_request, debug_collect_logs_result, debug_collect_logs_result_kind, debug_collect_logs_skipped_entry, debug_collect_logs_source, diagnostic_cursor_status, diagnostic_entry, diagnostic_log_level, diagnostics_configuration, diagnostics_configure_request, diagnostic_severity, diagnostic_source, diagnostic_sources_configuration, diagnostics_read_request, diagnostics_read_result, discovered_canvas, discovered_extension, discovered_extension_mode, discovered_extension_plugin, discovered_extensions, discovered_extensions_disable_request, discovered_extensions_enable_request, discovered_extension_source, discovered_hook, discovered_mcp_server, discovered_mcp_server_type, discovered_model, discovered_model_list, eligible_plugin_extension_entry, enqueue_command_params, enqueue_command_result, entra_auth_config, entra_token_acquire_reason, entra_token_acquire_request, entra_token_acquire_result, entra_token_get_token_request, env_auth_info, environment_capabilities, environment_kind, environments_delete_request, environments_delete_result, environments_get_request, environments_get_result, environments_list_request, environments_list_result, event_log_read_request, event_log_release_interest_result, event_log_tail_result, event_log_types, events_agent_scope, events_cursor_status, events_read_direction, events_read_result, events_read_view, execute_command_params, execute_command_result, extension, extension_context_push_input, extension_launch_profile, extension_launch_provider_resolve_request, extension_launch_provider_resolve_result, extension_list, extension_managed_policy, extensions_disable_request, extensions_enable_request, extension_source, extension_status, external_tool_result, external_tool_text_result_for_llm, external_tool_text_result_for_llm_binary_results_for_llm, external_tool_text_result_for_llm_binary_results_for_llm_type, external_tool_text_result_for_llm_content, external_tool_text_result_for_llm_content_audio, external_tool_text_result_for_llm_content_image, external_tool_text_result_for_llm_content_resource, external_tool_text_result_for_llm_content_resource_details, external_tool_text_result_for_llm_content_resource_link, external_tool_text_result_for_llm_content_resource_link_icon, external_tool_text_result_for_llm_content_resource_link_icon_theme, external_tool_text_result_for_llm_content_shell_exit, external_tool_text_result_for_llm_content_terminal, external_tool_text_result_for_llm_content_text, feature_flag_availability, feature_flag_metadata, feature_flags_metadata_result, feature_flags_resolve_request, feature_flags_resolve_result, feature_flags_resolve_startup_gates_request, feature_flags_resolve_startup_gates_result, filter_mapping, fleet_start_request, fleet_start_result, folder_trust_add_params, folder_trust_check_params, folder_trust_check_result, folder_trust_is_trusted_params, force_login_orgs_decision, gh_cli_auth_info, git_current_branch_remote_result, git_cwd_request, git_hub_branch_pull_request, git_hub_branch_pull_request_lookup_request, git_hub_branch_pull_request_lookup_result, git_hub_branch_pull_request_lookup_status, git_hub_environment, git_hub_fetch_cancel_result, git_hub_fetch_header, git_hub_fetch_http_error, git_hub_fetch_operation, git_hub_fetch_operation_request, git_hub_fetch_pinned_address, git_hub_fetch_proxy_environment, git_hub_fetch_request, git_hub_fetch_request_id, git_hub_fetch_result, git_hub_fetch_retry_config, git_hub_owner_option, git_hub_owners_cancel_request, git_hub_owners_cancel_result, git_hub_owners_list_request, git_hub_owners_list_result, git_hub_owners_request_id_result, git_hub_pull_request_check, git_hub_pull_request_check_status, git_hub_release_abandon_request_params, git_hub_release_abandon_request_result, git_hub_release_cancel_request, git_hub_release_cancel_result, git_hub_release_download_asset_request, git_hub_release_download_asset_result, git_hub_release_download_kind, git_hub_release_download_progress_request, git_hub_release_download_progress_result, git_hub_release_lookup_kind, git_hub_release_lookup_request, git_hub_release_lookup_result, git_hub_release_package_identity, git_hub_release_query, git_hub_release_request_id_result, git_hub_release_snapshot_asset, git_hub_release_snapshot_entry, git_hub_release_snapshot_request, git_hub_release_snapshot_result, git_hub_release_update_channel, git_hub_repository_at_path_request, git_hub_repository_at_path_result, git_hub_repository_by_id_request, git_hub_repository_by_id_result, git_hub_repository_identity, git_hub_repository_owner_name, git_hub_telemetry_client_info, git_hub_telemetry_event, git_hub_telemetry_notification, git_hub_token_acquire_reason, git_hub_token_acquire_request, git_hub_token_acquire_result, git_remote_repository, git_repos_from_remotes_request, git_repos_from_remotes_result, global_state_load_for_config_dir_request, global_state_load_result, global_state_write_key_request, handle_pending_tool_call_request, handle_pending_tool_call_result, history_abort_manual_compaction_result, history_cancel_background_compaction_result, history_clear_context_request, history_clear_context_result, history_compact_context_window, history_compact_request, history_compact_result, history_file_restore_skip_reason, history_list_rewind_points_result, history_preview_rewind_request, history_preview_rewind_result, history_rewind_change_type, history_rewind_file_preview, history_rewind_mode, history_rewind_outcome, history_rewind_point, history_rewind_request, history_rewind_result, history_rewind_unavailable_reason, history_skipped_file_restore, history_summarize_for_handoff_result, history_truncate_request, history_truncate_result, hmac_auth_info, hook_invoke_request, hook_invoke_response, hook_origin, hooks_discover_request, hooks_discover_result, hook_type, host_authenticate_request, host_authentication, host_authentication_cancelled_notification, host_authentication_result, host_cancel_authentication_request, host_configuration, host_diagnostics, host_dispose_request, host_empty_result, host_environment_credentials, host_error_reporting_status, host_exited_notification, host_exit_reason, host_git_hub_environment_options, host_list_sessions_request, host_list_sessions_result, host_local_server_configuration, host_local_server_options, host_publish_session_request, host_publish_session_result, host_ready_request, host_register_session_request, host_session_authentication, host_session_create_callback, host_session_create_request, host_session_create_result, host_session_released_notification, host_session_release_request, host_session_summary, host_set_session_creation_policy_request, host_start_request, host_start_result, host_unpublish_session_request, host_unpublish_session_result, host_unregister_session_request, host_validate_authentication_request, image_tool_model, image_tool_model_availability, image_tool_model_operation, image_tool_model_pricing, installation_catalogue_identity, installation_confirmation_request, installation_confirmation_response, installation_decision, installation_review, installed_plugin, installed_plugin_info, installed_plugin_source, installed_plugin_source_git_hub, installed_plugin_source_local, installed_plugin_source_url, installed_plugin_verified_source, instruction_discovery_path, instruction_discovery_path_kind, instruction_discovery_path_list, instruction_discovery_path_location, instructions_discover_repo_sources_request, instructions_discover_request, instructions_get_discovery_paths_request, instructions_get_sources_result, instructions_init_prompt_result, instruction_source, instruction_source_location, instruction_source_type, interrupt_main_turn_request, interrupt_main_turn_result, json_schema_response_format, kerberos_auth_acquire_request, kerberos_auth_acquire_result, kerberos_auth_mode, kerberos_auth_scope, kerberos_auth_set_provider_request, lifecycle_diagnostics_configuration, lifecycle_diagnostics_read_request, lifecycle_diagnostics_read_result, llm_inference_headers, llm_inference_http_request_chunk_request, llm_inference_http_request_chunk_result, llm_inference_http_request_start_request, llm_inference_http_request_start_result, llm_inference_http_request_start_transport, llm_inference_http_response_chunk_error, llm_inference_http_response_chunk_request, llm_inference_http_response_chunk_result, llm_inference_http_response_start_request, llm_inference_http_response_start_result, llm_inference_set_provider_result, local_session_metadata_value, location_permissions_cleanup_result, logged_in_user, login_provider_kind, log_request, log_result, lsp_initialize_request, managed_communication_settings, managed_communication_support, managed_fusion_tier, managed_mcp_server_config, managed_permission_evaluation, managed_permission_operation, managed_permission_operation_kind, managed_permissions_evaluate_request, managed_permissions_evaluate_result, managed_permission_verdict, managed_plugin_retry_entry, managed_plugin_retry_status, managed_session_info, managed_setting_meta, managed_settings_apply_controls_params, managed_settings_apply_controls_result, managed_settings_bypass_disable_source, managed_settings_bypass_policy_resolution, managed_settings_channel, managed_settings_compose_layer, managed_settings_compose_request, managed_settings_compose_result, managed_settings_diagnostic, managed_settings_diagnostic_severity, managed_settings_ingest_params, managed_settings_ingest_result, managed_settings_layer, managed_settings_load_remote_control_params, managed_settings_load_remote_control_result, managed_settings_log_level, managed_settings_log_message, managed_settings_meta, managed_settings_parse_client_value_params, managed_settings_parse_client_value_result, managed_settings_policy_helper_authority, managed_settings_policy_helper_reason, managed_settings_read_device_result, managed_settings_read_result, managed_settings_resolve_bypass_disable_transition_params, managed_settings_resolve_bypass_disable_transition_result, managed_settings_resolved_data, managed_settings_resolve_device_force_login_orgs_gate_params, managed_settings_resolve_effective_value_params, managed_settings_resolve_effective_value_result, managed_settings_resolve_request, managed_settings_resolve_result, managed_settings_resolve_startup_policy_params, managed_settings_resolve_startup_policy_result, managed_settings_retain_policy_params, managed_settings_schema_result, managed_settings_server_policy_cache_mode, managed_settings_server_policy_resolution, managed_settings_validate_request, managed_settings_validate_result, managed_settings_values, marketplace_add_result, marketplace_browse_result, marketplace_info, marketplace_list_result, marketplace_plugin_info, marketplace_refresh_entry, marketplace_refresh_result, marketplace_remove_result, mcp_allowed_server, mcp_apply_install_request, mcp_apply_uninstall_request, mcp_apps_call_tool_request, mcp_apps_diagnose_capability, mcp_apps_diagnose_request, mcp_apps_diagnose_result, mcp_apps_diagnose_server, mcp_apps_host_context, mcp_apps_host_context_details, mcp_apps_host_context_details_available_display_mode, mcp_apps_host_context_details_display_mode, mcp_apps_host_context_details_platform, mcp_apps_host_context_details_theme, mcp_apps_list_tools_request, mcp_apps_list_tools_result, mcp_apps_read_resource_request, mcp_apps_read_resource_result, mcp_apps_resource_content, mcp_apps_set_host_context_details, mcp_apps_set_host_context_details_available_display_mode, mcp_apps_set_host_context_details_display_mode, mcp_apps_set_host_context_details_platform, mcp_apps_set_host_context_details_theme, mcp_apps_set_host_context_request, mcp_cancel_sampling_execution_params, mcp_cancel_sampling_execution_result, mcp_config_add_request, mcp_config_disable_request, mcp_config_enable_request, mcp_config_list, mcp_config_remove_request, mcp_config_update_request, mcp_configured_server, mcp_configured_server_list, mcp_configured_server_state, mcp_configure_git_hub_request, mcp_configure_git_hub_result, mcp_diagnostic_details, mcp_diagnostic_direction, mcp_diagnostic_kind, mcp_diagnostic_source_configuration, mcp_disable_request, mcp_discover_request, mcp_discover_result, mcp_elicitation_form_mode, mcp_enable_request, mcp_execute_sampling_params, mcp_execute_sampling_request, mcp_execute_sampling_result, mcp_failed_server, mcp_filtered_server, mcp_headers_handle_pending_headers_refresh_request, mcp_headers_handle_pending_headers_refresh_request_request, mcp_headers_handle_pending_headers_refresh_request_result, mcp_host_state, mcp_installation_failure_reason, mcp_installation_input, mcp_installation_management_outcome, mcp_installation_management_result, mcp_installation_operation_request, mcp_installation_operation_status, mcp_installation_outcome, mcp_installation_remote_configuration, mcp_installation_result, mcp_installation_review, mcp_installation_secret, mcp_installation_secret_storage, mcp_installations_request, mcp_installation_state, mcp_installation_summary, mcp_install_plan, mcp_is_server_running_request, mcp_is_server_running_result, mcp_list_builtin_server_names_result, mcp_list_tools_request, mcp_list_tools_result, mcp_oauth_authentication_state_changed_request, mcp_oauth_cancel_login_request, mcp_oauth_cancel_login_result, mcp_oauth_check_dcr_support_request, mcp_oauth_check_dcr_support_result, mcp_oauth_complete_request, mcp_oauth_fetch_protected_resource_metadata_request, mcp_oauth_fetch_protected_resource_metadata_result, mcp_oauth_handle_pending_request, mcp_oauth_handle_pending_result, mcp_oauth_is_microsoft_authorization_server_request, mcp_oauth_is_microsoft_authorization_server_result, mcp_oauth_login_grant_type, mcp_oauth_login_request, mcp_oauth_login_result, mcp_oauth_pending_request_response, mcp_oauth_prepare_login_request, mcp_oauth_prepare_login_result, mcp_oauth_probe_needs_auth_reason, mcp_oauth_probe_request, mcp_oauth_probe_result, mcp_oauth_respond_request, mcp_oauth_respond_result, mcp_oauth_static_client_config, mcp_oauth_static_client_config_request, mcp_oauth_static_client_config_result, mcp_owned_oauth_login_status, mcp_plan_configuration_change, mcp_plan_configuration_operation, mcp_plan_enum_value_type, mcp_plan_install_planned, mcp_plan_install_request, mcp_plan_install_result, mcp_plan_install_source, mcp_plan_install_source_candidate, mcp_plan_install_source_candidate_kind, mcp_plan_install_source_card, mcp_plan_install_source_card_kind, mcp_plan_package_install_method, mcp_plan_package_transport, mcp_plan_policy_decision, mcp_plan_policy_result, mcp_plan_policy_source, mcp_plan_provenance, mcp_plan_remote_install_method, mcp_plan_remote_transport, mcp_plan_required_value, mcp_plan_required_value_enum, mcp_plan_required_value_enum_kind, mcp_plan_required_value_scalar, mcp_plan_required_value_scalar_kind, mcp_plan_resource_identity, mcp_plan_scalar_value_type, mcp_plan_scope, mcp_plan_secret_placeholder, mcp_plan_secret_reference, mcp_plan_target, mcp_plan_transport_choice, mcp_plan_transport_choice_package, mcp_plan_transport_choice_remote, mcp_plan_uninstall_request, mcp_plan_value_category, mcp_prepared_install, mcp_prepare_install_request, mcp_prompt, mcp_prompt_argument, mcp_prompt_icon, mcp_prompt_message, mcp_prompt_role, mcp_prompts_get_request, mcp_prompts_get_result, mcp_prompts_list_request, mcp_prompts_list_result, mcp_register_external_client_request, mcp_registry_cancel_request, mcp_registry_cancel_result, mcp_registry_request_id_result, mcp_registry_search_request, mcp_registry_search_result, mcp_reload_config, mcp_reload_with_config_request, mcp_remove_git_hub_result, mcp_resource, mcp_resource_annotations, mcp_resource_content, mcp_resource_icon, mcp_resources_list_request, mcp_resources_list_result, mcp_resources_list_templates_request, mcp_resources_list_templates_result, mcp_resources_read_request, mcp_resources_read_result, mcp_resource_template, mcp_restart_server_request, mcp_safe_for_telemetry, mcp_safe_for_telemetry_fields, mcp_sampling_execution_action, mcp_sampling_execution_result, mcp_serializable_server_config, mcp_server, mcp_server_auth_config, mcp_server_auth_config_redirect_port, mcp_server_card_embedded, mcp_server_card_embedded_kind, mcp_server_card_media_type, mcp_server_card_reference, mcp_server_card_url, mcp_server_card_url_kind, mcp_server_config, mcp_server_config_defer_tools, mcp_server_config_http, mcp_server_config_http_oauth_grant_type, mcp_server_config_http_type, mcp_server_config_memory, mcp_server_config_memory_type, mcp_server_config_stdio, mcp_server_config_stdio_type, mcp_server_failure_info, mcp_server_list, mcp_server_needs_auth_info, mcp_server_ownership, mcp_set_env_value_mode_details, mcp_set_env_value_mode_params, mcp_set_env_value_mode_result, mcp_should_exclude_git_hub_tools_request, mcp_should_exclude_git_hub_tools_result, mcp_source_file, mcp_source_plugin, mcp_source_ref, mcp_start_server_request, mcp_start_servers_result, mcp_stop_server_request, mcp_task_metadata, mcp_tools, mcp_tool_ui, mcp_tool_ui_visibility, mcp_uninstall_plan, mcp_unregister_external_client_request, memory_configuration, memory_mode, metadata_context_attribution_result, metadata_context_heaviest_messages_request, metadata_context_heaviest_messages_result, metadata_context_info_request, metadata_context_info_result, metadata_is_processing_result, metadata_recompute_context_tokens_request, metadata_recompute_context_tokens_result, metadata_record_context_change_request, metadata_record_context_change_result, metadata_set_working_directory_request, metadata_set_working_directory_result, metadata_snapshot_current_mode, metadata_snapshot_remote_metadata, metadata_snapshot_remote_metadata_repository, metadata_snapshot_remote_metadata_task_type, metadata_update_client_metadata_request, model, model_apply_startup_overlay_request, model_artifact_details, model_billing, model_billing_promo, model_billing_token_prices, model_billing_token_prices_long_context, model_capabilities, model_capabilities_limits, model_capabilities_limits_vision, model_capabilities_override, model_capabilities_override_limits, model_capabilities_override_limits_vision, model_capabilities_override_supports, model_capabilities_supports, model_clear_startup_seed_request, model_clear_startup_seed_result, model_get_reasoning_summaries_request, model_get_reasoning_summaries_result, model_list, model_list_request, model_message, model_picker_category, model_picker_persistence_request, model_picker_price_category, model_picker_settings_context, model_policy, model_policy_state, model_provider_adapter_catalog, model_provider_adapter_descriptor, model_provider_adapter_operation_descriptor, model_provider_attribution, model_provider_automatic_discovery_mode, model_provider_automatic_discovery_policy, model_provider_configuration_disposition, model_provider_configuration_plan, model_provider_descriptor, model_provider_discover_request, model_provider_discover_result, model_provider_discovery_network_scope, model_provider_get_status_request, model_provider_instance, model_provider_instance_reference, model_provider_models_list_request, model_provider_operation_outcome, model_provider_operation_outcome_code, model_provider_prepare_configuration_request, model_provider_provenance, model_provider_provenance_source, model_provider_status, model_provider_warning, model_set_allowed_models_request, model_set_allowed_models_result, model_set_reasoning_effort_request, model_set_reasoning_effort_result, models_list_request, models_list_token_price_units_request, model_switch_auto_tier_request, model_switch_auto_tier_result, model_switch_auto_tier_status, model_switch_confirmation, model_switch_to_request, model_switch_to_result, model_token_price_unit, model_token_price_unit_list, model_warning_text, mode_set_request, mode_set_result, move_mcp_loading_to_background_result, named_provider_config, name_get_result, name_set_auto_request, name_set_auto_result, name_set_request, open_canvas_instance, options_update_additional_content_exclusion_policy, options_update_additional_content_exclusion_policy_rule, options_update_additional_content_exclusion_policy_rule_source, options_update_additional_content_exclusion_policy_scope, options_update_context_tier, options_update_env_value_mode, options_update_reasoning_summary, options_update_tool_filter_precedence, pending_external_tool_request, pending_external_tool_request_list, pending_permission_request, pending_permission_request_list, permission_decision, permission_decision_approved, permission_decision_approved_for_location, permission_decision_approved_for_session, permission_decision_approve_for_location, permission_decision_approve_for_location_approval, permission_decision_approve_for_location_approval_commands, permission_decision_approve_for_location_approval_custom_tool, permission_decision_approve_for_location_approval_extension_env_access, permission_decision_approve_for_location_approval_extension_management, permission_decision_approve_for_location_approval_extension_permission_access, permission_decision_approve_for_location_approval_mcp, permission_decision_approve_for_location_approval_mcp_sampling, permission_decision_approve_for_location_approval_memory, permission_decision_approve_for_location_approval_read, permission_decision_approve_for_location_approval_workflow, permission_decision_approve_for_location_approval_write, permission_decision_approve_for_session, permission_decision_approve_for_session_approval, permission_decision_approve_for_session_approval_commands, permission_decision_approve_for_session_approval_custom_tool, permission_decision_approve_for_session_approval_extension_env_access, permission_decision_approve_for_session_approval_extension_management, permission_decision_approve_for_session_approval_extension_permission_access, permission_decision_approve_for_session_approval_mcp, permission_decision_approve_for_session_approval_mcp_sampling, permission_decision_approve_for_session_approval_memory, permission_decision_approve_for_session_approval_read, permission_decision_approve_for_session_approval_workflow, permission_decision_approve_for_session_approval_write, permission_decision_approve_once, permission_decision_approve_permanently, permission_decision_approve_read_only_for_session, permission_decision_cancelled, permission_decision_context, permission_decision_denied_by_content_exclusion_policy, permission_decision_denied_by_permission_request_hook, permission_decision_denied_by_rules, permission_decision_denied_interactively_by_user, permission_decision_denied_no_approval_rule_and_could_not_request_from_user, permission_decision_outcome, permission_decision_reject, permission_decision_request, permission_decision_surface, permission_decision_user_not_available, permission_location_add_tool_approval_params, permission_location_apply_params, permission_location_apply_result, permission_location_resolve_params, permission_location_resolve_result, permission_location_type, permission_mode_source, permission_paths_add_params, permission_paths_allowed_check_params, permission_paths_allowed_check_result, permission_paths_config, permission_paths_list, permission_paths_update_primary_params, permission_paths_workspace_check_params, permission_paths_workspace_check_result, permission_prompt_shown_notification, permission_request_result, permission_response_capability, permission_rules_set, permissions_capabilities, permissions_clear_resume_escalation_request, permissions_clear_resume_escalation_result, permissions_configure_additional_content_exclusion_policy, permissions_configure_additional_content_exclusion_policy_rule, permissions_configure_additional_content_exclusion_policy_rule_source, permissions_configure_additional_content_exclusion_policy_scope, permissions_configure_assisted_approval_context, permissions_configure_params, permissions_configure_result, permissions_evaluate_managed_policy_params, permissions_evaluate_managed_policy_result, permissions_folder_trust_add_trusted_result, permissions_get_mode_request, permissions_get_mode_result, permissions_locations_add_tool_approval_details, permissions_locations_add_tool_approval_details_commands, permissions_locations_add_tool_approval_details_custom_tool, permissions_locations_add_tool_approval_details_extension_env_access, permissions_locations_add_tool_approval_details_extension_management, permissions_locations_add_tool_approval_details_extension_permission_access, permissions_locations_add_tool_approval_details_mcp, permissions_locations_add_tool_approval_details_mcp_sampling, permissions_locations_add_tool_approval_details_memory, permissions_locations_add_tool_approval_details_read, permissions_locations_add_tool_approval_details_workflow, permissions_locations_add_tool_approval_details_write, permissions_locations_add_tool_approval_result, permissions_modify_rules_params, permissions_modify_rules_result, permissions_modify_rules_scope, permissions_notify_prompt_shown_result, permissions_paths_add_result, permissions_paths_list_request, permissions_paths_update_primary_result, permissions_pending_requests_request, permissions_reset_session_approvals_request, permissions_reset_session_approvals_result, permissions_set_approve_all_request, permissions_set_approve_all_result, permissions_set_approve_all_source, permissions_set_mode_request, permissions_set_mode_result, permissions_set_required_request, permissions_set_required_result, permissions_urls_set_unrestricted_mode_result, permission_urls_config, permission_urls_set_unrestricted_mode_params, persistence_write_raw_json_locked_request, persistence_write_raw_json_locked_result, ping_request, ping_result, plan_read_result, plan_read_sql_todos_result, plan_read_sql_todos_with_dependencies_result, plan_sql_todo_dependency, plan_sql_todos_row, plan_update_request, plugin, plugin_apply_install_request, plugin_installation_failure_reason, plugin_installation_file_review, plugin_installation_location, plugin_installation_management_outcome, plugin_installation_management_result, plugin_installation_mcp_server_review, plugin_installation_mcp_transport, plugin_installation_outcome, plugin_installation_result, plugin_installation_review, plugin_installation_source, plugin_installation_summary, plugin_install_plan, plugin_install_result, plugin_install_staging_mode, plugin_list, plugin_list_result, plugin_plan_install_request, plugins_builtin_set_request, plugins_disable_request, plugins_enable_request, plugins_install_request, plugins_marketplaces_add_request, plugins_marketplaces_browse_request, plugins_marketplaces_refresh_request, plugins_marketplaces_remove_request, plugins_reload_request, plugins_uninstall_request, plugins_update_request, plugin_update_all_entry, plugin_update_all_result, plugin_update_result, protocol_append_mode, protocol_customize_mode, protocol_external_tool_defer, protocol_external_tool_definition, protocol_external_tool_namespace, protocol_image_generation_options, protocol_marker_section_override, protocol_replace_mode, protocol_section_override, protocol_static_section_action, protocol_static_section_override, protocol_status_response, protocol_system_message_append_config, protocol_system_message_config, protocol_system_message_customize_config, protocol_system_message_replace_config, provider_add_request, provider_add_result, provider_config, provider_config_azure, provider_config_model_provider, provider_config_transport, provider_config_type, provider_config_wire_api, provider_descriptor, provider_endpoint, provider_endpoint_transport, provider_endpoint_type, provider_endpoint_wire_api, provider_get_endpoint_request, provider_model_config, provider_session_token, provider_status, provider_sync_request, provider_sync_result, provider_token_acquire_request, provider_token_acquire_result, provider_withdraw_request, provider_withdraw_result, push_attachment, push_attachment_blob, push_attachment_directory, push_attachment_file, push_attachment_file_line_range, push_attachment_git_hub_actions_job, push_attachment_git_hub_commit, push_attachment_git_hub_file, push_attachment_git_hub_file_diff, push_attachment_git_hub_file_diff_side, push_attachment_git_hub_reference, push_attachment_git_hub_reference_type, push_attachment_git_hub_release, push_attachment_git_hub_repository, push_attachment_git_hub_snippet, push_attachment_git_hub_tree_comparison, push_attachment_git_hub_tree_comparison_side, push_attachment_git_hub_url, push_attachment_selection, push_attachment_selection_details, push_attachment_selection_details_end, push_attachment_selection_details_start, push_git_hub_repo_ref, queue_append_steering_request, queue_begin_deferred_idle_drain_request, queue_begin_deferred_idle_drain_result, queue_consume_system_notifications_request, queued_command_handled, queued_command_not_handled, queued_command_result, queued_command_wait_requirement, queue_defer_session_idle_request, queue_duplicate_at_request, queue_duplicate_at_result, queue_enqueue_resume_pending_result, queue_finish_deferred_idle_drain_request, queue_finish_deferred_idle_drain_result, queue_has_pending_result, queue_insert_at_request, queue_insert_at_result, queue_insert_message, queue_move_item_request, queue_move_item_result, queue_pending_items, queue_pending_items_kind, queue_pending_items_result, queue_remove_at_request, queue_remove_at_result, queue_remove_most_recent_result, queue_send_now_request, queue_send_now_result, queue_set_drain_paused_request, queue_snapshot_result, queue_update_text_request, queue_update_text_result, queue_withdraw_message_request, queue_withdraw_message_result, quota_take_warnings_result, quota_warning_projection, register_event_interest_params, register_event_interest_result, release_event_interest_params, remote_control_config, remote_control_config_existing_mc_session, remote_control_status, remote_control_status_active, remote_control_status_connecting, remote_control_status_error, remote_control_status_off, remote_control_status_result, remote_control_stop_result, remote_control_transfer_result, remote_enable_request, remote_enable_result, remote_notify_steerable_changed_request, remote_notify_steerable_changed_result, remote_session_connection_result, remote_session_host_status, remote_session_metadata_repository, remote_session_metadata_task_type, remote_session_metadata_value, remote_session_mode, remote_session_repository, repo_settings_edit_request, repo_settings_edit_scope, repo_settings_read_raw_request, repo_settings_read_raw_result, repo_settings_write_all_request, repo_settings_write_key_request, response_format, runtime_open_browser_request, sandbox_apply_defaults_request, sandbox_check_enforcement_command_result, sandbox_check_platform_support_result, sandbox_check_windows_host_loopback_support_result, sandbox_config, sandbox_config_auth, sandbox_config_source, sandbox_config_user_policy, sandbox_config_user_policy_experimental, sandbox_config_user_policy_experimental_seatbelt, sandbox_config_user_policy_filesystem, sandbox_config_user_policy_network, sandbox_config_user_policy_network_proxy, sandbox_config_user_policy_seatbelt, sandbox_credentials_config, sandbox_credential_suggestion, sandbox_credential_suggestions_result, sandbox_disable_for_session_request, sandbox_disable_for_session_result, sandbox_docs_url_result, sandbox_effective_for_optional_params, sandbox_effective_for_optional_result, sandbox_enforcement_command_allowed_params, sandbox_enforcement_status, sandbox_filter_picker_candidates_params, sandbox_filter_picker_candidates_result, sandbox_get_unsupported_message_result, sandbox_get_unsupported_setting_disabled_notice_result, sandbox_grant_path_for_request_request, sandbox_grant_path_for_request_result, sandbox_host_capability, sandbox_host_capability_name, sandbox_host_support, sandbox_masked_env_var, sandbox_path_grant_warning_params, sandbox_path_grant_warning_result, sandbox_picker_candidate, sandbox_prepare_picker_policy_params, sandbox_prepare_picker_policy_result, sandbox_proxy_ca_check_installation_support_result, sandbox_proxy_ca_check_relevance_result, sandbox_proxy_ca_create_result, sandbox_proxy_ca_request, sandbox_proxy_ca_state, sandbox_proxy_ca_status, sandbox_proxy_secret_get_result, sandbox_proxy_secret_location, sandbox_proxy_secret_save_request, sandbox_proxy_secret_save_result, sandbox_resolve_floored_config_params, sandbox_resolve_floored_config_result, sandbox_session_change, sandbox_settings_apply_defaults_result, sandbox_unsupported_startup_notice_params, sandbox_unsupported_startup_notice_result, schedule_add_at_request, schedule_add_cron_request, schedule_add_request, schedule_add_result, schedule_add_self_paced_request, schedule_entry, schedule_has_self_paced_result, schedule_list, schedule_rearm_self_paced_request, schedule_stop_request, schedule_stop_result, secrets_add_filter_values_request, secrets_add_filter_values_result, send_agent_mode, send_and_wait_result, send_attachments_to_message_params, send_message_item, send_messages_request, send_messages_result, send_mode, send_request, send_result, send_system_notification_request, server_agent_list, server_instruction_source_list, server_skill, server_skill_list, session_activity, session_agent_list_request, session_auth_login_request, session_auth_logout_user_request, session_auth_status, session_auth_switch_request, session_bulk_delete_result, session_cancel_all_background_agents_result, session_capability, session_commands_list_request, session_completion_item, session_connected_ide_info, session_context, session_context_host_type, session_enrich_metadata_result, session_fs_append_file_request, session_fs_error, session_fs_error_code, session_fs_exists_request, session_fs_exists_result, session_fs_mkdir_request, session_fs_readdir_request, session_fs_readdir_result, session_fs_readdir_with_types_entry, session_fs_readdir_with_types_entry_type, session_fs_readdir_with_types_request, session_fs_readdir_with_types_result, session_fs_read_file_bytes_request, session_fs_read_file_bytes_result, session_fs_read_file_range_request, session_fs_read_file_range_result, session_fs_read_file_request, session_fs_read_file_result, session_fs_rename_request, session_fs_rm_request, session_fs_set_provider_capabilities, session_fs_set_provider_conventions, session_fs_set_provider_request, session_fs_set_provider_result, session_fs_sqlite_exists_request, session_fs_sqlite_exists_result, session_fs_sqlite_query_request, session_fs_sqlite_query_result, session_fs_sqlite_query_type, session_fs_sqlite_transaction_error, session_fs_sqlite_transaction_error_class, session_fs_sqlite_transaction_request, session_fs_sqlite_transaction_result, session_fs_sqlite_transaction_statement, session_fs_stat_request, session_fs_stat_result, session_fs_write_file_bytes_request, session_fs_write_file_request, session_git_hub_auth_get_all_auth_available_result, session_git_hub_auth_logout_result, session_git_hub_auth_logout_user_result, session_history_compact_request, session_installed_plugin, session_installed_plugin_source, session_installed_plugin_source_git_hub, session_installed_plugin_source_local, session_installed_plugin_source_url, session_limit_prediction_baseline_data, session_limit_prediction_client_type, session_limit_prediction_details, session_limit_prediction_predict_request, session_limit_prediction_request, session_limit_prediction_result, session_limit_prediction_source, session_limit_prediction_tier, session_limit_prediction_tier_option, session_limit_prediction_unavailable_reason, session_list, session_list_entry, session_list_filter, session_load_deferred_repo_hooks_result, session_log_level, session_managed_permissions, session_managed_settings, session_management_close_request, session_management_close_result, session_management_configure_request, session_management_create_host_request, session_management_create_request, session_management_create_result, session_management_list_request, session_management_list_result, session_management_message_request, session_management_message_result, session_management_policy, session_management_scope, session_management_tool_overrides, session_mcp_apps_call_tool_result, session_mcp_oauth_cancel_login_request, session_mcp_oauth_cancel_login_result, session_mcp_oauth_prepare_login_request, session_mcp_oauth_prepare_login_result, session_mcp_set_connected_ide_info_params, session_metadata_snapshot, session_mode, session_model_clear_startup_seed_request, session_model_clear_startup_seed_result, session_model_list, session_model_list_request, session_model_price_category, session_open_options, session_open_options_additional_content_exclusion_policy, session_open_options_additional_content_exclusion_policy_rule, session_open_options_additional_content_exclusion_policy_rule_source, session_open_options_additional_content_exclusion_policy_scope, session_open_options_env_value_mode, session_open_options_reasoning_summary, session_open_params, session_open_result, session_plugins_disable_request, session_plugins_enable_request, session_plugins_install_request, session_plugins_marketplaces_refresh_request, session_plugins_reload_request, session_plugins_retry_managed_request, session_plugins_retry_managed_result, session_provider_get_endpoint_request, session_prune_result, session_quota_delegate_warning, session_quota_get_result, session_quota_plan_tier, session_quota_projection, session_quota_refresh_result, session_quota_snapshot, session_quota_take_warnings_result, sessions_bulk_delete_request, sessions_check_in_use_request, sessions_check_in_use_result, sessions_client_metadata_entry, sessions_close_request, sessions_close_result, sessions_create_workspace_request, sessions_create_workspace_result, sessions_delete_request, sessions_enrich_metadata_request, session_set_credentials_params, session_set_credentials_result, session_settings_built_in_tool_availability_snapshot, session_settings_evaluate_predicate_request, session_settings_evaluate_predicate_result, session_settings_job_snapshot, session_settings_model_snapshot, session_settings_online_evaluation_snapshot, session_settings_predicate_name, session_settings_repo_snapshot, session_settings_snapshot, session_settings_validation_snapshot, sessions_find_by_prefix_request, sessions_find_by_prefix_result, sessions_find_by_task_id_request, sessions_find_by_task_id_result, sessions_fork_request, sessions_fork_result, sessions_get_board_entry_count_request, sessions_get_board_entry_count_result, sessions_get_client_metadata_request, sessions_get_client_metadata_result, sessions_get_event_file_path_request, sessions_get_event_file_path_result, sessions_get_last_for_context_request, sessions_get_last_for_context_result, sessions_get_metadata_request, sessions_get_metadata_result, sessions_get_persisted_remote_steerable_request, sessions_get_persisted_remote_steerable_result, session_sizes, sessions_list_non_empty_session_ids_request, sessions_list_non_empty_session_ids_result, sessions_list_request, sessions_load_deferred_repo_hooks_request, sessions_load_workspace_request, sessions_load_workspace_result, sessions_open_attach, sessions_open_cloud, sessions_open_create, sessions_open_handoff, sessions_open_handoff_task_type, sessions_open_progress, sessions_open_progress_status, sessions_open_progress_step, sessions_open_remote, sessions_open_resume, sessions_open_resume_last, sessions_open_status, session_source, sessions_prune_old_request, sessions_read_persisted_events_request, sessions_release_lock_request, sessions_release_lock_result, sessions_reload_plugin_hooks_request, sessions_reload_plugin_hooks_result, sessions_save_request, sessions_save_result, sessions_set_additional_plugins_request, sessions_set_additional_plugins_result, sessions_set_remote_control_steering_request, sessions_start_remote_control_request, sessions_stop_remote_control_request, sessions_transfer_remote_control_request, sessions_update_workspace_fields_request, sessions_update_workspace_fields_result, session_telemetry_engagement, session_update_options_params, session_update_options_result, session_usage_set_code_changes_request, session_visibility_status, session_workflow_pause_at_checkpoint_result, session_working_directory_context, session_working_directory_context_host_type, session_working_directory_context_with_client, settable_auth_info, settable_token_auth_info, settings_edit_operation, settings_edit_result, settings_edit_status, settings_redact_value_for_display_request, settings_redact_value_for_display_result, settings_remove_raw_key_request, settings_remove_raw_key_result, shell_cancel_user_requested_request, shell_credentials, shell_exec_request, shell_exec_result, shell_execute_user_requested_request, shell_init_profile, shell_init_script, shell_init_script_shell, shell_kill_request, shell_kill_result, shell_kill_signal, shell_options, shutdown_request, skill, skill_apply_install_request, skill_apply_uninstall_request, skill_discovery_path, skill_discovery_path_list, skill_discovery_scope, skill_installation_failure_reason, skill_installation_file_review, skill_installation_location, skill_installation_management_outcome, skill_installation_management_result, skill_installation_operation_request, skill_installation_operation_status, skill_installation_outcome, skill_installation_ownership_state, skill_installation_result, skill_installation_review, skill_installation_scope, skill_installation_session_state, skill_installation_source, skill_installations_request, skill_installation_summary, skill_install_plan, skill_list, skill_plan_install_request, skill_plan_uninstall_request, skill_provider_descriptor, skill_provider_list_request, skill_provider_list_result, skill_provider_read_request, skill_provider_read_result, skills_config_set_disabled_skills_request, skills_config_set_skill_disabled_request, skills_disable_request, skills_discover_request, skills_enable_request, skill_set_enabled_request, skills_get_discovery_paths_request, skills_get_invoked_result, skills_invoked_skill, skills_load_diagnostics, skill_uninstall_plan, slash_command_add_timeline_entry_result, slash_command_agent_prompt_result, slash_command_completed_result, slash_command_info, slash_command_input, slash_command_input_choice, slash_command_input_completion, slash_command_invocation_result, slash_command_kind, slash_command_model_picker_dialog, slash_command_select_subcommand_option, slash_command_select_subcommand_result, slash_command_set_model_result, slash_command_set_plan_model_result, slash_command_show_dialog_result, slash_command_text_result, slash_command_timeline_entry, staff_log_level_migration_status, staff_update_channel_migration_status, standalone_extension_admission, subagent_settings_config, subagent_settings_entry, subagent_settings_entry_context_tier, system_message_block, task_agent_info, task_agent_progress, task_client_active_status, task_client_execution_mode, task_client_info, task_client_owner, task_client_owner_kind, task_client_owner_presence, task_client_progress, task_client_status, task_client_type, task_client_update, task_complete_data, task_completion_decision, task_execution_mode, task_info, task_kind, task_list, task_progress_line, tasks_cancel_request, tasks_cancel_result, tasks_get_current_promotable_result, tasks_get_progress_request, tasks_get_progress_result, task_shell_info, task_shell_info_attachment_mode, task_shell_output_exit, task_shell_progress, tasks_promote_current_to_background_result, tasks_promote_to_background_request, tasks_promote_to_background_result, tasks_read_output_request, tasks_read_output_result, tasks_refresh_result, tasks_register_request, tasks_register_result, tasks_remove_request, tasks_remove_result, tasks_send_message_request, tasks_send_message_result, tasks_start_agent_request, tasks_start_agent_result, task_status, tasks_update_request, tasks_update_result, tasks_wait_for_pending_result, telemetry_set_feature_overrides_request, token_auth_info, token_price_unit, token_provider_auth_info, tool, tool_list, tool_result, tool_result_expanded, tool_result_new_message, tool_result_type, tools_execute_request, tools_get_builtin_descriptors_request, tools_get_builtin_descriptors_result, tools_get_current_metadata_result, tools_get_subagent_settings_result, tools_initialize_and_validate_result, tools_list_pending_requests_request, tools_list_request, tools_set_request, tools_set_result, tools_shell_descriptor_config, tools_task_complete_event_data_request, tools_update_subagent_settings_result, ui_auto_mode_switch_response, ui_elicitation_array_any_of_field, ui_elicitation_array_any_of_field_items, ui_elicitation_array_any_of_field_items_any_of, ui_elicitation_array_enum_field, ui_elicitation_array_enum_field_items, ui_elicitation_field_value, ui_elicitation_request, ui_elicitation_response, ui_elicitation_response_action, ui_elicitation_response_content, ui_elicitation_result, ui_elicitation_schema, ui_elicitation_schema_property, ui_elicitation_schema_property_boolean, ui_elicitation_schema_property_number, ui_elicitation_schema_property_number_type, ui_elicitation_schema_property_string, ui_elicitation_schema_property_string_format, ui_elicitation_string_enum_field, ui_elicitation_string_one_of_field, ui_elicitation_string_one_of_field_one_of, ui_ephemeral_query_request, ui_ephemeral_query_result, ui_exit_plan_mode_action, ui_exit_plan_mode_response, ui_handle_pending_auto_mode_switch_request, ui_handle_pending_elicitation_request, ui_handle_pending_exit_plan_mode_request, ui_handle_pending_result, ui_handle_pending_sampling_request, ui_handle_pending_sampling_response, ui_handle_pending_session_limits_exhausted_request, ui_handle_pending_user_input_request, ui_register_direct_auto_mode_switch_handler_result, ui_session_limits_exhausted_response, ui_session_limits_exhausted_response_action, ui_thread_run_request, ui_unregister_direct_auto_mode_switch_handler_request, ui_unregister_direct_auto_mode_switch_handler_result, ui_user_input_response, unsupported_enqueue_command_result, update_subagent_settings_request, usage_get_metrics_result, usage_set_code_changes_request, user_auth_info, user_requested_shell_command_result, user_setting_metadata, user_settings_apply_top_key_request, user_settings_apply_top_key_result, user_settings_build_runtime_request, user_settings_build_runtime_result, user_settings_edit_request, user_settings_get_paths_request, user_settings_get_paths_result, user_settings_get_result, user_settings_governance_keys_result, user_settings_host_context, user_settings_load_and_merge_repo_request, user_settings_load_and_merge_repo_result, user_settings_load_for_config_dir_request, user_settings_load_for_config_dir_result, user_settings_load_for_edit_result, user_settings_load_repo_request, user_settings_load_repo_result, user_settings_load_with_warning_result, user_settings_merge_managed_and_user_params, user_settings_merge_managed_and_user_result, user_settings_merge_repo_value_params, user_settings_merge_repo_value_result, user_settings_migrate_obsolete_on_disk_request, user_settings_migrate_obsolete_on_disk_result, user_settings_migrate_obsolete_on_disk_status, user_settings_migrate_staff_log_level_once_request, user_settings_migrate_staff_log_level_once_result, user_settings_migrate_staff_update_channel_once_result, user_settings_normalize_request, user_settings_normalize_result, user_settings_path_result, user_settings_problem, user_settings_problem_location, user_settings_problem_source, user_settings_problems_request, user_settings_problems_result, user_settings_reset_staff_model_selection_once_request, user_settings_reset_staff_model_selection_once_result, user_settings_set_hook_disabled_request, user_settings_set_hook_disabled_result, user_settings_set_request, user_settings_unknown_keys_warning_request, user_settings_unknown_keys_warning_result, user_settings_update_request, user_settings_update_result, user_settings_validate_request, user_settings_validate_result, user_settings_validation_issue, user_settings_write_all_request, visibility_get_result, visibility_set_request, visibility_set_result, workflow_abort_request, workflow_ack_result, workflow_agent_context_observation, workflow_agent_model_observation, workflow_agent_options, workflow_agent_reasoning_effort_observation, workflow_agent_request, workflow_agent_result, workflow_agent_summary, workflow_cancel_request, workflow_current_phase, workflow_declared_limits, workflow_durable_operation, workflow_execute_request, workflow_execute_result, workflow_get_run_progress_request, workflow_get_run_request, workflow_journal_get_request, workflow_journal_get_result, workflow_journal_put_request, workflow_list_runs_request, workflow_list_runs_result, workflow_log_line, workflow_log_line_kind, workflow_log_request, workflow_pause_checkpoint_action, workflow_pause_checkpoint_request, workflow_pause_checkpoint_result, workflow_pause_info, workflow_pause_request, workflow_phase_observation, workflow_phase_status, workflow_progress_line, workflow_progress_page, workflow_resume_request, workflow_resume_result, workflow_run_consumed, workflow_run_detail, workflow_run_failure, workflow_run_failure_kind, workflow_run_limits, workflow_run_options, workflow_run_request, workflow_run_result, workflow_run_status, workflow_run_summary, workflow_run_terminal, workflow_tool_resume_request, workflow_tool_run_options, workflow_tool_run_request, workspace_diff_contents, workspace_diff_file_change, workspace_diff_file_change_type, workspace_diff_mode, workspace_diff_result, workspaces_add_summary_request, workspaces_add_summary_result, workspaces_autopilot_objective_exists_result, workspaces_checkpoints, workspaces_create_directory_request, workspaces_create_file_request, workspaces_delete_autopilot_objective_result, workspaces_diff_request, workspaces_ensure_request, workspaces_get_workspace_result, workspaces_list_checkpoints_result, workspaces_list_files_result, workspaces_read_autopilot_objective_result, workspaces_read_checkpoint_request, workspaces_read_checkpoint_result, workspaces_read_file_request, workspaces_read_file_result, workspaces_remove_path_request, workspaces_rename_path_request, workspaces_save_large_paste_request, workspaces_save_large_paste_result, workspaces_stat_file_request, workspaces_stat_file_result, workspaces_truncate_summaries_request, workspace_summary_host_type, workspaces_update_metadata_request, workspaces_workspace_details_host_type, workspaces_write_autopilot_objective_request, workspaces_write_autopilot_objective_result, azure_ml_status_result, connector_session_account_result, host_authenticate_result, session_auth_info_result, session_context_attribution, session_context_info, subagent_settings, task_progress, workspace_summary)
 
     def to_dict(self) -> dict:
         result: dict = {}
@@ -65245,6 +67933,8 @@ class RPC:
         result["AccountGetCurrentAuthResult"] = to_class(AccountGetCurrentAuthResult, self.account_get_current_auth_result)
         result["AccountGetGistSupportRequest"] = to_class(_AccountGetGistSupportRequest, self.account_get_gist_support_request)
         result["AccountGetGistSupportResult"] = to_class(_AccountGetGistSupportResult, self.account_get_gist_support_result)
+        result["AccountGetHostUrlRequest"] = to_class(_AccountGetHostURLRequest, self.account_get_host_url_request)
+        result["AccountGetHostUrlResult"] = to_class(_AccountGetHostURLResult, self.account_get_host_url_result)
         result["AccountGetQuotaRequest"] = to_class(AccountGetQuotaRequest, self.account_get_quota_request)
         result["AccountGetQuotaResult"] = to_class(AccountGetQuotaResult, self.account_get_quota_result)
         result["AccountGetTokenEnvVarResult"] = to_class(_AccountGetTokenEnvVarResult, self.account_get_token_env_var_result)
@@ -65261,6 +67951,8 @@ class RPC:
         result["AccountsGetRequest"] = to_class(AccountsGetRequest, self.accounts_get_request)
         result["AccountsSetRequest"] = to_class(AccountsSetRequest, self.accounts_set_request)
         result["AccountStatus"] = to_class(AccountStatus, self.account_status)
+        result["AccountSubscribeCopilotFreeRequest"] = to_class(_AccountSubscribeCopilotFreeRequest, self.account_subscribe_copilot_free_request)
+        result["AccountSubscribeCopilotFreeResult"] = to_class(_AccountSubscribeCopilotFreeResult, self.account_subscribe_copilot_free_result)
         result["AdaptiveThinkingSupport"] = to_enum(AdaptiveThinkingSupport, self.adaptive_thinking_support)
         result["AgentDiscoveryPath"] = to_class(AgentDiscoveryPath, self.agent_discovery_path)
         result["AgentDiscoveryPathList"] = to_class(AgentDiscoveryPathList, self.agent_discovery_path_list)
@@ -65380,6 +68072,18 @@ class RPC:
         result["BuiltinToolInputSchemaType"] = to_enum(BuiltinToolInputSchemaType, self.builtin_tool_input_schema_type)
         result["BuiltinToolSafeForTelemetry"] = from_union([from_bool, lambda x: to_class(BuiltinToolSafeTelemetryFields, x)], self.builtin_tool_safe_for_telemetry)
         result["BuiltinToolSafeTelemetryFields"] = to_class(BuiltinToolSafeTelemetryFields, self.builtin_tool_safe_telemetry_fields)
+        result["CafeMetricsEmbeddedPackageIdentity"] = to_enum(PackageIdentity, self.cafe_metrics_embedded_package_identity)
+        result["CafeMetricsRecordResumeResultRequest"] = to_class(_CafeMetricsRecordResumeResultRequest, self.cafe_metrics_record_resume_result_request)
+        result["CafeMetricsRelease"] = to_class(_CafeMetricsRelease, self.cafe_metrics_release)
+        result["CafeMetricsResolveAdmissionRequest"] = to_class(_CafeMetricsResolveAdmissionRequest, self.cafe_metrics_resolve_admission_request)
+        result["CafeMetricsResolveAdmissionResult"] = to_class(_CafeMetricsResolveAdmissionResult, self.cafe_metrics_resolve_admission_result)
+        result["CafeMetricsResumeOutcome"] = to_enum(_CafeMetricsResumeOutcome, self.cafe_metrics_resume_outcome)
+        result["CafeMetricsResumeReason"] = to_enum(_CafeMetricsResumeReason, self.cafe_metrics_resume_reason)
+        result["CafeMetricsResumeStage"] = to_enum(_CafeMetricsResumeStage, self.cafe_metrics_resume_stage)
+        result["CafeMetricsShutdownRequest"] = to_class(_CafeMetricsShutdownRequest, self.cafe_metrics_shutdown_request)
+        result["CafeMetricsStartRefusal"] = to_enum(_CafeMetricsStartRefusal, self.cafe_metrics_start_refusal)
+        result["CafeMetricsStartRequest"] = to_class(_CafeMetricsStartRequest, self.cafe_metrics_start_request)
+        result["CafeMetricsStartResult"] = to_class(_CafeMetricsStartResult, self.cafe_metrics_start_result)
         result["CancelUserRequestedShellCommandResult"] = to_class(CancelUserRequestedShellCommandResult, self.cancel_user_requested_shell_command_result)
         result["CanvasAction"] = to_class(CanvasAction, self.canvas_action)
         result["CanvasActionInvokeRequest"] = to_class(CanvasActionInvokeRequest, self.canvas_action_invoke_request)
@@ -65528,6 +68232,21 @@ class RPC:
         result["ClientTaskCancelReason"] = to_enum(ClientTaskCancelReason, self.client_task_cancel_reason)
         result["ClientTaskCancelRequest"] = to_class(ClientTaskCancelRequest, self.client_task_cancel_request)
         result["ClientTaskCancelResult"] = to_class(ClientTaskCancelResult, self.client_task_cancel_result)
+        result["CloudTasksCreateParams"] = to_class(_CloudTasksCreateParams, self.cloud_tasks_create_params)
+        result["CloudTasksCreateResult"] = to_class(_CloudTasksCreateResult, self.cloud_tasks_create_result)
+        result["CloudTasksDeleteParams"] = to_class(_CloudTasksDeleteParams, self.cloud_tasks_delete_params)
+        result["CloudTasksDeleteResult"] = to_class(_CloudTasksDeleteResult, self.cloud_tasks_delete_result)
+        result["CloudTasksGetParams"] = to_class(_CloudTasksGetParams, self.cloud_tasks_get_params)
+        result["CloudTasksGetResult"] = to_class(_CloudTasksGetResult, self.cloud_tasks_get_result)
+        result["CloudTasksGetSessionLogsParams"] = to_class(_CloudTasksGetSessionLogsParams, self.cloud_tasks_get_session_logs_params)
+        result["CloudTasksGetSessionLogsResult"] = to_class(_CloudTasksGetSessionLogsResult, self.cloud_tasks_get_session_logs_result)
+        result["CloudTasksGetSessionReplayParams"] = to_class(_CloudTasksGetSessionReplayParams, self.cloud_tasks_get_session_replay_params)
+        result["CloudTasksGetSessionReplayResult"] = to_class(_CloudTasksGetSessionReplayResult, self.cloud_tasks_get_session_replay_result)
+        result["CloudTasksGetSharingStatusParams"] = to_class(_CloudTasksGetSharingStatusParams, self.cloud_tasks_get_sharing_status_params)
+        result["CloudTasksResolveTaskIdParams"] = to_class(_CloudTasksResolveTaskIDParams, self.cloud_tasks_resolve_task_id_params)
+        result["CloudTasksResolveTaskIdResult"] = to_class(_CloudTasksResolveTaskIDResult, self.cloud_tasks_resolve_task_id_result)
+        result["CloudTasksSetSharingStatusParams"] = to_class(_CloudTasksSetSharingStatusParams, self.cloud_tasks_set_sharing_status_params)
+        result["CloudTasksSharingStatusResult"] = to_class(_CloudTasksSharingStatusResult, self.cloud_tasks_sharing_status_result)
         result["CommandList"] = to_class(CommandList, self.command_list)
         result["CommandsFinalizeInvocationEffectRequest"] = to_class(CommandsFinalizeInvocationEffectRequest, self.commands_finalize_invocation_effect_request)
         result["CommandsFinalizeInvocationEffectResult"] = to_class(CommandsFinalizeInvocationEffectResult, self.commands_finalize_invocation_effect_result)
@@ -65703,16 +68422,56 @@ class RPC:
         result["GhCliAuthInfo"] = to_class(GhCLIAuthInfo, self.gh_cli_auth_info)
         result["GitCurrentBranchRemoteResult"] = to_class(_GitCurrentBranchRemoteResult, self.git_current_branch_remote_result)
         result["GitCwdRequest"] = to_class(_GitCwdRequest, self.git_cwd_request)
+        result["GitHubBranchPullRequest"] = to_class(_GitHubBranchPullRequest, self.git_hub_branch_pull_request)
+        result["GitHubBranchPullRequestLookupRequest"] = to_class(_GitHubBranchPullRequestLookupRequest, self.git_hub_branch_pull_request_lookup_request)
+        result["GitHubBranchPullRequestLookupResult"] = to_class(_GitHubBranchPullRequestLookupResult, self.git_hub_branch_pull_request_lookup_result)
+        result["GitHubBranchPullRequestLookupStatus"] = to_enum(_GitHubBranchPullRequestLookupStatus, self.git_hub_branch_pull_request_lookup_status)
         result["GitHubEnvironment"] = to_class(GitHubEnvironment, self.git_hub_environment)
+        result["GitHubFetchCancelResult"] = to_class(_GitHubFetchCancelResult, self.git_hub_fetch_cancel_result)
+        result["GitHubFetchHeader"] = to_class(_GitHubFetchHeader, self.git_hub_fetch_header)
+        result["GitHubFetchHttpError"] = to_class(_GitHubFetchHTTPError, self.git_hub_fetch_http_error)
+        result["GitHubFetchOperation"] = to_enum(_GitHubFetchOperation, self.git_hub_fetch_operation)
+        result["GitHubFetchOperationRequest"] = to_class(_GitHubFetchOperationRequest, self.git_hub_fetch_operation_request)
+        result["GitHubFetchPinnedAddress"] = to_class(GitHubFetchPinnedAddress, self.git_hub_fetch_pinned_address)
+        result["GitHubFetchProxyEnvironment"] = to_class(GitHubFetchProxyEnvironment, self.git_hub_fetch_proxy_environment)
+        result["GitHubFetchRequest"] = to_class(_GitHubFetchRequest, self.git_hub_fetch_request)
+        result["GitHubFetchRequestId"] = to_class(_GitHubFetchRequestID, self.git_hub_fetch_request_id)
+        result["GitHubFetchResult"] = to_class(_GitHubFetchResult, self.git_hub_fetch_result)
+        result["GitHubFetchRetryConfig"] = to_class(_GitHubFetchRetryConfig, self.git_hub_fetch_retry_config)
         result["GitHubOwnerOption"] = to_class(_GitHubOwnerOption, self.git_hub_owner_option)
         result["GitHubOwnersCancelRequest"] = to_class(_GitHubOwnersCancelRequest, self.git_hub_owners_cancel_request)
         result["GitHubOwnersCancelResult"] = to_class(_GitHubOwnersCancelResult, self.git_hub_owners_cancel_result)
         result["GitHubOwnersListRequest"] = to_class(_GitHubOwnersListRequest, self.git_hub_owners_list_request)
         result["GitHubOwnersListResult"] = to_class(_GitHubOwnersListResult, self.git_hub_owners_list_result)
         result["GitHubOwnersRequestIdResult"] = to_class(_GitHubOwnersRequestIDResult, self.git_hub_owners_request_id_result)
+        result["GitHubPullRequestCheck"] = to_class(_GitHubPullRequestCheck, self.git_hub_pull_request_check)
+        result["GitHubPullRequestCheckStatus"] = to_enum(_GitHubPullRequestCheckStatus, self.git_hub_pull_request_check_status)
+        result["GitHubReleaseAbandonRequestParams"] = to_class(_GitHubReleaseAbandonRequestParams, self.git_hub_release_abandon_request_params)
+        result["GitHubReleaseAbandonRequestResult"] = to_class(_GitHubReleaseAbandonRequestResult, self.git_hub_release_abandon_request_result)
+        result["GitHubReleaseCancelRequest"] = to_class(_GitHubReleaseCancelRequest, self.git_hub_release_cancel_request)
+        result["GitHubReleaseCancelResult"] = to_class(_GitHubReleaseCancelResult, self.git_hub_release_cancel_result)
+        result["GitHubReleaseDownloadAssetRequest"] = to_class(_GitHubReleaseDownloadAssetRequest, self.git_hub_release_download_asset_request)
+        result["GitHubReleaseDownloadAssetResult"] = to_class(_GitHubReleaseDownloadAssetResult, self.git_hub_release_download_asset_result)
+        result["GitHubReleaseDownloadKind"] = to_enum(_GitHubReleaseDownloadKind, self.git_hub_release_download_kind)
+        result["GitHubReleaseDownloadProgressRequest"] = to_class(_GitHubReleaseDownloadProgressRequest, self.git_hub_release_download_progress_request)
+        result["GitHubReleaseDownloadProgressResult"] = to_class(_GitHubReleaseDownloadProgressResult, self.git_hub_release_download_progress_result)
+        result["GitHubReleaseLookupKind"] = to_enum(_GitHubReleaseLookupKind, self.git_hub_release_lookup_kind)
+        result["GitHubReleaseLookupRequest"] = to_class(_GitHubReleaseLookupRequest, self.git_hub_release_lookup_request)
+        result["GitHubReleaseLookupResult"] = to_class(_GitHubReleaseLookupResult, self.git_hub_release_lookup_result)
+        result["GitHubReleasePackageIdentity"] = to_enum(PackageIdentity, self.git_hub_release_package_identity)
+        result["GitHubReleaseQuery"] = to_enum(_GitHubReleaseQuery, self.git_hub_release_query)
+        result["GitHubReleaseRequestIdResult"] = to_class(_GitHubReleaseRequestIDResult, self.git_hub_release_request_id_result)
+        result["GitHubReleaseSnapshotAsset"] = to_class(_GitHubReleaseSnapshotAsset, self.git_hub_release_snapshot_asset)
+        result["GitHubReleaseSnapshotEntry"] = to_class(_GitHubReleaseSnapshotEntry, self.git_hub_release_snapshot_entry)
+        result["GitHubReleaseSnapshotRequest"] = to_class(_GitHubReleaseSnapshotRequest, self.git_hub_release_snapshot_request)
+        result["GitHubReleaseSnapshotResult"] = to_class(_GitHubReleaseSnapshotResult, self.git_hub_release_snapshot_result)
+        result["GitHubReleaseUpdateChannel"] = to_enum(_GitHubReleaseUpdateChannel, self.git_hub_release_update_channel)
         result["GitHubRepositoryAtPathRequest"] = to_class(_GitHubRepositoryAtPathRequest, self.git_hub_repository_at_path_request)
         result["GitHubRepositoryAtPathResult"] = to_class(_GitHubRepositoryAtPathResult, self.git_hub_repository_at_path_result)
+        result["GitHubRepositoryByIdRequest"] = to_class(_GitHubRepositoryByIDRequest, self.git_hub_repository_by_id_request)
+        result["GitHubRepositoryByIdResult"] = to_class(_GitHubRepositoryByIDResult, self.git_hub_repository_by_id_result)
         result["GitHubRepositoryIdentity"] = to_class(GitHubRepositoryIdentity, self.git_hub_repository_identity)
+        result["GitHubRepositoryOwnerName"] = to_class(_GitHubRepositoryOwnerName, self.git_hub_repository_owner_name)
         result["GitHubTelemetryClientInfo"] = to_class(GitHubTelemetryClientInfo, self.git_hub_telemetry_client_info)
         result["GitHubTelemetryEvent"] = to_class(GitHubTelemetryEvent, self.git_hub_telemetry_event)
         result["GitHubTelemetryNotification"] = to_class(GitHubTelemetryNotification, self.git_hub_telemetry_notification)
@@ -67652,6 +70411,7 @@ AuthValidationErrors = list
 AzureMlCancelResult = bool
 AzureMlStatusResult = AzureMlDownloadStatus | None
 BuiltinToolSafeForTelemetry = bool
+_CafeMetricsEmbeddedPackageIdentity = PackageIdentity
 CanvasActionInvokeResult = Any
 CanvasJsonSchema = Any
 CardDigestValue = str
@@ -67668,6 +70428,7 @@ ExternalToolTextResultForLlmContentResourceLinkIconTheme = Theme
 FeatureFlagsResolveResult = dict
 FeatureFlagsResolveStartupGatesResult = dict
 FilterMapping = dict
+_GitHubReleasePackageIdentity = PackageIdentity
 HistoryCompactRequest = Any
 HostAuthenticateResult = HostAuthenticationResult | None
 InstructionDiscoveryPathKind = DebugCollectLogsEntryKind
@@ -69194,6 +71955,16 @@ class _InternalServerAccountApi:
         "Names the environment variable supplying a classic personal access token, if one is set. A classic token cannot be upgraded in place, so a host that finds one should tell the user which variable to unset rather than starting an interactive sign-in that the variable would override.\n\nReturns:\n    The environment variable supplying a classic personal access token, when one is set.\n\n:meta private:\n\nInternal SDK API; not part of the public surface."
         return _AccountGetTokenEnvVarResult.from_dict(await self._client.request("account.getTokenEnvVar", {}, **_timeout_kwargs(timeout)))
 
+    async def _subscribe_copilot_free(self, params: _AccountSubscribeCopilotFreeRequest, *, timeout: float | None = None) -> _AccountSubscribeCopilotFreeResult:
+        "Enrolls the supplied identity in Copilot Free. A host offers this when a signed-in user has no Copilot subscription, so that signing up does not mean leaving for a browser. The runtime resolves the identity's credential itself, so the caller sends none. Read `kind` before `status`: an identity whose credential cannot be resolved answers `no-token` rather than failing the call, because that asks the user to sign in again rather than reporting that enrollment broke. Enrolling an already-enrolled account succeeds and reports `already_subscribed`. This does not refresh the caller's cached account state; a host that shows subscription status should re-read it afterwards.\n\nArgs:\n    params: The authentication identity to enroll in Copilot Free.\n\nReturns:\n    What came of a Copilot Free enrollment attempt.\n\n:meta private:\n\nInternal SDK API; not part of the public surface."
+        params_dict = {k: v for k, v in params.to_dict().items() if v is not None or k in ["identity"]}
+        return _AccountSubscribeCopilotFreeResult.from_dict(await self._client.request("account.subscribeCopilotFree", params_dict, **_timeout_kwargs(timeout)))
+
+    async def _get_host_url(self, params: _AccountGetHostURLRequest, *, timeout: float | None = None) -> _AccountGetHostURLResult:
+        "Resolves the base URL of the GitHub host from its configured names, normalizing a bare hostname into an `https://` URL and falling back to the public github.com host when neither name is set. Unlike `account.getWebUrl` this needs no identity, so a host can reach it before anyone has signed in -- which is when an enterprise instance must already be known.\n\nArgs:\n    params: Configured names of the GitHub host to resolve.\n\nReturns:\n    Absolute base URL of the GitHub host.\n\n:meta private:\n\nInternal SDK API; not part of the public surface."
+        params_dict = {k: v for k, v in params.to_dict().items() if v is not None}
+        return _AccountGetHostURLResult.from_dict(await self._client.request("account.getHostUrl", params_dict, **_timeout_kwargs(timeout)))
+
 
 # Experimental: this API group is experimental and may change or be removed.
 class _InternalServerMcpRegistryApi:
@@ -69353,6 +72124,16 @@ class _InternalServerGitHubRepositoryApi:
         params_dict = {k: v for k, v in params.to_dict().items() if v is not None or k in ["path"]}
         return _GitHubRepositoryAtPathResult.from_dict(await self._client.request("gitHubRepository.atPath", params_dict, **_timeout_kwargs(timeout)))
 
+    async def _get_by_id(self, params: _GitHubRepositoryByIDRequest, *, timeout: float | None = None) -> _GitHubRepositoryByIDResult:
+        "Resolves the owner and name of a GitHub repository from its numeric repository id, by asking the GitHub API under the supplied credential. Returns a null `repository` when the id names nothing the credential can see, which the API reports as a 404, so a caller can tell 'no such visible repository' apart from a request that failed. The host queried is derived from `authInfo` rather than supplied separately, so the lookup always runs against the account's own GitHub host.\n\nArgs:\n    params: Selects a GitHub repository by its numeric repository id, and the credential to look it up under.\n\nReturns:\n    The repository the requested id names, when the credential can see one.\n\n:meta private:\n\nInternal SDK API; not part of the public surface."
+        params_dict = {k: v for k, v in params.to_dict().items() if v is not None or k in ["authInfo","repositoryId"]}
+        return _GitHubRepositoryByIDResult.from_dict(await self._client.request("gitHubRepository.getById", params_dict, **_timeout_kwargs(timeout)))
+
+    async def _lookup_branch_pull_request(self, params: _GitHubBranchPullRequestLookupRequest, *, timeout: float | None = None) -> _GitHubBranchPullRequestLookupResult:
+        "Finds the pull request a branch is open against, searching every repository in `baseRepositories` so a fork's branch finds the pull request it opened upstream. A candidate is discarded unless `headOwner` owns its head branch, because a branch name alone is ambiguous across forks. `status` separates 'not authenticated', 'no such pull request' and 'the search failed', so a caller can tell a conclusive absence apart from an unknown one. The host queried is derived from `authInfo` rather than supplied separately, so the lookup always runs against the account's own GitHub host.\n\nArgs:\n    params: Selects the pull request a branch is open against, and the credential to look it up under. The branch is searched across every repository in `baseRepositories`, which lets a fork's branch find the pull request it opened against upstream.\n\nReturns:\n    Outcome of a branch pull-request lookup. `status` carries why, because 'not authenticated', 'no pull request' and 'the search failed' are three different answers and only the first two are conclusive.\n\n:meta private:\n\nInternal SDK API; not part of the public surface."
+        params_dict = {k: v for k, v in params.to_dict().items() if v is not None or k in ["authInfo","headOwner","baseRepositories","branch","includeClosed"]}
+        return _GitHubBranchPullRequestLookupResult.from_dict(await self._client.request("gitHubRepository.lookupBranchPullRequest", params_dict, **_timeout_kwargs(timeout)))
+
 
 # Experimental: this API group is experimental and may change or be removed.
 class _InternalServerGitHubOwnersApi:
@@ -69483,6 +72264,143 @@ class _InternalServerAgentRegistryApi:
         return AgentRegistryListEntriesResult.from_dict(await self._client.request("agentRegistry.listEntries", params_dict, **_timeout_kwargs(timeout)))
 
 
+# Experimental: this API group is experimental and may change or be removed.
+class _InternalServerGitHubFetchApi:
+    def __init__(self, client: "JsonRpcClient"):
+        self._client = client
+
+    async def _allocate_request_id(self, *, timeout: float | None = None) -> _GitHubFetchRequestID:
+        "Registers one authenticated GitHub API request before it starts, so cancellation can name the operation. Each request claims its id once. Refused for extensions.\n\nReturns:\n    One registered GitHub request, shared by execution and cancellation.\n\n:meta private:\n\nInternal SDK API; not part of the public surface."
+        return _GitHubFetchRequestID.from_dict(await self._client.request("gitHubFetch.allocateRequestId", {}, **_timeout_kwargs(timeout)))
+
+    async def _request(self, params: _GitHubFetchRequest, *, timeout: float | None = None) -> _GitHubFetchResult:
+        "Calls the GitHub API with session credentials, or process credentials when sessionId is absent. A bound host can select its existing auth handle with authOwnerId. The URL must match that identity's API origin or the runtime's explicit debug API origin. Retries and eligible redirects resolve the current credential again. Explicit caller Authorization remains unchanged; cross-origin redirects discard credentials without restoring them on later hops. Release asset bodies require gitHubRelease.downloadAsset. JSON asset metadata and other response bodies remain supported. The runtime supplies a default User-Agent and records request diagnostics. Extensions cannot use this method.\n\nArgs:\n    params: A GitHub API request without caller-supplied auth identity or credential fields.\n\nReturns:\n    The HTTP response or a classified request failure.\n\n:meta private:\n\nInternal SDK API; not part of the public surface."
+        params_dict = {k: v for k, v in params.to_dict().items() if v is not None or k in ["requestId","method","url","headers","apiName"]}
+        return _GitHubFetchResult.from_dict(await self._client.request("gitHubFetch.request", params_dict, **_timeout_kwargs(timeout)))
+
+    async def _execute_operation(self, params: _GitHubFetchOperationRequest, *, timeout: float | None = None) -> _GitHubFetchResult:
+        "Executes a named GitHub or Copilot job operation. The runtime derives its URL, headers, retry policy, and credential. sessionId selects session auth; omission selects process auth. A bound host connection can select its existing auth handle with authOwnerId. Retries and eligible redirects resolve the current credential again. Cross-origin redirects discard credentials without restoring them on later hops. Non-success HTTP responses include the formatted error for the host. Extensions cannot use this method.\n\nArgs:\n    params: Arguments for a named authenticated operation.\n\nReturns:\n    The HTTP response or a classified request failure.\n\n:meta private:\n\nInternal SDK API; not part of the public surface."
+        params_dict = {k: v for k, v in params.to_dict().items() if v is not None or k in ["requestId","operation","params"]}
+        return _GitHubFetchResult.from_dict(await self._client.request("gitHubFetch.executeOperation", params_dict, **_timeout_kwargs(timeout)))
+
+    async def _cancel(self, params: _GitHubFetchRequestID, *, timeout: float | None = None) -> _GitHubFetchCancelResult:
+        "Cancels a registered GitHub request. False means the id is no longer registered. Uses the same runtime request registry as request and executeOperation. Refused for extensions.\n\nArgs:\n    params: One registered GitHub request, shared by execution and cancellation.\n\nReturns:\n    Whether cancellation reached a registered GitHub request.\n\n:meta private:\n\nInternal SDK API; not part of the public surface."
+        params_dict = {k: v for k, v in params.to_dict().items() if v is not None or k in ["requestId"]}
+        return _GitHubFetchCancelResult.from_dict(await self._client.request("gitHubFetch.cancel", params_dict, **_timeout_kwargs(timeout)))
+
+
+# Experimental: this API group is experimental and may change or be removed.
+class _InternalServerGitHubReleaseApi:
+    def __init__(self, client: "JsonRpcClient"):
+        self._client = client
+
+    async def _allocate_request_id(self, *, timeout: float | None = None) -> _GitHubReleaseRequestIDResult:
+        "Allocates a connection-owned request id before a release lookup, snapshot, or asset download starts. Use the id to cancel that operation. A snapshot retains its allocation until disposal or connection close.\n\nReturns:\n    A freshly registered request id. Registering it before the work starts is what lets a cancel that races the request still find something to cancel.\n\n:meta private:\n\nInternal SDK API; not part of the public surface."
+        return _GitHubReleaseRequestIDResult.from_dict(await self._client.request("gitHubRelease.allocateRequestId", {}, **_timeout_kwargs(timeout)))
+
+    async def _abandon_request(self, params: _GitHubReleaseAbandonRequestParams, *, timeout: float | None = None) -> _GitHubReleaseAbandonRequestResult:
+        "Retires an unused allocation that this caller will never dispatch. Only an unclaimed id on this connection with no active guard is eligible. Active, foreign, unknown and previously retired ids return abandoned: false. Ordinary cancellation still preserves the first canceled claim. This cleanup remains available during shutdown and is refused for extensions.\n\nArgs:\n    params: An unused release allocation that this caller will never dispatch. This is separate from cancellation before a request arrives.\n\nReturns:\n    Whether the runtime retired an unused allocation without affecting active work.\n\n:meta private:\n\nInternal SDK API; not part of the public surface."
+        params_dict = {k: v for k, v in params.to_dict().items() if v is not None or k in ["requestId"]}
+        return _GitHubReleaseAbandonRequestResult.from_dict(await self._client.request("gitHubRelease.abandonRequest", params_dict, **_timeout_kwargs(timeout)))
+
+    async def _lookup(self, params: _GitHubReleaseLookupRequest, *, timeout: float | None = None) -> _GitHubReleaseLookupResult:
+        "Looks up a published release or release list. A bound host connection uses its original auth source. Other SDK callers keep the existing authInfo path. The runtime resolves credentials for each request and redirect. Public releases also permit anonymous access. The kind field distinguishes a result, a missing tag, no release, a rate limit, and failure. This raw lookup does not return a shared snapshot.\n\nArgs:\n    params: Which release to look up, the credential to look it up under, and the request id that makes the lookup cancellable.\n\nReturns:\n    Outcome of a release lookup. `releaseJson` is present only for `found`, and `message` only for the kinds that carry an explanation.\n\n:meta private:\n\nInternal SDK API; not part of the public surface."
+        params_dict = {k: v for k, v in params.to_dict().items() if v is not None or k in ["requestId","query"]}
+        return _GitHubReleaseLookupResult.from_dict(await self._client.request("gitHubRelease.lookup", params_dict, **_timeout_kwargs(timeout)))
+
+    async def _get_snapshot(self, params: _GitHubReleaseSnapshotRequest, *, timeout: float | None = None) -> _GitHubReleaseSnapshotResult:
+        "Loads one immutable release snapshot for an update client or SDK host. The runtime retains the original credential source and resolves it for each request. Calls with the same allocated request id and options share one lookup and result. A dropped waiter does not cancel that lookup. Use gitHubRelease.cancel to dispose the operation. The runtime admits one failure report before it publishes a failed result. Extensions cannot use this method.\n\nArgs:\n    params: Immutable options for one connection-owned release snapshot.\n\nReturns:\n    The shared release result with its original lookup duration. Runtime worker faults remain RPC errors.\n\n:meta private:\n\nInternal SDK API; not part of the public surface."
+        params_dict = {k: v for k, v in params.to_dict().items() if v is not None or k in ["requestId","updateChannel","buildVersion"]}
+        return _GitHubReleaseSnapshotResult.from_dict(await self._client.request("gitHubRelease.getSnapshot", params_dict, **_timeout_kwargs(timeout)))
+
+    async def _cancel(self, params: _GitHubReleaseCancelRequest, *, timeout: float | None = None) -> _GitHubReleaseCancelResult:
+        "Cancels an allocated operation on this connection. For a snapshot, disposal also waits for its owned lookup and retires its credential authority. It does not delete completed caller-owned downloads. An unknown or foreign id returns canceled: false. A completed download still returns its owned file, which the caller must dispose.\n\nArgs:\n    params: The release lookup or asset download to abandon.\n\nReturns:\n    Whether the cancel reached live work.\n\n:meta private:\n\nInternal SDK API; not part of the public surface."
+        params_dict = {k: v for k, v in params.to_dict().items() if v is not None or k in ["requestId"]}
+        return _GitHubReleaseCancelResult.from_dict(await self._client.request("gitHubRelease.cancel", params_dict, **_timeout_kwargs(timeout)))
+
+    async def _download_asset(self, params: _GitHubReleaseDownloadAssetRequest, *, timeout: float | None = None) -> _GitHubReleaseDownloadAssetResult:
+        "Streams a published Copilot release asset to a private file and computes its SHA-256. The URL must name an HTTPS release download in a supported repository. A snapshotRequestId retains that snapshot's original credential source. Otherwise, a bound host uses its original owner, and other SDK callers keep the authInfo path. Each request and redirect resolves credentials again. Revocation fails without an auth fallback. Ordinary credential rejection and transport fallback keep their existing behavior. A digest mismatch removes the file. The result contains file metadata, not archive bytes. The caller must dispose the completed file after use. The download's own requestId controls progress and cancellation. Extensions cannot use this method.\n\nArgs:\n    params: Which release asset to download, the credential to download it under, and the request id that makes the download cancellable.\n\nReturns:\n    Outcome of an asset download. Each field is present only for the kinds its description names.\n\n:meta private:\n\nInternal SDK API; not part of the public surface."
+        params_dict = {k: v for k, v in params.to_dict().items() if v is not None or k in ["requestId","assetUrl"]}
+        return _GitHubReleaseDownloadAssetResult.from_dict(await self._client.request("gitHubRelease.downloadAsset", params_dict, **_timeout_kwargs(timeout)))
+
+    async def _get_download_progress(self, params: _GitHubReleaseDownloadProgressRequest, *, timeout: float | None = None) -> _GitHubReleaseDownloadProgressResult:
+        "Reports how many bytes a running `gitHubRelease.downloadAsset` has written, for a progress display. The runtime sends no progress notification for a download, so a host polls this while the download runs. An id with no running download reports zero bytes and no total, which is the normal answer before the body starts and after the download ends.\n\nArgs:\n    params: The download whose progress to report.\n\nReturns:\n    Byte progress of a running download.\n\n:meta private:\n\nInternal SDK API; not part of the public surface."
+        params_dict = {k: v for k, v in params.to_dict().items() if v is not None or k in ["requestId"]}
+        return _GitHubReleaseDownloadProgressResult.from_dict(await self._client.request("gitHubRelease.getDownloadProgress", params_dict, **_timeout_kwargs(timeout)))
+
+
+# Experimental: this API group is experimental and may change or be removed.
+class _InternalServerCloudTasksApi:
+    def __init__(self, client: "JsonRpcClient"):
+        self._client = client
+
+    async def _create(self, params: _CloudTasksCreateParams, *, timeout: float | None = None) -> _CloudTasksCreateResult:
+        "Starts a cloud coding-agent task, the remote run whose record `cloudTasks.get` later reads. Answered above any session because the task it creates is not a background task inside one. Hosts other than the CLI want this: a GitHub App or an SDK consumer that hands work to a cloud agent creates the same task under the same credential, and resolving it here keeps one credential, endpoint and validation path. Target the task either by repository, supplying both `repositoryOwner` and `repositoryName`, or by `owner` alone for an account-level run. The result separates a rejected request from a failed one: when `ok` is false, `reason` categorises the rejection and `message` carries the explanation to show, while `failure` describes the HTTP call itself and is present only when one was actually made.\n\nArgs:\n    params: Describes the cloud coding-agent task to start and the credential to start it under. Target it either by repository, supplying both `repositoryOwner` and `repositoryName`, or by `owner` alone for an account-level run.\n\nReturns:\n    The outcome of starting a cloud task. A rejected request and a failed one are reported separately: `reason` and `message` describe a request the service declined, while `statusCode` and `errorMessage` describe the HTTP call itself and appear only when one was actually made.\n\n:meta private:\n\nInternal SDK API; not part of the public surface."
+        params_dict = {k: v for k, v in params.to_dict().items() if v is not None or k in ["authInfo","integrationId"]}
+        return _CloudTasksCreateResult.from_dict(await self._client.request("cloudTasks.create", params_dict, **_timeout_kwargs(timeout)))
+
+    async def _delete(self, params: _CloudTasksDeleteParams, *, timeout: float | None = None) -> _CloudTasksDeleteResult:
+        "Deletes one cloud coding-agent task, the remote run `cloudTasks.create` started. The deletion is a soft one: the service withdraws the task from its listings rather than destroying the record, so a host removing a run from its own UI is the intended caller. Answered above any session for the same reason as `cloudTasks.get` -- the task is remote and has no local counterpart. Hosts other than the CLI want this: a GitHub App or an SDK consumer that manages cloud agent runs withdraws the same record under the same credential, and resolving it here keeps one credential-resolution and endpoint path. The runtime resolves each token from `authInfo` or `authContextId`. A host may preserve an explicit `baseUrl`; omission derives the endpoint from `authInfo`. The result is the HTTP outcome rather than a bare success flag: the call returns no body, so `ok` alone describes a success, while a failure is reported through `statusCode`, `errorMessage` and `errorPayloadJson` instead of being raised as an error.\n\nArgs:\n    params: Identifies one cloud coding-agent task to delete, and the credential to delete it under.\n\nReturns:\n    The HTTP outcome of deleting a cloud task. The deletion returns no body, so a successful call carries nothing beyond `ok`; a failed one is described by the remaining fields rather than raised as an error, so a caller can surface the service's own explanation.\n\n:meta private:\n\nInternal SDK API; not part of the public surface."
+        params_dict = {k: v for k, v in params.to_dict().items() if v is not None or k in ["authInfo","integrationId","taskId"]}
+        return _CloudTasksDeleteResult.from_dict(await self._client.request("cloudTasks.delete", params_dict, **_timeout_kwargs(timeout)))
+
+    async def _get(self, params: _CloudTasksGetParams, *, timeout: float | None = None) -> _CloudTasksGetResult:
+        "Reads one cloud coding-agent task from the Copilot API. This is the task a cloud agent runs on a host's behalf, not a background task inside a session, so it is answered above any session and the `tasks` group does not cover it. Hosts other than the CLI want this: a GitHub App or an SDK consumer that shows the state of a cloud agent run must read the same task record, and resolving it here keeps one credential-resolution, task-URL and circuit-breaker path instead of each host rebuilding them. The result is the HTTP outcome rather than the task itself: a caller must read `ok` and `statusCode` before `payloadJson`, because a 404 is reported as a non-ok result rather than an error, which is what lets a caller tell \"no such task\" apart from \"the API call failed\".\n\nArgs:\n    params: Identifies one cloud coding-agent task and the credential to read it under.\n\nReturns:\n    The HTTP outcome of reading a cloud task, rather than the task alone. A 404 arrives here as a non-ok result with `statusCode` 404, not as an error, so a caller can tell an absent task apart from a failed call.\n\n:meta private:\n\nInternal SDK API; not part of the public surface."
+        params_dict = {k: v for k, v in params.to_dict().items() if v is not None or k in ["authInfo","integrationId","taskId"]}
+        return _CloudTasksGetResult.from_dict(await self._client.request("cloudTasks.get", params_dict, **_timeout_kwargs(timeout)))
+
+    async def _get_session_logs(self, params: _CloudTasksGetSessionLogsParams, *, timeout: float | None = None) -> _CloudTasksGetSessionLogsResult:
+        "Reads the logs a cloud coding-agent session produced, from the Copilot API. Answered above any session, for the same reason as `cloudTasks.get`: the session being asked about runs remotely and has no local counterpart. Read `resolved` first. It is false when no Copilot API URL could be resolved for the credential, which is a different outcome from a request that was made and failed, and a caller that treats the two alike will report a transport error for an account that simply has no API endpoint. When `resolved` is true, `debugMessages` carries the diagnostics the fetch produced and should be logged whatever the outcome, `errorString` reports a retrieval fault, and only then do `ok` and `statusCode` describe the HTTP result.\n\nArgs:\n    params: Identifies one cloud coding-agent session whose logs are to be read, and the credential to read them under.\n\nReturns:\n    The outcome of reading a cloud session's logs. `resolved` distinguishes \"this credential has no Copilot API endpoint\" from \"the request was made and failed\"; every other field describes a request that was actually attempted.\n\n:meta private:\n\nInternal SDK API; not part of the public surface."
+        params_dict = {k: v for k, v in params.to_dict().items() if v is not None or k in ["authInfo"]}
+        return _CloudTasksGetSessionLogsResult.from_dict(await self._client.request("cloudTasks.getSessionLogs", params_dict, **_timeout_kwargs(timeout)))
+
+    async def _get_session_replay(self, params: _CloudTasksGetSessionReplayParams, *, timeout: float | None = None) -> _CloudTasksGetSessionReplayResult:
+        "Reconstructs the session a cloud coding-agent task recorded, by reading that task's events and ordering them for replay. Answered above any session, for the same reason as `cloudTasks.get`: the session being rebuilt ran remotely and has no local counterpart. Hosts other than the CLI want this: an SDK consumer attaching to a run in progress, an ACP client resuming one, or a GitHub App rendering a task's transcript all rebuild the same history from the same events, and resolving it here keeps one credential, endpoint, ordering and anchor-detection path. A newly created task has no events yet, so this polls for them and fails once they do not arrive. Read `preStart` before either list: when it is true the session has not started, `replayEventsJson` is deliberately empty because there is no history to reconstruct, and only `observedEventsJson` is meaningful.\n\nArgs:\n    params: Identifies one cloud coding-agent task whose recorded session is to be replayed, and the credential to read it under.\n\nReturns:\n    A cloud task's recorded events, ordered for replay. Read `preStart` first: it selects which of the two event lists a caller should use, and they differ deliberately.\n\n:meta private:\n\nInternal SDK API; not part of the public surface."
+        params_dict = {k: v for k, v in params.to_dict().items() if v is not None or k in ["authInfo","integrationId","taskId"]}
+        return _CloudTasksGetSessionReplayResult.from_dict(await self._client.request("cloudTasks.getSessionReplay", params_dict, **_timeout_kwargs(timeout)))
+
+    async def _get_sharing_status(self, params: _CloudTasksGetSharingStatusParams, *, timeout: float | None = None) -> _CloudTasksSharingStatusResult:
+        "Reads whether one cloud coding-agent task is shared, from the Mission Control service. Answered above any session, for the same reason as `cloudTasks.get`: the task is a remote record with no local counterpart. Hosts other than the CLI want this: an SDK consumer or a GitHub App that offers a \"share this run\" affordance must read the same flag from the same service, and resolving it here keeps one credential-resolution and endpoint path. The credential is resolved from `authInfo` inside the runtime rather than being carried across the door, so no caller handles a raw token. Read `credentialResolved` first: it is false when the account has no usable credential, in which case no request was made at all, which a caller must not report as a failed request.\n\nArgs:\n    params: Identifies one cloud coding-agent task whose sharing status is to be read, and the credential to read it under.\n\nReturns:\n    The sharing status a cloud task carries after the call. Read `credentialResolved` first: when it is false no request was attempted at all, which is a different outcome from a request the service declined.\n\n:meta private:\n\nInternal SDK API; not part of the public surface."
+        params_dict = {k: v for k, v in params.to_dict().items() if v is not None or k in ["authInfo","integrationId","taskId"]}
+        return _CloudTasksSharingStatusResult.from_dict(await self._client.request("cloudTasks.getSharingStatus", params_dict, **_timeout_kwargs(timeout)))
+
+    async def _set_sharing_status(self, params: _CloudTasksSetSharingStatusParams, *, timeout: float | None = None) -> _CloudTasksSharingStatusResult:
+        "Changes whether one cloud coding-agent task is shared, through the Mission Control service, and reports the status the task carries afterwards. The companion to `cloudTasks.getSharingStatus` and answered above any session for the same reason. The status is sent verbatim and is not narrowed to a closed set, because the service owns these values. The credential is resolved from `authInfo` inside the runtime rather than being carried across the door. Read `credentialResolved` first: it is false when the account has no usable credential, in which case nothing was changed and no request was made.\n\nArgs:\n    params: Identifies one cloud coding-agent task whose sharing status is to be changed, the status to set, and the credential to change it under.\n\nReturns:\n    The sharing status a cloud task carries after the call. Read `credentialResolved` first: when it is false no request was attempted at all, which is a different outcome from a request the service declined.\n\n:meta private:\n\nInternal SDK API; not part of the public surface."
+        params_dict = {k: v for k, v in params.to_dict().items() if v is not None or k in ["authInfo","integrationId","taskId","sharingStatus"]}
+        return _CloudTasksSharingStatusResult.from_dict(await self._client.request("cloudTasks.setSharingStatus", params_dict, **_timeout_kwargs(timeout)))
+
+    async def _resolve_task_id(self, params: _CloudTasksResolveTaskIDParams, *, timeout: float | None = None) -> _CloudTasksResolveTaskIDResult:
+        "Finds the session a caller should open for one cloud coding-agent task. A task identifier alone does not say what to open: the run may already exist locally, it may exist only in the cloud, or it may be a task that cannot be resumed at all. Resolving that needs a local session scan and a Mission Control lookup that agree on identity, which is why it is answered here rather than left to each host. Hosts other than the CLI want it: an IDE or a GitHub App that opens a run from a task link faces the same three outcomes. Read `kind` before any other field. `local-session` carries `sessionId`, `remote-session` carries `metadataJson`, `unresumable-task` means the task exists but cannot be continued, and `none` means no session matched. A failed service call is reported as `error` rather than raised, so a caller can surface the service's own message. Pass every local session identifier already rejected in `ignoredLocalSessionIds` and call again to get the next candidate; that is how a host skips a local session it could not load.\n\nArgs:\n    params: Identifies one cloud coding-agent task to resolve to an openable session, the credential to resolve it under, and the local candidates the caller has already rejected.\n\nReturns:\n    What a caller should open for the task. The four outcomes are distinct and carry different payloads, so read `kind` before any other field.\n\n:meta private:\n\nInternal SDK API; not part of the public surface."
+        params_dict = {k: v for k, v in params.to_dict().items() if v is not None or k in ["taskId","authInfo","integrationId","allowEmptyCliTask","hasRemoteSessionManager","ignoredLocalSessionIds"]}
+        return _CloudTasksResolveTaskIDResult.from_dict(await self._client.request("cloudTasks.resolveTaskId", params_dict, **_timeout_kwargs(timeout)))
+
+
+# Experimental: this API group is experimental and may change or be removed.
+class _InternalServerCafeMetricsApi:
+    def __init__(self, client: "JsonRpcClient"):
+        self._client = client
+
+    async def _start(self, params: _CafeMetricsStartRequest, *, timeout: float | None = None) -> _CafeMetricsStartResult:
+        "Starts anonymous CAFE metrics for this process. The runtime selects the endpoint from COPILOT_CAFE_METRICS_URL or this connection's original auth owner. Offline and unsupported platforms refuse startup. Release eligibility must resolve before samples are sent. Requires the private trusted CLI host capability.\n\nArgs:\n    params: Versions and provider configuration for CAFE.\n\nReturns:\n    CAFE startup result.\n\n:meta private:\n\nInternal SDK API; not part of the public surface."
+        params_dict = {k: v for k, v in params.to_dict().items() if v is not None or k in ["appVersion","buildVersion","customProviderConfigured"]}
+        return _CafeMetricsStartResult.from_dict(await self._client.request("cafeMetrics.start", params_dict, **_timeout_kwargs(timeout)))
+
+    async def _resolve_admission(self, params: _CafeMetricsResolveAdmissionRequest, *, timeout: float | None = None) -> _CafeMetricsResolveAdmissionResult:
+        "Resolves release eligibility once from the immutable release lookup shared with auto-update. Requires the private trusted CLI host capability.\n\nArgs:\n    params: Immutable release lookup result.\n\nReturns:\n    Admission result.\n\n:meta private:\n\nInternal SDK API; not part of the public surface."
+        params_dict = {k: v for k, v in params.to_dict().items() if v is not None}
+        return _CafeMetricsResolveAdmissionResult.from_dict(await self._client.request("cafeMetrics.resolveAdmission", params_dict, **_timeout_kwargs(timeout)))
+
+    async def _record_resume_result(self, params: _CafeMetricsRecordResumeResultRequest, *, timeout: float | None = None) -> None:
+        "Records one terminal resume result. Does nothing before startup. Requires the private trusted CLI host capability.\n\nArgs:\n    params: Terminal result of one resume attempt.\n\n:meta private:\n\nInternal SDK API; not part of the public surface."
+        params_dict = {k: v for k, v in params.to_dict().items() if v is not None or k in ["stage","outcome","reason","recovered"]}
+        await self._client.request("cafeMetrics.recordResumeResult", params_dict, **_timeout_kwargs(timeout))
+
+    async def _shutdown(self, params: _CafeMetricsShutdownRequest | None = None, *, timeout: float | None = None) -> None:
+        "Stops recording and drains within one 1.5-second deadline. flushOnly sends at most one batch without stopping recording. Requires the private trusted CLI host capability.\n\nArgs:\n    params: Preliminary flush or final disposal.\n\n:meta private:\n\nInternal SDK API; not part of the public surface."
+        params_dict = {k: v for k, v in params.to_dict().items() if v is not None} if params is not None else {}
+        await self._client.request("cafeMetrics.shutdown", params_dict, **_timeout_kwargs(timeout))
+
+
 class _InternalServerRpc:
     """Internal SDK server-scoped RPC methods. Not part of the public API."""
     def __init__(self, client: "JsonRpcClient"):
@@ -69508,6 +72426,10 @@ class _InternalServerRpc:
         self.runtime = _InternalServerRuntimeApi(client)
         self.sessions = _InternalServerSessionsApi(client)
         self.agent_registry = _InternalServerAgentRegistryApi(client)
+        self.git_hub_fetch = _InternalServerGitHubFetchApi(client)
+        self.git_hub_release = _InternalServerGitHubReleaseApi(client)
+        self.cloud_tasks = _InternalServerCloudTasksApi(client)
+        self.cafe_metrics = _InternalServerCafeMetricsApi(client)
 
     async def _connect(self, params: _ConnectRequest, *, timeout: float | None = None) -> _ConnectResult:
         "Performs the SDK server connection handshake and validates the optional connection token. Marked internal because this is JSON-RPC transport plumbing invoked automatically by an SDK client's own `connect()` wrapper, not a user-facing method. Stays internal as long as the SDK client owns the handshake; would only become public if the SDK ever exposed the raw schema surface to consumers without a connection wrapper.\n\nArgs:\n    params: Connection-level opt-ins for the `server.connect` handshake. Transport authentication is consumed by the native protocol boundary before dispatch.\n\nReturns:\n    Handshake result reporting the server's protocol version and package version on success.\n\n.. warning:: This API is experimental and may change or be removed in future versions.\n\n:meta private:\n\nInternal SDK API; not part of the public surface."
@@ -71995,6 +74917,21 @@ class _InternalScheduleApi:
         return ScheduleAddResult.from_dict(await self._client.request("session.schedule.rearmSelfPaced", params_dict, **_timeout_kwargs(timeout)))
 
 
+# Experimental: this API group is experimental and may change or be removed.
+class _InternalCafeMetricsApi:
+    def __init__(self, client: "JsonRpcClient", session_id: str):
+        self._client = client
+        self._session_id = session_id
+
+    async def _attach(self, *, timeout: float | None = None) -> None:
+        "Records live model-call events, including subagents, and root compaction events. Replaces any earlier recorder. Requires the private trusted CLI host capability.\n\n:meta private:\n\nInternal SDK API; not part of the public surface."
+        await self._client.request("session.cafeMetrics.attach", {"sessionId": self._session_id}, **_timeout_kwargs(timeout))
+
+    async def _detach(self, *, timeout: float | None = None) -> None:
+        "Stops recording this session. Does nothing if it has no recorder. Requires the private trusted CLI host capability.\n\n:meta private:\n\nInternal SDK API; not part of the public surface."
+        await self._client.request("session.cafeMetrics.detach", {"sessionId": self._session_id}, **_timeout_kwargs(timeout))
+
+
 class _InternalSessionRpc:
     """Internal SDK session-scoped RPC methods. Not part of the public API."""
     def __init__(self, client: "JsonRpcClient", session_id: str):
@@ -72014,6 +74951,7 @@ class _InternalSessionRpc:
         self.queue = _InternalQueueApi(client, session_id)
         self.usage = _InternalUsageApi(client, session_id)
         self.schedule = _InternalScheduleApi(client, session_id)
+        self.cafe_metrics = _InternalCafeMetricsApi(client, session_id)
 
     async def _send_and_wait(self, params: SendRequest, *, timeout: float | None = None) -> SendAndWaitResult:
         "Submits one message through normal admission and waits for its request-owned completion. Returns the exact root assistant event, or an explicit aborted/no-response outcome. Cancelling or timing out the wait does not abort agent work. Unsupported execution hosts reject the method before admitting the message.\n\nArgs:\n    params: Parameters for sending a user message to the session\n\nReturns:\n    Internal request-correlated completion of one submitted message.\n\n.. warning:: This API is experimental and may change or be removed in future versions.\n\n:meta private:\n\nInternal SDK API; not part of the public surface."
@@ -72682,6 +75620,7 @@ __all__ = [
     "BuiltinToolInputSchemaType",
     "BuiltinToolSafeForTelemetry",
     "BuiltinToolSafeTelemetryFields",
+    "CafeMetricsResolveAdmissionResultKind",
     "CancelUserRequestedShellCommandResult",
     "CanvasAction",
     "CanvasActionApi",
@@ -73071,6 +76010,9 @@ __all__ = [
     "GhCLIAuthInfoType",
     "GitHubAuthApi",
     "GitHubEnvironment",
+    "GitHubFetchPinnedAddress",
+    "GitHubFetchProxyEnvironment",
+    "GitHubFetchResultKind",
     "GitHubRepositoryIdentity",
     "GitHubTelemetryClientInfo",
     "GitHubTelemetryEvent",
@@ -73589,6 +76531,8 @@ __all__ = [
     "OptionsUpdateEnvValueMode",
     "OptionsUpdateReasoningSummary",
     "OptionsUpdateToolFilterPrecedence",
+    "OutcomeEnum",
+    "PackageIdentity",
     "PauseInfoClass",
     "PauseInfoType",
     "PendingExternalToolRequest",

@@ -10,7 +10,7 @@ This document covers SDK build/test and automation secrets. Normal SDK package p
 These secrets are used by the authoritative SDK build/test workflow.
 
 * **`COPILOT_DEVELOPER_CLI_INTEGRATION_HMAC_KEY`**: HMAC key used to authenticate with the Copilot Developer CLI integration endpoint during tests. Injected as `COPILOT_HMAC_KEY` in test environments.
-  * Workflows: `sdk.yml`
+  * Workflows: `ci.yml` in `github/copilot-agent-runtime`
 
 ## Agentic workflow secrets
 

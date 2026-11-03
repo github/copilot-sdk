@@ -191,8 +191,8 @@ type Client struct {
 	nextLifecycleHandlerID    uint64
 	lifecycleHandlersMux      sync.Mutex
 	startStopMux              sync.RWMutex // protects process and state during start/[force]stop
-	transportMux              sync.Mutex   // guards startupDone and transport visibility outside startStopMux; see ensureConnected
-	startupDone               chan struct{}
+	transportMux              sync.Mutex   // guards startup and transport visibility outside startStopMux; see ensureConnected
+	startup                   *startupAttempt
 	testHookTransportAcquired func() // tests only: runs after ensureConnected acquires a transport
 	processDone               chan struct{}
 	processErrorPtr           *error
@@ -480,6 +480,8 @@ func parseCLIURL(url string) (string, int) {
 // Otherwise, spawns the CLI server process and then connects.
 //
 // CreateSession and ResumeSession call this method automatically when the client is not connected.
+// Operations called while Start is in progress wait for it and fail with its
+// error if it fails.
 //
 // Returns an error if the server fails to start or the connection fails.
 //
@@ -490,7 +492,7 @@ func parseCLIURL(url string) (string, int) {
 //	    log.Fatal("Failed to start:", err)
 //	}
 //	// Now ready to create sessions
-func (c *Client) Start(ctx context.Context) error {
+func (c *Client) Start(ctx context.Context) (err error) {
 	c.startStopMux.Lock()
 	defer c.startStopMux.Unlock()
 
@@ -501,15 +503,15 @@ func (c *Client) Start(ctx context.Context) error {
 	// Publish startup before creating the transport and while holding
 	// startStopMux, so ensureConnected never observes a partially started
 	// transport and never waits on startup while Stop holds the lock.
-	startupDone := make(chan struct{})
+	startup := &startupAttempt{done: make(chan struct{})}
 	c.transportMux.Lock()
-	c.startupDone = startupDone
+	c.startup = startup
 	c.transportMux.Unlock()
 	defer func() {
 		c.transportMux.Lock()
-		c.startupDone = nil
+		c.startup = nil
 		c.transportMux.Unlock()
-		close(startupDone)
+		startup.finish(err)
 	}()
 
 	c.state = stateConnecting
@@ -531,6 +533,9 @@ func (c *Client) Start(ctx context.Context) error {
 	}
 
 	if err := c.initializeConnection(ctx); err != nil {
+		// Fail waiting operations first: one may be a handler on the reader that
+		// closing the connection joins.
+		startup.finish(err)
 		// The runtime keeps registrations made on this connection, such as an
 		// exclusive Kerberos claim, until it closes, so close it on any failure.
 		c.client.Stop()
@@ -855,6 +860,22 @@ func (c *Client) ForceStop() {
 	}
 }
 
+// startupAttempt publishes the outcome of an in-progress Start to the
+// operations waiting for it in ensureConnected.
+type startupAttempt struct {
+	done chan struct{} // closed once the outcome is published
+	err  error         // the startup failure; written before done is closed
+	once sync.Once
+}
+
+// finish publishes the outcome of the attempt; only the first call has effect.
+func (a *startupAttempt) finish(err error) {
+	a.once.Do(func() {
+		a.err = err
+		close(a.done)
+	})
+}
+
 // ensureConnected returns the transport for the caller's requests, waiting for
 // an in-progress Start and starting the client when it is disconnected. Callers
 // must use the returned client rather than re-reading c.client, which a
@@ -862,25 +883,30 @@ func (c *Client) ForceStop() {
 //
 // transportMux, never held across I/O or while joining the JSON-RPC reader,
 // orders this check with transport changes: Start writes the transport while
-// startupDone is set and publishes it by clearing startupDone, and Stop and
-// ForceStop retire it through retireTransport.
+// startup is set and publishes it by clearing startup, and Stop and ForceStop
+// retire it through retireTransport. A failed Start publishes its error before
+// closing the transport and keeps startup set until it returns, so callers fail
+// with that error instead of restarting the client during its cleanup.
 func (c *Client) ensureConnected(ctx context.Context) (*jsonrpc2.Client, error) {
 	// Do not take startStopMux: the caller may be the JSON-RPC reader, which
 	// Stop joins while holding that lock.
 	started := false
 	for {
 		c.transportMux.Lock()
-		startupDone := c.startupDone
+		startup := c.startup
 		var transport *jsonrpc2.Client
-		if startupDone == nil {
+		if startup == nil {
 			transport = c.client
 		}
 		c.transportMux.Unlock()
-		if startupDone != nil {
+		if startup != nil {
 			// Start creates the transport before its registrations complete, and
 			// sessions must not be created before them.
 			select {
-			case <-startupDone:
+			case <-startup.done:
+				if startup.err != nil {
+					return nil, fmt.Errorf("client failed to start: %w", startup.err)
+				}
 				continue
 			case <-ctx.Done():
 				return nil, ctx.Err()

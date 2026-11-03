@@ -287,6 +287,10 @@ pub mod rpc_methods {
     pub(crate) const ACCOUNT_GETWEBURL: &str = "account.getWebUrl";
     /// `account.getTokenEnvVar`
     pub(crate) const ACCOUNT_GETTOKENENVVAR: &str = "account.getTokenEnvVar";
+    /// `account.subscribeCopilotFree`
+    pub(crate) const ACCOUNT_SUBSCRIBECOPILOTFREE: &str = "account.subscribeCopilotFree";
+    /// `account.getHostUrl`
+    pub(crate) const ACCOUNT_GETHOSTURL: &str = "account.getHostUrl";
     /// `secrets.addFilterValues`
     pub const SECRETS_ADDFILTERVALUES: &str = "secrets.addFilterValues";
     /// `mcp.config.list`
@@ -459,6 +463,11 @@ pub mod rpc_methods {
     pub(crate) const SETTINGS_REDACTVALUEFORDISPLAY: &str = "settings.redactValueForDisplay";
     /// `gitHubRepository.atPath`
     pub(crate) const GITHUBREPOSITORY_ATPATH: &str = "gitHubRepository.atPath";
+    /// `gitHubRepository.getById`
+    pub(crate) const GITHUBREPOSITORY_GETBYID: &str = "gitHubRepository.getById";
+    /// `gitHubRepository.lookupBranchPullRequest`
+    pub(crate) const GITHUBREPOSITORY_LOOKUPBRANCHPULLREQUEST: &str =
+        "gitHubRepository.lookupBranchPullRequest";
     /// `gitHubOwners.nextRequestId`
     pub(crate) const GITHUBOWNERS_NEXTREQUESTID: &str = "gitHubOwners.nextRequestId";
     /// `gitHubOwners.list`
@@ -573,6 +582,52 @@ pub mod rpc_methods {
     pub const CONNECTORS_LIST: &str = "connectors.list";
     /// `connectors.refresh`
     pub const CONNECTORS_REFRESH: &str = "connectors.refresh";
+    /// `gitHubFetch.allocateRequestId`
+    pub(crate) const GITHUBFETCH_ALLOCATEREQUESTID: &str = "gitHubFetch.allocateRequestId";
+    /// `gitHubFetch.request`
+    pub(crate) const GITHUBFETCH_REQUEST: &str = "gitHubFetch.request";
+    /// `gitHubFetch.executeOperation`
+    pub(crate) const GITHUBFETCH_EXECUTEOPERATION: &str = "gitHubFetch.executeOperation";
+    /// `gitHubFetch.cancel`
+    pub(crate) const GITHUBFETCH_CANCEL: &str = "gitHubFetch.cancel";
+    /// `gitHubRelease.allocateRequestId`
+    pub(crate) const GITHUBRELEASE_ALLOCATEREQUESTID: &str = "gitHubRelease.allocateRequestId";
+    /// `gitHubRelease.abandonRequest`
+    pub(crate) const GITHUBRELEASE_ABANDONREQUEST: &str = "gitHubRelease.abandonRequest";
+    /// `gitHubRelease.lookup`
+    pub(crate) const GITHUBRELEASE_LOOKUP: &str = "gitHubRelease.lookup";
+    /// `gitHubRelease.getSnapshot`
+    pub(crate) const GITHUBRELEASE_GETSNAPSHOT: &str = "gitHubRelease.getSnapshot";
+    /// `gitHubRelease.cancel`
+    pub(crate) const GITHUBRELEASE_CANCEL: &str = "gitHubRelease.cancel";
+    /// `gitHubRelease.downloadAsset`
+    pub(crate) const GITHUBRELEASE_DOWNLOADASSET: &str = "gitHubRelease.downloadAsset";
+    /// `gitHubRelease.getDownloadProgress`
+    pub(crate) const GITHUBRELEASE_GETDOWNLOADPROGRESS: &str = "gitHubRelease.getDownloadProgress";
+    /// `cloudTasks.create`
+    pub(crate) const CLOUDTASKS_CREATE: &str = "cloudTasks.create";
+    /// `cloudTasks.delete`
+    pub(crate) const CLOUDTASKS_DELETE: &str = "cloudTasks.delete";
+    /// `cloudTasks.get`
+    pub(crate) const CLOUDTASKS_GET: &str = "cloudTasks.get";
+    /// `cloudTasks.getSessionLogs`
+    pub(crate) const CLOUDTASKS_GETSESSIONLOGS: &str = "cloudTasks.getSessionLogs";
+    /// `cloudTasks.getSessionReplay`
+    pub(crate) const CLOUDTASKS_GETSESSIONREPLAY: &str = "cloudTasks.getSessionReplay";
+    /// `cloudTasks.getSharingStatus`
+    pub(crate) const CLOUDTASKS_GETSHARINGSTATUS: &str = "cloudTasks.getSharingStatus";
+    /// `cloudTasks.setSharingStatus`
+    pub(crate) const CLOUDTASKS_SETSHARINGSTATUS: &str = "cloudTasks.setSharingStatus";
+    /// `cloudTasks.resolveTaskId`
+    pub(crate) const CLOUDTASKS_RESOLVETASKID: &str = "cloudTasks.resolveTaskId";
+    /// `cafeMetrics.start`
+    pub(crate) const CAFEMETRICS_START: &str = "cafeMetrics.start";
+    /// `cafeMetrics.resolveAdmission`
+    pub(crate) const CAFEMETRICS_RESOLVEADMISSION: &str = "cafeMetrics.resolveAdmission";
+    /// `cafeMetrics.recordResumeResult`
+    pub(crate) const CAFEMETRICS_RECORDRESUMERESULT: &str = "cafeMetrics.recordResumeResult";
+    /// `cafeMetrics.shutdown`
+    pub(crate) const CAFEMETRICS_SHUTDOWN: &str = "cafeMetrics.shutdown";
     /// `session.management.configure`
     pub const SESSION_MANAGEMENT_CONFIGURE: &str = "session.management.configure";
     /// `session.management.list`
@@ -1322,6 +1377,10 @@ pub mod rpc_methods {
     pub(crate) const SESSION_SCHEDULE_REARMSELFPACED: &str = "session.schedule.rearmSelfPaced";
     /// `session.schedule.stop`
     pub const SESSION_SCHEDULE_STOP: &str = "session.schedule.stop";
+    /// `session.cafeMetrics.attach`
+    pub(crate) const SESSION_CAFEMETRICS_ATTACH: &str = "session.cafeMetrics.attach";
+    /// `session.cafeMetrics.detach`
+    pub(crate) const SESSION_CAFEMETRICS_DETACH: &str = "session.cafeMetrics.detach";
     /// `skillProvider.list`
     pub(crate) const SKILLPROVIDER_LIST: &str = "skillProvider.list";
     /// `skillProvider.read`
@@ -1621,10 +1680,10 @@ pub use sdk_api_session::{
     SessionAuthLogoutUserRequest, SessionAuthStatus, SessionAuthSwitchRequest,
     SessionAutopilotEvaluateIdleContinuationParams, SessionAutopilotEvaluateIdleContinuationResult,
     SessionAutopilotObjectiveGetStateParams, SessionAutopilotObjectiveGetStateResult,
-    SessionBulkDeleteResult, SessionCancelAllBackgroundAgentsParams,
-    SessionCancelAllBackgroundAgentsResult, SessionCanvasActionInvokeResult,
-    SessionCanvasListOpenParams, SessionCanvasListOpenResult, SessionCanvasListParams,
-    SessionCanvasListResult, SessionCanvasOpenResult, SessionCapability,
+    SessionBulkDeleteResult, SessionCafeMetricsAttachParams, SessionCafeMetricsDetachParams,
+    SessionCancelAllBackgroundAgentsParams, SessionCancelAllBackgroundAgentsResult,
+    SessionCanvasActionInvokeResult, SessionCanvasListOpenParams, SessionCanvasListOpenResult,
+    SessionCanvasListParams, SessionCanvasListResult, SessionCanvasOpenResult, SessionCapability,
     SessionCommandsExecuteResult, SessionCommandsFinalizeInvocationEffectResult,
     SessionCommandsHandlePendingCommandResult, SessionCommandsListResult,
     SessionCommandsReportQueuedCommandWaitResult, SessionCommandsRespondToQueuedCommandResult,
@@ -2187,9 +2246,13 @@ pub use sdk_api_host::{
     ClientTaskCancelReason, ClientTaskCancelRequest, ClientTaskCancelResult, DiagnosticEntry,
     DiagnosticEntrySource, DiagnosticSource, DiagnosticsConfiguration, DiagnosticsConfigureRequest,
     DiagnosticsReadRequest, DiagnosticsReadResult, DiagnosticsReadResultEntriesItem,
-    DiagnosticsReadResultEntriesItemSource, GitHubRepositoryIdentity, GitHubTelemetryClientInfo,
-    GitHubTelemetryEvent, GitHubTelemetryNotification, GitHubTokenAcquireReason,
-    GitHubTokenAcquireRequest, GitHubTokenAcquireResult, GitHubTokenAcquireResultCancelled,
+    DiagnosticsReadResultEntriesItemSource, GitHubFetchPinnedAddress, GitHubFetchProxyEnvironment,
+    GitHubFetchResultCircuitBreaker, GitHubFetchResultCircuitBreakerKind, GitHubFetchResultFailed,
+    GitHubFetchResultFailedKind, GitHubFetchResultProxyResponse,
+    GitHubFetchResultProxyResponseKind, GitHubFetchResultResponse, GitHubFetchResultResponseKind,
+    GitHubRepositoryIdentity, GitHubTelemetryClientInfo, GitHubTelemetryEvent,
+    GitHubTelemetryNotification, GitHubTokenAcquireReason, GitHubTokenAcquireRequest,
+    GitHubTokenAcquireResult, GitHubTokenAcquireResultCancelled,
     GitHubTokenAcquireResultCancelledKind, GitHubTokenAcquireResultToken,
     GitHubTokenAcquireResultTokenKind, GitWorkingDirectoryContextResult, RemoteControlStatusActive,
     RemoteControlStatusActiveState, RemoteControlStatusConnecting,
@@ -2213,11 +2276,30 @@ pub use sdk_api_host::{
 };
 pub(crate) use sdk_api_host::{
     AccountDescribeAuthInfoRequest, AccountDescribeAuthInfoResult, AccountGetGistSupportRequest,
-    AccountGetGistSupportResult, AccountGetTokenEnvVarResult, AccountGetWebUrlRequest,
-    AccountGetWebUrlResult, GitCurrentBranchRemoteResult, GitCwdRequest, GitHubOwnerOption,
-    GitHubOwnersCancelRequest, GitHubOwnersCancelResult, GitHubOwnersListRequest,
-    GitHubOwnersListResult, GitHubOwnersNextRequestIdResult, GitHubOwnersRequestIdResult,
-    GitHubRepositoryAtPathRequest, GitHubRepositoryAtPathResult, GitRemoteRepository,
+    AccountGetGistSupportResult, AccountGetHostUrlRequest, AccountGetHostUrlResult,
+    AccountGetTokenEnvVarResult, AccountGetWebUrlRequest, AccountGetWebUrlResult,
+    AccountSubscribeCopilotFreeRequest, AccountSubscribeCopilotFreeResult,
+    GitCurrentBranchRemoteResult, GitCwdRequest, GitHubBranchPullRequest,
+    GitHubBranchPullRequestLookupRequest, GitHubBranchPullRequestLookupResult,
+    GitHubBranchPullRequestLookupStatus, GitHubFetchAllocateRequestIdResult,
+    GitHubFetchCancelResult, GitHubFetchHeader, GitHubFetchHttpError, GitHubFetchOperation,
+    GitHubFetchOperationRequest, GitHubFetchRequest, GitHubFetchRequestId, GitHubFetchResult,
+    GitHubFetchRetryConfig, GitHubOwnerOption, GitHubOwnersCancelRequest, GitHubOwnersCancelResult,
+    GitHubOwnersListRequest, GitHubOwnersListResult, GitHubOwnersNextRequestIdResult,
+    GitHubOwnersRequestIdResult, GitHubPullRequestCheck, GitHubPullRequestCheckStatus,
+    GitHubReleaseAbandonRequestParams, GitHubReleaseAbandonRequestResult,
+    GitHubReleaseAllocateRequestIdResult, GitHubReleaseCancelRequest, GitHubReleaseCancelResult,
+    GitHubReleaseDownloadAssetRequest, GitHubReleaseDownloadAssetResult, GitHubReleaseDownloadKind,
+    GitHubReleaseDownloadProgressRequest, GitHubReleaseDownloadProgressResult,
+    GitHubReleaseGetDownloadProgressResult, GitHubReleaseLookupKind, GitHubReleaseLookupRequest,
+    GitHubReleaseLookupResult, GitHubReleasePackageIdentity, GitHubReleaseQuery,
+    GitHubReleaseRequestIdResult, GitHubReleaseSnapshotAsset, GitHubReleaseSnapshotEntry,
+    GitHubReleaseSnapshotRequest, GitHubReleaseSnapshotResult, GitHubReleaseSnapshotResultFailed,
+    GitHubReleaseSnapshotResultFailedOutcome, GitHubReleaseSnapshotResultSuccess,
+    GitHubReleaseSnapshotResultSuccessOutcome, GitHubReleaseUpdateChannel,
+    GitHubRepositoryAtPathRequest, GitHubRepositoryAtPathResult, GitHubRepositoryByIdRequest,
+    GitHubRepositoryByIdResult, GitHubRepositoryGetByIdResult,
+    GitHubRepositoryLookupBranchPullRequestResult, GitHubRepositoryOwnerName, GitRemoteRepository,
     GitReposFromRemotesRequest, GitReposFromRemotesResult,
 };
 
@@ -2306,8 +2388,15 @@ pub use sdk_api_services::{
     AzureMlFamilyReleaseRequest, AzureMlFamilyRequest, AzureMlLatestRequest, AzureMlLatestResult,
     AzureMlLicense, AzureMlModel, AzureMlProfile, AzureMlRegistry, AzureMlReleaseFamilyResult,
     AzureMlResolveRequest, AzureMlResolveResult, AzureMlStatusResult, BuiltInModelCatalog,
-    BuiltinToolSafeTelemetryFields, CancelUserRequestedShellCommandResult, CardDigestValue,
-    CatalogAgentPluginCandidate, CatalogAgentPluginCandidateKind,
+    BuiltinToolSafeTelemetryFields, CafeMetricsResolveAdmissionRequestFailed,
+    CafeMetricsResolveAdmissionRequestFailedKind, CafeMetricsResolveAdmissionRequestSuccess,
+    CafeMetricsResolveAdmissionRequestSuccessKind,
+    CafeMetricsResolveAdmissionResultAlreadyResolved,
+    CafeMetricsResolveAdmissionResultAlreadyResolvedKind, CafeMetricsResolveAdmissionResultApplied,
+    CafeMetricsResolveAdmissionResultAppliedKind, CafeMetricsResolveAdmissionResultNotStarted,
+    CafeMetricsResolveAdmissionResultNotStartedKind, CafeMetricsResolveAdmissionResultShutdown,
+    CafeMetricsResolveAdmissionResultShutdownKind, CancelUserRequestedShellCommandResult,
+    CardDigestValue, CatalogAgentPluginCandidate, CatalogAgentPluginCandidateKind,
     CatalogAgentPluginCandidateProvenance, CatalogAgentPluginCompatibilityTag,
     CatalogAgentPluginComponent, CatalogAgentPluginInstallPlan, CatalogAgentPluginInstallSource,
     CatalogAgentPluginInstallability, CatalogAgentPluginMarketplaceSource,
@@ -2531,8 +2620,18 @@ pub(crate) use sdk_api_services::{
     AgentsGetAvailableBuiltinsRequest, AgentsGetAvailableBuiltinsResult,
     AgentsGetBuiltinDefinitionRequest, AgentsGetBuiltinDefinitionResult,
     AgentsGetBuiltinListingDefinitionRequest, AgentsGetBuiltinListingDefinitionResult,
-    AgentsGetBuiltinsResult, BuiltinAgentSummary, ConnectClientInfo, ConnectRequest, ConnectResult,
-    FolderTrustIsTrustedParams, GlobalStateLoadForConfigDirRequest,
+    AgentsGetBuiltinsResult, BuiltinAgentSummary, CafeMetricsEmbeddedPackageIdentity,
+    CafeMetricsRecordResumeResultRequest, CafeMetricsRelease, CafeMetricsResolveAdmissionRequest,
+    CafeMetricsResolveAdmissionResult, CafeMetricsResumeOutcome, CafeMetricsResumeReason,
+    CafeMetricsResumeStage, CafeMetricsShutdownRequest, CafeMetricsStartRefusal,
+    CafeMetricsStartRequest, CafeMetricsStartResult, CloudTasksCreateParams,
+    CloudTasksCreateResult, CloudTasksDeleteParams, CloudTasksDeleteResult, CloudTasksGetParams,
+    CloudTasksGetResult, CloudTasksGetSessionLogsParams, CloudTasksGetSessionLogsResult,
+    CloudTasksGetSessionReplayParams, CloudTasksGetSessionReplayResult,
+    CloudTasksGetSharingStatusParams, CloudTasksGetSharingStatusResult,
+    CloudTasksResolveTaskIdParams, CloudTasksResolveTaskIdResult, CloudTasksSetSharingStatusParams,
+    CloudTasksSetSharingStatusResult, CloudTasksSharingStatusResult, ConnectClientInfo,
+    ConnectRequest, ConnectResult, FolderTrustIsTrustedParams, GlobalStateLoadForConfigDirRequest,
     GlobalStateLoadForConfigDirResult, GlobalStateLoadResult, GlobalStateWriteKeyRequest,
     HookInvokeRequest, HookInvokeResponse, InstructionsDiscoverRepoSourcesRequest,
     InstructionsGetInitPromptResult, InstructionsInitPromptResult, LifecycleDiagnosticsReadRequest,

@@ -3177,6 +3177,14 @@ type SessionMetadata struct {
 	Summary      *string         `json:"summary,omitempty"`
 	IsRemote     bool            `json:"isRemote"`
 	Context      *SessionContext `json:"context,omitempty"`
+	// ClientName is the name of the client that created the session (for example
+	// "github/cli"). Nil when unknown.
+	ClientName *string `json:"clientName,omitempty"`
+	// LastClientName is the name of the client that most recently ran the
+	// session: the client that created it, or a client that resumed it and then
+	// ran it. Resuming a session only to observe it does not change it. Nil when
+	// unknown, such as for sessions persisted before this field existed.
+	LastClientName *string `json:"lastClientName,omitempty"`
 }
 
 // SessionLifecycleEventType represents the type of session lifecycle event

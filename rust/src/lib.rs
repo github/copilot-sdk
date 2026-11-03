@@ -25,6 +25,9 @@ mod cache_paths;
 /// Canvas declarations, provider callbacks, and host-side canvas RPC types.
 pub mod canvas;
 mod canvas_dispatch;
+#[cfg(feature = "local-runtime")]
+#[doc(hidden)]
+pub mod cli_host;
 /// Bundled CLI binary extraction and caching.
 #[cfg(feature = "bundled-cli")]
 pub(crate) mod embeddedcli;
@@ -2888,6 +2891,8 @@ impl Client {
         params: Option<serde_json::Value>,
     ) -> Result<impl std::future::Future<Output = Result<serde_json::Value>> + Send + 'static + use<>>
     {
+        let is_repo_settings_write =
+            matches!(method, "repo.settings.writeKey" | "repo.settings.writeAll");
         let session_id = params
             .as_ref()
             .and_then(|p| p.get("sessionId"))
@@ -2897,7 +2902,7 @@ impl Client {
             .inner
             .rpc
             .begin_request_with_inline_callback(method, params, None)?;
-        Ok(async move { Self::call_result(request.await?, session_id) })
+        Ok(async move { Self::call_result(request.await?, session_id, is_repo_settings_write) })
     }
 
     pub(crate) async fn detach_session(&self, session_id: &str) -> Result<()> {
@@ -2942,6 +2947,8 @@ impl Client {
         params: Option<serde_json::Value>,
         inline_callback: Option<crate::jsonrpc::InlineResponseCallback>,
     ) -> impl std::future::Future<Output = Result<serde_json::Value>> + Send + 'static + use<> {
+        let is_repo_settings_write =
+            matches!(method, "repo.settings.writeKey" | "repo.settings.writeAll");
         let session_id: Option<SessionId> = params
             .as_ref()
             .and_then(|p| p.get("sessionId"))
@@ -2953,16 +2960,18 @@ impl Client {
                 .send_request_with_inline_callback(method, params, inline_callback);
         async move {
             let response = request.await?;
-            Self::call_result(response, session_id)
+            Self::call_result(response, session_id, is_repo_settings_write)
         }
     }
 
     fn call_result(
         response: JsonRpcResponse,
         session_id: Option<SessionId>,
+        is_repo_settings_write: bool,
     ) -> Result<serde_json::Value> {
         if let Some(err) = response.error {
-            if err.message.contains("Session not found") {
+            // Repository paths can contain this text without referring to a session.
+            if !is_repo_settings_write && err.message.contains("Session not found") {
                 return Err(ErrorKind::Session(SessionErrorKind::NotFound(
                     session_id.unwrap_or_else(|| "unknown".into()),
                 ))

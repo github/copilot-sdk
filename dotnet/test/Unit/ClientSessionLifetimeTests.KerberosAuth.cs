@@ -133,6 +133,73 @@ public sealed partial class ClientSessionLifetimeTests
     }
 
     [Fact]
+    public async Task KerberosAuth_Blocking_Callback_Does_Not_Block_Reader_Or_Runtime_Cancellation()
+    {
+        await using var server = await FakeCopilotServer.StartAsync();
+        server.ResponseFactory = KerberosAuthSetProviderResponse;
+        var timeout = TimeSpan.FromSeconds(5);
+        var started = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var observedCancellation = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
+        await using var client = new CopilotClient(new CopilotClientOptions
+        {
+            Connection = RuntimeConnection.ForUri(server.Url),
+            KerberosAuth = new KerberosAuthConfig
+            {
+                Mode = KerberosAuthMode.Always,
+                // Simulates native credential acquisition that blocks until cancelled before returning a task.
+                Callback = (_, cancellationToken) =>
+                {
+                    started.SetResult();
+                    observedCancellation.SetResult(cancellationToken.WaitHandle.WaitOne(timeout));
+                    cancellationToken.ThrowIfCancellationRequested();
+                    return Task.FromResult<string?>(null);
+                }
+            }
+        });
+        await client.StartAsync();
+
+        var acquiring = server.SendRequestAsync("kerberosAuth.acquire", new() { ["spn"] = "HTTP/proxy" });
+        await started.Task.WaitAsync(timeout);
+        await client.PingAsync().WaitAsync(timeout);
+        await server.CancelLatestRequestAsync();
+        var error = await Assert.ThrowsAsync<InvalidOperationException>(() => acquiring.WaitAsync(timeout));
+
+        Assert.True(await observedCancellation.Task.WaitAsync(timeout));
+        Assert.Equal("Request cancelled", error.Message);
+        Assert.Equal(-32800, ((JsonElement)error.Data["error"]!).GetProperty("code").GetInt32());
+    }
+
+    [Fact]
+    public async Task KerberosAuth_Callback_Queued_After_Cancellation_Is_Not_Started()
+    {
+        var invoked = false;
+        var config = new KerberosAuthConfig
+        {
+            Mode = KerberosAuthMode.Always,
+            Callback = (_, _) =>
+            {
+                invoked = true;
+                return Task.FromResult<string?>("token");
+            }
+        };
+        // The adapter is internal; the client invokes it on the thread pool, where a request
+        // cancelled before a worker picks it up cannot be reached deterministically.
+        var handler = (IKerberosAuthHandler)Activator.CreateInstance(
+            typeof(KerberosAuthConfig).Assembly.GetType("GitHub.Copilot.KerberosAuthAdapter", throwOnError: true)!,
+            System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic,
+            binder: null,
+            args: [config],
+            culture: null)!;
+        using var cancellation = new CancellationTokenSource();
+        cancellation.Cancel();
+
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(() =>
+            handler.AcquireAsync(new KerberosAuthAcquireRequest { Spn = "HTTP/proxy" }, cancellation.Token));
+
+        Assert.False(invoked);
+    }
+
+    [Fact]
     public async Task KerberosAuth_Registers_Before_Sessions_Requested_During_Startup()
     {
         await using var server = await FakeCopilotServer.StartAsync();
@@ -174,5 +241,19 @@ public sealed partial class ClientSessionLifetimeTests
     private static Dictionary<string, object?> KerberosAuthSetProviderResponse(RpcRequestRecord request) => request.Method == "kerberosAuth.setProvider"
         ? new Dictionary<string, object?>()
         : throw new InvalidOperationException($"Unexpected RPC method '{request.Method}'.");
+
+    private sealed partial class FakeCopilotServer
+    {
+        public Task CancelLatestRequestAsync()
+        {
+            var stream = _stream ?? throw new InvalidOperationException("Client is not connected.");
+            return WriteMessageAsync(stream, new Dictionary<string, object?>
+            {
+                ["jsonrpc"] = "2.0",
+                ["method"] = "$/cancelRequest",
+                ["params"] = new Dictionary<string, object?> { ["id"] = Volatile.Read(ref _nextRequestId) }
+            }, _cts.Token);
+        }
+    }
 }
 #endif

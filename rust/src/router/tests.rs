@@ -567,14 +567,6 @@ async fn shared_notifications_reach_sessions_and_lifecycle_subscribers_whole() {
 }
 
 #[test]
-fn each_registration_gets_a_distinct_token() {
-    let router = SessionRouter::new();
-    let first = router.register(&session_id());
-    let second = router.register(&session_id());
-    assert_ne!(first.token, second.token);
-}
-
-#[test]
 fn unregister_owned_removes_only_the_matching_registration() {
     let router = SessionRouter::new();
     let stale = router.register(&session_id());

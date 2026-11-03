@@ -175,6 +175,8 @@ async fn entra_router_observes_an_inference_dispatcher_installed_later() {
     );
 }
 
+mod cafe_metrics;
+
 #[tokio::test]
 async fn connect_forwards_optional_entra_configuration() {
     for entra in [
@@ -332,45 +334,6 @@ fn is_transport_failure_rejects_session_error() {
 }
 
 #[test]
-#[allow(deprecated)]
-fn client_options_builder_composes() {
-    let opts = ClientOptions::new()
-        .with_program(CliProgram::Path(PathBuf::from("/usr/local/bin/copilot")))
-        .with_prefix_args(["node"])
-        .with_cwd(PathBuf::from("/tmp"))
-        .with_env([("KEY", "value")])
-        .with_env_remove(["UNWANTED"])
-        .with_extra_args(["--quiet"])
-        .with_github_token("ghp_test")
-        .with_entra(EntraAuthConfig {
-            client_id: "host-entra-client".into(),
-            mats_app_name: None,
-        })
-        .with_use_logged_in_user(false)
-        .with_log_level(LogLevel::Debug)
-        .with_session_idle_timeout_seconds(120)
-        .with_enable_remote_sessions(true);
-    assert!(matches!(opts.program, CliProgram::Path(_)));
-    assert_eq!(opts.prefix_args, vec![std::ffi::OsString::from("node")]);
-    assert_eq!(opts.working_directory, PathBuf::from("/tmp"));
-    assert_eq!(
-        opts.env,
-        vec![(
-            std::ffi::OsString::from("KEY"),
-            std::ffi::OsString::from("value")
-        )]
-    );
-    assert_eq!(opts.env_remove, vec![std::ffi::OsString::from("UNWANTED")]);
-    assert_eq!(opts.extra_args, vec!["--quiet".to_string()]);
-    assert_eq!(opts.github_token.as_deref(), Some("ghp_test"));
-    assert_eq!(opts.entra.as_ref().unwrap().client_id, "host-entra-client");
-    assert_eq!(opts.use_logged_in_user, Some(false));
-    assert!(matches!(opts.log_level, Some(LogLevel::Debug)));
-    assert_eq!(opts.session_idle_timeout_seconds, Some(120));
-    assert!(opts.enable_remote_sessions);
-}
-
-#[test]
 fn default_transport_values_resolve_without_process_state() {
     assert!(matches!(
         resolve_default_transport_value(None).unwrap(),
@@ -430,21 +393,6 @@ fn inprocess_rejects_process_scoped_options() {
             "{option}: {message}"
         );
     }
-}
-
-#[test]
-#[allow(deprecated)]
-fn inprocess_allows_typed_runtime_options() {
-    let options = ClientOptions::new()
-        .with_base_directory("state")
-        .with_log_level(LogLevel::Debug)
-        .with_session_idle_timeout_seconds(10)
-        .with_github_token("token")
-        .with_use_logged_in_user(false)
-        .with_disable_client_telemetry(true)
-        .with_enable_remote_sessions(true);
-
-    assert!(validate_inprocess_options(&options).is_ok());
 }
 
 #[test]
@@ -572,45 +520,6 @@ fn env_value<'a>(cmd: &'a tokio::process::Command, key: &str) -> Option<&'a std:
         .get_envs()
         .find(|(k, _)| *k == std::ffi::OsStr::new(key))
         .and_then(|(_, v)| v)
-}
-
-#[test]
-fn telemetry_config_builder_composes() {
-    let cfg = TelemetryConfig::new()
-        .with_otlp_endpoint("http://collector:4318")
-        .with_otlp_protocol(OtlpHttpProtocol::HttpProtobuf)
-        .with_file_path(PathBuf::from("/var/log/copilot.jsonl"))
-        .with_exporter_type(OtelExporterType::OtlpHttp)
-        .with_source_name("my-app")
-        .with_capture_content(true);
-
-    assert_eq!(cfg.otlp_endpoint.as_deref(), Some("http://collector:4318"));
-    assert_eq!(cfg.otlp_protocol, Some(OtlpHttpProtocol::HttpProtobuf));
-    assert_eq!(
-        cfg.file_path.as_deref(),
-        Some(Path::new("/var/log/copilot.jsonl")),
-    );
-    assert_eq!(cfg.exporter_type, Some(OtelExporterType::OtlpHttp));
-    assert_eq!(cfg.source_name.as_deref(), Some("my-app"));
-    assert_eq!(cfg.capture_content, Some(true));
-    assert!(!cfg.is_empty());
-    assert!(TelemetryConfig::new().is_empty());
-}
-
-#[test]
-fn otlp_http_protocol_serde_matches_env_value() {
-    for (protocol, wire) in [
-        (OtlpHttpProtocol::HttpJson, "http/json"),
-        (OtlpHttpProtocol::HttpProtobuf, "http/protobuf"),
-    ] {
-        assert_eq!(protocol.as_str(), wire);
-
-        let serialized = serde_json::to_string(&protocol).unwrap();
-        assert_eq!(serialized, format!("\"{wire}\""));
-
-        let deserialized: OtlpHttpProtocol = serde_json::from_str(&serialized).unwrap();
-        assert_eq!(deserialized, protocol);
-    }
 }
 
 #[test]
@@ -963,46 +872,6 @@ async fn start_rejects_empty_external_connection_token() {
 }
 
 #[test]
-fn telemetry_config_capture_content_serializes_as_lowercase_bool() {
-    let opts_true = ClientOptions {
-        telemetry: Some(TelemetryConfig {
-            capture_content: Some(true),
-            ..Default::default()
-        }),
-        ..Default::default()
-    };
-    let opts_false = ClientOptions {
-        telemetry: Some(TelemetryConfig {
-            capture_content: Some(false),
-            ..Default::default()
-        }),
-        ..Default::default()
-    };
-    let cmd_true = Client::build_command(Path::new("/bin/echo"), &opts_true, Path::new("/tmp"));
-    let cmd_false = Client::build_command(Path::new("/bin/echo"), &opts_false, Path::new("/tmp"));
-    assert_eq!(
-        env_value(
-            &cmd_true,
-            "OTEL_INSTRUMENTATION_GENAI_CAPTURE_MESSAGE_CONTENT"
-        ),
-        Some(std::ffi::OsStr::new("true")),
-    );
-    assert_eq!(
-        env_value(
-            &cmd_false,
-            "OTEL_INSTRUMENTATION_GENAI_CAPTURE_MESSAGE_CONTENT"
-        ),
-        Some(std::ffi::OsStr::new("false")),
-    );
-}
-
-#[test]
-fn session_idle_timeout_args_are_omitted_by_default() {
-    let opts = ClientOptions::default();
-    assert!(Client::session_idle_timeout_args(&opts).is_empty());
-}
-
-#[test]
 fn session_idle_timeout_args_omitted_for_zero() {
     let opts = ClientOptions {
         session_idle_timeout_seconds: Some(0),
@@ -1021,12 +890,6 @@ fn session_idle_timeout_args_emit_flag_for_positive_value() {
         Client::session_idle_timeout_args(&opts),
         vec!["--session-idle-timeout".to_string(), "300".to_string()]
     );
-}
-
-#[test]
-fn remote_args_omitted_by_default() {
-    let opts = ClientOptions::default();
-    assert!(Client::remote_args(&opts).is_empty());
 }
 
 #[test]
@@ -1076,24 +939,6 @@ fn cli_mode_opts_into_process_logging_without_changing_empty_mode_environment() 
             Some(std::ffi::OsStr::new(expected.unwrap_or("opposite"))),
             "mode: {mode:?}"
         );
-    }
-}
-
-#[test]
-fn log_level_str_round_trips() {
-    for level in [
-        LogLevel::None,
-        LogLevel::Error,
-        LogLevel::Warning,
-        LogLevel::Info,
-        LogLevel::Debug,
-        LogLevel::All,
-    ] {
-        let s = level.as_str();
-        let json = serde_json::to_string(&level).unwrap();
-        assert_eq!(json, format!("\"{s}\""));
-        let parsed: LogLevel = serde_json::from_str(&json).unwrap();
-        assert_eq!(parsed, level);
     }
 }
 

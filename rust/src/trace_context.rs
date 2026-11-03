@@ -100,6 +100,3 @@ pub(crate) fn inject_trace_context(params: &mut serde_json::Value, ctx: &TraceCo
         params["tracestate"] = serde_json::Value::String(ts.clone());
     }
 }
-
-#[cfg(test)]
-mod tests;

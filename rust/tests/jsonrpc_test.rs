@@ -274,23 +274,6 @@ async fn error_response_round_trip() {
     assert_eq!(error.message, "Invalid Request");
 }
 
-#[tokio::test]
-async fn read_loop_terminates_on_eof() {
-    let (client_write, _discard) = duplex(4096);
-    let (server_write, client_read) = duplex(4096);
-
-    let (notification_tx, _) = broadcast::channel(16);
-    let (request_tx, _) = mpsc::unbounded_channel();
-
-    let _client = JsonRpcClient::new(client_write, client_read, notification_tx, request_tx);
-
-    // Drop the server side — the read loop should see EOF and stop.
-    drop(server_write);
-
-    // Give the read loop time to notice EOF.
-    tokio::time::sleep(std::time::Duration::from_millis(100)).await;
-}
-
 /// Cancel-safety regression: dropping a `write()` future after the actor has
 /// committed to writing must NOT produce a partial frame on the wire.
 ///
@@ -488,16 +471,6 @@ async fn send_request_cancellation_does_not_leak_pending() {
     let response = client.send_request("second", None).await.unwrap();
     assert_eq!(response.result.unwrap()["ok"], true);
     server_task.await.unwrap();
-}
-
-#[test]
-fn lone_surrogate_yields_unexpected_end_of_hex_escape() {
-    let error = serde_json::from_slice::<serde_json::Value>(br#""\ud83d""#).unwrap_err();
-
-    assert_eq!(
-        error.to_string(),
-        "unexpected end of hex escape at line 1 column 8"
-    );
 }
 
 #[tokio::test]

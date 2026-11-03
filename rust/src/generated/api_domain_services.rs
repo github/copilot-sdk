@@ -1933,6 +1933,151 @@ pub struct BuiltinToolSafeTelemetryFields {
     pub name: Option<bool>,
 }
 
+/// Terminal result of one resume attempt.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub(crate) struct CafeMetricsRecordResumeResultRequest {
+    /// Terminal outcome.
+    #[doc(hidden)]
+    pub(crate) outcome: CafeMetricsResumeOutcome,
+    /// Bounded result classification.
+    #[doc(hidden)]
+    pub(crate) reason: CafeMetricsResumeReason,
+    /// Whether an event-log recovery projection was used.
+    pub recovered: bool,
+    /// Last phase reached.
+    #[doc(hidden)]
+    pub(crate) stage: CafeMetricsResumeStage,
+}
+
+/// Release metadata without credentials or links.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub(crate) struct CafeMetricsRelease {
+    /// Whether this is a draft.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub draft: Option<bool>,
+    /// Whether this is a prerelease.
+    pub prerelease: bool,
+    /// Raw release tag.
+    pub tag_name: String,
+}
+
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct CafeMetricsResolveAdmissionRequestSuccess {
+    pub kind: CafeMetricsResolveAdmissionRequestSuccessKind,
+    /// Finite non-negative lookup duration in milliseconds.
+    pub lookup_duration_ms: f64,
+    /// Release metadata from the lookup shared with auto-update.
+    #[doc(hidden)]
+    pub(crate) releases: Vec<CafeMetricsRelease>,
+}
+
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct CafeMetricsResolveAdmissionRequestFailed {
+    pub kind: CafeMetricsResolveAdmissionRequestFailedKind,
+    /// Finite non-negative lookup duration in milliseconds.
+    pub lookup_duration_ms: f64,
+}
+
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct CafeMetricsResolveAdmissionResultApplied {
+    pub kind: CafeMetricsResolveAdmissionResultAppliedKind,
+}
+
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct CafeMetricsResolveAdmissionResultNotStarted {
+    pub kind: CafeMetricsResolveAdmissionResultNotStartedKind,
+}
+
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct CafeMetricsResolveAdmissionResultAlreadyResolved {
+    pub kind: CafeMetricsResolveAdmissionResultAlreadyResolvedKind,
+}
+
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct CafeMetricsResolveAdmissionResultShutdown {
+    pub kind: CafeMetricsResolveAdmissionResultShutdownKind,
+}
+
+/// Preliminary flush or final disposal.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub(crate) struct CafeMetricsShutdownRequest {
+    /// Send at most one batch without stopping recording. Omission means disposal.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub flush_only: Option<bool>,
+}
+
+/// Versions and provider configuration for CAFE.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub(crate) struct CafeMetricsStartRequest {
+    /// Effective comparison version and appVersion tag.
+    pub app_version: String,
+    /// Raw package build version.
+    pub build_version: String,
+    /// Whether the host uses a custom model provider.
+    pub custom_provider_configured: bool,
+    /// Embedded package identity. Omission enables the unbundled development fallback.
+    #[doc(hidden)]
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub(crate) embedded_package_identity: Option<CafeMetricsEmbeddedPackageIdentity>,
+}
+
+/// CAFE startup result.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub(crate) struct CafeMetricsStartResult {
+    /// Refusal reason, absent on success.
+    #[doc(hidden)]
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub(crate) reason: Option<CafeMetricsStartRefusal>,
+    /// Whether this call started CAFE.
+    pub started: bool,
+}
+
 /// Cancellation result for a user-requested shell command.
 ///
 /// <div class="warning">
@@ -3425,6 +3570,416 @@ impl CatalogTrustSnapshotUnsupported {
             serde::de::value::StringDeserializer::<D::Error>::new(value),
         )
     }
+}
+
+/// Describes the cloud coding-agent task to start and the credential to start it under. Target it either by repository, supplying both `repositoryOwner` and `repositoryName`, or by `owner` alone for an account-level run.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub(crate) struct CloudTasksCreateParams {
+    /// Selects which stored credential to resolve when the host holds more than one. Omit it to resolve the default for the supplied `authInfo`.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub auth_context_id: Option<String>,
+    /// The credential the task is created under, carried opaquely because its shape is the host's own and the runtime only resolves a token and an API endpoint from it.
+    pub auth_info: serde_json::Value,
+    /// Explicit Mission Control endpoint selected by the host. Omission derives it from the identity.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub base_url: Option<String>,
+    /// Name of the embedding client, reported to the service so it can attribute the request.
+    pub integration_id: String,
+    /// Account the task is created for when it is not tied to a repository. Supply it only when `repositoryOwner` and `repositoryName` are omitted.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub owner: Option<String>,
+    /// Name of the repository the task runs against. Supply it together with `repositoryOwner`.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub repository_name: Option<String>,
+    /// Account or organization owning the repository the task runs against. Supply it together with `repositoryName`.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub repository_owner: Option<String>,
+}
+
+/// The outcome of starting a cloud task. A rejected request and a failed one are reported separately: `reason` and `message` describe a request the service declined, while `statusCode` and `errorMessage` describe the HTTP call itself and appear only when one was actually made.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub(crate) struct CloudTasksCreateResult {
+    /// Human-readable explanation of a failed HTTP call, when one failed.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub error_message: Option<String>,
+    /// The error body the service returned, preserved verbatim so a host can surface the service's own message.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub error_payload_json: Option<String>,
+    /// The explanation to show for a declined request, when the service supplied one. This describes the rejection itself, unlike `errorMessage`, which describes a failed HTTP call.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub message: Option<String>,
+    /// Whether the task was created.
+    pub ok: bool,
+    /// Why the request was declined, when it was. Carried as a free-form string rather than a fixed set because the vocabulary is the service's and grows with it; `policy_blocked`, `validation`, `rate_limited` and `error` are the values seen so far, and a caller should treat an unrecognised one as a generic failure rather than rejecting the response.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub reason: Option<String>,
+    /// The created task record, as returned by the service. Present only when `ok` is true; a caller parses it itself because the runtime does not narrow the service's own shape.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub response_json: Option<String>,
+    /// HTTP status code of the response, when one was received.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub status_code: Option<i32>,
+}
+
+/// Identifies one cloud coding-agent task to delete, and the credential to delete it under.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub(crate) struct CloudTasksDeleteParams {
+    /// Selects which stored credential to resolve when the host holds more than one. Omit it to resolve the default for the supplied `authInfo`.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub auth_context_id: Option<String>,
+    /// The credential the deletion is performed under, carried opaquely because its shape is the host's own and the runtime only resolves a token and an API endpoint from it. Required: the task endpoint is per-account, so there is no unauthenticated form of this call.
+    pub auth_info: serde_json::Value,
+    /// Explicit Mission Control endpoint selected by the host. Omission derives it from the identity.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub base_url: Option<String>,
+    /// Name of the embedding client, reported to Mission Control so the service can attribute the request.
+    pub integration_id: String,
+    /// Identifier of the cloud task to delete.
+    pub task_id: String,
+}
+
+/// The HTTP outcome of deleting a cloud task. The deletion returns no body, so a successful call carries nothing beyond `ok`; a failed one is described by the remaining fields rather than raised as an error, so a caller can surface the service's own explanation.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub(crate) struct CloudTasksDeleteResult {
+    /// Human-readable failure explanation, when the call failed.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub error_message: Option<String>,
+    /// The error body the service returned, preserved verbatim so a host can surface the service's own message.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub error_payload_json: Option<String>,
+    /// Whether the service accepted the deletion.
+    pub ok: bool,
+    /// HTTP status code of the response, when one was received.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub status_code: Option<i32>,
+}
+
+/// Identifies one cloud coding-agent task and the credential to read it under.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub(crate) struct CloudTasksGetParams {
+    /// Selects which stored credential to resolve when the host holds more than one. Omit it to resolve the default for the supplied `authInfo`.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub auth_context_id: Option<String>,
+    /// The credential the read is performed under, carried opaquely because its shape is the host's own and the runtime only resolves a token from it. Required: the task endpoint is per-account, so there is no unauthenticated form of this read.
+    pub auth_info: serde_json::Value,
+    /// Name of the embedding client, reported to the task API so the service can attribute the request.
+    pub integration_id: String,
+    /// Identifier of the cloud task to read.
+    pub task_id: String,
+}
+
+/// The HTTP outcome of reading a cloud task, rather than the task alone. A 404 arrives here as a non-ok result with `statusCode` 404, not as an error, so a caller can tell an absent task apart from a failed call.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub(crate) struct CloudTasksGetResult {
+    /// Categorised failure kind, when the call failed.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub error_kind: Option<String>,
+    /// Human-readable failure explanation, when the call failed.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub error_message: Option<String>,
+    /// The error body the API returned, preserved verbatim so a host can surface the service's own message.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub error_payload_json: Option<String>,
+    /// Whether the API returned the task successfully.
+    pub ok: bool,
+    /// The task record, as returned by the API. Present only when `ok` is true; a caller parses it itself because the runtime does not narrow the API's own shape.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub payload_json: Option<String>,
+    /// HTTP status code of the response, when one was received.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub status_code: Option<i32>,
+}
+
+/// Identifies one cloud coding-agent session whose logs are to be read, and the credential to read them under.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub(crate) struct CloudTasksGetSessionLogsParams {
+    /// Selects which stored credential to resolve when the host holds more than one. Omit it to resolve the default for the supplied `authInfo`.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub auth_context_id: Option<String>,
+    /// The credential the read is performed under, carried opaquely because its shape is the host's own and the runtime only resolves a token and an API endpoint from it.
+    pub auth_info: serde_json::Value,
+    /// Identifier of the cloud session whose logs are read.
+    pub session_id: SessionId,
+}
+
+/// The outcome of reading a cloud session's logs. `resolved` distinguishes "this credential has no Copilot API endpoint" from "the request was made and failed"; every other field describes a request that was actually attempted.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub(crate) struct CloudTasksGetSessionLogsResult {
+    /// Diagnostics the retrieval produced, in order. Worth logging whatever the outcome, because they explain a partial or empty result that is otherwise reported as success.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub debug_messages: Option<Vec<String>>,
+    /// Categorised failure kind, when the call failed.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub error_kind: Option<String>,
+    /// Human-readable failure explanation, when the call failed.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub error_message: Option<String>,
+    /// The error body the API returned, preserved verbatim so a host can surface the service's own message.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub error_payload_json: Option<String>,
+    /// A retrieval fault that is not an HTTP status, such as a malformed response body.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub error_string: Option<String>,
+    /// The logs, as returned by the API. Absent when none were returned; a caller that wants a list should treat absence as empty.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub logs_json: Option<String>,
+    /// Whether the API returned the logs successfully. Meaningful only when `resolved` is true.
+    pub ok: bool,
+    /// Whether a Copilot API endpoint could be resolved for the credential at all. When false no request was attempted and every other field is absent or empty, which a caller must not report as a transport failure.
+    pub resolved: bool,
+    /// HTTP status code of the response, when one was received.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub status_code: Option<i32>,
+}
+
+/// Identifies one cloud coding-agent task whose recorded session is to be replayed, and the credential to read it under.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub(crate) struct CloudTasksGetSessionReplayParams {
+    /// Selects which stored credential to resolve when the host holds more than one. Omit it to resolve the default for the supplied `authInfo`.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub auth_context_id: Option<String>,
+    /// The credential the read is performed under, carried opaquely because its shape is the host's own and the runtime only resolves a token and an API endpoint from it.
+    pub auth_info: serde_json::Value,
+    /// Explicit Mission Control endpoint selected by the host. Omission derives it from the identity.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub base_url: Option<String>,
+    /// Name of the embedding client, reported to the service so it can attribute the request.
+    pub integration_id: String,
+    /// Identifier of the cloud task whose recorded events are replayed.
+    pub task_id: String,
+}
+
+/// A cloud task's recorded events, ordered for replay. Read `preStart` first: it selects which of the two event lists a caller should use, and they differ deliberately.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub(crate) struct CloudTasksGetSessionReplayResult {
+    /// Every recorded event in the same replay order, as a JSON array, whether or not the session has started. This is the list to hand to a subsequent ingress so it can tell which events it has already seen, and unlike `replayEventsJson` it is never emptied.
+    pub observed_events_json: String,
+    /// True when the task has recorded events but the session has not started yet, so only queued work exists. A started session is anchored by either `session.start` or, for a resumed one, `session.resume`.
+    pub pre_start: bool,
+    /// The events to replay in order to reconstruct the session, as a JSON array. Empty when `preStart` is true, because a session that has not started has nothing to reconstruct and replaying its pending events would invent a history it never had.
+    pub replay_events_json: String,
+}
+
+/// Identifies one cloud coding-agent task whose sharing status is to be read, and the credential to read it under.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub(crate) struct CloudTasksGetSharingStatusParams {
+    /// Selects which stored credential to resolve when the host holds more than one. Omit it to resolve the default for the supplied `authInfo`.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub auth_context_id: Option<String>,
+    /// The credential the read is performed under, carried opaquely because its shape is the host's own and the runtime only resolves a token and an API endpoint from it. The token itself is never carried across the door.
+    pub auth_info: serde_json::Value,
+    /// Explicit Mission Control endpoint selected by the host. Omission derives it from the identity.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub base_url: Option<String>,
+    /// Name of the embedding client, reported to the service so it can attribute the request.
+    pub integration_id: String,
+    /// Identifier of the cloud task whose sharing status is read.
+    pub task_id: String,
+}
+
+/// Identifies one cloud coding-agent task to resolve to an openable session, the credential to resolve it under, and the local candidates the caller has already rejected.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub(crate) struct CloudTasksResolveTaskIdParams {
+    /// Whether a task carrying no recorded CLI run still counts as a match. Set it when the caller wants the task itself, not only a run that already produced a session.
+    pub allow_empty_cli_task: bool,
+    /// Selects which stored credential to resolve when the host holds more than one. Omit it to resolve the default for the supplied `authInfo`.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub auth_context_id: Option<String>,
+    /// The credential the lookup is performed under, carried opaquely because its shape is the host's own and the runtime only resolves a token and an API endpoint from it. Required: the task endpoint is per-account, so there is no unauthenticated form of this call.
+    pub auth_info: serde_json::Value,
+    /// Overrides the GitHub API base URL the task lookup goes to. Intended for testing against a non-production service; omit it in normal use.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub debug_github_api_url: Option<String>,
+    /// Whether the caller can open a cloud session. When false, a task that resolves only to a remote run is reported as unresumable instead, because the caller could not act on it.
+    pub has_remote_session_manager: bool,
+    /// Local session identifiers the caller has already rejected, so resolution skips them and returns the next candidate. Pass the identifiers accumulated across earlier calls, not only the last one.
+    pub ignored_local_session_ids: Vec<String>,
+    /// Name of the embedding client, reported to Mission Control so the service can attribute the request.
+    pub integration_id: String,
+    /// Directory holding persisted session state to scan for a local match. Omit it to use the default session home.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub sessions_home: Option<String>,
+    /// Identifier of the cloud task to resolve.
+    pub task_id: String,
+}
+
+/// What a caller should open for the task. The four outcomes are distinct and carry different payloads, so read `kind` before any other field.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub(crate) struct CloudTasksResolveTaskIdResult {
+    /// Why the cloud lookup produced less than it could have, for logging. It accompanies a successful outcome as well, so it is not a failure signal.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub diagnostic: Option<String>,
+    /// Machine-readable classification of the failure, when the service supplied one. The vocabulary is the service's and grows with it, so treat an unrecognized value as a generic failure.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub error_kind: Option<String>,
+    /// Human-readable explanation of a failed service call. Present only when `kind` is `error`.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub error_message: Option<String>,
+    /// The error body the service returned, preserved verbatim so a host can surface the service's own message.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub error_payload_json: Option<String>,
+    /// HTTP status code of the failed call, when one was received.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub error_status_code: Option<i32>,
+    /// Outcome of the resolution: `local-session` when a persisted session matched, `remote-session` when only a cloud run did, `unresumable-task` when the task exists but cannot be continued, `none` when nothing matched, and `error` when the service call failed.
+    pub kind: String,
+    /// The cloud session record, serialized, describing the run to open. Present only when `kind` is `remote-session`. It is carried as text because its shape is the service's own and the runtime does not narrow it.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub metadata_json: Option<String>,
+    /// Identifier of the matched local session. Present only when `kind` is `local-session`.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub session_id: Option<SessionId>,
+}
+
+/// Identifies one cloud coding-agent task whose sharing status is to be changed, the status to set, and the credential to change it under.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub(crate) struct CloudTasksSetSharingStatusParams {
+    /// Selects which stored credential to resolve when the host holds more than one. Omit it to resolve the default for the supplied `authInfo`.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub auth_context_id: Option<String>,
+    /// The credential the change is performed under, carried opaquely because its shape is the host's own and the runtime only resolves a token and an API endpoint from it. The token itself is never carried across the door.
+    pub auth_info: serde_json::Value,
+    /// Explicit Mission Control endpoint selected by the host. Omission derives it from the identity.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub base_url: Option<String>,
+    /// Name of the embedding client, reported to the service so it can attribute the request.
+    pub integration_id: String,
+    /// The sharing status to set, sent to the service verbatim. It is a free-form string rather than a closed set because the service owns these values and may add one; narrowing it here would reject a status the service accepts.
+    pub sharing_status: String,
+    /// Identifier of the cloud task whose sharing status is changed.
+    pub task_id: String,
+}
+
+/// The sharing status a cloud task carries after the call. Read `credentialResolved` first: when it is false no request was attempted at all, which is a different outcome from a request the service declined.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub(crate) struct CloudTasksSharingStatusResult {
+    /// Whether a credential could be resolved for the supplied `authInfo` at all. When false no request was attempted and every other field is absent, which a caller must not report as a transport failure: the account simply has no usable credential.
+    pub credential_resolved: bool,
+    /// Whether the service returned the task successfully. Meaningful only when `credentialResolved` is true.
+    pub ok: bool,
+    /// The task's sharing status, as the service reported it. Absent when the call did not succeed, and also when the service returned a task that carries no sharing status at all. It is a free-form string rather than a closed set because the service owns these values; a caller that only understands some of them should treat an unrecognized one as unknown rather than as an error.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub sharing_status: Option<String>,
 }
 
 /// Slash commands available in the session, after applying any include/exclude filters.
@@ -11496,6 +12051,46 @@ pub struct ConnectorsRefreshResult {
     pub revision: i64,
 }
 
+/// The sharing status a cloud task carries after the call. Read `credentialResolved` first: when it is false no request was attempted at all, which is a different outcome from a request the service declined.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub(crate) struct CloudTasksGetSharingStatusResult {
+    /// Whether a credential could be resolved for the supplied `authInfo` at all. When false no request was attempted and every other field is absent, which a caller must not report as a transport failure: the account simply has no usable credential.
+    pub credential_resolved: bool,
+    /// Whether the service returned the task successfully. Meaningful only when `credentialResolved` is true.
+    pub ok: bool,
+    /// The task's sharing status, as the service reported it. Absent when the call did not succeed, and also when the service returned a task that carries no sharing status at all. It is a free-form string rather than a closed set because the service owns these values; a caller that only understands some of them should treat an unrecognized one as unknown rather than as an error.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub sharing_status: Option<String>,
+}
+
+/// The sharing status a cloud task carries after the call. Read `credentialResolved` first: when it is false no request was attempted at all, which is a different outcome from a request the service declined.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub(crate) struct CloudTasksSetSharingStatusResult {
+    /// Whether a credential could be resolved for the supplied `authInfo` at all. When false no request was attempted and every other field is absent, which a caller must not report as a transport failure: the account simply has no usable credential.
+    pub credential_resolved: bool,
+    /// Whether the service returned the task successfully. Meaningful only when `credentialResolved` is true.
+    pub ok: bool,
+    /// The task's sharing status, as the service reported it. Absent when the call did not succeed, and also when the service returned a task that carries no sharing status at all. It is a free-form string rather than a closed set because the service owns these values; a caller that only understands some of them should treat an unrecognized one as unknown rather than as an error.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub sharing_status: Option<String>,
+}
+
 /// Whether an active connection-owned transfer accepted cancellation.
 ///
 /// <div class="warning">
@@ -12100,6 +12695,226 @@ pub enum AzureMlRegistry {
     /// Microsoft staff development registry.
     #[serde(rename = "azureml-dev")]
     AzuremlDev,
+    /// Unknown variant for forward compatibility.
+    #[default]
+    #[serde(other)]
+    Unknown,
+}
+
+/// Embedded package identity.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub(crate) enum CafeMetricsEmbeddedPackageIdentity {
+    /// Development package.
+    #[serde(rename = "dev")]
+    Dev,
+    /// Release package.
+    #[serde(rename = "release")]
+    Release,
+    /// Unknown variant for forward compatibility.
+    #[default]
+    #[serde(other)]
+    Unknown,
+}
+
+/// Terminal resume outcome.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub(crate) enum CafeMetricsResumeOutcome {
+    /// Resumed.
+    #[serde(rename = "success")]
+    Success,
+    /// Recovered and resumed.
+    #[serde(rename = "recovered")]
+    Recovered,
+    /// Resume failed.
+    #[serde(rename = "failed")]
+    Failed,
+    /// No session found.
+    #[serde(rename = "not_found")]
+    NotFound,
+    /// Unknown variant for forward compatibility.
+    #[default]
+    #[serde(other)]
+    Unknown,
+}
+
+/// Bounded resume reason, without error text.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub(crate) enum CafeMetricsResumeReason {
+    /// No detail.
+    #[serde(rename = "none")]
+    None,
+    /// Recovered event log.
+    #[serde(rename = "log_recovered")]
+    LogRecovered,
+    /// Corrupt event log.
+    #[serde(rename = "log_corrupt")]
+    LogCorrupt,
+    /// Legacy format.
+    #[serde(rename = "legacy_format")]
+    LegacyFormat,
+    /// Recovery I/O failed.
+    #[serde(rename = "recovery_io")]
+    RecoveryIo,
+    /// Hydration failed.
+    #[serde(rename = "hydration")]
+    Hydration,
+    /// Construction failed.
+    #[serde(rename = "construction")]
+    Construction,
+    /// Queue restore failed.
+    #[serde(rename = "queue")]
+    Queue,
+    /// Session not found.
+    #[serde(rename = "not_found")]
+    NotFound,
+    /// Unknown variant for forward compatibility.
+    #[default]
+    #[serde(other)]
+    Unknown,
+}
+
+/// Last resume phase.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub(crate) enum CafeMetricsResumeStage {
+    /// Read the event log.
+    #[serde(rename = "event_log")]
+    EventLog,
+    /// Construct the session.
+    #[serde(rename = "construction")]
+    Construction,
+    /// Restore the queue.
+    #[serde(rename = "queue_restore")]
+    QueueRestore,
+    /// Resume complete.
+    #[serde(rename = "complete")]
+    Complete,
+    /// Unknown variant for forward compatibility.
+    #[default]
+    #[serde(other)]
+    Unknown,
+}
+
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub enum CafeMetricsResolveAdmissionRequestSuccessKind {
+    #[serde(rename = "success")]
+    #[default]
+    Success,
+}
+
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub enum CafeMetricsResolveAdmissionRequestFailedKind {
+    #[serde(rename = "failed")]
+    #[default]
+    Failed,
+}
+
+/// Immutable release lookup result.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(untagged)]
+pub(crate) enum CafeMetricsResolveAdmissionRequest {
+    Success(CafeMetricsResolveAdmissionRequestSuccess),
+    Failed(CafeMetricsResolveAdmissionRequestFailed),
+}
+
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub enum CafeMetricsResolveAdmissionResultAppliedKind {
+    #[serde(rename = "applied")]
+    #[default]
+    Applied,
+}
+
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub enum CafeMetricsResolveAdmissionResultNotStartedKind {
+    #[serde(rename = "not-started")]
+    #[default]
+    NotStarted,
+}
+
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub enum CafeMetricsResolveAdmissionResultAlreadyResolvedKind {
+    #[serde(rename = "already-resolved")]
+    #[default]
+    AlreadyResolved,
+}
+
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub enum CafeMetricsResolveAdmissionResultShutdownKind {
+    #[serde(rename = "shutdown")]
+    #[default]
+    Shutdown,
+}
+
+/// Admission result.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(untagged)]
+pub(crate) enum CafeMetricsResolveAdmissionResult {
+    Applied(CafeMetricsResolveAdmissionResultApplied),
+    NotStarted(CafeMetricsResolveAdmissionResultNotStarted),
+    AlreadyResolved(CafeMetricsResolveAdmissionResultAlreadyResolved),
+    Shutdown(CafeMetricsResolveAdmissionResultShutdown),
+}
+
+/// Reason startup was refused.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub(crate) enum CafeMetricsStartRefusal {
+    /// The process is offline.
+    #[serde(rename = "offline")]
+    Offline,
+    /// Unsupported platform.
+    #[serde(rename = "unsupportedPlatform")]
+    UnsupportedPlatform,
+    /// The process already started CAFE.
+    #[serde(rename = "alreadyStarted")]
+    AlreadyStarted,
     /// Unknown variant for forward compatibility.
     #[default]
     #[serde(other)]

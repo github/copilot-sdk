@@ -635,6 +635,7 @@ class ProgressTools {
 `@CopilotTool` and `@CopilotToolParam` are experimental.
 Compiling a tool class also compiles the companion class that the annotation processor generates for it, and that class implements an experimental interface.
 So the build needs `-Acopilot.experimental.allowed=true`; [Using experimental APIs](#using-experimental-apis) shows the Maven and Gradle settings.
+Annotating your tool class with `@AllowCopilotExperimental` does not help here, because the generated companion is a separate top-level class that the annotation does not cover.
 On JDK 23 and later, `javac` runs the SDK's annotation processors only when you ask for them, for example with `-proc:full`, and otherwise generates no companion class.
 
 Position examples:

@@ -172,6 +172,26 @@ session's pipeline. `COPILOT_TELEMETRY_DISABLED=true` remains an alternative;
 
 With the default `CliProgram::Resolve`, managed stdio and TCP transports resolve an explicit `CliProgram::Path(path)`, `COPILOT_CLI_PATH`, then the bundled `copilot-runtime` wrapper and adjacent `runtime.node`. In-process transport loads the native runtime library adjacent to that resolved runtime bundle. There is no PATH scanning.
 
+#### Session client names (breaking change)
+
+`SessionMetadata`, returned by `Client::list_sessions` and `Client::get_session_metadata`,
+has two new fields, which brings Rust into line with the other SDKs:
+
+| Field | Type | Description |
+| --- | --- | --- |
+| `client_name` | `Option<String>` | Client that created the session, for example `github/cli` |
+| `last_client_name` | `Option<String>` | Client that most recently ran the session: the creator, or a client that resumed and then ran it |
+
+Both are `None` when the runtime doesn't report them, such as for sessions persisted before
+`last_client_name` existed. `SessionMetadata` is not `#[non_exhaustive]`, so code that builds
+it with a struct literal or destructures every field must add the two fields.
+
+```rust,ignore
+if let Some(metadata) = client.get_session_metadata(&session_id).await? {
+    let ran_elsewhere = metadata.last_client_name.as_deref() != Some("my-host");
+}
+```
+
 #### AHP listeners (experimental)
 
 `Client::start_ahp_host` is a thin wrapper over the generated `host.start`

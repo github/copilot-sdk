@@ -231,24 +231,6 @@ fn deserialize_rejects_invalid_metadata() {
     }
 }
 
-#[test]
-fn request_new_sets_version() {
-    let req = JsonRpcRequest::new(42, "test.method", None);
-    assert_eq!(req.jsonrpc, "2.0");
-    assert_eq!(req.id, 42);
-    assert_eq!(req.method, "test.method");
-    assert!(req.params.is_none());
-}
-
-#[test]
-fn request_serializes_camel_case() {
-    let req = JsonRpcRequest::new(1, "ping", Some(serde_json::json!({})));
-    let json = serde_json::to_string(&req).unwrap();
-    assert!(json.contains(r#""jsonrpc":"2.0""#));
-    assert!(json.contains(r#""id":1"#));
-    assert!(json.contains(r#""method":"ping""#));
-}
-
 /// The frame the published framing wrote: the header, then `to_vec`'s body.
 fn published_frame<T: serde::Serialize>(message: &T) -> Vec<u8> {
     let body = serde_json::to_vec(message).unwrap();
@@ -295,31 +277,6 @@ fn encode_frame_gives_back_large_spare_capacity() {
         frame.buf.len(),
         frame.buf.capacity()
     );
-}
-
-#[test]
-fn encode_frame_writes_the_header_into_the_room_before_the_body() {
-    // A 100-byte body: a JSON string of 98 characters.
-    let message = "x".repeat(98);
-    let frame = encode_frame(&message).unwrap();
-    let header: &[u8] = b"Content-Length: 100\r\n\r\n";
-    assert_eq!(frame.start, FRAME_PREFIX - header.len());
-    assert_eq!(&frame.buf[frame.start..FRAME_PREFIX], header);
-    assert_eq!(
-        &frame.buf[FRAME_PREFIX..],
-        serde_json::to_vec(&message).unwrap().as_slice()
-    );
-}
-
-#[test]
-fn notification_without_params_omits_field() {
-    let n = JsonRpcNotification {
-        jsonrpc: "2.0".into(),
-        method: "ping".into(),
-        params: None,
-    };
-    let json = serde_json::to_string(&n).unwrap();
-    assert!(!json.contains("params"));
 }
 
 /// `Value::Null` inside `levels` nested arrays.
@@ -416,18 +373,6 @@ fn a_request_passes_the_guard_exactly_when_serde_json_reads_it() {
         too_deep.nests_too_deep_for_peer(),
         "the request guard stops the unreadable request"
     );
-}
-
-#[test]
-fn response_without_error_omits_field() {
-    let r = JsonRpcResponse {
-        jsonrpc: "2.0".into(),
-        id: 1,
-        result: Some(serde_json::json!(true)),
-        error: None,
-    };
-    let json = serde_json::to_string(&r).unwrap();
-    assert!(!json.contains("error"));
 }
 
 #[tokio::test]

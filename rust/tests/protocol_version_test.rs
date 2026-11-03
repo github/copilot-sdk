@@ -476,55 +476,8 @@ async fn connect_handshake_supplies_protocol_version() {
     assert_eq!(client.protocol_version(), Some(3));
 }
 
-/// Positive coverage for token forwarding on the `connect` handshake. A
-/// client constructed with a preset `effective_connection_token` MUST
-/// place the exact token string in the outbound `connect` request's
-/// `token` param. This is the wire-side hand-off that authenticates
-/// the SDK to a CLI server started with `COPILOT_CONNECTION_TOKEN`.
 #[tokio::test]
-async fn connect_handshake_forwards_explicit_token() {
-    let (client_write, server_read) = duplex(8192);
-    let (server_write, client_read) = duplex(8192);
-    let client = Client::from_streams_with_connection_token(
-        client_read,
-        client_write,
-        std::env::temp_dir(),
-        Some("explicit-token-abc".to_string()),
-    )
-    .unwrap();
-
-    let mut server_read = server_read;
-    let mut server_write = server_write;
-
-    let verify_handle = tokio::spawn({
-        let client = client.clone();
-        async move { client.verify_protocol_version().await }
-    });
-
-    let req = read_framed(&mut server_read).await;
-    assert_eq!(req["method"], "connect");
-    assert_eq!(req["params"]["token"], "explicit-token-abc");
-
-    let response = serde_json::json!({
-        "jsonrpc": "2.0",
-        "id": req["id"],
-        "result": { "ok": true, "protocolVersion": 3, "version": "test-1.0.0" },
-    });
-    write_framed(&mut server_write, &serde_json::to_vec(&response).unwrap()).await;
-
-    tokio::time::timeout(std::time::Duration::from_secs(2), verify_handle)
-        .await
-        .unwrap()
-        .unwrap()
-        .unwrap();
-}
-
-/// Auto-generated tokens (the codepath that fires when the SDK spawns
-/// its own CLI in TCP mode and the consumer didn't supply one) must
-/// reach the wire too. Builds a token via the SDK's exposed test helper
-/// and verifies the same string lands in the outbound `connect`.
-#[tokio::test]
-async fn connect_handshake_forwards_auto_generated_token() {
+async fn connect_handshake_forwards_explicit_and_generated_tokens() {
     let token = Client::generate_connection_token_for_test();
     // Sanity-check the generated shape: 32-char lowercase hex (16 bytes,
     // 128 bits of entropy). A regression in the helper would silently
@@ -537,188 +490,102 @@ async fn connect_handshake_forwards_auto_generated_token() {
         "expected lowercase hex, got {token:?}",
     );
 
-    let (client_write, server_read) = duplex(8192);
-    let (server_write, client_read) = duplex(8192);
-    let client = Client::from_streams_with_connection_token(
-        client_read,
-        client_write,
-        std::env::temp_dir(),
-        Some(token.clone()),
-    )
-    .unwrap();
-
-    let mut server_read = server_read;
-    let mut server_write = server_write;
-
-    let verify_handle = tokio::spawn({
-        let client = client.clone();
-        async move { client.verify_protocol_version().await }
-    });
-
-    let req = read_framed(&mut server_read).await;
-    assert_eq!(req["method"], "connect");
-    assert_eq!(req["params"]["token"], token);
-
-    let response = serde_json::json!({
-        "jsonrpc": "2.0",
-        "id": req["id"],
-        "result": { "ok": true, "protocolVersion": 3, "version": "test-1.0.0" },
-    });
-    write_framed(&mut server_write, &serde_json::to_vec(&response).unwrap()).await;
-
-    tokio::time::timeout(std::time::Duration::from_secs(2), verify_handle)
-        .await
-        .unwrap()
-        .unwrap()
+    for token in ["explicit-token-abc".to_string(), token] {
+        let (client_write, mut server_read) = duplex(8192);
+        let (mut server_write, client_read) = duplex(8192);
+        let client = Client::from_streams_with_connection_token(
+            client_read,
+            client_write,
+            std::env::temp_dir(),
+            Some(token.clone()),
+        )
         .unwrap();
+
+        let verify_handle = tokio::spawn({
+            let client = client.clone();
+            async move { client.verify_protocol_version().await }
+        });
+
+        let req = read_framed(&mut server_read).await;
+        assert_eq!(req["method"], "connect");
+        assert_eq!(req["params"]["token"], token);
+
+        let response = serde_json::json!({
+            "jsonrpc": "2.0",
+            "id": req["id"],
+            "result": { "ok": true, "protocolVersion": 3, "version": "test-1.0.0" },
+        });
+        write_framed(&mut server_write, &serde_json::to_vec(&response).unwrap()).await;
+
+        tokio::time::timeout(std::time::Duration::from_secs(2), verify_handle)
+            .await
+            .unwrap()
+            .unwrap()
+            .unwrap();
+    }
 }
 
-/// Positive coverage for application-identity forwarding on the `connect`
-/// handshake. A client constructed with a [`ClientInfo`] MUST serialize it
-/// (camelCase) into the outbound `connect` request's `clientInfo` param so
-/// the runtime attributes this connection's telemetry to the application.
 #[tokio::test]
-async fn connect_handshake_forwards_client_info() {
-    let (client_write, server_read) = duplex(8192);
-    let (server_write, client_read) = duplex(8192);
-    let client = Client::from_streams_with_client_info(
-        client_read,
-        client_write,
-        std::env::temp_dir(),
-        Some(
+async fn connect_handshake_serializes_client_info_and_omits_empty_fields() {
+    for (info, expected) in [
+        (
             github_copilot_sdk::ClientInfo::new()
                 .with_application_name("acme-developer-portal")
                 .with_application_version("2.4.0")
                 .with_integration_name("copilot-assistant")
                 .with_integration_version("1.5.0"),
+            Some(serde_json::json!({
+                "editorName": "acme-developer-portal",
+                "editorVersion": "2.4.0",
+                "extensionName": "copilot-assistant",
+                "extensionVersion": "1.5.0",
+            })),
         ),
-    )
-    .unwrap();
-
-    let mut server_read = server_read;
-    let mut server_write = server_write;
-
-    let verify_handle = tokio::spawn({
-        let client = client.clone();
-        async move { client.verify_protocol_version().await }
-    });
-
-    let req = read_framed(&mut server_read).await;
-    assert_eq!(req["method"], "connect");
-    let client_info = &req["params"]["clientInfo"];
-    assert_eq!(client_info["editorName"], "acme-developer-portal");
-    assert_eq!(client_info["editorVersion"], "2.4.0");
-    assert_eq!(client_info["extensionName"], "copilot-assistant");
-    assert_eq!(client_info["extensionVersion"], "1.5.0");
-
-    let response = serde_json::json!({
-        "jsonrpc": "2.0",
-        "id": req["id"],
-        "result": { "ok": true, "protocolVersion": 3, "version": "test-1.0.0" },
-    });
-    write_framed(&mut server_write, &serde_json::to_vec(&response).unwrap()).await;
-
-    tokio::time::timeout(std::time::Duration::from_secs(2), verify_handle)
-        .await
-        .unwrap()
-        .unwrap()
-        .unwrap();
-}
-
-/// A [`ClientInfo`] with only some fields set must omit the empty ones from
-/// the wire, and a fully-empty one must drop `clientInfo` entirely so the
-/// runtime keeps its default attribution.
-#[tokio::test]
-async fn connect_handshake_omits_empty_client_info_fields() {
-    let (client_write, server_read) = duplex(8192);
-    let (server_write, client_read) = duplex(8192);
-    let client = Client::from_streams_with_client_info(
-        client_read,
-        client_write,
-        std::env::temp_dir(),
-        Some(
+        (
             github_copilot_sdk::ClientInfo::new()
                 .with_application_name("example-app")
                 .with_application_version(""),
+            Some(serde_json::json!({ "editorName": "example-app" })),
         ),
-    )
-    .unwrap();
-
-    let mut server_read = server_read;
-    let mut server_write = server_write;
-
-    let verify_handle = tokio::spawn({
-        let client = client.clone();
-        async move { client.verify_protocol_version().await }
-    });
-
-    let req = read_framed(&mut server_read).await;
-    assert_eq!(req["method"], "connect");
-    let client_info = &req["params"]["clientInfo"];
-    assert_eq!(client_info["editorName"], "example-app");
-    assert!(client_info.get("editorVersion").is_none());
-    assert!(client_info.get("extensionName").is_none());
-    assert!(client_info.get("extensionVersion").is_none());
-
-    let response = serde_json::json!({
-        "jsonrpc": "2.0",
-        "id": req["id"],
-        "result": { "ok": true, "protocolVersion": 3, "version": "test-1.0.0" },
-    });
-    write_framed(&mut server_write, &serde_json::to_vec(&response).unwrap()).await;
-
-    tokio::time::timeout(std::time::Duration::from_secs(2), verify_handle)
-        .await
-        .unwrap()
-        .unwrap()
-        .unwrap();
-}
-
-/// A [`ClientInfo`] whose every field is empty must drop `clientInfo` from the
-/// handshake entirely so the runtime keeps its default attribution.
-#[tokio::test]
-async fn connect_handshake_omits_all_empty_client_info() {
-    let (client_write, server_read) = duplex(8192);
-    let (server_write, client_read) = duplex(8192);
-    let client = Client::from_streams_with_client_info(
-        client_read,
-        client_write,
-        std::env::temp_dir(),
-        Some(
+        (
             github_copilot_sdk::ClientInfo::new()
                 .with_application_name("")
                 .with_application_version("")
                 .with_integration_name("")
                 .with_integration_version(""),
+            None,
         ),
-    )
-    .unwrap();
-
-    let mut server_read = server_read;
-    let mut server_write = server_write;
-
-    let verify_handle = tokio::spawn({
-        let client = client.clone();
-        async move { client.verify_protocol_version().await }
-    });
-
-    let req = read_framed(&mut server_read).await;
-    assert_eq!(req["method"], "connect");
-    assert!(
-        req["params"].get("clientInfo").is_none(),
-        "an all-empty clientInfo must be omitted from the handshake"
-    );
-
-    let response = serde_json::json!({
-        "jsonrpc": "2.0",
-        "id": req["id"],
-        "result": { "ok": true, "protocolVersion": 3, "version": "test-1.0.0" },
-    });
-    write_framed(&mut server_write, &serde_json::to_vec(&response).unwrap()).await;
-
-    tokio::time::timeout(std::time::Duration::from_secs(2), verify_handle)
-        .await
-        .unwrap()
-        .unwrap()
+    ] {
+        let (client_write, mut server_read) = duplex(8192);
+        let (mut server_write, client_read) = duplex(8192);
+        let client = Client::from_streams_with_client_info(
+            client_read,
+            client_write,
+            std::env::temp_dir(),
+            Some(info),
+        )
         .unwrap();
+
+        let verify_handle = tokio::spawn({
+            let client = client.clone();
+            async move { client.verify_protocol_version().await }
+        });
+
+        let req = read_framed(&mut server_read).await;
+        assert_eq!(req["method"], "connect");
+        assert_eq!(req["params"].get("clientInfo"), expected.as_ref());
+
+        let response = serde_json::json!({
+            "jsonrpc": "2.0",
+            "id": req["id"],
+            "result": { "ok": true, "protocolVersion": 3, "version": "test-1.0.0" },
+        });
+        write_framed(&mut server_write, &serde_json::to_vec(&response).unwrap()).await;
+
+        tokio::time::timeout(std::time::Duration::from_secs(2), verify_handle)
+            .await
+            .unwrap()
+            .unwrap()
+            .unwrap();
+    }
 }

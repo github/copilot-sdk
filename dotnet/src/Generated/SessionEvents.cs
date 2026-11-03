@@ -3976,6 +3976,12 @@ public sealed partial class SessionCompactionStartData
     [JsonPropertyName("model")]
     public string? Model { get; set; }
 
+    /// <summary>Number of trailing conversation messages (the turn's not-yet-answered input) kept verbatim after the summary instead of being compacted. Omitted when every message at compaction start is summarized.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonInclude]
+    [JsonPropertyName("retainedInputMessages")]
+    internal long? RetainedInputMessages { get; set; }
+
     /// <summary>Destination model for a model-switch compaction when it differs from the compacting model; for a HydraFusion turn, the routed root model.</summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     [JsonPropertyName("switchTargetModel")]
@@ -4616,6 +4622,11 @@ public sealed partial class UserMessageData
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     [JsonPropertyName("attachments")]
     public Attachment[]? Attachments { get; set; }
+
+    /// <summary>IDs of accepted assistant messages that caused this delivered inter-agent prompt, referring to assistant.message.data.messageId across the agent tree. Captured when sending and retained through queued or immediate delivery. An empty list means no model-produced dependency; absence means provenance is unavailable.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("causalDependencies")]
+    public string[]? CausalDependencies { get; set; }
 
     /// <summary>The user's message text as displayed in the timeline.</summary>
     [JsonPropertyName("content")]
@@ -6389,6 +6400,11 @@ public sealed partial class ToolExecutionProgressData
 /// <summary>Tool execution completion results including success status, detailed output, and error information.</summary>
 public sealed partial class ToolExecutionCompleteData
 {
+    /// <summary>IDs of accepted assistant messages whose output this tool result consumed, referring to assistant.message.data.messageId across the agent tree. Captured from the returned snapshot, including partial agent reads. An empty list means no model-produced dependency; absence means provenance is unavailable.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("causalDependencies")]
+    public string[]? CausalDependencies { get; set; }
+
     /// <summary>Error details when the tool execution failed.</summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     [JsonPropertyName("error")]
@@ -7149,6 +7165,11 @@ public sealed partial class InstructionUpdateData
 /// <summary>System-generated notification for runtime events like background task completion.</summary>
 public sealed partial class SystemNotificationData
 {
+    /// <summary>IDs of accepted assistant messages whose output this notification consumed, referring to assistant.message.data.messageId across the agent tree. Captured from the delivered snapshot, not the sender's later state. An empty list means no model-produced dependency; absence means provenance is unavailable.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("causalDependencies")]
+    public string[]? CausalDependencies { get; set; }
+
     /// <summary>The notification text, typically wrapped in &lt;system_notification&gt; XML tags.</summary>
     [JsonPropertyName("content")]
     public required string Content { get; set; }

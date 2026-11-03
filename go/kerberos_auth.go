@@ -58,7 +58,8 @@ type KerberosAuthConfig struct {
 	// ctx is cancelled when the runtime stops waiting for the token (it cancels
 	// the request after 30 seconds) or the connection closes. The SDK then
 	// stops waiting and ignores any later result, so abandon the lookup
-	// promptly once ctx is done.
+	// promptly once ctx is done. If that happens before the callback starts,
+	// the callback is not called at all.
 	Callback func(ctx context.Context, request KerberosAuthAcquireRequest) (string, error)
 }
 
@@ -77,6 +78,9 @@ func validateKerberosAuthConfig(config *KerberosAuthConfig) error {
 type kerberosAuthAdapter struct {
 	callback         func(ctx context.Context, request KerberosAuthAcquireRequest) (string, error)
 	connectionClosed <-chan struct{}
+	// tests only: runs in the callback goroutine with "starting" before it checks
+	// for cancellation, and with "skipped" when cancellation keeps the callback from starting
+	testHookCallbackGoroutine func(stage string)
 }
 
 // handle runs the callback with a context that is cancelled when the runtime
@@ -116,8 +120,24 @@ func (a *kerberosAuthAdapter) handle(ctx context.Context, params json.RawMessage
 				outcomes <- outcome{err: fmt.Errorf("kerberos auth callback panicked: %v", r)}
 			}
 		}()
-		token, err := a.callback(callbackCtx, request)
-		outcomes <- outcome{token: token, err: err}
+		hook := a.testHookCallbackGoroutine
+		if hook != nil {
+			hook("starting")
+		}
+		// The request may be cancelled, or the connection closed, after the check
+		// above but before this goroutine runs: do not start an obsolete lookup,
+		// such as a credential prompt. The handler then answers the cancellation.
+		select {
+		case <-callbackCtx.Done():
+		case <-a.connectionClosed:
+		default:
+			token, err := a.callback(callbackCtx, request)
+			outcomes <- outcome{token: token, err: err}
+			return
+		}
+		if hook != nil {
+			hook("skipped")
+		}
 	}()
 
 	var result outcome

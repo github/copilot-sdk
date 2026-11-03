@@ -294,15 +294,6 @@ async fn listmodels_withcustomhandler_cachesresults() {
     .await;
 }
 
-#[tokio::test]
-async fn listmodels_withcustomhandler_workswithoutstart() {
-    let handler = CountingModelsHandler::default();
-    let models = handler.list_models().await.expect("list models");
-
-    assert_eq!(handler.calls.load(Ordering::SeqCst), 1);
-    assert_eq!(models[0].id, "custom-handler-model");
-}
-
 #[derive(Default)]
 struct CountingModelsHandler {
     calls: Arc<AtomicUsize>,

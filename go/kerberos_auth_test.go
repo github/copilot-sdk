@@ -295,6 +295,42 @@ func TestClient_KerberosAuth(t *testing.T) {
 		}
 	})
 
+	t.Run("does not start a callback cancelled while it was queued", func(t *testing.T) {
+		invoked, skipped := make(chan struct{}), make(chan struct{})
+		ctx, cancel := context.WithCancel(context.Background())
+		defer cancel()
+		adapter := &kerberosAuthAdapter{
+			callback: func(context.Context, KerberosAuthAcquireRequest) (string, error) {
+				close(invoked)
+				return "token", nil
+			},
+			connectionClosed: make(chan struct{}),
+			testHookCallbackGoroutine: func(stage string) {
+				switch stage {
+				case "starting":
+					// The runtime cancels after the handler's own check, before the callback runs.
+					cancel()
+				case "skipped":
+					close(skipped)
+				}
+			},
+		}
+
+		_, rpcErr := adapter.handle(ctx, json.RawMessage(`{"spn":"HTTP/proxy"}`))
+
+		select {
+		case <-skipped:
+		case <-invoked:
+			t.Fatal("the cancelled callback was started")
+		case <-time.After(5 * time.Second):
+			t.Fatal("timed out waiting for the callback goroutine")
+		}
+		want := &jsonrpc2.Error{Code: kerberosAuthRequestCancelledCode, Message: "Kerberos auth request cancelled"}
+		if !reflect.DeepEqual(rpcErr, want) {
+			t.Fatalf("response error = %+v, want %+v", rpcErr, want)
+		}
+	})
+
 	t.Run("cancels the callback when the client stops", func(t *testing.T) {
 		entered, returned := make(chan struct{}), make(chan struct{})
 		client, peer := newKerberosAuthPeer(t, blockingKerberosAuthCallback(entered, returned))

@@ -81,7 +81,7 @@ The Copilot SDK communicates with the CLI via JSON-RPC protocol. Features must b
 | User input handler | `onUserInputRequest` | Handle ask_user |
 | Skills | `skillDirectories` config | Custom skills |
 | Disabled skills | `disabledSkills` config | Disable specific skills |
-| Config directory | `configDir` config | Override default config location |
+| Config directory | `configDirectory` config | Override default config location |
 | Client name | `clientName` config | Identify app in User-Agent |
 | Working directory | `workingDirectory` config | Set session cwd |
 | Additional directories | `additionalDirectories` config | Grant session access beyond the working directory; re-supply on resume |
@@ -91,7 +91,7 @@ The Copilot SDK communicates with the CLI via JSON-RPC protocol. Features must b
 | Manual compaction | `session.rpc.history.compact()` | Trigger compaction on demand |
 | Context clearing | `session.rpc.history.clearContext()` | Replace conversation context from a terminal tool |
 | History truncation | `session.rpc.history.truncate()` | Remove events from a point onward |
-| Session forking | `server.rpc.sessions.fork()` | Fork a session at a point in history |
+| Session forking | `client.rpc.sessions.fork()` | Fork a session at a point in history |
 
 ### ❌ Not available in SDK (CLI-only)
 
@@ -132,8 +132,8 @@ The Copilot SDK communicates with the CLI via JSON-RPC protocol. Features must b
 | List directories | `/list-dirs` | TUI command |
 | Change directory | `/cwd` | TUI command |
 | **Plugin/MCP Management** | | |
-| Plugin commands | `/plugin` | Interactive management (use SDK `server.rpc.plugins.*` for installed plugins and marketplaces, or `session.rpc.plugins.*` to change plugins in a live session) |
-| MCP server management | `/mcp` | Interactive UI (use SDK `server.rpc.mcp.config.*` to edit saved MCP configuration, which does not restart running servers, or `session.rpc.mcp.*` to list, start, stop and reload servers in a live session) |
+| Plugin commands | `/plugin` | Interactive management (use SDK `client.rpc.plugins.*` for installed plugins and marketplaces, or `session.rpc.plugins.*` to change plugins in a live session) |
+| MCP server management | `/mcp` | Interactive UI (use SDK `client.rpc.mcp.config.*` to edit saved MCP configuration, which does not restart running servers, or `session.rpc.mcp.*` to list, start, stop and reload servers in a live session) |
 | **Account Management** | | |
 | Login flow | `/login`, `copilot auth login` | OAuth device flow |
 | Logout | `/logout`, `copilot auth logout` | Direct CLI |

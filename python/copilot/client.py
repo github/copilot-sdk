@@ -899,12 +899,44 @@ class _KerberosAuthAdapter:
 
     def __init__(self, config: KerberosAuthConfig) -> None:
         self._callback = config["callback"]
+        self._pending: set[asyncio.Future[object]] = set()
+        self._closed = False
+
+    def cancel_pending(self) -> None:
+        """Cancel in-flight callbacks because the connection closed; later requests fail."""
+        self._closed = True
+        pending = list(self._pending)
+        self._pending.clear()
+        for lookup in pending:
+            lookup.cancel()
 
     async def acquire(self, params: KerberosAuthAcquireRequest) -> KerberosAuthAcquireResult:
+        if self._closed:
+            raise RuntimeError("Kerberos auth connection closed")
         token = self._callback(params)
         if inspect.isawaitable(token):
-            token = await token
+            token = await self._await_callback(token)
         return KerberosAuthAcquireResult(token=cast(str | None, token))
+
+    async def _await_callback(self, awaitable: Awaitable[object]) -> object:
+        lookup = asyncio.ensure_future(awaitable)
+        self._pending.add(lookup)
+        try:
+            # Unlike ``await lookup``, this raises CancelledError only when the request itself
+            # is cancelled, not when the callback's own awaitable is.
+            await asyncio.wait({lookup})
+        except BaseException:
+            lookup.cancel()
+            raise
+        finally:
+            self._pending.discard(lookup)
+        if lookup.cancelled():
+            # The dispatcher answers only the request's own cancellation; a propagated
+            # CancelledError would leave the runtime waiting for its deadline.
+            if self._closed:
+                raise RuntimeError("Kerberos auth connection closed")
+            raise RuntimeError("Kerberos credential callback was cancelled")
+        return lookup.result()
 
     async def handle_request(self, params: dict) -> dict:
         """Wire-level ``kerberosAuth.acquire`` handler, registered as cancellable."""
@@ -1448,6 +1480,13 @@ class SessionMetadata:
     is_remote: bool  # Whether the session is remote
     summary: str | None = None  # Optional summary of the session
     context: SessionContext | None = None  # Working directory context
+    # Name of the client that created the session (for example "github/cli").
+    client_name: str | None = None
+    # Name of the client that most recently ran the session: the client that
+    # created it, or a client that resumed it and then ran it. Resuming a session
+    # only to observe it does not change this. None when unknown, such as for
+    # sessions persisted before this field existed.
+    last_client_name: str | None = None
 
     @staticmethod
     def from_dict(obj: Any) -> SessionMetadata:
@@ -1471,6 +1510,8 @@ class SessionMetadata:
             is_remote=bool(is_remote),
             summary=summary,
             context=context,
+            client_name=obj.get("clientName"),
+            last_client_name=obj.get("lastClientName"),
         )
 
     def to_dict(self) -> dict:
@@ -1483,6 +1524,10 @@ class SessionMetadata:
             result["summary"] = self.summary
         if self.context is not None:
             result["context"] = self.context.to_dict()
+        if self.client_name is not None:
+            result["clientName"] = self.client_name
+        if self.last_client_name is not None:
+            result["lastClientName"] = self.last_client_name
         return result
 
 
@@ -2009,6 +2054,7 @@ class CopilotClient:
         self._session_fs_config = options.session_fs
         self._request_handler = options.request_handler
         self._llm_inference_adapter: _CopilotRequestAdapterHandler | None = None
+        self._kerberos_auth_adapter: _KerberosAuthAdapter | None = None
         self._installation_confirmation_adapter: _InstallationConfirmationAdapter | None = None
         self._entra_token_provider = (
             options.entra.token_provider if isinstance(options.entra, EntraAuthOptions) else None
@@ -2398,7 +2444,10 @@ class CopilotClient:
             except OSError:
                 logger.debug("Error while closing Copilot CLI stdin", exc_info=True)
 
-        # Close client
+        # Close client. Kerberos lookups stay available until here because the runtime may
+        # still authenticate while it shuts down.
+        if self._kerberos_auth_adapter is not None:
+            self._kerberos_auth_adapter.cancel_pending()
         if self._client:
             await self._client.stop()
             self._client = None
@@ -2493,6 +2542,8 @@ class CopilotClient:
         self._ahp_hosts.disconnect()
         if self._llm_inference_adapter is not None:
             self._llm_inference_adapter.cancel_pending()
+        if self._kerberos_auth_adapter is not None:
+            self._kerberos_auth_adapter.cancel_pending()
 
         # Clear sessions immediately without trying to destroy them
         with self._sessions_lock:
@@ -5502,7 +5553,7 @@ class CopilotClient:
         github_telemetry_adapter = None
         if self._on_github_telemetry is not None:
             github_telemetry_adapter = _GitHubTelemetryAdapter(self._on_github_telemetry)
-        kerberos_auth_adapter = (
+        kerberos_auth_adapter = self._kerberos_auth_adapter = (
             _KerberosAuthAdapter(self._options.kerberos_auth)
             if self._options.kerberos_auth is not None
             else None
@@ -5546,6 +5597,15 @@ class CopilotClient:
             if entra_token_adapter is not None:
                 entra_token_adapter.close_connection()
             installation_confirmation_adapter.close_connection()
+            if kerberos_auth_adapter is not None:
+                # Cancel this connection's own lookups: a reconnect may already have
+                # replaced the client's adapter.
+                loop = client._loop
+                if loop is not None and not loop.is_closed():
+                    try:
+                        loop.call_soon_threadsafe(kerberos_auth_adapter.cancel_pending)
+                    except RuntimeError:
+                        logger.debug("Event loop closed while handling connection loss")
             if self._client is client:
                 self._handle_connection_close()
 

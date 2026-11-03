@@ -688,6 +688,9 @@ type SessionCompactionStartData struct {
 	Execution *string `json:"execution,omitempty"`
 	// Model identifier used for compaction, when known
 	Model *string `json:"model,omitempty"`
+	// Number of trailing conversation messages (the turn's not-yet-answered input) kept verbatim after the summary instead of being compacted. Omitted when every message at compaction start is summarized.
+	// Internal: RetainedInputMessages is part of the SDK's internal API surface and is not intended for external use.
+	RetainedInputMessages *int64 `json:"retainedInputMessages,omitempty"`
 	// Destination model for a model-switch compaction when it differs from the compacting model; for a HydraFusion turn, the routed root model
 	SwitchTargetModel *string `json:"switchTargetModel,omitempty"`
 	// Token count from system message(s) at compaction start
@@ -2626,6 +2629,8 @@ type UserMessageData struct {
 	AgentMode *UserMessageAgentMode `json:"agentMode,omitempty"`
 	// Files, selections, or GitHub references attached to the message
 	Attachments []Attachment `json:"attachments,omitzero"`
+	// IDs of accepted assistant messages that caused this delivered inter-agent prompt, referring to assistant.message.data.messageId across the agent tree. Captured when sending and retained through queued or immediate delivery. An empty list means no model-produced dependency; absence means provenance is unavailable.
+	CausalDependencies []string `json:"causalDependencies,omitzero"`
 	// The user's message text as displayed in the timeline
 	Content string `json:"content"`
 	// How this message was delivered to the agentic loop relative to loop state (idle-start vs. steering/queued while busy). The timing axis; combine with `source` (origin) for the full picture. Used for telemetry attribution.
@@ -3421,6 +3426,8 @@ func (*SubagentStartedData) Type() SessionEventType { return SessionEventTypeSub
 
 // System-generated notification for runtime events like background task completion
 type SystemNotificationData struct {
+	// IDs of accepted assistant messages whose output this notification consumed, referring to assistant.message.data.messageId across the agent tree. Captured from the delivered snapshot, not the sender's later state. An empty list means no model-produced dependency; absence means provenance is unavailable.
+	CausalDependencies []string `json:"causalDependencies,omitzero"`
 	// The notification text, typically wrapped in <system_notification> XML tags
 	Content string `json:"content"`
 	// Structured metadata identifying what triggered this notification
@@ -3515,6 +3522,8 @@ func (*SessionAutopilotStoppedData) Type() SessionEventType {
 
 // Tool execution completion results including success status, detailed output, and error information
 type ToolExecutionCompleteData struct {
+	// IDs of accepted assistant messages whose output this tool result consumed, referring to assistant.message.data.messageId across the agent tree. Captured from the returned snapshot, including partial agent reads. An empty list means no model-produced dependency; absence means provenance is unavailable.
+	CausalDependencies []string `json:"causalDependencies,omitzero"`
 	// Error details when the tool execution failed
 	Error *ToolExecutionCompleteError `json:"error,omitempty"`
 	// Experimental. File mutations actually committed by a built-in file editing tool, in execution order. Present on successful edits and on partial failures when earlier mutations were committed. Paths are absolute in the session filesystem namespace.

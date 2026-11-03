@@ -20,7 +20,7 @@ use indexmap::IndexMap;
 pub use schemars::JsonSchema;
 
 use crate::Error;
-#[cfg(any(feature = "derive", test))]
+#[cfg(feature = "derive")]
 use crate::types::Tool;
 use crate::types::{ToolBinaryResult, ToolInvocation, ToolResult, ToolResultExpanded};
 

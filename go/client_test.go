@@ -3,6 +3,7 @@
 package copilot
 
 import (
+	"bufio"
 	"bytes"
 	"context"
 	"encoding/json"
@@ -873,6 +874,78 @@ func TestClient_StopDoesNotDeadlockWithLifecycleHandlerCallingClient(t *testing.
 	}
 	if err := <-handlerErr; !errors.Is(err, context.Canceled) {
 		t.Fatalf("GetSessionMetadata error = %v, want %v", err, context.Canceled)
+	}
+}
+
+func TestClient_FailedStartReleasesLifecycleHandlerWaitingForStartup(t *testing.T) {
+	listener, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		t.Fatalf("listen: %v", err)
+	}
+	t.Cleanup(func() { listener.Close() })
+	client := NewClient(&ClientOptions{Connection: URIConnection{URL: listener.Addr().String()}})
+
+	handlerEntered := make(chan struct{})
+	handlerErr := make(chan error, 1)
+	client.On(func(event SessionLifecycleEvent) {
+		close(handlerEntered)
+		_, err := client.GetSessionMetadata(context.Background(), event.SessionID)
+		handlerErr <- err
+	})
+
+	ctx, cancel := context.WithCancel(t.Context())
+	defer cancel()
+	started := make(chan error, 1)
+	go func() { started <- client.Start(ctx) }()
+	conn, err := listener.Accept()
+	if err != nil {
+		t.Fatalf("accept: %v", err)
+	}
+	t.Cleanup(func() { conn.Close() })
+	peer := &installationConfirmationPeer{t: t, conn: conn, reader: bufio.NewReader(conn)}
+	if method := peer.readMessage().Method; method != "connect" {
+		t.Fatalf("first request = %q, want connect", method)
+	}
+	// On a shared runtime, another client's session can be announced before
+	// this connection's handshake response. The handler runs on the reader and
+	// waits for startup, so the handshake response can no longer be read.
+	peer.notify("session.lifecycle", map[string]string{"type": "session.created", "sessionId": "session-1"})
+	waitForClosed(t, handlerEntered, "the lifecycle handler")
+	// Start then fails and must release the handler before joining the reader.
+	cancel()
+
+	type outcome struct {
+		StartCanceled   bool
+		HandlerCanceled bool
+		Stopped         bool
+	}
+	var got outcome
+	select {
+	case err := <-started:
+		got.StartCanceled = errors.Is(err, context.Canceled)
+	case <-time.After(5 * time.Second):
+		t.Fatal("Start deadlocked joining the reader that waits for startup")
+	}
+	select {
+	case err := <-handlerErr:
+		got.HandlerCanceled = errors.Is(err, context.Canceled)
+	case <-time.After(5 * time.Second):
+		t.Fatal("the operation waiting for startup was not released")
+	}
+	stopped := make(chan struct{})
+	go func() {
+		defer close(stopped)
+		_ = client.Stop()
+		client.ForceStop()
+	}()
+	select {
+	case <-stopped:
+		got.Stopped = true
+	case <-time.After(5 * time.Second):
+		t.Fatal("Stop or ForceStop deadlocked after the failed Start")
+	}
+	if want := (outcome{StartCanceled: true, HandlerCanceled: true, Stopped: true}); got != want {
+		t.Fatalf("got %+v, want %+v", got, want)
 	}
 }
 

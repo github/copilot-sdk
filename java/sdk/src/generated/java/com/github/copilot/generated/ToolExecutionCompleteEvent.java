@@ -37,6 +37,8 @@ public final class ToolExecutionCompleteEvent extends SessionEvent {
     @JsonIgnoreProperties(ignoreUnknown = true)
     @JsonInclude(JsonInclude.Include.NON_NULL)
     public record ToolExecutionCompleteEventData(
+        /** IDs of accepted assistant messages whose output this tool result consumed, referring to assistant.message.data.messageId across the agent tree. Captured from the returned snapshot, including partial agent reads. An empty list means no model-produced dependency; absence means provenance is unavailable. */
+        @JsonProperty("causalDependencies") List<String> causalDependencies,
         /** Unique identifier for the completed tool call */
         @JsonProperty("toolCallId") String toolCallId,
         /** Whether the tool execution completed successfully */

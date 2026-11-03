@@ -594,3 +594,17 @@ func TestElicitationResult_JSONOmitsNilContent(t *testing.T) {
 		t.Errorf("expected content to be omitted for nil map, got %v", decoded["content"])
 	}
 }
+
+func TestSessionMetadata_JSONReadsClientNames(t *testing.T) {
+	var metadata SessionMetadata
+	data := `{"sessionId":"session-1","startTime":"2026-01-01T00:00:00Z","modifiedTime":"2026-01-02T00:00:00Z","isRemote":false,"clientName":"github/cli","lastClientName":"vscode"}`
+	if err := json.Unmarshal([]byte(data), &metadata); err != nil {
+		t.Fatalf("failed to unmarshal SessionMetadata: %v", err)
+	}
+	if metadata.ClientName == nil || *metadata.ClientName != "github/cli" {
+		t.Errorf("expected client name github/cli, got %v", metadata.ClientName)
+	}
+	if metadata.LastClientName == nil || *metadata.LastClientName != "vscode" {
+		t.Errorf("expected last client name vscode, got %v", metadata.LastClientName)
+	}
+}

@@ -268,7 +268,7 @@ pub struct SessionContext {
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct LocalSessionMetadataValue {
-    /// Runtime client name that created/last resumed this session
+    /// Runtime client name that created this session
     #[serde(skip_serializing_if = "Option::is_none")]
     pub client_name: Option<String>,
     /// Pre-resolved working-directory context for session startup.
@@ -279,6 +279,9 @@ pub struct LocalSessionMetadataValue {
     pub is_detached: Option<bool>,
     /// Always false for local sessions.
     pub is_remote: bool,
+    /// Runtime client name that most recently ran this session: the client that created it, or a client that resumed it and then ran it. Resuming a session only to observe it does not change this. Omitted when unknown, such as for sessions persisted before this field existed.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub last_client_name: Option<String>,
     /// GitHub task ID, when this local session is bound to one. Only present for local sessions exported to remote control.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub mc_task_id: Option<String>,
@@ -14844,6 +14847,36 @@ pub struct SessionScheduleStopResult {
     /// The removed entry, or omitted if no entry matched.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub entry: Option<ScheduleEntry>,
+}
+
+/// Identifies the target session.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SessionCafeMetricsAttachParams {
+    /// Target session identifier
+    pub session_id: SessionId,
+}
+
+/// Identifies the target session.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SessionCafeMetricsDetachParams {
+    /// Target session identifier
+    pub session_id: SessionId,
 }
 
 /// Identifies the target session.

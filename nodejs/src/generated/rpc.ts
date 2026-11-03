@@ -710,6 +710,143 @@ export type BuiltinToolFormatType = /** The tool input is parsed with the suppli
 /** @experimental */
 export type BuiltinToolSafeForTelemetry = boolean | BuiltinToolSafeTelemetryFields;
 /**
+ * Embedded package identity.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "CafeMetricsEmbeddedPackageIdentity".
+ */
+/** @experimental */
+/** @internal */
+export type CafeMetricsEmbeddedPackageIdentity =
+  /** Development package. */
+  | "dev"
+  /** Release package. */
+  | "release";
+/**
+ * Last resume phase.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "CafeMetricsResumeStage".
+ */
+/** @experimental */
+/** @internal */
+export type CafeMetricsResumeStage =
+  /** Read the event log. */
+  | "event_log"
+  /** Construct the session. */
+  | "construction"
+  /** Restore the queue. */
+  | "queue_restore"
+  /** Resume complete. */
+  | "complete";
+/**
+ * Terminal resume outcome.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "CafeMetricsResumeOutcome".
+ */
+/** @experimental */
+/** @internal */
+export type CafeMetricsResumeOutcome =
+  /** Resumed. */
+  | "success"
+  /** Recovered and resumed. */
+  | "recovered"
+  /** Resume failed. */
+  | "failed"
+  /** No session found. */
+  | "not_found";
+/**
+ * Bounded resume reason, without error text.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "CafeMetricsResumeReason".
+ */
+/** @experimental */
+/** @internal */
+export type CafeMetricsResumeReason =
+  /** No detail. */
+  | "none"
+  /** Recovered event log. */
+  | "log_recovered"
+  /** Corrupt event log. */
+  | "log_corrupt"
+  /** Legacy format. */
+  | "legacy_format"
+  /** Recovery I/O failed. */
+  | "recovery_io"
+  /** Hydration failed. */
+  | "hydration"
+  /** Construction failed. */
+  | "construction"
+  /** Queue restore failed. */
+  | "queue"
+  /** Session not found. */
+  | "not_found";
+/**
+ * Immutable release lookup result.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "CafeMetricsResolveAdmissionRequest".
+ */
+/** @experimental */
+/** @internal */
+export type CafeMetricsResolveAdmissionRequest =
+  | {
+      kind: "success";
+      /**
+       * Finite non-negative lookup duration in milliseconds.
+       */
+      lookupDurationMs: number;
+      /**
+       * Release metadata from the lookup shared with auto-update.
+       */
+      releases: CafeMetricsRelease[];
+    }
+  | {
+      kind: "failed";
+      /**
+       * Finite non-negative lookup duration in milliseconds.
+       */
+      lookupDurationMs: number;
+    };
+/**
+ * Admission result.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "CafeMetricsResolveAdmissionResult".
+ */
+/** @experimental */
+/** @internal */
+export type CafeMetricsResolveAdmissionResult =
+  | {
+      kind: "applied";
+    }
+  | {
+      kind: "not-started";
+    }
+  | {
+      kind: "already-resolved";
+    }
+  | {
+      kind: "shutdown";
+    };
+/**
+ * Reason startup was refused.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "CafeMetricsStartRefusal".
+ */
+/** @experimental */
+/** @internal */
+export type CafeMetricsStartRefusal =
+  /** The process is offline. */
+  | "offline"
+  /** Unsupported platform. */
+  | "unsupportedPlatform"
+  /** The process already started CAFE. */
+  | "alreadyStarted";
+/**
  * JSON Schema for canvas open input
  *
  * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
@@ -2857,6 +2994,270 @@ export type FilterMapping =
       [k: string]: ContentFilterMode | undefined;
     }
   | ContentFilterMode;
+/**
+ * Rolled-up state of one pull-request check. GitHub's own conclusions are collapsed to these three so a caller renders a check without enumerating every API conclusion.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "GitHubPullRequestCheckStatus".
+ */
+/** @experimental */
+/** @internal */
+export type GitHubPullRequestCheckStatus =
+  /** The check concluded successfully, or was neutral or skipped. */
+  | "pass"
+  /** The check concluded unsuccessfully, timed out, or was cancelled. */
+  | "fail"
+  /** The check has not concluded, or reported a conclusion with no settled meaning. */
+  | "pending";
+/**
+ * Why a branch pull-request lookup reported what it did. The three unsuccessful outcomes are kept apart because each one asks the caller for something different.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "GitHubBranchPullRequestLookupStatus".
+ */
+/** @experimental */
+/** @internal */
+export type GitHubBranchPullRequestLookupStatus =
+  /** A matching pull request was found and is carried in `pullRequest`. */
+  | "found"
+  /** The credential resolved to no usable token, so the caller must authenticate. */
+  | "no-token"
+  /** The search succeeded and the branch has no matching pull request. */
+  | "no-pr"
+  /** The search itself could not be completed, so whether a pull request exists is unknown. */
+  | "lookup-failed";
+/**
+ * A runtime-owned GitHub or Copilot operation.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "GitHubFetchOperation".
+ */
+/** @experimental */
+/** @internal */
+export type GitHubFetchOperation =
+  /** Check repository access. */
+  | "repository-access"
+  /** Look up a branch. */
+  | "branch-exists"
+  /** Create a Copilot job. */
+  | "job-create"
+  /** Read a Copilot job. */
+  | "job-status"
+  /** List remote sessions. */
+  | "sessions-list"
+  /** Resolve pull requests through GraphQL. */
+  | "pull-requests-graphql"
+  /** Read a pull request. */
+  | "pull-request"
+  /** Read pull request files. */
+  | "pull-request-files";
+/**
+ * The HTTP response or a classified request failure.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "GitHubFetchResult".
+ */
+/** @experimental */
+/** @internal */
+export type GitHubFetchResult =
+  | {
+      kind: "response";
+      /**
+       * HTTP status, including non-success responses.
+       */
+      status: number;
+      /**
+       * HTTP status text.
+       */
+      statusText: string;
+      /**
+       * Final response URL.
+       */
+      url: string;
+      /**
+       * Response headers.
+       */
+      headers: GitHubFetchHeader[];
+      /**
+       * Complete response bytes encoded as base64.
+       */
+      bodyBase64: string;
+      /**
+       * Formatted non-success response for a named operation.
+       */
+      httpError?: GitHubFetchHttpError;
+    }
+  | {
+      kind: "circuit-breaker";
+      /**
+       * Complete circuit-breaker message.
+       */
+      message: string;
+      /**
+       * Host whose breaker is open.
+       */
+      host: string;
+      /**
+       * Remaining backoff in milliseconds.
+       */
+      timeUntilRetryMs: number;
+    }
+  | {
+      kind: "proxy-response";
+      /**
+       * Complete proxy failure message.
+       */
+      message: string;
+      /**
+       * HTTP proxy status.
+       */
+      status: number;
+    }
+  | {
+      kind: "failed";
+      /**
+       * Authentication, transport, or cancellation error.
+       */
+      message: string;
+    };
+/**
+ * How an asset download ended. A caller tells a refused response from a transport failure or a cancellation by this alone, without parsing `message`.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "GitHubReleaseDownloadKind".
+ */
+/** @experimental */
+/** @internal */
+export type GitHubReleaseDownloadKind =
+  /** The asset is on disk at `path`. */
+  | "downloaded"
+  /** GitHub answered with a status other than 2xx, including after the retry without the credential. `status` and `statusText` describe it. */
+  | "http-error"
+  /** The downloaded bytes did not match `expectedSha256`, and the file was removed. */
+  | "digest-mismatch"
+  /** `gitHubRelease.cancel` abandoned the download, and any partial file was removed. */
+  | "cancelled"
+  /** The download failed for any other reason, described by `message`. */
+  | "failed";
+/**
+ * How a release lookup ended. A caller tells a conclusive absence from a transport error by this alone, without parsing `message`.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "GitHubReleaseLookupKind".
+ */
+/** @experimental */
+/** @internal */
+export type GitHubReleaseLookupKind =
+  /** A release was found, and `releaseJson` carries it. */
+  | "found"
+  /** The tag names no release. Conclusive, not a failure. */
+  | "not-found"
+  /** The repository publishes no release matching the query at all. */
+  | "no-release"
+  /** GitHub refused the request for rate limiting. `message` is phrased for the user and already accounts for whether the lookup ran authenticated. */
+  | "rate-limited"
+  /** The lookup failed for any other reason, described by `message`. */
+  | "failed";
+/**
+ * Which release to look up. Enumerated rather than free text because the runtime accepts exactly these and rejects anything else.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "GitHubReleaseQuery".
+ */
+/** @experimental */
+/** @internal */
+export type GitHubReleaseQuery =
+  /** The newest stable command-line release. */
+  | "latest-stable"
+  /** The newest prerelease command-line release, which is found by scanning recent releases rather than by asking for the latest one. */
+  | "latest-prerelease"
+  /** The newest release of the desktop application. */
+  | "latest-app"
+  /** The release a specific tag names, supplied in `value`. */
+  | "tag"
+  /** Recent releases for process-scoped update and metrics decisions. */
+  | "release-list";
+/**
+ * Whether the caller runs a development build or a release package.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "GitHubReleasePackageIdentity".
+ */
+/** @experimental */
+/** @internal */
+export type GitHubReleasePackageIdentity =
+  /** Development builds are not eligible for release admission. */
+  | "dev"
+  /** The caller runs a release package. */
+  | "release";
+/**
+ * The release channel used for update selection.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "GitHubReleaseUpdateChannel".
+ */
+/** @experimental */
+/** @internal */
+export type GitHubReleaseUpdateChannel =
+  /** Select the newest stable release. */
+  | "stable"
+  /** Select the newest published release marked as a prerelease. A stable-only feed has no candidate. */
+  | "prerelease";
+/**
+ * The shared release result with its original lookup duration. Runtime worker faults remain RPC errors.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "GitHubReleaseSnapshotResult".
+ */
+/** @experimental */
+/** @internal */
+export type GitHubReleaseSnapshotResult =
+  | {
+      outcome: "success";
+      /**
+       * The original update channel.
+       */
+      updateChannel: GitHubReleaseUpdateChannel;
+      /**
+       * The original lookup duration in milliseconds.
+       */
+      lookupDurationMs: number;
+      /**
+       * Up to three stable releases, newest first.
+       */
+      latestStableReleases: GitHubReleaseSnapshotEntry[];
+      /**
+       * Prereleases newer than the newest stable release, newest first.
+       */
+      prereleasesNewerThanLatestStable: GitHubReleaseSnapshotEntry[];
+      /**
+       * The effective running version after the existing override rules.
+       */
+      runningVersion: string;
+      /**
+       * Whether the running release is eligible for release admission.
+       */
+      eligible: boolean;
+      /**
+       * The newest release in the selected update channel, when one exists.
+       */
+      automaticUpdateCandidate?: GitHubReleaseSnapshotEntry;
+    }
+  | {
+      outcome: "failed";
+      /**
+       * The original update channel.
+       */
+      updateChannel: GitHubReleaseUpdateChannel;
+      /**
+       * The original lookup duration in milliseconds.
+       */
+      lookupDurationMs: number;
+      /**
+       * The original user-facing lookup failure.
+       */
+      error: string;
+    };
 /**
  * Why the runtime is requesting a GitHub credential.
  *
@@ -8674,6 +9075,38 @@ export interface AccountGetGistSupportResult {
    */
   reason?: string;
 }
+/**
+ * Configured names of the GitHub host to resolve.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "AccountGetHostUrlRequest".
+ */
+/** @experimental */
+/** @internal */
+export interface AccountGetHostUrlRequest {
+  /**
+   * Host from the Copilot-specific setting, which wins when both are set. A bare hostname is normalized to `https://`.
+   */
+  copilotGhHost?: string;
+  /**
+   * Host from the general GitHub CLI setting, used when the Copilot-specific one is absent.
+   */
+  ghHost?: string;
+}
+/**
+ * Absolute base URL of the GitHub host.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "AccountGetHostUrlResult".
+ */
+/** @experimental */
+/** @internal */
+export interface AccountGetHostUrlResult {
+  /**
+   * Absolute base URL, for example `https://github.com`.
+   */
+  url: string;
+}
 
 /** @experimental */
 export interface AccountGetQuotaRequest {
@@ -8940,6 +9373,42 @@ export interface AccountStatus {
    * Human-readable availability or recovery reason.
    */
   statusMessage?: string;
+}
+/**
+ * The authentication identity to enroll in Copilot Free.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "AccountSubscribeCopilotFreeRequest".
+ */
+/** @experimental */
+/** @internal */
+export interface AccountSubscribeCopilotFreeRequest {
+  /**
+   * Identity to enroll, in the shape `session.gitHubAuth.getCurrentAuthInfo` returns. The runtime resolves the credential for it, so no credential is sent.
+   */
+  identity: AuthIdentity;
+}
+/**
+ * What came of a Copilot Free enrollment attempt.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "AccountSubscribeCopilotFreeResult".
+ */
+/** @experimental */
+/** @internal */
+export interface AccountSubscribeCopilotFreeResult {
+  /**
+   * `subscribed` when GitHub answered, and `status` then carries its answer. `no-token` when no credential could be resolved for the identity, which is the caller's cue to ask the user to sign in again rather than to report a failure. `failed` when the attempt itself errored, and `message` then explains it.
+   */
+  kind: string;
+  /**
+   * GitHub's enrollment status when `kind` is `subscribed`, for example `subscribed` or `already_subscribed`. Absent otherwise.
+   */
+  status?: string;
+  /**
+   * Explanation to show the user. Present on `failed`, and optionally alongside a `subscribed` status.
+   */
+  message?: string;
 }
 /**
  * Canonical directory where custom agents can be discovered or created, with scope, preference, and optional project path.
@@ -10817,6 +11286,112 @@ export interface BuiltinToolSafeTelemetryFields {
    * Whether tool input names may be included in telemetry without obfuscation.
    */
   inputsNames?: boolean;
+}
+/**
+ * Terminal result of one resume attempt.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "CafeMetricsRecordResumeResultRequest".
+ */
+/** @experimental */
+/** @internal */
+export interface CafeMetricsRecordResumeResultRequest {
+  /**
+   * Last phase reached.
+   */
+  stage: CafeMetricsResumeStage;
+  /**
+   * Terminal outcome.
+   */
+  outcome: CafeMetricsResumeOutcome;
+  /**
+   * Bounded result classification.
+   */
+  reason: CafeMetricsResumeReason;
+  /**
+   * Whether an event-log recovery projection was used.
+   */
+  recovered: boolean;
+}
+/**
+ * Release metadata without credentials or links.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "CafeMetricsRelease".
+ */
+/** @experimental */
+/** @internal */
+export interface CafeMetricsRelease {
+  /**
+   * Raw release tag.
+   */
+  tagName: string;
+  /**
+   * Whether this is a prerelease.
+   */
+  prerelease: boolean;
+  /**
+   * Whether this is a draft.
+   */
+  draft?: boolean;
+}
+/**
+ * Preliminary flush or final disposal.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "CafeMetricsShutdownRequest".
+ */
+/** @experimental */
+/** @internal */
+export interface CafeMetricsShutdownRequest {
+  /**
+   * Send at most one batch without stopping recording. Omission means disposal.
+   */
+  flushOnly?: boolean;
+}
+/**
+ * Versions and provider configuration for CAFE.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "CafeMetricsStartRequest".
+ */
+/** @experimental */
+/** @internal */
+export interface CafeMetricsStartRequest {
+  /**
+   * Effective comparison version and appVersion tag.
+   */
+  appVersion: string;
+  /**
+   * Raw package build version.
+   */
+  buildVersion: string;
+  /**
+   * Embedded package identity. Omission enables the unbundled development fallback.
+   */
+  embeddedPackageIdentity?: CafeMetricsEmbeddedPackageIdentity;
+  /**
+   * Whether the host uses a custom model provider.
+   */
+  customProviderConfigured: boolean;
+}
+/**
+ * CAFE startup result.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "CafeMetricsStartResult".
+ */
+/** @experimental */
+/** @internal */
+export interface CafeMetricsStartResult {
+  /**
+   * Whether this call started CAFE.
+   */
+  started: boolean;
+  /**
+   * Refusal reason, absent on success.
+   */
+  reason?: CafeMetricsStartRefusal;
 }
 /**
  * Cancellation result for a user-requested shell command.
@@ -13300,6 +13875,492 @@ export interface ClientTaskCancelResult {
    * True only when the owner confirms that external work stopped before responding
    */
   cancelled: boolean;
+}
+/**
+ * Describes the cloud coding-agent task to start and the credential to start it under. Target it either by repository, supplying both `repositoryOwner` and `repositoryName`, or by `owner` alone for an account-level run.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "CloudTasksCreateParams".
+ */
+/** @experimental */
+/** @internal */
+export interface CloudTasksCreateParams {
+  /**
+   * Explicit Mission Control endpoint selected by the host. Omission derives it from the identity.
+   */
+  baseUrl?: string;
+  /**
+   * The credential the task is created under, carried opaquely because its shape is the host's own and the runtime only resolves a token and an API endpoint from it.
+   */
+  authInfo: JsonValue;
+  /**
+   * Selects which stored credential to resolve when the host holds more than one. Omit it to resolve the default for the supplied `authInfo`.
+   */
+  authContextId?: string;
+  /**
+   * Name of the embedding client, reported to the service so it can attribute the request.
+   */
+  integrationId: string;
+  /**
+   * Account or organization owning the repository the task runs against. Supply it together with `repositoryName`.
+   */
+  repositoryOwner?: string;
+  /**
+   * Name of the repository the task runs against. Supply it together with `repositoryOwner`.
+   */
+  repositoryName?: string;
+  /**
+   * Account the task is created for when it is not tied to a repository. Supply it only when `repositoryOwner` and `repositoryName` are omitted.
+   */
+  owner?: string;
+}
+/**
+ * The outcome of starting a cloud task. A rejected request and a failed one are reported separately: `reason` and `message` describe a request the service declined, while `statusCode` and `errorMessage` describe the HTTP call itself and appear only when one was actually made.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "CloudTasksCreateResult".
+ */
+/** @experimental */
+/** @internal */
+export interface CloudTasksCreateResult {
+  /**
+   * Whether the task was created.
+   */
+  ok: boolean;
+  /**
+   * The created task record, as returned by the service. Present only when `ok` is true; a caller parses it itself because the runtime does not narrow the service's own shape.
+   */
+  responseJson?: string;
+  /**
+   * Why the request was declined, when it was. Carried as a free-form string rather than a fixed set because the vocabulary is the service's and grows with it; `policy_blocked`, `validation`, `rate_limited` and `error` are the values seen so far, and a caller should treat an unrecognised one as a generic failure rather than rejecting the response.
+   */
+  reason?: string;
+  /**
+   * The explanation to show for a declined request, when the service supplied one. This describes the rejection itself, unlike `errorMessage`, which describes a failed HTTP call.
+   */
+  message?: string;
+  /**
+   * HTTP status code of the response, when one was received.
+   */
+  statusCode?: number;
+  /**
+   * Human-readable explanation of a failed HTTP call, when one failed.
+   */
+  errorMessage?: string;
+  /**
+   * The error body the service returned, preserved verbatim so a host can surface the service's own message.
+   */
+  errorPayloadJson?: string;
+}
+/**
+ * Identifies one cloud coding-agent task to delete, and the credential to delete it under.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "CloudTasksDeleteParams".
+ */
+/** @experimental */
+/** @internal */
+export interface CloudTasksDeleteParams {
+  /**
+   * Explicit Mission Control endpoint selected by the host. Omission derives it from the identity.
+   */
+  baseUrl?: string;
+  /**
+   * The credential the deletion is performed under, carried opaquely because its shape is the host's own and the runtime only resolves a token and an API endpoint from it. Required: the task endpoint is per-account, so there is no unauthenticated form of this call.
+   */
+  authInfo: JsonValue;
+  /**
+   * Selects which stored credential to resolve when the host holds more than one. Omit it to resolve the default for the supplied `authInfo`.
+   */
+  authContextId?: string;
+  /**
+   * Name of the embedding client, reported to Mission Control so the service can attribute the request.
+   */
+  integrationId: string;
+  /**
+   * Identifier of the cloud task to delete.
+   */
+  taskId: string;
+}
+/**
+ * The HTTP outcome of deleting a cloud task. The deletion returns no body, so a successful call carries nothing beyond `ok`; a failed one is described by the remaining fields rather than raised as an error, so a caller can surface the service's own explanation.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "CloudTasksDeleteResult".
+ */
+/** @experimental */
+/** @internal */
+export interface CloudTasksDeleteResult {
+  /**
+   * Whether the service accepted the deletion.
+   */
+  ok: boolean;
+  /**
+   * HTTP status code of the response, when one was received.
+   */
+  statusCode?: number;
+  /**
+   * Human-readable failure explanation, when the call failed.
+   */
+  errorMessage?: string;
+  /**
+   * The error body the service returned, preserved verbatim so a host can surface the service's own message.
+   */
+  errorPayloadJson?: string;
+}
+/**
+ * Identifies one cloud coding-agent task and the credential to read it under.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "CloudTasksGetParams".
+ */
+/** @experimental */
+/** @internal */
+export interface CloudTasksGetParams {
+  /**
+   * The credential the read is performed under, carried opaquely because its shape is the host's own and the runtime only resolves a token from it. Required: the task endpoint is per-account, so there is no unauthenticated form of this read.
+   */
+  authInfo: JsonValue;
+  /**
+   * Selects which stored credential to resolve when the host holds more than one. Omit it to resolve the default for the supplied `authInfo`.
+   */
+  authContextId?: string;
+  /**
+   * Name of the embedding client, reported to the task API so the service can attribute the request.
+   */
+  integrationId: string;
+  /**
+   * Identifier of the cloud task to read.
+   */
+  taskId: string;
+}
+/**
+ * The HTTP outcome of reading a cloud task, rather than the task alone. A 404 arrives here as a non-ok result with `statusCode` 404, not as an error, so a caller can tell an absent task apart from a failed call.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "CloudTasksGetResult".
+ */
+/** @experimental */
+/** @internal */
+export interface CloudTasksGetResult {
+  /**
+   * Whether the API returned the task successfully.
+   */
+  ok: boolean;
+  /**
+   * The task record, as returned by the API. Present only when `ok` is true; a caller parses it itself because the runtime does not narrow the API's own shape.
+   */
+  payloadJson?: string;
+  /**
+   * HTTP status code of the response, when one was received.
+   */
+  statusCode?: number;
+  /**
+   * Human-readable failure explanation, when the call failed.
+   */
+  errorMessage?: string;
+  /**
+   * Categorised failure kind, when the call failed.
+   */
+  errorKind?: string;
+  /**
+   * The error body the API returned, preserved verbatim so a host can surface the service's own message.
+   */
+  errorPayloadJson?: string;
+}
+/**
+ * Identifies one cloud coding-agent session whose logs are to be read, and the credential to read them under.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "CloudTasksGetSessionLogsParams".
+ */
+/** @experimental */
+/** @internal */
+export interface CloudTasksGetSessionLogsParams {
+  /**
+   * The credential the read is performed under, carried opaquely because its shape is the host's own and the runtime only resolves a token and an API endpoint from it.
+   */
+  authInfo: JsonValue;
+  /**
+   * Selects which stored credential to resolve when the host holds more than one. Omit it to resolve the default for the supplied `authInfo`.
+   */
+  authContextId?: string;
+  /**
+   * Identifier of the cloud session whose logs are read.
+   */
+  sessionId: string;
+}
+/**
+ * The outcome of reading a cloud session's logs. `resolved` distinguishes "this credential has no Copilot API endpoint" from "the request was made and failed"; every other field describes a request that was actually attempted.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "CloudTasksGetSessionLogsResult".
+ */
+/** @experimental */
+/** @internal */
+export interface CloudTasksGetSessionLogsResult {
+  /**
+   * Whether a Copilot API endpoint could be resolved for the credential at all. When false no request was attempted and every other field is absent or empty, which a caller must not report as a transport failure.
+   */
+  resolved: boolean;
+  /**
+   * Whether the API returned the logs successfully. Meaningful only when `resolved` is true.
+   */
+  ok: boolean;
+  /**
+   * The logs, as returned by the API. Absent when none were returned; a caller that wants a list should treat absence as empty.
+   */
+  logsJson?: string;
+  /**
+   * Diagnostics the retrieval produced, in order. Worth logging whatever the outcome, because they explain a partial or empty result that is otherwise reported as success.
+   */
+  debugMessages?: string[];
+  /**
+   * A retrieval fault that is not an HTTP status, such as a malformed response body.
+   */
+  errorString?: string;
+  /**
+   * HTTP status code of the response, when one was received.
+   */
+  statusCode?: number;
+  /**
+   * Human-readable failure explanation, when the call failed.
+   */
+  errorMessage?: string;
+  /**
+   * Categorised failure kind, when the call failed.
+   */
+  errorKind?: string;
+  /**
+   * The error body the API returned, preserved verbatim so a host can surface the service's own message.
+   */
+  errorPayloadJson?: string;
+}
+/**
+ * Identifies one cloud coding-agent task whose recorded session is to be replayed, and the credential to read it under.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "CloudTasksGetSessionReplayParams".
+ */
+/** @experimental */
+/** @internal */
+export interface CloudTasksGetSessionReplayParams {
+  /**
+   * Explicit Mission Control endpoint selected by the host. Omission derives it from the identity.
+   */
+  baseUrl?: string;
+  /**
+   * The credential the read is performed under, carried opaquely because its shape is the host's own and the runtime only resolves a token and an API endpoint from it.
+   */
+  authInfo: JsonValue;
+  /**
+   * Selects which stored credential to resolve when the host holds more than one. Omit it to resolve the default for the supplied `authInfo`.
+   */
+  authContextId?: string;
+  /**
+   * Name of the embedding client, reported to the service so it can attribute the request.
+   */
+  integrationId: string;
+  /**
+   * Identifier of the cloud task whose recorded events are replayed.
+   */
+  taskId: string;
+}
+/**
+ * A cloud task's recorded events, ordered for replay. Read `preStart` first: it selects which of the two event lists a caller should use, and they differ deliberately.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "CloudTasksGetSessionReplayResult".
+ */
+/** @experimental */
+/** @internal */
+export interface CloudTasksGetSessionReplayResult {
+  /**
+   * The events to replay in order to reconstruct the session, as a JSON array. Empty when `preStart` is true, because a session that has not started has nothing to reconstruct and replaying its pending events would invent a history it never had.
+   */
+  replayEventsJson: string;
+  /**
+   * Every recorded event in the same replay order, as a JSON array, whether or not the session has started. This is the list to hand to a subsequent ingress so it can tell which events it has already seen, and unlike `replayEventsJson` it is never emptied.
+   */
+  observedEventsJson: string;
+  /**
+   * True when the task has recorded events but the session has not started yet, so only queued work exists. A started session is anchored by either `session.start` or, for a resumed one, `session.resume`.
+   */
+  preStart: boolean;
+}
+/**
+ * Identifies one cloud coding-agent task whose sharing status is to be read, and the credential to read it under.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "CloudTasksGetSharingStatusParams".
+ */
+/** @experimental */
+/** @internal */
+export interface CloudTasksGetSharingStatusParams {
+  /**
+   * Explicit Mission Control endpoint selected by the host. Omission derives it from the identity.
+   */
+  baseUrl?: string;
+  /**
+   * The credential the read is performed under, carried opaquely because its shape is the host's own and the runtime only resolves a token and an API endpoint from it. The token itself is never carried across the door.
+   */
+  authInfo: JsonValue;
+  /**
+   * Selects which stored credential to resolve when the host holds more than one. Omit it to resolve the default for the supplied `authInfo`.
+   */
+  authContextId?: string;
+  /**
+   * Name of the embedding client, reported to the service so it can attribute the request.
+   */
+  integrationId: string;
+  /**
+   * Identifier of the cloud task whose sharing status is read.
+   */
+  taskId: string;
+}
+/**
+ * Identifies one cloud coding-agent task to resolve to an openable session, the credential to resolve it under, and the local candidates the caller has already rejected.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "CloudTasksResolveTaskIdParams".
+ */
+/** @experimental */
+/** @internal */
+export interface CloudTasksResolveTaskIdParams {
+  /**
+   * Identifier of the cloud task to resolve.
+   */
+  taskId: string;
+  /**
+   * The credential the lookup is performed under, carried opaquely because its shape is the host's own and the runtime only resolves a token and an API endpoint from it. Required: the task endpoint is per-account, so there is no unauthenticated form of this call.
+   */
+  authInfo: JsonValue;
+  /**
+   * Selects which stored credential to resolve when the host holds more than one. Omit it to resolve the default for the supplied `authInfo`.
+   */
+  authContextId?: string;
+  /**
+   * Name of the embedding client, reported to Mission Control so the service can attribute the request.
+   */
+  integrationId: string;
+  /**
+   * Overrides the GitHub API base URL the task lookup goes to. Intended for testing against a non-production service; omit it in normal use.
+   */
+  debugGithubApiUrl?: string;
+  /**
+   * Directory holding persisted session state to scan for a local match. Omit it to use the default session home.
+   */
+  sessionsHome?: string;
+  /**
+   * Whether a task carrying no recorded CLI run still counts as a match. Set it when the caller wants the task itself, not only a run that already produced a session.
+   */
+  allowEmptyCliTask: boolean;
+  /**
+   * Whether the caller can open a cloud session. When false, a task that resolves only to a remote run is reported as unresumable instead, because the caller could not act on it.
+   */
+  hasRemoteSessionManager: boolean;
+  /**
+   * Local session identifiers the caller has already rejected, so resolution skips them and returns the next candidate. Pass the identifiers accumulated across earlier calls, not only the last one.
+   */
+  ignoredLocalSessionIds: string[];
+}
+/**
+ * What a caller should open for the task. The four outcomes are distinct and carry different payloads, so read `kind` before any other field.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "CloudTasksResolveTaskIdResult".
+ */
+/** @experimental */
+/** @internal */
+export interface CloudTasksResolveTaskIdResult {
+  /**
+   * Outcome of the resolution: `local-session` when a persisted session matched, `remote-session` when only a cloud run did, `unresumable-task` when the task exists but cannot be continued, `none` when nothing matched, and `error` when the service call failed.
+   */
+  kind: string;
+  /**
+   * Identifier of the matched local session. Present only when `kind` is `local-session`.
+   */
+  sessionId?: string;
+  /**
+   * The cloud session record, serialized, describing the run to open. Present only when `kind` is `remote-session`. It is carried as text because its shape is the service's own and the runtime does not narrow it.
+   */
+  metadataJson?: string;
+  /**
+   * Why the cloud lookup produced less than it could have, for logging. It accompanies a successful outcome as well, so it is not a failure signal.
+   */
+  diagnostic?: string;
+  /**
+   * Human-readable explanation of a failed service call. Present only when `kind` is `error`.
+   */
+  errorMessage?: string;
+  /**
+   * HTTP status code of the failed call, when one was received.
+   */
+  errorStatusCode?: number;
+  /**
+   * Machine-readable classification of the failure, when the service supplied one. The vocabulary is the service's and grows with it, so treat an unrecognized value as a generic failure.
+   */
+  errorKind?: string;
+  /**
+   * The error body the service returned, preserved verbatim so a host can surface the service's own message.
+   */
+  errorPayloadJson?: string;
+}
+/**
+ * Identifies one cloud coding-agent task whose sharing status is to be changed, the status to set, and the credential to change it under.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "CloudTasksSetSharingStatusParams".
+ */
+/** @experimental */
+/** @internal */
+export interface CloudTasksSetSharingStatusParams {
+  /**
+   * Explicit Mission Control endpoint selected by the host. Omission derives it from the identity.
+   */
+  baseUrl?: string;
+  /**
+   * The credential the change is performed under, carried opaquely because its shape is the host's own and the runtime only resolves a token and an API endpoint from it. The token itself is never carried across the door.
+   */
+  authInfo: JsonValue;
+  /**
+   * Selects which stored credential to resolve when the host holds more than one. Omit it to resolve the default for the supplied `authInfo`.
+   */
+  authContextId?: string;
+  /**
+   * Name of the embedding client, reported to the service so it can attribute the request.
+   */
+  integrationId: string;
+  /**
+   * Identifier of the cloud task whose sharing status is changed.
+   */
+  taskId: string;
+  /**
+   * The sharing status to set, sent to the service verbatim. It is a free-form string rather than a closed set because the service owns these values and may add one; narrowing it here would reject a status the service accepts.
+   */
+  sharingStatus: string;
+}
+/**
+ * The sharing status a cloud task carries after the call. Read `credentialResolved` first: when it is false no request was attempted at all, which is a different outcome from a request the service declined.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "CloudTasksSharingStatusResult".
+ */
+/** @experimental */
+/** @internal */
+export interface CloudTasksSharingStatusResult {
+  /**
+   * Whether a credential could be resolved for the supplied `authInfo` at all. When false no request was attempted and every other field is absent, which a caller must not report as a transport failure: the account simply has no usable credential.
+   */
+  credentialResolved: boolean;
+  /**
+   * Whether the service returned the task successfully. Meaningful only when `credentialResolved` is true.
+   */
+  ok: boolean;
+  /**
+   * The task's sharing status, as the service reported it. Absent when the call did not succeed, and also when the service returned a task that carries no sharing status at all. It is a free-form string rather than a closed set because the service owns these values; a caller that only understands some of them should treat an unrecognized one as unknown rather than as an error.
+   */
+  sharingStatus?: string;
 }
 /**
  * Slash commands available in the session, after applying any include/exclude filters.
@@ -16447,6 +17508,410 @@ export interface GitCwdRequest {
   cwd: string;
 }
 /**
+ * The pull request a branch is open against, with the review state a caller needs to summarize it without a second request.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "GitHubBranchPullRequest".
+ */
+/** @experimental */
+/** @internal */
+export interface GitHubBranchPullRequest {
+  /**
+   * Owner login of the repository the pull request was opened against.
+   */
+  owner: string;
+  /**
+   * Name of the repository the pull request was opened against.
+   */
+  repo: string;
+  /**
+   * Pull request title.
+   */
+  title: string;
+  /**
+   * Pull request state as GitHub reports it, such as `OPEN`, `CLOSED` or `MERGED`.
+   */
+  state: string;
+  /**
+   * Web URL of the pull request.
+   */
+  url: string;
+  /**
+   * Pull request number within its repository.
+   */
+  number: number;
+  /**
+   * Pull request description body. Empty when the pull request has none.
+   */
+  body: string;
+  /**
+   * Label names applied to the pull request.
+   */
+  labels: string[];
+  /**
+   * Number of comments on the pull request.
+   */
+  comments: number;
+  /**
+   * Logins of the requested reviewers.
+   */
+  reviewers: string[];
+  /**
+   * Whether the pull request is a draft.
+   */
+  isDraft: boolean;
+  /**
+   * Head branch name the pull request was opened from.
+   */
+  headRefName: string;
+  /**
+   * Lines added across the pull request.
+   */
+  additions: number;
+  /**
+   * Lines deleted across the pull request.
+   */
+  deletions: number;
+  /**
+   * Number of files the pull request changes.
+   */
+  changedFiles: number;
+  /**
+   * Checks reported against the pull request's head commit.
+   */
+  checks: GitHubPullRequestCheck[];
+}
+/**
+ * One check reported against a pull request's head commit.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "GitHubPullRequestCheck".
+ */
+/** @experimental */
+/** @internal */
+export interface GitHubPullRequestCheck {
+  /**
+   * Name the check reports itself under.
+   */
+  name: string;
+  /**
+   * Rolled-up state of the check.
+   */
+  status: GitHubPullRequestCheckStatus;
+}
+/**
+ * Selects the pull request a branch is open against, and the credential to look it up under. The branch is searched across every repository in `baseRepositories`, which lets a fork's branch find the pull request it opened against upstream.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "GitHubBranchPullRequestLookupRequest".
+ */
+/** @experimental */
+/** @internal */
+export interface GitHubBranchPullRequestLookupRequest {
+  /**
+   * The credential the lookup runs under, carried opaquely because its shape is the host's own and the runtime only resolves a token and a GitHub host from it. Required: the search answers per-account, so a pull request invisible to this credential is reported as absent rather than refused.
+   */
+  authInfo: JsonValue;
+  /**
+   * Login that must own the pull request's head branch. A branch name alone is ambiguous across forks, so a candidate whose head is owned by anyone else is discarded.
+   */
+  headOwner: string;
+  /**
+   * Repositories to search for the pull request, in preference order. A fork supplies both its own repository and its upstream, because the branch may have opened the pull request against either.
+   */
+  baseRepositories: GitHubRepositoryOwnerName[];
+  /**
+   * Head branch name to find the pull request for, without a `refs/heads/` prefix.
+   */
+  branch: string;
+  /**
+   * Whether a closed or merged pull request counts as a match. False considers only open ones, so a caller acting on the branch's current pull request does not resurface a merged one.
+   */
+  includeClosed: boolean;
+}
+/**
+ * Owner and name of a GitHub repository. Deliberately distinct from `GitHubRepositoryIdentity`, which also carries a host: a by-id lookup takes the host as an input and the API's answer reports none, so there is no host here to report faithfully.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "GitHubRepositoryOwnerName".
+ */
+/** @experimental */
+/** @internal */
+export interface GitHubRepositoryOwnerName {
+  /**
+   * Repository owner login (user or organization).
+   */
+  owner: string;
+  /**
+   * Repository name, without the owner prefix or the `.git` suffix.
+   */
+  name: string;
+}
+/**
+ * Outcome of a branch pull-request lookup. `status` carries why, because 'not authenticated', 'no pull request' and 'the search failed' are three different answers and only the first two are conclusive.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "GitHubBranchPullRequestLookupResult".
+ */
+/** @experimental */
+/** @internal */
+export interface GitHubBranchPullRequestLookupResult {
+  /**
+   * Why the lookup reported what it did.
+   */
+  status: GitHubBranchPullRequestLookupStatus;
+  /**
+   * The matching pull request, or null for every status other than `found`.
+   */
+  pullRequest?: GitHubBranchPullRequest | null;
+}
+/**
+ * Whether cancellation reached a registered GitHub request.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "GitHubFetchCancelResult".
+ */
+/** @experimental */
+/** @internal */
+export interface GitHubFetchCancelResult {
+  /**
+   * True when cancellation reached a registered request.
+   */
+  canceled: boolean;
+}
+/**
+ * One HTTP header in an ordered list.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "GitHubFetchHeader".
+ */
+/** @experimental */
+/** @internal */
+export interface GitHubFetchHeader {
+  /**
+   * HTTP header name. The list preserves order and repeated names.
+   */
+  name: string;
+  /**
+   * HTTP header value.
+   */
+  value: string;
+}
+/**
+ * A user-facing HTTP failure formatted in the runtime.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "GitHubFetchHttpError".
+ */
+/** @experimental */
+/** @internal */
+export interface GitHubFetchHttpError {
+  /**
+   * Complete user-facing error text.
+   */
+  message: string;
+  /**
+   * Parsed response body serialized as JSON, when available.
+   */
+  responseBodyJson?: string;
+}
+/**
+ * Arguments for a named authenticated operation.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "GitHubFetchOperationRequest".
+ */
+/** @experimental */
+/** @internal */
+export interface GitHubFetchOperationRequest {
+  /**
+   * A fresh request id.
+   */
+  requestId: number;
+  /**
+   * Session whose auth manager to use. Omission selects the process manager.
+   */
+  sessionId?: string;
+  /**
+   * Opaque selector for a live host-owned credential binding. Only the owning host connection may use it.
+   */
+  authOwnerId?: string;
+  /**
+   * The operation to execute.
+   */
+  operation: GitHubFetchOperation;
+  /**
+   * Named operation arguments, such as owner, repo, or jobId.
+   */
+  params: {
+    [k: string]: string | undefined;
+  };
+  /**
+   * JSON request body, preserved as supplied.
+   */
+  bodyJson?: string;
+}
+/**
+ * A pre-resolved address for a GitHub request.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "GitHubFetchPinnedAddress".
+ */
+/** @experimental */
+export interface GitHubFetchPinnedAddress {
+  /**
+   * Address the network transport must use.
+   */
+  address: string;
+}
+/**
+ * Proxy environment for one authenticated GitHub request.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "GitHubFetchProxyEnvironment".
+ */
+/** @experimental */
+export interface GitHubFetchProxyEnvironment {
+  /**
+   * Proxy for HTTP requests.
+   */
+  httpProxy?: string;
+  /**
+   * Proxy for HTTPS requests.
+   */
+  httpsProxy?: string;
+  /**
+   * Hosts that bypass the proxy.
+   */
+  noProxy?: string;
+}
+/**
+ * A GitHub API request without caller-supplied auth identity or credential fields.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "GitHubFetchRequest".
+ */
+/** @experimental */
+/** @internal */
+export interface GitHubFetchRequest {
+  /**
+   * A fresh request id.
+   */
+  requestId: number;
+  /**
+   * Session whose auth manager to use. Omission selects the process manager.
+   */
+  sessionId?: string;
+  /**
+   * Opaque selector for a live host-owned credential binding. Only the owning host connection may use it.
+   */
+  authOwnerId?: string;
+  /**
+   * HTTP method.
+   */
+  method: string;
+  /**
+   * Absolute URL on the resolved GitHub API origin.
+   */
+  url: string;
+  /**
+   * Caller-supplied HTTP headers.
+   */
+  headers: GitHubFetchHeader[];
+  /**
+   * Request bytes encoded as base64. Absent for a request without a body.
+   */
+  bodyBase64?: string;
+  /**
+   * API label used in runtime diagnostics.
+   */
+  apiName: string;
+  /**
+   * Optional retry overrides.
+   */
+  retryOptions?: GitHubFetchRetryConfig;
+  /**
+   * Redirect behavior. Defaults to following redirects.
+   */
+  redirect?: string;
+  /**
+   * Total request timeout in milliseconds.
+   */
+  timeoutMs?: number;
+  /**
+   * Response read timeout in milliseconds. Defaults to 700000.
+   */
+  readTimeoutMs?: number;
+  /**
+   * Maximum response body size in bytes.
+   */
+  bodyLimitBytes?: number;
+  /**
+   * Whether the request bypasses idle connections.
+   */
+  disableConnectionReuse?: boolean;
+  /**
+   * Explicit proxy environment. Omission uses the process environment.
+   */
+  proxyEnv?: GitHubFetchProxyEnvironment;
+  /**
+   * Addresses to pin for this request, without another DNS lookup.
+   */
+  pinnedAddresses?: GitHubFetchPinnedAddress[];
+  /**
+   * Whether the request permits loopback addresses. Defaults to true.
+   */
+  allowLocalhost?: boolean;
+  /**
+   * Whether the proxy uses Negotiate authentication.
+   */
+  proxyNegotiateAuth?: boolean;
+  /**
+   * Optional service principal for proxy Negotiate authentication.
+   */
+  proxyNegotiateSpn?: string;
+}
+/**
+ * Optional overrides for the runtime retry policy.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "GitHubFetchRetryConfig".
+ */
+/** @experimental */
+/** @internal */
+export interface GitHubFetchRetryConfig {
+  /**
+   * Maximum retries; the runtime default is five.
+   */
+  maxRetries?: number;
+  /**
+   * Initial retry delay; the runtime default is five seconds.
+   */
+  defaultRetryDelaySeconds?: number;
+  /**
+   * Delay multiplier; the runtime default is two.
+   */
+  backoffFactor?: number;
+  /**
+   * Whether repeated failures open the runtime circuit breaker. Defaults to true.
+   */
+  enableCircuitBreaker?: boolean;
+}
+/**
+ * One registered GitHub request, shared by execution and cancellation.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "GitHubFetchRequestId".
+ */
+/** @experimental */
+/** @internal */
+export interface GitHubFetchRequestId {
+  /**
+   * One fresh id from `gitHubFetch.allocateRequestId`.
+   */
+  requestId: number;
+}
+/**
  * A GitHub login the authenticated user may act as: their own account, or an organization they belong to.
  *
  * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
@@ -16551,6 +18016,298 @@ export interface GitHubOwnersRequestIdResult {
   requestId: number;
 }
 /**
+ * An unused release allocation that this caller will never dispatch. This is separate from cancellation before a request arrives.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "GitHubReleaseAbandonRequestParams".
+ */
+/** @experimental */
+/** @internal */
+export interface GitHubReleaseAbandonRequestParams {
+  /**
+   * The unused request id owned by this connection.
+   */
+  requestId: number;
+}
+/**
+ * Whether the runtime retired an unused allocation without affecting active work.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "GitHubReleaseAbandonRequestResult".
+ */
+/** @experimental */
+/** @internal */
+export interface GitHubReleaseAbandonRequestResult {
+  /**
+   * True only when this connection owned an unclaimed allocation with no active guard. False for active, foreign, unknown or previously retired ids. A successful abandonment prevents any later use of that id.
+   */
+  abandoned: boolean;
+}
+/**
+ * The release lookup or asset download to abandon.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "GitHubReleaseCancelRequest".
+ */
+/** @experimental */
+/** @internal */
+export interface GitHubReleaseCancelRequest {
+  /**
+   * Request id the lookup or download was started with.
+   */
+  requestId: number;
+}
+/**
+ * Whether the cancel reached live work.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "GitHubReleaseCancelResult".
+ */
+/** @experimental */
+/** @internal */
+export interface GitHubReleaseCancelResult {
+  /**
+   * True when the cancel reached a registered lookup or download; that call's own result still says how it ended. False when the id names none, which is the normal answer for work that already finished.
+   */
+  canceled: boolean;
+}
+/**
+ * Which release asset to download, the credential to download it under, and the request id that makes the download cancellable.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "GitHubReleaseDownloadAssetRequest".
+ */
+/** @experimental */
+/** @internal */
+export interface GitHubReleaseDownloadAssetRequest {
+  /**
+   * Request id from `gitHubRelease.allocateRequestId`. An id that was never registered, or one already used, is refused rather than silently running uncancellable.
+   */
+  requestId: number;
+  /**
+   * The asset's `browser_download_url` from the release JSON: an HTTPS release download URL of a repository that `gitHubRelease.lookup` serves.
+   */
+  assetUrl: string;
+  /**
+   * The credential the download runs under, carried opaquely because its shape is the host's own and the runtime only resolves a token from it. No credential travels: this selects one the runtime already holds. Omitted when the caller has no credential, which still succeeds against the public release repository at a lower rate limit.
+   */
+  authInfo?: JsonValue;
+  /**
+   * Expected SHA-256 of the asset: 64 hex digits in either case, or the release asset's `digest` value as is (`sha256:` and the hex digits). When given and the downloaded bytes differ, the file is removed and the result is `digest-mismatch`.
+   */
+  expectedSha256?: string;
+  /**
+   * Snapshot request id from this connection. The download retains that snapshot's original credential source instead of authInfo. Missing, foreign, canceled, or revoked references fail without fallback. Omission preserves ordinary downloads. The download still uses its own requestId for progress and cancellation.
+   */
+  snapshotRequestId?: number;
+}
+/**
+ * Outcome of an asset download. Each field is present only for the kinds its description names.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "GitHubReleaseDownloadAssetResult".
+ */
+/** @experimental */
+/** @internal */
+export interface GitHubReleaseDownloadAssetResult {
+  /**
+   * How the download ended.
+   */
+  kind: GitHubReleaseDownloadKind;
+  /**
+   * Absolute path of the downloaded file, for `downloaded`. The file is alone in a fresh directory that the caller deletes once it has used the file.
+   */
+  path?: string;
+  /**
+   * Size of the downloaded file in bytes, for `downloaded`.
+   */
+  sizeBytes?: number;
+  /**
+   * SHA-256 of the downloaded bytes as lowercase hex, for `downloaded` and `digest-mismatch`.
+   */
+  sha256?: string;
+  /**
+   * HTTP status of the final response, for `http-error`.
+   */
+  status?: number;
+  /**
+   * HTTP status text of the final response, for `http-error`.
+   */
+  statusText?: string;
+  /**
+   * Why the download produced no file, phrased for a user, for `digest-mismatch` and `failed`.
+   */
+  message?: string;
+}
+/**
+ * The download whose progress to report.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "GitHubReleaseDownloadProgressRequest".
+ */
+/** @experimental */
+/** @internal */
+export interface GitHubReleaseDownloadProgressRequest {
+  /**
+   * Request id the download was started with.
+   */
+  requestId: number;
+}
+/**
+ * Byte progress of a running download.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "GitHubReleaseDownloadProgressResult".
+ */
+/** @experimental */
+/** @internal */
+export interface GitHubReleaseDownloadProgressResult {
+  /**
+   * Bytes written so far.
+   */
+  receivedBytes: number;
+  /**
+   * Size the server announced for the body. Omitted when it announced none.
+   */
+  totalBytes?: number;
+}
+/**
+ * Which release to look up, the credential to look it up under, and the request id that makes the lookup cancellable.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "GitHubReleaseLookupRequest".
+ */
+/** @experimental */
+/** @internal */
+export interface GitHubReleaseLookupRequest {
+  /**
+   * Request id from `gitHubRelease.allocateRequestId`. An id that was never registered, or one already used, is refused rather than silently running uncancellable.
+   */
+  requestId: number;
+  /**
+   * Which release to look up.
+   */
+  query: GitHubReleaseQuery;
+  /**
+   * The credential the lookup runs under, carried opaquely because its shape is the host's own and the runtime only resolves a token and a GitHub host from it. No credential travels: this selects one the runtime already holds. Omitted when the caller has no credential, which still succeeds against the public release repository at a lower rate limit.
+   */
+  authInfo?: JsonValue;
+  /**
+   * The tag to look up. Required by the `tag` query and ignored by the others.
+   */
+  value?: string;
+}
+/**
+ * Outcome of a release lookup. `releaseJson` is present only for `found`, and `message` only for the kinds that carry an explanation.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "GitHubReleaseLookupResult".
+ */
+/** @experimental */
+/** @internal */
+export interface GitHubReleaseLookupResult {
+  /**
+   * How the lookup ended.
+   */
+  kind: GitHubReleaseLookupKind;
+  /**
+   * The release as GitHub's own JSON, verbatim. Carried as text rather than a modelled type so the contract does not have to track every field of GitHub's release payload, and so a caller reads the same shape the REST API documents.
+   */
+  releaseJson?: string;
+  /**
+   * Why the lookup produced no release, phrased for a user.
+   */
+  message?: string;
+}
+/**
+ * A freshly registered request id. Registering it before the work starts is what lets a cancel that races the request still find something to cancel.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "GitHubReleaseRequestIdResult".
+ */
+/** @experimental */
+/** @internal */
+export interface GitHubReleaseRequestIdResult {
+  /**
+   * Request id to pass to `gitHubRelease.lookup` or `gitHubRelease.downloadAsset` and, to abandon the work, `gitHubRelease.cancel`.
+   */
+  requestId: number;
+}
+/**
+ * An asset in the release snapshot. GitHub field names remain unchanged.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "GitHubReleaseSnapshotAsset".
+ */
+/** @experimental */
+/** @internal */
+export interface GitHubReleaseSnapshotAsset {
+  /**
+   * The published asset filename.
+   */
+  name: string;
+  /**
+   * The published download URL.
+   */
+  browser_download_url: string;
+}
+/**
+ * Release facts needed for update selection and admission. GitHub field names remain unchanged.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "GitHubReleaseSnapshotEntry".
+ */
+/** @experimental */
+/** @internal */
+export interface GitHubReleaseSnapshotEntry {
+  /**
+   * The release tag.
+   */
+  tag_name: string;
+  /**
+   * Whether GitHub marks this release as a prerelease.
+   */
+  prerelease: boolean;
+  /**
+   * Whether GitHub marks this release as a draft.
+   */
+  draft: boolean;
+  /**
+   * The published release assets.
+   */
+  assets: GitHubReleaseSnapshotAsset[];
+}
+/**
+ * Immutable options for one connection-owned release snapshot.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "GitHubReleaseSnapshotRequest".
+ */
+/** @experimental */
+/** @internal */
+export interface GitHubReleaseSnapshotRequest {
+  /**
+   * An unused id from gitHubRelease.allocateRequestId. Reuse the same id and options to read the same snapshot.
+   */
+  requestId: number;
+  /**
+   * The release channel used for update selection.
+   */
+  updateChannel: GitHubReleaseUpdateChannel;
+  /**
+   * The version embedded in the caller's build.
+   */
+  buildVersion: string;
+  /**
+   * Optional runtime version override. Invalid or noncanonical values do not replace buildVersion.
+   */
+  cliVersionOverride?: string;
+  /**
+   * The embedded package identity. Omission uses the existing development-version fallback rule.
+   */
+  packageIdentity?: GitHubReleasePackageIdentity;
+}
+/**
  * Working-tree path whose owning GitHub repository should be resolved.
  *
  * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
@@ -16598,6 +18355,42 @@ export interface GitHubRepositoryIdentity {
    * Host the remote points at, for example `github.com` or a GitHub Enterprise hostname.
    */
   host: string;
+}
+/**
+ * Selects a GitHub repository by its numeric repository id, and the credential to look it up under.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "GitHubRepositoryByIdRequest".
+ */
+/** @experimental */
+/** @internal */
+export interface GitHubRepositoryByIdRequest {
+  /**
+   * The credential the lookup runs under, carried opaquely because its shape is the host's own and the runtime only resolves a token and a GitHub host from it. Required: the endpoint answers per-account, so a repository invisible to this credential is reported as absent rather than refused.
+   */
+  authInfo: JsonValue;
+  /**
+   * Selects which stored credential to resolve when the host holds more than one. Omit it to resolve the default for the supplied `authInfo`.
+   */
+  authContextId?: string;
+  /**
+   * GitHub's own numeric identifier for the repository, as carried by API payloads that reference a repository by id rather than by owner and name.
+   */
+  repositoryId: number;
+}
+/**
+ * The repository the requested id names, when the credential can see one.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "GitHubRepositoryByIdResult".
+ */
+/** @experimental */
+/** @internal */
+export interface GitHubRepositoryByIdResult {
+  /**
+   * Owner and name of the repository, or null when the id names no repository visible to the credential.
+   */
+  repository?: GitHubRepositoryOwnerName | null;
 }
 /**
  * Client environment metadata describing the process that produced a telemetry event.
@@ -19357,7 +21150,7 @@ export interface LocalSessionMetadataValue {
    */
   name?: string;
   /**
-   * Runtime client name that created/last resumed this session
+   * Runtime client name that created this session
    */
   clientName?: string;
   /**
@@ -19376,6 +21169,10 @@ export interface LocalSessionMetadataValue {
    * GitHub task ID, when this local session is bound to one. Only present for local sessions exported to remote control.
    */
   mcTaskId?: string;
+  /**
+   * Runtime client name that most recently ran this session: the client that created it, or a client that resumed it and then ran it. Resuming a session only to observe it does not change this. Omitted when unknown, such as for sessions persisted before this field existed.
+   */
+  lastClientName?: string;
 }
 /**
  * Pre-resolved working-directory context for session startup.
@@ -20730,6 +22527,10 @@ export interface MarketplaceInfo {
    * Whether the managed marketplace currently resolved into the runtime marketplace registry. Set to false when the desired managed entry is retained for governance visibility after loading or reconciliation failed.
    */
   available?: boolean;
+  /**
+   * True when the signed-in account's GitHub Team provides this marketplace and no user, repository, or default entry of the same name exists. Team marketplaces are not persisted, so they cannot be removed.
+   */
+  team?: boolean;
 }
 /**
  * All registered marketplaces, including built-in defaults.
@@ -44163,6 +45964,24 @@ export function createInternalServerRpc(connection: MessageConnection) {
              */
             getTokenEnvVar: async (): Promise<AccountGetTokenEnvVarResult> =>
                 connection.sendRequest("account.getTokenEnvVar", {}),
+            /**
+             * Enrolls the supplied identity in Copilot Free. A host offers this when a signed-in user has no Copilot subscription, so that signing up does not mean leaving for a browser. The runtime resolves the identity's credential itself, so the caller sends none. Read `kind` before `status`: an identity whose credential cannot be resolved answers `no-token` rather than failing the call, because that asks the user to sign in again rather than reporting that enrollment broke. Enrolling an already-enrolled account succeeds and reports `already_subscribed`. This does not refresh the caller's cached account state; a host that shows subscription status should re-read it afterwards.
+             *
+             * @param params The authentication identity to enroll in Copilot Free.
+             *
+             * @returns What came of a Copilot Free enrollment attempt.
+             */
+            subscribeCopilotFree: async (params: AccountSubscribeCopilotFreeRequest): Promise<AccountSubscribeCopilotFreeResult> =>
+                connection.sendRequest("account.subscribeCopilotFree", params),
+            /**
+             * Resolves the base URL of the GitHub host from its configured names, normalizing a bare hostname into an `https://` URL and falling back to the public github.com host when neither name is set. Unlike `account.getWebUrl` this needs no identity, so a host can reach it before anyone has signed in -- which is when an enterprise instance must already be known.
+             *
+             * @param params Configured names of the GitHub host to resolve.
+             *
+             * @returns Absolute base URL of the GitHub host.
+             */
+            getHostUrl: async (params: AccountGetHostUrlRequest): Promise<AccountGetHostUrlResult> =>
+                connection.sendRequest("account.getHostUrl", params),
         },
         /** @experimental */
         mcp: {
@@ -44378,6 +46197,24 @@ export function createInternalServerRpc(connection: MessageConnection) {
              */
             atPath: async (params: GitHubRepositoryAtPathRequest): Promise<GitHubRepositoryAtPathResult> =>
                 connection.sendRequest("gitHubRepository.atPath", params),
+            /**
+             * Resolves the owner and name of a GitHub repository from its numeric repository id, by asking the GitHub API under the supplied credential. Returns a null `repository` when the id names nothing the credential can see, which the API reports as a 404, so a caller can tell 'no such visible repository' apart from a request that failed. The host queried is derived from `authInfo` rather than supplied separately, so the lookup always runs against the account's own GitHub host.
+             *
+             * @param params Selects a GitHub repository by its numeric repository id, and the credential to look it up under.
+             *
+             * @returns The repository the requested id names, when the credential can see one.
+             */
+            getById: async (params: GitHubRepositoryByIdRequest): Promise<GitHubRepositoryByIdResult> =>
+                connection.sendRequest("gitHubRepository.getById", params),
+            /**
+             * Finds the pull request a branch is open against, searching every repository in `baseRepositories` so a fork's branch finds the pull request it opened upstream. A candidate is discarded unless `headOwner` owns its head branch, because a branch name alone is ambiguous across forks. `status` separates 'not authenticated', 'no such pull request' and 'the search failed', so a caller can tell a conclusive absence apart from an unknown one. The host queried is derived from `authInfo` rather than supplied separately, so the lookup always runs against the account's own GitHub host.
+             *
+             * @param params Selects the pull request a branch is open against, and the credential to look it up under. The branch is searched across every repository in `baseRepositories`, which lets a fork's branch find the pull request it opened against upstream.
+             *
+             * @returns Outcome of a branch pull-request lookup. `status` carries why, because 'not authenticated', 'no pull request' and 'the search failed' are three different answers and only the first two are conclusive.
+             */
+            lookupBranchPullRequest: async (params: GitHubBranchPullRequestLookupRequest): Promise<GitHubBranchPullRequestLookupResult> =>
+                connection.sendRequest("gitHubRepository.lookupBranchPullRequest", params),
         },
         /** @experimental */
         gitHubOwners: {
@@ -44565,6 +46402,217 @@ export function createInternalServerRpc(connection: MessageConnection) {
              */
             listEntries: async (params: AgentRegistryListEntriesRequest): Promise<AgentRegistryListEntriesResult> =>
                 connection.sendRequest("agentRegistry.listEntries", params),
+        },
+        /** @experimental */
+        gitHubFetch: {
+            /**
+             * Registers one authenticated GitHub API request before it starts, so cancellation can name the operation. Each request claims its id once. Refused for extensions.
+             *
+             * @returns One registered GitHub request, shared by execution and cancellation.
+             */
+            allocateRequestId: async (): Promise<GitHubFetchRequestId> =>
+                connection.sendRequest("gitHubFetch.allocateRequestId", {}),
+            /**
+             * Calls the GitHub API with session credentials, or process credentials when sessionId is absent. A bound host can select its existing auth handle with authOwnerId. The URL must match that identity's API origin or the runtime's explicit debug API origin. Retries and eligible redirects resolve the current credential again. Explicit caller Authorization remains unchanged; cross-origin redirects discard credentials without restoring them on later hops. Release asset bodies require gitHubRelease.downloadAsset. JSON asset metadata and other response bodies remain supported. The runtime supplies a default User-Agent and records request diagnostics. Extensions cannot use this method.
+             *
+             * @param params A GitHub API request without caller-supplied auth identity or credential fields.
+             *
+             * @returns The HTTP response or a classified request failure.
+             */
+            request: async (params: GitHubFetchRequest): Promise<GitHubFetchResult> =>
+                connection.sendRequest("gitHubFetch.request", params),
+            /**
+             * Executes a named GitHub or Copilot job operation. The runtime derives its URL, headers, retry policy, and credential. sessionId selects session auth; omission selects process auth. A bound host connection can select its existing auth handle with authOwnerId. Retries and eligible redirects resolve the current credential again. Cross-origin redirects discard credentials without restoring them on later hops. Non-success HTTP responses include the formatted error for the host. Extensions cannot use this method.
+             *
+             * @param params Arguments for a named authenticated operation.
+             *
+             * @returns The HTTP response or a classified request failure.
+             */
+            executeOperation: async (params: GitHubFetchOperationRequest): Promise<GitHubFetchResult> =>
+                connection.sendRequest("gitHubFetch.executeOperation", params),
+            /**
+             * Cancels a registered GitHub request. False means the id is no longer registered. Uses the same runtime request registry as request and executeOperation. Refused for extensions.
+             *
+             * @param params One registered GitHub request, shared by execution and cancellation.
+             *
+             * @returns Whether cancellation reached a registered GitHub request.
+             */
+            cancel: async (params: GitHubFetchRequestId): Promise<GitHubFetchCancelResult> =>
+                connection.sendRequest("gitHubFetch.cancel", params),
+        },
+        /** @experimental */
+        gitHubRelease: {
+            /**
+             * Allocates a connection-owned request id before a release lookup, snapshot, or asset download starts. Use the id to cancel that operation. A snapshot retains its allocation until disposal or connection close.
+             *
+             * @returns A freshly registered request id. Registering it before the work starts is what lets a cancel that races the request still find something to cancel.
+             */
+            allocateRequestId: async (): Promise<GitHubReleaseRequestIdResult> =>
+                connection.sendRequest("gitHubRelease.allocateRequestId", {}),
+            /**
+             * Retires an unused allocation that this caller will never dispatch. Only an unclaimed id on this connection with no active guard is eligible. Active, foreign, unknown and previously retired ids return abandoned: false. Ordinary cancellation still preserves the first canceled claim. This cleanup remains available during shutdown and is refused for extensions.
+             *
+             * @param params An unused release allocation that this caller will never dispatch. This is separate from cancellation before a request arrives.
+             *
+             * @returns Whether the runtime retired an unused allocation without affecting active work.
+             */
+            abandonRequest: async (params: GitHubReleaseAbandonRequestParams): Promise<GitHubReleaseAbandonRequestResult> =>
+                connection.sendRequest("gitHubRelease.abandonRequest", params),
+            /**
+             * Looks up a published release or release list. A bound host connection uses its original auth source. Other SDK callers keep the existing authInfo path. The runtime resolves credentials for each request and redirect. Public releases also permit anonymous access. The kind field distinguishes a result, a missing tag, no release, a rate limit, and failure. This raw lookup does not return a shared snapshot.
+             *
+             * @param params Which release to look up, the credential to look it up under, and the request id that makes the lookup cancellable.
+             *
+             * @returns Outcome of a release lookup. `releaseJson` is present only for `found`, and `message` only for the kinds that carry an explanation.
+             */
+            lookup: async (params: GitHubReleaseLookupRequest): Promise<GitHubReleaseLookupResult> =>
+                connection.sendRequest("gitHubRelease.lookup", params),
+            /**
+             * Loads one immutable release snapshot for an update client or SDK host. The runtime retains the original credential source and resolves it for each request. Calls with the same allocated request id and options share one lookup and result. A dropped waiter does not cancel that lookup. Use gitHubRelease.cancel to dispose the operation. The runtime admits one failure report before it publishes a failed result. Extensions cannot use this method.
+             *
+             * @param params Immutable options for one connection-owned release snapshot.
+             *
+             * @returns The shared release result with its original lookup duration. Runtime worker faults remain RPC errors.
+             */
+            getSnapshot: async (params: GitHubReleaseSnapshotRequest): Promise<GitHubReleaseSnapshotResult> =>
+                connection.sendRequest("gitHubRelease.getSnapshot", params),
+            /**
+             * Cancels an allocated operation on this connection. For a snapshot, disposal also waits for its owned lookup and retires its credential authority. It does not delete completed caller-owned downloads. An unknown or foreign id returns canceled: false. A completed download still returns its owned file, which the caller must dispose.
+             *
+             * @param params The release lookup or asset download to abandon.
+             *
+             * @returns Whether the cancel reached live work.
+             */
+            cancel: async (params: GitHubReleaseCancelRequest): Promise<GitHubReleaseCancelResult> =>
+                connection.sendRequest("gitHubRelease.cancel", params),
+            /**
+             * Streams a published Copilot release asset to a private file and computes its SHA-256. The URL must name an HTTPS release download in a supported repository. A snapshotRequestId retains that snapshot's original credential source. Otherwise, a bound host uses its original owner, and other SDK callers keep the authInfo path. Each request and redirect resolves credentials again. Revocation fails without an auth fallback. Ordinary credential rejection and transport fallback keep their existing behavior. A digest mismatch removes the file. The result contains file metadata, not archive bytes. The caller must dispose the completed file after use. The download's own requestId controls progress and cancellation. Extensions cannot use this method.
+             *
+             * @param params Which release asset to download, the credential to download it under, and the request id that makes the download cancellable.
+             *
+             * @returns Outcome of an asset download. Each field is present only for the kinds its description names.
+             */
+            downloadAsset: async (params: GitHubReleaseDownloadAssetRequest): Promise<GitHubReleaseDownloadAssetResult> =>
+                connection.sendRequest("gitHubRelease.downloadAsset", params),
+            /**
+             * Reports how many bytes a running `gitHubRelease.downloadAsset` has written, for a progress display. The runtime sends no progress notification for a download, so a host polls this while the download runs. An id with no running download reports zero bytes and no total, which is the normal answer before the body starts and after the download ends.
+             *
+             * @param params The download whose progress to report.
+             *
+             * @returns Byte progress of a running download.
+             */
+            getDownloadProgress: async (params: GitHubReleaseDownloadProgressRequest): Promise<GitHubReleaseDownloadProgressResult> =>
+                connection.sendRequest("gitHubRelease.getDownloadProgress", params),
+        },
+        /** @experimental */
+        cloudTasks: {
+            /**
+             * Starts a cloud coding-agent task, the remote run whose record `cloudTasks.get` later reads. Answered above any session because the task it creates is not a background task inside one. Hosts other than the CLI want this: a GitHub App or an SDK consumer that hands work to a cloud agent creates the same task under the same credential, and resolving it here keeps one credential, endpoint and validation path. Target the task either by repository, supplying both `repositoryOwner` and `repositoryName`, or by `owner` alone for an account-level run. The result separates a rejected request from a failed one: when `ok` is false, `reason` categorises the rejection and `message` carries the explanation to show, while `failure` describes the HTTP call itself and is present only when one was actually made.
+             *
+             * @param params Describes the cloud coding-agent task to start and the credential to start it under. Target it either by repository, supplying both `repositoryOwner` and `repositoryName`, or by `owner` alone for an account-level run.
+             *
+             * @returns The outcome of starting a cloud task. A rejected request and a failed one are reported separately: `reason` and `message` describe a request the service declined, while `statusCode` and `errorMessage` describe the HTTP call itself and appear only when one was actually made.
+             */
+            create: async (params: CloudTasksCreateParams): Promise<CloudTasksCreateResult> =>
+                connection.sendRequest("cloudTasks.create", params),
+            /**
+             * Deletes one cloud coding-agent task, the remote run `cloudTasks.create` started. The deletion is a soft one: the service withdraws the task from its listings rather than destroying the record, so a host removing a run from its own UI is the intended caller. Answered above any session for the same reason as `cloudTasks.get` -- the task is remote and has no local counterpart. Hosts other than the CLI want this: a GitHub App or an SDK consumer that manages cloud agent runs withdraws the same record under the same credential, and resolving it here keeps one credential-resolution and endpoint path. The runtime resolves each token from `authInfo` or `authContextId`. A host may preserve an explicit `baseUrl`; omission derives the endpoint from `authInfo`. The result is the HTTP outcome rather than a bare success flag: the call returns no body, so `ok` alone describes a success, while a failure is reported through `statusCode`, `errorMessage` and `errorPayloadJson` instead of being raised as an error.
+             *
+             * @param params Identifies one cloud coding-agent task to delete, and the credential to delete it under.
+             *
+             * @returns The HTTP outcome of deleting a cloud task. The deletion returns no body, so a successful call carries nothing beyond `ok`; a failed one is described by the remaining fields rather than raised as an error, so a caller can surface the service's own explanation.
+             */
+            delete: async (params: CloudTasksDeleteParams): Promise<CloudTasksDeleteResult> =>
+                connection.sendRequest("cloudTasks.delete", params),
+            /**
+             * Reads one cloud coding-agent task from the Copilot API. This is the task a cloud agent runs on a host's behalf, not a background task inside a session, so it is answered above any session and the `tasks` group does not cover it. Hosts other than the CLI want this: a GitHub App or an SDK consumer that shows the state of a cloud agent run must read the same task record, and resolving it here keeps one credential-resolution, task-URL and circuit-breaker path instead of each host rebuilding them. The result is the HTTP outcome rather than the task itself: a caller must read `ok` and `statusCode` before `payloadJson`, because a 404 is reported as a non-ok result rather than an error, which is what lets a caller tell "no such task" apart from "the API call failed".
+             *
+             * @param params Identifies one cloud coding-agent task and the credential to read it under.
+             *
+             * @returns The HTTP outcome of reading a cloud task, rather than the task alone. A 404 arrives here as a non-ok result with `statusCode` 404, not as an error, so a caller can tell an absent task apart from a failed call.
+             */
+            get: async (params: CloudTasksGetParams): Promise<CloudTasksGetResult> =>
+                connection.sendRequest("cloudTasks.get", params),
+            /**
+             * Reads the logs a cloud coding-agent session produced, from the Copilot API. Answered above any session, for the same reason as `cloudTasks.get`: the session being asked about runs remotely and has no local counterpart. Read `resolved` first. It is false when no Copilot API URL could be resolved for the credential, which is a different outcome from a request that was made and failed, and a caller that treats the two alike will report a transport error for an account that simply has no API endpoint. When `resolved` is true, `debugMessages` carries the diagnostics the fetch produced and should be logged whatever the outcome, `errorString` reports a retrieval fault, and only then do `ok` and `statusCode` describe the HTTP result.
+             *
+             * @param params Identifies one cloud coding-agent session whose logs are to be read, and the credential to read them under.
+             *
+             * @returns The outcome of reading a cloud session's logs. `resolved` distinguishes "this credential has no Copilot API endpoint" from "the request was made and failed"; every other field describes a request that was actually attempted.
+             */
+            getSessionLogs: async (params: CloudTasksGetSessionLogsParams): Promise<CloudTasksGetSessionLogsResult> =>
+                connection.sendRequest("cloudTasks.getSessionLogs", params),
+            /**
+             * Reconstructs the session a cloud coding-agent task recorded, by reading that task's events and ordering them for replay. Answered above any session, for the same reason as `cloudTasks.get`: the session being rebuilt ran remotely and has no local counterpart. Hosts other than the CLI want this: an SDK consumer attaching to a run in progress, an ACP client resuming one, or a GitHub App rendering a task's transcript all rebuild the same history from the same events, and resolving it here keeps one credential, endpoint, ordering and anchor-detection path. A newly created task has no events yet, so this polls for them and fails once they do not arrive. Read `preStart` before either list: when it is true the session has not started, `replayEventsJson` is deliberately empty because there is no history to reconstruct, and only `observedEventsJson` is meaningful.
+             *
+             * @param params Identifies one cloud coding-agent task whose recorded session is to be replayed, and the credential to read it under.
+             *
+             * @returns A cloud task's recorded events, ordered for replay. Read `preStart` first: it selects which of the two event lists a caller should use, and they differ deliberately.
+             */
+            getSessionReplay: async (params: CloudTasksGetSessionReplayParams): Promise<CloudTasksGetSessionReplayResult> =>
+                connection.sendRequest("cloudTasks.getSessionReplay", params),
+            /**
+             * Reads whether one cloud coding-agent task is shared, from the Mission Control service. Answered above any session, for the same reason as `cloudTasks.get`: the task is a remote record with no local counterpart. Hosts other than the CLI want this: an SDK consumer or a GitHub App that offers a "share this run" affordance must read the same flag from the same service, and resolving it here keeps one credential-resolution and endpoint path. The credential is resolved from `authInfo` inside the runtime rather than being carried across the door, so no caller handles a raw token. Read `credentialResolved` first: it is false when the account has no usable credential, in which case no request was made at all, which a caller must not report as a failed request.
+             *
+             * @param params Identifies one cloud coding-agent task whose sharing status is to be read, and the credential to read it under.
+             *
+             * @returns The sharing status a cloud task carries after the call. Read `credentialResolved` first: when it is false no request was attempted at all, which is a different outcome from a request the service declined.
+             */
+            getSharingStatus: async (params: CloudTasksGetSharingStatusParams): Promise<CloudTasksSharingStatusResult> =>
+                connection.sendRequest("cloudTasks.getSharingStatus", params),
+            /**
+             * Changes whether one cloud coding-agent task is shared, through the Mission Control service, and reports the status the task carries afterwards. The companion to `cloudTasks.getSharingStatus` and answered above any session for the same reason. The status is sent verbatim and is not narrowed to a closed set, because the service owns these values. The credential is resolved from `authInfo` inside the runtime rather than being carried across the door. Read `credentialResolved` first: it is false when the account has no usable credential, in which case nothing was changed and no request was made.
+             *
+             * @param params Identifies one cloud coding-agent task whose sharing status is to be changed, the status to set, and the credential to change it under.
+             *
+             * @returns The sharing status a cloud task carries after the call. Read `credentialResolved` first: when it is false no request was attempted at all, which is a different outcome from a request the service declined.
+             */
+            setSharingStatus: async (params: CloudTasksSetSharingStatusParams): Promise<CloudTasksSharingStatusResult> =>
+                connection.sendRequest("cloudTasks.setSharingStatus", params),
+            /**
+             * Finds the session a caller should open for one cloud coding-agent task. A task identifier alone does not say what to open: the run may already exist locally, it may exist only in the cloud, or it may be a task that cannot be resumed at all. Resolving that needs a local session scan and a Mission Control lookup that agree on identity, which is why it is answered here rather than left to each host. Hosts other than the CLI want it: an IDE or a GitHub App that opens a run from a task link faces the same three outcomes. Read `kind` before any other field. `local-session` carries `sessionId`, `remote-session` carries `metadataJson`, `unresumable-task` means the task exists but cannot be continued, and `none` means no session matched. A failed service call is reported as `error` rather than raised, so a caller can surface the service's own message. Pass every local session identifier already rejected in `ignoredLocalSessionIds` and call again to get the next candidate; that is how a host skips a local session it could not load.
+             *
+             * @param params Identifies one cloud coding-agent task to resolve to an openable session, the credential to resolve it under, and the local candidates the caller has already rejected.
+             *
+             * @returns What a caller should open for the task. The four outcomes are distinct and carry different payloads, so read `kind` before any other field.
+             */
+            resolveTaskId: async (params: CloudTasksResolveTaskIdParams): Promise<CloudTasksResolveTaskIdResult> =>
+                connection.sendRequest("cloudTasks.resolveTaskId", params),
+        },
+        /** @experimental */
+        cafeMetrics: {
+            /**
+             * Starts anonymous CAFE metrics for this process. The runtime selects the endpoint from COPILOT_CAFE_METRICS_URL or this connection's original auth owner. Offline and unsupported platforms refuse startup. Release eligibility must resolve before samples are sent. Requires the private trusted CLI host capability.
+             *
+             * @param params Versions and provider configuration for CAFE.
+             *
+             * @returns CAFE startup result.
+             */
+            start: async (params: CafeMetricsStartRequest): Promise<CafeMetricsStartResult> =>
+                connection.sendRequest("cafeMetrics.start", params),
+            /**
+             * Resolves release eligibility once from the immutable release lookup shared with auto-update. Requires the private trusted CLI host capability.
+             *
+             * @param params Immutable release lookup result.
+             *
+             * @returns Admission result.
+             */
+            resolveAdmission: async (params: CafeMetricsResolveAdmissionRequest): Promise<CafeMetricsResolveAdmissionResult> =>
+                connection.sendRequest("cafeMetrics.resolveAdmission", params),
+            /**
+             * Records one terminal resume result. Does nothing before startup. Requires the private trusted CLI host capability.
+             *
+             * @param params Terminal result of one resume attempt.
+             */
+            recordResumeResult: async (params: CafeMetricsRecordResumeResultRequest): Promise<void> =>
+                connection.sendRequest("cafeMetrics.recordResumeResult", params),
+            /**
+             * Stops recording and drains within one 1.5-second deadline. flushOnly sends at most one batch without stopping recording. Requires the private trusted CLI host capability.
+             *
+             * @param params Preliminary flush or final disposal.
+             */
+            shutdown: async (params?: CafeMetricsShutdownRequest): Promise<void> =>
+                connection.sendRequest("cafeMetrics.shutdown", params),
         },
     };
 }
@@ -47656,6 +49704,19 @@ export function createInternalSessionRpc(connection: MessageConnection, sessionI
              */
             rearmSelfPaced: async (params: ScheduleRearmSelfPacedRequest): Promise<ScheduleAddResult> =>
                 connection.sendRequest("session.schedule.rearmSelfPaced", { ...params, sessionId }),
+        },
+        /** @experimental */
+        cafeMetrics: {
+            /**
+             * Records live model-call events, including subagents, and root compaction events. Replaces any earlier recorder. Requires the private trusted CLI host capability.
+             */
+            attach: async (): Promise<void> =>
+                connection.sendRequest("session.cafeMetrics.attach", { sessionId }),
+            /**
+             * Stops recording this session. Does nothing if it has no recorder. Requires the private trusted CLI host capability.
+             */
+            detach: async (): Promise<void> =>
+                connection.sendRequest("session.cafeMetrics.detach", { sessionId }),
         },
     };
 }

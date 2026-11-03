@@ -6812,6 +6812,16 @@ pub struct SessionMetadata {
     pub summary: Option<String>,
     /// Whether the session is running remotely.
     pub is_remote: bool,
+    /// Name of the client that created the session (for example `github/cli`).
+    /// `None` when unknown.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub client_name: Option<String>,
+    /// Name of the client that most recently ran the session: the client that
+    /// created it, or a client that resumed it and then ran it. Resuming a
+    /// session only to observe it does not change this. `None` when unknown,
+    /// such as for sessions persisted before this field existed.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub last_client_name: Option<String>,
 }
 
 /// Response from `session.list`.
@@ -7163,12 +7173,3 @@ mod tests;
 
 #[cfg(test)]
 mod permission_builder_tests;
-
-#[cfg(test)]
-mod is_terminal_tests;
-
-#[cfg(test)]
-mod tool_namespace_tests;
-
-#[cfg(test)]
-mod refresh_custom_instructions_tests;

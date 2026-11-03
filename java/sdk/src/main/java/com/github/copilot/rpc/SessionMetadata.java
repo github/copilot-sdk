@@ -52,6 +52,12 @@ public class SessionMetadata {
     @JsonProperty("context")
     private SessionContext context;
 
+    @JsonProperty("clientName")
+    private String clientName;
+
+    @JsonProperty("lastClientName")
+    private String lastClientName;
+
     /**
      * Gets the unique identifier for this session.
      *
@@ -170,5 +176,48 @@ public class SessionMetadata {
      */
     public void setContext(SessionContext context) {
         this.context = context;
+    }
+
+    /**
+     * Gets the name of the client that created the session. The GitHub Copilot CLI,
+     * for example, reports {@code github/cli}.
+     *
+     * @return the client name, or {@code null} if not known
+     */
+    public String getClientName() {
+        return clientName;
+    }
+
+    /**
+     * Sets the name of the client that created the session.
+     *
+     * @param clientName
+     *            the client name
+     */
+    public void setClientName(String clientName) {
+        this.clientName = clientName;
+    }
+
+    /**
+     * Gets the name of the client that most recently ran the session: the client
+     * that created it, or a client that resumed it and then ran it.
+     * <p>
+     * Resuming a session only to observe it does not change this.
+     *
+     * @return the last client name, or {@code null} if not known, such as for
+     *         sessions persisted before this field existed
+     */
+    public String getLastClientName() {
+        return lastClientName;
+    }
+
+    /**
+     * Sets the name of the client that most recently ran the session.
+     *
+     * @param lastClientName
+     *            the last client name
+     */
+    public void setLastClientName(String lastClientName) {
+        this.lastClientName = lastClientName;
     }
 }
