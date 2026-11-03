@@ -1,0 +1,129 @@
+{
+  "$comment": "Copyright (c) Microsoft Corporation. All rights reserved.",
+  "firstPage": {
+    "prompts": [
+      {
+        "name": "rich",
+        "title": "Rich prompt",
+        "description": "Ordered opaque content",
+        "icons": [
+          {
+            "src": "data:image/png;base64,aW1hZ2U=",
+            "mimeType": "image/png",
+            "sizes": ["16x16", "32x32"],
+            "theme": "dark",
+            "additionalProperties": {
+              "x-icon": { "nested": [null, false] },
+              "additionalProperties": { "literal": false }
+            }
+          }
+        ],
+        "_meta": { "descriptor": { "version": 1 } },
+        "additionalProperties": {
+          "x-prompt": { "nested": [null, false] },
+          "additionalProperties": { "literal": false }
+        },
+        "arguments": [
+          {
+            "name": "topic",
+            "description": "Required topic",
+            "required": true,
+            "_meta": { "argument": { "label": "Topic" } },
+            "additionalProperties": {
+              "x-argument": { "nested": [null, false] },
+              "additionalProperties": { "literal": false }
+            }
+          },
+          { "name": "style", "description": "Optional style", "required": false },
+          { "name": "extra" }
+        ]
+      }
+    ],
+    "nextCursor": "page:2/opaque+cursor=",
+    "_meta": { "page": { "number": 1 } },
+    "additionalProperties": {
+      "x-list": { "nested": [null, false] },
+      "additionalProperties": { "literal": false }
+    }
+  },
+  "secondPage": {
+    "prompts": [
+      { "name": "echo", "arguments": [] },
+      { "name": "refresh", "description": "Publish a list change" }
+    ],
+    "_meta": { "page": { "number": 2 } }
+  },
+  "richPrompt": {
+    "description": "A prompt is data, not a model invocation",
+    "messages": [
+      {
+        "role": "user",
+        "content": {
+          "type": "text",
+          "text": "Explain opaque content",
+          "annotations": { "audience": ["user"], "priority": 0.75 },
+          "_meta": { "nested": { "values": [true, null, 3] } },
+          "futureField": { "preserve": false }
+        },
+        "_meta": { "message": { "index": 0 } },
+        "additionalProperties": {
+          "x-message": { "nested": [null, false] },
+          "additionalProperties": { "literal": false }
+        }
+      },
+      {
+        "role": "assistant",
+        "content": { "type": "image", "data": "aW1hZ2U=", "mimeType": "image/png" }
+      },
+      {
+        "role": "user",
+        "content": { "type": "audio", "data": "YXVkaW8=", "mimeType": "audio/wav" }
+      },
+      {
+        "role": "assistant",
+        "content": {
+          "type": "resource",
+          "resource": {
+            "uri": "test://prompt/text",
+            "mimeType": "text/plain",
+            "text": "Embedded text",
+            "_meta": { "origin": { "embedded": true } }
+          }
+        }
+      },
+      {
+        "role": "user",
+        "content": {
+          "type": "resource",
+          "resource": { "uri": "test://prompt/blob", "mimeType": "application/octet-stream", "blob": "AAE=" }
+        }
+      },
+      {
+        "role": "assistant",
+        "content": {
+          "type": "resource_link",
+          "uri": "test://prompt/not-fetched",
+          "name": "Reference",
+          "title": "Resource link",
+          "description": "Must not be fetched",
+          "mimeType": "text/plain",
+          "size": 42,
+          "annotations": { "audience": ["assistant"] }
+        }
+      },
+      {
+        "role": "user",
+        "content": {
+          "type": "future-content",
+          "payload": { "items": [1, false, null, { "key": "value" }] },
+          "_meta": { "extension": ["kept"] }
+        }
+      }
+    ],
+    "_meta": { "result": { "source": "fixture", "flags": [false, true] } },
+    "additionalProperties": {
+      "x-get": { "nested": [null, false] },
+      "additionalProperties": { "literal": false }
+    }
+  }
+}

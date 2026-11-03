@@ -1,0 +1,147 @@
+import { spawn } from "node:child_process";
+import { readFileSync } from "node:fs";
+import { resolve } from "node:path";
+import { pathToFileURL } from "node:url";
+import { verifyPackageSetManifestFiles } from "./package-set-manifest.js";
+const PUBLIC_CONFLICT =
+    /^(?:npm (?:error|ERR!) code EPUBLISHCONFLICT|npm (?:error|ERR!) (?:403 [^\r\n]* - )?(?:You )?cannot publish over (?:the )?previously published versions(?:: [^\r\n]+)?\.?)\r?$/im;
+const AZURE_CONFLICT =
+    /^npm (?:error|ERR!) (?:403 [^\r\n]* - )?(?:The feed '[^'\r\n]+' )?already contains file '[^'\r\n]+\.tgz' in package '[^'\r\n]+'\.?\r?$/im;
+
+export function runCommand(command, args, { stream = false } = {}) {
+    return new Promise((resolveResult, reject) => {
+        const child = spawn(command, args, { shell: false });
+        let stdout = "";
+        let stderr = "";
+
+        child.stdout.on("data", (chunk) => {
+            stdout += chunk;
+            if (stream) process.stdout.write(chunk);
+        });
+        child.stderr.on("data", (chunk) => {
+            stderr += chunk;
+            if (stream) process.stderr.write(chunk);
+        });
+        child.on("error", reject);
+        child.on("close", (status) => resolveResult({ status: status ?? 1, stdout, stderr }));
+    });
+}
+
+function parseNpmJson(result) {
+    for (const output of [result.stdout, result.stderr]) {
+        try {
+            return JSON.parse(output);
+        } catch {
+            // The caller reports the complete npm output if neither stream is JSON.
+        }
+    }
+    return undefined;
+}
+
+export async function getRegistryVersion(packageName, version, registry, runner = runCommand) {
+    const result = await runner("npm", [
+        "view",
+        `${packageName}@${version}`,
+        "version",
+        "--json",
+        "--registry",
+        registry,
+    ]);
+    const parsed = parseNpmJson(result);
+    if (result.status === 0 && typeof parsed === "string") {
+        return parsed;
+    }
+    if (result.status !== 0 && parsed?.error?.code === "E404") {
+        return undefined;
+    }
+    const output = `${result.stdout}\n${result.stderr}`.trim();
+    throw new Error(
+        `Could not read ${packageName}@${version} from ${registry} (npm exited ${result.status}).${output ? `\n${output}` : ""}`
+    );
+}
+
+export async function assertVersionAbsent(packageName, version, registry, runner = runCommand) {
+    const existing = await getRegistryVersion(packageName, version, registry, runner);
+    if (existing !== undefined) {
+        throw new Error(`${packageName}@${version} already exists on ${registry}.`);
+    }
+}
+
+export async function publishTarball(tarball, tag, registry, mode, runner = runCommand, identity) {
+    const args = ["publish", tarball, "--tag", tag, "--registry", registry];
+    if (mode === "public") args.push("--access", "public");
+    if (mode !== "public" && mode !== "azure") throw new Error(`Unknown publish mode: ${mode}`);
+
+    const result = await runner("npm", args, { stream: true });
+    if (result.status === 0) {
+        return;
+    }
+
+    const output = `${result.stdout}\n${result.stderr}`;
+    const conflict = mode === "public" ? PUBLIC_CONFLICT : AZURE_CONFLICT;
+    if (conflict.test(output)) {
+        const subject =
+            identity?.name && identity?.version
+                ? `${identity.name}@${identity.version}`
+                : "Version";
+        console.log(`${subject} is already published; treating the conflict as success.`);
+        return;
+    }
+
+    throw new Error(`npm publish failed with exit code ${result.status}.`);
+}
+
+function readReleaseManifest(manifestPath, packageDirectory) {
+    const manifest = JSON.parse(readFileSync(manifestPath, "utf8"));
+    verifyPackageSetManifestFiles(manifest, packageDirectory);
+    return manifest;
+}
+
+export async function publishManifest(
+    manifestPath,
+    packageDirectory,
+    tag,
+    registry,
+    mode,
+    runner = runCommand
+) {
+    const manifest = readReleaseManifest(manifestPath, packageDirectory);
+    const packages = manifest.packages
+        .map((packed) => ({
+            ...packed,
+            version: manifest.sdk.version,
+            tarball: resolve(packageDirectory, packed.filename),
+        }))
+        .sort((left, right) => {
+            if (left.name === "@github/copilot-sdk") return 1;
+            if (right.name === "@github/copilot-sdk") return -1;
+            return left.name.localeCompare(right.name);
+        });
+
+    for (const packed of packages) {
+        await publishTarball(packed.tarball, tag, registry, mode, runner, packed);
+    }
+}
+
+async function main() {
+    const [command, ...args] = process.argv.slice(2);
+    if (command === "preflight" && args.length === 3) {
+        await assertVersionAbsent(...args);
+        console.log(`${args[0]}@${args[1]} is available on ${args[2]}.`);
+    } else if (command === "publish" && args.length === 4) {
+        await publishTarball(...args);
+    } else if (command === "publish-manifest" && args.length === 5) {
+        await publishManifest(...args);
+    } else {
+        throw new Error(
+            "Usage: npm-release.js preflight <package> <version> <registry> | publish <tarball> <tag> <registry> <public|azure> | publish-manifest <manifest> <package-directory> <tag> <registry> <public|azure>"
+        );
+    }
+}
+
+if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
+    main().catch((error) => {
+        console.error(`::error::${error.message}`);
+        process.exitCode = 1;
+    });
+}

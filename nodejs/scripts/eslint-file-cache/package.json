@@ -1,0 +1,8 @@
+{
+    "name": "@github/copilot-eslint-file-cache",
+    "version": "0.0.0",
+    "private": true,
+    "description": "Dependency-free implementation of the file-entry-cache API used by ESLint",
+    "license": "MIT",
+    "main": "index.cjs"
+}
