@@ -765,6 +765,22 @@ The built-in `ApproveAllHandler` and `DenyAllHandler` implement `PermissionHandl
 
 ### SessionConfig
 
+`SessionConfig::with_runtime_settings` and
+`ResumeSessionConfig::with_runtime_settings` accept the typed
+`rpc::SessionRuntimeSettings`. Set `ai_secret_detection: Some(true)` for
+session-scoped AI secret detection consent, or `Some(false)` to explicitly
+disable it. Re-supply on cold or resident resume. `None` leaves the preference
+unspecified and uses the lineage root's user setting; the permanent
+`aiSecretDetection` setting defaults off. This is separate from feature flags
+that govern setting visibility and never writes user-wide settings. Requires a
+runtime supporting this experimental field.
+
+For an existing session, use
+`session.rpc().options().update(rpc::SessionUpdateOptionsParams {
+runtime_settings: Some(settings), ..Default::default() }).await?`.
+The supplied object replaces session-scoped runtime preferences, without
+modifying settings on disk.
+
 `SessionConfig::with_autopilot(AutopilotOptions)` and the corresponding
 `ResumeSessionConfig` builder configure experimental Autopilot policy.
 `continuation_enabled` defaults to true and does not change session mode.

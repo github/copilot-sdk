@@ -17,8 +17,8 @@ use super::{
     InfiniteSessionConfig, LargeToolOutputConfig, McpServerConfig, McpStdioServerConfig,
     MemoryConfiguration, NamedProviderConfig, PermissionResponseCapability, ProviderConfig,
     ProviderModelConfig, ReasoningSummary, ResumeSessionConfig, SessionConfig, SessionEvent,
-    SessionId, SystemMessageConfig, Tool, ToolBinaryResult, ToolResult, ToolResultExpanded,
-    ToolResultResponse, ensure_attachment_display_names,
+    SessionId, SessionRuntimeSettings, SystemMessageConfig, Tool, ToolBinaryResult, ToolResult,
+    ToolResultExpanded, ToolResultResponse, ensure_attachment_display_names,
 };
 use crate::generated::session_events::TypedSessionEvent;
 use crate::rpc::SandboxConfig;
@@ -624,6 +624,74 @@ fn resume_session_config_with_memory_serializes() {
         .expect("no duplicate handlers");
     let empty_json = serde_json::to_value(&empty_wire).unwrap();
     assert!(empty_json.get("memory").is_none());
+}
+
+#[test]
+fn runtime_settings_serialize_on_create_and_resume() {
+    for consent in [Some(true), Some(false), None] {
+        let settings = SessionRuntimeSettings {
+            ai_secret_detection: consent,
+        };
+        let expected = match consent {
+            Some(enabled) => serde_json::json!({ "aiSecretDetection": enabled }),
+            None => serde_json::json!({}),
+        };
+        let create = SessionConfig::default().with_runtime_settings(settings.clone());
+        let resume = ResumeSessionConfig::new("runtime-settings".into())
+            .with_runtime_settings(settings.clone());
+        assert_eq!(
+            create
+                .runtime_settings
+                .as_ref()
+                .unwrap()
+                .ai_secret_detection,
+            consent
+        );
+        assert_eq!(
+            resume
+                .runtime_settings
+                .as_ref()
+                .unwrap()
+                .ai_secret_detection,
+            consent
+        );
+        assert!(format!("{create:?}").contains("runtime_settings"));
+        assert!(format!("{resume:?}").contains("runtime_settings"));
+        let (create_wire, _) = create.into_wire(Some("runtime-settings".into())).unwrap();
+        let (resume_wire, _) = resume.into_wire().unwrap();
+        for json in [
+            serde_json::to_value(create_wire).unwrap(),
+            serde_json::to_value(resume_wire).unwrap(),
+        ] {
+            assert_eq!(json["runtimeSettings"], expected);
+            assert!(json.get("featureFlags").is_none());
+        }
+        let decoded: SessionRuntimeSettings = serde_json::from_value(expected).unwrap();
+        assert_eq!(decoded.ai_secret_detection, consent);
+    }
+}
+
+#[test]
+fn runtime_settings_default_is_omitted_on_create_and_resume() {
+    assert!(
+        SessionRuntimeSettings::default()
+            .ai_secret_detection
+            .is_none()
+    );
+    let create = SessionConfig::default();
+    let resume = ResumeSessionConfig::new("runtime-settings-unset".into());
+    assert!(create.runtime_settings.is_none());
+    assert!(resume.runtime_settings.is_none());
+    let (create_wire, _) = create
+        .into_wire(Some("runtime-settings-unset".into()))
+        .unwrap();
+    let (resume_wire, _) = resume.into_wire().unwrap();
+    for json in [
+        serde_json::to_value(create_wire).unwrap(),
+        serde_json::to_value(resume_wire).unwrap(),
+    ] {
+        assert!(json.get("runtimeSettings").is_none());
+    }
 }
 
 #[test]

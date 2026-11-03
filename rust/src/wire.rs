@@ -222,6 +222,8 @@ pub(crate) struct SessionCreateWire {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub feature_flags: Option<HashMap<String, bool>>,
     #[serde(skip_serializing_if = "Option::is_none")]
+    pub runtime_settings: Option<crate::types::SessionRuntimeSettings>,
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub exp_assignments: Option<crate::types::CopilotExpAssignmentResponse>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub enable_managed_settings: Option<bool>,
@@ -410,6 +412,8 @@ pub(crate) struct SessionResumeWire {
     pub allow_transcript_recovery: Option<bool>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub feature_flags: Option<HashMap<String, bool>>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub runtime_settings: Option<crate::types::SessionRuntimeSettings>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub exp_assignments: Option<crate::types::CopilotExpAssignmentResponse>,
     #[serde(skip_serializing_if = "Option::is_none")]

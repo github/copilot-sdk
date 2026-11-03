@@ -945,6 +945,7 @@ macro_rules! host_settings {
             "mcpOAuthTokenStorage" => mcp_oauth_token_storage,
             "enableConfigDiscovery" => enable_config_discovery,
             "featureFlags" => feature_flags,
+            "runtimeSettings" => runtime_settings,
             "enableManagedSettings" => enable_managed_settings,
             "enableSessionStore" => enable_session_store,
             "availableTools" => available_tools,

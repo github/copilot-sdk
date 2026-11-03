@@ -27450,6 +27450,22 @@ pub struct SessionOpenOptionsAdditionalContentExclusionPolicy {
     pub scope: SessionOpenOptionsAdditionalContentExclusionPolicyScope,
 }
 
+/// Runtime preferences supplied by the session's host, separate from feature-flag exposure.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SessionRuntimeSettings {
+    /// Opt in to AI secret detection in the built-in security-review agent. Explicit true or false overrides the lineage root's on-disk aiSecretDetection setting for this session and its subagents. Omission uses the root's user setting. Does not change who sees the setting or write settings.json.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub ai_secret_detection: Option<bool>,
+}
+
 /// Command-scoped GitHub credential injection for the shell commands an agent runs.
 ///
 /// Each channel is opt-in and independent, and injection is scoped to the individual command
@@ -27813,6 +27829,9 @@ pub struct SessionOpenOptions {
     /// Whether the host is an interactive UI.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub running_in_interactive_mode: Option<bool>,
+    /// Session-scoped runtime preferences, independent of feature-flag visibility. Re-supply on cold resume; supplied preferences also apply on resident resume.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub runtime_settings: Option<SessionRuntimeSettings>,
     /// Resolved sandbox configuration.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub sandbox_config: Option<SandboxConfig>,
@@ -29613,6 +29632,9 @@ pub struct SessionUpdateOptionsParams {
     /// Whether the session is running in an interactive UI.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub running_in_interactive_mode: Option<bool>,
+    /// Session-scoped runtime preferences. Replaces the supplied runtime-settings object without modifying user settings on disk.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub runtime_settings: Option<SessionRuntimeSettings>,
     /// Resolved sandbox configuration.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub sandbox_config: Option<SandboxConfig>,
