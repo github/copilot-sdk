@@ -527,8 +527,8 @@ class ForceStopSessionTest {
                 try (var subscription = session.on(SessionIdleEvent.class, event -> idles.incrementAndGet())) {
                     var options = new MessageOptions().setPrompt("question");
                     var waiting = typed
-                            ? session.sendAndWait(options, Answer.class, 5000)
-                            : session.sendAndWait(options, 5000);
+                            ? session.sendAndWait(options, Answer.class, 0)
+                            : session.sendAndWait(options, 0);
                     var request = server.completions.poll(5, TimeUnit.SECONDS);
                     assertNotNull(request, "The existing helper must use the private completion RPC");
                     assertEquals("question", request.path("params").path("prompt").asText());

@@ -1,3 +1,3 @@
-export const COPILOT_CLI_VERSION = "1.0.106-4";
+export const COPILOT_CLI_VERSION = "1.0.106-5";
 
 export const COPILOT_CLI_USE_NPM_PACKAGE = false;

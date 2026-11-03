@@ -341,7 +341,20 @@ public class ScenarioTestingMcpE2ETests(E2ETestFixture fixture, ITestOutputHelpe
         Func<T, bool> predicate)
     {
         using var timeout = new CancellationTokenSource(EventTimeout);
-        while (await reader.WaitToReadAsync(timeout.Token))
+        try
+        {
+            while (await reader.WaitToReadAsync(timeout.Token))
+            {
+                while (reader.TryRead(out var item))
+                {
+                    if (predicate(item))
+                    {
+                        return item;
+                    }
+                }
+            }
+        }
+        catch (OperationCanceledException) when (timeout.IsCancellationRequested)
         {
             while (reader.TryRead(out var item))
             {

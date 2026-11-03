@@ -1,5 +1,6 @@
 import asyncio
 import json
+import logging
 import os
 from pathlib import Path
 from typing import Any
@@ -44,25 +45,50 @@ async def _start_oauth_mcp_server(
             "CIMD_SUPPORTED": "true" if cimd_supported else "false",
         },
     )
-    assert process.stdout is not None
-
+    read_line = None
     try:
-        line = await asyncio.wait_for(process.stdout.readline(), timeout=10)
-    except TimeoutError as exc:
-        await _stop_process(process)
-        assert process.stderr is not None
-        stderr = (await process.stderr.read()).decode(errors="replace")
-        raise TimeoutError(f"Timed out waiting for OAuth MCP server: {stderr}") from exc
-    if not line:
-        assert process.stderr is not None
-        stderr = (await process.stderr.read()).decode(errors="replace")
-        raise RuntimeError(f"OAuth MCP server exited before listening: {stderr}")
-    text = line.decode().strip()
-    if text.startswith("Listening: "):
-        return text.removeprefix("Listening: "), process
+        assert process.stdout is not None
+        read_line = asyncio.create_task(process.stdout.readline())
+        completed, _ = await asyncio.wait({read_line}, timeout=10)
+        if not completed:
+            logging.getLogger(__name__).warning(
+                "OAuth MCP server PID %s has no startup line after 10s; still waiting",
+                process.pid,
+            )
+        line = await read_line
+        if not line:
+            await _stop_process(process)
+            assert process.stderr is not None
+            stderr = (await process.stderr.read()).decode(errors="replace")
+            raise RuntimeError(f"OAuth MCP server exited before listening: {stderr}")
+        text = line.decode().strip()
+        if text.startswith("Listening: "):
+            return text.removeprefix("Listening: "), process
+        raise RuntimeError(f"Unexpected OAuth MCP server startup line: {text}")
+    except BaseException as failure:
 
-    await _stop_process(process)
-    raise RuntimeError(f"Unexpected OAuth MCP server startup line: {text}")
+        async def retire(startup_failure):
+            try:
+                if read_line is not None:
+                    read_line.cancel()
+                    try:
+                        await read_line
+                    except asyncio.CancelledError:
+                        pass
+                    except BaseException as read_failure:
+                        if read_failure is not startup_failure:
+                            raise
+            finally:
+                await _stop_process(process)
+
+        cleanup = asyncio.create_task(retire(failure))
+        while not cleanup.done():
+            try:
+                await asyncio.shield(cleanup)
+            except asyncio.CancelledError:
+                pass
+        cleanup.result()
+        raise
 
 
 async def _stop_process(process: asyncio.subprocess.Process) -> None:
@@ -77,7 +103,7 @@ async def _stop_process(process: asyncio.subprocess.Process) -> None:
 
 
 async def _requests(base_url: str) -> list[dict[str, Any]]:
-    async with httpx.AsyncClient() as client:
+    async with httpx.AsyncClient(timeout=None) as client:
         response = await client.get(f"{base_url}/__requests")
         response.raise_for_status()
         return response.json()

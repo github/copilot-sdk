@@ -324,11 +324,11 @@ public class MultiClientE2ETests : IClassFixture<MultiClientTestFixture>, IAsync
         Assert.NotNull(ephemeralResponse);
         Assert.Contains("EPHEMERAL_test2", ephemeralResponse!.Data.Content ?? string.Empty);
 
-        // Disconnect client 2
+        // Metadata retains the previous request's tools, so observe removal
+        // before sending the next turn.
+        using var toolsChanged = TestHelper.ObserveEvent<SessionToolsUpdatedEvent>(session1);
         await Client2.ForceStopAsync();
-
-        // Give the server time to process the connection close and remove tools.
-        await Task.Delay(500);
+        await toolsChanged.Task.WaitAsync(TimeSpan.FromSeconds(120));
 
         // Recreate client2 for cleanup
         var port = Client1.RuntimePort!.Value;
@@ -345,6 +345,12 @@ public class MultiClientE2ETests : IClassFixture<MultiClientTestFixture>, IAsync
         Assert.NotNull(afterResponse);
         Assert.Contains("STABLE_still_here", afterResponse!.Data.Content ?? string.Empty);
         Assert.DoesNotContain("EPHEMERAL_", afterResponse!.Data.Content ?? string.Empty);
+
+        // This completed turn replaces the pre-disconnect request's tool metadata.
+        var metadata = await session1.Rpc.Tools.GetCurrentMetadataAsync();
+        Assert.NotNull(metadata.Tools);
+        Assert.Contains(metadata.Tools, tool => tool.Name == "stable_tool");
+        Assert.DoesNotContain(metadata.Tools, tool => tool.Name == "ephemeral_tool");
 
         [Description("A tool that persists across disconnects")]
         static string StableTool([Description("Input value")] string input) => $"STABLE_{input}";

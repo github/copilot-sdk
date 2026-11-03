@@ -36,6 +36,8 @@ import java.io.BufferedReader;
 import java.io.FilterOutputStream;
 import java.io.IOException;
 import java.io.InputStreamReader;
+import java.io.PipedInputStream;
+import java.io.PipedOutputStream;
 import java.net.InetAddress;
 import java.net.ServerSocket;
 import java.net.Socket;
@@ -50,6 +52,7 @@ import java.util.concurrent.CancellationException;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutionException;
+import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
@@ -886,6 +889,50 @@ public class CopilotClientTest {
             ConnectionState state = client.getState();
             assertTrue(state == ConnectionState.CONNECTING || state == ConnectionState.ERROR,
                     "State should be CONNECTING or ERROR, was: " + state);
+        }
+    }
+
+    @Test
+    void testGetStateDisconnectedAfterRuntimeConnectionCloses() throws Exception {
+        var runtimeOutput = new PipedOutputStream();
+        var rpc = JsonRpcClient.fromStreams(new PipedInputStream(runtimeOutput), OutputStream.nullOutputStream());
+
+        try (var client = new CopilotClient(new CopilotClientOptions().setAutoStart(false))) {
+            setConnectionFuture(client, rpc, null);
+            assertEquals(ConnectionState.CONNECTED, client.getState());
+
+            // The runtime goes away without the client being stopped.
+            runtimeOutput.close();
+            assertTrue(rpc.awaitPeerEof(5, TimeUnit.SECONDS), "Reader should observe the runtime's EOF");
+
+            assertEquals(ConnectionState.DISCONNECTED, client.getState());
+        }
+    }
+
+    @Test
+    void testGetStateFromAnotherThreadDuringPendingRequestCompletion() throws Exception {
+        var stateReader = Executors.newSingleThreadExecutor();
+        try (var runtimeOutput = new PipedOutputStream();
+                var rpc = JsonRpcClient.fromStreams(new PipedInputStream(runtimeOutput),
+                        OutputStream.nullOutputStream());
+                var client = new CopilotClient(new CopilotClientOptions().setAutoStart(false))) {
+            setConnectionFuture(client, rpc, null);
+            assertEquals(ConnectionState.CONNECTED, client.getState());
+            var ping = client.ping("pending");
+            assertFalse(ping.isDone(), "The request must remain pending until the runtime disconnects");
+            var stateDuringCompletion = ping.handle((response, error) -> {
+                assertNotNull(error, "Disconnection should fail the pending request");
+                return assertDoesNotThrow(() -> stateReader.submit(client::getState).get(5, TimeUnit.SECONDS),
+                        "A completion handler must be able to wait for another thread to read getState()");
+            });
+
+            runtimeOutput.close();
+
+            assertEquals(ConnectionState.DISCONNECTED, stateDuringCompletion.get(10, TimeUnit.SECONDS));
+            assertTrue(rpc.awaitPeerEof(5, TimeUnit.SECONDS), "Reader should finish after completing the request");
+        } finally {
+            stateReader.shutdownNow();
+            assertTrue(stateReader.awaitTermination(5, TimeUnit.SECONDS), "State reader should stop");
         }
     }
 

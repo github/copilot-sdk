@@ -7,13 +7,15 @@ import com.github.copilot.generated.rpc.HostLocalServerOptions;
 import com.github.copilot.rpc.CopilotClientOptions;
 import com.github.copilot.rpc.PermissionHandler;
 import com.github.copilot.rpc.ProviderConfig;
+import java.io.IOException;
 import java.time.Instant;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.TimeUnit;
+import java.util.concurrent.ExecutionException;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicReference;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.Timeout;
 import org.junit.jupiter.api.condition.EnabledIfEnvironmentVariable;
@@ -25,7 +27,7 @@ import org.junit.jupiter.params.provider.ValueSource;
 @EnabledIfEnvironmentVariable(named = "COPILOT_RUNTIME_HOST_E2E", matches = "1")
 class HostingAuthenticationIT {
     private static <T> T await(CompletableFuture<T> future) throws Exception {
-        return future.get(30, TimeUnit.SECONDS);
+        return future.get();
     }
 
     private static AhpTestClient driver(E2ETestContext context) throws Exception {
@@ -102,7 +104,7 @@ class HostingAuthenticationIT {
                                         });
                             })))) {
                 String connection = connect(ahp, host, mode, "custom".equals(mode) ? "admission-only-key" : null);
-                assertThrows(Exception.class, () -> ahp.request(Map.of("op", "connect", "url", host.getUrl(), "token",
+                assertThrows(IOException.class, () -> ahp.request(Map.of("op", "connect", "url", host.getUrl(), "token",
                         "wrong-websocket-secret", "authentication", mode)));
                 sessionId = ahp.request(
                         Map.of("op", "create", "clientId", connection, "workDir", context.getWorkDir().toString()))
@@ -176,9 +178,9 @@ class HostingAuthenticationIT {
                 return CompletableFuture.failedFuture(new IllegalStateException("must not materialize"));
             })))) {
                 String connection = connect(ahp, host, "custom", null);
-                assertThrows(Exception.class, () -> ahp.request(
+                assertThrows(IOException.class, () -> ahp.request(
                         Map.of("op", "authenticate", "clientId", connection, "customToken", "decrypted-admission")));
-                assertThrows(Exception.class, () -> ahp.request(
+                assertThrows(IOException.class, () -> ahp.request(
                         Map.of("op", "create", "clientId", connection, "workDir", context.getWorkDir().toString())));
                 assertEquals(0, creates.get());
             }
@@ -204,7 +206,7 @@ class HostingAuthenticationIT {
                 var request = await(entered);
                 await(host.dispose());
                 await(request.cancellation().toCompletableFuture());
-                assertThrows(Exception.class, () -> await(pending));
+                assertThrows(ExecutionException.class, () -> await(pending));
                 validation.complete(accepted());
                 assertTrue(pending.isCompletedExceptionally());
             }
@@ -214,16 +216,62 @@ class HostingAuthenticationIT {
     @Test
     void expirationRequiresReauthenticationForTheConfiguredOwner() throws Exception {
         try (var context = E2ETestContext.create(); var ahp = driver(context); var owner = client(context)) {
+            record Credential(String token, Instant expiry, AhpAuthenticationResult result) {
+            }
             var calls = new AtomicInteger();
-            try (var host = await(owner.startAhpHost(options(
-                    custom(request -> CompletableFuture.completedFuture(new AhpAuthenticationResult("application-owner",
-                            Instant.now().plusSeconds(calls.incrementAndGet() == 1 ? 2 : 60).toString()))))))) {
-                String connection = connect(ahp, host, "custom", "short-lived");
+            var issued = new AtomicReference<Credential>();
+            var expiredAdmissionErrors = java.util.Set.of(
+                    "RPC error -32603: internal error: application authentication failed",
+                    "RPC error -32007: authentication required for https://copilot.github.com/hosting/authentication");
+            try (var host = await(owner.startAhpHost(options(custom(request -> {
+                assertTrue("short-lived".equals(request.token()) || "renewed".equals(request.token()),
+                        "Unexpected fixture token: " + request.token());
+                var expiry = Instant.now().plusSeconds("renewed".equals(request.token()) ? 60 : 2);
+                var result = new AhpAuthenticationResult("application-owner", expiry.toString());
+                var reply = CompletableFuture.completedFuture(result);
+                issued.set(new Credential(request.token(), expiry, result));
+                calls.incrementAndGet();
+                return reply;
+            }))))) {
+                String connection = connect(ahp, host, "custom", null);
+                int attempts = 0;
+                for (;;) {
+                    issued.set(null);
+                    int before = calls.get();
+                    attempts++;
+                    IOException rejected = null;
+                    try {
+                        ahp.request(Map.of("op", "authenticate", "clientId", connection, "customToken", "short-lived"));
+                    } catch (IOException failure) {
+                        if (!expiredAdmissionErrors.contains(failure.getMessage())) {
+                            throw failure;
+                        }
+                        rejected = failure;
+                    }
+                    var credential = issued.get();
+                    assertEquals(before + 1, calls.get(), "Each authentication must invoke the validator once");
+                    assertNotNull(credential, "The validator must return this attempt's fixture credential");
+                    assertEquals("short-lived", credential.token());
+                    assertEquals("application-owner", credential.result().identity());
+                    assertEquals(credential.expiry().toString(), credential.result().expiresAt());
+                    if (rejected == null) {
+                        break;
+                    }
+                    if (credential.expiry().isAfter(Instant.now())) {
+                        throw rejected;
+                    }
+                    java.util.logging.Logger.getLogger(HostingAuthenticationIT.class.getName()).warning(
+                            "Retrying initial authentication with an already-expired fixture credential: " + rejected);
+                }
                 ahp.request(Map.of("op", "expired", "clientId", connection));
-                assertThrows(Exception.class, () -> ahp.request(
+                assertThrows(IOException.class, () -> ahp.request(
                         Map.of("op", "create", "clientId", connection, "workDir", context.getWorkDir().toString())));
+                issued.set(null);
+                int beforeRenewal = calls.get();
                 ahp.request(Map.of("op", "authenticate", "clientId", connection, "customToken", "renewed"));
-                assertEquals(2, calls.get());
+                assertEquals(beforeRenewal + 1, calls.get(), "Renewal must invoke the validator once");
+                assertEquals("renewed", issued.get().token());
+                assertEquals(attempts + 1, calls.get());
             }
         }
     }

@@ -82,7 +82,7 @@ class StructuredOutputTest {
             var options = new MessageOptions().setPrompt("waited");
             if (structured)
                 options.setResponseSchema(Map.of("type", "object"));
-            var result = session.sendAndWait(options, 1_000);
+            var result = session.sendAndWait(options, 0);
             if (!beforeAck)
                 admission.complete(new SendMessageResponse("user-1"));
             assistant(source.equals("pre-message") ? "other" : "user-1", "{\"ok\":true}");
@@ -127,13 +127,14 @@ class StructuredOutputTest {
             return CompletableFuture.completedFuture(new SendMessageResponse("user-1"));
         });
         var options = new MessageOptions().setPrompt("inventory");
-        assertEquals(new Inventory(42, "red"), session.sendAndWait(options, Inventory.class).get(1, TimeUnit.SECONDS));
+        assertEquals(new Inventory(42, "red"),
+                session.sendAndWait(options, Inventory.class, 0).get(1, TimeUnit.SECONDS));
         assertNull(options.getResponseSchema());
     }
 
     @Test
     void ignoresUnrelatedMessagesAndWaitsForCorrectedFinalIdle() throws Exception {
-        var result = session.sendAndWait("inventory", Inventory.class);
+        var result = session.sendAndWait(new MessageOptions().setPrompt("inventory"), Inventory.class, 0);
         emit("session.idle", Map.of());
         assistant("user-1", "{\"count\":42,\"color\":\"red\"}");
         emit("session.idle", Map.of("mode", "autopilot"));
@@ -149,8 +150,8 @@ class StructuredOutputTest {
         when(rpc.invoke(eq("session.send"), any(), eq(SendMessageResponse.class))).thenReturn(
                 CompletableFuture.completedFuture(new SendMessageResponse("first")),
                 CompletableFuture.completedFuture(new SendMessageResponse("second")));
-        var first = session.sendAndWait("one", Inventory.class);
-        var second = session.sendAndWait("two", Inventory.class);
+        var first = session.sendAndWait(new MessageOptions().setPrompt("one"), Inventory.class, 0);
+        var second = session.sendAndWait(new MessageOptions().setPrompt("two"), Inventory.class, 0);
         assistant("first", "{\"count\":42,\"color\":\"red\"}");
         assistant("second", "{\"count\":7,\"color\":\"blue\"}");
         emit("session.idle", Map.of());
@@ -180,7 +181,7 @@ class StructuredOutputTest {
 
     @Test
     void plainWaitIgnoresStaleAbortedIdle() throws Exception {
-        var result = session.sendAndWait(new MessageOptions().setPrompt("queued"), 1_000);
+        var result = session.sendAndWait(new MessageOptions().setPrompt("queued"), 0);
         emit("session.idle", Map.of("aborted", true));
         emit("session.idle", Map.of());
         assertFalse(result.isDone());
@@ -191,7 +192,7 @@ class StructuredOutputTest {
 
     @Test
     void plainWaitCompletesPolicyBlockedPromptOnCorrelatedWarning() throws Exception {
-        var result = session.sendAndWait(new MessageOptions().setPrompt("blocked"), 1_000);
+        var result = session.sendAndWait(new MessageOptions().setPrompt("blocked"), 0);
         emit("session.warning",
                 Map.of("warningType", "policy_blocked", "message", "blocked", "originatingMessageId", "other"));
         emit("session.idle", Map.of());
@@ -207,7 +208,7 @@ class StructuredOutputTest {
     void plainWaitIgnoresEarlierSuccessfulIdle(boolean beforeAck) throws Exception {
         var admission = new CompletableFuture<SendMessageResponse>();
         when(rpc.invoke(eq("session.send"), any(), eq(SendMessageResponse.class))).thenReturn(admission);
-        var result = session.sendAndWait(new MessageOptions().setPrompt("queued"), 1_000);
+        var result = session.sendAndWait(new MessageOptions().setPrompt("queued"), 0);
         if (!beforeAck)
             admission.complete(new SendMessageResponse("user-1"));
         assistant("other", "previous");
@@ -224,7 +225,7 @@ class StructuredOutputTest {
     void plainWaitCorrelatesPolicyBlockedPrompts(boolean beforeAck, boolean aborted) throws Exception {
         var admission = new CompletableFuture<SendMessageResponse>();
         when(rpc.invoke(eq("session.send"), any(), eq(SendMessageResponse.class))).thenReturn(admission);
-        var result = session.sendAndWait(new MessageOptions().setPrompt("blocked"), 1_000);
+        var result = session.sendAndWait(new MessageOptions().setPrompt("blocked"), 0);
         if (!beforeAck)
             admission.complete(new SendMessageResponse("user-1"));
         emit("session.warning",
@@ -248,7 +249,7 @@ class StructuredOutputTest {
 
     @Test
     void plainWaitRejectsAbortedIdleAfterMatchingUserMessage() throws Exception {
-        var result = session.sendAndWait(new MessageOptions().setPrompt("cancel"), 1_000);
+        var result = session.sendAndWait(new MessageOptions().setPrompt("cancel"), 0);
         emit("user.message", Map.of("messageId", "user-1", "content", "cancel"));
         emit("session.idle", Map.of("aborted", true));
         var error = assertThrows(ExecutionException.class, () -> result.get(1, TimeUnit.SECONDS));
@@ -274,7 +275,7 @@ class StructuredOutputTest {
         if (structured)
             options.setResponseSchema(Map.of("type", "object"));
         assertEquals("{\"count\":7,\"color\":\"blue\"}",
-                session.sendAndWait(options).get(1, TimeUnit.SECONDS).getData().content());
+                session.sendAndWait(options, 0).get(1, TimeUnit.SECONDS).getData().content());
     }
 
     @ParameterizedTest
@@ -283,7 +284,7 @@ class StructuredOutputTest {
         var options = new MessageOptions().setPrompt("fail");
         if (structured)
             options.setResponseSchema(Map.of("type", "object"));
-        var result = session.sendAndWait(options);
+        var result = session.sendAndWait(options, 0);
         emit("session.autopilot_stopped", Map.of("reason", "error", "requestId", "user-1"));
         assertEquals("Autopilot request failed",
                 assertThrows(ExecutionException.class, () -> result.get(1, TimeUnit.SECONDS)).getCause().getMessage());
@@ -295,7 +296,7 @@ class StructuredOutputTest {
         var options = new MessageOptions().setPrompt("cancel");
         if (structured)
             options.setResponseSchema(Map.of("type", "object"));
-        var result = session.sendAndWait(options);
+        var result = session.sendAndWait(options, 0);
         assistant("user-1", "{\"count\":42,\"color\":\"red\"}");
         emit("session.autopilot_stopped", Map.of("reason", "aborted", "requestId", "user-1"));
         var error = assertThrows(ExecutionException.class, () -> result.get(1, TimeUnit.SECONDS));
@@ -311,8 +312,8 @@ class StructuredOutputTest {
         var options = new MessageOptions().setPrompt("inventory");
         if (structured)
             options.setResponseSchema(Map.of("type", "object"));
-        var first = session.sendAndWait(options);
-        var second = session.sendAndWait(options);
+        var first = session.sendAndWait(options, 0);
+        var second = session.sendAndWait(options, 0);
         assistant("first", "{\"count\":42,\"color\":\"red\"}");
         emit("session.autopilot_stopped", Map.of("reason", "task_complete", "requestId", "first"));
         assistant("second", "{\"count\":7,\"color\":\"blue\"}");
@@ -324,7 +325,7 @@ class StructuredOutputTest {
     @ParameterizedTest
     @ValueSource(strings = {"null", "not JSON", "{\"count\":\"bad\"}", "{\"count\":42,\"color\":\"red\"} trailing"})
     void rejectsNullAndInvalidJson(String content) throws Exception {
-        var result = session.sendAndWait("inventory", Inventory.class);
+        var result = session.sendAndWait(new MessageOptions().setPrompt("inventory"), Inventory.class, 0);
         assistant("user-1", content);
         emit("session.idle", Map.of());
         assertThrows(ExecutionException.class, () -> result.get(1, TimeUnit.SECONDS));
@@ -333,7 +334,7 @@ class StructuredOutputTest {
     @ParameterizedTest
     @ValueSource(strings = {"missing", "aborted", "error", "tool"})
     void rejectsFailedOrIncompleteRuns(String kind) throws Exception {
-        var result = session.sendAndWait("inventory", Inventory.class);
+        var result = session.sendAndWait(new MessageOptions().setPrompt("inventory"), Inventory.class, 0);
         emit("user.message", Map.of("messageId", "user-1", "content", "inventory"));
         if (kind.equals("tool")) {
             assistant("user-1", "{\"count\":42,\"color\":\"red\"}");
@@ -352,7 +353,7 @@ class StructuredOutputTest {
     void timeoutCancellationAndCloseCompleteWaits() throws Exception {
         var timed = session.sendAndWait(new MessageOptions().setPrompt("inventory"), Inventory.class, 10);
         assertThrows(ExecutionException.class, () -> timed.get(1, TimeUnit.SECONDS));
-        var cancelled = session.sendAndWait("inventory", Inventory.class);
+        var cancelled = session.sendAndWait(new MessageOptions().setPrompt("inventory"), Inventory.class, 0);
         assertTrue(cancelled.cancel(true));
         var closing = session.sendAndWait(new MessageOptions().setPrompt("inventory"), Inventory.class, 0);
         session.close();
@@ -366,7 +367,7 @@ class StructuredOutputTest {
             emit("session.idle", Map.of());
             return CompletableFuture.failedFuture(new IllegalArgumentException("invalid schema"));
         });
-        var result = session.sendAndWait("inventory", Inventory.class);
+        var result = session.sendAndWait(new MessageOptions().setPrompt("inventory"), Inventory.class, 0);
         assertEquals("invalid schema",
                 assertThrows(ExecutionException.class, () -> result.get(1, TimeUnit.SECONDS)).getCause().getMessage());
     }
@@ -379,7 +380,7 @@ class StructuredOutputTest {
         assertThrows(IllegalArgumentException.class, () -> session
                 .sendAndWait(new MessageOptions().setPrompt("inventory").setMode("immediate"), Inventory.class));
         verifyNoInteractions(rpc);
-        var result = session.sendAndWait(options);
+        var result = session.sendAndWait(options, 0);
         assistant("user-1", "{}");
         emit("session.idle", Map.of());
         assertEquals("{}", result.get(1, TimeUnit.SECONDS).getData().content());

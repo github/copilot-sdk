@@ -755,4 +755,6 @@ async def wait_for_predicate(predicate, timeout: float = 5.0) -> None:
         if await predicate():
             return
         await asyncio.sleep(0.1)
+    if await predicate():
+        return
     raise TimeoutError("timed out waiting for condition")

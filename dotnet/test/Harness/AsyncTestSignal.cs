@@ -48,6 +48,10 @@ internal sealed class AsyncTestSignal
             }
             catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested)
             {
+                if (condition())
+                {
+                    return;
+                }
                 throw new TimeoutException(timeoutMessage ?? "Timed out waiting for the signalled test condition.");
             }
         }

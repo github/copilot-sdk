@@ -1,6 +1,6 @@
 # Plugin directories
 
-A **plugin** is a directory that bundles SDK extensions — skills, hooks, MCP servers, custom agents, and LSP configuration — behind a single manifest. Pointing the SDK at a plugin directory loads everything the plugin contributes, so you can ship reusable capability packs without writing per-extension wiring in every host application.
+A **plugin** is a directory that bundles skills, MCP servers, and client-specific capabilities behind a single manifest. Pointing the SDK at a plugin directory lets the runtime discover its supported components, so you can ship reusable capability packs without wiring each component into your host application.
 
 This guide explains the plugin folder layout, how to load a plugin from a directory, when to use plugin directories vs. registering individual extensions, and how to make plugin sets deterministic.
 
@@ -17,7 +17,47 @@ If you only need to add a single MCP server, a single hook, or a single custom a
 
 ## Plugin folder layout
 
-The Copilot CLI scans each plugin directory for a `plugin.json` manifest or a root-level `SKILL.md`. A minimal plugin looks like this:
+### Agent Plugins
+
+For new plugins, use the published [Agent Plugins specification](https://agent-plugins.org/specification) (1.0.0). It defines portable skills and MCP servers; other capabilities use client-specific namespaces. See the [shared plugin reference](https://docs.github.com/en/copilot/reference/plugin-and-marketplace-reference) and [Copilot CLI authoring reference](https://docs.github.com/en/copilot/reference/copilot-cli-reference/cli-plugin-reference) for supported components. [VS Code's authoring reference](https://code.visualstudio.com/docs/agents/reference/agent-plugin-reference) documents its own support; do not assume every client loads the same components.
+
+A small plugin with a skill and a Copilot agent looks like this:
+
+```text
+my-plugin/
+├── plugin.json
+├── skills/
+│   └── lint-fix/
+│       └── SKILL.md
+└── com.github.copilot/
+    └── agents/
+        └── code-reviewer.agent.md
+```
+
+At the plugin root, `plugin.json` declares the canonical schema:
+
+```json
+{
+  "$schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
+  "name": "my-plugin",
+  "description": "Lint fixes and code review"
+}
+```
+
+The runtime also recognizes the exact identifier `https://agent-plugins.org/schemas/1.1.0/plugin.schema.json`.
+
+Skills are discovered only from immediate `skills/*/SKILL.md` entries. To add portable MCP servers, use root `mcp.json` with `$schema` set to `https://agent-plugins.org/schemas/1.0.0/mcp.schema.json` (or the matching 1.1.0 identifier when the manifest declares 1.1.0). The MCP schema version must match `plugin.json`.
+
+Copilot-specific components live under `com.github.copilot/` and are not portable Agent Plugins capabilities. Their locations are listed below. The manifest's `extensions` object holds client data keyed by namespace, not component paths. Do not add legacy top-level `skills`, `agents`, or other component-path fields to a spec manifest.
+
+> [!WARNING]
+> Adding the Agent Plugins `$schema` changes discovery behavior; it does not migrate existing files. Move legacy root agents, commands, rules, hooks, LSP configuration, and extensions into `com.github.copilot/`, and use `skills/*/SKILL.md` and root `mcp.json` for portable components.
+
+### Legacy compatibility
+
+Plugins that do not declare an Agent Plugins schema retain legacy discovery and configurable component paths. The runtime accepts `.plugin/plugin.json`, root `plugin.json`, `.github/plugin/plugin.json`, or `.claude-plugin/plugin.json`, in that order. A root-level `SKILL.md` also qualifies as a legacy skill-only plugin. An unsupported Agent Plugins schema version is rejected, not treated as legacy.
+
+An existing legacy plugin can keep this layout:
 
 ```
 my-plugin/
@@ -32,9 +72,7 @@ my-plugin/
         └── SKILL.md
 ```
 
-The manifest may also live at `.github/plugin.json` or `.github/plugin/plugin.json` so plugins can sit inside an existing repository without changing its root layout. Each subsystem (hooks, MCP, LSP, skills, agents) has its own loader and is optional — a plugin only needs the parts it contributes.
-
-For the full manifest schema, see the runtime documentation referenced from your CLI's `/plugin` slash command.
+Components are optional. For legacy manifest fields and discovery locations, see the [Copilot CLI plugin reference](https://docs.github.com/en/copilot/reference/copilot-cli-reference/cli-plugin-reference).
 
 ## Loading a plugin directory from the SDK
 
@@ -242,7 +280,7 @@ let client = Client::start(
 
 ## Per-session plugin directories
 
-`--plugin-dir` is a launch argument, so it fixes one plugin set for the CLI process and every session created against it. When sessions need different plugin sets, or when the SDK is connected to a runtime it did not spawn, pass the directories on the session config instead. They travel in the `session.create` and `session.resume` payloads over JSON-RPC rather than as process arguments, so they reach an external runtime the same way the startup option does.
+`--plugin-dir` is a launch argument, so its plugin set is shared by sessions created against that CLI process. When sessions need additional, session-specific plugins, or when the SDK is connected to a runtime it did not spawn, pass the directories on the session config instead. They travel in the `session.create` and `session.resume` payloads over JSON-RPC rather than as process arguments. The connected runtime must support this option.
 
 <!-- docs-validate: hidden -->
 ```typescript
@@ -318,21 +356,26 @@ The equivalent option in each SDK is:
 | Java | `.setBuiltinPluginDirectories(List.of(Path.of(...)))` |
 | Rust | `.with_builtin_plugin_directories([...])` |
 
-This is a trust boundary for plugins bundled and controlled by the host application. It is distinct from `--plugin-dir`, which is a CLI process launch argument for explicitly loading ordinary plugin directories. The startup option also works when connecting to an existing runtime because it is sent over JSON-RPC rather than forwarded as a process argument.
+This is a trust boundary for plugins bundled and controlled by the host application. It is distinct from `--plugin-dir`, which is a CLI process launch argument for explicitly loading ordinary plugin directories. The startup option also works when connecting to an existing runtime that supports built-in plugin registration, because it is sent over JSON-RPC rather than forwarded as a process argument.
 
 The bundled opt-in plugins `computer-use` and `browser-use` are the exception: they contribute no skills, hooks or MCP servers until enabled through `enabledPlugins`, `client.rpc.plugins.enable({ names: ["browser-use"] })`, or settings. Changes apply to sessions created afterwards. Managed `enabledPlugins["browser-use"]` forces Browser Use on or off regardless of user preferences. Computer Use also accepts the legacy `enabledMcpServers` preference; its managed policy veto is `features.computerUse=false`, not `enabledPlugins["computer-use"]`.
 
 ## What a plugin can contribute
 
-Loading a plugin directory makes its extensions visible to every session created by the client. The runtime merges plugin-provided extensions with anything you register inline:
+Launch-time directories are shared across sessions; `pluginDirectories` applies to the session that supplies it. The runtime merges the active plugin's components with anything you register inline:
 
-| Plugin contributes | Visible to session as |
-|---|---|
-| Skills (`SKILL.md`, `skills/*/SKILL.md`) | Items in `session.skills.list()`; injectable by name |
-| Custom agents (`agents/*.md`) | Dispatchable via the `task(agent_type=...)` tool |
-| Hooks (`hooks.json`) | Fired alongside hooks registered via the SDK |
-| MCP servers (`.mcp.json`) | Tools and resources reachable through `session.mcp.*` |
-| LSP servers (`.lsp.json`) | Initialized via `session.lsp.initialize(...)` |
+| Plugin contributes | Agent Plugins location | Visible to session as |
+|---|---|---|
+| Skills | `skills/*/SKILL.md` | Items in `session.skills.list()`; injectable by name |
+| MCP servers | `mcp.json` | Tools and resources reachable through `session.mcp.*` |
+| Custom agents | `com.github.copilot/agents/*.md` | Dispatchable via the `task(agent_type=...)` tool |
+| Commands | `com.github.copilot/commands/` | Plugin slash commands |
+| Rules | `com.github.copilot/rules/` | Instructions applied by the runtime |
+| Hooks | `com.github.copilot/hooks/hooks.json` | Fired alongside hooks registered via the SDK |
+| LSP servers | `com.github.copilot/lsp.json` | Initialized via `session.lsp.initialize(...)` |
+| Extensions | `com.github.copilot/extensions/` | Runtime extension registrations |
+
+Legacy plugins use their legacy discovery locations and manifest overrides instead.
 
 Plugin agents are first-class sub-agents in [fleet mode](./fleet-mode.md): a parent agent can dispatch them by `agent_type`, and the runtime fires the `subagentStart` / `subagentStop` hooks for them like any other sub-agent.
 
@@ -340,14 +383,14 @@ Plugin agents are first-class sub-agents in [fleet mode](./fleet-mode.md): a par
 
 The runtime has two ways to install plugins, and both end up looking the same to a session:
 
-* **Marketplace / direct-repo plugins** are installed persistently through the CLI's `/plugin` slash command or the underlying `installedPlugins` user setting. They are *ambient* — every session that runs against the same user config sees them, and they participate in plugin discovery rules.
+* **Marketplace / direct-repo plugins** are installed persistently through the CLI's `/plugin` slash command. They are *ambient* and participate in the session's plugin discovery and activation rules.
 * **`--plugin-dir` plugins** are *explicit and ephemeral* — they only apply to the CLI process you launched with that flag. They take precedence over ambient discovery and are de-duplicated against marketplace entries with the same cache path, so the same plugin won't load twice when both surfaces reference it.
 
-For SDK-driven applications, `--plugin-dir` is usually the right choice: it keeps the plugin set under your application's control instead of depending on per-machine user state.
+For SDK-driven applications, use `--plugin-dir` for shared process-level plugins or `pluginDirectories` for session-specific additions. Both keep explicit directories under your application's control instead of relying only on per-machine user state.
 
 ## Making plugin sets deterministic
 
-When the host machine may have other plugins installed (marketplace or personal), set `COPILOT_PLUGIN_DIR_ONLY=true` in the runtime's environment to suppress automatic plugin discovery. Only the directories you pass via `--plugin-dir` will load.
+When the host machine may have other plugins installed (marketplace or personal), set `COPILOT_PLUGIN_DIR_ONLY=true` in the runtime's environment to suppress ambient plugin discovery. Explicit directories supplied through either `--plugin-dir` or session `pluginDirectories` still load. This setting does not disable host-registered built-in plugins, whose activation is handled separately.
 
 <details open>
 <summary><strong>Node.js / TypeScript</strong></summary>
@@ -492,15 +535,15 @@ Runtimes that do not prepare managed plugins for the session reject the call.
 
 ## Troubleshooting
 
-* **"no plugin.json or SKILL.md found in &lt;dir&gt;"** — the directory exists but doesn't qualify as a plugin. Add a `plugin.json` manifest at the root (or under `.github/`), or include a top-level `SKILL.md`.
-* **Plugin loaded but agents/skills not visible** — make sure the plugin manifest declares the agents/skills it contributes, or use the implicit layout (`agents/*.md`, `skills/*/SKILL.md`). Then call `session.rpc.skills.reload()` to pick up changes without restarting.
-* **Duplicate hooks firing** — the runtime de-duplicates by `cache_path`, but only when the same directory is referenced both as a marketplace install and a `--plugin-dir`. If two different directories contain the same plugin, both will load. Remove one or use `COPILOT_PLUGIN_DIR_ONLY=true`.
-* **`--plugin-dir` ignored when connecting to an external runtime** — the SDK only forwards extra args when it spawns the CLI itself. For external runtimes (`forUri`/`ForUri`), pass `--plugin-dir` on the command line that starts the runtime server.
+* **"no plugin.json or SKILL.md found in &lt;dir&gt;"**: the directory exists but doesn't qualify as a plugin. For Agent Plugins, add root `plugin.json` with a recognized schema and a name. For legacy plugins, use one of the manifest locations listed above or a root `SKILL.md`.
+* **Plugin loaded but components not visible**: check which format the manifest selects. Agent Plugins uses `skills/*/SKILL.md`, root `mcp.json` with a matching schema, and `com.github.copilot/` for Copilot-specific components. Legacy root assets and component-path fields do not carry over when you add the spec schema. Use `session.rpc.skills.reload()` for skill changes; it is not an agent reload API.
+* **Duplicate hooks firing**: explicit directories are de-duplicated against other entries for the same directory. Separate copies can still load twice. Remove the extra directory; `COPILOT_PLUGIN_DIR_ONLY=true` suppresses ambient plugins, not duplicate explicit copies.
+* **`--plugin-dir` ignored when connecting to an external runtime**: the SDK only forwards extra args when it spawns the CLI itself. Pass `--plugin-dir` when starting the runtime server, or use session `pluginDirectories` with a runtime that supports it.
 
 ## Related
 
-* [Custom Agents](./custom-agents.md): write agents that ship inside a plugin's `agents/` folder.
+* [Custom agents](./custom-agents.md): write agents for `com.github.copilot/agents/` (or legacy `agents/`).
 * [Skills](./skills.md): how `SKILL.md` files are loaded, and the skill-tier ordering rules.
 * [Hooks](./hooks.md): hooks defined by a plugin fire alongside SDK-registered hooks.
-* [MCP Servers](./mcp.md): plugin-provided MCP servers integrate the same way as inline registrations.
-* [Fleet Mode](./fleet-mode.md): plugin-provided agents are dispatchable as sub-agents.
+* [MCP servers](./mcp.md): plugin-provided MCP servers integrate the same way as inline registrations.
+* [Fleet mode](./fleet-mode.md): plugin-provided agents are dispatchable as sub-agents.

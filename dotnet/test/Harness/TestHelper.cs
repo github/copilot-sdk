@@ -15,6 +15,39 @@ public static class TestHelper
     private static readonly TimeSpan DefaultEventTimeout = TimeSpan.FromSeconds(120);
     private static readonly TimeSpan DefaultPollInterval = TimeSpan.FromMilliseconds(100);
 
+    public static EventObserver<T> ObserveEvent<T>(
+        CopilotSession session, Func<T, bool>? predicate = null) where T : SessionEvent
+        => new(session, predicate ?? (static _ => true));
+
+    public sealed class EventObserver<T> : IDisposable where T : SessionEvent
+    {
+        private readonly TaskCompletionSource<T> _next = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        private readonly IDisposable _subscription;
+
+        internal EventObserver(CopilotSession session, Func<T, bool> predicate)
+        {
+            _subscription = session.On<SessionEvent>(evt =>
+            {
+                if (evt is T matched && predicate(matched))
+                {
+                    _next.TrySetResult(matched);
+                }
+                else if (evt is SessionErrorEvent error)
+                {
+                    _next.TrySetException(new Exception(error.Data.Message ?? "session error"));
+                }
+            });
+        }
+
+        public Task<T> Task => _next.Task;
+
+        public void Dispose()
+        {
+            _subscription.Dispose();
+            _next.TrySetCanceled();
+        }
+    }
+
     public static async Task<AssistantMessageEvent> SendAndGetFinalAssistantMessageAsync(
         CopilotSession session,
         MessageOptions options,
@@ -68,6 +101,66 @@ public static class TestHelper
             timeoutMessage,
             transientExceptionFilter: null,
             pollInterval);
+
+    public static async Task<List<ParsedHttpExchange>> WaitForExchangesAsync(
+        Func<CancellationToken, Task<List<ParsedHttpExchange>>> getExchanges,
+        int minimumCount = 1,
+        TimeSpan? timeout = null)
+    {
+        using var lifetime = new CancellationTokenSource();
+        var observation = ObserveAsync();
+        try
+        {
+            return await observation.WaitAsync(timeout ?? DefaultEventTimeout);
+        }
+        catch (TimeoutException exception)
+        {
+            if (observation.IsCompleted)
+            {
+                return await observation;
+            }
+            lifetime.Cancel();
+            try
+            {
+                return await observation;
+            }
+            catch (OperationCanceledException) when (lifetime.IsCancellationRequested)
+            {
+            }
+
+            // Obtain the final authoritative snapshot outside the expired observation budget.
+            var finalExchanges = await getExchanges(CancellationToken.None);
+            if (finalExchanges.Count >= minimumCount)
+            {
+                return finalExchanges;
+            }
+            throw new TimeoutException($"Timed out waiting for {minimumCount} chat completion request(s)", exception);
+        }
+        finally
+        {
+            lifetime.Cancel();
+            try
+            {
+                await observation;
+            }
+            catch (OperationCanceledException) when (lifetime.IsCancellationRequested)
+            {
+            }
+        }
+
+        async Task<List<ParsedHttpExchange>> ObserveAsync()
+        {
+            while (true)
+            {
+                var exchanges = await getExchanges(lifetime.Token);
+                if (exchanges.Count >= minimumCount)
+                {
+                    return exchanges;
+                }
+                await Task.Delay(DefaultPollInterval, lifetime.Token);
+            }
+        }
+    }
 
     public static async Task WaitForConditionAsync(
         Func<Task<bool>> condition,

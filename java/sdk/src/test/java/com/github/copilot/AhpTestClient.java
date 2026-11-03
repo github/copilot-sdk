@@ -15,12 +15,20 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.Path;
 import java.util.Map;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
 
 final class AhpTestClient implements AutoCloseable {
     private final Process process;
     private final BufferedReader output;
     private final BufferedWriter input;
+    private volatile Thread outputThread;
+    private final ExecutorService outputExecutor = Executors.newSingleThreadExecutor(task -> {
+        outputThread = new Thread(task, "ahp-test-client-output");
+        outputThread.setDaemon(true);
+        return outputThread;
+    });
 
     AhpTestClient(Path sdkRoot) throws Exception {
         this(sdkRoot, "test/e2e/harness/ahpTestDriver.ts");
@@ -67,7 +75,7 @@ final class AhpTestClient implements AutoCloseable {
             } catch (IOException error) {
                 throw new UncheckedIOException(error);
             }
-        }).get(60, TimeUnit.SECONDS);
+        }, outputExecutor).get();
     }
 
     @Override
@@ -81,13 +89,20 @@ final class AhpTestClient implements AutoCloseable {
                 throw new IOException("Standard AHP test client exited with code " + process.exitValue());
             }
         } finally {
-            if (process.isAlive()) {
-                process.destroyForcibly();
-                if (!process.waitFor(10, TimeUnit.SECONDS)) {
-                    throw new IOException("Could not reap standard AHP test client");
+            try {
+                if (process.isAlive()) {
+                    process.destroyForcibly();
+                    if (!process.waitFor(10, TimeUnit.SECONDS)) {
+                        throw new IOException("Could not reap standard AHP test client");
+                    }
+                }
+                output.close();
+            } finally {
+                outputExecutor.shutdown();
+                if (!process.isAlive() && outputThread != null) {
+                    outputThread.join();
                 }
             }
-            output.close();
         }
     }
 }

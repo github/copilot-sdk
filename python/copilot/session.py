@@ -2005,7 +2005,7 @@ class CopilotSession:
         self._managed_settings_enabled = managed_settings_enabled
         self._client = client
         self._workspace_path = os.fsdecode(workspace_path) if workspace_path is not None else None
-        self._event_handlers: set[Callable[[SessionEvent], None]] = set()
+        self._event_handlers: dict[Callable[[SessionEvent], None], None] = {}
         self._event_handlers_lock = threading.Lock()
         self._tool_handlers: dict[str, ToolHandler] = {}
         self._tool_handlers_lock = threading.Lock()
@@ -2804,7 +2804,7 @@ class CopilotSession:
 
         Events include assistant messages, tool executions, errors, and session
         state changes. Multiple handlers can be registered and will all receive
-        events.
+        events. Handlers are called in the order they were registered.
 
         Args:
             handler: A callback function that receives session events. The function
@@ -2828,11 +2828,11 @@ class CopilotSession:
         with self._event_handlers_lock:
             if self._destroyed:
                 raise RuntimeError("Session is disconnected")
-            self._event_handlers.add(handler)
+            self._event_handlers[handler] = None
 
         def unsubscribe():
             with self._event_handlers_lock:
-                self._event_handlers.discard(handler)
+                self._event_handlers.pop(handler, None)
 
         return unsubscribe
 

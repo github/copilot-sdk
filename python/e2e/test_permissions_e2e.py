@@ -309,7 +309,7 @@ class TestPermissions:
                 target_tool_call_id.set_result(tool_call_id)
             if not handler_entered.done():
                 handler_entered.set_result(True)
-            await asyncio.wait_for(release_handler, timeout=30.0)
+            await release_handler
             add_event("permission-complete", tool_call_id)
             return PermissionDecisionApproveOnce()
 
@@ -323,7 +323,7 @@ class TestPermissions:
 
         unsubscribe = session.on(on_event)
         response_task = asyncio.create_task(
-            session.send_and_wait("Run 'echo slow_handler_test'", timeout=60.0)
+            session.send_and_wait("Run 'echo slow_handler_test'", timeout=float("inf"))
         )
         try:
             await asyncio.wait_for(handler_entered, timeout=30.0)
@@ -336,7 +336,7 @@ class TestPermissions:
 
             release_handler.set_result(True)
 
-            message = await response_task
+            message = await asyncio.wait_for(response_task, timeout=60.0)
 
             perm_start = next(
                 (

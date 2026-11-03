@@ -970,7 +970,6 @@ public class ClientOptionsE2ETests(E2ETestFixture fixture, ITestOutputHelper out
           console.log(`listening on port ${address.port}`);
         });
 
-        setTimeout(() => process.exit(2), 30000).unref();
         """;
 
     private const string FakeStdioCliScript = """

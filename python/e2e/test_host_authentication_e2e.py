@@ -4,6 +4,7 @@
 
 import asyncio
 import json
+import logging
 import os
 import shutil
 from datetime import UTC, datetime, timedelta
@@ -294,10 +295,47 @@ async def test_expired_custom_identity_requires_reauthentication(boundary):
     make_client, work, ahp = boundary
     client = make_client()
     validations = []
+    issued = None
+    attempts = 1
+    before = 0
+    expired_admission_errors = {
+        "RPC error -32009: permission denied: application authentication was rejected",
+        "RPC error -32603: internal error: application authentication failed",
+        "RPC error -32007: authentication required for https://copilot.github.com/hosting/authentication",
+    }
 
     async def authenticate(request):
+        nonlocal issued
+        assert request.token in ("short-lived", "renewed")
+        expiry = future(60 if request.token == "renewed" else 2)
+        result = AhpAuthenticationResult("owner", expiry)
         validations.append(request.token)
-        return AhpAuthenticationResult("owner", future(2 if len(validations) == 1 else 60))
+        issued = (request.token, expiry, result)
+        return result
+
+    def check_credential(token):
+        assert len(validations) == before + 1
+        assert issued is not None
+        assert issued[0] == token
+        assert issued[2].identity == "owner"
+        assert issued[2].expires_at == issued[1]
+        return datetime.fromisoformat(issued[1])
+
+    def retry_expired(error):
+        nonlocal issued, before, attempts
+        if error not in expired_admission_errors:
+            return False
+        expiry = check_credential("short-lived")
+        if expiry > datetime.now(UTC):
+            return False
+        logging.getLogger(__name__).warning(
+            "Retrying initial authentication with an already-expired fixture credential: %s",
+            error,
+        )
+        before = len(validations)
+        issued = None
+        attempts += 1
+        return True
 
     host = await client.start_ahp_host(
         AhpHostOptions(
@@ -307,12 +345,19 @@ async def test_expired_custom_identity_requires_reauthentication(boundary):
     )
     try:
         await ahp.request({"op": "connect", "url": host.url, "token": host.token})
-        await ahp.request({"op": "authenticate", "token": "short-lived"})
+        await ahp.request(
+            {"op": "authenticate", "token": "short-lived"},
+            retry_expired_error=retry_expired,
+        )
+        check_credential("short-lived")
         await ahp.request({"op": "expired"})
         with pytest.raises(RuntimeError):
             await ahp.request({"op": "create", "workDir": str(work)})
+        issued = None
+        before = len(validations)
         await ahp.request({"op": "authenticate", "token": "renewed"})
-        assert validations == ["short-lived", "renewed"]
+        check_credential("renewed")
+        assert validations == ["short-lived"] * attempts + ["renewed"]
     finally:
         await host.dispose()
         await ahp.request({"op": "close"})

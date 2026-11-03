@@ -216,6 +216,20 @@ async def test_event_waiters_capture_abort_and_recovery_before_rpc_replies():
         await asyncio.gather(recovery, recovered_idle, return_exceptions=True)
 
 
+def test_event_handlers_are_called_in_registration_order():
+    session = CopilotSession("session-1", Mock())
+    calls: list[int] = []
+    unsubscribes = [session.on(lambda _event, i=i: calls.append(i)) for i in range(32)]
+
+    session._dispatch_event(_event(SessionIdleData(), SessionEventType.SESSION_IDLE))
+    assert calls == list(range(32))
+
+    calls.clear()
+    unsubscribes[10]()
+    session._dispatch_event(_event(SessionIdleData(), SessionEventType.SESSION_IDLE))
+    assert calls == [i for i in range(32) if i != 10]
+
+
 @pytest.mark.parametrize(
     "outcome", ["success", "error", "timeout", "cancel-before-start", "cancel-after-start"]
 )

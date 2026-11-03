@@ -217,10 +217,7 @@ async fn synchronous_handler_setup_does_not_block_the_reader() {
     client
         .register_request_handler("blocking.setup", move |_, _| {
             started_tx.send(()).unwrap();
-            gate.lock()
-                .unwrap()
-                .recv_timeout(std::time::Duration::from_secs(10))
-                .unwrap();
+            gate.lock().unwrap().recv().unwrap();
             async { Ok(serde_json::json!({})) }
         })
         .unwrap();
@@ -234,14 +231,14 @@ async fn synchronous_handler_setup_does_not_block_the_reader() {
         let client = client.clone();
         async move { client.call("ping", None).await }
     });
-    let request = read_framed(&mut server_read).await;
-    let response = serde_json::json!({"jsonrpc":"2.0","id":request["id"],"result":{}});
-    write_framed(&mut server_write, &serde_json::to_vec(&response).unwrap()).await;
-    tokio::time::timeout(std::time::Duration::from_secs(2), ping)
-        .await
-        .unwrap()
-        .unwrap()
-        .unwrap();
+    tokio::time::timeout(std::time::Duration::from_secs(2), async {
+        let request = read_framed(&mut server_read).await;
+        let response = serde_json::json!({"jsonrpc":"2.0","id":request["id"],"result":{}});
+        write_framed(&mut server_write, &serde_json::to_vec(&response).unwrap()).await;
+        ping.await.unwrap().unwrap();
+    })
+    .await
+    .unwrap();
     unblock.send(()).unwrap();
     assert_eq!(read_framed(&mut server_read).await["id"], 44);
     client.force_stop();

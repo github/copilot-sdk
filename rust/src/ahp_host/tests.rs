@@ -791,7 +791,7 @@ async fn disconnect_notifies_all_callbacks_even_when_they_panic() {
     assert!(client.inner.ahp_host_callbacks.lock().is_empty());
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn callback_panic_does_not_break_other_callbacks_or_rpc() {
     let (client, mut peer) = fixture();
     let calls = Arc::new(AtomicUsize::new(0));
@@ -804,12 +804,11 @@ async fn callback_panic_does_not_break_other_callbacks_or_rpc() {
         local_options().with_on_exit({
             let calls = calls.clone();
             move |exit| {
-                // Bounded: were callbacks run inline on the test's
-                // current-thread runtime, an unbounded wait would stall every
-                // timeout below and hang the test instead of failing it.
+                // Another runtime worker keeps the outer watchdog responsive
+                // if a regression runs this blocking callback inline.
                 gate.lock()
                     .unwrap()
-                    .recv_timeout(Duration::from_secs(10))
+                    .recv()
                     .expect("the test releases the first callback");
                 calls.fetch_add(1, Ordering::SeqCst);
                 first_tx.send(exit).unwrap();

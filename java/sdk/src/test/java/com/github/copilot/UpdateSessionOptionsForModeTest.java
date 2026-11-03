@@ -49,7 +49,6 @@ class UpdateSessionOptionsForModeTest {
                 clientSocket = new Socket(loopback, ss.getLocalPort());
                 serverSocket = ss.accept();
             }
-            serverSocket.setSoTimeout(5000);
             rpcClient = JsonRpcClient.fromSocket(clientSocket);
 
             // Background thread that reads requests and sends back success responses

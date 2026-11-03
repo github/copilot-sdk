@@ -22,7 +22,6 @@ import java.util.Base64;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
 import java.util.concurrent.ExecutionException;
-import java.util.concurrent.TimeUnit;
 
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.Timeout;
@@ -51,10 +50,10 @@ class JsonRpcErrorDataTest {
     void preservesRawDataThroughPublicClient(String dataJson) throws Exception {
         try (var server = new FramedServer(Reply.ERROR, dataJson);
                 var client = new CopilotClient(new CopilotClientOptions().setCliUrl(server.url()))) {
-            client.start().get(5, TimeUnit.SECONDS);
+            client.start().get();
             var future = client.ping("error");
 
-            var getFailure = assertThrows(ExecutionException.class, () -> future.get(5, TimeUnit.SECONDS));
+            var getFailure = assertThrows(ExecutionException.class, future::get);
             var error = assertInstanceOf(JsonRpcException.class, getFailure.getCause());
             assertEquals(ERROR_CODE, error.getCode());
             assertEquals(ERROR_MESSAGE, error.getMessage());
@@ -74,8 +73,28 @@ class JsonRpcErrorDataTest {
     void preservesSuccessfulResponses() throws Exception {
         try (var server = new FramedServer(Reply.SUCCESS, null);
                 var client = new CopilotClient(new CopilotClientOptions().setCliUrl(server.url()))) {
-            client.start().get(5, TimeUnit.SECONDS);
-            assertEquals("hello", client.ping("hello").get(5, TimeUnit.SECONDS).message());
+            client.start().get();
+            assertEquals("hello", client.ping("hello").get().message());
+        }
+    }
+
+    @Test
+    void waitsForCorrelatedReplyUntilPeerReleasesIt() throws Exception {
+        try (var server = new FramedServer(Reply.SUCCESS, null, true);
+                var client = new CopilotClient(new CopilotClientOptions().setCliUrl(server.url()))) {
+            try {
+                client.start().get();
+                var response = client.ping("held-reply");
+                CompletableFuture.anyOf(server.pingReceived, server.finished, response).get();
+                var request = server.pingReceived.getNow(null);
+                assertNotNull(request, "The peer must receive the request before either endpoint finishes");
+                assertEquals("held-reply", request.path("params").path("message").asText());
+                assertFalse(response.isDone(), "The peer has received the request but has not replied");
+                server.releasePingReply.complete(null);
+                assertEquals("held-reply", response.get().message());
+            } finally {
+                server.releasePingReply.complete(null);
+            }
         }
     }
 
@@ -150,10 +169,19 @@ class JsonRpcErrorDataTest {
         private final ServerSocket listener;
         private final Thread worker;
         private final CompletableFuture<Void> finished = new CompletableFuture<>();
+        private final CompletableFuture<JsonNode> pingReceived = new CompletableFuture<>();
+        private final CompletableFuture<Void> releasePingReply = new CompletableFuture<>();
         private volatile Socket socket;
         private volatile boolean closing;
 
         FramedServer(Reply reply, String dataJson) throws IOException {
+            this(reply, dataJson, false);
+        }
+
+        FramedServer(Reply reply, String dataJson, boolean holdPingReply) throws IOException {
+            if (!holdPingReply) {
+                releasePingReply.complete(null);
+            }
             listener = new ServerSocket(0, 1, InetAddress.getByName("127.0.0.1"));
             worker = new Thread(() -> serve(reply, dataJson), "json-rpc-error-data-peer");
             worker.setDaemon(true);
@@ -180,6 +208,8 @@ class JsonRpcErrorDataTest {
                     switch (request.path("method").asText()) {
                         case "connect" -> response.putObject("result").put("protocolVersion", 2);
                         case "ping" -> {
+                            pingReceived.complete(request);
+                            releasePingReply.join();
                             if (reply == Reply.SUCCESS) {
                                 response.putObject("result")
                                         .put("message", request.path("params").path("message").asText())
@@ -255,14 +285,15 @@ class JsonRpcErrorDataTest {
         @Override
         public void close() throws Exception {
             closing = true;
+            releasePingReply.complete(null);
             listener.close();
             Socket accepted = socket;
             if (accepted != null) {
                 accepted.close();
             }
-            worker.join(5000);
+            worker.join();
             assertFalse(worker.isAlive(), "Framed peer must terminate");
-            finished.get(5, TimeUnit.SECONDS);
+            finished.get();
         }
     }
 }

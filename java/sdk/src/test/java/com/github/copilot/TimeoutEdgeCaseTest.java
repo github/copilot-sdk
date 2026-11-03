@@ -8,7 +8,6 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertInstanceOf;
 import static org.junit.jupiter.api.Assertions.assertThrows;
-import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
@@ -20,6 +19,7 @@ import java.net.Socket;
 import java.nio.charset.StandardCharsets;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutionException;
+import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
 
 import org.junit.jupiter.api.Test;
@@ -98,7 +98,8 @@ public class TimeoutEdgeCaseTest {
             try (CopilotSession session = new CopilotSession("test-timeout-id", rpc)) {
 
                 CompletableFuture<AssistantMessageEvent> result = session
-                        .sendAndWait(new MessageOptions().setPrompt("hello"), 2000);
+                        // Keep a real scheduled timeout pending until the owner closes the session.
+                        .sendAndWait(new MessageOptions().setPrompt("hello"), Long.MAX_VALUE);
 
                 assertFalse(result.isDone(), "Future should be pending before timeout fires");
 
@@ -118,48 +119,47 @@ public class TimeoutEdgeCaseTest {
      * A shared scheduler must reuse a single thread across multiple
      * {@code sendAndWait} calls, rather than spawning a new OS thread per call.
      * <p>
-     * Contract: after two consecutive {@code sendAndWait} calls the number of live
-     * {@code sendAndWait-timeout} threads must not increase after the second call.
+     * The owner thread group isolates this session's scheduler from concurrent
+     * tests.
      */
     @Test
     void testSendAndWaitReusesTimeoutThread() throws Exception {
-        JsonRpcClient rpc = createHangingRpcClient();
+        var group = new ThreadGroup("owned-sendAndWait-scheduler");
+        var executor = Executors.newSingleThreadExecutor(runnable -> new Thread(group, runnable));
         try {
-            try (CopilotSession session = new CopilotSession("test-thread-count-id", rpc)) {
-
-                long baselineCount = countTimeoutThreads();
-
-                CompletableFuture<AssistantMessageEvent> result1 = session
-                        .sendAndWait(new MessageOptions().setPrompt("hello1"), 30000);
-
-                Thread.sleep(100);
-                long afterFirst = countTimeoutThreads();
-                assertTrue(afterFirst >= baselineCount + 1,
-                        "Expected at least one new sendAndWait-timeout thread after first call. " + "Baseline: "
-                                + baselineCount + ", after: " + afterFirst);
-
-                CompletableFuture<AssistantMessageEvent> result2 = session
-                        .sendAndWait(new MessageOptions().setPrompt("hello2"), 30000);
-
-                Thread.sleep(100);
-                long afterSecond = countTimeoutThreads();
-                assertTrue(afterSecond == afterFirst,
-                        "Shared scheduler should reuse the same thread — no new threads after second call. "
-                                + "After first: " + afterFirst + ", after second: " + afterSecond);
-
-                result1.cancel(true);
-                result2.cancel(true);
-            }
+            executor.submit(() -> {
+                try (var rpc = createHangingRpcClient();
+                        var session = new CopilotSession("test-thread-count-id", rpc)) {
+                    var result1 = session.sendAndWait(new MessageOptions().setPrompt("hello1"), Long.MAX_VALUE);
+                    assertEquals(1, countTimeoutThreads(group), "First call must start this session's scheduler");
+                    var result2 = session.sendAndWait(new MessageOptions().setPrompt("hello2"), Long.MAX_VALUE);
+                    assertEquals(1, countTimeoutThreads(group), "Second call must reuse the owned scheduler thread");
+                    result1.cancel(true);
+                    result2.cancel(true);
+                }
+                return null;
+            }).get(5, TimeUnit.SECONDS);
         } finally {
-            rpc.close();
+            executor.shutdownNow();
         }
     }
 
     /**
-     * Counts the number of live threads whose name contains "sendAndWait-timeout".
+     * Counts scheduler threads owned by this test, after synchronous worker
+     * creation.
      */
-    private long countTimeoutThreads() {
-        return Thread.getAllStackTraces().keySet().stream().filter(t -> t.getName().contains("sendAndWait-timeout"))
-                .filter(Thread::isAlive).count();
+    private long countTimeoutThreads(ThreadGroup group) {
+        Thread[] threads = new Thread[8];
+        int count;
+        while ((count = group.enumerate(threads, false)) == threads.length) {
+            threads = new Thread[threads.length * 2];
+        }
+        long schedulers = 0;
+        for (int i = 0; i < count; i++) {
+            if (threads[i].getName().equals("sendAndWait-timeout") && threads[i].isAlive()) {
+                schedulers++;
+            }
+        }
+        return schedulers;
     }
 }

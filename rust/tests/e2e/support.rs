@@ -768,18 +768,18 @@ impl SharedE2eState {
     }
 
     async fn shutdown_bounded(mut self, skip_writing_cache: bool) -> std::io::Result<()> {
-        let client_result =
-            match tokio::time::timeout(SHARED_E2E_CLEANUP_TIMEOUT, self.client.stop()).await {
-                Ok(result) => result.map_err(|err| {
-                    std::io::Error::other(format!("stop shared E2E client failed: {err}"))
-                }),
-                Err(_) => {
-                    self.client.force_stop();
-                    Err(std::io::Error::other(format!(
-                        "timed out after {SHARED_E2E_CLEANUP_TIMEOUT:?} stopping shared E2E client"
-                    )))
-                }
-            };
+        let client_result = if skip_writing_cache {
+            // Failed cleanup can leave an unanswered session.detach. Force stop
+            // closes its transport instead of repeating that unbounded request.
+            self.client.force_stop();
+            Ok(())
+        } else {
+            // Successful cleanup has detached every session. Let stop own its
+            // bounded shutdown, EOF grace, and reap phases without a competing timer.
+            self.client.stop().await.map_err(|err| {
+                std::io::Error::other(format!("stop shared E2E client failed: {err}"))
+            })
+        };
         let proxy_result = self.context.cleanup(skip_writing_cache).await;
 
         match (client_result, proxy_result) {

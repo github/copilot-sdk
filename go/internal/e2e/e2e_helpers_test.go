@@ -66,7 +66,17 @@ func waitForMatchingEvent(session *copilot.Session, eventType copilot.SessionEve
 		case err := <-errCh:
 			return nil, err
 		case <-time.After(30 * time.Second):
-			return nil, fmt.Errorf("timed out waiting for %s", description)
+			select {
+			case err := <-errCh:
+				return nil, err
+			default:
+			}
+			select {
+			case event := <-result:
+				return event, nil
+			default:
+				return nil, fmt.Errorf("timed out waiting for %s", description)
+			}
 		}
 	}
 }
@@ -139,13 +149,16 @@ func waitForRPCCondition(t *testing.T, timeout time.Duration, description string
 	t.Helper()
 	deadline := time.Now().Add(timeout)
 	var lastErr error
-	for time.Now().Before(deadline) {
+	for {
 		ok, err := condition()
 		if err == nil && ok {
 			return
 		}
 		if err != nil {
 			lastErr = err
+		}
+		if !time.Now().Before(deadline) {
+			break
 		}
 		time.Sleep(100 * time.Millisecond)
 	}

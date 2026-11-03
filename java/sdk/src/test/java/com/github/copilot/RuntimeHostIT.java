@@ -19,7 +19,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CopyOnWriteArrayList;
-import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.Timeout;
@@ -39,7 +38,7 @@ class RuntimeHostIT {
     }
 
     private static <T> T await(CompletableFuture<T> future) throws Exception {
-        return future.get(30, TimeUnit.SECONDS);
+        return future.get();
     }
 
     private static final class Application {

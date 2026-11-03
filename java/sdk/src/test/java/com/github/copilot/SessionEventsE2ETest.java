@@ -220,9 +220,7 @@ public class SessionEventsE2ETest {
                 if (event instanceof SessionIdleEvent && (event.getAgentId() == null || event.getAgentId().isEmpty())) {
                     idleEntered.countDown();
                     try {
-                        if (!releaseIdle.await(10, TimeUnit.SECONDS)) {
-                            throw new IllegalStateException("Timed out waiting to release the idle listener");
-                        }
+                        releaseIdle.await();
                     } catch (InterruptedException e) {
                         Thread.currentThread().interrupt();
                         throw new IllegalStateException(e);
@@ -230,7 +228,7 @@ public class SessionEventsE2ETest {
                     idleCallbackCompleted.set(true);
                 }
             })) {
-                var response = session.sendAndWait(new MessageOptions().setPrompt("What is 100+200?"));
+                var response = session.sendAndWait(new MessageOptions().setPrompt("What is 100+200?"), 0);
                 try {
                     assertTrue(idleEntered.await(30, TimeUnit.SECONDS), "Root-idle listener should run");
                     assertThrows(TimeoutException.class, () -> response.get(200, TimeUnit.MILLISECONDS),

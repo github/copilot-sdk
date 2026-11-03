@@ -154,7 +154,7 @@ async fn blocked_release_callback_cannot_lose_another_release_behind_notificatio
         .with_on_session_released(move |session| {
             if session.id().as_str() == "blocked" {
                 blocked_tx.send(()).unwrap();
-                gate.lock().unwrap().recv_timeout(TIMEOUT * 2).unwrap();
+                gate.lock().unwrap().recv().unwrap();
             }
             released_tx.send(session).unwrap();
         });

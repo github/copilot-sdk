@@ -10,7 +10,7 @@ from copilot.session_events import SessionErrorData, SessionEvent
 def wait_for_event(
     session: CopilotSession,
     predicate: Callable[[SessionEvent], bool],
-    timeout: float = 30.0,
+    timeout: float | None = 30.0,
     *,
     fail_on_session_error: bool = False,
 ) -> asyncio.Task[SessionEvent]:
@@ -22,6 +22,7 @@ def wait_for_event(
 
     Only predicate matches complete the wait by default. Set fail_on_session_error
     to also fail on unmatched session errors when the caller requires that policy.
+    Pass None to retain events across prerequisite phases and bound the later await.
     """
     loop = asyncio.get_running_loop()
     result_future: asyncio.Future[SessionEvent] = loop.create_future()
@@ -53,7 +54,7 @@ def wait_for_event(
 
 
 def get_next_event_of_type(
-    session: CopilotSession, event_type: str, timeout: float = 30.0
+    session: CopilotSession, event_type: str, timeout: float | None = 30.0
 ) -> asyncio.Task[SessionEvent]:
     """Subscribe before an operation; fail on session errors unless waiting for that event."""
     return wait_for_event(

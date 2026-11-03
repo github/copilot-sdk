@@ -422,12 +422,11 @@ public class PendingWorkResumeE2ETests(E2ETestFixture fixture, ITestOutputHelper
                     }
                 }
             });
-            var finalResponse = TestHelper.GetNextEventOfTypeAsync<AssistantMessageEvent>(
+            using var finalResponse = TestHelper.ObserveEvent<AssistantMessageEvent>(
                 session2,
                 message => message.Data.Content?.Contains("PARALLEL_A_ALPHA", StringComparison.Ordinal) == true
-                    && message.Data.Content.Contains("PARALLEL_B_BETA", StringComparison.Ordinal),
-                PendingWorkTimeout);
-            var resumedTurnIdle = TestHelper.GetNextEventOfTypeAsync<SessionIdleEvent>(session2, PendingWorkTimeout);
+                    && message.Data.Content.Contains("PARALLEL_B_BETA", StringComparison.Ordinal));
+            using var resumedTurnIdle = TestHelper.ObserveEvent<SessionIdleEvent>(session2);
             Console.Error.WriteLine("Parallel pending-work resume: resolving tool B");
             var resultB = await session2.Rpc.Tools.HandlePendingToolCallAsync(
                 toolB.Data.RequestId,
@@ -439,8 +438,7 @@ public class PendingWorkResumeE2ETests(E2ETestFixture fixture, ITestOutputHelper
                 result: JsonDocument.Parse("\"PARALLEL_A_ALPHA\"").RootElement.Clone()).WaitAsync(PendingWorkTimeout);
             Assert.True(resultA.Success);
             // Acknowledging both tool results does not mean their resumed turn has finished.
-            await finalResponse;
-            await resumedTurnIdle;
+            await Task.WhenAll(finalResponse.Task, resumedTurnIdle.Task).WaitAsync(PendingWorkTimeout);
             List<SessionEvent> observedCompletionEvents;
             lock (completionEventsLock)
             {

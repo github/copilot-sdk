@@ -28,14 +28,10 @@ public class CompactionE2ETests(E2ETestFixture fixture, ITestOutputHelper output
         // The first prompt leaves the session below the compaction processor's minimum
         // message count. The second prompt is therefore the first deterministic point
         // at which low thresholds can trigger compaction.
-        var compactionStarted = TestHelper.GetNextEventOfTypeAsync<SessionCompactionStartEvent>(
+        using var compactionStarted = TestHelper.ObserveEvent<SessionCompactionStartEvent>(session);
+        using var compactionCompleted = TestHelper.ObserveEvent<SessionCompactionCompleteEvent>(
             session,
-            CompactionTimeout);
-        var compactionCompleted = TestHelper.GetNextEventOfTypeAsync<SessionCompactionCompleteEvent>(
-            session,
-            evt => evt.Data.Success,
-            CompactionTimeout,
-            timeoutDescription: "successful compaction completion");
+            evt => evt.Data.Success);
 
         await session.SendAndWaitAsync(new MessageOptions
         {
@@ -46,8 +42,9 @@ public class CompactionE2ETests(E2ETestFixture fixture, ITestOutputHelper output
             Prompt = "Continue the story with more details about the dragon's castle."
         });
 
-        var startEvent = await compactionStarted;
-        var completeEvent = await compactionCompleted;
+        await Task.WhenAll(compactionStarted.Task, compactionCompleted.Task).WaitAsync(CompactionTimeout);
+        var startEvent = await compactionStarted.Task;
+        var completeEvent = await compactionCompleted.Task;
 
         Assert.True(startEvent.Data.ConversationTokens.GetValueOrDefault() > 0, "Expected compaction to report conversation tokens at start");
         Assert.True(completeEvent.Data.Success, "Expected compaction to succeed");

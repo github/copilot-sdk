@@ -378,14 +378,28 @@ func TestHostAuthenticationCancellationE2E(t *testing.T) {
 func TestHostAuthenticationExpiryAndReauthenticationE2E(t *testing.T) {
 	b := newHostAuthBoundary(t)
 	client := b.client(t)
+	type credential struct {
+		token  string
+		expiry time.Time
+		result *copilot.AhpAuthenticationResult
+	}
 	var validations atomic.Int32
+	var issued atomic.Pointer[credential]
 	host, err := client.StartAhpHost(t.Context(), &copilot.AhpHostOptions{
 		LocalServer: &rpc.HostLocalServerOptions{},
-		Authentication: hostAuthPolicy(func(context.Context, string) (*copilot.AhpAuthenticationResult, error) {
-			result := acceptedHostAuth()
-			if validations.Add(1) == 1 {
-				result.ExpiresAt = time.Now().Add(2 * time.Second).Format(time.RFC3339Nano)
+		Authentication: hostAuthPolicy(func(_ context.Context, token string) (*copilot.AhpAuthenticationResult, error) {
+			if token != "short-lived" && token != "renewed" {
+				return nil, fmt.Errorf("unexpected fixture token: %q", token)
 			}
+			lifetime := 2 * time.Second
+			if token == "renewed" {
+				lifetime = time.Minute
+			}
+			// Credential expiration uses wall time, not the local monotonic reading.
+			expiry := time.Now().Round(0).Add(lifetime)
+			result := &copilot.AhpAuthenticationResult{Identity: "owner", ExpiresAt: expiry.Format(time.RFC3339Nano)}
+			issued.Store(&credential{token: token, expiry: expiry, result: result})
+			validations.Add(1)
 			return result, nil
 		}),
 	})
@@ -393,12 +407,50 @@ func TestHostAuthenticationExpiryAndReauthenticationE2E(t *testing.T) {
 		t.Fatal(err)
 	}
 	b.request(t, map[string]any{"op": "connect", "url": *host.URL, "token": host.Token})
-	b.request(t, map[string]any{"op": "authenticate", "token": "short-lived"})
+	ctx, cancel := context.WithTimeout(t.Context(), time.Minute)
+	defer cancel()
+	var attempts int32
+	for {
+		issued.Store(nil)
+		before := validations.Load()
+		attempts++
+		if err := ctx.Err(); err != nil {
+			t.Fatal(err)
+		}
+		_, err := b.ahp.Request(ctx, map[string]any{"op": "authenticate", "token": "short-lived"})
+		if err != nil && ctx.Err() != nil {
+			t.Fatalf("authentication failed after the original owner ended: %v (context: %v)", err, ctx.Err())
+		}
+		if err != nil &&
+			err.Error() != "AHP test client: RPC error -32603: internal error: application authentication failed" &&
+			err.Error() != "AHP test client: RPC error -32007: authentication required for https://copilot.github.com/hosting/authentication" {
+			t.Fatal(err)
+		}
+		current := issued.Load()
+		if validations.Load() != before+1 || current == nil {
+			t.Fatalf("authentication must return exactly one new fixture credential: calls=%d, before=%d, credential=%v, error=%v", validations.Load(), before, current, err)
+		}
+		if current.token != "short-lived" || current.result.Identity != "owner" || current.result.ExpiresAt != current.expiry.Format(time.RFC3339Nano) {
+			t.Fatalf("unexpected fixture credential: %+v", current)
+		}
+		if err == nil {
+			break
+		}
+		if current.expiry.After(time.Now()) {
+			t.Fatal(err)
+		}
+		t.Logf("Retrying initial authentication with an already-expired fixture credential: %v", err)
+	}
 	b.request(t, map[string]any{"op": "expired"})
 	b.reject(t, map[string]any{"op": "create", "workDir": b.work})
+	issued.Store(nil)
+	beforeRenewal := validations.Load()
 	b.request(t, map[string]any{"op": "authenticate", "token": "renewed"})
-	if validations.Load() != 2 {
-		t.Fatalf("validator calls = %d, want 2", validations.Load())
+	if validations.Load() != beforeRenewal+1 || issued.Load() == nil || issued.Load().token != "renewed" {
+		t.Fatalf("renewal must invoke its validator once: calls=%d, before=%d, credential=%v", validations.Load(), beforeRenewal, issued.Load())
+	}
+	if validations.Load() != attempts+1 {
+		t.Fatalf("validator calls = %d, want %d", validations.Load(), attempts+1)
 	}
 	if err := host.Dispose(t.Context()); err != nil {
 		t.Fatal(err)

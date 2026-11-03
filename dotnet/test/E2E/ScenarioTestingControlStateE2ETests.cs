@@ -31,7 +31,7 @@ public class ScenarioTestingControlStateE2ETests(E2ETestFixture fixture, ITestOu
 
         try
         {
-            var idle = TestHelper.GetNextEventOfTypeAsync<SessionIdleEvent>(session, EventTimeout);
+            using var idle = TestHelper.ObserveEvent<SessionIdleEvent>(session);
             await session.SendAsync(new MessageOptions
             {
                 Prompt = "Call wait_for_scenario_control, then reply with exactly SCENARIO_CONTROL_DONE.",
@@ -44,7 +44,7 @@ public class ScenarioTestingControlStateE2ETests(E2ETestFixture fixture, ITestOu
             Assert.True(activity.Abortable);
 
             releaseTool.TrySetResult("SCENARIO_CONTROL_DONE");
-            await idle;
+            await idle.Task.WaitAsync(EventTimeout);
 
             await TestHelper.WaitForConditionAsync(
                 async () => !(await session.Rpc.Metadata.IsProcessingAsync()).Processing,

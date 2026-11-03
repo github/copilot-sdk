@@ -334,16 +334,181 @@ public class E2ETestContext implements AutoCloseable {
     }
 
     /**
-     * Ensures the proxy is alive, restarting it if necessary.
+     * Awaits a retained readiness observation under one owner budget. A successful
+     * probe survives observer cancellation; timeout never starts another probe.
+     *
+     * @param condition
+     *            the authoritative readiness probe
+     * @param timeoutMs
+     *            the complete observation budget
+     * @param pollIntervalMs
+     *            the interval between completed pending observations
+     * @param description
+     *            the timeout diagnostic
+     * @throws Exception
+     *             if a probe fails or the observer is interrupted
+     */
+    public static void awaitCondition(java.util.concurrent.Callable<Boolean> condition, long timeoutMs,
+            long pollIntervalMs, String description) throws Exception {
+        awaitCondition(condition, timeoutMs, pollIntervalMs, description,
+                java.util.concurrent.Executors.newSingleThreadExecutor());
+    }
+
+    static void awaitCondition(java.util.concurrent.Callable<Boolean> condition, long timeoutMs, long pollIntervalMs,
+            String description, java.util.concurrent.ExecutorService executor) throws Exception {
+        java.util.concurrent.Future<Boolean> observation = null;
+        var observedReady = new java.util.concurrent.atomic.AtomicBoolean();
+        java.util.concurrent.TimeoutException expired = null;
+        try {
+            observation = executor.submit(() -> {
+                while (!condition.call()) {
+                    Thread.sleep(pollIntervalMs);
+                }
+                observedReady.set(true);
+                return true;
+            });
+            try {
+                observation.get(timeoutMs, java.util.concurrent.TimeUnit.MILLISECONDS);
+            } catch (java.util.concurrent.TimeoutException timeout) {
+                if (observation.isDone()) {
+                    observation.get();
+                } else {
+                    expired = timeout;
+                }
+            }
+        } finally {
+            if (observation != null) {
+                observation.cancel(true);
+            }
+            executor.shutdownNow();
+            executor.awaitTermination(Long.MAX_VALUE, java.util.concurrent.TimeUnit.NANOSECONDS);
+        }
+        if (expired != null && !observedReady.get()) {
+            throw new AssertionError(description, expired);
+        }
+    }
+
+    /**
+     * Checks the same reply without waiting again if it completes between the timed
+     * wait's final check and delivery of its timeout.
+     */
+    static <T> T awaitReply(java.util.concurrent.CompletableFuture<T> reply, long timeout,
+            java.util.concurrent.TimeUnit unit) throws InterruptedException, java.util.concurrent.ExecutionException,
+            java.util.concurrent.TimeoutException {
+        try {
+            return reply.get(timeout, unit);
+        } catch (java.util.concurrent.TimeoutException expired) {
+            if (!reply.isDone()) {
+                throw expired;
+            }
+            try {
+                return reply.getNow(null);
+            } catch (java.util.concurrent.CompletionException failure) {
+                var cause = failure.getCause();
+                var failedReply = new java.util.concurrent.ExecutionException(cause == null ? failure : cause);
+                failedReply.addSuppressed(expired);
+                throw failedReply;
+            } catch (java.util.concurrent.CancellationException failure) {
+                failure.addSuppressed(expired);
+                throw failure;
+            }
+        }
+    }
+
+    /**
+     * Observes real replies on the test thread, with one query outstanding. Callers
+     * must have a native JUnit timeout; readiness has no speed contract.
+     */
+    static <T> T awaitReadiness(java.util.function.Supplier<java.util.concurrent.CompletableFuture<T>> query,
+            java.util.function.Predicate<T> ready, long pollIntervalMs, String description) throws Exception {
+        return awaitReadiness(query, null, ready, pollIntervalMs, description);
+    }
+
+    static <T> T awaitReadiness(java.util.function.Supplier<java.util.concurrent.CompletableFuture<T>> query,
+            java.util.concurrent.CompletableFuture<T> firstQuery, java.util.function.Predicate<T> ready,
+            long pollIntervalMs, String description) throws Exception {
+        var current = firstQuery;
+        T last = null;
+        boolean observed = false;
+        try {
+            while (true) {
+                if (Thread.interrupted()) {
+                    throw new InterruptedException(description);
+                }
+                if (current == null) {
+                    current = query.get();
+                }
+                last = current.get();
+                observed = true;
+                if (ready.test(last)) {
+                    return last;
+                }
+                current = null;
+                Thread.sleep(pollIntervalMs);
+            }
+        } catch (InterruptedException interrupted) {
+            interrupted.addSuppressed(new IllegalStateException(
+                    description + "; last observation=" + (observed ? String.valueOf(last) : "<no completed reply>")));
+            throw interrupted;
+        } finally {
+            if (current != null) {
+                current.cancel(true);
+            }
+        }
+    }
+
+    /**
+     * Awaits a nonblocking buffered-state probe, retaining consumed readiness even
+     * when cancellation discards the worker's result. After stopping the worker,
+     * checks the final buffered state only if readiness was not observed. Do not
+     * use this for RPCs or other blocking probes.
+     *
+     * @param condition
+     *            the nonblocking buffered-state probe
+     * @param timeoutMs
+     *            the complete observation budget
+     * @param pollIntervalMs
+     *            the interval between completed pending observations
+     * @param description
+     *            the timeout diagnostic
+     * @throws Exception
+     *             if a probe fails or the observer is interrupted
+     */
+    public static void awaitBufferedCondition(java.util.concurrent.Callable<Boolean> condition, long timeoutMs,
+            long pollIntervalMs, String description) throws Exception {
+        awaitBufferedCondition(condition, timeoutMs, pollIntervalMs, description,
+                java.util.concurrent.Executors.newSingleThreadExecutor());
+    }
+
+    static void awaitBufferedCondition(java.util.concurrent.Callable<Boolean> condition, long timeoutMs,
+            long pollIntervalMs, String description, java.util.concurrent.ExecutorService executor) throws Exception {
+        var observedReady = new java.util.concurrent.atomic.AtomicBoolean();
+        try {
+            awaitCondition(() -> {
+                boolean ready = condition.call();
+                if (ready) {
+                    observedReady.set(true);
+                }
+                return ready;
+            }, timeoutMs, pollIntervalMs, description, executor);
+        } catch (AssertionError failure) {
+            if (!(failure.getCause() instanceof java.util.concurrent.TimeoutException)
+                    || (!observedReady.get() && !condition.call())) {
+                throw failure;
+            }
+        }
+    }
+
+    /**
+     * Ensures that the configured fixture process has not exited.
      *
      * @throws IOException
-     *             if the proxy cannot be restarted
-     * @throws InterruptedException
-     *             if interrupted during restart
+     *             if the proxy exited
      */
     public void ensureProxyAlive() throws IOException, InterruptedException {
         if (!proxy.isAlive()) {
-            proxyUrl = proxy.restart();
+            throw new IOException(
+                    "The configured replay proxy exited; its test state cannot be recovered by restarting");
         }
     }
 

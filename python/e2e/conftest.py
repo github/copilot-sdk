@@ -81,4 +81,7 @@ async def configure_test(request, ctx):
         test_name = test_name[5:]  # Remove "test_" prefix
 
     await ctx.configure_for_test(test_file, test_name)
-    yield
+    try:
+        yield
+    finally:
+        await ctx.disconnect_sessions()

@@ -60,7 +60,7 @@ class JsonRpcClient implements AutoCloseable {
     private boolean peerEof;
     private final Object closeHandlerLock = new Object();
     private volatile boolean running = true;
-    private boolean closeNotified;
+    private volatile boolean closeNotified;
     private Runnable closeHandler;
 
     private JsonRpcClient(InputStream inputStream, OutputStream outputStream, Socket socket, Process process) {
@@ -389,6 +389,10 @@ class JsonRpcClient implements AutoCloseable {
 
     boolean awaitPeerEof(long timeout, TimeUnit unit) throws InterruptedException {
         return readerExited.await(Math.max(0, timeout), unit) && peerEof;
+    }
+
+    boolean isClosed() {
+        return closeNotified;
     }
 
     void setCloseHandler(Runnable handler) {

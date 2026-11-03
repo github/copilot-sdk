@@ -55,8 +55,8 @@ public class SessionTodosChangedTest {
                             + "1. INSERT INTO todos (id, title, status) VALUES ('alpha', 'First todo', 'pending');\n"
                             + "2. INSERT INTO todos (id, title, status) VALUES ('beta', 'Second todo', 'done');\n"
                             + "3. INSERT INTO todo_deps (todo_id, depends_on) VALUES ('beta', 'alpha');\n"
-                            + "Then stop. Do not insert any other rows or create any other tables."))
-                    .get(120, TimeUnit.SECONDS);
+                            + "Then stop. Do not insert any other rows or create any other tables."),
+                    0).get(120, TimeUnit.SECONDS);
 
             assertNotNull(todosChanged.get(15, TimeUnit.SECONDS),
                     "Should have received at least one session.todos_changed event");

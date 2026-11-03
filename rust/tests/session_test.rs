@@ -5038,7 +5038,7 @@ async fn cancelling_send_and_wait_cancels_only_its_completion_request() {
     );
 }
 
-#[tokio::test]
+#[tokio::test(start_paused = true)]
 async fn send_and_wait_returns_last_assistant_message_on_idle() {
     let (session, mut server) = create_session_pair().await;
     let session = Arc::new(session);
@@ -5081,7 +5081,7 @@ async fn send_and_wait_returns_last_assistant_message_on_idle() {
     assert_eq!(event.data["message"], "Hello back!");
 }
 
-#[tokio::test]
+#[tokio::test(start_paused = true)]
 async fn send_and_wait_ignores_idle_from_an_earlier_request_during_trace_resolution() {
     struct SendTraceGate {
         calls: AtomicUsize,
@@ -5214,7 +5214,7 @@ async fn send_and_wait_ignores_idle_from_an_earlier_request_during_trace_resolut
     assert_eq!(result.data["content"], "second response");
 }
 
-#[tokio::test]
+#[tokio::test(start_paused = true)]
 async fn send_and_wait_rejects_aborted_idle_and_autopilot_terminals() {
     for (terminal, data) in [
         ("session.idle", serde_json::json!({"aborted":true})),
@@ -5270,7 +5270,7 @@ struct StructuredInventory {
     color: String,
 }
 
-#[tokio::test]
+#[tokio::test(start_paused = true)]
 async fn autopilot_terminal_preserves_pre_ack_outcome_through_retirement() {
     for terminal in ["session.idle", "session.autopilot_stopped", "session.error"] {
         let (session, mut server) = create_session_pair().await;
@@ -5318,7 +5318,7 @@ async fn autopilot_terminal_preserves_pre_ack_outcome_through_retirement() {
     }
 }
 
-#[tokio::test]
+#[tokio::test(start_paused = true)]
 async fn autopilot_terminal_correlates_without_idle_before_or_after_ack() {
     for structured in [false, true] {
         for before_ack in [false, true] {
@@ -5421,7 +5421,7 @@ async fn autopilot_terminal_correlates_without_idle_before_or_after_ack() {
     }
 }
 
-#[tokio::test]
+#[tokio::test(start_paused = true)]
 async fn send_during_plain_wait_preserves_request_isolation() {
     for before_ack in [false, true] {
         let (session, mut server) = create_session_pair().await;
@@ -5499,7 +5499,7 @@ async fn send_during_plain_wait_preserves_request_isolation() {
     }
 }
 
-#[tokio::test]
+#[tokio::test(start_paused = true)]
 async fn queued_send_error_does_not_fail_another_request_wait() {
     for structured in [false, true] {
         for before_ack in [false, true] {
@@ -5579,7 +5579,7 @@ async fn queued_send_error_does_not_fail_another_request_wait() {
     }
 }
 
-#[tokio::test]
+#[tokio::test(start_paused = true)]
 async fn correlated_errors_ignore_interleaved_message_events() {
     for structured in [false, true] {
         for before_ack in [false, true] {
@@ -5653,7 +5653,7 @@ async fn correlated_errors_ignore_interleaved_message_events() {
     }
 }
 
-#[tokio::test]
+#[tokio::test(start_paused = true)]
 async fn autopilot_terminal_isolates_concurrent_structured_waits() {
     let (session, mut server) = create_session_pair().await;
     let session = Arc::new(session);
@@ -5703,7 +5703,7 @@ async fn autopilot_terminal_isolates_concurrent_structured_waits() {
     }
 }
 
-#[tokio::test]
+#[tokio::test(start_paused = true)]
 async fn autopilot_terminal_isolates_concurrent_plain_and_structured_waits() {
     let (session, mut server) = create_session_pair().await;
     let session = Arc::new(session);
@@ -5835,7 +5835,7 @@ async fn autopilot_terminal_isolates_concurrent_plain_and_structured_waits() {
     assert_eq!(first_result.data["content"], "first");
 }
 
-#[tokio::test]
+#[tokio::test(start_paused = true)]
 async fn autopilot_terminal_error_does_not_require_session_error() {
     for structured in [false, true] {
         let (session, mut server) = create_session_pair().await;
@@ -6198,7 +6198,7 @@ async fn structured_output_timeout_and_cancellation_do_not_block_later_sends() {
     assert_eq!(sending.await.unwrap().unwrap(), "plain");
 }
 
-#[tokio::test]
+#[tokio::test(start_paused = true)]
 async fn send_and_wait_agent_source_preserves_mode_and_optional_reply() {
     let (session, mut server) = create_session_pair().await;
     let session = Arc::new(session);
@@ -6261,7 +6261,7 @@ async fn send_and_wait_agent_source_preserves_mode_and_optional_reply() {
     }
 }
 
-#[tokio::test]
+#[tokio::test(start_paused = true)]
 async fn send_and_wait_system_source_returns_none_on_idle_without_assistant() {
     let (session, mut server) = create_session_pair().await;
     let session = Arc::new(session);
@@ -6314,7 +6314,7 @@ async fn send_and_wait_system_source_returns_none_on_idle_without_assistant() {
     );
 }
 
-#[tokio::test]
+#[tokio::test(start_paused = true)]
 async fn send_and_wait_correlates_blocked_prompts_without_user_messages() {
     for before_ack in [false, true] {
         let (session, mut server) = create_session_pair().await;
@@ -6381,7 +6381,7 @@ async fn send_and_wait_correlates_blocked_prompts_without_user_messages() {
     }
 }
 
-#[tokio::test]
+#[tokio::test(start_paused = true)]
 async fn send_and_wait_source_preserves_errors() {
     let (session, mut server) = create_session_pair().await;
     let session = Arc::new(session);
@@ -6438,7 +6438,7 @@ async fn send_and_wait_source_preserves_errors() {
     }
 }
 
-#[tokio::test]
+#[tokio::test(start_paused = true)]
 async fn send_and_wait_returns_error_on_session_error() {
     let (session, mut server) = create_session_pair().await;
     let session = Arc::new(session);
@@ -6597,7 +6597,7 @@ async fn send_and_wait_queues_terminal_event_before_waking_caller() {
     }
 }
 
-#[tokio::test]
+#[tokio::test(start_paused = true)]
 async fn send_and_wait_ignores_child_events_even_when_child_was_not_announced() {
     let (session, mut server) = create_session_pair().await;
     let session = Arc::new(session);

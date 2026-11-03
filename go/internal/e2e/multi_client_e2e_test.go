@@ -483,11 +483,16 @@ func TestMultiClientE2E(t *testing.T) {
 			t.Errorf("Expected response to contain 'EPHEMERAL_test2', got '%s'", erd.Content)
 		}
 
-		// Disconnect client 2 without destroying the shared session
-		client2.ForceStop()
+		// Metadata retains the previous request's tools; subscribe to the live
+		// removal announcement after that turn completes and before disconnect.
+		toolsRemoved := waitForMatchingEvent(session1, copilot.SessionEventTypeSessionToolsUpdated,
+			func(copilot.SessionEvent) bool { return true }, "tool removal after client disconnect")
 
-		// Give the server time to process the connection close and remove tools
-		time.Sleep(500 * time.Millisecond)
+		// Disconnect client 2 without destroying the shared session.
+		client2.ForceStop()
+		if _, err := toolsRemoved(); err != nil {
+			t.Fatalf("Failed to observe disconnected client's tool removal: %v", err)
+		}
 
 		// Recreate client2 for cleanup (but don't rejoin the session)
 		client2 = copilot.NewClient(&copilot.ClientOptions{
@@ -515,6 +520,19 @@ func TestMultiClientE2E(t *testing.T) {
 		// ephemeral_tool should NOT have produced a result
 		if strings.Contains(ard.Content, "EPHEMERAL_") {
 			t.Errorf("Expected response NOT to contain 'EPHEMERAL_', got '%s'", ard.Content)
+		}
+
+		// This completed turn replaces the pre-disconnect request's tool metadata.
+		metadata, err := session1.RPC.Tools.GetCurrentMetadata(t.Context())
+		if err != nil {
+			t.Fatalf("Failed to get post-disconnect tool metadata: %v", err)
+		}
+		toolNames := make(map[string]bool, len(metadata.Tools))
+		for _, tool := range metadata.Tools {
+			toolNames[tool.Name] = true
+		}
+		if !toolNames["stable_tool"] || toolNames["ephemeral_tool"] {
+			t.Errorf("Expected only stable_tool from the clients after disconnect, got %v", toolNames)
 		}
 	})
 }
@@ -549,10 +567,9 @@ func waitForEventsByType(t *testing.T, ready <-chan struct{}, mu *sync.Mutex, ev
 	t.Helper()
 	select {
 	case <-ready:
-		mu.Lock()
-		defer mu.Unlock()
-		return filterEventsByType(*events, eventType)
 	case <-time.After(timeout):
-		return nil
 	}
+	mu.Lock()
+	defer mu.Unlock()
+	return filterEventsByType(*events, eventType)
 }

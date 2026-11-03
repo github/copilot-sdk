@@ -263,7 +263,17 @@ func waitForMatchingEventAllowingRateLimit(session *copilot.Session, eventType c
 		case err := <-errCh:
 			return nil, err
 		case <-time.After(30 * time.Second):
-			return nil, fmt.Errorf("timed out waiting for %s", description)
+			select {
+			case err := <-errCh:
+				return nil, err
+			default:
+			}
+			select {
+			case event := <-result:
+				return event, nil
+			default:
+				return nil, fmt.Errorf("timed out waiting for %s", description)
+			}
 		}
 	}
 }

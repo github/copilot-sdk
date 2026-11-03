@@ -1583,6 +1583,9 @@ public final class CopilotClient implements AutoCloseable {
 
     /**
      * Gets the current connection state.
+     * <p>
+     * Reports {@link ConnectionState#DISCONNECTED} once the connection to the
+     * runtime has closed, for example because the runtime process exited.
      *
      * @return the current connection state
      * @see ConnectionState
@@ -1595,6 +1598,8 @@ public final class CopilotClient implements AutoCloseable {
             return ConnectionState.CONNECTING;
         if (future.isCompletedExceptionally())
             return ConnectionState.ERROR;
+        if (future.join().rpc().isClosed())
+            return ConnectionState.DISCONNECTED;
         return ConnectionState.CONNECTED;
     }
 

@@ -2,6 +2,7 @@
 
 import asyncio
 import json
+from collections.abc import Callable
 from pathlib import Path
 from typing import Any
 
@@ -34,18 +35,43 @@ class AhpTestClient:
         return self
 
     async def _read(self) -> dict[str, Any]:
+        return await asyncio.wait_for(self._read_response(), 60)
+
+    async def _read_response(self) -> dict[str, Any]:
         assert self._process and self._process.stdout
-        line = await asyncio.wait_for(self._process.stdout.readline(), 60)
+        line = await self._process.stdout.readline()
         if not line:
             raise RuntimeError("AHP test client closed its output unexpectedly")
         return json.loads(line)
 
-    async def request(self, command: dict[str, Any]) -> dict[str, Any]:
+    async def request(
+        self,
+        command: dict[str, Any],
+        *,
+        retry_expired_error: Callable[[str], bool] | None = None,
+    ) -> dict[str, Any]:
         async with self._lock:
             assert self._process and self._process.stdin
             self._process.stdin.write((json.dumps(command) + "\n").encode())
             await self._process.stdin.drain()
-            response = await self._read()
+            if retry_expired_error is None:
+                response = await self._read()
+            else:
+                deadline = asyncio.get_running_loop().time() + 60
+
+                async def exchange():
+                    while True:
+                        response = await self._read_response()
+                        if "error" not in response or not retry_expired_error(response["error"]):
+                            return response
+                        if asyncio.get_running_loop().time() >= deadline:
+                            raise TimeoutError(
+                                "Initial authentication exhausted its original read budget"
+                            )
+                        self._process.stdin.write((json.dumps(command) + "\n").encode())
+                        await self._process.stdin.drain()
+
+                response = await asyncio.wait_for(exchange(), 60)
             if "error" in response:
                 raise RuntimeError(response["error"])
             return response["result"]

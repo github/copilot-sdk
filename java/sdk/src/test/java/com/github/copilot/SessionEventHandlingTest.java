@@ -263,7 +263,7 @@ public class SessionEventHandlingTest {
         session = createTestSession(rpc);
 
         try {
-            var pending = session.sendAndWait(new MessageOptions().setPrompt("keep going"));
+            var pending = session.sendAndWait(new MessageOptions().setPrompt("keep going"), 0);
 
             dispatchEvent(createUserMessageEvent("keep going"));
             dispatchEvent(createAssistantMessageEvent("intermediate"));
@@ -293,7 +293,7 @@ public class SessionEventHandlingTest {
         try {
             var received = new ArrayList<SessionEvent>();
             session.on(received::add);
-            var pending = session.sendAndWait(new MessageOptions().setPrompt("delegate"));
+            var pending = session.sendAndWait(new MessageOptions().setPrompt("delegate"), 0);
 
             var childMessage = createAssistantMessageEvent("child reply");
             childMessage.setAgentId("child-1");

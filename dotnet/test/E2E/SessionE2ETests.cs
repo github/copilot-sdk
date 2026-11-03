@@ -353,8 +353,8 @@ public class SessionE2ETests(E2ETestFixture fixture, ITestOutputHelper output) :
     internal static async Task AssertAbortAndRecoveryAsync(CopilotSession session, TimeSpan timeout)
     {
         // Set up wait for tool execution to start BEFORE sending
-        var toolStartTask = TestHelper.GetNextEventOfTypeAsync<ToolExecutionStartEvent>(session, timeout);
-        var sessionIdleTask = TestHelper.GetNextEventOfTypeAsync<SessionIdleEvent>(session, timeout);
+        using var toolStartTask = TestHelper.ObserveEvent<ToolExecutionStartEvent>(session);
+        using var sessionIdleTask = TestHelper.ObserveEvent<SessionIdleEvent>(session);
 
         // Send a message that will take some time to process
         await session.SendAsync(new MessageOptions
@@ -363,11 +363,11 @@ public class SessionE2ETests(E2ETestFixture fixture, ITestOutputHelper output) :
         });
 
         // Wait for tool execution to start
-        await toolStartTask;
+        await toolStartTask.Task.WaitAsync(timeout);
 
         // Abort the session
         await session.AbortAsync();
-        await sessionIdleTask;
+        await sessionIdleTask.Task.WaitAsync(timeout);
 
         // The session should still be alive and usable after abort
         var messages = await session.GetEventsAsync();
@@ -546,16 +546,14 @@ public class SessionE2ETests(E2ETestFixture fixture, ITestOutputHelper output) :
             if (evt is SessionIdleEvent)
             {
                 idleEntered.TrySetResult();
-                if (!releaseIdle.Wait(TimeSpan.FromSeconds(30)))
-                {
-                    return;
-                }
+                releaseIdle.Wait();
                 idleHandlerFinished = true;
             }
             events.Enqueue(evt.Type);
         });
 
-        var pending = session.SendAndWaitAsync(new MessageOptions { Prompt = "What is 2+2?" });
+        var pending = session.SendAndWaitAsync(
+            new MessageOptions { Prompt = "What is 2+2?" }, Timeout.InfiniteTimeSpan);
         try
         {
             await idleEntered.Task.WaitAsync(TimeSpan.FromSeconds(30));
@@ -566,7 +564,7 @@ public class SessionE2ETests(E2ETestFixture fixture, ITestOutputHelper output) :
         {
             releaseIdle.Set();
         }
-        var response = await pending;
+        var response = await pending.WaitAsync(TimeSpan.FromSeconds(60));
 
         Assert.True(idleHandlerFinished, "The earlier idle listener must finish before SendAndWaitAsync returns");
         Assert.NotNull(response);

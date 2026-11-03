@@ -392,7 +392,7 @@ class FfiRuntimeHostTest {
             void enqueue(byte[] bytes) {
                 callbackEntered.countDown();
                 try {
-                    allowCallbackToReturn.await(5, TimeUnit.SECONDS);
+                    allowCallbackToReturn.await();
                 } catch (InterruptedException e) {
                     Thread.currentThread().interrupt();
                 }
@@ -424,11 +424,11 @@ class FfiRuntimeHostTest {
             assertTrue(closeCalls.get() >= 2, "connection close should be retried after reporting non-quiescence");
             assertTrue(shutdownObservedAfterCallbackReturn.get(), "host_shutdown should run after callback drains");
         } finally {
+            allowCallbackToReturn.countDown();
             executor.shutdownNow();
         }
 
         host.close();
-        Thread.sleep(150);
         assertEquals(1, shutdownCalls.get(), "host shutdown should happen exactly once");
     }
 }

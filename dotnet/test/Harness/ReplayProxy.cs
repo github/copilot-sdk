@@ -23,6 +23,17 @@ public sealed partial class ReplayProxy : IAsyncDisposable
     public string? ConnectProxyUrl { get; private set; }
     public string? CaFilePath { get; private set; }
 
+    internal static HttpClient CreateExchangeHttpClient(CancellationToken cancellationToken)
+    {
+        var client = new HttpClient();
+        if (cancellationToken.CanBeCanceled)
+        {
+            // Only remove the competing HTTP deadline when the caller owns cancellation.
+            client.Timeout = Timeout.InfiniteTimeSpan;
+        }
+        return client;
+    }
+
     public Task<string> StartAsync()
     {
         return _startupTask ??= StartCoreAsync();
@@ -42,7 +53,6 @@ public sealed partial class ReplayProxy : IAsyncDisposable
             };
 
             var process = new Process { StartInfo = startInfo };
-            var tcs = new TaskCompletionSource<string>(TaskCreationOptions.RunContinuationsAsynchronously);
             var diagnostics = new StartupDiagnostics();
             var elapsed = Stopwatch.StartNew();
 
@@ -50,41 +60,7 @@ public sealed partial class ReplayProxy : IAsyncDisposable
             {
                 if (e.Data == null) return;
                 diagnostics.AppendOutput(e.Data);
-                var match = Regex.Match(e.Data, @"Listening: (?<url>http://[^\s]+)\s+(?<metadata>\{.*\})$");
-                if (!match.Success)
-                {
-                    if (e.Data.Contains("Listening: ", StringComparison.Ordinal))
-                    {
-                        tcs.TrySetException(
-                            new InvalidOperationException(
-                                $"Proxy startup line missing CONNECT proxy metadata: {e.Data}"));
-                    }
-                    return;
-                }
-                try
-                {
-                    var metadata = JsonSerializer.Deserialize(
-                        match.Groups["metadata"].Value,
-                        ReplayProxyJsonContext.Default.ProxyStartupMetadata);
-                    ConnectProxyUrl = metadata?.ConnectProxyUrl;
-                    CaFilePath = metadata?.CaFilePath;
-                }
-                catch (Exception ex) when (ex is JsonException or NotSupportedException)
-                {
-                    tcs.TrySetException(
-                        new InvalidOperationException(
-                            $"Failed to parse proxy startup metadata: {match.Groups["metadata"].Value}",
-                            ex));
-                    return;
-                }
-                if (string.IsNullOrEmpty(ConnectProxyUrl) || string.IsNullOrEmpty(CaFilePath))
-                {
-                    tcs.TrySetException(
-                        new InvalidOperationException(
-                            $"Proxy startup metadata missing CONNECT proxy details: {e.Data}"));
-                    return;
-                }
-                tcs.TrySetResult(match.Groups["url"].Value);
+                diagnostics.PublishReadiness();
             };
 
             process.ErrorDataReceived += (_, e) =>
@@ -112,9 +88,9 @@ public sealed partial class ReplayProxy : IAsyncDisposable
             process.BeginErrorReadLine();
             _ = process.WaitForExitAsync().ContinueWith(_ =>
             {
-                if (!tcs.Task.IsCompleted)
+                if (!diagnostics.Readiness.IsCompleted)
                 {
-                    tcs.TrySetException(new Exception(
+                    diagnostics.FailStartup(new Exception(
                         $"Proxy exited before readiness. {diagnostics.Describe(process.Id, elapsed.Elapsed, process.ExitCode)}"));
                 }
             });
@@ -122,12 +98,17 @@ public sealed partial class ReplayProxy : IAsyncDisposable
             // Use longer timeout on Windows due to slower process startup
             var timeoutSeconds = RuntimeInformation.IsOSPlatform(OSPlatform.Windows) ? 30 : 10;
             using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(timeoutSeconds));
-            using var registration = cts.Token.Register(() => tcs.TrySetException(new TimeoutException(
+            using var registration = cts.Token.Register(() => diagnostics.TimeOutStartup(new TimeoutException(
                 $"Timeout waiting for proxy. {diagnostics.Describe(process.Id, elapsed.Elapsed, process.HasExited ? process.ExitCode : null)}")));
 
-            return await tcs.Task;
+            var readiness = await diagnostics.Readiness;
+            ConnectProxyUrl = readiness.ConnectProxyUrl;
+            CaFilePath = readiness.CaFilePath;
+            return readiness.Url;
         }
     }
+
+    internal sealed record StartupReadiness(string Url, string ConnectProxyUrl, string CaFilePath);
 
     internal sealed class StartupDiagnostics
     {
@@ -135,15 +116,24 @@ public sealed partial class ReplayProxy : IAsyncDisposable
         private readonly object _gate = new();
         private readonly StringBuilder _stdout = new();
         private readonly StringBuilder _stderr = new();
+        private readonly TaskCompletionSource<StartupReadiness> _readiness =
+            new(TaskCreationOptions.RunContinuationsAsynchronously);
+        private string? _listeningLine;
 
-        public void AppendOutput(string line) => Append(_stdout, line);
+        public Task<StartupReadiness> Readiness => _readiness.Task;
 
-        public void AppendError(string line) => Append(_stderr, line);
+        public void AppendOutput(string line) => Append(_stdout, line, captureReadiness: true);
 
-        private void Append(StringBuilder output, string line)
+        public void AppendError(string line) => Append(_stderr, line, captureReadiness: false);
+
+        private void Append(StringBuilder output, string line, bool captureReadiness)
         {
             lock (_gate)
             {
+                if (captureReadiness && line.Contains("Listening: ", StringComparison.Ordinal))
+                {
+                    _listeningLine ??= line;
+                }
                 output.Append(line, Math.Max(0, line.Length - OutputLimit), Math.Min(line.Length, OutputLimit));
                 output.AppendLine();
                 if (output.Length > OutputLimit)
@@ -151,6 +141,64 @@ public sealed partial class ReplayProxy : IAsyncDisposable
                     output.Remove(0, output.Length - OutputLimit);
                 }
             }
+        }
+
+        public void PublishReadiness()
+        {
+            if (_readiness.Task.IsCompleted) return;
+            string? line;
+            lock (_gate)
+            {
+                line = _listeningLine;
+            }
+            if (line is null) return;
+            var match = Regex.Match(line, @"Listening: (?<url>http://[^\s]+)\s+(?<metadata>\{.*\})$");
+            if (!match.Success)
+            {
+                FailStartup(new InvalidOperationException(
+                    $"Proxy startup line missing CONNECT proxy metadata: {line}"));
+                return;
+            }
+            ProxyStartupMetadata? metadata;
+            try
+            {
+                metadata = JsonSerializer.Deserialize(
+                    match.Groups["metadata"].Value,
+                    ReplayProxyJsonContext.Default.ProxyStartupMetadata);
+            }
+            catch (Exception ex) when (ex is JsonException or NotSupportedException)
+            {
+                FailStartup(new InvalidOperationException(
+                    $"Failed to parse proxy startup metadata: {match.Groups["metadata"].Value}", ex));
+                return;
+            }
+            if (metadata is not
+                {
+                    ConnectProxyUrl: { Length: > 0 } connectProxyUrl,
+                    CaFilePath: { Length: > 0 } caFilePath,
+                })
+            {
+                FailStartup(new InvalidOperationException(
+                    $"Proxy startup metadata missing CONNECT proxy details: {line}"));
+                return;
+            }
+            _readiness.TrySetResult(new StartupReadiness(
+                match.Groups["url"].Value, connectProxyUrl, caFilePath));
+        }
+
+        public bool FailStartup(Exception error) => _readiness.TrySetException(error);
+
+        public bool TimeOutStartup(TimeoutException error)
+        {
+            lock (_gate)
+            {
+                if (_listeningLine is null)
+                {
+                    return FailStartup(error);
+                }
+            }
+            PublishReadiness();
+            return FailStartup(error);
         }
 
         public string Describe(int processId, TimeSpan elapsed, int? exitCode)
@@ -251,12 +299,13 @@ public sealed partial class ReplayProxy : IAsyncDisposable
 
     private record ProxyStartupMetadata(string? ConnectProxyUrl, string? CaFilePath);
 
-    public async Task<List<ParsedHttpExchange>> GetExchangesAsync()
+    public async Task<List<ParsedHttpExchange>> GetExchangesAsync(CancellationToken cancellationToken = default)
     {
-        var url = await (_startupTask ?? throw new InvalidOperationException("Proxy not started"));
+        var url = await (_startupTask ?? throw new InvalidOperationException("Proxy not started"))
+            .WaitAsync(Timeout.InfiniteTimeSpan, cancellationToken);
 
-        using var client = new HttpClient();
-        return await client.GetFromJsonAsync($"{url}/exchanges", ReplayProxyJsonContext.Default.ListParsedHttpExchange)
+        using var client = CreateExchangeHttpClient(cancellationToken);
+        return await client.GetFromJsonAsync($"{url}/exchanges", ReplayProxyJsonContext.Default.ListParsedHttpExchange, cancellationToken)
                ?? [];
     }
 

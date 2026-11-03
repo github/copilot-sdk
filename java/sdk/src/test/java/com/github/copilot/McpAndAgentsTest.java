@@ -16,6 +16,7 @@ import java.util.concurrent.TimeUnit;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.Timeout;
 
 import com.github.copilot.generated.AssistantMessageEvent;
 import com.github.copilot.generated.rpc.McpServerStatus;
@@ -70,16 +71,10 @@ public class McpAndAgentsTest {
 
     private void waitForMcpServerStatus(CopilotSession session, String serverName, McpServerStatus expectedStatus)
             throws Exception {
-        long deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(60);
-        while (System.nanoTime() < deadline) {
-            var result = session.getRpc().mcp.list().get(5, TimeUnit.SECONDS);
-            if (result.servers() != null && result.servers().stream()
-                    .anyMatch(server -> serverName.equals(server.name()) && expectedStatus == server.status())) {
-                return;
-            }
-            Thread.sleep(200);
-        }
-        fail(serverName + " did not reach " + expectedStatus);
+        E2ETestContext.awaitReadiness(() -> session.getRpc().mcp.list(),
+                result -> result.servers() != null && result.servers().stream()
+                        .anyMatch(server -> serverName.equals(server.name()) && expectedStatus == server.status()),
+                200, serverName + " did not reach " + expectedStatus);
     }
 
     // ============ MCP Server Tests ============
@@ -91,6 +86,7 @@ public class McpAndAgentsTest {
      *      mcp_and_agents/should_accept_mcp_server_configuration_on_session_create
      */
     @Test
+    @Timeout(value = 900, unit = TimeUnit.SECONDS, threadMode = Timeout.ThreadMode.SAME_THREAD)
     void testShouldAcceptMcpServerConfigurationOnSessionCreate() throws Exception {
         ctx.configureForTest("mcp_and_agents", "should_accept_mcp_server_configuration_on_session_create");
 
@@ -123,6 +119,7 @@ public class McpAndAgentsTest {
      *      mcp_and_agents/should_accept_mcp_server_configuration_on_session_resume
      */
     @Test
+    @Timeout(value = 900, unit = TimeUnit.SECONDS, threadMode = Timeout.ThreadMode.SAME_THREAD)
     void testShouldAcceptMcpServerConfigurationOnSessionResume() throws Exception {
         ctx.configureForTest("mcp_and_agents", "should_accept_mcp_server_configuration_on_session_resume");
 
@@ -152,6 +149,7 @@ public class McpAndAgentsTest {
      *      mcp_and_agents/should_accept_mcp_server_configuration_on_session_create
      */
     @Test
+    @Timeout(value = 900, unit = TimeUnit.SECONDS, threadMode = Timeout.ThreadMode.SAME_THREAD)
     void testShouldHandleMultipleMcpServers() throws Exception {
         // Use same snapshot as single MCP server test since it doesn't depend on server
         // count
@@ -364,6 +362,7 @@ public class McpAndAgentsTest {
      *      mcp_and_agents/should_accept_both_mcp_servers_and_custom_agents
      */
     @Test
+    @Timeout(value = 900, unit = TimeUnit.SECONDS, threadMode = Timeout.ThreadMode.SAME_THREAD)
     void testShouldAcceptBothMcpServersAndCustomAgents() throws Exception {
         ctx.configureForTest("mcp_and_agents", "should_accept_both_mcp_servers_and_custom_agents");
 

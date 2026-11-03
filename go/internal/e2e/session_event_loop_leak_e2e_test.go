@@ -1,7 +1,11 @@
 package e2e
 
 import (
-	"runtime"
+	"bytes"
+	"context"
+	"runtime/pprof"
+	"strconv"
+	"strings"
 	"testing"
 	"time"
 
@@ -70,33 +74,65 @@ func TestSessionEventLoopLeakE2E(t *testing.T) {
 	})
 }
 
-// assertNoGoroutineLeak runs fn n times and fails if the goroutine count grows
-// roughly in proportion to n afterward, which would indicate one goroutine
-// leaked per call rather than transient goroutines that already exited.
+// assertNoGoroutineLeak observes only goroutines spawned by these failed calls.
 func assertNoGoroutineLeak(t *testing.T, n int, fn func()) {
 	t.Helper()
-	runtime.GC()
-	before := runtime.NumGoroutine()
-
+	label := "failed-session-" + randomHex(t)
+	releaseControl := make(chan struct{})
+	controlStarted := make(chan struct{})
+	controlStopped := make(chan struct{})
+	pprof.Do(t.Context(), pprof.Labels(label, "control"), func(context.Context) {
+		go func() {
+			defer close(controlStopped)
+			close(controlStarted)
+			<-releaseControl
+		}()
+	})
+	<-controlStarted
+	defer func() {
+		close(releaseControl)
+		<-controlStopped
+	}()
 	for i := 0; i < n; i++ {
-		fn()
+		pprof.Do(t.Context(), pprof.Labels(label, "owned"), func(context.Context) { fn() })
 	}
 
-	// Give any goroutines that exit promptly (but not synchronously with the
-	// call returning) a brief window to actually terminate before measuring.
 	deadline := time.Now().Add(2 * time.Second)
-	var after int
 	for {
-		runtime.GC()
-		after = runtime.NumGoroutine()
-		if after <= before+3 || time.Now().After(deadline) {
-			break
+		var profile bytes.Buffer
+		if err := pprof.Lookup("goroutine").WriteTo(&profile, 1); err != nil {
+			t.Fatalf("Read owned goroutine profile: %v", err)
+		}
+		remaining := 0
+		controlObserved := false
+		for _, stack := range strings.Split(profile.String(), "\n\n") {
+			if strings.Contains(stack, strconv.Quote(label)+":\"control\"") {
+				controlObserved = true
+				continue
+			}
+			if !strings.Contains(stack, strconv.Quote(label)+":\"owned\"") {
+				continue
+			}
+			for _, line := range strings.Split(stack, "\n") {
+				if strings.Contains(line, " @ ") {
+					count, err := strconv.Atoi(strings.Fields(line)[0])
+					if err != nil {
+						t.Fatalf("Parse owned goroutine count in %q: %v", line, err)
+					}
+					remaining += count
+					break
+				}
+			}
+		}
+		if !controlObserved {
+			t.Fatalf("Owned control goroutine is missing from the labelled profile\n%s", profile.String())
+		}
+		if remaining == 0 {
+			return
+		}
+		if !time.Now().Before(deadline) {
+			t.Fatalf("%d owned goroutines remain after %d failed calls\n%s", remaining, n, profile.String())
 		}
 		time.Sleep(50 * time.Millisecond)
-	}
-
-	t.Logf("goroutines before=%d after=%d (n=%d)", before, after, n)
-	if after > before+3 {
-		t.Fatalf("goroutine count grew from %d to %d after %d failed calls; suspected event-loop leak", before, after, n)
 	}
 }

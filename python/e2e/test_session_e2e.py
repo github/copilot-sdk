@@ -605,7 +605,7 @@ class TestSessions:
 
         # Set up event listeners BEFORE sending to avoid race conditions
         wait_for_tool_start = get_next_event_of_type(session, "tool.execution_start", timeout=60.0)
-        wait_for_session_idle = get_next_event_of_type(session, "session.idle", timeout=30.0)
+        wait_for_session_idle = get_next_event_of_type(session, "session.idle", timeout=None)
 
         try:
             # Send a message that will trigger a long-running shell command
@@ -619,7 +619,7 @@ class TestSessions:
             await session.abort()
 
             # Wait for session to become idle after abort
-            _ = await wait_for_session_idle
+            _ = await asyncio.wait_for(wait_for_session_idle, timeout=30.0)
         finally:
             wait_for_tool_start.cancel()
             wait_for_session_idle.cancel()
@@ -964,10 +964,13 @@ class TestSessions:
 
         # Allow the session to flush metadata to disk before reading it back.
         our_session = None
-        for _ in range(50):
+        deadline = asyncio.get_running_loop().time() + 5.0
+        while True:
             sessions = await ctx.client.list_sessions()
             our_session = next((s for s in sessions if s.session_id == session.session_id), None)
             if our_session is not None:
+                break
+            if asyncio.get_running_loop().time() >= deadline:
                 break
             await asyncio.sleep(0.1)
         assert our_session is not None
@@ -992,9 +995,12 @@ class TestSessions:
         await session.send_and_wait("Say hello")
 
         metadata = None
-        for _ in range(50):
+        deadline = asyncio.get_running_loop().time() + 5.0
+        while True:
             metadata = await ctx.client.get_session_metadata(session.session_id)
             if metadata is not None:
+                break
+            if asyncio.get_running_loop().time() >= deadline:
                 break
             await asyncio.sleep(0.1)
         assert metadata is not None
@@ -1013,8 +1019,16 @@ class TestSessions:
         """`send` returns before the session goes idle; events are streamed."""
         import asyncio
 
+        tool_entered = asyncio.Event()
+        release_tool = asyncio.Event()
+
+        async def hold_tool(_input, _invocation):
+            tool_entered.set()
+            await release_tool.wait()
+
         session = await ctx.client.create_session(
             on_permission_request=PermissionHandler.approve_all,
+            hooks={"on_pre_tool_use": hold_tool},
         )
         events = []
 
@@ -1022,21 +1036,21 @@ class TestSessions:
             events.append(event)
 
         unsubscribe = session.on(on_event)
-        idle_task = get_next_event_of_type(session, "session.idle")
-        started = asyncio.get_running_loop().time()
+        idle_task = get_next_event_of_type(session, "session.idle", timeout=None)
+        send_task = asyncio.create_task(session.send("Run 'sleep 2 && echo done'"))
         try:
-            # Use a slow command so we can verify send() returns before completion
-            await session.send("Run 'sleep 2 && echo done'")
-            send_duration = asyncio.get_running_loop().time() - started
+            await asyncio.wait_for(tool_entered.wait(), timeout=30.0)
+            await asyncio.wait_for(send_task, timeout=30.0)
 
             # send() should return before turn completes (no session.idle yet)
             assert not any(event.type.value == "session.idle" for event in events)
+            release_tool.set()
 
             try:
-                await idle_task
+                await asyncio.wait_for(idle_task, timeout=30.0)
             except TimeoutError as exc:
                 raise AssertionError(
-                    f"session.idle did not arrive after send() returned in {send_duration:.1f}s; "
+                    "session.idle did not arrive after releasing the tool; "
                     f"observed events: {[event.type.value for event in events]}"
                 ) from exc
             messages = [event for event in events if event.type.value == "assistant.message"]
@@ -1044,8 +1058,10 @@ class TestSessions:
             assert "done" in messages[-1].data.content
             assert any(event.type.value == "session.idle" for event in events)
         finally:
+            release_tool.set()
+            send_task.cancel()
             idle_task.cancel()
-            await asyncio.gather(idle_task, return_exceptions=True)
+            await asyncio.gather(send_task, idle_task, return_exceptions=True)
             unsubscribe()
             await session.disconnect()
 
@@ -1120,7 +1136,7 @@ class TestSessions:
         )
 
         tool_start_task = get_next_event_of_type(session, "tool.execution_start", timeout=60.0)
-        idle_task = get_next_event_of_type(session, "session.idle", timeout=30.0)
+        idle_task = get_next_event_of_type(session, "session.idle", timeout=None)
 
         send_task = asyncio.create_task(
             session.send_and_wait(
@@ -1139,7 +1155,7 @@ class TestSessions:
 
             # Cancelling only cancels the client-side wait; abort and wait for idle.
             await session.abort()
-            await idle_task
+            await asyncio.wait_for(idle_task, timeout=30.0)
         finally:
             tool_start_task.cancel()
             idle_task.cancel()
