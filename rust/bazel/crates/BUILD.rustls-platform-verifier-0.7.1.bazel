@@ -60,7 +60,7 @@ rust_library(
     }),
     version = "0.7.1",
     deps = [
-        "@sdk_vendor__log-0.4.34//:log",
+        "@sdk_vendor__log-0.4.35//:log",
         "@sdk_vendor__rustls-0.23.46//:rustls",
     ] + select({
         "@rules_rust//rust/platform:aarch64-apple-darwin": [

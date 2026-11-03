@@ -119,7 +119,7 @@ rust_library(
     version = "0.30.0",
     deps = [
         "@sdk_vendor__futures-util-0.3.34//:futures_util",
-        "@sdk_vendor__log-0.4.34//:log",
+        "@sdk_vendor__log-0.4.35//:log",
         "@sdk_vendor__tokio-1.54.1//:tokio",
         "@sdk_vendor__tungstenite-0.30.0//:tungstenite",
     ] + select({

@@ -71,7 +71,7 @@ rust_library(
         "@sdk_vendor__cfg-if-1.0.5//:cfg_if",
         "@sdk_vendor__combine-4.6.9//:combine",
         "@sdk_vendor__jni-sys-0.4.1//:jni_sys",
-        "@sdk_vendor__log-0.4.34//:log",
+        "@sdk_vendor__log-0.4.35//:log",
         "@sdk_vendor__simd_cesu8-1.2.0//:simd_cesu8",
         "@sdk_vendor__thiserror-2.0.21//:thiserror",
     ] + select({

@@ -152,6 +152,8 @@ This creates a **two-level completion mechanism** in autopilot:
 1. The model calls `task_complete` with a summary → CLI emits `session.task_complete` → done
 1. The model stops without calling it → CLI nudges → model continues or calls `task_complete`
 
+Completing or pausing an autopilot objective leaves the session in autopilot mode by default, matching the interactive CLI. The objective still completes or pauses, and the run can become idle; keeping the mode selected does not keep working on a finished objective. To opt into automatic restoration to interactive mode, call `session.rpc.autopilotObjective.setStayInAutopilot({ value: false })`. To switch mode immediately, call `session.rpc.mode.set({ mode: "interactive" })`.
+
 ### Why `task_complete` might not appear
 
 In **interactive mode** (normal chat), the CLI does not nudge for `task_complete`. The model may skip it entirely. Common reasons:

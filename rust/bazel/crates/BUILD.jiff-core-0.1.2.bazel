@@ -17,7 +17,7 @@ cargo_toml_env_vars(
 )
 
 rust_library(
-    name = "cc",
+    name = "jiff_core",
     srcs = glob(
         include = ["**/*.rs"],
         allow_empty = True,
@@ -35,7 +35,10 @@ rust_library(
         ],
     ),
     crate_features = [
-        "parallel",
+        "alloc",
+        "default",
+        "std",
+        "tz-fat",
     ],
     crate_root = "src/lib.rs",
     edition = "2021",
@@ -47,7 +50,7 @@ rust_library(
     ],
     tags = [
         "cargo-bazel",
-        "crate-name=cc",
+        "crate-name=jiff-core",
         "manual",
         "noclippy",
         "norustfmt",
@@ -61,24 +64,5 @@ rust_library(
         "@rules_rust//rust/platform:x86_64-unknown-linux-gnu": [],
         "//conditions:default": ["@platforms//:incompatible"],
     }),
-    version = "1.10.0",
-    deps = [
-        "@sdk_vendor__find-msvc-tools-0.1.15//:find_msvc_tools",
-        "@sdk_vendor__jobserver-0.1.35//:jobserver",
-        "@sdk_vendor__shlex-2.0.1//:shlex",
-    ] + select({
-        "@rules_rust//rust/platform:aarch64-apple-darwin": [
-            "@sdk_vendor__libc-0.2.191//:libc",  # aarch64-apple-darwin
-        ],
-        "@rules_rust//rust/platform:aarch64-unknown-linux-gnu": [
-            "@sdk_vendor__libc-0.2.191//:libc",  # aarch64-unknown-linux-gnu
-        ],
-        "@rules_rust//rust/platform:x86_64-apple-darwin": [
-            "@sdk_vendor__libc-0.2.191//:libc",  # x86_64-apple-darwin
-        ],
-        "@rules_rust//rust/platform:x86_64-unknown-linux-gnu": [
-            "@sdk_vendor__libc-0.2.191//:libc",  # x86_64-unknown-linux-gnu
-        ],
-        "//conditions:default": [],
-    }),
+    version = "0.1.2",
 )

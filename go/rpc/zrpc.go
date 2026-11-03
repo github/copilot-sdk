@@ -41501,7 +41501,7 @@ func (a *AutopilotObjectiveAPI) GetState(ctx context.Context) (*AutopilotObjecti
 }
 
 // SetStayInAutopilot sets whether completing or pausing this session's objective preserves
-// autopilot mode. This in-memory preference defaults to false and must be reapplied when
+// autopilot mode. This in-memory preference defaults to true and must be reapplied when
 // attaching a client.
 //
 // RPC method: session.autopilotObjective.setStayInAutopilot.

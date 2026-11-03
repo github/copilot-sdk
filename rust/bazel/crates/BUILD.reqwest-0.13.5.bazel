@@ -127,7 +127,7 @@ rust_library(
             "@sdk_vendor__hyper-1.12.0//:hyper",  # cfg(not(all(target_arch = "wasm32", any(target_os = "unknown", target_os = "none"))))
             "@sdk_vendor__hyper-rustls-0.27.10//:hyper_rustls",  # aarch64-apple-darwin
             "@sdk_vendor__hyper-util-0.1.21//:hyper_util",  # cfg(not(all(target_arch = "wasm32", any(target_os = "unknown", target_os = "none"))))
-            "@sdk_vendor__log-0.4.34//:log",  # cfg(not(all(target_arch = "wasm32", any(target_os = "unknown", target_os = "none"))))
+            "@sdk_vendor__log-0.4.35//:log",  # cfg(not(all(target_arch = "wasm32", any(target_os = "unknown", target_os = "none"))))
             "@sdk_vendor__percent-encoding-2.3.2//:percent_encoding",  # cfg(not(all(target_arch = "wasm32", any(target_os = "unknown", target_os = "none"))))
             "@sdk_vendor__pin-project-lite-0.2.17//:pin_project_lite",  # cfg(not(all(target_arch = "wasm32", any(target_os = "unknown", target_os = "none"))))
             "@sdk_vendor__rustls-0.23.46//:rustls",  # aarch64-apple-darwin
@@ -144,7 +144,7 @@ rust_library(
             "@sdk_vendor__hyper-1.12.0//:hyper",  # cfg(not(all(target_arch = "wasm32", any(target_os = "unknown", target_os = "none"))))
             "@sdk_vendor__hyper-tls-0.6.0//:hyper_tls",  # aarch64-pc-windows-msvc
             "@sdk_vendor__hyper-util-0.1.21//:hyper_util",  # cfg(not(all(target_arch = "wasm32", any(target_os = "unknown", target_os = "none"))))
-            "@sdk_vendor__log-0.4.34//:log",  # cfg(not(all(target_arch = "wasm32", any(target_os = "unknown", target_os = "none"))))
+            "@sdk_vendor__log-0.4.35//:log",  # cfg(not(all(target_arch = "wasm32", any(target_os = "unknown", target_os = "none"))))
             "@sdk_vendor__native-tls-0.2.18//:native_tls",  # aarch64-pc-windows-msvc
             "@sdk_vendor__percent-encoding-2.3.2//:percent_encoding",  # cfg(not(all(target_arch = "wasm32", any(target_os = "unknown", target_os = "none"))))
             "@sdk_vendor__pin-project-lite-0.2.17//:pin_project_lite",  # cfg(not(all(target_arch = "wasm32", any(target_os = "unknown", target_os = "none"))))
@@ -160,7 +160,7 @@ rust_library(
             "@sdk_vendor__hyper-1.12.0//:hyper",  # cfg(not(all(target_arch = "wasm32", any(target_os = "unknown", target_os = "none"))))
             "@sdk_vendor__hyper-tls-0.6.0//:hyper_tls",  # aarch64-unknown-linux-gnu
             "@sdk_vendor__hyper-util-0.1.21//:hyper_util",  # cfg(not(all(target_arch = "wasm32", any(target_os = "unknown", target_os = "none"))))
-            "@sdk_vendor__log-0.4.34//:log",  # cfg(not(all(target_arch = "wasm32", any(target_os = "unknown", target_os = "none"))))
+            "@sdk_vendor__log-0.4.35//:log",  # cfg(not(all(target_arch = "wasm32", any(target_os = "unknown", target_os = "none"))))
             "@sdk_vendor__native-tls-0.2.18//:native_tls",  # aarch64-unknown-linux-gnu
             "@sdk_vendor__percent-encoding-2.3.2//:percent_encoding",  # cfg(not(all(target_arch = "wasm32", any(target_os = "unknown", target_os = "none"))))
             "@sdk_vendor__pin-project-lite-0.2.17//:pin_project_lite",  # cfg(not(all(target_arch = "wasm32", any(target_os = "unknown", target_os = "none"))))
@@ -176,7 +176,7 @@ rust_library(
             "@sdk_vendor__hyper-1.12.0//:hyper",  # cfg(not(all(target_arch = "wasm32", any(target_os = "unknown", target_os = "none"))))
             "@sdk_vendor__hyper-rustls-0.27.10//:hyper_rustls",  # x86_64-apple-darwin
             "@sdk_vendor__hyper-util-0.1.21//:hyper_util",  # cfg(not(all(target_arch = "wasm32", any(target_os = "unknown", target_os = "none"))))
-            "@sdk_vendor__log-0.4.34//:log",  # cfg(not(all(target_arch = "wasm32", any(target_os = "unknown", target_os = "none"))))
+            "@sdk_vendor__log-0.4.35//:log",  # cfg(not(all(target_arch = "wasm32", any(target_os = "unknown", target_os = "none"))))
             "@sdk_vendor__percent-encoding-2.3.2//:percent_encoding",  # cfg(not(all(target_arch = "wasm32", any(target_os = "unknown", target_os = "none"))))
             "@sdk_vendor__pin-project-lite-0.2.17//:pin_project_lite",  # cfg(not(all(target_arch = "wasm32", any(target_os = "unknown", target_os = "none"))))
             "@sdk_vendor__rustls-0.23.46//:rustls",  # x86_64-apple-darwin
@@ -193,7 +193,7 @@ rust_library(
             "@sdk_vendor__hyper-1.12.0//:hyper",  # cfg(not(all(target_arch = "wasm32", any(target_os = "unknown", target_os = "none"))))
             "@sdk_vendor__hyper-tls-0.6.0//:hyper_tls",  # x86_64-pc-windows-msvc
             "@sdk_vendor__hyper-util-0.1.21//:hyper_util",  # cfg(not(all(target_arch = "wasm32", any(target_os = "unknown", target_os = "none"))))
-            "@sdk_vendor__log-0.4.34//:log",  # cfg(not(all(target_arch = "wasm32", any(target_os = "unknown", target_os = "none"))))
+            "@sdk_vendor__log-0.4.35//:log",  # cfg(not(all(target_arch = "wasm32", any(target_os = "unknown", target_os = "none"))))
             "@sdk_vendor__native-tls-0.2.18//:native_tls",  # x86_64-pc-windows-msvc
             "@sdk_vendor__percent-encoding-2.3.2//:percent_encoding",  # cfg(not(all(target_arch = "wasm32", any(target_os = "unknown", target_os = "none"))))
             "@sdk_vendor__pin-project-lite-0.2.17//:pin_project_lite",  # cfg(not(all(target_arch = "wasm32", any(target_os = "unknown", target_os = "none"))))
@@ -209,7 +209,7 @@ rust_library(
             "@sdk_vendor__hyper-1.12.0//:hyper",  # cfg(not(all(target_arch = "wasm32", any(target_os = "unknown", target_os = "none"))))
             "@sdk_vendor__hyper-tls-0.6.0//:hyper_tls",  # x86_64-unknown-linux-gnu
             "@sdk_vendor__hyper-util-0.1.21//:hyper_util",  # cfg(not(all(target_arch = "wasm32", any(target_os = "unknown", target_os = "none"))))
-            "@sdk_vendor__log-0.4.34//:log",  # cfg(not(all(target_arch = "wasm32", any(target_os = "unknown", target_os = "none"))))
+            "@sdk_vendor__log-0.4.35//:log",  # cfg(not(all(target_arch = "wasm32", any(target_os = "unknown", target_os = "none"))))
             "@sdk_vendor__native-tls-0.2.18//:native_tls",  # x86_64-unknown-linux-gnu
             "@sdk_vendor__percent-encoding-2.3.2//:percent_encoding",  # cfg(not(all(target_arch = "wasm32", any(target_os = "unknown", target_os = "none"))))
             "@sdk_vendor__pin-project-lite-0.2.17//:pin_project_lite",  # cfg(not(all(target_arch = "wasm32", any(target_os = "unknown", target_os = "none"))))

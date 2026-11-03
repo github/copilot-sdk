@@ -60142,7 +60142,7 @@ public sealed class AutopilotObjectiveApi
         return await CopilotClient.InvokeRpcAsync<AutopilotObjectiveGetStateResult>(_session.Rpc, "session.autopilotObjective.getState", [request], cancellationToken);
     }
 
-    /// <summary>Sets whether completing or pausing this session's objective preserves autopilot mode. This in-memory preference defaults to false and must be reapplied when attaching a client.</summary>
+    /// <summary>Sets whether completing or pausing this session's objective preserves autopilot mode. This in-memory preference defaults to true and must be reapplied when attaching a client.</summary>
     /// <param name="value">Whether an objective's requested return to interactive mode is suppressed.</param>
     /// <param name="cancellationToken">The <see cref="CancellationToken"/> to monitor for cancellation requests. The default is <see cref="CancellationToken.None"/>.</param>
     public async Task SetStayInAutopilotAsync(bool value, CancellationToken cancellationToken = default)

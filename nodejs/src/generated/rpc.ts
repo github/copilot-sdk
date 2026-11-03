@@ -45339,7 +45339,7 @@ export function createSessionRpc(connection: MessageConnection, sessionId: strin
             getState: async (): Promise<AutopilotObjectiveGetStateResult> =>
                 connection.sendRequest("session.autopilotObjective.getState", { sessionId }),
             /**
-             * Sets whether completing or pausing this session's objective preserves autopilot mode. This in-memory preference defaults to false and must be reapplied when attaching a client.
+             * Sets whether completing or pausing this session's objective preserves autopilot mode. This in-memory preference defaults to true and must be reapplied when attaching a client.
              *
              * @param params Client-resolved preference for retaining autopilot mode after objective completion or pause.
              */

@@ -93,13 +93,13 @@ rust_library(
         "@rules_rust//rust/platform:x86_64-unknown-linux-gnu": [],
         "//conditions:default": ["@platforms//:incompatible"],
     }),
-    version = "3.5.0",
+    version = "3.5.1",
     deps = [
         "@sdk_vendor__base64-0.23.1//:base64",
-        "@sdk_vendor__log-0.4.34//:log",
+        "@sdk_vendor__log-0.4.35//:log",
         "@sdk_vendor__percent-encoding-2.3.2//:percent_encoding",
         "@sdk_vendor__rustls-pki-types-1.15.1//:rustls_pki_types",
-        "@sdk_vendor__ureq-proto-0.6.5//:ureq_proto",
+        "@sdk_vendor__ureq-proto-0.7.1//:ureq_proto",
         "@sdk_vendor__utf8-zero-0.8.1//:utf8_zero",
     ] + select({
         "@rules_rust//rust/platform:aarch64-apple-darwin": [

@@ -62,9 +62,9 @@ rust_library(
         "@rules_rust//rust/platform:x86_64-unknown-linux-gnu": [],
         "//conditions:default": ["@platforms//:incompatible"],
     }),
-    version = "9.1.3",
+    version = "9.2.2",
     deps = [
-        "@sdk_vendor__crc32fast-1.5.3//:crc32fast",
+        "@sdk_vendor__crc32fast-1.5.4//:crc32fast",
         "@sdk_vendor__flate2-1.1.10//:flate2",
         "@sdk_vendor__indexmap-2.14.2//:indexmap",
         "@sdk_vendor__memchr-2.8.3//:memchr",
@@ -72,6 +72,7 @@ rust_library(
     ] + select({
         "@rules_rust//rust/platform:aarch64-apple-darwin": [
             "@sdk_vendor__getrandom-0.4.3//:getrandom",  # cfg(not(target_arch = "wasm32"))
+            "@sdk_vendor__libc-0.2.191//:libc",  # cfg(unix)
             "@sdk_vendor__nix-0.31.3//:nix",  # cfg(any(target_os = "macos", target_os = "freebsd", target_os = "openbsd", target_os = "netbsd", target_os = "dragonfly"))
         ],
         "@rules_rust//rust/platform:aarch64-pc-windows-msvc": [
@@ -80,9 +81,11 @@ rust_library(
         ],
         "@rules_rust//rust/platform:aarch64-unknown-linux-gnu": [
             "@sdk_vendor__getrandom-0.4.3//:getrandom",  # cfg(not(target_arch = "wasm32"))
+            "@sdk_vendor__libc-0.2.191//:libc",  # cfg(unix)
         ],
         "@rules_rust//rust/platform:x86_64-apple-darwin": [
             "@sdk_vendor__getrandom-0.4.3//:getrandom",  # cfg(not(target_arch = "wasm32"))
+            "@sdk_vendor__libc-0.2.191//:libc",  # cfg(unix)
             "@sdk_vendor__nix-0.31.3//:nix",  # cfg(any(target_os = "macos", target_os = "freebsd", target_os = "openbsd", target_os = "netbsd", target_os = "dragonfly"))
         ],
         "@rules_rust//rust/platform:x86_64-pc-windows-msvc": [
@@ -91,6 +94,7 @@ rust_library(
         ],
         "@rules_rust//rust/platform:x86_64-unknown-linux-gnu": [
             "@sdk_vendor__getrandom-0.4.3//:getrandom",  # cfg(not(target_arch = "wasm32"))
+            "@sdk_vendor__libc-0.2.191//:libc",  # cfg(unix)
         ],
         "//conditions:default": [],
     }),

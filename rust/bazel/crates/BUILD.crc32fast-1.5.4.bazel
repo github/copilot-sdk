@@ -66,7 +66,7 @@ rust_library(
         "@rules_rust//rust/platform:x86_64-unknown-linux-gnu": [],
         "//conditions:default": ["@platforms//:incompatible"],
     }),
-    version = "1.5.3",
+    version = "1.5.4",
     deps = [
         ":build_script_build",
         "@sdk_vendor__cfg-if-1.0.5//:cfg_if",
@@ -129,7 +129,7 @@ cargo_build_script(
         "noclippy",
         "norustfmt",
     ],
-    version = "1.5.3",
+    version = "1.5.4",
     visibility = ["//visibility:private"],
 )
 

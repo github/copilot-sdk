@@ -17,7 +17,7 @@ cargo_toml_env_vars(
 )
 
 rust_library(
-    name = "ctutils",
+    name = "aes",
     srcs = glob(
         include = ["**/*.rs"],
         allow_empty = True,
@@ -44,7 +44,7 @@ rust_library(
     ],
     tags = [
         "cargo-bazel",
-        "crate-name=ctutils",
+        "crate-name=aes",
         "manual",
         "noclippy",
         "norustfmt",
@@ -58,8 +58,29 @@ rust_library(
         "@rules_rust//rust/platform:x86_64-unknown-linux-gnu": [],
         "//conditions:default": ["@platforms//:incompatible"],
     }),
-    version = "0.4.7",
+    version = "0.9.4",
     deps = [
-        "@sdk_vendor__cmov-0.5.4//:cmov",
-    ],
+        "@sdk_vendor__cipher-0.5.2//:cipher",
+        "@sdk_vendor__cpubits-0.1.1//:cpubits",
+    ] + select({
+        "@rules_rust//rust/platform:aarch64-apple-darwin": [
+            "@sdk_vendor__cpufeatures-0.3.1//:cpufeatures",  # cfg(any(target_arch = "aarch64", target_arch = "x86_64", target_arch = "x86"))
+        ],
+        "@rules_rust//rust/platform:aarch64-pc-windows-msvc": [
+            "@sdk_vendor__cpufeatures-0.3.1//:cpufeatures",  # cfg(any(target_arch = "aarch64", target_arch = "x86_64", target_arch = "x86"))
+        ],
+        "@rules_rust//rust/platform:aarch64-unknown-linux-gnu": [
+            "@sdk_vendor__cpufeatures-0.3.1//:cpufeatures",  # cfg(any(target_arch = "aarch64", target_arch = "x86_64", target_arch = "x86"))
+        ],
+        "@rules_rust//rust/platform:x86_64-apple-darwin": [
+            "@sdk_vendor__cpufeatures-0.3.1//:cpufeatures",  # cfg(any(target_arch = "aarch64", target_arch = "x86_64", target_arch = "x86"))
+        ],
+        "@rules_rust//rust/platform:x86_64-pc-windows-msvc": [
+            "@sdk_vendor__cpufeatures-0.3.1//:cpufeatures",  # cfg(any(target_arch = "aarch64", target_arch = "x86_64", target_arch = "x86"))
+        ],
+        "@rules_rust//rust/platform:x86_64-unknown-linux-gnu": [
+            "@sdk_vendor__cpufeatures-0.3.1//:cpufeatures",  # cfg(any(target_arch = "aarch64", target_arch = "x86_64", target_arch = "x86"))
+        ],
+        "//conditions:default": [],
+    }),
 )

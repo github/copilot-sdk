@@ -64,10 +64,10 @@ rust_library(
     version = "0.11.1",
     deps = [
         "@sdk_vendor__aead-0.6.1//:aead",
-        "@sdk_vendor__aes-0.9.3//:aes",
+        "@sdk_vendor__aes-0.9.4//:aes",
         "@sdk_vendor__cipher-0.5.2//:cipher",
         "@sdk_vendor__ctr-0.10.1//:ctr",
-        "@sdk_vendor__ctutils-0.4.7//:ctutils",
+        "@sdk_vendor__ctutils-0.4.8//:ctutils",
         "@sdk_vendor__ghash-0.6.0//:ghash",
     ],
 )

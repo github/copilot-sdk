@@ -476,14 +476,14 @@ alias(
 )
 
 alias(
-    name = "ureq-3.5.0",
-    actual = "@sdk_vendor__ureq-3.5.0//:ureq",
+    name = "ureq-3.5.1",
+    actual = "@sdk_vendor__ureq-3.5.1//:ureq",
     tags = ["manual"],
 )
 
 alias(
     name = "ureq",
-    actual = "@sdk_vendor__ureq-3.5.0//:ureq",
+    actual = "@sdk_vendor__ureq-3.5.1//:ureq",
     tags = ["manual"],
 )
 
@@ -512,13 +512,13 @@ alias(
 )
 
 alias(
-    name = "zip-9.1.3",
-    actual = "@sdk_vendor__zip-9.1.3//:zip",
+    name = "zip-9.2.2",
+    actual = "@sdk_vendor__zip-9.2.2//:zip",
     tags = ["manual"],
 )
 
 alias(
     name = "zip",
-    actual = "@sdk_vendor__zip-9.1.3//:zip",
+    actual = "@sdk_vendor__zip-9.2.2//:zip",
     tags = ["manual"],
 )

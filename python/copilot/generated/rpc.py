@@ -70067,7 +70067,7 @@ class AutopilotObjectiveApi:
         return AutopilotObjectiveGetStateResult.from_dict(await self._client.request("session.autopilotObjective.getState", {"sessionId": self._session_id}, **_timeout_kwargs(timeout)))
 
     async def set_stay_in_autopilot(self, params: AutopilotObjectiveSetStayInAutopilotRequest, *, timeout: float | None = None) -> None:
-        "Sets whether completing or pausing this session's objective preserves autopilot mode. This in-memory preference defaults to false and must be reapplied when attaching a client.\n\nArgs:\n    params: Client-resolved preference for retaining autopilot mode after objective completion or pause."
+        "Sets whether completing or pausing this session's objective preserves autopilot mode. This in-memory preference defaults to true and must be reapplied when attaching a client.\n\nArgs:\n    params: Client-resolved preference for retaining autopilot mode after objective completion or pause."
         params_dict: dict[str, Any] = {k: v for k, v in params.to_dict().items() if v is not None or k in ["value"]}
         params_dict["sessionId"] = self._session_id
         await self._client.request("session.autopilotObjective.setStayInAutopilot", params_dict, **_timeout_kwargs(timeout))

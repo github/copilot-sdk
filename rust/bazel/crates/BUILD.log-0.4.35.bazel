@@ -17,14 +17,11 @@ cargo_toml_env_vars(
 )
 
 rust_library(
-    name = "jiff",
+    name = "log",
     srcs = glob(
         include = ["**/*.rs"],
         allow_empty = True,
     ),
-    aliases = {
-        "@sdk_vendor__jiff-core-0.1.1//:jiff_core": "jcore",
-    },
     compile_data = glob(
         include = ["**"],
         allow_empty = True,
@@ -37,10 +34,6 @@ rust_library(
             "WORKSPACE.bazel",
         ],
     ),
-    crate_features = [
-        "alloc",
-        "std",
-    ],
     crate_root = "src/lib.rs",
     edition = "2021",
     rustc_env_files = [
@@ -51,7 +44,7 @@ rust_library(
     ],
     tags = [
         "cargo-bazel",
-        "crate-name=jiff",
+        "crate-name=log",
         "manual",
         "noclippy",
         "norustfmt",
@@ -65,8 +58,5 @@ rust_library(
         "@rules_rust//rust/platform:x86_64-unknown-linux-gnu": [],
         "//conditions:default": ["@platforms//:incompatible"],
     }),
-    version = "0.2.38",
-    deps = [
-        "@sdk_vendor__jiff-core-0.1.1//:jiff_core",
-    ],
+    version = "0.4.35",
 )

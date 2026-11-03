@@ -17,7 +17,7 @@ cargo_toml_env_vars(
 )
 
 rust_library(
-    name = "aes",
+    name = "cc",
     srcs = glob(
         include = ["**/*.rs"],
         allow_empty = True,
@@ -34,8 +34,11 @@ rust_library(
             "WORKSPACE.bazel",
         ],
     ),
+    crate_features = [
+        "parallel",
+    ],
     crate_root = "src/lib.rs",
-    edition = "2024",
+    edition = "2021",
     rustc_env_files = [
         ":cargo_toml_env_vars",
     ],
@@ -44,7 +47,7 @@ rust_library(
     ],
     tags = [
         "cargo-bazel",
-        "crate-name=aes",
+        "crate-name=cc",
         "manual",
         "noclippy",
         "norustfmt",
@@ -58,28 +61,23 @@ rust_library(
         "@rules_rust//rust/platform:x86_64-unknown-linux-gnu": [],
         "//conditions:default": ["@platforms//:incompatible"],
     }),
-    version = "0.9.3",
+    version = "1.11.0",
     deps = [
-        "@sdk_vendor__cipher-0.5.2//:cipher",
-        "@sdk_vendor__cpubits-0.1.1//:cpubits",
+        "@sdk_vendor__find-msvc-tools-0.1.15//:find_msvc_tools",
+        "@sdk_vendor__jobserver-0.1.35//:jobserver",
+        "@sdk_vendor__shlex-2.0.1//:shlex",
     ] + select({
         "@rules_rust//rust/platform:aarch64-apple-darwin": [
-            "@sdk_vendor__cpufeatures-0.3.1//:cpufeatures",  # cfg(any(target_arch = "aarch64", target_arch = "x86_64", target_arch = "x86"))
-        ],
-        "@rules_rust//rust/platform:aarch64-pc-windows-msvc": [
-            "@sdk_vendor__cpufeatures-0.3.1//:cpufeatures",  # cfg(any(target_arch = "aarch64", target_arch = "x86_64", target_arch = "x86"))
+            "@sdk_vendor__libc-0.2.191//:libc",  # aarch64-apple-darwin
         ],
         "@rules_rust//rust/platform:aarch64-unknown-linux-gnu": [
-            "@sdk_vendor__cpufeatures-0.3.1//:cpufeatures",  # cfg(any(target_arch = "aarch64", target_arch = "x86_64", target_arch = "x86"))
+            "@sdk_vendor__libc-0.2.191//:libc",  # aarch64-unknown-linux-gnu
         ],
         "@rules_rust//rust/platform:x86_64-apple-darwin": [
-            "@sdk_vendor__cpufeatures-0.3.1//:cpufeatures",  # cfg(any(target_arch = "aarch64", target_arch = "x86_64", target_arch = "x86"))
-        ],
-        "@rules_rust//rust/platform:x86_64-pc-windows-msvc": [
-            "@sdk_vendor__cpufeatures-0.3.1//:cpufeatures",  # cfg(any(target_arch = "aarch64", target_arch = "x86_64", target_arch = "x86"))
+            "@sdk_vendor__libc-0.2.191//:libc",  # x86_64-apple-darwin
         ],
         "@rules_rust//rust/platform:x86_64-unknown-linux-gnu": [
-            "@sdk_vendor__cpufeatures-0.3.1//:cpufeatures",  # cfg(any(target_arch = "aarch64", target_arch = "x86_64", target_arch = "x86"))
+            "@sdk_vendor__libc-0.2.191//:libc",  # x86_64-unknown-linux-gnu
         ],
         "//conditions:default": [],
     }),

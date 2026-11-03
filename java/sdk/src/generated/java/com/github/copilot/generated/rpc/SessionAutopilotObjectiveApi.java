@@ -42,7 +42,7 @@ public final class SessionAutopilotObjectiveApi {
     }
 
     /**
-     * Sets whether completing or pausing this session's objective preserves autopilot mode. This in-memory preference defaults to false and must be reapplied when attaching a client.
+     * Sets whether completing or pausing this session's objective preserves autopilot mode. This in-memory preference defaults to true and must be reapplied when attaching a client.
      * <p>
      * Note: the {@code sessionId} field in the params record is overridden
      * by the session-scoped wrapper; any value provided is ignored.
