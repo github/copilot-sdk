@@ -1545,6 +1545,185 @@ async fn create_session_forwards_refresh_custom_instructions_only_when_set() {
 }
 
 #[tokio::test]
+async fn create_session_runtime_settings_opt_in() {
+    assert_create_runtime_settings(Some(true)).await;
+}
+
+#[tokio::test]
+async fn create_session_runtime_settings_explicit_opt_out() {
+    assert_create_runtime_settings(Some(false)).await;
+}
+
+#[tokio::test]
+async fn create_session_runtime_settings_omission() {
+    assert_create_runtime_settings(None).await;
+}
+
+async fn assert_create_runtime_settings(consent: Option<bool>) {
+    let (client, mut server_read, mut server_write) = make_client();
+    let mut config = SessionConfig::default();
+    if let Some(enabled) = consent {
+        config = config.with_runtime_settings(github_copilot_sdk::rpc::SessionRuntimeSettings {
+            ai_secret_detection: Some(enabled),
+        });
+    }
+    let create = client.create_session(config);
+    let server = async {
+        let request = read_framed(&mut server_read).await;
+        assert_eq!(request["method"], "session.create");
+        assert_runtime_settings_params(&request, consent);
+        let session_id = requested_session_id(&request).to_string();
+        server_respond_create(&mut server_write, &request, &session_id).await;
+    };
+    let (session, ()) = timeout(TIMEOUT, async { tokio::join!(create, server) })
+        .await
+        .unwrap();
+    session.unwrap();
+}
+
+fn assert_runtime_settings_params(request: &Value, consent: Option<bool>) {
+    assert_eq!(
+        request["params"].get("runtimeSettings"),
+        consent
+            .map(|enabled| serde_json::json!({ "aiSecretDetection": enabled }))
+            .as_ref()
+    );
+    assert!(request["params"].get("featureFlags").is_none());
+}
+
+#[tokio::test]
+async fn cold_resume_session_runtime_settings_opt_in() {
+    assert_resume_runtime_settings(Some(true), false).await;
+}
+
+#[tokio::test]
+async fn cold_resume_session_runtime_settings_explicit_opt_out() {
+    assert_resume_runtime_settings(Some(false), false).await;
+}
+
+#[tokio::test]
+async fn cold_resume_session_runtime_settings_omission() {
+    assert_resume_runtime_settings(None, false).await;
+}
+
+#[tokio::test]
+async fn warm_resume_session_runtime_settings_opt_in() {
+    assert_resume_runtime_settings(Some(true), true).await;
+}
+
+#[tokio::test]
+async fn warm_resume_session_runtime_settings_explicit_opt_out() {
+    assert_resume_runtime_settings(Some(false), true).await;
+}
+
+#[tokio::test]
+async fn warm_resume_session_runtime_settings_omission() {
+    assert_resume_runtime_settings(None, true).await;
+}
+
+async fn assert_resume_runtime_settings(consent: Option<bool>, warm: bool) {
+    let (client, mut server_read, mut server_write) = make_client();
+    let session_id = "runtime-settings-resume";
+    let create = async {
+        if warm {
+            Some(
+                client
+                    .create_session(
+                        SessionConfig::default()
+                            .with_session_id(session_id)
+                            .with_runtime_settings(
+                                github_copilot_sdk::rpc::SessionRuntimeSettings {
+                                    ai_secret_detection: Some(!consent.unwrap_or(false)),
+                                },
+                            ),
+                    )
+                    .await
+                    .unwrap(),
+            )
+        } else {
+            None
+        }
+    };
+    let server = async {
+        if warm {
+            let request = read_framed(&mut server_read).await;
+            assert_eq!(request["method"], "session.create");
+            server_respond_create(&mut server_write, &request, session_id).await;
+        }
+    };
+    let (resident, ()) = timeout(TIMEOUT, async { tokio::join!(create, server) })
+        .await
+        .unwrap();
+
+    let mut config = github_copilot_sdk::ResumeSessionConfig::new(session_id.into());
+    if let Some(enabled) = consent {
+        config = config.with_runtime_settings(github_copilot_sdk::rpc::SessionRuntimeSettings {
+            ai_secret_detection: Some(enabled),
+        });
+    }
+    let resume = client.resume_session(config);
+    let server = async {
+        let request = read_framed(&mut server_read).await;
+        assert_eq!(request["method"], "session.resume");
+        assert_eq!(request["params"]["sessionId"], session_id);
+        assert_runtime_settings_params(&request, consent);
+        server_respond_create(&mut server_write, &request, session_id).await;
+        respond_to_reload(&mut server_read, &mut server_write).await;
+    };
+    let (session, ()) = timeout(TIMEOUT, async { tokio::join!(resume, server) })
+        .await
+        .unwrap();
+    assert_eq!(session.unwrap().id().as_str(), session_id);
+    drop(resident);
+}
+
+#[tokio::test]
+async fn update_options_runtime_settings_opt_in() {
+    assert_update_runtime_settings(Some(true)).await;
+}
+
+#[tokio::test]
+async fn update_options_runtime_settings_explicit_opt_out() {
+    assert_update_runtime_settings(Some(false)).await;
+}
+
+#[tokio::test]
+async fn update_options_runtime_settings_omission() {
+    assert_update_runtime_settings(None).await;
+}
+
+async fn assert_update_runtime_settings(consent: Option<bool>) {
+    use github_copilot_sdk::rpc::{SessionRuntimeSettings, SessionUpdateOptionsParams};
+
+    let (session, mut server) = create_session_pair().await;
+    let update = async {
+        session
+            .rpc()
+            .options()
+            .update(SessionUpdateOptionsParams {
+                runtime_settings: consent.map(|enabled| SessionRuntimeSettings {
+                    ai_secret_detection: Some(enabled),
+                }),
+                ..Default::default()
+            })
+            .await
+    };
+    let respond = async {
+        let request = server.read_request().await;
+        assert_eq!(request["method"], "session.options.update");
+        assert_eq!(request["params"]["sessionId"], server.session_id);
+        assert_runtime_settings_params(&request, consent);
+        server
+            .respond(&request, serde_json::json!({ "success": true }))
+            .await;
+    };
+    let (result, ()) = timeout(TIMEOUT, async { tokio::join!(update, respond) })
+        .await
+        .unwrap();
+    assert!(result.unwrap().success);
+}
+
+#[tokio::test]
 async fn create_session_forwards_ask_user_variant() {
     let (client, mut server_read, mut server_write) = make_client();
 

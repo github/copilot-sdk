@@ -25,6 +25,61 @@ const TIMEOUT: Duration = Duration::from_secs(5);
 mod factory_tests;
 
 #[test]
+fn runtime_settings_round_trip_through_ahp_create_and_resume() {
+    for enabled in [true, false] {
+        let settings = HashMap::from([(
+            "runtimeSettings".to_owned(),
+            json!({"aiSecretDetection": enabled}),
+        )]);
+        let config = config_from_host(&settings).unwrap();
+        assert_eq!(
+            config
+                .runtime_settings
+                .as_ref()
+                .unwrap()
+                .ai_secret_detection,
+            Some(enabled)
+        );
+        assert_eq!(
+            config_for_host(&config).unwrap()["runtimeSettings"],
+            settings["runtimeSettings"]
+        );
+        let resume_settings = HashMap::from([
+            ("sessionId".to_owned(), json!("runtime-settings")),
+            (
+                "runtimeSettings".to_owned(),
+                settings["runtimeSettings"].clone(),
+            ),
+        ]);
+        let resume = resume_config_from_host(&resume_settings).unwrap();
+        assert_eq!(
+            resume
+                .runtime_settings
+                .as_ref()
+                .unwrap()
+                .ai_secret_detection,
+            Some(enabled)
+        );
+        assert_eq!(
+            resume_config_for_host(&resume).unwrap()["runtimeSettings"],
+            settings["runtimeSettings"]
+        );
+    }
+    assert!(
+        config_for_host(&SessionConfig::default())
+            .unwrap()
+            .get("runtimeSettings")
+            .is_none()
+    );
+    assert!(
+        resume_config_for_host(&ResumeSessionConfig::new("unset".into()))
+            .unwrap()
+            .get("runtimeSettings")
+            .is_none()
+    );
+}
+
+#[test]
 fn autopilot_settings_round_trip_through_ahp_create_and_resume() {
     let settings = HashMap::from([(
         "autopilot".to_owned(),

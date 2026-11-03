@@ -88,7 +88,7 @@ pub use crate::copilot_request_handler::{
 };
 pub use crate::generated::api_types::{
     AutopilotOptions, DiagnosticLogLevel, DiagnosticSourcesConfiguration, DiagnosticsConfiguration,
-    McpDiagnosticSourceConfiguration, SessionManagementScope,
+    McpDiagnosticSourceConfiguration, SessionManagementScope, SessionRuntimeSettings,
 };
 use crate::generated::api_types::{
     CurrentToolMetadata, LifecycleDiagnosticsConfiguration, OpenCanvasInstance, SandboxConfig,
@@ -2605,6 +2605,9 @@ pub struct SessionConfig {
     /// when resuming after a CLI process restart. Set via
     /// [`with_feature_flags`](Self::with_feature_flags).
     pub feature_flags: Option<HashMap<String, bool>>,
+    /// Session-scoped runtime preferences, including AI secret detection consent.
+    /// Re-supply on resume; these never update user-wide configuration.
+    pub runtime_settings: Option<SessionRuntimeSettings>,
     /// ExP assignment ("flight") data injected by a trusted integrator, in
     /// the same JSON shape the Copilot CLI fetches from the experimentation
     /// service (`CopilotExpAssignmentResponse`). When supplied, the runtime
@@ -2842,6 +2845,7 @@ impl std::fmt::Debug for SessionConfig {
             )
             .field("commands", &self.commands)
             .field("feature_flags", &self.feature_flags)
+            .field("runtime_settings", &self.runtime_settings)
             .field("exp_assignments", &self.exp_assignments)
             .field("enable_managed_settings", &self.enable_managed_settings)
             .field(
@@ -2979,6 +2983,7 @@ impl Default for SessionConfig {
             include_sub_agent_streaming_events: None,
             commands: None,
             feature_flags: None,
+            runtime_settings: None,
             exp_assignments: None,
             enable_managed_settings: None,
             excluded_managed_settings: None,
@@ -3162,6 +3167,7 @@ impl SessionConfig {
             enable_github_telemetry_forwarding: None,
             commands: wire_commands,
             feature_flags: self.feature_flags,
+            runtime_settings: self.runtime_settings,
             exp_assignments: self.exp_assignments,
             enable_managed_settings: self.enable_managed_settings,
             excluded_managed_settings: self.excluded_managed_settings,
@@ -3906,6 +3912,12 @@ impl SessionConfig {
         self
     }
 
+    /// Set session-scoped runtime preferences without changing user-wide settings.
+    pub fn with_runtime_settings(mut self, runtime_settings: SessionRuntimeSettings) -> Self {
+        self.runtime_settings = Some(runtime_settings);
+        self
+    }
+
     /// Set [`Self::event_buffer_capacity`].
     ///
     /// A capacity of `0` is rejected with
@@ -4225,6 +4237,8 @@ pub struct ResumeSessionConfig {
     ///
     /// See [`SessionConfig::feature_flags`].
     pub feature_flags: Option<HashMap<String, bool>>,
+    /// Session-scoped runtime preferences. See [`SessionConfig::runtime_settings`].
+    pub runtime_settings: Option<SessionRuntimeSettings>,
     /// ExP assignment ("flight") data injected on resume. See
     /// [`SessionConfig::exp_assignments`]. Re-supply on resume so the runtime
     /// re-applies the assignments after a CLI process restart. Set via
@@ -4436,6 +4450,7 @@ impl std::fmt::Debug for ResumeSessionConfig {
             )
             .field("commands", &self.commands)
             .field("feature_flags", &self.feature_flags)
+            .field("runtime_settings", &self.runtime_settings)
             .field("exp_assignments", &self.exp_assignments)
             .field("enable_managed_settings", &self.enable_managed_settings)
             .field(
@@ -4609,6 +4624,7 @@ impl ResumeSessionConfig {
             enable_github_telemetry_forwarding: None,
             commands: wire_commands,
             feature_flags: self.feature_flags,
+            runtime_settings: self.runtime_settings,
             exp_assignments: self.exp_assignments,
             enable_managed_settings: self.enable_managed_settings,
             excluded_managed_settings: self.excluded_managed_settings,
@@ -4725,6 +4741,7 @@ impl ResumeSessionConfig {
             include_sub_agent_streaming_events: None,
             commands: None,
             feature_flags: None,
+            runtime_settings: None,
             exp_assignments: None,
             enable_managed_settings: None,
             excluded_managed_settings: None,
@@ -5442,6 +5459,12 @@ impl ResumeSessionConfig {
     /// Re-supply feature-flag values resolved by the host on resume.
     pub fn with_feature_flags(mut self, feature_flags: HashMap<String, bool>) -> Self {
         self.feature_flags = Some(feature_flags);
+        self
+    }
+
+    /// Re-supply session-scoped runtime preferences on resume.
+    pub fn with_runtime_settings(mut self, runtime_settings: SessionRuntimeSettings) -> Self {
+        self.runtime_settings = Some(runtime_settings);
         self
     }
 
