@@ -142,6 +142,7 @@ public final class AssistantUsageEvent extends SessionEvent {
         /** API endpoint used for this model call, matching CAPI supported_endpoints vocabulary */
         @JsonProperty("apiEndpoint") AssistantUsageApiEndpoint apiEndpoint,
         /** Parent tool call ID when this usage originates from a sub-agent */
+        @Deprecated
         @JsonProperty("parentToolCallId") String parentToolCallId,
         /** Per-quota resource usage snapshots, keyed by quota identifier */
         @JsonProperty("quotaSnapshots") Map<String, AssistantUsageQuotaSnapshot> quotaSnapshots,

@@ -9,6 +9,7 @@ import (
 	"io"
 	"sync"
 	"testing"
+	"testing/synctest"
 	"time"
 )
 
@@ -294,40 +295,43 @@ func TestRequestReportsProcessErrorWhenConnectionClosesBeforeExit(t *testing.T) 
 	for _, sent := range []string{"before close", "after close"} {
 		t.Run(sent, func(t *testing.T) {
 			t.Parallel()
-			done := make(chan struct{})
-			var processErr error
-			client, stdout, written := startWatchedClient(t, done, &processErr)
+			synctest.Test(t, func(t *testing.T) {
+				done := make(chan struct{})
+				var processErr error
+				client, stdout, written := startWatchedClient(t, done, &processErr)
 
-			result := make(chan error, 1)
-			request := func() {
-				go func() {
-					_, err := client.Request(context.Background(), "test.method", nil)
-					result <- err
-				}()
-			}
-			if sent == "before close" {
-				request()
-				<-written
-			}
-			if err := stdout.Close(); err != nil {
-				t.Fatalf("Close response stream failed: %v", err)
-			}
-			<-client.ConnectionClosed()
-			if sent == "after close" {
-				request()
-			}
-			time.Sleep(100 * time.Millisecond)
-			processErr = errors.New("CLI process exited: exit status 3\nstderr: fatal error")
-			close(done)
-
-			select {
-			case err := <-result:
-				if err == nil || err.Error() != processErr.Error() {
-					t.Fatalf("Request error = %v, want the process error %q", err, processErr)
+				result := make(chan error, 1)
+				request := func() {
+					go func() {
+						_, err := client.Request(context.Background(), "test.method", nil)
+						result <- err
+					}()
 				}
-			case <-time.After(5 * time.Second):
-				t.Fatal("Request did not return after the process exited")
-			}
+				if sent == "before close" {
+					request()
+					<-written
+				}
+				if err := stdout.Close(); err != nil {
+					t.Fatalf("Close response stream failed: %v", err)
+				}
+				<-client.ConnectionClosed()
+				if sent == "after close" {
+					request()
+				}
+				// Admit the request's grace-period wait without consuming its deadline.
+				synctest.Wait()
+				processErr = errors.New("CLI process exited: exit status 3\nstderr: fatal error")
+				close(done)
+
+				select {
+				case err := <-result:
+					if err == nil || err.Error() != processErr.Error() {
+						t.Fatalf("Request error = %v, want the process error %q", err, processErr)
+					}
+				case <-time.After(5 * time.Second):
+					t.Fatal("Request did not return after the process exited")
+				}
+			})
 		})
 	}
 }

@@ -59,6 +59,34 @@ def test_added_fields_are_keyword_only():
         rpc.MCPPlanInstallRequest(_contract(), _candidate(), rpc.MCPPlanScope.USER, "session")
 
 
+def test_mcp_app_tool_call_preserves_positional_arguments():
+    request = rpc.MCPAppsCallToolRequest("server", "server", "tool", {"value": 42})
+    expected = {
+        "originServerName": "server",
+        "serverName": "server",
+        "toolName": "tool",
+        "arguments": {"value": 42},
+    }
+
+    assert request.to_dict() == expected
+    assert rpc.MCPAppsCallToolRequest.from_dict(expected) == request
+
+
+@pytest.mark.parametrize("meta", [{}, {"com.example/context": {"enabled": False, "value": None}}])
+def test_mcp_app_tool_call_metadata_round_trips_by_keyword(meta):
+    request = rpc.MCPAppsCallToolRequest("server", "server", "tool", {"value": 42}, meta=meta)
+    expected = {
+        "originServerName": "server",
+        "serverName": "server",
+        "toolName": "tool",
+        "arguments": {"value": 42},
+        "_meta": meta,
+    }
+
+    assert request.to_dict() == expected
+    assert rpc.MCPAppsCallToolRequest.from_dict(expected) == request
+
+
 def test_event_log_read_positional_arguments_keep_their_meaning():
     request = rpc.EventLogReadRequest(
         ["agent"],

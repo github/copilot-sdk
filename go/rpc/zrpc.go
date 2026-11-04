@@ -11341,6 +11341,9 @@ type MCPApplyUninstallRequest struct {
 type MCPAppsCallToolRequest struct {
 	// Tool arguments
 	Arguments map[string]any `json:"arguments,omitzero"`
+	// MCP tools/call request metadata, forwarded separately from tool arguments. Host-owned
+	// progress tokens and protocol metadata take precedence.
+	Meta map[string]any `json:"_meta,omitzero"`
 	// **Required.** Server whose ui:// view issued the request. Per SEP-1865 ('callable by the
 	// app from this server only'), the call is rejected when this differs from `serverName`,
 	// and rejected outright when missing.
@@ -17834,6 +17837,12 @@ type PluginInstallResult struct {
 	SkillsInstalled int64 `json:"skillsInstalled"`
 	// Where the completed plugin tree was staged before atomic promotion
 	StagingMode *PluginInstallStagingMode `json:"stagingMode,omitempty"`
+	// Report-and-ignore warnings raised while reading the plugin's manifest, such as a field
+	// the manifest's schema does not define and the loader therefore ignored. Callers should
+	// surface these to end users: a plugin whose skills sit behind an ignored field otherwise
+	// installs, lists, and contributes nothing, with no signal to its author. Absent when the
+	// manifest raised none.
+	Warnings []string `json:"warnings,omitzero"`
 }
 
 // Plugins installed for the session, with their enabled state and version metadata.
@@ -45895,6 +45904,9 @@ func (a *MCPAppsAPI) CallTool(ctx context.Context, params *MCPAppsCallToolReques
 	if params != nil {
 		if params.Arguments != nil {
 			req["arguments"] = params.Arguments
+		}
+		if params.Meta != nil {
+			req["_meta"] = params.Meta
 		}
 		req["originServerName"] = params.OriginServerName
 		req["serverName"] = params.ServerName

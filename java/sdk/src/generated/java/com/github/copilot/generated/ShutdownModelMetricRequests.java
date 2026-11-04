@@ -10,6 +10,7 @@ package com.github.copilot.generated;
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.annotation.JsonProperty;
+import com.github.copilot.CopilotExperimental;
 import javax.annotation.processing.Generated;
 
 /**
@@ -22,8 +23,10 @@ import javax.annotation.processing.Generated;
 @JsonIgnoreProperties(ignoreUnknown = true)
 public record ShutdownModelMetricRequests(
     /** Total number of API requests made to this model */
+    @CopilotExperimental
     @JsonProperty("count") Long count,
     /** Cumulative cost multiplier for requests to this model */
+    @CopilotExperimental
     @JsonProperty("cost") Double cost
 ) {
 }

@@ -9904,6 +9904,10 @@ public sealed class PluginInstallResult
     /// <summary>Where the completed plugin tree was staged before atomic promotion.</summary>
     [JsonPropertyName("stagingMode")]
     public PluginInstallStagingMode? StagingMode { get; set; }
+
+    /// <summary>Report-and-ignore warnings raised while reading the plugin's manifest, such as a field the manifest's schema does not define and the loader therefore ignored. Callers should surface these to end users: a plugin whose skills sit behind an ignored field otherwise installs, lists, and contributes nothing, with no signal to its author. Absent when the manifest raised none.</summary>
+    [JsonPropertyName("warnings")]
+    public IList<string>? Warnings { get; set; }
 }
 
 /// <summary>Plugin source and optional working directory for relative-path resolution.</summary>
@@ -26103,8 +26107,43 @@ internal sealed class McpAppsListToolsRequest
 
 /// <summary>MCP server, tool name, and arguments to invoke from an MCP App view.</summary>
 [Experimental(global::GitHub.Copilot.Diagnostics.Experimental)]
-internal sealed class McpAppsCallToolRequest
+public sealed class McpAppsCallToolRequest
 {
+    /// <summary>MCP tools/call request metadata, forwarded separately from tool arguments. Host-owned progress tokens and protocol metadata take precedence.</summary>
+    [JsonPropertyName("_meta")]
+    public IDictionary<string, JsonElement>? Meta { get; set; }
+
+    /// <summary>Tool arguments.</summary>
+    [JsonPropertyName("arguments")]
+    public IDictionary<string, JsonElement>? Arguments { get; set; }
+
+    /// <summary>**Required.** Server whose ui:// view issued the request. Per SEP-1865 ('callable by the app from this server only'), the call is rejected when this differs from `serverName`, and rejected outright when missing.</summary>
+    [RegularExpression("^[^\\x00-\\x1f/\\x7f-\\x9f}]+(?:\\/[^\\x00-\\x1f/\\x7f-\\x9f}]+)*$")]
+    [UnconditionalSuppressMessage("Trimming", "IL2026", Justification = "Safe for generated string properties: JSON Schema minLength/maxLength map to string length validation, not reflection over trimmed Count members")]
+    [MinLength(1)]
+    [JsonPropertyName("originServerName")]
+    public required string OriginServerName { get; set; }
+
+    /// <summary>MCP server hosting the tool.</summary>
+    [RegularExpression("^[^\\x00-\\x1f/\\x7f-\\x9f}]+(?:\\/[^\\x00-\\x1f/\\x7f-\\x9f}]+)*$")]
+    [UnconditionalSuppressMessage("Trimming", "IL2026", Justification = "Safe for generated string properties: JSON Schema minLength/maxLength map to string length validation, not reflection over trimmed Count members")]
+    [MinLength(1)]
+    [JsonPropertyName("serverName")]
+    public required string ServerName { get; set; }
+
+    /// <summary>MCP tool name.</summary>
+    [JsonPropertyName("toolName")]
+    public required string ToolName { get; set; }
+}
+
+/// <summary>MCP server, tool name, and arguments to invoke from an MCP App view.</summary>
+[Experimental(global::GitHub.Copilot.Diagnostics.Experimental)]
+internal sealed class McpAppsCallToolRequestWithSession
+{
+    /// <summary>MCP tools/call request metadata, forwarded separately from tool arguments. Host-owned progress tokens and protocol metadata take precedence.</summary>
+    [JsonPropertyName("_meta")]
+    public IDictionary<string, JsonElement>? Meta { get; set; }
+
     /// <summary>Tool arguments.</summary>
     [JsonPropertyName("arguments")]
     public IDictionary<string, JsonElement>? Arguments { get; set; }
@@ -64070,8 +64109,23 @@ public sealed class McpAppsApi
         ArgumentNullException.ThrowIfNull(originServerName);
         _session.ThrowIfDisposed();
 
-        var request = new McpAppsCallToolRequest { SessionId = _session.SessionId, ServerName = serverName, ToolName = toolName, OriginServerName = originServerName, Arguments = arguments };
+        var request = new McpAppsCallToolRequestWithSession { SessionId = _session.SessionId, ServerName = serverName, ToolName = toolName, OriginServerName = originServerName, Arguments = arguments };
         return await CopilotClient.InvokeRpcAsync<IDictionary<string, JsonElement>>(_session.Rpc, "session.mcp.apps.callTool", [request], cancellationToken);
+    }
+
+    /// <summary>Call an MCP tool from an MCP App view (SEP-1865). Enforces the visibility check that prevents an app iframe from invoking model-only tools. Returns the standard MCP `CallToolResult`.</summary>
+    /// <param name="request">MCP server, tool name, and arguments to invoke from an MCP App view.</param>
+    /// <param name="cancellationToken">The <see cref="CancellationToken"/> to monitor for cancellation requests. The default is <see cref="CancellationToken.None"/>.</param>
+    /// <returns>Standard MCP CallToolResult.</returns>
+    public async Task<IDictionary<string, JsonElement>> CallToolAsync(McpAppsCallToolRequest request, CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(request);
+        ArgumentNullException.ThrowIfNull(request.ServerName);
+        ArgumentNullException.ThrowIfNull(request.ToolName);
+        ArgumentNullException.ThrowIfNull(request.OriginServerName);
+        _session.ThrowIfDisposed();
+        var wireRequest = new McpAppsCallToolRequestWithSession { SessionId = _session.SessionId, ServerName = request.ServerName, ToolName = request.ToolName, OriginServerName = request.OriginServerName, Arguments = request.Arguments, Meta = request.Meta };
+        return await CopilotClient.InvokeRpcAsync<IDictionary<string, JsonElement>>(_session.Rpc, "session.mcp.apps.callTool", [wireRequest], cancellationToken);
     }
 
     /// <summary>Replace the host context returned to MCP App guests on `ui/initialize`. Hosts use this to advertise theme, locale, or other metadata to the guest UI.</summary>
@@ -68548,6 +68602,7 @@ internal static class ClientGlobalApiRegistration
 [JsonSerializable(typeof(McpApplyInstallRequest))]
 [JsonSerializable(typeof(McpApplyUninstallRequest))]
 [JsonSerializable(typeof(McpAppsCallToolRequest))]
+[JsonSerializable(typeof(McpAppsCallToolRequestWithSession))]
 [JsonSerializable(typeof(McpAppsDiagnoseCapability))]
 [JsonSerializable(typeof(McpAppsDiagnoseRequest))]
 [JsonSerializable(typeof(McpAppsDiagnoseResult))]

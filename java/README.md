@@ -30,25 +30,27 @@ runtime.
 
 ## Installation
 
+Stable releases are available from Maven Central. Preview versions use Maven `-SNAPSHOT` coordinates and the repository shown in [Snapshot builds](#snapshot-builds).
+
 ### Maven
 
 ```xml
 <dependency>
     <groupId>com.github</groupId>
     <artifactId>copilot-sdk-java</artifactId>
-    <version>1.0.14-preview.1</version>
+    <version>1.0.15</version>
 </dependency>
 ```
 
 ### Gradle
 
 ```groovy
-implementation 'com.github:copilot-sdk-java:1.0.14-preview.1'
+implementation 'com.github:copilot-sdk-java:1.0.15'
 ```
 
 ### Snapshot builds
 
-Snapshot builds of the next development version are published to Maven Central Snapshots. To use them, add the snapshot repository and depend on the development version:
+Java previews are published three times per weekday, at 10:00, 13:00, and 15:00 Pacific, through the matched SDK release pipeline. Previews with the same base SDK version update one rolling Maven coordinate: SDK `1.0.15-preview.1`, `1.0.15-preview.2`, and later `1.0.15` previews all publish Java `1.0.15-SNAPSHOT`. To use them, add the snapshot repository and depend on that version:
 
 #### Maven
 
@@ -57,6 +59,7 @@ Snapshot builds of the next development version are published to Maven Central S
     <repository>
         <id>central-snapshots</id>
         <url>https://central.sonatype.com/repository/maven-snapshots/</url>
+        <releases><enabled>false</enabled></releases>
         <snapshots><enabled>true</enabled></snapshots>
     </repository>
 </repositories>
@@ -64,14 +67,26 @@ Snapshot builds of the next development version are published to Maven Central S
 <dependency>
     <groupId>com.github</groupId>
     <artifactId>copilot-sdk-java</artifactId>
-    <version>1.0.15-preview.1-SNAPSHOT</version>
+    <version>1.0.15-SNAPSHOT</version>
 </dependency>
 ```
 
 #### Gradle
 
 ```groovy
-implementation 'com.github:copilot-sdk-java:1.0.15-preview.1-SNAPSHOT'
+repositories {
+    mavenCentral()
+    maven {
+        url = uri('https://central.sonatype.com/repository/maven-snapshots/')
+        mavenContent { snapshotsOnly() }
+    }
+}
+```
+
+Then add the snapshot dependency:
+
+```groovy
+implementation 'com.github:copilot-sdk-java:1.0.15-SNAPSHOT'
 ```
 
 ## In-process mode (experimental)
@@ -1154,11 +1169,11 @@ Each classifier JAR includes `runtime.node`, `platform.properties`, and `copilot
 
 The Java SDK uses [Maven CI-friendly versions](https://maven.apache.org/maven-ci-friendly.html). Every module declares `<version>${revision}</version>`, and the single source of truth is the `<revision>` property in `java/pom.xml`. The committed value stays a `-SNAPSHOT` for local development. Published artifacts contain a concrete version rather than the unresolved `${revision}` property.
 
-Stable, prerelease, and public unstable releases include all six SDKs. SDK and runtime versions are numbered independently; each Java release contains the matching runtime artifacts in its native classifier JARs. Public unstable versions use `X.Y.Z-unstable.<run-id>.g<sha>`. Maven `-SNAPSHOT` builds are a separate development channel.
+Stable, prerelease, and public unstable releases include all six SDKs. SDK and runtime versions are numbered independently; each Java release contains the matching runtime artifacts in its native classifier JARs. Java prereleases append `-SNAPSHOT` to the SDK version; stable and public unstable versions remain unchanged.
 
 Release artifacts and source references are public:
 
-- Java packages are available from Maven Central.
+- Stable and public unstable Java packages are available from Maven Central; previews use Central Portal snapshots.
 - The `java/v<SDK-version>` and `v<SDK-version>` tags identify the corresponding public SDK source snapshot in [`github/copilot-sdk`](https://github.com/github/copilot-sdk).
 - Stable/prerelease versions also have a combined `v<SDK-version>` [GitHub release](https://github.com/github/copilot-sdk/releases) and versioned Java documentation. Prerelease documentation does not replace the latest documentation.
 - Unstable releases create source tags without advancing SDK `main`, creating an SDK GitHub release announcement, or deploying Java documentation. Their runtime assets are available in the separate `runtime-<runtime-version>` release.

@@ -14506,6 +14506,7 @@ class PendingPermissionRequest:
     request_id: str
     """Unique identifier for the pending permission request"""
 
+    # Experimental: this field is part of an experimental API and may change or be removed.
     assisted_approval_assessment: AssistedApprovalAssessment | None = None
     """Canonical runtime-owned Assisted Permissions assessment captured on the originating
     permission request. Absent for historical events.
@@ -16098,6 +16099,7 @@ class ProtocolImageGenerationOptions:
     """
     enabled: bool | None = None
     """Disabled by default for SDK sessions. CAPI model access and permissions still apply."""
+    # Experimental: this field is part of an experimental API and may change or be removed.
     watermark: bool | None = None
     """Experimental. Request a visible "Made with AI" label on generated and edited images.
     This option may change or be removed in a future release.
@@ -16105,6 +16107,7 @@ class ProtocolImageGenerationOptions:
     otherwise that preference applies, defaulting to false. Re-supply after a
     cold resume. Does not enable image generation or enforce enterprise policy.
     """
+    # Experimental: this field is part of an experimental API and may change or be removed.
     save_to_disk: bool | None = None
     """Experimental. Save each generated or edited image under the session-state
     directory's `images` folder and add a `saved_to: <path>` line per image to
@@ -27524,6 +27527,7 @@ class Tool:
     parameters: dict[str, Any] | None = None
     """JSON Schema for the tool's input parameters"""
 
+    # Experimental: this field is part of an experimental API and may change or be removed.
     safe_for_telemetry: bool | BuiltinToolSafeTelemetryFields | None = None
     """Telemetry-safety policy for the tool name and input names, not input values. Treat
     omitted metadata as unsafe.
@@ -35415,6 +35419,7 @@ class MemoryConfiguration:
     enabled: bool
     """Whether memory is enabled for the session."""
 
+    # Experimental: this field is part of an experimental API and may change or be removed.
     mode: MemoryMode | None = None
     """Memory injection mode: system-prompt (default) includes memories in the system prompt;
     user-prompt includes them in user messages.
@@ -40901,6 +40906,7 @@ class AgentInfo:
     hooks: dict[str, list[Any]] | None = None
     """Declarative hook actions keyed by event name, executed only while this agent is active."""
 
+    # Experimental: this field is part of an experimental API and may change or be removed.
     mcp_servers: dict[str, Any] | None = None
     """MCP server configurations attached to this agent, keyed by server name. Server config
     shape mirrors the MCP `mcpServers` schema.
@@ -43882,6 +43888,10 @@ class MCPAppsCallToolRequest:
     tool_name: str
     """MCP tool name"""
 
+    meta: dict[str, Any] | None = field(default=None, kw_only=True)
+    """MCP tools/call request metadata, forwarded separately from tool arguments. Host-owned
+    progress tokens and protocol metadata take precedence.
+    """
     arguments: dict[str, Any] | None = None
     """Tool arguments"""
 
@@ -43891,14 +43901,17 @@ class MCPAppsCallToolRequest:
         origin_server_name = from_str(obj.get("originServerName"))
         server_name = from_str(obj.get("serverName"))
         tool_name = from_str(obj.get("toolName"))
+        meta = from_union([lambda x: from_dict(lambda x: x, x), from_none], obj.get("_meta"))
         arguments = from_union([lambda x: from_dict(lambda x: x, x), from_none], obj.get("arguments"))
-        return MCPAppsCallToolRequest(origin_server_name, server_name, tool_name, arguments)
+        return MCPAppsCallToolRequest(origin_server_name, server_name, tool_name, arguments, meta=meta)
 
     def to_dict(self) -> dict:
         result: dict = {}
         result["originServerName"] = from_str(self.origin_server_name)
         result["serverName"] = from_str(self.server_name)
         result["toolName"] = from_str(self.tool_name)
+        if self.meta is not None:
+            result["_meta"] = from_union([lambda x: from_dict(lambda x: x, x), from_none], self.meta)
         if self.arguments is not None:
             result["arguments"] = from_union([lambda x: from_dict(lambda x: x, x), from_none], self.arguments)
         return result
@@ -49080,6 +49093,14 @@ class PluginInstallResult:
     staging_mode: PluginInstallStagingMode | None = None
     """Where the completed plugin tree was staged before atomic promotion"""
 
+    warnings: list[str] | None = None
+    """Report-and-ignore warnings raised while reading the plugin's manifest, such as a field
+    the manifest's schema does not define and the loader therefore ignored. Callers should
+    surface these to end users: a plugin whose skills sit behind an ignored field otherwise
+    installs, lists, and contributes nothing, with no signal to its author. Absent when the
+    manifest raised none.
+    """
+
     @staticmethod
     def from_dict(obj: Any) -> 'PluginInstallResult':
         assert isinstance(obj, dict)
@@ -49088,7 +49109,8 @@ class PluginInstallResult:
         deprecation_warning = from_union([from_str, from_none], obj.get("deprecationWarning"))
         post_install_message = from_union([from_str, from_none], obj.get("postInstallMessage"))
         staging_mode = from_union([PluginInstallStagingMode, from_none], obj.get("stagingMode"))
-        return PluginInstallResult(plugin, skills_installed, deprecation_warning, post_install_message, staging_mode)
+        warnings = from_union([lambda x: from_list(from_str, x), from_none], obj.get("warnings"))
+        return PluginInstallResult(plugin, skills_installed, deprecation_warning, post_install_message, staging_mode, warnings)
 
     def to_dict(self) -> dict:
         result: dict = {}
@@ -49100,6 +49122,8 @@ class PluginInstallResult:
             result["postInstallMessage"] = from_union([from_str, from_none], self.post_install_message)
         if self.staging_mode is not None:
             result["stagingMode"] = from_union([lambda x: to_enum(PluginInstallStagingMode, x), from_none], self.staging_mode)
+        if self.warnings is not None:
+            result["warnings"] = from_union([lambda x: from_list(from_str, x), from_none], self.warnings)
         return result
 
 # Experimental: this type is part of an experimental API and may change or be removed.
@@ -57079,6 +57103,7 @@ class SandboxProxyCARequest:
 class SessionUpdateOptionsParams:
     """Patch of mutable session options to apply to the running session."""
 
+    # Experimental: this field is part of an experimental API and may change or be removed.
     additional_content_exclusion_policies: list[OptionsUpdateAdditionalContentExclusionPolicy] | None = None
     """Additional content-exclusion policies to merge into the session's policy set."""
 
@@ -57277,6 +57302,7 @@ class SessionUpdateOptionsParams:
     sandbox_config: SandboxConfig | None = None
     """Resolved sandbox configuration."""
 
+    # Experimental: this field is part of an experimental API and may change or be removed.
     sandbox_config_source: SandboxConfigSource | None = None
     """Origin of the sandbox choice. Settings-derived origins (never_configured, user_enabled,
     user_disabled, repository_policy) let managed policy floor a host preference; explicit
@@ -62320,6 +62346,7 @@ class SessionOpenOptions:
 
     Session construction options for the new local session.
     """
+    # Experimental: this field is part of an experimental API and may change or be removed.
     additional_content_exclusion_policies: list[SessionOpenOptionsAdditionalContentExclusionPolicy] | None = None
     """Additional content-exclusion policies to merge into the session policy set."""
 
@@ -62412,6 +62439,7 @@ class SessionOpenOptions:
     disabled_skills: list[str] | None = None
     """Skill IDs disabled for this session."""
 
+    # Experimental: this field is part of an experimental API and may change or be removed.
     enable_citations: bool | None = None
     """Experimental: enable native model citations for supported Anthropic and OpenAI models,
     normalized onto the `assistant.message` event. Off by default; may change or be removed
@@ -62509,6 +62537,7 @@ class SessionOpenOptions:
     feature_flags: dict[str, bool] | None = None
     """Feature-flag values resolved by the host."""
 
+    # Experimental: this field is part of an experimental API and may change or be removed.
     # Internal: this field is an internal SDK API and is not part of the public surface.
     has_skill_provider: bool | None = None
     """Whether the requesting SDK session has a skill provider. The provider remains ephemeral
@@ -62562,6 +62591,7 @@ class SessionOpenOptions:
     is_experimental_mode: bool | None = None
     """Whether experimental behavior is enabled."""
 
+    # Experimental: this field is part of an experimental API and may change or be removed.
     # Internal: this field is an internal SDK API and is not part of the public surface.
     lifecycle_diagnostics: _LifecycleDiagnosticsConfiguration | None = None
     """Startup-only experimental runtime lifecycle diagnostics configuration."""
@@ -62572,6 +62602,7 @@ class SessionOpenOptions:
     lsp_client_name: str | None = None
     """Identifier sent to LSP-style integrations."""
 
+    # Experimental: this field is part of an experimental API and may change or be removed.
     managed_mcp_servers: dict[str, ManagedMCPServerConfig] | None = None
     """Non-secret host-managed HTTP MCP servers keyed by stable managed identity. Managed
     provenance is runtime-established from this separate field and credentials are supplied
@@ -62594,6 +62625,7 @@ class SessionOpenOptions:
     model_capabilities_overrides: ModelCapabilitiesOverride | None = None
     """Initial model capability overrides."""
 
+    # Experimental: this field is part of an experimental API and may change or be removed.
     models: list[ProviderModelConfig] | None = None
     """BYOK model definitions added to the selectable model list, each referencing a provider
     name.
@@ -62604,6 +62636,7 @@ class SessionOpenOptions:
     provider: ProviderConfig | None = None
     """Custom model-provider configuration (BYOK)."""
 
+    # Experimental: this field is part of an experimental API and may change or be removed.
     providers: list[NamedProviderConfig] | None = None
     """Named BYOK provider connections, additive to CAPI auth. Combining with `provider` is
     rejected.
@@ -62635,6 +62668,7 @@ class SessionOpenOptions:
     sandbox_config: SandboxConfig | None = None
     """Resolved sandbox configuration."""
 
+    # Experimental: this field is part of an experimental API and may change or be removed.
     sandbox_config_source: SandboxConfigSource | None = None
     """Origin of the sandbox choice. Settings-derived origins (never_configured, user_enabled,
     user_disabled, repository_policy) let managed policy floor a host preference; explicit

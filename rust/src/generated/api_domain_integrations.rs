@@ -1232,6 +1232,57 @@ pub struct McpAppsCallToolRequest {
     pub tool_name: String,
 }
 
+/// Extensible [`McpAppsCallToolRequest`], including inputs added after it was published.
+///
+/// Required inputs are [`McpAppsCallToolOptions::new`] arguments; optional inputs have fluent setters.
+/// Input-only: it serialises to the flat wire request and is not deserialisable.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct McpAppsCallToolOptions {
+    #[serde(flatten)]
+    legacy: McpAppsCallToolRequest,
+    #[serde(rename = "_meta", skip_serializing_if = "Option::is_none")]
+    meta: Option<HashMap<String, serde_json::Value>>,
+}
+
+impl McpAppsCallToolOptions {
+    /// Creates options with the required inputs.
+    pub fn new(
+        server_name: impl Into<String>,
+        tool_name: impl Into<String>,
+        origin_server_name: impl Into<String>,
+    ) -> Self {
+        Self {
+            legacy: McpAppsCallToolRequest {
+                server_name: server_name.into(),
+                tool_name: tool_name.into(),
+                origin_server_name: origin_server_name.into(),
+                arguments: None,
+            },
+            meta: None,
+        }
+    }
+
+    /// Tool arguments
+    pub fn arguments(mut self, value: HashMap<String, serde_json::Value>) -> Self {
+        self.legacy.arguments = Some(value);
+        self
+    }
+
+    /// MCP tools/call request metadata, forwarded separately from tool arguments. Host-owned progress tokens and protocol metadata take precedence.
+    pub fn meta(mut self, value: HashMap<String, serde_json::Value>) -> Self {
+        self.meta = Some(value);
+        self
+    }
+}
+
 /// MCP server to diagnose MCP Apps wiring for.
 ///
 /// <div class="warning">
@@ -4382,6 +4433,9 @@ pub struct PluginInstallResult {
     /// Where the completed plugin tree was staged before atomic promotion
     #[serde(skip_serializing_if = "Option::is_none")]
     pub staging_mode: Option<PluginInstallStagingMode>,
+    /// Report-and-ignore warnings raised while reading the plugin's manifest, such as a field the manifest's schema does not define and the loader therefore ignored. Callers should surface these to end users: a plugin whose skills sit behind an ignored field otherwise installs, lists, and contributes nothing, with no signal to its author. Absent when the manifest raised none.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub warnings: Option<Vec<String>>,
 }
 
 /// Plugins installed for the session, with their enabled state and version metadata.
@@ -5569,6 +5623,9 @@ pub struct PluginsInstallResult {
     /// Where the completed plugin tree was staged before atomic promotion
     #[serde(skip_serializing_if = "Option::is_none")]
     pub staging_mode: Option<PluginInstallStagingMode>,
+    /// Report-and-ignore warnings raised while reading the plugin's manifest, such as a field the manifest's schema does not define and the loader therefore ignored. Callers should surface these to end users: a plugin whose skills sit behind an ignored field otherwise installs, lists, and contributes nothing, with no signal to its author. Absent when the manifest raised none.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub warnings: Option<Vec<String>>,
 }
 
 /// Result of updating a single plugin.

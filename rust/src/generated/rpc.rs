@@ -14811,6 +14811,41 @@ impl<'a> SessionRpcMcpApps<'a> {
         Ok(serde_json::from_value(_value)?)
     }
 
+    /// Call an MCP tool from an MCP App view (SEP-1865). Enforces the visibility check that prevents an app iframe from invoking model-only tools. Returns the standard MCP `CallToolResult`.
+    ///
+    /// Wire method: `session.mcp.apps.callTool`.
+    ///
+    /// # Parameters
+    ///
+    /// * `params` - MCP server, tool name, and arguments to invoke from an MCP App view.
+    ///
+    /// # Returns
+    ///
+    /// Standard MCP CallToolResult
+    ///
+    /// <div class="warning">
+    ///
+    /// **Experimental.** This API is part of an experimental wire-protocol surface
+    /// and may change or be removed in future SDK or CLI releases. Pin both the
+    /// SDK and CLI versions if your code depends on it.
+    ///
+    /// </div>
+    ///
+    /// Accepts [`McpAppsCallToolOptions`], including inputs added after [`McpAppsCallToolRequest`].
+    pub async fn call_tool_with_options(
+        &self,
+        params: McpAppsCallToolOptions,
+    ) -> Result<SessionMcpAppsCallToolResult, Error> {
+        let mut wire_params = serde_json::to_value(params)?;
+        wire_params["sessionId"] = serde_json::Value::String(self.session.id().to_string());
+        let _value = self
+            .session
+            .client()
+            .call(rpc_methods::SESSION_MCP_APPS_CALLTOOL, Some(wire_params))
+            .await?;
+        Ok(serde_json::from_value(_value)?)
+    }
+
     /// Replace the host context returned to MCP App guests on `ui/initialize`. Hosts use this to advertise theme, locale, or other metadata to the guest UI.
     ///
     /// Wire method: `session.mcp.apps.setHostContext`.

@@ -11894,6 +11894,9 @@ pub struct SessionPluginsInstallResult {
     /// Where the completed plugin tree was staged before atomic promotion
     #[serde(skip_serializing_if = "Option::is_none")]
     pub staging_mode: Option<PluginInstallStagingMode>,
+    /// Report-and-ignore warnings raised while reading the plugin's manifest, such as a field the manifest's schema does not define and the loader therefore ignored. Callers should surface these to end users: a plugin whose skills sit behind an ignored field otherwise installs, lists, and contributes nothing, with no signal to its author. Absent when the manifest raised none.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub warnings: Option<Vec<String>>,
 }
 
 /// Result of updating a single plugin.

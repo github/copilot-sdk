@@ -76,6 +76,7 @@ public final class ToolExecutionCompleteEvent extends SessionEvent {
         @CopilotExperimental
         @JsonProperty("fileEdits") List<ToolExecutionCompleteFileEdit> fileEdits,
         /** Tool call ID of the parent tool invocation when this event originates from a sub-agent */
+        @Deprecated
         @JsonProperty("parentToolCallId") String parentToolCallId,
         /** Experimental HydraFusion attribution for this tool completion. */
         @CopilotExperimental

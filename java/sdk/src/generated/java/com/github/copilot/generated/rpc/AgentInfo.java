@@ -10,6 +10,7 @@ package com.github.copilot.generated.rpc;
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.annotation.JsonProperty;
+import com.github.copilot.CopilotExperimental;
 import java.util.List;
 import java.util.Map;
 import javax.annotation.processing.Generated;
@@ -50,6 +51,7 @@ public record AgentInfo(
     /** Authored reasoning effort for this agent. Applied on selection to models that support it; omitted means no authored preference. */
     @JsonProperty("reasoningEffort") String reasoningEffort,
     /** MCP server configurations attached to this agent, keyed by server name. Server config shape mirrors the MCP `mcpServers` schema. */
+    @CopilotExperimental
     @JsonProperty("mcpServers") Map<String, Object> mcpServers,
     /** Skill names preloaded into this agent's context. Omitted means none. */
     @JsonProperty("skills") List<String> skills,

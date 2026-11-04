@@ -10,6 +10,7 @@ package com.github.copilot.generated.rpc;
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.annotation.JsonProperty;
+import com.github.copilot.CopilotExperimental;
 import java.util.Map;
 import javax.annotation.processing.Generated;
 
@@ -33,6 +34,7 @@ public record Tool(
     /** Optional instructions for how to use this tool effectively */
     @JsonProperty("instructions") String instructions,
     /** Telemetry-safety policy for the tool name and input names, not input values. Treat omitted metadata as unsafe. */
+    @CopilotExperimental
     @JsonProperty("safeForTelemetry") Object safeForTelemetry
 ) {
 }

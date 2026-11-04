@@ -646,16 +646,17 @@ public sealed partial class ClientSessionLifetimeTests
         await using var session = await client.CreateSessionAsync(new SessionConfig());
         using var cts = new CancellationTokenSource();
         var task = session.SendAndWaitAsync<StructuredAnswer>("Answer", StructuredOutputJsonContext.Default.Options,
-            cancel ? TimeSpan.FromSeconds(10) : TimeSpan.FromMilliseconds(100), cts.Token);
-        await WaitForRequestAsync(server, "session.send");
+            cancel ? Timeout.InfiniteTimeSpan : TimeSpan.FromMilliseconds(100), cts.Token);
         if (cancel)
         {
+            await WaitForRequestAsync(server, "session.send");
             cts.Cancel();
-            await Assert.ThrowsAnyAsync<OperationCanceledException>(() => task);
+            await Assert.ThrowsAnyAsync<OperationCanceledException>(() => task).WaitAsync(TimeSpan.FromSeconds(5));
         }
         else
         {
-            await Assert.ThrowsAsync<TimeoutException>(() => task);
+            // Expiry during the unsupported completion-RPC probe may prevent the legacy send.
+            await Assert.ThrowsAsync<TimeoutException>(() => task).WaitAsync(TimeSpan.FromSeconds(5));
         }
     }
 

@@ -10,6 +10,7 @@ package com.github.copilot.generated.rpc;
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.annotation.JsonProperty;
+import com.github.copilot.CopilotExperimental;
 import javax.annotation.processing.Generated;
 
 /**
@@ -24,6 +25,7 @@ public record MemoryConfiguration(
     /** Whether memory is enabled for the session. */
     @JsonProperty("enabled") Boolean enabled,
     /** Memory injection mode: system-prompt (default) includes memories in the system prompt; user-prompt includes them in user messages. */
+    @CopilotExperimental
     @JsonProperty("mode") MemoryMode mode
 ) {
 }

@@ -22678,6 +22678,12 @@ export interface McpAppsCallToolRequest {
     [k: string]: JsonValue | undefined;
   };
   /**
+   * MCP tools/call request metadata, forwarded separately from tool arguments. Host-owned progress tokens and protocol metadata take precedence.
+   */
+  _meta?: {
+    [k: string]: JsonValue | undefined;
+  };
+  /**
    * **Required.** Server whose ui:// view issued the request. Per SEP-1865 ('callable by the app from this server only'), the call is rejected when this differs from `serverName`, and rejected outright when missing.
    */
   originServerName: string;
@@ -29680,6 +29686,10 @@ export interface PluginInstallResult {
    * Set when the install path is deprecated (e.g. direct repo / URL / local installs). Callers should surface this to end users.
    */
   deprecationWarning?: string;
+  /**
+   * Report-and-ignore warnings raised while reading the plugin's manifest, such as a field the manifest's schema does not define and the loader therefore ignored. Callers should surface these to end users: a plugin whose skills sit behind an ignored field otherwise installs, lists, and contributes nothing, with no signal to its author. Absent when the manifest raised none.
+   */
+  warnings?: string[];
 }
 /**
  * Plugins installed for the session, with their enabled state and version metadata.

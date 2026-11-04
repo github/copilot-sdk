@@ -31,7 +31,7 @@ In the CLI, remembered folder trust refreshes repository customizations in the c
 
 Session creation, resume, and option updates accept the same four lists. TypeScript and Java use `skillDirectories`, `agentDirectories`, `instructionDirectories`, and `hookDirectories`. Python and Rust use snake case; Go and .NET use Pascal case.
 
-SDK directories can be outside the checkout. Leading and trailing whitespace is trimmed, and blank entries are ignored. Relative SDK paths resolve once against the request's effective working directory when supplied. Changing the working directory doesn't move retained SDK roots. Supplying a new relative list uses the new effective working directory. An empty list clears only the explicit SDK contribution; omission or `null` leaves it unchanged during an update.
+SDK directories can be outside the checkout. Leading and trailing whitespace is trimmed, and blank entries are ignored. A leading `~` or `~/` resolves to the home directory. Other relative SDK paths resolve once against the request's effective working directory when supplied. Changing the working directory doesn't move retained SDK roots. Supplying a new relative list uses the new effective working directory. An empty list clears only the explicit SDK contribution; omission or `null` leaves it unchanged during an update.
 
 If adopting a `hookDirectories` replacement fails or is canceled before the new hook service takes ownership, the previous directory option and live hook service remain in place. Overlapping failed updates restore the retained value rather than another failed update's directories. A failed update doesn't roll back a newer accepted update.
 

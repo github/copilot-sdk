@@ -46,13 +46,20 @@
         <!-- <module>copilot-native-all</module> -->
     </modules>
 
+    <distributionManagement>
+        <snapshotRepository>
+            <id>central</id>
+            <url>https://central.sonatype.com/repository/maven-snapshots/</url>
+        </snapshotRepository>
+    </distributionManagement>
+
     <properties>
         <!--
             CI-friendly version. This single property drives the version of the
             parent and every module (they all declare <version>${revision}</version>).
-            The committed value stays a -SNAPSHOT for local development and the
-            daily snapshot publish. Releases override it at build time with
-            -Drevision=X.Y.Z (supplied by .github/workflows/publish.yml); no
+            The committed value stays a -SNAPSHOT for local development.
+            Publishing overrides it with the Java Maven version; previews use
+            a rolling base-version -SNAPSHOT (supplied by .github/workflows/publish.yml); no
             release or next-development version is ever committed to the repo.
             flatten-maven-plugin (ossrh mode, configured below) resolves
             ${revision} into the installed and published POMs.

@@ -10,6 +10,7 @@ package com.github.copilot.generated.rpc;
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.annotation.JsonProperty;
+import com.github.copilot.CopilotExperimental;
 import javax.annotation.processing.Generated;
 
 /**
@@ -28,6 +29,7 @@ This option may change or be removed in a future release.
 Overrides the user's imageGenerationWatermark preference for this session;
 otherwise that preference applies, defaulting to false. Re-supply after a
 cold resume. Does not enable image generation or enforce enterprise policy. */
+    @CopilotExperimental
     @JsonProperty("watermark") Boolean watermark,
     /** Experimental. Save each generated or edited image under the session-state
 directory's `images` folder and add a `saved_to: <path>` line per image to
@@ -38,6 +40,7 @@ image, without `saved_to`. Sessions without a local session-state
 directory, such as those using a session filesystem provider, never save.
 Re-supply after a cold resume. Does not enable image generation.
 This option may change or be removed in a future release. */
+    @CopilotExperimental
     @JsonProperty("saveToDisk") Boolean saveToDisk
 ) {
 

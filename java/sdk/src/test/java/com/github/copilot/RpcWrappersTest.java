@@ -822,6 +822,24 @@ class RpcWrappersTest {
     }
 
     @Test
+    void sessionRpc_mcp_apps_callTool_request_preserves_metadata() {
+        var stub = new StubCaller();
+        var session = new SessionRpc(stub, "sess-meta");
+        var params = new com.github.copilot.generated.rpc.SessionMcpAppsCallToolRequest("server", "tool", "server")
+                .setArguments(Map.of("value", 42)).setMeta(Map.of("com.example/context", Map.of("enabled", false)));
+
+        session.mcp.apps.callTool(params);
+
+        assertEquals(1, stub.calls.size());
+        var call = stub.calls.get(0);
+        assertEquals("session.mcp.apps.callTool", call.method());
+        var node = new ObjectMapper().valueToTree(call.params());
+        assertEquals("sess-meta", node.get("sessionId").asText());
+        assertEquals(42, node.get("arguments").get("value").asInt());
+        assertEquals(false, node.get("_meta").get("com.example/context").get("enabled").asBoolean());
+    }
+
+    @Test
     void sessionRpc_mcp_apps_callTool_returns_jsonNode_payload() throws Exception {
         var stub = new StubCaller();
         var mapper = new ObjectMapper();

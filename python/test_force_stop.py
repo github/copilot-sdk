@@ -136,7 +136,7 @@ async def test_force_stop_rejects_acknowledged_plain_waits(
         session_id="retirement-session", on_permission_request=PermissionHandler.approve_all
     )
     waits = [
-        asyncio.create_task(session.send_and_wait("hold the response", timeout=1))
+        asyncio.create_task(session.send_and_wait("hold the response", timeout=float("inf")))
         for _ in range(count)
     ]
     try:

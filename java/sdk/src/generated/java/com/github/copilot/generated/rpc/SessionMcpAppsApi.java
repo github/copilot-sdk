@@ -9,6 +9,7 @@ package com.github.copilot.generated.rpc;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.github.copilot.CopilotExperimental;
+import java.util.Objects;
 import java.util.concurrent.CompletableFuture;
 import javax.annotation.processing.Generated;
 
@@ -75,6 +76,21 @@ public final class SessionMcpAppsApi {
     @CopilotExperimental
     public CompletableFuture<JsonNode> callTool(SessionMcpAppsCallToolParams params) {
         com.fasterxml.jackson.databind.node.ObjectNode _p = MAPPER.valueToTree(params);
+        _p.put("sessionId", this.sessionId);
+        return caller.invoke("session.mcp.apps.callTool", _p, JsonNode.class);
+    }
+
+    /**
+     * Call an MCP tool from an MCP App view (SEP-1865). Enforces the visibility check that prevents an app iframe from invoking model-only tools. Returns the standard MCP `CallToolResult`.
+     * <p>
+     * Accepts the extensible request, including inputs added after the params record.
+     *
+     * @apiNote This method is experimental and may change in a future version.
+     * @since 1.0.0
+     */
+    @CopilotExperimental
+    public CompletableFuture<JsonNode> callTool(SessionMcpAppsCallToolRequest request) {
+        com.fasterxml.jackson.databind.node.ObjectNode _p = MAPPER.valueToTree(Objects.requireNonNull(request, "request"));
         _p.put("sessionId", this.sessionId);
         return caller.invoke("session.mcp.apps.callTool", _p, JsonNode.class);
     }

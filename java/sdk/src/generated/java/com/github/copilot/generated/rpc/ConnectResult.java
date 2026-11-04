@@ -10,6 +10,7 @@ package com.github.copilot.generated.rpc;
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.annotation.JsonProperty;
+import com.github.copilot.CopilotExperimental;
 import java.util.List;
 import javax.annotation.processing.Generated;
 
@@ -29,6 +30,7 @@ record ConnectResult(
     /** Server package version */
     @JsonProperty("version") String version,
     /** Acknowledges that this connection's host-owned Entra token provider is enabled. Clients requesting it must reject a missing or false acknowledgement. */
+    @CopilotExperimental
     @JsonProperty("entraTokenProvider") Boolean entraTokenProvider,
     /** Task kinds the server may return to this connection. */
     @JsonProperty("taskKinds") List<TaskKind> taskKinds
