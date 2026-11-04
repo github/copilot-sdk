@@ -5,7 +5,6 @@ import (
 	"encoding/json"
 	"io"
 	"net/http"
-	"net/url"
 	"os"
 	"path/filepath"
 	"slices"
@@ -16,13 +15,11 @@ import (
 
 	copilot "github.com/github/copilot-sdk/go"
 	"github.com/github/copilot-sdk/go/internal/e2e/testharness"
-	"github.com/github/copilot-sdk/go/rpc"
 	"github.com/google/uuid"
 )
 
 const childContext = "Subagent start hook verified: read the requested file."
 const stopResponsePrefix = "Subagent stop hook verified: "
-const subagentReplayModel = "claude-sonnet-5"
 
 type subagentRequestRecord struct {
 	agentID         string
@@ -33,27 +30,18 @@ type subagentRequestRecord struct {
 
 type recordingForwardingTransport struct {
 	inner                 http.RoundTripper
-	proxy                 *url.URL
 	mu                    sync.Mutex
 	records               []subagentRequestRecord
 	modifiedParentRequest chan struct{}
 }
 
-func newRecordingForwardingTransport(t *testing.T, proxyURL string) *recordingForwardingTransport {
-	t.Helper()
-	proxy, err := url.Parse(proxyURL)
-	if err != nil {
-		t.Fatal(err)
-	}
+func newRecordingForwardingTransport() *recordingForwardingTransport {
 	inner := http.DefaultTransport.(*http.Transport).Clone()
-	inner.Proxy = nil
 	inner.DisableCompression = true
-	t.Cleanup(inner.CloseIdleConnections)
-	return &recordingForwardingTransport{inner: inner, proxy: proxy, modifiedParentRequest: make(chan struct{}, 1)}
+	return &recordingForwardingTransport{inner: inner, modifiedParentRequest: make(chan struct{}, 1)}
 }
 
 func (rt *recordingForwardingTransport) RoundTrip(req *http.Request) (*http.Response, error) {
-	req = req.Clone(req.Context())
 	if isInferenceURL(req.URL.String()) {
 		body, err := io.ReadAll(req.Body)
 		if err != nil {
@@ -87,9 +75,6 @@ func (rt *recordingForwardingTransport) RoundTrip(req *http.Request) (*http.Resp
 		rt.records = append(rt.records, record)
 		rt.mu.Unlock()
 	}
-	req.URL.Scheme = rt.proxy.Scheme
-	req.URL.Host = rt.proxy.Host
-	req.Host = ""
 	return rt.inner.RoundTrip(req)
 }
 
@@ -183,7 +168,7 @@ func assertSubagentRequestMetadata(t *testing.T, records []subagentRequestRecord
 func TestSubagentHooksE2E(t *testing.T) {
 	testharness.SkipIfInProcess(t, "an LLM inference provider is process-global in-process")
 	ctx := testharness.NewTestContext(t)
-	transport := newRecordingForwardingTransport(t, ctx.ProxyURL)
+	transport := newRecordingForwardingTransport()
 	client := ctx.NewClient(func(o *copilot.ClientOptions) {
 		o.Env = append(o.Env, "COPILOT_EXP_COPILOT_CLI_SESSION_BASED_SUBAGENTS=true")
 		o.RequestHandler = &copilot.CopilotRequestHandler{Transport: transport}
@@ -208,14 +193,12 @@ func TestSubagentHooksE2E(t *testing.T) {
 		defer releaseView()
 		var startInputs []copilot.SubagentStartHookInput
 		var stopInputs []copilot.SubagentStopHookInput
-		var lifecycle []string
 		var startInvocations []copilot.HookInvocation
 		var stopInvocations []copilot.HookInvocation
 		stopObserved := make(chan struct{}, 1)
 
 		session, err := client.CreateSession(t.Context(), &copilot.SessionConfig{
 			SessionID:           parentSessionID,
-			Model:               subagentReplayModel,
 			OnPermissionRequest: copilot.PermissionHandler.ApproveAll,
 			Hooks: &copilot.SessionHooks{
 				OnPreToolUse: func(input copilot.PreToolUseHookInput, invocation copilot.HookInvocation) (*copilot.PreToolUseHookOutput, error) {
@@ -241,7 +224,6 @@ func TestSubagentHooksE2E(t *testing.T) {
 				OnSubagentStart: func(input copilot.SubagentStartHookInput, invocation copilot.HookInvocation) (*copilot.SubagentStartHookOutput, error) {
 					mu.Lock()
 					startInputs = append(startInputs, input)
-					lifecycle = append(lifecycle, "start")
 					startInvocations = append(startInvocations, invocation)
 					mu.Unlock()
 					return &copilot.SubagentStartHookOutput{AdditionalContext: childContext}, nil
@@ -249,7 +231,6 @@ func TestSubagentHooksE2E(t *testing.T) {
 				OnSubagentStop: func(input copilot.SubagentStopHookInput, invocation copilot.HookInvocation) (*copilot.SubagentStopHookOutput, error) {
 					mu.Lock()
 					stopInputs = append(stopInputs, input)
-					lifecycle = append(lifecycle, "stop")
 					stopInvocations = append(stopInvocations, invocation)
 					mu.Unlock()
 					select {
@@ -262,16 +243,6 @@ func TestSubagentHooksE2E(t *testing.T) {
 		})
 		if err != nil {
 			t.Fatalf("Failed to create session: %v", err)
-		}
-		// Keep the built-in agent on the capture's model, not its changing default.
-		if _, err := session.RPC.Tools.UpdateSubagentSettings(t.Context(), &rpc.UpdateSubagentSettingsRequest{
-			Subagents: &rpc.SubagentSettingsConfig{
-				Agents: map[string]rpc.SubagentSettingsEntry{
-					"explore": {Model: copilot.String(subagentReplayModel)},
-				},
-			},
-		}); err != nil {
-			t.Fatalf("Failed to configure captured subagent model: %v", err)
 		}
 		// Create a file for the sub-agent to read
 		testFile := filepath.Join(ctx.WorkDir, "subagent-test.txt")
@@ -332,11 +303,9 @@ func TestSubagentHooksE2E(t *testing.T) {
 			start.SessionID != session.SessionID || stop.SessionID != session.SessionID {
 			t.Errorf("Expected parent session ID %q in hook inputs and invocations, got start=%+v stop=%+v", session.SessionID, start, stop)
 		}
-		if len(lifecycle) != 2 || lifecycle[0] != "start" || lifecycle[1] != "stop" {
-			t.Errorf("Expected start before stop, got %v", lifecycle)
-		}
-		if !start.Timestamp.After(time.UnixMilli(0)) || !stop.Timestamp.After(time.UnixMilli(0)) {
-			t.Errorf("Expected populated timestamps, got start=%v stop=%v", start.Timestamp, stop.Timestamp)
+		if !start.Timestamp.After(time.UnixMilli(0)) || !stop.Timestamp.After(time.UnixMilli(0)) ||
+			stop.Timestamp.Before(start.Timestamp) {
+			t.Errorf("Expected ordered timestamps, got start=%v stop=%v", start.Timestamp, stop.Timestamp)
 		}
 		if start.WorkingDirectory != ctx.WorkDir || stop.WorkingDirectory != ctx.WorkDir {
 			t.Errorf("Expected working directory %q, got start=%q stop=%q", ctx.WorkDir, start.WorkingDirectory, stop.WorkingDirectory)

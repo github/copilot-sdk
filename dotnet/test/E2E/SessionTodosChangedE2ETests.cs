@@ -22,7 +22,9 @@ public class SessionTodosChangedE2ETests(E2ETestFixture fixture, ITestOutputHelp
             OnPermissionRequest = PermissionHandler.ApproveAll,
         });
 
-        using var todosChangedTask = TestHelper.ObserveEvent<SessionTodosChangedEvent>(session);
+        var todosChangedTask = TestHelper.GetNextEventOfTypeAsync<SessionTodosChangedEvent>(
+            session,
+            TimeSpan.FromSeconds(30));
 
         await session.SendAndWaitAsync(new MessageOptions
         {
@@ -36,7 +38,7 @@ public class SessionTodosChangedE2ETests(E2ETestFixture fixture, ITestOutputHelp
                 "Then stop. Do not insert any other rows or create any other tables.",
         });
 
-        await todosChangedTask.Task.WaitAsync(TimeSpan.FromSeconds(30));
+        await todosChangedTask;
 
         var result = await session.Rpc.Plan.ReadSqlTodosWithDependenciesAsync();
 

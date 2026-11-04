@@ -25,7 +25,6 @@ public record OptionsUpdateAdditionalContentExclusionPolicy(
     /** Content-exclusion rules to apply. */
     @JsonProperty("rules") List<OptionsUpdateAdditionalContentExclusionPolicyRule> rules,
     /** Opaque policy update timestamp supplied by the host. */
-    @JsonInclude(JsonInclude.Include.ALWAYS)
     @JsonProperty("last_updated_at") Object lastUpdatedAt,
     /** Allowed values for the `OptionsUpdateAdditionalContentExclusionPolicyScope` enumeration. */
     @JsonProperty("scope") OptionsUpdateAdditionalContentExclusionPolicyScope scope

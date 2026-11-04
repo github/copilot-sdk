@@ -16,8 +16,6 @@ import com.sun.jna.CallbackReference;
 import com.sun.jna.Function;
 import com.sun.jna.Pointer;
 
-import java.lang.ref.Reference;
-import java.lang.ref.ReferenceQueue;
 import java.lang.ref.WeakReference;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
@@ -26,7 +24,6 @@ import java.util.concurrent.atomic.AtomicInteger;
 
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
-import org.junit.jupiter.api.Timeout;
 import org.junit.jupiter.api.io.TempDir;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ValueSource;
@@ -278,33 +275,30 @@ class JnaNativeBindingTest {
 
     @ParameterizedTest
     @ValueSource(booleans = {false, true})
-    @Timeout(value = 60, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     void callbackWrapperIsReleasedOnlyAfterSuccessfulConnectionClose(boolean shutdownBeforeClose)
             throws InterruptedException {
         StubRuntimeLibrary stub = new StubRuntimeLibrary();
         stub.connectionOpenReturn = 99;
         JnaNativeBinding binding = new JnaNativeBinding(stub);
         AtomicInteger invocations = new AtomicInteger();
-        ReferenceQueue<OutboundCallback> collectedCallbacks = new ReferenceQueue<>();
 
         WeakReference<OutboundCallback> callbackReference = openAndCloseConnection(binding, stub,
-                (userData, data, len) -> invocations.incrementAndGet(), shutdownBeforeClose, collectedCallbacks);
+                (userData, data, len) -> invocations.incrementAndGet(), shutdownBeforeClose);
 
-        awaitGarbageCollection(callbackReference, collectedCallbacks);
+        awaitGarbageCollection(callbackReference);
 
         assertNull(callbackReference.get(), "Successful connection close must release the callback wrapper");
-        Reference.reachabilityFence(binding);
         assertEquals(2, invocations.get(), "Failed closes must retain the delegate; successful close must detach it");
     }
 
     private static WeakReference<OutboundCallback> openAndCloseConnection(JnaNativeBinding binding,
-            StubRuntimeLibrary stub, OutboundCallback callback, boolean shutdownBeforeClose,
-            ReferenceQueue<OutboundCallback> collectedCallbacks) throws InterruptedException {
+            StubRuntimeLibrary stub, OutboundCallback callback, boolean shutdownBeforeClose)
+            throws InterruptedException {
         int connectionId = binding.connectionOpen(1, callback, Pointer.NULL, null, 0, null, 0, null, 0);
         assertEquals(99, connectionId);
         assertNotNull(stub.lastCallback);
 
-        WeakReference<OutboundCallback> callbackReference = new WeakReference<>(stub.lastCallback, collectedCallbacks);
+        WeakReference<OutboundCallback> callbackReference = new WeakReference<>(stub.lastCallback);
         // Allocate a real JNA trampoline, whose weak references must not keep the
         // wrapper alive once the native connection reports quiescence.
         Function nativeCallback = Function.getFunction(CallbackReference.getFunctionPointer(stub.lastCallback));
@@ -312,20 +306,20 @@ class JnaNativeBindingTest {
 
         stub.connectionCloseReturn = 0;
         assertFalse(binding.connectionClose(connectionId));
-        collectGarbage();
+        awaitGarbageCollection(callbackReference);
         assertNotNull(callbackReference.get(), "Non-quiescent close must retain the callback wrapper");
         nativeCallback.invokeVoid(new Object[]{Pointer.NULL, Pointer.NULL, new SizeT(0)});
 
         stub.connectionCloseFailure = new IllegalStateException("close failed");
         assertThrows(IllegalStateException.class, () -> binding.connectionClose(connectionId));
-        collectGarbage();
+        awaitGarbageCollection(callbackReference);
         assertNotNull(callbackReference.get(), "Throwing close must retain the callback wrapper");
         nativeCallback.invokeVoid(new Object[]{Pointer.NULL, Pointer.NULL, new SizeT(0)});
         stub.connectionCloseFailure = null;
 
         if (shutdownBeforeClose) {
             assertTrue(binding.hostShutdown(1));
-            collectGarbage();
+            awaitGarbageCollection(callbackReference);
             assertNotNull(callbackReference.get(), "Host shutdown alone must retain the callback wrapper");
         }
         OutboundCallback wrapper = callbackReference.get();
@@ -336,19 +330,11 @@ class JnaNativeBindingTest {
         return callbackReference;
     }
 
-    private static void collectGarbage() throws InterruptedException {
-        ReferenceQueue<Object> collected = new ReferenceQueue<>();
-        awaitGarbageCollection(new WeakReference<>(new Object(), collected), collected);
-    }
-
-    private static void awaitGarbageCollection(WeakReference<?> reference, ReferenceQueue<?> collected)
-            throws InterruptedException {
-        // Inspect clearing without temporarily acquiring a strong referent
-        // across the very collection intended to reclaim it.
-        while (!reference.refersTo(null)) {
+    private static void awaitGarbageCollection(WeakReference<?> reference) throws InterruptedException {
+        for (int attempt = 0; attempt < 20 && reference.get() != null; attempt++) {
             System.gc();
             System.runFinalization();
-            collected.remove(100);
+            Thread.sleep(10);
         }
     }
 

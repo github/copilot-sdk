@@ -11,6 +11,7 @@ import re
 import shutil
 import subprocess
 import tempfile
+import time
 from pathlib import Path
 from typing import Any
 
@@ -219,23 +220,6 @@ class E2ETestContext:
             if self.work_dir and os.path.exists(self.work_dir):
                 shutil.rmtree(self.work_dir, ignore_errors=True)
 
-    async def disconnect_sessions(self) -> None:
-        """Stop test-owned sessions without restarting the module-shared runtime."""
-        if self._client is None:
-            return
-        with self._client._sessions_lock:
-            sessions = list(self._client._sessions.values())
-        errors: list[Exception] = []
-        for session in sessions:
-            try:
-                # Last-owner detach awaits shutdown, including background work;
-                # foreground idle alone does not establish this boundary.
-                await session.disconnect()
-            except Exception as error:
-                errors.append(error)
-        if errors:
-            raise ExceptionGroup("Failed to disconnect E2E sessions", errors)
-
     async def configure_for_test(self, test_file: str, test_name: str):
         """
         Configure the proxy for a specific test.
@@ -244,8 +228,6 @@ class E2ETestContext:
             test_file: The test file name (e.g., "session" from "test_session.py")
             test_name: The test name (e.g., "should_have_stateful_conversation")
         """
-        await self.disconnect_sessions()
-
         sanitized_name = re.sub(r"[^a-zA-Z0-9]", "_", test_name).lower()
         snapshot_path = SNAPSHOTS_DIR / test_file / f"{sanitized_name}.yaml"
         abs_snapshot_path = str(snapshot_path.resolve())
@@ -310,33 +292,21 @@ class E2ETestContext:
             raise RuntimeError("Proxy not started")
         await self._proxy.set_copilot_user_by_token(token, response)
 
-    async def get_exchanges(self, *, timeout: float | None = None):
+    async def get_exchanges(self):
         """Retrieve the captured HTTP exchanges from the proxy."""
         if not self._proxy:
             raise RuntimeError("Proxy not started")
-        return await self._proxy.get_exchanges(timeout=timeout)
+        return await self._proxy.get_exchanges()
 
     async def wait_for_exchanges(
         self, minimum_count: int = 1, timeout: float = 120.0
     ) -> list[dict[str, Any]]:
         """Wait until the proxy has captured at least the requested exchanges."""
-
-        async def observe() -> list[dict[str, Any]]:
-            while True:
-                exchanges = await self.get_exchanges(timeout=None)
-                if len(exchanges) >= minimum_count:
-                    return exchanges
-                await asyncio.sleep(0.1)
-
-        observation = asyncio.create_task(observe())
-        try:
-            return await asyncio.wait_for(observation, timeout=timeout)
-        except TimeoutError as error:
-            if not observation.cancelled():
-                return observation.result()
-            exchanges = await self.get_exchanges(timeout=None)
+        deadline = time.monotonic() + timeout
+        exchanges: list[dict[str, Any]] = []
+        while time.monotonic() < deadline:
+            exchanges = await self.get_exchanges()
             if len(exchanges) >= minimum_count:
                 return exchanges
-            raise TimeoutError(
-                f"Timed out waiting for {minimum_count} chat completion request(s)"
-            ) from error
+            await asyncio.sleep(0.1)
+        raise TimeoutError(f"Timed out waiting for {minimum_count} chat completion request(s)")

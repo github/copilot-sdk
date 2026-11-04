@@ -351,14 +351,9 @@ pub trait McpAuthHandler: Send + Sync + 'static {
 pub trait UserInputHandler: Send + Sync + 'static {
     /// Answer a question on behalf of the user. Return `None` to signal
     /// "no answer available".
-    ///
-    /// `request_id` is the runtime ID of the pending `user_input.requested`
-    /// request; pass it as `requestId` to the session's UI RPCs to answer
-    /// that exact request. It is `None` when the runtime predates it.
     async fn handle(
         &self,
         session_id: SessionId,
-        request_id: Option<RequestId>,
         question: String,
         choices: Option<Vec<String>>,
         allow_freeform: Option<bool>,
@@ -370,16 +365,7 @@ pub trait UserInputHandler: Send + Sync + 'static {
 #[async_trait]
 pub trait ExitPlanModeHandler: Send + Sync + 'static {
     /// Decide whether to leave plan mode.
-    ///
-    /// `request_id` is the runtime ID of the pending `exit_plan_mode.requested`
-    /// request; pass it as `requestId` to the session's UI RPCs to answer that
-    /// exact request. It is `None` when the runtime predates it.
-    async fn handle(
-        &self,
-        session_id: SessionId,
-        request_id: Option<RequestId>,
-        data: ExitPlanModeData,
-    ) -> ExitPlanModeResult;
+    async fn handle(&self, session_id: SessionId, data: ExitPlanModeData) -> ExitPlanModeResult;
 }
 
 /// Handler for `auto_mode_switch.requested` events. When unset,

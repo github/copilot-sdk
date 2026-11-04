@@ -461,14 +461,13 @@ public class PermissionsTest {
             // Capture the sendAndWait future before awaiting it so we can interact with the
             // handler
             CompletableFuture<AssistantMessageEvent> responseFuture = session
-                    .sendAndWait(new MessageOptions().setPrompt("Run 'echo slow_handler_test'"), 0);
+                    .sendAndWait(new MessageOptions().setPrompt("Run 'echo slow_handler_test'"));
 
             // Wait for permission handler to be entered
-            try {
-                handlerEntered.get(30, TimeUnit.SECONDS);
-            } finally {
-                releaseHandler.complete(null);
-            }
+            handlerEntered.get(30, TimeUnit.SECONDS);
+
+            // Release the handler
+            releaseHandler.complete(null);
 
             // Session should complete successfully
             AssistantMessageEvent message = responseFuture.get(60, TimeUnit.SECONDS);

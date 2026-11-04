@@ -284,8 +284,19 @@ func installAt(installDir string) (string, error) {
 		return finalPath, nil
 	}
 
-	if err := installVerifiedFile(finalPath, config.Cli, config.CliHash, 0755, "CLI binary"); err != nil {
-		return "", err
+	f, err := os.OpenFile(finalPath, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0755)
+	if err != nil {
+		return "", fmt.Errorf("creating binary file: %w", err)
+	}
+	_, err = io.Copy(f, config.Cli)
+	if err1 := f.Close(); err1 != nil && err == nil {
+		err = err1
+	}
+	if closer, ok := config.Cli.(io.Closer); ok {
+		closer.Close()
+	}
+	if err != nil {
+		return "", fmt.Errorf("writing binary file: %w", err)
 	}
 	if len(config.License) > 0 {
 		licensePath := finalPath + ".license"

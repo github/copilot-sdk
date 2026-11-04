@@ -37,9 +37,7 @@ public final class SessionModeNoticeDeliveredEvent extends SessionEvent {
         /** Mode established by the delivered transition notice */
         @JsonProperty("mode") SessionMode mode,
         /** Model-visible transition notice persisted for a mid-turn delivery */
-        @JsonProperty("content") String content,
-        /** Whether the model-visible transition notice was persisted separately as an instruction.update event */
-        @JsonProperty("instructionUpdatePersisted") Boolean instructionUpdatePersisted
+        @JsonProperty("content") String content
     ) {
     }
 }

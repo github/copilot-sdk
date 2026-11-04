@@ -28,7 +28,7 @@ public record TaskBlocker(
     /** Category of intervention that blocked the task */
     @JsonProperty("kind") TaskBlockerKind kind,
     /** Controlled reason for the current blocked state */
-    @JsonProperty("reason") TaskBlockerReason reason,
+    @JsonProperty("reason") PermissionRecoveryReason reason,
     /** Whether a later user response or steering message can resume the task */
     @JsonProperty("resumable") Boolean resumable,
     /** Permission-recovery episode that produced this blocker */

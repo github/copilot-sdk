@@ -37,26 +37,4 @@ final class ServerGitHubRepositoryApi {
         return caller.invoke("gitHubRepository.atPath", params, GitHubRepositoryAtPathResult.class);
     }
 
-    /**
-     * Resolves the owner and name of a GitHub repository from its numeric repository id, by asking the GitHub API under the supplied credential. Returns a null `repository` when the id names nothing the credential can see, which the API reports as a 404, so a caller can tell 'no such visible repository' apart from a request that failed. The host queried is derived from `authInfo` rather than supplied separately, so the lookup always runs against the account's own GitHub host.
-     *
-     * @apiNote This method is experimental and may change in a future version.
-     * @since 1.0.0
-     */
-    @CopilotExperimental
-    CompletableFuture<GitHubRepositoryByIdResult> getById(GitHubRepositoryGetByIdParams params) {
-        return caller.invoke("gitHubRepository.getById", params, GitHubRepositoryByIdResult.class);
-    }
-
-    /**
-     * Finds the pull request a branch is open against, searching every repository in `baseRepositories` so a fork's branch finds the pull request it opened upstream. A candidate is discarded unless `headOwner` owns its head branch, because a branch name alone is ambiguous across forks. `status` separates 'not authenticated', 'no such pull request' and 'the search failed', so a caller can tell a conclusive absence apart from an unknown one. The host queried is derived from `authInfo` rather than supplied separately, so the lookup always runs against the account's own GitHub host.
-     *
-     * @apiNote This method is experimental and may change in a future version.
-     * @since 1.0.0
-     */
-    @CopilotExperimental
-    CompletableFuture<GitHubBranchPullRequestLookupResult> lookupBranchPullRequest(GitHubRepositoryLookupBranchPullRequestParams params) {
-        return caller.invoke("gitHubRepository.lookupBranchPullRequest", params, GitHubBranchPullRequestLookupResult.class);
-    }
-
 }

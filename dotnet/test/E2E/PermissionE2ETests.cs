@@ -398,7 +398,7 @@ public partial class PermissionE2ETests(E2ETestFixture fixture, ITestOutputHelpe
                 AddLifecycleEvent("permission-start", shellRequest.ToolCallId);
                 targetToolCallId.TrySetResult(shellRequest.ToolCallId!);
                 handlerEntered.TrySetResult();
-                await releaseHandler.Task;
+                await releaseHandler.Task.WaitAsync(TimeSpan.FromSeconds(30));
                 AddLifecycleEvent("permission-complete", shellRequest.ToolCallId);
                 return PermissionDecision.ApproveOnce();
             }
@@ -420,36 +420,29 @@ public partial class PermissionE2ETests(E2ETestFixture fixture, ITestOutputHelpe
         var sendTask = session.SendAndWaitAsync(new MessageOptions
         {
             Prompt = "Run 'echo slow_handler_test'"
-        }, Timeout.InfiniteTimeSpan);
+        });
 
-        string targetToolId;
-        try
+        await handlerEntered.Task.WaitAsync(TimeSpan.FromSeconds(30));
+        var targetToolId = await targetToolCallId.Task.WaitAsync(TimeSpan.FromSeconds(30));
+        lock (lifecycleLock)
         {
-            await handlerEntered.Task.WaitAsync(TimeSpan.FromSeconds(30));
-            targetToolId = await targetToolCallId.Task.WaitAsync(TimeSpan.FromSeconds(30));
-            lock (lifecycleLock)
-            {
-                Assert.DoesNotContain(lifecycle, evt => evt.Phase == "tool-complete" && evt.ToolCallId == targetToolId);
-            }
+            Assert.DoesNotContain(lifecycle, evt => evt.Phase == "tool-complete" && evt.ToolCallId == targetToolId);
         }
-        finally
-        {
-            releaseHandler.TrySetResult();
-        }
+
+        releaseHandler.SetResult();
 
         AssistantMessageEvent? message;
         try
         {
-            message = await sendTask.WaitAsync(TimeSpan.FromSeconds(60));
+            message = await sendTask;
         }
         catch (TimeoutException)
         {
             lock (lifecycleLock)
             {
-                if (Logger.IsEnabled(LogLevel.Warning))
-                    Logger.LogWarning(
-                        "Slow-permission timeout lifecycle: {Lifecycle}",
-                        string.Join(", ", lifecycle.Select(evt => $"{evt.Phase}:{evt.ToolCallId}")));
+                Logger.LogWarning(
+                    "Slow-permission timeout lifecycle: {Lifecycle}",
+                    string.Join(", ", lifecycle.Select(evt => $"{evt.Phase}:{evt.ToolCallId}")));
             }
             throw;
         }
@@ -527,7 +520,7 @@ public partial class PermissionE2ETests(E2ETestFixture fixture, ITestOutputHelpe
                     bothPermissionRequestsStarted.TrySetResult();
                 }
 
-                await bothPermissionRequestsStarted.Task;
+                await bothPermissionRequestsStarted.Task.WaitAsync(TimeSpan.FromSeconds(30));
                 return PermissionDecision.ApproveOnce();
             }
         });
@@ -547,24 +540,16 @@ public partial class PermissionE2ETests(E2ETestFixture fixture, ITestOutputHelpe
                 }
             }
         });
-        using var idle = TestHelper.ObserveEvent<SessionIdleEvent>(session);
+        var idle = TestHelper.GetNextEventOfTypeAsync<SessionIdleEvent>(session);
 
-        ToolExecutionCompleteEvent[] completed;
-        try
+        await session.SendAsync(new MessageOptions
         {
-            await session.SendAsync(new MessageOptions
-            {
-                Prompt = "Call both first_permission_tool and second_permission_tool in the same turn. Do not call any other tools."
-            });
+            Prompt = "Call both first_permission_tool and second_permission_tool in the same turn. Do not call any other tools."
+        });
 
-            await bothPermissionRequestsStarted.Task.WaitAsync(TimeSpan.FromSeconds(30));
-            completed = await Task.WhenAll(firstToolCompleted.Task, secondToolCompleted.Task).WaitAsync(TimeSpan.FromSeconds(60));
-            await idle.Task.WaitAsync(TimeSpan.FromSeconds(120));
-        }
-        finally
-        {
-            bothPermissionRequestsStarted.TrySetCanceled();
-        }
+        await bothPermissionRequestsStarted.Task.WaitAsync(TimeSpan.FromSeconds(30));
+        var completed = await Task.WhenAll(firstToolCompleted.Task, secondToolCompleted.Task).WaitAsync(TimeSpan.FromSeconds(60));
+        await idle;
 
         // Should have received multiple permission requests (one per tool call)
         Assert.Equal(2, permissionRequestCount);

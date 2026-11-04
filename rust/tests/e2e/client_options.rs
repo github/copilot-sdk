@@ -11,8 +11,8 @@ use github_copilot_sdk::{
     AgentMode, Attachment, AttachmentLineRange, AttachmentSelectionPosition,
     AttachmentSelectionRange, CliProgram, Client, ClientMode, ClientOptions, CloudSessionOptions,
     CloudSessionRepository, CopilotExpAssignmentResponse, DeliveryMode, ExtensionInfo,
-    GitHubReferenceType, MessageOptions, MessageSource, ResumeSessionConfig, SessionConfig,
-    SessionId, TranscriptRecovery, Transport,
+    GitHubReferenceType, MessageOptions, MessageSource, ProviderConfig, ResumeSessionConfig,
+    SessionConfig, SessionId, TranscriptRecovery, Transport,
 };
 use serde::Deserialize;
 use serde_json::{Value, json};
@@ -23,7 +23,6 @@ use tempfile::TempDir;
 mod windows_process_tree;
 
 #[tokio::test]
-#[allow(deprecated)]
 async fn should_forward_advanced_session_creation_options_to_the_cli() {
     let fake = FakeCli::new();
     let client = Client::start(fake.client_options("advanced-create-client-token"))
@@ -169,6 +168,57 @@ async fn should_forward_advanced_session_creation_options_to_the_cli() {
             ("manageScheduleEnabled", json!(false)),
         ],
     );
+}
+
+#[tokio::test]
+async fn should_forward_singular_provider_configuration_on_session_creation() {
+    let fake = FakeCli::new();
+    let client = Client::start(fake.client_options("provider-client-token"))
+        .await
+        .expect("start fake CLI client");
+
+    let session = client
+        .create_session(
+            SessionConfig::default().with_provider(
+                ProviderConfig::new("https://models.example.test/v1")
+                    .with_provider_type("openai")
+                    .with_wire_api("responses")
+                    .with_transport("websockets")
+                    .with_api_key("provider-key")
+                    .with_model_id("base-model")
+                    .with_wire_model("wire-model")
+                    .with_max_prompt_tokens(1000)
+                    .with_max_output_tokens(2000)
+                    .with_headers(HashMap::from([(
+                        "x-provider".to_string(),
+                        "rust".to_string(),
+                    )])),
+            ),
+        )
+        .await
+        .expect("create session");
+    session.disconnect().await.expect("disconnect session");
+    client.stop().await.expect("stop client");
+
+    let create = fake.captured_request("session.create");
+    let provider = create.params["provider"]
+        .as_object()
+        .expect("provider params");
+    assert_json_values(
+        provider,
+        [
+            ("type", json!("openai")),
+            ("wireApi", json!("responses")),
+            ("transport", json!("websockets")),
+            ("baseUrl", json!("https://models.example.test/v1")),
+            ("apiKey", json!("provider-key")),
+            ("modelId", json!("base-model")),
+            ("wireModel", json!("wire-model")),
+            ("maxPromptTokens", json!(1000)),
+            ("maxOutputTokens", json!(2000)),
+        ],
+    );
+    assert_eq!(provider["headers"]["x-provider"], json!("rust"));
 }
 
 #[tokio::test]
@@ -1115,7 +1165,7 @@ function handleMessage(message) {
   }
   if (message.method === "sessions.connect") {
     const resourceId = behavior === "resource-mismatch"
-      ? "github/docs#456"
+      ? "github/other-repository#456"
       : "github/copilot-sdk#123";
     writeResponse(message.id, {
       sessionId: "runtime-session-id",

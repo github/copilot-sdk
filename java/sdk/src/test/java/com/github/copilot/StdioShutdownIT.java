@@ -34,8 +34,8 @@ class StdioShutdownIT {
     @Test
     void stopWaitsForCleanupAfterStdinEof() throws Exception {
         try (var fixture = new Fixture("stop")) {
-            fixture.client.start().get();
-            fixture.client.stop().get();
+            fixture.client.start().get(30, TimeUnit.SECONDS);
+            fixture.client.stop().get(60, TimeUnit.SECONDS);
             fixture.assertCleanExit();
         }
     }
@@ -43,7 +43,7 @@ class StdioShutdownIT {
     @Test
     void closeWaitsForCleanupAfterStdinEof() throws Exception {
         try (var fixture = new Fixture("dispose")) {
-            fixture.client.start().get();
+            fixture.client.start().get(30, TimeUnit.SECONDS);
             fixture.client.close();
             fixture.assertCleanExit();
         }
@@ -52,19 +52,21 @@ class StdioShutdownIT {
     @Test
     void failedShutdownStillWaitsForCleanupAfterStdinEof() throws Exception {
         try (var fixture = new Fixture("shutdown-error"); var watcher = FileSystems.getDefault().newWatchService()) {
-            fixture.client.start().get();
+            fixture.client.start().get(30, TimeUnit.SECONDS);
             fixture.directory.register(watcher, StandardWatchEventKinds.ENTRY_CREATE);
             Path eof = fixture.marker.resolveSibling(fixture.marker.getFileName() + ".eof");
             Path release = fixture.marker.resolveSibling(fixture.marker.getFileName() + ".release");
             var stopping = fixture.client.stop();
+            long deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(5);
             while (!Files.isRegularFile(eof)) {
-                var key = watcher.take();
+                var key = watcher.poll(Math.max(0, deadline - System.nanoTime()), TimeUnit.NANOSECONDS);
+                assertNotNull(key, "Failed shutdown must still deliver stdin EOF before terminating the runtime");
                 key.pollEvents();
                 assertTrue(key.reset(), "The owned cleanup directory must remain available");
             }
             assertFalse(stopping.isDone(), "Shutdown must not return before EOF-driven cleanup completes");
             Files.writeString(release, "");
-            stopping.get();
+            stopping.get(60, TimeUnit.SECONDS);
             fixture.assertCleanExit();
         }
     }
@@ -72,9 +74,9 @@ class StdioShutdownIT {
     @Test
     void stopPreservesDetachedServiceAfterLauncherAndRuntimeExit() throws Exception {
         try (var fixture = new Fixture("stop", true, true)) {
-            fixture.client.start().get();
+            fixture.client.start().get(30, TimeUnit.SECONDS);
             fixture.assertServiceResponsive();
-            fixture.client.stop().get();
+            fixture.client.stop().get(60, TimeUnit.SECONDS);
             fixture.assertCleanExit();
             fixture.assertServiceResponsive();
         }
@@ -83,7 +85,7 @@ class StdioShutdownIT {
     @Test
     void closePreservesDetachedServiceAfterLauncherAndRuntimeExit() throws Exception {
         try (var fixture = new Fixture("dispose", true, true)) {
-            fixture.client.start().get();
+            fixture.client.start().get(30, TimeUnit.SECONDS);
             fixture.assertServiceResponsive();
             fixture.client.close();
             fixture.assertCleanExit();
@@ -94,9 +96,9 @@ class StdioShutdownIT {
     @Test
     void stopPreservesDetachedTcpServiceWithoutPeerEof() throws Exception {
         try (var fixture = new Fixture("stop", true, true, false)) {
-            fixture.client.start().get();
+            fixture.client.start().get(30, TimeUnit.SECONDS);
             fixture.assertServiceResponsive();
-            fixture.client.stop().get();
+            fixture.client.stop().get(60, TimeUnit.SECONDS);
             fixture.assertCleanExit();
             fixture.assertServiceResponsive();
         }
@@ -105,7 +107,7 @@ class StdioShutdownIT {
     @Test
     void closePreservesDetachedTcpServiceWithoutPeerEof() throws Exception {
         try (var fixture = new Fixture("dispose", true, true, false)) {
-            fixture.client.start().get();
+            fixture.client.start().get(30, TimeUnit.SECONDS);
             fixture.assertServiceResponsive();
             fixture.client.close();
             fixture.assertCleanExit();
@@ -116,7 +118,7 @@ class StdioShutdownIT {
     @Test
     void forceStopDoesNotWaitForGracefulCleanup() throws Exception {
         try (var fixture = new Fixture("force")) {
-            fixture.client.start().get();
+            fixture.client.start().get(30, TimeUnit.SECONDS);
             fixture.client.forceStop().get(5, TimeUnit.SECONDS);
             fixture.assertExited();
             assertFalse(Files.exists(fixture.marker));
@@ -126,9 +128,9 @@ class StdioShutdownIT {
     @Test
     void stopTerminatesChildThatDoesNotExitAfterEof() throws Exception {
         try (var fixture = new Fixture("fallback")) {
-            fixture.client.start().get();
+            fixture.client.start().get(30, TimeUnit.SECONDS);
             long started = System.nanoTime();
-            fixture.client.stop().get();
+            fixture.client.stop().get(60, TimeUnit.SECONDS);
             assertTrue(System.nanoTime() - started >= TimeUnit.SECONDS.toNanos(10),
                     "Stop must allow the full graceful exit timeout before terminating");
             fixture.assertCleanExit();
@@ -138,7 +140,7 @@ class StdioShutdownIT {
     @Test
     void closeTerminatesChildThatDoesNotExitAfterEof() throws Exception {
         try (var fixture = new Fixture("fallback")) {
-            fixture.client.start().get();
+            fixture.client.start().get(30, TimeUnit.SECONDS);
             long started = System.nanoTime();
             fixture.client.close();
             assertTrue(System.nanoTime() - started >= TimeUnit.SECONDS.toNanos(10),
@@ -150,8 +152,8 @@ class StdioShutdownIT {
     @Test
     void stopTerminatesLauncherAndItsChildAfterEof() throws Exception {
         try (var fixture = new Fixture("fallback", true)) {
-            fixture.client.start().get();
-            fixture.client.stop().get();
+            fixture.client.start().get(30, TimeUnit.SECONDS);
+            fixture.client.stop().get(60, TimeUnit.SECONDS);
             fixture.assertCleanExit();
         }
     }
@@ -159,7 +161,7 @@ class StdioShutdownIT {
     @Test
     void failedStartupTerminatesChild() throws Exception {
         try (var fixture = new Fixture("start-failure")) {
-            assertThrows(ExecutionException.class, () -> fixture.client.start().get());
+            assertThrows(ExecutionException.class, () -> fixture.client.start().get(30, TimeUnit.SECONDS));
             fixture.assertExited();
             assertFalse(Files.exists(fixture.marker));
         }

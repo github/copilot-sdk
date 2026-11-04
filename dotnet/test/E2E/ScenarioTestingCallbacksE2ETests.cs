@@ -284,16 +284,22 @@ public class ScenarioTestingCallbacksE2ETests(E2ETestFixture fixture, ITestOutpu
             },
         });
 
-        using var userMessageTask = TestHelper.ObserveEvent<UserMessageEvent>(
+        var userMessageTask = TestHelper.GetNextEventOfTypeAsync<UserMessageEvent>(
             session,
-            evt => evt.Data.Source == "agent-scenario-client");
-        using var requestedTask = TestHelper.ObserveEvent<ExitPlanModeRequestedEvent>(
+            evt => evt.Data.Source == "agent-scenario-client",
+            TimeSpan.FromSeconds(30),
+            timeoutDescription: "scenario client exit-plan user message");
+        var requestedTask = TestHelper.GetNextEventOfTypeAsync<ExitPlanModeRequestedEvent>(
             session,
-            evt => evt.Data.Summary == summary);
-        using var completedTask = TestHelper.ObserveEvent<ExitPlanModeCompletedEvent>(
+            evt => evt.Data.Summary == summary,
+            TimeSpan.FromSeconds(30),
+            timeoutDescription: "scenario client exit-plan request");
+        var completedTask = TestHelper.GetNextEventOfTypeAsync<ExitPlanModeCompletedEvent>(
             session,
             evt => evt.Data.Approved == true &&
-                evt.Data.SelectedAction.GetValueOrDefault() == ExitPlanModeAction.Interactive);
+                evt.Data.SelectedAction.GetValueOrDefault() == ExitPlanModeAction.Interactive,
+            TimeSpan.FromSeconds(30),
+            timeoutDescription: "scenario client exit-plan completion");
 
         var response = await session.SendAndWaitAsync(new MessageOptions
         {
@@ -303,9 +309,7 @@ public class ScenarioTestingCallbacksE2ETests(E2ETestFixture fixture, ITestOutpu
             Source = MessageSource.Agent("scenario-client"),
         }, timeout: TimeSpan.FromSeconds(120));
 
-        await Task.WhenAll(userMessageTask.Task, requestedTask.Task, completedTask.Task)
-            .WaitAsync(TimeSpan.FromSeconds(30));
-        var userMessage = await userMessageTask.Task;
+        var userMessage = await userMessageTask;
         Assert.Equal("Review proposed scenario client plan", userMessage.Data.Content);
         Assert.Equal(UserMessageAgentMode.Plan, userMessage.Data.AgentMode);
 
@@ -316,12 +320,12 @@ public class ScenarioTestingCallbacksE2ETests(E2ETestFixture fixture, ITestOutpu
         Assert.Equal("interactive", request.RecommendedAction);
         Assert.NotNull(request.PlanContent);
 
-        var requested = await requestedTask.Task;
+        var requested = await requestedTask;
         Assert.Equal(request.Summary, requested.Data.Summary);
         Assert.Equal(request.Actions, requested.Data.Actions.Select(action => action.Value));
         Assert.Equal(request.RecommendedAction, requested.Data.RecommendedAction.Value);
 
-        var completed = await completedTask.Task;
+        var completed = await completedTask;
         Assert.True(completed.Data.Approved);
         Assert.Equal(ExitPlanModeAction.Interactive, completed.Data.SelectedAction);
         Assert.Equal("Approved by the scenario client", completed.Data.Feedback);

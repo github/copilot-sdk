@@ -325,11 +325,7 @@ internal sealed class FakeCopilotUpstream : IAsyncDisposable
         string contentType = "application/json";
         string body;
 
-        if (path.EndsWith("/meta", StringComparison.Ordinal))
-        {
-            body = RecordingRequestHandler.MetaJson(ModelCatalogJson);
-        }
-        else if (path.EndsWith("/models", StringComparison.Ordinal))
+        if (path.EndsWith("/models", StringComparison.Ordinal))
         {
             body = ModelCatalogJson;
         }

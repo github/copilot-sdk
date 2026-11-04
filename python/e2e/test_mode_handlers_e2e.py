@@ -82,7 +82,6 @@ class TestModeHandlers:
                 isinstance(event.data, ExitPlanModeRequestedData)
                 and event.data.summary == PLAN_SUMMARY
             ),
-            timeout=None,
         )
         completed_event = wait_for_event(
             session,
@@ -91,7 +90,6 @@ class TestModeHandlers:
                 and event.data.approved is True
                 and event.data.selected_action == ExitPlanModeAction.INTERACTIVE
             ),
-            timeout=None,
         )
 
         try:
@@ -105,10 +103,10 @@ class TestModeHandlers:
             assert request["recommendedAction"] == "interactive"
             assert request.get("planContent") is not None
 
-            requested = await asyncio.wait_for(requested_event, timeout=30.0)
+            requested = await requested_event
             assert requested.data.summary == PLAN_SUMMARY
 
-            completed = await asyncio.wait_for(completed_event, timeout=30.0)
+            completed = await completed_event
             assert completed.data.approved is True
             assert completed.data.selected_action == ExitPlanModeAction.INTERACTIVE
             assert completed.data.feedback == "Approved by the Python E2E test"

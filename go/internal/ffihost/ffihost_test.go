@@ -84,33 +84,19 @@ func TestDisposeRetainsOutboundTargetUntilConnectionCloseSucceeds(t *testing.T) 
 
 	host.Dispose()
 
-	pendingCleanup.Lock()
-	cleanupDone := pendingCleanup.idle
-	pendingCleanup.Unlock()
-	t.Cleanup(func() {
-		allowClose.Store(true)
-		<-cleanupDone
-	})
-
 	if _, ok := outboundTargets.Load(token); !ok {
 		t.Fatal("Expected callback target to remain registered after connection close reported non-quiescence")
 	}
 	if got := shutdownCalls.Load(); got != 0 {
 		t.Fatalf("Expected host shutdown to be deferred, got %d calls", got)
 	}
-	select {
-	case <-cleanupDone:
-		t.Fatal("Expected cleanup to remain pending before connection close succeeds")
-	default:
-	}
-	if WaitForCleanup(0) {
-		t.Fatal("Expected cleanup wait to remain pending before connection close succeeds")
+	if WaitForCleanup(20 * time.Millisecond) {
+		t.Fatal("Expected cleanup wait to remain blocked before connection close succeeds")
 	}
 
 	allowClose.Store(true)
-	<-cleanupDone
-	// A timed-out observation cannot overturn the cleanup acknowledgment.
-	for !WaitForCleanup(5 * time.Second) {
+	if !WaitForCleanup(5 * time.Second) {
+		t.Fatal("Timed out waiting for deferred cleanup")
 	}
 
 	if _, ok := outboundTargets.Load(token); ok {

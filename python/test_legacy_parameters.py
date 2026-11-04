@@ -23,26 +23,6 @@ def _positional(cls: type) -> list[str]:
     return [field.name for field in dataclasses.fields(cls) if not field.kw_only]
 
 
-def test_managed_settings_resolve_preserves_existing_positional_arguments():
-    request = rpc.ManagedSettingsResolveRequest("my-app", None, "account-123", "/work/project")
-    expected = {
-        "clientName": "my-app",
-        "selectionId": "account-123",
-        "workingDirectory": "/work/project",
-    }
-
-    assert request.selection_id == "account-123"
-    assert request.working_directory == "/work/project"
-    assert _positional(rpc.ManagedSettingsResolveRequest) == [
-        "client_name",
-        "git_hub_token",
-        "selection_id",
-        "working_directory",
-    ]
-    assert request.to_dict() == expected
-    assert rpc.ManagedSettingsResolveRequest.from_dict(expected) == request
-
-
 def test_plan_install_positional_scope_still_binds_scope():
     request = rpc.MCPPlanInstallRequest(_contract(), _candidate(), rpc.MCPPlanScope.USER)
 
@@ -57,76 +37,6 @@ def test_added_fields_are_keyword_only():
     assert _positional(rpc.CatalogSearchRequest) == ["contract", "query", "kinds", "limit", "page"]
     with pytest.raises(TypeError):
         rpc.MCPPlanInstallRequest(_contract(), _candidate(), rpc.MCPPlanScope.USER, "session")
-
-
-def test_mcp_app_tool_call_preserves_positional_arguments():
-    request = rpc.MCPAppsCallToolRequest("server", "server", "tool", {"value": 42})
-    expected = {
-        "originServerName": "server",
-        "serverName": "server",
-        "toolName": "tool",
-        "arguments": {"value": 42},
-    }
-
-    assert request.to_dict() == expected
-    assert rpc.MCPAppsCallToolRequest.from_dict(expected) == request
-
-
-@pytest.mark.parametrize("meta", [{}, {"com.example/context": {"enabled": False, "value": None}}])
-def test_mcp_app_tool_call_metadata_round_trips_by_keyword(meta):
-    request = rpc.MCPAppsCallToolRequest("server", "server", "tool", {"value": 42}, meta=meta)
-    expected = {
-        "originServerName": "server",
-        "serverName": "server",
-        "toolName": "tool",
-        "arguments": {"value": 42},
-        "_meta": meta,
-    }
-
-    assert request.to_dict() == expected
-    assert rpc.MCPAppsCallToolRequest.from_dict(expected) == request
-
-
-def test_event_log_read_positional_arguments_keep_their_meaning():
-    request = rpc.EventLogReadRequest(
-        ["agent"],
-        rpc.EventsAgentScope.PRIMARY,
-        "cursor",
-        rpc.EventsReadDirection.BACKWARD,
-        False,
-        100,
-        ["user.message"],
-        1234,
-    )
-
-    assert request.to_dict() == {
-        "agentIds": ["agent"],
-        "agentScope": "primary",
-        "cursor": "cursor",
-        "direction": "backward",
-        "includeEphemeral": False,
-        "max": 100,
-        "types": ["user.message"],
-        "waitMs": 1234,
-    }
-    assert _positional(rpc.EventLogReadRequest) == [
-        "agent_ids",
-        "agent_scope",
-        "cursor",
-        "direction",
-        "include_ephemeral",
-        "max",
-        "types",
-        "wait_ms",
-    ]
-
-
-def test_event_log_read_view_round_trips_by_keyword():
-    request = rpc.EventLogReadRequest(wait_ms=1234, view=rpc.EventsReadView.REPLAY)
-
-    assert rpc.EventLogReadRequest.__dataclass_fields__["view"].kw_only
-    assert request.to_dict() == {"waitMs": 1234, "view": "replay"}
-    assert rpc.EventLogReadRequest.from_dict(request.to_dict()) == request
 
 
 def test_search_positional_arguments_keep_their_meaning():

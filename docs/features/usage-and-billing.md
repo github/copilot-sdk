@@ -44,18 +44,14 @@ The field tables below list only the fields used in the examples on this page. T
 
 The `assistant.usage` event is emitted once for every model API call in a turn (including calls made by sub-agents). It carries the token counts and the billing multiplier for that single call.
 
-The example below uses `model`, `inputTokens`, `outputTokens` and `cost`; the cache counts are listed because they explain `inputTokens`. See [Streaming events](./streaming-events.md#assistantusage) for the full list, including reasoning, latency, and tracing fields.
+The example below uses these fields. See [Streaming events](./streaming-events.md#assistantusage) for the full list, including cache, reasoning, latency, and tracing fields.
 
 | Field | Type | Description |
 |---|---|---|
 | `model` | `string` | Model identifier for this call |
-| `inputTokens` | `number` | Total input tokens for this call, including the cache tokens below |
+| `inputTokens` | `number` | Input tokens consumed |
 | `outputTokens` | `number` | Output tokens produced |
-| `cacheReadTokens` | `number` | Input tokens read from the prompt cache; already counted in `inputTokens` |
-| `cacheWriteTokens` | `number` | Input tokens written to the prompt cache; already counted in `inputTokens` |
 | `cost` | `number` | Premium request multiplier applied to this call |
-
-`inputTokens` already includes `cacheReadTokens` and `cacheWriteTokens`, so do not add them to it. The uncached part of the input is `inputTokens - cacheReadTokens - cacheWriteTokens`. Models price these three classes differently, so compute cost from the separate counts rather than from `inputTokens` alone.
 
 > [!TIP]
 > `assistant.usage` is ephemeral, so it is delivered live but not replayed when you resume a session. To read accumulated totals after the fact, call `session.usage.getMetrics` (see [Accumulated AI credit and token totals](#accumulated-ai-credit-and-token-totals)).
@@ -652,7 +648,7 @@ let result = session
     .context_info(MetadataContextInfoRequest {
         prompt_token_limit: 0,
         output_token_limit: 0,
-        ..Default::default()
+        selected_model: None,
     })
     .await?;
 
@@ -676,7 +672,7 @@ The example uses the fields below. The generated `UsageGetMetricsResult` type is
 |---|---|---|
 | `totalNanoAiu` | `number` | Session-wide AI credit cost, in nano-AI units |
 | `totalPremiumRequestCost` | `number` | Premium request cost across all models, after multipliers |
-| `modelMetrics` | `Record<string, ModelMetric>` | Per-model breakdown; each entry has `usage.inputTokens` (which includes `usage.cacheReadTokens` and `usage.cacheWriteTokens`), `usage.outputTokens`, and `totalNanoAiu` |
+| `modelMetrics` | `Record<string, ModelMetric>` | Per-model breakdown; each entry has `usage.inputTokens`, `usage.outputTokens`, and `totalNanoAiu` |
 
 > [!NOTE]
 > Cost is reported in **nano-AI units** (the field is named `totalNanoAiu`). The exact conversion to AI credits and the precise meaning of premium request accounting are defined by GitHub Copilot billing, not by the SDK—treat [GitHub's Copilot billing documentation](https://docs.github.com/en/copilot/managing-copilot/understanding-and-managing-copilot-usage) as the source of truth and verify before surfacing currency-like values to users. The examples divide by `1e9` as a convenience, following the SI `nano` prefix; confirm this matches current billing before relying on it. The `modelMetrics` and `tokenDetails` maps are keyed by runtime strings (model IDs and token-type names) that the SDK type system does not validate.

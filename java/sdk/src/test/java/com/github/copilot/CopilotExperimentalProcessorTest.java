@@ -136,34 +136,6 @@ class CopilotExperimentalProcessorTest {
     }
 
     @Test
-    void memoryModeRequiresOptInWithoutMakingExistingMemoryConfigurationExperimental() {
-        for (boolean allowed : List.of(false, true)) {
-            String source = """
-                    package consumer;
-                    import com.github.copilot.AllowCopilotExperimental;
-                    import com.github.copilot.generated.rpc.MemoryMode;
-                    import com.github.copilot.rpc.MemoryConfiguration;
-                    public class Consumer {
-                        private MemoryConfiguration stableConfiguration;
-                        %s
-                        public MemoryMode mode(MemoryMode value) { return value; }
-                    }
-                    """.formatted(allowed ? "@AllowCopilotExperimental" : "");
-            DiagnosticCollector<JavaFileObject> diagnostics = compile(
-                    List.of(inMemorySource("consumer.Consumer", source)), Collections.emptyList());
-            var errors = diagnostics.getDiagnostics().stream().filter(d -> d.getKind() == Diagnostic.Kind.ERROR)
-                    .toList();
-            if (allowed) {
-                assertTrue(errors.isEmpty(), "Scoped opt-in must compile: " + errors);
-            } else {
-                assertFalse(errors.isEmpty(), "MemoryMode must require explicit opt-in");
-                assertTrue(errors.stream().allMatch(d -> d.getMessage(null).contains("experimental API 'MemoryMode'")),
-                        "Existing memory configuration must stay non-experimental: " + errors);
-            }
-        }
-    }
-
-    @Test
     void passes_whenAllowAnnotationIsOnType() {
         DiagnosticCollector<JavaFileObject> diagnostics = compile(
                 List.of(inMemorySource("test.ExperimentalType", EXPERIMENTAL_TYPE_SOURCE),

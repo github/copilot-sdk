@@ -65,26 +65,26 @@ rust_library(
     version = "3.27.0",
     deps = [
         "@sdk_vendor__fastrand-2.5.0//:fastrand",
-        "@sdk_vendor__getrandom-0.3.4//:getrandom",
+        "@sdk_vendor__getrandom-0.4.3//:getrandom",
         "@sdk_vendor__once_cell-1.21.4//:once_cell",
     ] + select({
         "@rules_rust//rust/platform:aarch64-apple-darwin": [
-            "@sdk_vendor__rustix-1.1.6//:rustix",  # cfg(any(unix, target_os = "wasi"))
+            "@sdk_vendor__rustix-1.1.5//:rustix",  # cfg(any(unix, target_os = "wasi"))
         ],
         "@rules_rust//rust/platform:aarch64-pc-windows-msvc": [
             "@sdk_vendor__windows-sys-0.61.2//:windows_sys",  # cfg(windows)
         ],
         "@rules_rust//rust/platform:aarch64-unknown-linux-gnu": [
-            "@sdk_vendor__rustix-1.1.6//:rustix",  # cfg(any(unix, target_os = "wasi"))
+            "@sdk_vendor__rustix-1.1.5//:rustix",  # cfg(any(unix, target_os = "wasi"))
         ],
         "@rules_rust//rust/platform:x86_64-apple-darwin": [
-            "@sdk_vendor__rustix-1.1.6//:rustix",  # cfg(any(unix, target_os = "wasi"))
+            "@sdk_vendor__rustix-1.1.5//:rustix",  # cfg(any(unix, target_os = "wasi"))
         ],
         "@rules_rust//rust/platform:x86_64-pc-windows-msvc": [
             "@sdk_vendor__windows-sys-0.61.2//:windows_sys",  # cfg(windows)
         ],
         "@rules_rust//rust/platform:x86_64-unknown-linux-gnu": [
-            "@sdk_vendor__rustix-1.1.6//:rustix",  # cfg(any(unix, target_os = "wasi"))
+            "@sdk_vendor__rustix-1.1.5//:rustix",  # cfg(any(unix, target_os = "wasi"))
         ],
         "//conditions:default": [],
     }),

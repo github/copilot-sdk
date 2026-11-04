@@ -62,7 +62,9 @@ public class ScenarioTestingJsExtensionBridgeE2ETests(E2ETestFixture fixture, IT
         Assert.Equal("updated", action.Result!.Value.GetProperty("value").GetString());
 
         await session.Rpc.Canvas.CloseAsync("standalone-canvas-1");
-        var trace = await WaitForTraceAsync(fixture.TraceFile, "close");
+        await WaitForTraceAsync(fixture.TraceFile, "close");
+
+        var trace = ReadTrace(fixture.TraceFile);
         var joined = trace.Where(entry => GetKind(entry) == "joined").ToList();
         Assert.NotEmpty(joined);
         Assert.All(joined, entry =>
@@ -94,7 +96,8 @@ public class ScenarioTestingJsExtensionBridgeE2ETests(E2ETestFixture fixture, IT
         Assert.Equal("object", canvas.InputSchema!.Value.GetProperty("type").GetString());
         Assert.Equal(["set-value", "continue", "fail"], canvas.Actions!.Select(action => action.Name));
 
-        var joined = (await WaitForTraceAsync(fixture.TraceFile, "joined"))
+        await WaitForTraceAsync(fixture.TraceFile, "joined");
+        var joined = ReadTrace(fixture.TraceFile)
             .Where(entry => GetKind(entry) == "joined")
             .ToList();
         Assert.NotEmpty(joined);
@@ -151,7 +154,9 @@ public class ScenarioTestingJsExtensionBridgeE2ETests(E2ETestFixture fixture, IT
         Assert.Equal("after", action.Result!.Value.GetProperty("value").GetString());
 
         await session.Rpc.Canvas.CloseAsync("js-scenario-canvas-1");
-        var trace = await WaitForTraceAsync(fixture.TraceFile, "close");
+        await WaitForTraceAsync(fixture.TraceFile, "close");
+
+        var trace = ReadTrace(fixture.TraceFile);
         var open = Assert.Single(trace, entry => GetKind(entry) == "open");
         AssertBridgeContext(open, session.SessionId, fixture.ExtensionId, "js-scenario-canvas-1");
         Assert.Equal("before", open.GetProperty("input").GetProperty("value").GetString());
@@ -193,8 +198,8 @@ public class ScenarioTestingJsExtensionBridgeE2ETests(E2ETestFixture fixture, IT
                 input: new Dictionary<string, object>()));
 
         Assert.Contains("The JavaScript canvas action failed.", exception.Message, StringComparison.Ordinal);
-        var trace = await WaitForTraceAsync(fixture.TraceFile, "error");
-        var error = Assert.Single(trace, entry => GetKind(entry) == "error");
+        await WaitForTraceAsync(fixture.TraceFile, "error");
+        var error = Assert.Single(ReadTrace(fixture.TraceFile), entry => GetKind(entry) == "error");
         Assert.Equal("js_canvas_failed", error.GetProperty("code").GetString());
         Assert.Equal("The JavaScript canvas action failed.", error.GetProperty("message").GetString());
     }
@@ -328,36 +333,43 @@ public class ScenarioTestingJsExtensionBridgeE2ETests(E2ETestFixture fixture, IT
         return opened!;
     }
 
-    private static async Task<List<JsonElement>> WaitForTraceAsync(string traceFile, string kind)
+    private static async Task WaitForTraceAsync(string traceFile, string kind)
     {
-        List<JsonElement> trace = [];
         await TestHelper.WaitForConditionAsync(
-            () =>
-            {
-                trace = ReadTrace(traceFile);
-                return Task.FromResult(trace.Any(entry => GetKind(entry) == kind));
-            },
+            () => Task.FromResult(
+                File.Exists(traceFile)
+                && ReadTrace(traceFile).Any(entry => GetKind(entry) == kind)),
             timeout: ExtensionTimeout,
             pollInterval: TimeSpan.FromMilliseconds(100),
-            transientExceptionFilter: exception => exception is IOException or JsonException,
             timeoutMessage: $"Timed out waiting for extension trace entry '{kind}'.");
-        return trace;
     }
 
     private static List<JsonElement> ReadTrace(string traceFile)
     {
-        if (!File.Exists(traceFile))
+        for (var attempt = 0; ; attempt++)
         {
-            return [];
-        }
-        return File.ReadAllLines(traceFile)
-            .Where(line => !string.IsNullOrWhiteSpace(line))
-            .Select(line =>
+            if (!File.Exists(traceFile))
             {
-                using var document = JsonDocument.Parse(line);
-                return document.RootElement.Clone();
-            })
-            .ToList();
+                return [];
+            }
+
+            try
+            {
+                return File.ReadAllLines(traceFile)
+                    .Where(line => !string.IsNullOrWhiteSpace(line))
+                    .Select(line =>
+                    {
+                        using var document = JsonDocument.Parse(line);
+                        return document.RootElement.Clone();
+                    })
+                    .ToList();
+            }
+            catch (Exception exception)
+                when (attempt < 9 && exception is IOException or JsonException)
+            {
+                Thread.Sleep(20);
+            }
+        }
     }
 
     private static string GetKind(JsonElement entry) => entry.GetProperty("kind").GetString()!;

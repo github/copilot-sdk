@@ -16,37 +16,7 @@ import time
 
 import pytest
 
-import copilot
 from copilot._jsonrpc import JsonRpcClient, ProcessExitedError
-
-
-@pytest.mark.asyncio
-async def test_public_rpc_error_preserves_transport_data(monkeypatch):
-    assert "JsonRpcError" in copilot.__all__
-    public_error = copilot.JsonRpcError
-    process = MockProcess()
-    client = JsonRpcClient(process)
-    client._loop = asyncio.get_running_loop()
-    data = {"policyHelperFailure": {"category": "timeout", "message": "Helper timed out"}}
-
-    async def respond(message):
-        assert message["method"] == "session.managedSettings.recheckPolicyHelper"
-        client._handle_message(
-            {
-                "jsonrpc": "2.0",
-                "id": message["id"],
-                "error": {"code": -32000, "message": "operation failed", "data": data},
-            }
-        )
-
-    monkeypatch.setattr(client, "_send_message", respond)
-    with pytest.raises(public_error) as caught:
-        await client.request("session.managedSettings.recheckPolicyHelper")
-    assert caught.value.code == -32000
-    assert caught.value.message == "operation failed"
-    assert caught.value.data == data
-    assert str(caught.value) == "JSON-RPC Error -32000: operation failed"
-    assert client.pending_requests == {}
 
 
 class MockProcess:
@@ -59,106 +29,6 @@ class MockProcess:
 
     def poll(self):
         return self.returncode
-
-
-@pytest.mark.asyncio
-@pytest.mark.parametrize("error", ["not an object", 42, [], None, {"message": "readable"}])
-async def test_unreadable_error_fails_request_and_keeps_reading(error, monkeypatch):
-    read_fd, write_fd = os.pipe()
-    with os.fdopen(read_fd, "rb") as stdout, os.fdopen(write_fd, "wb") as writer:
-        process = MockProcess()
-        process.stdout = stdout
-        client = JsonRpcClient(process)
-        callback_results = []
-
-        async def respond(message):
-            payload = (
-                {"error": error} if message["method"] == "bad" else {"result": {"recovered": True}}
-            )
-            body = json.dumps({"jsonrpc": "2.0", "id": message["id"], **payload}).encode()
-            writer.write(f"Content-Length: {len(body)}\r\n\r\n".encode() + body)
-            writer.flush()
-
-        monkeypatch.setattr(client, "_send_message", respond)
-        client.start()
-        try:
-            expected = copilot.JsonRpcError if isinstance(error, dict) else ValueError
-            match = "readable" if isinstance(error, dict) else "Invalid JSON-RPC error response"
-            with pytest.raises(expected, match=match):
-                await asyncio.wait_for(
-                    client.request("bad", on_response_inline=callback_results.append), timeout=5
-                )
-            assert callback_results == []
-            assert await asyncio.wait_for(client.request("next"), timeout=5) == {"recovered": True}
-            assert client.pending_requests == {}
-        finally:
-            writer.close()
-            await client.stop()
-
-
-@pytest.mark.asyncio
-@pytest.mark.parametrize("phase", ["during-write", "after-write", "blocked-cancellation"])
-async def test_completion_cancellation_preserves_frame_order_without_blocking_caller(
-    phase, monkeypatch
-):
-    loop = asyncio.get_running_loop()
-    entered = asyncio.Event()
-    sent = asyncio.Event()
-    cancellation_written = asyncio.Event()
-    release = threading.Event()
-
-    class Output(io.BytesIO):
-        def __init__(self):
-            super().__init__()
-            self.frames = 0
-
-        def flush(self):
-            super().flush()
-            self.frames += 1
-            if self.frames == 1:
-                loop.call_soon_threadsafe(entered.set)
-                if phase == "during-write":
-                    assert release.wait(5), "request writer was not released"
-            else:
-                if phase == "blocked-cancellation":
-                    assert release.wait(5), "cancellation writer was not released"
-                loop.call_soon_threadsafe(cancellation_written.set)
-
-    process = MockProcess()
-    process.stdin = Output()
-    client = JsonRpcClient(process)
-    client._loop = loop
-    original_send = client._send_message
-
-    async def send(message, **kwargs):
-        await original_send(message, **kwargs)
-        if message.get("method") == "session.sendAndWait":
-            sent.set()
-
-    monkeypatch.setattr(client, "_send_message", send)
-    request = asyncio.create_task(client.request("session.sendAndWait", {"sessionId": "session"}))
-    try:
-        await asyncio.wait_for((entered if phase == "during-write" else sent).wait(), 5)
-        request.cancel()
-        with pytest.raises(asyncio.CancelledError):
-            await asyncio.wait_for(request, 1)
-        release.set()
-        await asyncio.wait_for(cancellation_written.wait(), 5)
-        stream = io.BytesIO(process.stdin.getvalue())
-        frames = []
-        while header := stream.readline():
-            length = int(header.split(b":", 1)[1])
-            assert stream.readline() == b"\r\n"
-            frames.append(json.loads(stream.read(length)))
-        assert frames[0]["method"] == "session.sendAndWait"
-        assert all(frame["method"] == "$/cancelRequest" for frame in frames[1:])
-        assert all(frame["params"]["id"] == frames[0]["id"] for frame in frames[1:])
-        assert client.pending_requests == {}
-    finally:
-        release.set()
-        request.cancel()
-        await asyncio.gather(request, return_exceptions=True)
-        await client.stop()
 
 
 @pytest.mark.asyncio

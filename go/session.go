@@ -7,9 +7,7 @@ import (
 	"errors"
 	"fmt"
 	"log"
-	"strings"
 	"sync"
-	"sync/atomic"
 	"time"
 
 	"github.com/github/copilot-sdk/go/internal/jsonrpc2"
@@ -112,16 +110,9 @@ type Session struct {
 	// eventCh serializes user event handler dispatch. dispatchEvent enqueues;
 	// a single goroutine (processEvents) dequeues and invokes handlers in FIFO order.
 	// eventDone stops both sides without closing eventCh while a sender may be active.
-	// eventBacklog holds, in arrival order, events that arrived while eventCh was
-	// full; while eventBacklogActive is set, one goroutine moves them into eventCh
-	// and every new event joins the backlog behind them.
-	eventCh                  chan SessionEvent
-	eventDone                chan struct{}
-	eventBacklogMu           sync.Mutex
-	eventBacklog             []SessionEvent
-	eventBacklogActive       bool
-	closeOnce                sync.Once
-	completionRPCUnsupported atomic.Bool
+	eventCh   chan SessionEvent
+	eventDone chan struct{}
+	closeOnce sync.Once
 
 	// RPC provides typed session-scoped RPC methods.
 	RPC *rpc.SessionRPC
@@ -473,19 +464,6 @@ func newSession(
 //	    log.Printf("Failed to send message: %v", err)
 //	}
 func (s *Session) Send(ctx context.Context, options MessageOptions) (string, error) {
-	result, err := s.client.Request(ctx, "session.send", s.createSendRequest(ctx, options))
-	if err != nil {
-		return "", fmt.Errorf("failed to send message: %w", err)
-	}
-
-	var response sessionSendResponse
-	if err := json.Unmarshal(result, &response); err != nil {
-		return "", fmt.Errorf("failed to unmarshal send response: %w", err)
-	}
-	return response.MessageID, nil
-}
-
-func (s *Session) createSendRequest(ctx context.Context, options MessageOptions) sessionSendRequest {
 	traceparent, tracestate := getTraceContext(ctx)
 	req := sessionSendRequest{
 		SessionID:      s.SessionID,
@@ -509,7 +487,16 @@ func (s *Session) createSendRequest(ctx context.Context, options MessageOptions)
 		}
 	}
 
-	return req
+	result, err := s.client.Request(ctx, "session.send", req)
+	if err != nil {
+		return "", fmt.Errorf("failed to send message: %w", err)
+	}
+
+	var response sessionSendResponse
+	if err := json.Unmarshal(result, &response); err != nil {
+		return "", fmt.Errorf("failed to unmarshal send response: %w", err)
+	}
+	return response.MessageID, nil
 }
 
 // SendPrompt is a convenience wrapper for [Session.Send] that takes a plain
@@ -522,14 +509,13 @@ func (s *Session) SendPrompt(ctx context.Context, prompt string) (string, error)
 
 // SendAndWait sends a message and waits for its response to complete.
 //
-// Supported local runtimes correlate completion and the response with this
-// message. Unsupported runtimes retain the legacy non-Autopilot session.idle or
-// request-correlated session.autopilot_stopped wait. Autopilot completion does
-// not wait for or stop attached shells.
+// This is a convenience method that combines [Session.Send] with waiting for
+// non-Autopilot session.idle or the request-correlated session.autopilot_stopped
+// event. Autopilot completion does not wait for or stop attached shells.
 //
 // Events are still delivered to handlers registered via [Session.On] while waiting.
-// Synchronous handlers registered before this call process the terminal event,
-// when present, before it returns successfully, unless the session retires.
+// Synchronous handlers registered before this call finish processing the completing
+// root terminal event before it returns successfully, unless the session retires.
 // This does not wait for asynchronous work started by a handler.
 // Sub-agent events with a non-empty AgentID do not complete the wait or supply its reply.
 //
@@ -556,160 +542,15 @@ func (s *Session) SendPrompt(ctx context.Context, prompt string) (string, error)
 //	    }
 //	}
 func (s *Session) SendAndWait(ctx context.Context, options MessageOptions) (*SessionEvent, error) {
+	if options.ResponseSchema != nil {
+		return s.sendAndWaitStructured(ctx, options)
+	}
 	if _, ok := ctx.Deadline(); !ok {
 		var cancel context.CancelFunc
 		ctx, cancel = context.WithTimeout(ctx, 60*time.Second)
 		defer cancel()
 	}
-	if event, supported, err := s.sendWithCompletion(ctx, options); supported {
-		return event, err
-	}
-	if options.ResponseSchema != nil {
-		return s.sendAndWaitStructured(ctx, options)
-	}
 
-	return s.sendAndWaitLegacy(ctx, options)
-}
-
-func (s *Session) sendWithCompletion(ctx context.Context, options MessageOptions) (*SessionEvent, bool, error) {
-	if s.completionRPCUnsupported.Load() {
-		return nil, false, nil
-	}
-	requestCtx, cancel := context.WithCancelCause(ctx)
-	defer cancel(nil)
-	go func() {
-		select {
-		case <-s.eventDone:
-			cancel(errors.New("session closed before response completed"))
-		case <-requestCtx.Done():
-		}
-	}()
-	var mu sync.Mutex
-	observed := make(map[string]bool)
-	dispatched := make(map[string]bool)
-	boundary := ""
-	drained := make(chan struct{})
-	terminal := func(event SessionEvent) bool {
-		if event.AgentID != nil && *event.AgentID != "" {
-			return false
-		}
-		switch event.Data.(type) {
-		case *SessionIdleData, *SessionAutopilotStoppedData, *SessionErrorData:
-			return true
-		}
-		return false
-	}
-	unobserve := s.on(func(event SessionEvent) {
-		if terminal(event) {
-			mu.Lock()
-			observed[event.ID] = true
-			mu.Unlock()
-		}
-	}, true)
-	defer unobserve()
-	unsubscribe := s.On(func(event SessionEvent) {
-		if terminal(event) {
-			mu.Lock()
-			dispatched[event.ID] = true
-			if boundary == event.ID {
-				close(drained)
-				boundary = ""
-			}
-			mu.Unlock()
-		}
-	})
-	defer unsubscribe()
-	drain := func(id *string) error {
-		if id == nil {
-			return nil
-		}
-		mu.Lock()
-		done := dispatched[*id]
-		boundary = *id
-		mu.Unlock()
-		if done {
-			return nil
-		}
-		select {
-		case <-drained:
-			return nil
-		case <-s.eventDone:
-			s.handlerMutex.RLock()
-			graceful := s.gracefulRetirement
-			s.handlerMutex.RUnlock()
-			mu.Lock()
-			done := dispatched[*id] || (graceful && observed[*id])
-			mu.Unlock()
-			if done {
-				return nil
-			}
-			return errors.New("session closed before response completed")
-		case <-ctx.Done():
-			return context.Cause(ctx)
-		}
-	}
-	result, err := s.client.Request(requestCtx, "session.sendAndWait", s.createSendRequest(ctx, options))
-	if err != nil {
-		var rpcError *jsonrpc2.Error
-		if errors.As(err, &rpcError) {
-			if rpcError.Code == -32601 {
-				s.completionRPCUnsupported.Store(true)
-				select {
-				case <-s.eventDone:
-					return nil, true, errors.New("session closed before response completed")
-				default:
-				}
-				return nil, false, nil
-			}
-			if len(rpcError.Data) > 0 {
-				var data struct {
-					CompletionEventID *string `json:"completionEventId"`
-				}
-				if parseErr := json.Unmarshal(rpcError.Data, &data); parseErr != nil {
-					return nil, true, errors.Join(err, parseErr)
-				}
-				if deliveryErr := drain(data.CompletionEventID); deliveryErr != nil {
-					return nil, true, errors.Join(err, deliveryErr)
-				}
-			}
-		}
-		if cause := context.Cause(requestCtx); cause != nil && errors.Is(err, requestCtx.Err()) {
-			return nil, true, cause
-		}
-		return nil, true, err
-	}
-	var completed rpc.SendAndWaitResult
-	if err := json.Unmarshal(result, &completed); err != nil {
-		return nil, true, fmt.Errorf("decode message completion: %w", err)
-	}
-	if err := drain(completed.CompletionEventID); err != nil {
-		return nil, true, err
-	}
-	if options.ResponseSchema != nil {
-		if completed.Aborted {
-			return nil, true, errors.New("session aborted before structured output completed")
-		}
-		if completed.Response == nil {
-			return nil, true, errors.New("run completed without a structured assistant response")
-		}
-		data, ok := completed.Response.Data.(*AssistantMessageData)
-		if !ok || len(data.ToolRequests) > 0 || strings.TrimSpace(data.Content) == "" {
-			return nil, true, errors.New("run completed without a structured assistant response")
-		}
-	}
-	if completed.Aborted {
-		return nil, true, errors.New("session aborted before response completed")
-	}
-	if completed.Response != nil {
-		if _, ok := completed.Response.Data.(*AssistantMessageData); !ok ||
-			(completed.Response.AgentID != nil && *completed.Response.AgentID != "") {
-			return nil, true, errors.New("the runtime returned a non-assistant response")
-		}
-	}
-	return completed.Response, true, nil
-}
-
-func (s *Session) sendAndWaitLegacy(ctx context.Context, options MessageOptions) (*SessionEvent, error) {
 	type outcome struct {
 		event *SessionEvent
 		err   error
@@ -999,7 +840,6 @@ type permissionHandlerFunc func(
 	request PermissionRequest,
 	invocation PermissionInvocation,
 	promptRequest rpc.PermissionPromptRequest,
-	assistedApprovalAssessment rpc.AssistedApprovalAssessment,
 ) (rpc.PermissionDecision, error)
 
 // registerPermissionHandler registers a permission handler for this session.
@@ -1019,7 +859,6 @@ func (s *Session) registerPermissionHandler(handler PermissionHandlerFunc) {
 		request PermissionRequest,
 		invocation PermissionInvocation,
 		_ rpc.PermissionPromptRequest,
-		_ rpc.AssistedApprovalAssessment,
 	) (rpc.PermissionDecision, error) {
 		return handler(request, invocation)
 	}
@@ -1035,12 +874,10 @@ func (s *Session) registerPermissionHandlerWithPrompt(handler PermissionHandlerW
 		request PermissionRequest,
 		invocation PermissionInvocation,
 		promptRequest rpc.PermissionPromptRequest,
-		assistedApprovalAssessment rpc.AssistedApprovalAssessment,
 	) (rpc.PermissionDecision, error) {
 		return handler(request, PermissionHandlerInvocation{
-			PermissionInvocation:       invocation,
-			AssistedApprovalAssessment: assistedApprovalAssessment,
-			PromptRequest:              promptRequest,
+			PermissionInvocation: invocation,
+			PromptRequest:        promptRequest,
 		})
 	}
 }
@@ -1390,7 +1227,7 @@ func (s *Session) executeCommandAndRespond(requestID, commandName, command, args
 		Args:        args,
 	}
 
-	if err := callCommandHandler(handler, cmdCtx); err != nil {
+	if err := handler(cmdCtx); err != nil {
 		errMsg := err.Error()
 		s.RPC.Commands.HandlePendingCommand(ctx, &rpc.CommandsHandlePendingCommandRequest{
 			RequestID: requestID,
@@ -1402,17 +1239,6 @@ func (s *Session) executeCommandAndRespond(requestID, commandName, command, args
 	s.RPC.Commands.HandlePendingCommand(ctx, &rpc.CommandsHandlePendingCommandRequest{
 		RequestID: requestID,
 	})
-}
-
-// callCommandHandler runs a command handler and returns a panic as an error, so
-// the command is answered with that error instead of the panic ending the process.
-func callCommandHandler(handler CommandHandler, cmdCtx CommandContext) (err error) {
-	defer func() {
-		if r := recover(); r != nil {
-			err = fmt.Errorf("command panic: %v", r)
-		}
-	}()
-	return handler(cmdCtx)
 }
 
 // registerElicitationHandler registers an elicitation handler for this session.
@@ -1507,7 +1333,7 @@ func (s *Session) handleElicitationRequest(elicitCtx ElicitationContext, request
 
 	ctx := context.Background()
 
-	result, err := callElicitationHandler(handler, elicitCtx)
+	result, err := handler(elicitCtx)
 	if err != nil {
 		// Handler failed — attempt to cancel so the request doesn't hang.
 		s.RPC.UI.HandlePendingElicitation(ctx, &rpc.UIHandlePendingElicitationRequest{
@@ -1544,17 +1370,6 @@ func (s *Session) handleElicitationRequest(elicitCtx ElicitationContext, request
 			Content: rpcContent,
 		},
 	})
-}
-
-// callElicitationHandler runs an elicitation handler and returns a panic as an
-// error, so the request is cancelled instead of the panic ending the process.
-func callElicitationHandler(handler ElicitationHandler, elicitCtx ElicitationContext) (result ElicitationResult, err error) {
-	defer func() {
-		if r := recover(); r != nil {
-			err = fmt.Errorf("elicitation handler panic: %v", r)
-		}
-	}()
-	return handler(elicitCtx)
 }
 
 // toRPCContent converts an SDK content value to an RPC elicitation response value.
@@ -1630,27 +1445,6 @@ func (s *Session) setCapabilities(caps *SessionCapabilities) {
 	} else {
 		s.capabilities = SessionCapabilities{}
 	}
-}
-
-// applyUICapabilitiesChange applies a capabilities.changed payload, which names
-// only the capabilities that changed: anything it leaves out keeps its value.
-func (s *Session) applyUICapabilitiesChange(changed *CapabilitiesChangedUI) {
-	if changed.Elicitation == nil && changed.MCPApps == nil {
-		return
-	}
-	s.capabilitiesMu.Lock()
-	defer s.capabilitiesMu.Unlock()
-	var ui UICapabilities
-	if s.capabilities.UI != nil {
-		ui = *s.capabilities.UI
-	}
-	if changed.Elicitation != nil {
-		ui.Elicitation = *changed.Elicitation
-	}
-	if changed.MCPApps != nil {
-		ui.MCPApps = *changed.MCPApps
-	}
-	s.capabilities.UI = &ui
 }
 
 // UI returns the interactive UI API for showing elicitation dialogs.
@@ -1907,12 +1701,6 @@ func (s *Session) dispatchEvent(event SessionEvent) {
 
 	broadcastHandled := false
 	switch data := event.Data.(type) {
-	case *CapabilitiesChangedData:
-		// Apply deltas in notification order before subscribers can observe them.
-		if data.UI != nil {
-			s.applyUICapabilitiesChange(data.UI)
-		}
-		broadcastHandled = true
 	case *ExternalToolRequestedData:
 		var agentID string
 		if event.AgentID != nil {
@@ -1928,56 +1716,9 @@ func (s *Session) dispatchEvent(event SessionEvent) {
 		go s.handleBroadcastEvent(event)
 	}
 
-	s.enqueueEvent(event)
-}
-
-// enqueueEvent hands event to processEvents without blocking the caller, which
-// is the JSON-RPC read loop. A handler that is slow, or that waits for an RPC
-// response, must not stop the client from reading the connection. When eventCh
-// is full, the event joins an ordered backlog that a single goroutine moves into
-// eventCh, so handlers still receive events in arrival order.
-func (s *Session) enqueueEvent(event SessionEvent) {
-	s.eventBacklogMu.Lock()
-	defer s.eventBacklogMu.Unlock()
-	if !s.eventBacklogActive {
-		select {
-		case s.eventCh <- event:
-			return
-		case <-s.eventDone:
-			return
-		default:
-		}
-		s.eventBacklogActive = true
-		go s.drainEventBacklog()
-	}
-	s.eventBacklog = append(s.eventBacklog, event)
-}
-
-// drainEventBacklog moves backlogged events into eventCh in order until the
-// backlog is empty. It drops the backlog once event processing stops.
-func (s *Session) drainEventBacklog() {
-	for {
-		s.eventBacklogMu.Lock()
-		batch := s.eventBacklog
-		s.eventBacklog = nil
-		if len(batch) == 0 {
-			s.eventBacklogActive = false
-			s.eventBacklogMu.Unlock()
-			return
-		}
-		s.eventBacklogMu.Unlock()
-
-		for _, event := range batch {
-			select {
-			case s.eventCh <- event:
-			case <-s.eventDone:
-				s.eventBacklogMu.Lock()
-				s.eventBacklog = nil
-				s.eventBacklogActive = false
-				s.eventBacklogMu.Unlock()
-				return
-			}
-		}
+	select {
+	case s.eventCh <- event:
+	case <-s.eventDone:
 	}
 }
 
@@ -2121,13 +1862,7 @@ func (s *Session) handleBroadcastEvent(event SessionEvent) {
 		if handler == nil {
 			return
 		}
-		s.executePermissionAndRespond(
-			d.RequestID,
-			d.PermissionRequest,
-			d.PromptRequest,
-			d.AssistedApprovalAssessment,
-			handler,
-		)
+		s.executePermissionAndRespond(d.RequestID, d.PermissionRequest, d.PromptRequest, handler)
 
 	case *MCPOauthRequiredData:
 		if d.RequestID == "" {
@@ -2183,6 +1918,13 @@ func (s *Session) handleBroadcastEvent(event SessionEvent) {
 			ElicitationSource: d.ElicitationSource,
 			URL:               d.URL,
 		}, d.RequestID)
+
+	case *CapabilitiesChangedData:
+		if d.UI != nil && d.UI.Elicitation != nil {
+			s.setCapabilities(&SessionCapabilities{
+				UI: &UICapabilities{Elicitation: *d.UI.Elicitation},
+			})
+		}
 	}
 }
 
@@ -2315,6 +2057,11 @@ func (s *Session) executeToolAndRespond(requestID, toolName, toolCallID, agentID
 		return
 	}
 
+	textResultForLLM := result.TextResultForLLM
+	if textResultForLLM == "" {
+		textResultForLLM = fmt.Sprintf("%v", result)
+	}
+
 	// Default ResultType to "success" when unset, or "failure" when there's an error.
 	effectiveResultType := result.ResultType
 	if effectiveResultType == "" {
@@ -2326,7 +2073,7 @@ func (s *Session) executeToolAndRespond(requestID, toolName, toolCallID, agentID
 	}
 
 	rpcResult := &rpc.ExternalToolTextResultForLlm{
-		TextResultForLlm: result.TextResultForLLM,
+		TextResultForLlm: textResultForLLM,
 		ToolTelemetry:    result.ToolTelemetry,
 		ResultType:       &effectiveResultType,
 		ToolReferences:   result.ToolReferences,
@@ -2359,7 +2106,6 @@ func (s *Session) executePermissionAndRespond(
 	requestID string,
 	permissionRequest PermissionRequest,
 	promptRequest rpc.PermissionPromptRequest,
-	assistedApprovalAssessment rpc.AssistedApprovalAssessment,
 	handler permissionHandlerFunc,
 ) {
 	defer func() {
@@ -2376,12 +2122,7 @@ func (s *Session) executePermissionAndRespond(
 		ManagedSettingsEnabled: s.managedSettings,
 	}
 
-	decision, err := handler(
-		permissionRequest,
-		invocation,
-		promptRequest,
-		assistedApprovalAssessment,
-	)
+	decision, err := handler(permissionRequest, invocation, promptRequest)
 	if err != nil {
 		log.Printf("permission handler failed: session_id=%s request_id=%s error=%v", s.SessionID, requestID, err)
 		s.RPC.Permissions.HandlePendingPermissionRequest(context.Background(), &rpc.PermissionDecisionRequest{

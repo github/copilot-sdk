@@ -67,8 +67,6 @@ pub struct SessionFsCapabilities {
     pub sqlite: bool,
     /// Whether the provider supports exact binary reads and writes.
     pub binary: bool,
-    /// Whether every provider exposes bounded reads through [`SessionFsProvider::byte_ranges`].
-    pub read_file_range: bool,
 }
 
 impl SessionFsCapabilities {
@@ -86,12 +84,6 @@ impl SessionFsCapabilities {
     /// Enable binary file reads and writes.
     pub fn with_binary(mut self, binary: bool) -> Self {
         self.binary = binary;
-        self
-    }
-
-    /// Enable bounded byte-range reads independently of binary reads and writes.
-    pub fn with_read_file_range(mut self, read_file_range: bool) -> Self {
-        self.read_file_range = read_file_range;
         self
     }
 }
@@ -307,40 +299,6 @@ impl From<std::io::Error> for FsError {
     }
 }
 
-/// Raw bytes and the authoritative total file byte length captured by the same read.
-#[non_exhaustive]
-pub struct FileByteRange {
-    /// Requested bytes; boundaries may split UTF-8 characters.
-    pub content: Vec<u8>,
-    /// Total file byte length, independent of the requested range.
-    pub byte_length: i64,
-}
-
-impl FileByteRange {
-    /// Construct a byte range with the total file byte length at the read.
-    pub fn new(content: Vec<u8>, byte_length: i64) -> Self {
-        Self {
-            content,
-            byte_length,
-        }
-    }
-}
-
-/// Optional bounded byte reads for providers declaring `read_file_range`.
-#[async_trait]
-pub trait SessionFsReadFileRangeProvider: Send + Sync {
-    /// Read raw bytes without downloading the full file.
-    ///
-    /// Offset and length must be non-negative safe integers. Omit length to read
-    /// through EOF; zero returns only byte length. At or beyond EOF, content is empty.
-    async fn read_file_range(
-        &self,
-        path: &str,
-        offset: i64,
-        length: Option<i64>,
-    ) -> Result<FileByteRange, FsError>;
-}
-
 /// File or directory metadata returned by [`SessionFsProvider::stat`].
 ///
 /// The SDK adapts this into the wire's [`SessionFsStatResult`].
@@ -476,14 +434,6 @@ pub trait SessionFsProvider: Send + Sync + 'static {
 
     /// Return an optional binary implementation when this provider supports it.
     fn binary(&self) -> Option<&dyn SessionFsBinaryProvider> {
-        None
-    }
-
-    /// Return bounded byte reads independently of binary support.
-    ///
-    /// Providers declaring `read_file_range` implement [`SessionFsReadFileRangeProvider`]
-    /// and return `Some(self)`; legacy providers retain the default.
-    fn byte_ranges(&self) -> Option<&dyn SessionFsReadFileRangeProvider> {
         None
     }
 

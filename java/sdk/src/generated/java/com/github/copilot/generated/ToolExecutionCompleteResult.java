@@ -10,9 +10,7 @@ package com.github.copilot.generated;
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.annotation.JsonProperty;
-import com.github.copilot.CopilotExperimental;
 import java.util.List;
-import java.util.Map;
 import javax.annotation.processing.Generated;
 
 /**
@@ -31,20 +29,14 @@ public record ToolExecutionCompleteResult(
     /** Structured content blocks (text, images, audio, resources) returned by the tool in their native format */
     @JsonProperty("contents") List<Object> contents,
     /** Model-facing binary results (base64 inline or size-omitted markers) sent to the LLM for this tool call */
-    @CopilotExperimental
     @JsonProperty("binaryResultsForLlm") List<Object> binaryResultsForLlm,
     /** MCP Apps UI resource content for rendering in a sandboxed iframe */
     @JsonProperty("uiResource") ToolExecutionCompleteUIResource uiResource,
     /** Structured content (arbitrary JSON) returned verbatim by the MCP tool */
     @JsonProperty("structuredContent") Object structuredContent,
-    /** MCP `CallToolResult._meta` returned verbatim by an MCP Apps tool, for delivery to the app UI only; never sent to the model. Experimental. */
-    @CopilotExperimental
-    @JsonProperty("mcpResultMeta") Map<String, Object> mcpResultMeta,
     /** Provider-neutral source material this tool makes available to the model as citable content. Persisted so it survives session resume. Experimental. */
-    @CopilotExperimental
     @JsonProperty("citableSources") List<CitableSource> citableSources,
     /** FIDES IFC label projected from tool ingress metadata (MCP `CallToolResult._meta` or synthesized built-in ingress labels) — persisted as `{ ifc: ... }` (only the `ifc` key, not the whole `_meta`). Persisted so the FIDES IFC label survives session resume: the engine rehydrates accumulated taint by replaying these on load. Populated for ingress sources when FIDES IFC is on. Experimental. */
-    @CopilotExperimental
     @JsonProperty("mcpMeta") Object mcpMeta
 ) {
 }

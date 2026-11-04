@@ -89,7 +89,7 @@ class FfiRuntimeHostTest {
                 .setRemote(true).setMode(CopilotClientMode.EMPTY).setCliArgs(new String[]{"--extra-flag"});
 
         FfiRuntimeHost host = new FfiRuntimeHost(binding, "/tmp/runtime.node");
-        host.start("/tmp/entrypoint.js", "octocat/Hello-World", options);
+        host.start("/tmp/entrypoint.js", "github/github-app", options);
 
         List<String> argv = MAPPER.readValue(binding.argv, new TypeReference<List<String>>() {
         });
@@ -104,7 +104,7 @@ class FfiRuntimeHostTest {
         assertTrue(argv.contains("42"));
         assertTrue(argv.contains("--remote"));
         assertTrue(argv.contains("--extra-flag"));
-        assertTrue(argv.contains("--cli-login-sync-integration-id=octocat/Hello-World"));
+        assertTrue(argv.contains("--cli-login-sync-integration-id=github/github-app"));
 
         Map<String, String> env = MAPPER.readValue(binding.env, new TypeReference<Map<String, String>>() {
         });
@@ -392,7 +392,7 @@ class FfiRuntimeHostTest {
             void enqueue(byte[] bytes) {
                 callbackEntered.countDown();
                 try {
-                    allowCallbackToReturn.await();
+                    allowCallbackToReturn.await(5, TimeUnit.SECONDS);
                 } catch (InterruptedException e) {
                     Thread.currentThread().interrupt();
                 }
@@ -424,11 +424,11 @@ class FfiRuntimeHostTest {
             assertTrue(closeCalls.get() >= 2, "connection close should be retried after reporting non-quiescence");
             assertTrue(shutdownObservedAfterCallbackReturn.get(), "host_shutdown should run after callback drains");
         } finally {
-            allowCallbackToReturn.countDown();
             executor.shutdownNow();
         }
 
         host.close();
+        Thread.sleep(150);
         assertEquals(1, shutdownCalls.get(), "host shutdown should happen exactly once");
     }
 }

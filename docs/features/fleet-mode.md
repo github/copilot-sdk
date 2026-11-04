@@ -50,12 +50,7 @@ if (result.started) {
 <summary><strong>Python</strong></summary>
 
 ```python
-from copilot import CopilotClient
 from copilot.rpc import FleetStartRequest
-from copilot.session import PermissionHandler
-
-client = CopilotClient()
-session = await client.create_session(on_permission_request=PermissionHandler.approve_all)
 
 result = await session.rpc.fleet.start(
     FleetStartRequest(
@@ -159,10 +154,13 @@ if (result.Started)
 ```rust
 use github_copilot_sdk::rpc::FleetStartRequest;
 
-let mut request = FleetStartRequest::default();
-request.prompt = Some("Research each crate independently, then summarize the plan.".into());
-
-let result = session.rpc().fleet().start(request).await?;
+let result = session
+    .rpc()
+    .fleet()
+    .start(FleetStartRequest {
+        prompt: Some("Research each crate independently, then summarize the plan.".into()),
+    })
+    .await?;
 
 if result.started {
     println!("Fleet mode started");
@@ -171,7 +169,7 @@ if result.started {
 
 </details>
 
-Java exposes the same binding as `session.getRpc().fleet.start(...)`. The method and its `SessionFleetStartParams` and `SessionFleetStartResult` types are `@CopilotExperimental`, so the consuming class or method must opt in with `@AllowCopilotExperimental`. See [Using experimental APIs](../../java/README.md#using-experimental-apis).
+Native typed bindings for fleet mode were verified in Node.js/TypeScript, Python, Go, .NET, and Rust. A Java binding was not found in `java/src/main/java` on this branch, so Java examples are omitted until that surface is available.
 
 ### From plan mode
 
@@ -274,7 +272,6 @@ session.on((event) => {
 import asyncio
 from copilot import CopilotClient
 from copilot.session import PermissionHandler
-from copilot.session_events import SessionEventType
 
 async def main():
     client = CopilotClient()
@@ -284,9 +281,9 @@ async def main():
     )
 
     def handle_event(event):
-        if event.type == SessionEventType.SUBAGENT_STARTED:
+        if event.type == "subagent.started":
             print(f"Started {event.data.agent_display_name}")
-        elif event.type == SessionEventType.SUBAGENT_COMPLETED:
+        elif event.type == "subagent.completed":
             print(f"Completed {event.data.agent_display_name}")
 
     unsubscribe = session.on(handle_event)
@@ -296,12 +293,10 @@ asyncio.run(main())
 <!-- /docs-validate: hidden -->
 
 ```python
-from copilot.session_events import SessionEventType
-
 def handle_event(event):
-    if event.type == SessionEventType.SUBAGENT_STARTED:
+    if event.type == "subagent.started":
         print(f"Started {event.data.agent_display_name}")
-    elif event.type == SessionEventType.SUBAGENT_COMPLETED:
+    elif event.type == "subagent.completed":
         print(f"Completed {event.data.agent_display_name}")
 
 unsubscribe = session.on(handle_event)
@@ -313,7 +308,9 @@ For hook configuration that is already exposed at the SDK layer, see [Hooks](hoo
 
 ## Plugin sub-agents
 
-Load plugin agents through the SDK's [plugin directory options](plugin-directories.md): `--plugin-dir` for a shared runtime process, `pluginDirectories` for session-specific additions, or `builtinPluginDirectories` for trusted host-bundled plugins. Active plugin agents are available as `task(agent_type=...)` sub-agent types, so fleet mode can dispatch to those workers.
+The runtime can load plugins with `--plugin-dir`. Plugins loaded this way can register their agents as available `task(agent_type=...)` sub-agent types in prompt mode, which means fleet mode can dispatch to those plugin-provided worker types.
+
+This is currently a runtime-level configuration pattern rather than a documented SDK-level registration API. Configure the Copilot CLI runtime with the plugin directory, then connect the SDK client to that runtime. Native SDK helpers for registering plugin sub-agent types may be added in the future.
 
 Conceptually, a fleet prompt can then ask for a specific worker type:
 
@@ -344,6 +341,8 @@ Keep plugin-provided sub-agent types narrow and descriptive so the orchestrator 
 * Fleet mode is exposed through generated session RPC bindings and is marked experimental in several SDKs.
 * The SQL todos pattern is the canonical coordination model in the runtime guidance, but whether it is a stable extensibility contract for SDK consumers is still an open question.
 * Sub-agent lifecycle hook inputs identify the parent session but do not yet carry a shared tool-call ID for correlating with `subagent.*` events.
+* Plugin sub-agent registration is configured at the runtime layer through `--plugin-dir`; no SDK-level plugin registration helper was verified on this branch.
+* Java native typed bindings for `session.fleet.start` were not found in the Java SDK source on this branch.
 * Fleet mode does not remove the need for parent-agent review. Parallel workers can produce inconsistent assumptions that the orchestrator must reconcile.
 
 ## See also

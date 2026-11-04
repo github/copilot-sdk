@@ -41,7 +41,7 @@ func waitForMCPServerStatus(t *testing.T, session *copilot.Session, serverName s
 func waitForMCPServerStatusResult(ctx context.Context, session *copilot.Session, serverName string, expectedStatus rpc.MCPServerStatus, timeout time.Duration) error {
 	var lastStatus string
 	deadline := time.Now().Add(timeout)
-	for {
+	for time.Now().Before(deadline) {
 		result, err := session.RPC.MCP.List(ctx)
 		if err != nil {
 			lastStatus = err.Error()
@@ -57,9 +57,6 @@ func waitForMCPServerStatusResult(ctx context.Context, session *copilot.Session,
 				lastStatus = string(server.Status)
 				break
 			}
-		}
-		if !time.Now().Before(deadline) {
-			break
 		}
 		time.Sleep(200 * time.Millisecond)
 	}

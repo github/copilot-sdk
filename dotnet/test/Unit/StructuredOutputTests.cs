@@ -646,17 +646,16 @@ public sealed partial class ClientSessionLifetimeTests
         await using var session = await client.CreateSessionAsync(new SessionConfig());
         using var cts = new CancellationTokenSource();
         var task = session.SendAndWaitAsync<StructuredAnswer>("Answer", StructuredOutputJsonContext.Default.Options,
-            cancel ? Timeout.InfiniteTimeSpan : TimeSpan.FromMilliseconds(100), cts.Token);
+            cancel ? TimeSpan.FromSeconds(10) : TimeSpan.FromMilliseconds(100), cts.Token);
+        await WaitForRequestAsync(server, "session.send");
         if (cancel)
         {
-            await WaitForRequestAsync(server, "session.send");
             cts.Cancel();
-            await Assert.ThrowsAnyAsync<OperationCanceledException>(() => task).WaitAsync(TimeSpan.FromSeconds(5));
+            await Assert.ThrowsAnyAsync<OperationCanceledException>(() => task);
         }
         else
         {
-            // Expiry during the unsupported completion-RPC probe may prevent the legacy send.
-            await Assert.ThrowsAsync<TimeoutException>(() => task).WaitAsync(TimeSpan.FromSeconds(5));
+            await Assert.ThrowsAsync<TimeoutException>(() => task);
         }
     }
 
@@ -751,19 +750,8 @@ public sealed partial class ClientSessionLifetimeTests
         await using var server = await FakeCopilotServer.StartAsync();
         await using var client = new CopilotClient(new CopilotClientOptions { Connection = RuntimeConnection.ForUri(server.Url) });
         await using var session = await client.CreateSessionAsync(new SessionConfig());
-        var sendReplied = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
-        server.AfterResponseAsync = (request, _) =>
-        {
-            if (request.Method == "session.send")
-            {
-                sendReplied.TrySetResult();
-            }
-            return Task.CompletedTask;
-        };
         var task = session.SendAndWaitAsync<StructuredAnswer>("Answer", StructuredOutputJsonContext.Default.Options);
-        // Request receipt precedes the acknowledgment write, which must finish before closing its stream.
-        await sendReplied.Task.WaitAsync(TimeSpan.FromSeconds(5));
-        Assert.False(task.IsCompleted);
+        await WaitForRequestAsync(server, "session.send");
         if (disposeSession)
         {
             await session.DisposeAsync();

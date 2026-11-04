@@ -37,6 +37,21 @@ async fn dispatch(handler: &Arc<dyn PermissionHandler>) -> PermissionResult {
 }
 
 #[tokio::test]
+async fn approve_all_with_handler_present_approves() {
+    let cfg = SessionConfig::default()
+        .with_permission_handler(Arc::new(ApproveAllHandler))
+        .approve_all_permissions();
+    let h = resolve_create(cfg).expect("policy + handler yields handler");
+    assert!(matches!(
+        dispatch(&h).await,
+        PermissionResult::Decision {
+            decision: PermissionDecision::ApproveOnce(_),
+            ..
+        }
+    ));
+}
+
+#[tokio::test]
 async fn approve_all_standalone_produces_handler() {
     let cfg = SessionConfig::default().approve_all_permissions();
     let h = resolve_create(cfg).expect("policy alone yields handler");
@@ -104,6 +119,20 @@ async fn deny_all_is_order_independent() {
 }
 
 #[tokio::test]
+async fn approve_permissions_if_consults_predicate() {
+    let cfg = SessionConfig::default()
+        .approve_permissions_if(|d| d.extra.get("tool").and_then(|v| v.as_str()) != Some("shell"));
+    let h = resolve_create(cfg).unwrap();
+    assert!(matches!(
+        dispatch(&h).await,
+        PermissionResult::Decision {
+            decision: PermissionDecision::Reject(_),
+            ..
+        }
+    ));
+}
+
+#[tokio::test]
 async fn approve_permissions_if_is_order_independent() {
     let predicate =
         |d: &PermissionRequestData| d.extra.get("tool").and_then(|v| v.as_str()) != Some("shell");
@@ -126,6 +155,21 @@ async fn approve_permissions_if_is_order_independent() {
         dispatch(&hb).await,
         PermissionResult::Decision {
             decision: PermissionDecision::Reject(_),
+            ..
+        }
+    ));
+}
+
+#[tokio::test]
+async fn resume_session_config_approve_all_works() {
+    let cfg = ResumeSessionConfig::new(SessionId::from("s1"))
+        .with_permission_handler(Arc::new(ApproveAllHandler))
+        .approve_all_permissions();
+    let h = resolve_resume(cfg).unwrap();
+    assert!(matches!(
+        dispatch(&h).await,
+        PermissionResult::Decision {
+            decision: PermissionDecision::ApproveOnce(_),
             ..
         }
     ));
@@ -155,4 +199,61 @@ async fn resume_session_config_approve_all_is_order_independent() {
             ..
         }
     ));
+}
+
+#[test]
+fn session_config_enable_experimental_mode_serializes_when_set() {
+    let cfg = SessionConfig::default().with_enable_experimental_mode(false);
+    assert_eq!(cfg.enable_experimental_mode, Some(false));
+
+    let (wire, _runtime) = cfg
+        .into_wire(Some(SessionId::from("experimental-mode")))
+        .expect("enable_experimental_mode config has no duplicate handlers");
+    assert_eq!(wire.is_experimental_mode, Some(false));
+
+    let json = serde_json::to_value(&wire).unwrap();
+    assert_eq!(json["isExperimentalMode"], serde_json::Value::Bool(false));
+}
+
+#[test]
+fn session_config_enable_experimental_mode_omitted_when_none() {
+    let cfg = SessionConfig::default();
+    assert_eq!(cfg.enable_experimental_mode, None);
+
+    let (wire, _runtime) = cfg
+        .into_wire(Some(SessionId::from("no-experimental-mode")))
+        .expect("default config has no duplicate handlers");
+    assert_eq!(wire.is_experimental_mode, None);
+
+    let json = serde_json::to_value(&wire).unwrap();
+    assert!(json.get("isExperimentalMode").is_none());
+}
+
+#[test]
+fn resume_session_config_enable_experimental_mode_serializes_when_set() {
+    let cfg = ResumeSessionConfig::new(SessionId::from("resume-experimental-mode"))
+        .with_enable_experimental_mode(false);
+    assert_eq!(cfg.enable_experimental_mode, Some(false));
+
+    let (wire, _runtime) = cfg
+        .into_wire()
+        .expect("resume enable_experimental_mode config has no duplicate handlers");
+    assert_eq!(wire.is_experimental_mode, Some(false));
+
+    let json = serde_json::to_value(&wire).unwrap();
+    assert_eq!(json["isExperimentalMode"], serde_json::Value::Bool(false));
+}
+
+#[test]
+fn resume_session_config_enable_experimental_mode_omitted_when_none() {
+    let cfg = ResumeSessionConfig::new(SessionId::from("resume-no-experimental-mode"));
+    assert_eq!(cfg.enable_experimental_mode, None);
+
+    let (wire, _runtime) = cfg
+        .into_wire()
+        .expect("default resume config has no duplicate handlers");
+    assert_eq!(wire.is_experimental_mode, None);
+
+    let json = serde_json::to_value(&wire).unwrap();
+    assert!(json.get("isExperimentalMode").is_none());
 }

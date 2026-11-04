@@ -7,7 +7,6 @@ It spawns the shared test harness server from test/harness/server.ts.
 
 import asyncio
 import json
-import logging
 import os
 import platform
 import re
@@ -143,7 +142,7 @@ class CapiProxy:
         if not self._proxy_url:
             raise RuntimeError("Proxy not started")
 
-        async with httpx.AsyncClient(timeout=None) as client:
+        async with httpx.AsyncClient() as client:
             resp = await client.post(
                 f"{self._proxy_url}/config",
                 json={"filePath": file_path, "workDir": work_dir},
@@ -151,12 +150,12 @@ class CapiProxy:
             if resp.status_code != 200:
                 raise RuntimeError(f"Proxy config failed with status {resp.status_code}")
 
-    async def get_exchanges(self, *, timeout: float | None = None) -> list[dict[str, Any]]:
+    async def get_exchanges(self) -> list[dict[str, Any]]:
         """Retrieve the captured HTTP exchanges from the proxy."""
         if not self._proxy_url:
             raise RuntimeError("Proxy not started")
 
-        async with httpx.AsyncClient(timeout=timeout) as client:
+        async with httpx.AsyncClient() as client:
             resp = await client.get(f"{self._proxy_url}/exchanges")
             return resp.json()
 
@@ -165,7 +164,7 @@ class CapiProxy:
         if not self._proxy_url:
             raise RuntimeError("Proxy not started")
 
-        async with httpx.AsyncClient(timeout=None) as client:
+        async with httpx.AsyncClient() as client:
             resp = await client.post(
                 f"{self._proxy_url}/copilot-user-config",
                 json={"token": token, "response": response},
@@ -206,12 +205,6 @@ def _reap_process(process: subprocess.Popen) -> None:
     try:
         process.wait(timeout=PROCESS_SHUTDOWN_TIMEOUT_SECONDS)
     except subprocess.TimeoutExpired:
-        logging.getLogger(__name__).warning(
-            "Proxy process %s did not exit within %s seconds during shutdown; "
-            "killing its process tree",
-            process.pid,
-            PROCESS_SHUTDOWN_TIMEOUT_SECONDS,
-        )
         _kill_process_tree(process)
         try:
             process.wait(timeout=PROCESS_SHUTDOWN_TIMEOUT_SECONDS)

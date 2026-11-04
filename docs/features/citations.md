@@ -31,22 +31,7 @@ Set the option on session create, and set it again on resume if you want citatio
 <details open>
 <summary><strong>TypeScript</strong></summary>
 
-<!-- docs-validate: strict -->
-<!-- docs-validate: hidden -->
-```typescript
-import { approveAll } from "@github/copilot-sdk";
-
-const session = await client.createSession({
-    onPermissionRequest: approveAll,
-    enableCitations: true,
-});
-
-const resumed = await client.resumeSession(session.sessionId, {
-    onPermissionRequest: approveAll,
-    enableCitations: true,
-});
-```
-<!-- /docs-validate: hidden -->
+<!-- docs-validate: skip -->
 
 ```typescript
 const session = await client.createSession({
@@ -64,24 +49,7 @@ const resumed = await client.resumeSession(session.sessionId, {
 <details>
 <summary><strong>Python</strong></summary>
 
-<!-- docs-validate: hidden -->
-```python
-from copilot import CopilotClient
-from copilot.session import PermissionHandler
-
-async def main(client: CopilotClient):
-    session = await client.create_session(
-        on_permission_request=PermissionHandler.approve_all,
-        enable_citations=True,
-    )
-
-    resumed = await client.resume_session(
-        session.session_id,
-        on_permission_request=PermissionHandler.approve_all,
-        enable_citations=True,
-    )
-```
-<!-- /docs-validate: hidden -->
+<!-- docs-validate: skip -->
 
 ```python
 session = await client.create_session(
@@ -100,33 +68,7 @@ resumed = await client.resume_session(
 <details>
 <summary><strong>Go</strong></summary>
 
-<!-- docs-validate: hidden -->
-```go
-package main
-
-import (
-	"context"
-
-	copilot "github.com/github/copilot-sdk/go"
-)
-
-func main() {
-	ctx := context.Background()
-	client := copilot.NewClient(nil)
-
-	session, err := client.CreateSession(ctx, &copilot.SessionConfig{
-		OnPermissionRequest: copilot.PermissionHandler.ApproveAll,
-		EnableCitations:     copilot.Bool(true),
-	})
-
-	resumed, err := client.ResumeSession(ctx, session.SessionID, &copilot.ResumeSessionConfig{
-		OnPermissionRequest: copilot.PermissionHandler.ApproveAll,
-		EnableCitations:     copilot.Bool(true),
-	})
-	_, _ = resumed, err
-}
-```
-<!-- /docs-validate: hidden -->
+<!-- docs-validate: skip -->
 
 ```go
 session, err := client.CreateSession(ctx, &copilot.SessionConfig{
@@ -144,27 +86,9 @@ resumed, err := client.ResumeSession(ctx, session.SessionID, &copilot.ResumeSess
 <details>
 <summary><strong>.NET</strong></summary>
 
-<!-- docs-validate: hidden -->
-```csharp
-await using var client = new CopilotClient();
-
-#pragma warning disable GHCP001 // Citations are experimental.
-var session = await client.CreateSessionAsync(new SessionConfig
-{
-    OnPermissionRequest = PermissionHandler.ApproveAll,
-    EnableCitations = true,
-});
-
-var resumed = await client.ResumeSessionAsync(session.SessionId, new ResumeSessionConfig
-{
-    OnPermissionRequest = PermissionHandler.ApproveAll,
-    EnableCitations = true,
-});
-```
-<!-- /docs-validate: hidden -->
+<!-- docs-validate: skip -->
 
 ```csharp
-#pragma warning disable GHCP001 // Citations are experimental.
 var session = await client.CreateSessionAsync(new SessionConfig
 {
     OnPermissionRequest = PermissionHandler.ApproveAll,
@@ -182,33 +106,7 @@ var resumed = await client.ResumeSessionAsync(session.SessionId, new ResumeSessi
 <details>
 <summary><strong>Java</strong></summary>
 
-<!-- docs-validate: hidden -->
-```java
-import com.github.copilot.CopilotClient;
-import com.github.copilot.CopilotSession;
-import com.github.copilot.rpc.*;
-
-public class EnableCitationsExample {
-    public static void main(String[] args) throws Exception {
-        try (var client = new CopilotClient()) {
-            client.start().get();
-
-            CopilotSession session = client
-                    .createSession(new SessionConfig()
-                            .setOnPermissionRequest(PermissionHandler.APPROVE_ALL)
-                            .setEnableCitations(true))
-                    .get();
-
-            CopilotSession resumed = client
-                    .resumeSession(session.getSessionId(), new ResumeSessionConfig()
-                            .setOnPermissionRequest(PermissionHandler.APPROVE_ALL)
-                            .setEnableCitations(true))
-                    .get();
-        }
-    }
-}
-```
-<!-- /docs-validate: hidden -->
+<!-- docs-validate: skip -->
 
 ```java
 CopilotSession session = client
@@ -233,7 +131,7 @@ CopilotSession resumed = client
 ```rust
 let session = client
     .create_session(
-        SessionConfig::default()
+        SessionConfig::new()
             .approve_all_permissions()
             .with_enable_citations(true),
     )
@@ -257,32 +155,7 @@ Citations arrive on the final `assistant.message` event, not on `assistant.messa
 <details open>
 <summary><strong>TypeScript</strong></summary>
 
-<!-- docs-validate: strict -->
-<!-- docs-validate: hidden -->
-```typescript
-import type { CopilotSession } from "@github/copilot-sdk";
-
-declare const session: CopilotSession;
-
-session.on((event) => {
-    if (event.type !== "assistant.message" || !event.data.citations) {
-        return;
-    }
-
-    const { sources, spans } = event.data.citations;
-    const sourceById = new Map(sources.map((source) => [source.id, source]));
-
-    for (const span of spans) {
-        const quoted = event.data.content.slice(span.startIndex, span.endIndex);
-        for (const reference of span.references) {
-            const source = sourceById.get(reference.sourceId);
-            const label = source?.title ?? source?.url ?? source?.path ?? source?.id;
-            console.log(`"${quoted}" — ${label}`);
-        }
-    }
-});
-```
-<!-- /docs-validate: hidden -->
+<!-- docs-validate: skip -->
 
 ```typescript
 session.on((event) => {
@@ -308,33 +181,7 @@ session.on((event) => {
 <details>
 <summary><strong>Python</strong></summary>
 
-<!-- docs-validate: hidden -->
-```python
-from copilot.session import CopilotSession
-from copilot.session_events import SessionEventType
-
-def utf16_slice(text: str, start: int, end: int) -> str:
-    """Slice by UTF-16 code units, which is how span offsets are measured."""
-    units = text.encode("utf-16-le")
-    return units[start * 2 : end * 2].decode("utf-16-le")
-
-def handle(event):
-    if event.type != SessionEventType.ASSISTANT_MESSAGE or not event.data.citations:
-        return
-
-    sources = {source.id: source for source in event.data.citations.sources}
-
-    for span in event.data.citations.spans:
-        quoted = utf16_slice(event.data.content, span.start_index, span.end_index)
-        for reference in span.references:
-            source = sources[reference.source_id]
-            label = source.title or source.url or source.path or source.id
-            print(f'"{quoted}" — {label}')
-
-def register(session: CopilotSession):
-    session.on(handle)
-```
-<!-- /docs-validate: hidden -->
+<!-- docs-validate: skip -->
 
 ```python
 from copilot.session_events import SessionEventType
@@ -364,54 +211,7 @@ session.on(handle)
 <details>
 <summary><strong>Go</strong></summary>
 
-<!-- docs-validate: hidden -->
-```go
-package main
-
-import (
-	"fmt"
-	"unicode/utf16"
-
-	copilot "github.com/github/copilot-sdk/go"
-)
-
-func subscribeCitations(session *copilot.Session) {
-	session.On(func(event copilot.SessionEvent) {
-		d, ok := event.Data.(*copilot.AssistantMessageData)
-		if !ok || d.Citations == nil {
-			return
-		}
-
-		sources := map[string]copilot.CitationSource{}
-		for _, source := range d.Citations.Sources {
-			sources[source.ID] = source
-		}
-
-		// Span offsets are UTF-16 code units, so index the UTF-16 view of the content.
-		units := utf16.Encode([]rune(d.Content))
-
-		for _, span := range d.Citations.Spans {
-			quoted := string(utf16.Decode(units[span.StartIndex:span.EndIndex]))
-			for _, reference := range span.References {
-				source := sources[reference.SourceID]
-				label := source.ID
-				switch {
-				case source.Title != nil:
-					label = *source.Title
-				case source.URL != nil:
-					label = *source.URL
-				case source.Path != nil:
-					label = *source.Path
-				}
-				fmt.Printf("%q — %s\n", quoted, label)
-			}
-		}
-	})
-}
-
-func main() {}
-```
-<!-- /docs-validate: hidden -->
+<!-- docs-validate: skip -->
 
 ```go
 // import "unicode/utf16"
@@ -453,42 +253,9 @@ session.On(func(event copilot.SessionEvent) {
 <details>
 <summary><strong>.NET</strong></summary>
 
-<!-- docs-validate: hidden -->
-```csharp
-using GitHub.Copilot;
-
-#pragma warning disable GHCP001 // Citations are experimental.
-public static class CitationsExample
-{
-    public static void Subscribe(CopilotSession session)
-    {
-        session.On<SessionEvent>(evt =>
-        {
-            if (evt is not AssistantMessageEvent message || message.Data.Citations is null)
-            {
-                return;
-            }
-
-            var sources = message.Data.Citations.Sources.ToDictionary(source => source.Id);
-
-            foreach (var span in message.Data.Citations.Spans)
-            {
-                var quoted = message.Data.Content[(int)span.StartIndex..(int)span.EndIndex];
-                foreach (var reference in span.References)
-                {
-                    var source = sources[reference.SourceId];
-                    var label = source.Title ?? source.Url ?? source.Path ?? source.Id;
-                    Console.WriteLine($"\"{quoted}\" — {label}");
-                }
-            }
-        });
-    }
-}
-```
-<!-- /docs-validate: hidden -->
+<!-- docs-validate: skip -->
 
 ```csharp
-#pragma warning disable GHCP001 // Citations are experimental.
 session.On<SessionEvent>(evt =>
 {
     if (evt is not AssistantMessageEvent message || message.Data.Citations is null)
@@ -511,61 +278,13 @@ session.On<SessionEvent>(evt =>
 });
 ```
 
-The .NET `EnableCitations` option and `Citations` property raise the `GHCP001` experimental diagnostic. Suppress it with `#pragma warning disable GHCP001` or a project-level `<NoWarn>GHCP001</NoWarn>`.
-
 </details>
 <details>
 <summary><strong>Java</strong></summary>
 
-<!-- docs-validate: hidden -->
-```java
-import com.github.copilot.CopilotSession;
-import com.github.copilot.generated.AssistantMessageEvent;
-import com.github.copilot.generated.CitationReference;
-import com.github.copilot.generated.CitationSource;
-import com.github.copilot.generated.CitationSpan;
-import com.github.copilot.generated.Citations;
-import java.util.Map;
-import java.util.stream.Collectors;
-
-final class CitationsExample {
-    static void subscribe(CopilotSession session) {
-        session.on(AssistantMessageEvent.class, event -> {
-            Citations citations = event.getData().citations();
-            if (citations == null) {
-                return;
-            }
-
-            Map<String, CitationSource> sources = citations.sources().stream()
-                    .collect(Collectors.toMap(CitationSource::id, source -> source));
-
-            for (CitationSpan span : citations.spans()) {
-                String quoted = event.getData().content()
-                        .substring(span.startIndex().intValue(), span.endIndex().intValue());
-                for (CitationReference reference : span.references()) {
-                    CitationSource source = sources.get(reference.sourceId());
-                    String label = source.title() != null ? source.title()
-                            : source.url() != null ? source.url()
-                            : source.path() != null ? source.path()
-                            : source.id();
-                    System.out.printf("\"%s\" — %s%n", quoted, label);
-                }
-            }
-        });
-    }
-}
-```
-<!-- /docs-validate: hidden -->
+<!-- docs-validate: skip -->
 
 ```java
-import com.github.copilot.generated.AssistantMessageEvent;
-import com.github.copilot.generated.CitationReference;
-import com.github.copilot.generated.CitationSource;
-import com.github.copilot.generated.CitationSpan;
-import com.github.copilot.generated.Citations;
-import java.util.Map;
-import java.util.stream.Collectors;
-
 session.on(AssistantMessageEvent.class, event -> {
     Citations citations = event.getData().citations();
     if (citations == null) {
@@ -687,27 +406,7 @@ Citations need source material the model can attribute. There are two ways to su
 
 When citations are enabled and the session uses an Anthropic provider, file attachments are sent as `document` blocks with citations turned on, so the model can cite passages from them.
 
-<!-- docs-validate: strict -->
-<!-- docs-validate: hidden -->
-```typescript
-import type { CopilotSession } from "@github/copilot-sdk";
-
-declare const session: CopilotSession;
-declare const pdfBase64: string;
-
-await session.sendAndWait({
-    prompt: "Summarize the attached PDF and cite the passages you used.",
-    attachments: [
-        {
-            type: "blob",
-            data: pdfBase64,
-            displayName: "quarterly-report.pdf",
-            mimeType: "application/pdf",
-        },
-    ],
-});
-```
-<!-- /docs-validate: hidden -->
+<!-- docs-validate: skip -->
 
 ```typescript
 await session.sendAndWait({

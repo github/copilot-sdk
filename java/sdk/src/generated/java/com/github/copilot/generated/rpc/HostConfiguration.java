@@ -25,8 +25,6 @@ import javax.annotation.processing.Generated;
 @JsonInclude(JsonInclude.Include.NON_NULL)
 @JsonIgnoreProperties(ignoreUnknown = true)
 record HostConfiguration(
-    /** Explicit host-wide admission policy. Always supplied by the runtime after validating host.start. */
-    @JsonProperty("authentication") Object authentication,
     /** Normalized local listener settings, absent for relay-only hosts. */
     @JsonProperty("localServer") HostLocalServerConfiguration localServer,
     /** Requested GitHub Mission Control registration. */
@@ -34,8 +32,6 @@ record HostConfiguration(
     /** Whether session materialization is delegated to the owning application. */
     @JsonProperty("sessionFactory") Boolean sessionFactory,
     /** Whether app-owned durable sessions are resumed by the owning application. */
-    @JsonProperty("resumeFactory") Boolean resumeFactory,
-    /** Initial remote creation policy, independent of application session factories. Defaults to denied when omitted. */
-    @JsonProperty("allowCreatingNewSessions") Boolean allowCreatingNewSessions
+    @JsonProperty("resumeFactory") Boolean resumeFactory
 ) {
 }

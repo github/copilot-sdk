@@ -21,9 +21,7 @@ import java.util.concurrent.Executor;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.RejectedExecutionException;
 import java.util.concurrent.TimeUnit;
-import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Function;
-import java.util.function.Supplier;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 
@@ -34,7 +32,6 @@ import com.github.copilot.rpc.CopilotClientMode;
 import com.github.copilot.rpc.CopilotClientOptions;
 import com.github.copilot.rpc.ExtensionLaunchProvider;
 import com.github.copilot.rpc.InstallationConfirmationHandler;
-import com.github.copilot.rpc.KerberosAuthConfig;
 import com.github.copilot.rpc.InProcessRuntimeConnection;
 import com.github.copilot.rpc.RuntimeConnection;
 import com.github.copilot.rpc.StdioRuntimeConnection;
@@ -44,7 +41,6 @@ import com.github.copilot.rpc.CreateSessionResponse;
 import com.github.copilot.generated.rpc.SessionOptionsUpdateParams;
 import com.github.copilot.generated.rpc.SessionInstalledPlugin;
 import com.github.copilot.generated.rpc.GitHubTelemetryNotification;
-import com.github.copilot.generated.rpc.KerberosAuthSetProviderParams;
 import com.github.copilot.generated.rpc.ServerRpc;
 import com.github.copilot.generated.rpc.SessionEventLogRegisterInterestParams;
 import com.github.copilot.rpc.DeleteSessionResponse;
@@ -134,13 +130,8 @@ public final class CopilotClient implements AutoCloseable {
     private final RuntimeConnection runtimeConnection;
     private final String effectiveConnectionToken;
     private final Runnable closeHook;
-    private volatile ModelsCache modelsCache = new ModelsCache();
-
-    private static final class ModelsCache {
-        private volatile List<ModelInfo> models;
-        private final AtomicReference<CompletableFuture<Void>> fetchTail = new AtomicReference<>(
-                CompletableFuture.completedFuture(null));
-    }
+    private volatile List<ModelInfo> modelsCache;
+    private final Object modelsCacheLock = new Object();
 
     /**
      * Creates a new CopilotClient with default options.
@@ -623,30 +614,12 @@ public final class CopilotClient implements AutoCloseable {
                 installationConfirmationAdapter.registerHandlers(connectedRpc);
             }
             InstallationConfirmationAdapter connectedInstallationConfirmationAdapter = installationConfirmationAdapter;
-            var entraProvider = this.options.getEntra() == null ? null : this.options.getEntra().getTokenProvider();
-            var entraAdapter = entraProvider == null ? null : new EntraTokenAdapter(entraProvider, executor);
-            if (entraAdapter != null) {
-                entraAdapter.registerHandlers(connectedRpc);
-            }
-            KerberosAuthConfig kerberosAuth = this.options.getKerberosAuth();
-            KerberosAuthAdapter kerberosAuthAdapter = null;
-            if (kerberosAuth != null) {
-                kerberosAuthAdapter = new KerberosAuthAdapter(kerberosAuth.callback(), executor);
-                kerberosAuthAdapter.registerHandlers(connectedRpc);
-            }
-            KerberosAuthAdapter connectedKerberosAuthAdapter = kerberosAuthAdapter;
             // JsonRpcClient keeps one handler per method, so this one serves every request
             // that honors cancellation.
             connectedRpc.registerMethodHandler("$/cancelRequest", (rpcId, params) -> {
                 dispatcher.handleCancelRequest(params);
-                if (entraAdapter != null) {
-                    entraAdapter.handleCancel(connectedRpc, params);
-                }
                 if (connectedInstallationConfirmationAdapter != null) {
                     connectedInstallationConfirmationAdapter.handleCancel(connectedRpc, params);
-                }
-                if (connectedKerberosAuthAdapter != null) {
-                    connectedKerberosAuthAdapter.handleCancel(connectedRpc, params);
                 }
             });
             connectedRpc.setCloseHandler(() -> {
@@ -656,17 +629,11 @@ public final class CopilotClient implements AutoCloseable {
                     session.clearSkillProvider();
                 });
                 dispatcher.cancelSkillProviderCalls();
-                if (entraAdapter != null) {
-                    entraAdapter.closePending();
-                }
                 if (connectedLlmAdapter != null) {
                     connectedLlmAdapter.cancelPending();
                 }
                 if (connectedInstallationConfirmationAdapter != null) {
                     connectedInstallationConfirmationAdapter.closePending();
-                }
-                if (connectedKerberosAuthAdapter != null) {
-                    connectedKerberosAuthAdapter.closePending();
                 }
             });
 
@@ -687,12 +654,6 @@ public final class CopilotClient implements AutoCloseable {
             verifyProtocolVersion(connection);
             LoggingHelpers.logTiming(LOG, Level.FINE,
                     "CopilotClient.start protocol verification complete. Elapsed={Elapsed}", startNanos);
-
-            if (kerberosAuth != null) {
-                connection.serverRpc().kerberosAuth
-                        .setProvider(new KerberosAuthSetProviderParams(kerberosAuth.mode(), kerberosAuth.scope()))
-                        .join();
-            }
 
             if (extensionLaunchProvider != null) {
                 connection.serverRpc().registerExtensionLaunchProvider().join();
@@ -774,13 +735,6 @@ public final class CopilotClient implements AutoCloseable {
                 connectParams.put("token", effectiveConnectionToken);
             }
             connectParams.put("supportedTaskKinds", List.of("agent", "client", "shell"));
-            if (this.options.getEntra() != null) {
-                connectParams.put("entra", new com.github.copilot.generated.rpc.EntraAuthConfig(
-                        this.options.getEntra().getClientId(), this.options.getEntra().getMatsAppName()));
-                if (this.options.getEntra().getTokenProvider() != null) {
-                    connectParams.put("entraTokenProvider", true);
-                }
-            }
             // Opt into GitHub telemetry forwarding at the connection level when a handler
             // is registered, so the runtime can forward the first session's un-replayable
             // start event. Also sent on session create/resume for backward compatibility
@@ -797,11 +751,6 @@ public final class CopilotClient implements AutoCloseable {
             }
             var connectResponse = connection.rpc.invoke("connect", connectParams, JsonNode.class).get(30,
                     TimeUnit.SECONDS);
-            if (this.options.getEntra() != null && this.options.getEntra().getTokenProvider() != null
-                    && (!connectResponse.path("entraTokenProvider").isBoolean()
-                            || !connectResponse.path("entraTokenProvider").booleanValue())) {
-                throw new IllegalStateException("This runtime does not support host-owned Entra token providers.");
-            }
             var protocolVersion = connectResponse.get("protocolVersion");
             serverVersion = protocolVersion != null && !protocolVersion.isNull() ? protocolVersion.intValue() : null;
         } catch (Exception e) {
@@ -811,9 +760,6 @@ public final class CopilotClient implements AutoCloseable {
                 cause = cause.getCause();
             }
             if (cause instanceof JsonRpcException rpcEx && isUnsupportedConnectMethod(rpcEx)) {
-                if (this.options.getEntra() != null) {
-                    throw new IllegalStateException("This runtime does not support Entra client configuration.", cause);
-                }
                 // Legacy server without 'connect'; fall back to 'ping'.
                 // A token, if any, is silently dropped — the legacy server can't enforce one.
                 var params = new HashMap<String, Object>();
@@ -917,9 +863,8 @@ public final class CopilotClient implements AutoCloseable {
         CompletableFuture<Connection> future = connectionFuture;
         connectionFuture = null;
 
-        // Retire the cache and its queue together so old fetches cannot affect a new
-        // lifecycle.
-        modelsCache = new ModelsCache();
+        // Clear models cache
+        modelsCache = null;
 
         if (future == null) {
             return CompletableFuture.completedFuture(null);
@@ -1583,9 +1528,6 @@ public final class CopilotClient implements AutoCloseable {
 
     /**
      * Gets the current connection state.
-     * <p>
-     * Reports {@link ConnectionState#DISCONNECTED} once the connection to the
-     * runtime has closed, for example because the runtime process exited.
      *
      * @return the current connection state
      * @see ConnectionState
@@ -1598,8 +1540,6 @@ public final class CopilotClient implements AutoCloseable {
             return ConnectionState.CONNECTING;
         if (future.isCompletedExceptionally())
             return ConnectionState.ERROR;
-        if (future.join().rpc().isClosed())
-            return ConnectionState.DISCONNECTED;
         return ConnectionState.CONNECTED;
     }
 
@@ -1683,8 +1623,7 @@ public final class CopilotClient implements AutoCloseable {
      */
     public CompletableFuture<List<ModelInfo>> listModels() {
         // Check cache first
-        ModelsCache cache = modelsCache;
-        List<ModelInfo> cached = cache.models;
+        List<ModelInfo> cached = modelsCache;
         if (cached != null) {
             return CompletableFuture.completedFuture(new ArrayList<>(cached));
         }
@@ -1692,39 +1631,35 @@ public final class CopilotClient implements AutoCloseable {
         // If a custom handler is configured, use it instead of querying the CLI server
         var onListModels = options.getOnListModels();
         if (onListModels != null) {
-            return loadModels(cache, onListModels);
+            synchronized (modelsCacheLock) {
+                if (modelsCache != null) {
+                    return CompletableFuture.completedFuture(new ArrayList<>(modelsCache));
+                }
+            }
+            return onListModels.get().thenApply(models -> {
+                synchronized (modelsCacheLock) {
+                    modelsCache = models;
+                }
+                return new ArrayList<>(models);
+            });
         }
 
-        return ensureConnected().thenCompose(connection -> loadModels(cache, () -> connection.rpc
-                .invoke("models.list", Map.of(), GetModelsResponse.class).thenApply(GetModelsResponse::getModels)));
-    }
-
-    /**
-     * Fills the models cache with {@code fetch}, one call at a time.
-     * <p>
-     * Each call waits for the previous one to finish, as if it held a lock across
-     * the fetch: a call that waited for a successful fetch is served from the
-     * cache, and after a failed fetch the next waiting call retries.
-     */
-    private CompletableFuture<List<ModelInfo>> loadModels(ModelsCache cache,
-            Supplier<CompletableFuture<List<ModelInfo>>> fetch) {
-        var finished = new CompletableFuture<Void>();
-        CompletableFuture<Void> previous = cache.fetchTail.getAndSet(finished);
-        CompletableFuture<List<ModelInfo>> models = previous.thenCompose(ignored -> {
-            List<ModelInfo> cached = cache.models;
-            if (cached != null) {
-                return CompletableFuture.completedFuture(cached);
+        return ensureConnected().thenCompose(connection -> {
+            // Double-check cache inside lock
+            synchronized (modelsCacheLock) {
+                if (modelsCache != null) {
+                    return CompletableFuture.completedFuture(new ArrayList<>(modelsCache));
+                }
             }
-            return fetch.get().thenApply(fetched -> {
-                cache.models = fetched;
-                return fetched;
+
+            return connection.rpc.invoke("models.list", Map.of(), GetModelsResponse.class).thenApply(response -> {
+                List<ModelInfo> models = response.getModels();
+                synchronized (modelsCacheLock) {
+                    modelsCache = models;
+                }
+                return new ArrayList<>(models); // Return a copy to prevent cache mutation
             });
         });
-        // Release the next call from this internal future, so a caller cancelling its
-        // own copy cannot let the next call start a second fetch. Dispatch the release
-        // independently so queued callbacks can join this result, and failure callbacks
-        // can synchronously retry, without blocking result publication.
-        return models.whenComplete((result, error) -> finished.completeAsync(() -> null)).thenApply(ArrayList::new);
     }
 
     /**
@@ -1919,8 +1854,6 @@ public final class CopilotClient implements AutoCloseable {
     /**
      * Starts in-process AHP hosting owned by this client's current connection. At
      * least one of local server or GitHub environment must be selected explicitly.
-     * An explicit admission policy is required in every client mode and validated
-     * before allocating a connection; GitHub environments require GitHub admission.
      * Application callbacks stay in this SDK process; no host executable is
      * launched. If the returned future is cancelled, a listener that subsequently
      * starts is disposed.
@@ -1931,11 +1864,6 @@ public final class CopilotClient implements AutoCloseable {
      */
     @CopilotExperimental
     public CompletableFuture<AhpHost> startAhpHost(AhpHostOptions options) {
-        try {
-            AhpHostManager.validateOptions(options);
-        } catch (IllegalArgumentException error) {
-            return CompletableFuture.failedFuture(error);
-        }
         if (options == null || (options.getLocalServer() == null && options.getGithubEnvironment() == null)) {
             return CompletableFuture
                     .failedFuture(new IllegalArgumentException("At least one AHP transport must be configured"));

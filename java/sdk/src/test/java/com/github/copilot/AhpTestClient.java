@@ -15,28 +15,16 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.Path;
 import java.util.Map;
 import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
 
 final class AhpTestClient implements AutoCloseable {
     private final Process process;
     private final BufferedReader output;
     private final BufferedWriter input;
-    private volatile Thread outputThread;
-    private final ExecutorService outputExecutor = Executors.newSingleThreadExecutor(task -> {
-        outputThread = new Thread(task, "ahp-test-client-output");
-        outputThread.setDaemon(true);
-        return outputThread;
-    });
 
     AhpTestClient(Path sdkRoot) throws Exception {
-        this(sdkRoot, "test/e2e/harness/ahpTestDriver.ts");
-    }
-
-    AhpTestClient(Path sdkRoot, String driver) throws Exception {
-        process = new ProcessBuilder("node", "--import", "tsx", driver).directory(sdkRoot.resolve("nodejs").toFile())
-                .redirectError(ProcessBuilder.Redirect.INHERIT).start();
+        process = new ProcessBuilder("node", "--import", "tsx", "test/e2e/harness/ahpTestDriver.ts")
+                .directory(sdkRoot.resolve("nodejs").toFile()).redirectError(ProcessBuilder.Redirect.INHERIT).start();
         output = new BufferedReader(new InputStreamReader(process.getInputStream(), StandardCharsets.UTF_8));
         input = new BufferedWriter(new OutputStreamWriter(process.getOutputStream(), StandardCharsets.UTF_8));
         try {
@@ -75,7 +63,7 @@ final class AhpTestClient implements AutoCloseable {
             } catch (IOException error) {
                 throw new UncheckedIOException(error);
             }
-        }, outputExecutor).get();
+        }).get(60, TimeUnit.SECONDS);
     }
 
     @Override
@@ -89,20 +77,13 @@ final class AhpTestClient implements AutoCloseable {
                 throw new IOException("Standard AHP test client exited with code " + process.exitValue());
             }
         } finally {
-            try {
-                if (process.isAlive()) {
-                    process.destroyForcibly();
-                    if (!process.waitFor(10, TimeUnit.SECONDS)) {
-                        throw new IOException("Could not reap standard AHP test client");
-                    }
-                }
-                output.close();
-            } finally {
-                outputExecutor.shutdown();
-                if (!process.isAlive() && outputThread != null) {
-                    outputThread.join();
+            if (process.isAlive()) {
+                process.destroyForcibly();
+                if (!process.waitFor(10, TimeUnit.SECONDS)) {
+                    throw new IOException("Could not reap standard AHP test client");
                 }
             }
+            output.close();
         }
     }
 }

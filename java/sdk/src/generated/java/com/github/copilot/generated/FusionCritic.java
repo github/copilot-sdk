@@ -26,13 +26,10 @@ import javax.annotation.processing.Generated;
 @JsonIgnoreProperties(ignoreUnknown = true)
 public record FusionCritic(
     /** Unique execution phase identifier for this critic. */
-    @CopilotExperimental
     @JsonProperty("phaseId") String phaseId,
     /** Concrete model selected for this critic. */
-    @CopilotExperimental
     @JsonProperty("model") String model,
     /** Explicit reasoning effort selected for this critic, if supplied. */
-    @CopilotExperimental
     @JsonProperty("reasoningEffort") String reasoningEffort
 ) {
 }

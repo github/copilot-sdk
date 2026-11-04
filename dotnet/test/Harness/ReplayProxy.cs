@@ -2,7 +2,6 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *--------------------------------------------------------------------------------------------*/
 
-using Microsoft.Win32.SafeHandles;
 using System.Diagnostics;
 using System.Net.Http;
 using System.Net.Http.Json;
@@ -17,22 +16,10 @@ namespace GitHub.Copilot.Test.Harness;
 public sealed partial class ReplayProxy : IAsyncDisposable
 {
     private Process? _process;
-    private SafeJobHandle? _processJob;
     private Task<string>? _startupTask;
 
     public string? ConnectProxyUrl { get; private set; }
     public string? CaFilePath { get; private set; }
-
-    internal static HttpClient CreateExchangeHttpClient(CancellationToken cancellationToken)
-    {
-        var client = new HttpClient();
-        if (cancellationToken.CanBeCanceled)
-        {
-            // Only remove the competing HTTP deadline when the caller owns cancellation.
-            client.Timeout = Timeout.InfiniteTimeSpan;
-        }
-        return client;
-    }
 
     public Task<string> StartAsync()
     {
@@ -53,6 +40,7 @@ public sealed partial class ReplayProxy : IAsyncDisposable
             };
 
             var process = new Process { StartInfo = startInfo };
+            var tcs = new TaskCompletionSource<string>(TaskCreationOptions.RunContinuationsAsynchronously);
             var diagnostics = new StartupDiagnostics();
             var elapsed = Stopwatch.StartNew();
 
@@ -60,7 +48,41 @@ public sealed partial class ReplayProxy : IAsyncDisposable
             {
                 if (e.Data == null) return;
                 diagnostics.AppendOutput(e.Data);
-                diagnostics.PublishReadiness();
+                var match = Regex.Match(e.Data, @"Listening: (?<url>http://[^\s]+)\s+(?<metadata>\{.*\})$");
+                if (!match.Success)
+                {
+                    if (e.Data.Contains("Listening: ", StringComparison.Ordinal))
+                    {
+                        tcs.TrySetException(
+                            new InvalidOperationException(
+                                $"Proxy startup line missing CONNECT proxy metadata: {e.Data}"));
+                    }
+                    return;
+                }
+                try
+                {
+                    var metadata = JsonSerializer.Deserialize(
+                        match.Groups["metadata"].Value,
+                        ReplayProxyJsonContext.Default.ProxyStartupMetadata);
+                    ConnectProxyUrl = metadata?.ConnectProxyUrl;
+                    CaFilePath = metadata?.CaFilePath;
+                }
+                catch (Exception ex) when (ex is JsonException or NotSupportedException)
+                {
+                    tcs.TrySetException(
+                        new InvalidOperationException(
+                            $"Failed to parse proxy startup metadata: {match.Groups["metadata"].Value}",
+                            ex));
+                    return;
+                }
+                if (string.IsNullOrEmpty(ConnectProxyUrl) || string.IsNullOrEmpty(CaFilePath))
+                {
+                    tcs.TrySetException(
+                        new InvalidOperationException(
+                            $"Proxy startup metadata missing CONNECT proxy details: {e.Data}"));
+                    return;
+                }
+                tcs.TrySetResult(match.Groups["url"].Value);
             };
 
             process.ErrorDataReceived += (_, e) =>
@@ -82,15 +104,14 @@ public sealed partial class ReplayProxy : IAsyncDisposable
                 process.Dispose();
                 throw;
             }
-            _processJob = TryBindToKillOnCloseJob(process);
             _process = process;
             process.BeginOutputReadLine();
             process.BeginErrorReadLine();
             _ = process.WaitForExitAsync().ContinueWith(_ =>
             {
-                if (!diagnostics.Readiness.IsCompleted)
+                if (!tcs.Task.IsCompleted)
                 {
-                    diagnostics.FailStartup(new Exception(
+                    tcs.TrySetException(new Exception(
                         $"Proxy exited before readiness. {diagnostics.Describe(process.Id, elapsed.Elapsed, process.ExitCode)}"));
                 }
             });
@@ -98,17 +119,12 @@ public sealed partial class ReplayProxy : IAsyncDisposable
             // Use longer timeout on Windows due to slower process startup
             var timeoutSeconds = RuntimeInformation.IsOSPlatform(OSPlatform.Windows) ? 30 : 10;
             using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(timeoutSeconds));
-            using var registration = cts.Token.Register(() => diagnostics.TimeOutStartup(new TimeoutException(
+            using var registration = cts.Token.Register(() => tcs.TrySetException(new TimeoutException(
                 $"Timeout waiting for proxy. {diagnostics.Describe(process.Id, elapsed.Elapsed, process.HasExited ? process.ExitCode : null)}")));
 
-            var readiness = await diagnostics.Readiness;
-            ConnectProxyUrl = readiness.ConnectProxyUrl;
-            CaFilePath = readiness.CaFilePath;
-            return readiness.Url;
+            return await tcs.Task;
         }
     }
-
-    internal sealed record StartupReadiness(string Url, string ConnectProxyUrl, string CaFilePath);
 
     internal sealed class StartupDiagnostics
     {
@@ -116,24 +132,15 @@ public sealed partial class ReplayProxy : IAsyncDisposable
         private readonly object _gate = new();
         private readonly StringBuilder _stdout = new();
         private readonly StringBuilder _stderr = new();
-        private readonly TaskCompletionSource<StartupReadiness> _readiness =
-            new(TaskCreationOptions.RunContinuationsAsynchronously);
-        private string? _listeningLine;
 
-        public Task<StartupReadiness> Readiness => _readiness.Task;
+        public void AppendOutput(string line) => Append(_stdout, line);
 
-        public void AppendOutput(string line) => Append(_stdout, line, captureReadiness: true);
+        public void AppendError(string line) => Append(_stderr, line);
 
-        public void AppendError(string line) => Append(_stderr, line, captureReadiness: false);
-
-        private void Append(StringBuilder output, string line, bool captureReadiness)
+        private void Append(StringBuilder output, string line)
         {
             lock (_gate)
             {
-                if (captureReadiness && line.Contains("Listening: ", StringComparison.Ordinal))
-                {
-                    _listeningLine ??= line;
-                }
                 output.Append(line, Math.Max(0, line.Length - OutputLimit), Math.Min(line.Length, OutputLimit));
                 output.AppendLine();
                 if (output.Length > OutputLimit)
@@ -141,64 +148,6 @@ public sealed partial class ReplayProxy : IAsyncDisposable
                     output.Remove(0, output.Length - OutputLimit);
                 }
             }
-        }
-
-        public void PublishReadiness()
-        {
-            if (_readiness.Task.IsCompleted) return;
-            string? line;
-            lock (_gate)
-            {
-                line = _listeningLine;
-            }
-            if (line is null) return;
-            var match = Regex.Match(line, @"Listening: (?<url>http://[^\s]+)\s+(?<metadata>\{.*\})$");
-            if (!match.Success)
-            {
-                FailStartup(new InvalidOperationException(
-                    $"Proxy startup line missing CONNECT proxy metadata: {line}"));
-                return;
-            }
-            ProxyStartupMetadata? metadata;
-            try
-            {
-                metadata = JsonSerializer.Deserialize(
-                    match.Groups["metadata"].Value,
-                    ReplayProxyJsonContext.Default.ProxyStartupMetadata);
-            }
-            catch (Exception ex) when (ex is JsonException or NotSupportedException)
-            {
-                FailStartup(new InvalidOperationException(
-                    $"Failed to parse proxy startup metadata: {match.Groups["metadata"].Value}", ex));
-                return;
-            }
-            if (metadata is not
-                {
-                    ConnectProxyUrl: { Length: > 0 } connectProxyUrl,
-                    CaFilePath: { Length: > 0 } caFilePath,
-                })
-            {
-                FailStartup(new InvalidOperationException(
-                    $"Proxy startup metadata missing CONNECT proxy details: {line}"));
-                return;
-            }
-            _readiness.TrySetResult(new StartupReadiness(
-                match.Groups["url"].Value, connectProxyUrl, caFilePath));
-        }
-
-        public bool FailStartup(Exception error) => _readiness.TrySetException(error);
-
-        public bool TimeOutStartup(TimeoutException error)
-        {
-            lock (_gate)
-            {
-                if (_listeningLine is null)
-                {
-                    return FailStartup(error);
-                }
-            }
-            PublishReadiness();
-            return FailStartup(error);
         }
 
         public string Describe(int processId, TimeSpan elapsed, int? exitCode)
@@ -273,8 +222,6 @@ public sealed partial class ReplayProxy : IAsyncDisposable
         {
             _process?.Dispose();
             _process = null;
-            _processJob?.Dispose();
-            _processJob = null;
             _startupTask = null;
         }
         if (shutdownFailure != null)
@@ -299,13 +246,12 @@ public sealed partial class ReplayProxy : IAsyncDisposable
 
     private record ProxyStartupMetadata(string? ConnectProxyUrl, string? CaFilePath);
 
-    public async Task<List<ParsedHttpExchange>> GetExchangesAsync(CancellationToken cancellationToken = default)
+    public async Task<List<ParsedHttpExchange>> GetExchangesAsync()
     {
-        var url = await (_startupTask ?? throw new InvalidOperationException("Proxy not started"))
-            .WaitAsync(Timeout.InfiniteTimeSpan, cancellationToken);
+        var url = await (_startupTask ?? throw new InvalidOperationException("Proxy not started"));
 
-        using var client = CreateExchangeHttpClient(cancellationToken);
-        return await client.GetFromJsonAsync($"{url}/exchanges", ReplayProxyJsonContext.Default.ListParsedHttpExchange, cancellationToken)
+        using var client = new HttpClient();
+        return await client.GetFromJsonAsync($"{url}/exchanges", ReplayProxyJsonContext.Default.ListParsedHttpExchange)
                ?? [];
     }
 
@@ -334,106 +280,6 @@ public sealed partial class ReplayProxy : IAsyncDisposable
             dir = dir.Parent;
         }
         throw new InvalidOperationException("Could not find repository root");
-    }
-
-    // On Windows, puts the proxy and everything it starts in a job that Windows terminates when
-    // its last handle closes. Only this process holds that handle (it is not inheritable), so the
-    // proxy dies with the test host even when the host crashes. Otherwise the orphaned proxy keeps
-    // the host's inherited stdout/stderr pipes open and `dotnet test` waits on them indefinitely.
-    private static SafeJobHandle? TryBindToKillOnCloseJob(Process process)
-    {
-        if (!RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
-        {
-            return null;
-        }
-
-        var job = CreateJobObjectW(IntPtr.Zero, IntPtr.Zero);
-        var limits = new JobObjectExtendedLimitInformation();
-        limits.BasicLimitInformation.LimitFlags = JobObjectLimitKillOnJobClose;
-        if (job.IsInvalid
-            || !SetInformationJobObject(
-                job,
-                JobObjectExtendedLimitInformationClass,
-                ref limits,
-                (uint)Marshal.SizeOf<JobObjectExtendedLimitInformation>())
-            || !AssignProcessToJobObject(job, process.SafeHandle))
-        {
-            var error = Marshal.GetLastWin32Error();
-            job.Dispose();
-            Console.Error.WriteLine(
-                $"[SDK proxy] Could not bind PID {process.Id} to a kill-on-close job (Win32 error {error}); it can outlive a crashed test host.");
-            return null;
-        }
-
-        return job;
-    }
-
-    private const int JobObjectExtendedLimitInformationClass = 9;
-    private const uint JobObjectLimitKillOnJobClose = 0x2000;
-
-    [DllImport("kernel32", SetLastError = true)]
-    private static extern SafeJobHandle CreateJobObjectW(IntPtr jobAttributes, IntPtr name);
-
-    [DllImport("kernel32", SetLastError = true)]
-    [return: MarshalAs(UnmanagedType.Bool)]
-    private static extern bool SetInformationJobObject(
-        SafeJobHandle job,
-        int infoClass,
-        ref JobObjectExtendedLimitInformation info,
-        uint infoLength);
-
-    [DllImport("kernel32", SetLastError = true)]
-    [return: MarshalAs(UnmanagedType.Bool)]
-    private static extern bool AssignProcessToJobObject(SafeJobHandle job, SafeHandle process);
-
-    [DllImport("kernel32", SetLastError = true)]
-    [return: MarshalAs(UnmanagedType.Bool)]
-    private static extern bool CloseHandle(IntPtr handle);
-
-    private sealed class SafeJobHandle : SafeHandleZeroOrMinusOneIsInvalid
-    {
-        public SafeJobHandle()
-            : base(ownsHandle: true)
-        {
-        }
-
-        protected override bool ReleaseHandle() => CloseHandle(handle);
-    }
-
-    [StructLayout(LayoutKind.Sequential)]
-    private struct JobObjectBasicLimitInformation
-    {
-        public long PerProcessUserTimeLimit;
-        public long PerJobUserTimeLimit;
-        public uint LimitFlags;
-        public UIntPtr MinimumWorkingSetSize;
-        public UIntPtr MaximumWorkingSetSize;
-        public uint ActiveProcessLimit;
-        public UIntPtr Affinity;
-        public uint PriorityClass;
-        public uint SchedulingClass;
-    }
-
-    [StructLayout(LayoutKind.Sequential)]
-    private struct IoCounters
-    {
-        public ulong ReadOperationCount;
-        public ulong WriteOperationCount;
-        public ulong OtherOperationCount;
-        public ulong ReadTransferCount;
-        public ulong WriteTransferCount;
-        public ulong OtherTransferCount;
-    }
-
-    [StructLayout(LayoutKind.Sequential)]
-    private struct JobObjectExtendedLimitInformation
-    {
-        public JobObjectBasicLimitInformation BasicLimitInformation;
-        public IoCounters IoInfo;
-        public UIntPtr ProcessMemoryLimit;
-        public UIntPtr JobMemoryLimit;
-        public UIntPtr PeakProcessMemoryUsed;
-        public UIntPtr PeakJobMemoryUsed;
     }
 
     [JsonSourceGenerationOptions(JsonSerializerDefaults.Web)]

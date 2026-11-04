@@ -19,6 +19,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CopyOnWriteArrayList;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.Timeout;
@@ -38,7 +39,7 @@ class RuntimeHostIT {
     }
 
     private static <T> T await(CompletableFuture<T> future) throws Exception {
-        return future.get();
+        return future.get(30, TimeUnit.SECONDS);
     }
 
     private static final class Application {
@@ -95,9 +96,8 @@ class RuntimeHostIT {
         }
 
         AhpHostOptions options() {
-            return new AhpHostOptions().setAuthentication(AhpHostAuthentication.github())
-                    .setLocalServer(new HostLocalServerOptions(null, null, null, null))
-                    .setAllowCreatingNewSessions(true).setCreateSession(request -> {
+            return new AhpHostOptions().setLocalServer(new HostLocalServerOptions(null, null, null, null))
+                    .setCreateSession(request -> {
                         creates.incrementAndGet();
                         assertFalse(request.cancellation().toCompletableFuture().isDone());
                         assertEquals(context.getWorkDir().toString(), request.config().getWorkingDirectory());

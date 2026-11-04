@@ -10,8 +10,6 @@ what the SDK serialized.
 
 from __future__ import annotations
 
-import asyncio
-
 import pytest
 
 from copilot import CopilotClient, RuntimeConnection
@@ -161,8 +159,8 @@ class TestAutoTier:
             model="auto",
             capi={"auto_tier": "efficiency", "enable_web_socket_responses": False},
         )
-        model_change_task = get_next_event_of_type(session, "session.model_change", timeout=None)
         try:
+            model_change_task = get_next_event_of_type(session, "session.model_change")
             staged = await session.set_auto_tier("fast")
             assert staged.status == ModelSwitchAutoTierStatus.PENDING
             assert staged.effective_auto_tier == AutoTier.EFFICIENCY
@@ -174,7 +172,7 @@ class TestAutoTier:
 
             await session.send_and_wait("Reply with exactly AUTO_TIER_FAST_COMMITTED.")
 
-            model_change = await asyncio.wait_for(model_change_task, timeout=30.0)
+            model_change = await model_change_task
             assert isinstance(model_change.data, SessionModelChangeData)
             assert model_change.data.previous_model == "auto"
             assert model_change.data.new_model == "auto"
@@ -186,8 +184,6 @@ class TestAutoTier:
             assert committed.pending_auto_tier is None
             assert committed.activating_auto_tier is None
         finally:
-            model_change_task.cancel()
-            await asyncio.gather(model_change_task, return_exceptions=True)
             await session.disconnect()
             await client.stop()
 
@@ -212,36 +208,31 @@ class TestAutoTier:
                 fast_committed |= event.data.auto_tier == AutoTier.FAST
 
         unsubscribe = session.on(on_event)
-        failure_task = get_next_event_of_type(
-            session, "session.auto_tier_switch_failed", timeout=None
-        )
+        failure_task = get_next_event_of_type(session, "session.auto_tier_switch_failed")
 
-        try:
-            staged = await session.set_auto_tier("fast")
-            assert staged.status == ModelSwitchAutoTierStatus.PENDING
-            assert staged.effective_auto_tier == AutoTier.EFFICIENCY
-            assert staged.pending_auto_tier == AutoTier.FAST
+        staged = await session.set_auto_tier("fast")
+        assert staged.status == ModelSwitchAutoTierStatus.PENDING
+        assert staged.effective_auto_tier == AutoTier.EFFICIENCY
+        assert staged.pending_auto_tier == AutoTier.FAST
 
-            await session.send_and_wait("Reply with exactly AUTO_TIER_FAILURE_RECOVERED.")
+        await session.send_and_wait("Reply with exactly AUTO_TIER_FAILURE_RECOVERED.")
 
-            failure = await asyncio.wait_for(failure_task, timeout=30.0)
-            assert failure.ephemeral is True
-            assert isinstance(failure.data, SessionAutoTierSwitchFailedData)
-            assert failure.data.effective_auto_tier == AutoTier.EFFICIENCY
-            assert failure.data.requested_auto_tier == AutoTier.FAST
-            assert failure.data.reason.value == "request_failed"
-            assert fast_committed is False
+        failure = await failure_task
+        assert failure.ephemeral is True
+        assert isinstance(failure.data, SessionAutoTierSwitchFailedData)
+        assert failure.data.effective_auto_tier == AutoTier.EFFICIENCY
+        assert failure.data.requested_auto_tier == AutoTier.FAST
+        assert failure.data.reason.value == "request_failed"
+        assert fast_committed is False
 
-            current = await session.rpc.model.get_current()
-            assert current.auto_tier == AutoTier.EFFICIENCY
-            assert current.pending_auto_tier is None
-            assert current.activating_auto_tier is None
-        finally:
-            failure_task.cancel()
-            await asyncio.gather(failure_task, return_exceptions=True)
-            unsubscribe()
-            await session.disconnect()
-            await client.stop()
+        current = await session.rpc.model.get_current()
+        assert current.auto_tier == AutoTier.EFFICIENCY
+        assert current.pending_auto_tier is None
+        assert current.activating_auto_tier is None
+
+        unsubscribe()
+        await session.disconnect()
+        await client.stop()
 
         resumed_client = create_auto_client(ctx)
         try:

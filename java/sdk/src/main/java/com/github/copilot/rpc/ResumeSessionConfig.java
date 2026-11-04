@@ -123,9 +123,9 @@ public class ResumeSessionConfig {
     private String gitHubToken;
     @JsonIgnore
     private GitHubTokenProvider gitHubTokenProvider;
+    private String remoteSession;
     private CopilotExpAssignmentResponse expAssignments;
     private Boolean enableManagedSettings;
-    private List<String> excludedManagedSettings;
     private Boolean enforceManagedModelDefaults;
     private Boolean interactiveUser;
     private Map<String, Boolean> featureFlags;
@@ -155,15 +155,7 @@ public class ResumeSessionConfig {
     }
 
     /**
-     * Gets whether pending work should continue after resuming the session. When
-     * {@code false} (the default), pending work is treated as interrupted on
-     * resume. Completed tool results already durably recorded by the runtime are
-     * preserved.
-     * <p>
-     * When {@code true}, pending permission requests and external tool calls wait
-     * for caller-supplied results via the corresponding low-level RPC methods.
-     * Resuming does not re-emit restored permission requests or re-invoke
-     * permission handlers or already-dispatched external tool callbacks.
+     * Gets whether pending work should continue after resuming the session.
      *
      * @return the explicit choice, or empty to use the runtime default
      */
@@ -178,7 +170,6 @@ public class ResumeSessionConfig {
      * @param continuePendingWork
      *            whether to continue pending work
      * @return this config for method chaining
-     * @see #getContinuePendingWork()
      */
     public ResumeSessionConfig setContinuePendingWork(boolean continuePendingWork) {
         this.continuePendingWork = continuePendingWork;
@@ -472,10 +463,10 @@ public class ResumeSessionConfig {
 
     /**
      * Enables or disables internal session telemetry for this session. When
-     * {@code false}, disables session telemetry. {@code true} enables it for
-     * eligible GitHub-authenticated sessions, including BYOK. When unset, preserves
-     * a resident session's choice; otherwise defaults to enabled. Host and account
-     * policies still control uploads. This is independent of
+     * {@code false}, disables session telemetry. When unset (the default) or
+     * {@code true}, telemetry is enabled for GitHub-authenticated sessions. When a
+     * custom {@link ProviderConfig} (BYOK) is configured, session telemetry is
+     * always disabled regardless of this setting. This is independent of
      * {@link CopilotClientOptions#getTelemetry()
      * CopilotClientOptions.TelemetryConfig}, which configures OpenTelemetry export
      * for observability.
@@ -490,10 +481,10 @@ public class ResumeSessionConfig {
 
     /**
      * Enables or disables internal session telemetry for this session. When
-     * {@code false}, disables session telemetry. {@code true} enables it for
-     * eligible GitHub-authenticated sessions, including BYOK. When unset, preserves
-     * a resident session's choice; otherwise defaults to enabled. Host and account
-     * policies still control uploads.
+     * {@code false}, disables session telemetry. When unset (the default) or
+     * {@code true}, telemetry is enabled for GitHub-authenticated sessions. When a
+     * custom {@link ProviderConfig} (BYOK) is configured, session telemetry is
+     * always disabled regardless of this setting.
      *
      * @param enableSessionTelemetry
      *            whether to enable session telemetry
@@ -782,7 +773,7 @@ public class ResumeSessionConfig {
 
     /**
      * Sets whether the runtime is allowed to append a {@code Co-authored-by}
-     * trailer. Subagents inherit this setting.
+     * trailer.
      * <p>
      * This option is sent to the server via a {@code session.options.update}
      * JSON-RPC call immediately after session resume. In
@@ -1505,7 +1496,6 @@ public class ResumeSessionConfig {
      * @param continuePendingWork
      *            explicit setting, or {@code null} for the default
      * @return this config instance
-     * @see #getContinuePendingWork()
      */
     public ResumeSessionConfig setContinuePendingWork(Boolean continuePendingWork) {
         this.continuePendingWork = continuePendingWork;
@@ -2271,6 +2261,34 @@ public class ResumeSessionConfig {
     }
 
     /**
+     * Gets the per-session remote behavior control.
+     * <p>
+     * See {@link SessionConfig#getRemoteSession()} for details on possible values.
+     *
+     * @return the remote session mode, or {@code null} if not set
+     * @since 1.4.0
+     */
+    public String getRemoteSession() {
+        return remoteSession;
+    }
+
+    /**
+     * Sets the per-session remote behavior control.
+     * <p>
+     * See {@link SessionConfig#setRemoteSession(String)} for details on possible
+     * values.
+     *
+     * @param remoteSession
+     *            the remote session mode
+     * @return this config for method chaining
+     * @since 1.4.0
+     */
+    public ResumeSessionConfig setRemoteSession(String remoteSession) {
+        this.remoteSession = remoteSession;
+        return this;
+    }
+
+    /**
      * Gets the ExP assignment ("flight") data injected by a trusted integrator.
      *
      * @return the ExP assignment data, or {@code null} if not set
@@ -2323,29 +2341,6 @@ public class ResumeSessionConfig {
     @JsonIgnore
     public Optional<Boolean> getEnableManagedSettings() {
         return Optional.ofNullable(enableManagedSettings);
-    }
-
-    /**
-     * Gets the setting paths excluded on resume.
-     *
-     * @return excluded paths, or {@code null} for full enforcement
-     */
-    public List<String> getExcludedManagedSettings() {
-        return excludedManagedSettings;
-    }
-
-    /**
-     * Excludes exact dotted paths as on
-     * {@link SessionConfig#setExcludedManagedSettings(List)}. Omitting restores
-     * full enforcement on warm and cold resume.
-     *
-     * @param paths
-     *            managed-setting paths
-     * @return this configuration
-     */
-    public ResumeSessionConfig setExcludedManagedSettings(List<String> paths) {
-        this.excludedManagedSettings = paths;
-        return this;
     }
 
     /**
@@ -2522,12 +2517,10 @@ public class ResumeSessionConfig {
         copy.githubMcpToolConfig = this.githubMcpToolConfig;
         copy.gitHubToken = this.gitHubToken;
         copy.gitHubTokenProvider = this.gitHubTokenProvider;
+        copy.remoteSession = this.remoteSession;
         copy.featureFlags = this.featureFlags != null ? new java.util.HashMap<>(this.featureFlags) : null;
         copy.expAssignments = this.expAssignments;
         copy.enableManagedSettings = this.enableManagedSettings;
-        copy.excludedManagedSettings = this.excludedManagedSettings == null
-                ? null
-                : new ArrayList<>(this.excludedManagedSettings);
         copy.enforceManagedModelDefaults = this.enforceManagedModelDefaults;
         copy.interactiveUser = this.interactiveUser;
         copy.managedSettings = this.managedSettings;

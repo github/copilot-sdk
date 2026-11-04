@@ -69,7 +69,6 @@ async fn check_aborted_nested_dispatches(nested_first: bool) {
         exit_plan_mode: None,
         auto_mode_switch: None,
         skill_provider: None,
-        session_creation: Arc::default(),
         tools: Arc::new(Default::default()),
     };
     let startup_tasks = Arc::new(StartupTasks::default());
@@ -107,7 +106,6 @@ async fn check_aborted_nested_dispatches(nested_first: bool) {
             &Arc::new(Default::default()),
             notification,
             &Arc::new(parking_lot::Mutex::new(Default::default())),
-            &Arc::new(Default::default()),
             &Arc::new(parking_lot::RwLock::new(Default::default())),
             &Arc::new(parking_lot::RwLock::new(Vec::new())),
             &event_tx,

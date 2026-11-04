@@ -465,16 +465,8 @@ class TestMultiClientBroadcast:
         # Force disconnect client 2 without destroying the shared session
         await mctx.client2.force_stop()
 
-        async def wait_for_tool_removal():
-            while True:
-                await session1.rpc.tools.initialize_and_validate()
-                metadata = await session1.rpc.tools.get_current_metadata()
-                names = {tool.name for tool in metadata.tools or []}
-                if "stable_tool" in names and "ephemeral_tool" not in names:
-                    return
-                await asyncio.sleep(0.1)
-
-        await asyncio.wait_for(wait_for_tool_removal(), timeout=10.0)
+        # Give the server time to process the connection close and remove tools
+        await asyncio.sleep(0.5)
 
         # Recreate client2 for future tests (but don't rejoin the session)
         actual_port = mctx.client1.runtime_port

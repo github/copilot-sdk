@@ -28,10 +28,14 @@ public class CompactionE2ETests(E2ETestFixture fixture, ITestOutputHelper output
         // The first prompt leaves the session below the compaction processor's minimum
         // message count. The second prompt is therefore the first deterministic point
         // at which low thresholds can trigger compaction.
-        using var compactionStarted = TestHelper.ObserveEvent<SessionCompactionStartEvent>(session);
-        using var compactionCompleted = TestHelper.ObserveEvent<SessionCompactionCompleteEvent>(
+        var compactionStarted = TestHelper.GetNextEventOfTypeAsync<SessionCompactionStartEvent>(
             session,
-            evt => evt.Data.Success);
+            CompactionTimeout);
+        var compactionCompleted = TestHelper.GetNextEventOfTypeAsync<SessionCompactionCompleteEvent>(
+            session,
+            evt => evt.Data.Success,
+            CompactionTimeout,
+            timeoutDescription: "successful compaction completion");
 
         await session.SendAndWaitAsync(new MessageOptions
         {
@@ -42,9 +46,8 @@ public class CompactionE2ETests(E2ETestFixture fixture, ITestOutputHelper output
             Prompt = "Continue the story with more details about the dragon's castle."
         });
 
-        await Task.WhenAll(compactionStarted.Task, compactionCompleted.Task).WaitAsync(CompactionTimeout);
-        var startEvent = await compactionStarted.Task;
-        var completeEvent = await compactionCompleted.Task;
+        var startEvent = await compactionStarted;
+        var completeEvent = await compactionCompleted;
 
         Assert.True(startEvent.Data.ConversationTokens.GetValueOrDefault() > 0, "Expected compaction to report conversation tokens at start");
         Assert.True(completeEvent.Data.Success, "Expected compaction to succeed");
@@ -78,7 +81,7 @@ public class CompactionE2ETests(E2ETestFixture fixture, ITestOutputHelper output
         });
 
         var content = answer?.Data.Content ?? string.Empty;
-        Assert.Contains("Vessaryn", content, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("Kaedrith", content, StringComparison.OrdinalIgnoreCase);
         Assert.Contains("dragon", content, StringComparison.OrdinalIgnoreCase);
     }
 

@@ -315,6 +315,35 @@ fn assert_session_not_found(response: &Value, session_id: &str) {
     );
 }
 
+#[test]
+fn descriptor_omits_unset_optional_fields_and_config_debug_redacts_provider() {
+    let value = serde_json::to_value(descriptor("review", "Reviews code")).unwrap();
+    assert_eq!(
+        value,
+        json!({ "name": "review", "description": "Reviews code" })
+    );
+
+    let provider: Arc<dyn SkillProvider> = Arc::new(RecordingProvider::new());
+    let config = SessionConfig::default().with_skill_provider(provider.clone());
+    let cloned = config.clone();
+    assert!(Arc::ptr_eq(
+        config.skill_provider.as_ref().unwrap(),
+        cloned.skill_provider.as_ref().unwrap()
+    ));
+    let debug = format!("{config:?}");
+    assert!(debug.contains("skill_provider"));
+    assert!(debug.contains("<set>"));
+
+    let resume =
+        ResumeSessionConfig::new(SessionId::new("resume-id")).with_skill_provider(provider.clone());
+    let cloned_resume = resume.clone();
+    assert!(Arc::ptr_eq(
+        resume.skill_provider.as_ref().unwrap(),
+        cloned_resume.skill_provider.as_ref().unwrap()
+    ));
+    assert!(format!("{resume:?}").contains("skill_provider"));
+}
+
 #[tokio::test]
 async fn create_and_resume_payloads_flag_only_when_provider_is_supplied() {
     let (client, mut server) = make_client();

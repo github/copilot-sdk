@@ -21,7 +21,6 @@ class Peer:
         self.requests: list[str] = []
         self.sends_received = asyncio.Event()
         self.expected_sends = 1
-        self.completion_supported = True
         self.send_count = 0
         self.failures: list[Exception] = []
         self.writers: list[asyncio.StreamWriter] = []
@@ -47,8 +46,6 @@ class Peer:
                 request = json.loads(await reader.readexactly(lengths[0]))
                 method = request["method"]
                 self.requests.append(method)
-                result = None
-                rpc_error = None
                 if method == "connect":
                     result = {
                         "ok": True,
@@ -66,25 +63,12 @@ class Peer:
                 elif method == "session.send":
                     self.send_count += 1
                     result = {"messageId": f"message-{self.send_count}"}
-                elif method == "session.sendAndWait":
-                    if self.completion_supported:
-                        self.send_count += 1
-                        if self.send_count == self.expected_sends:
-                            self.sends_received.set()
-                        continue
-                    rpc_error = {"code": -32601, "message": "Method not found"}
-                elif method == "$/cancelRequest":
-                    continue
                 elif method == "session.detach":
                     result = {"success": True}
                 else:
                     raise AssertionError(f"Unexpected RPC: {method}")
                 body = json.dumps(
-                    {
-                        "jsonrpc": "2.0",
-                        "id": request["id"],
-                        **({"error": rpc_error} if rpc_error else {"result": result}),
-                    }
+                    {"jsonrpc": "2.0", "id": request["id"], "result": result}
                 ).encode()
                 writer.write(f"Content-Length: {len(body)}\r\n\r\n".encode() + body)
                 await writer.drain()
@@ -125,23 +109,19 @@ async def connected_peer() -> AsyncIterator[tuple[CopilotClient, Peer]]:
 
 
 @pytest.mark.parametrize("count", [1, 2])
-@pytest.mark.parametrize("completion_supported", [True, False])
-async def test_force_stop_rejects_acknowledged_plain_waits(
-    connected_peer, count, completion_supported
-):
+async def test_force_stop_rejects_acknowledged_plain_waits(connected_peer, count):
     client, peer = connected_peer
     peer.expected_sends = count
-    peer.completion_supported = completion_supported
     session = await client.create_session(
         session_id="retirement-session", on_permission_request=PermissionHandler.approve_all
     )
     waits = [
-        asyncio.create_task(session.send_and_wait("hold the response", timeout=float("inf")))
+        asyncio.create_task(session.send_and_wait("hold the response", timeout=1))
         for _ in range(count)
     ]
     try:
         await asyncio.wait_for(peer.sends_received.wait(), 5)
-        # The later reply proves every preceding send reached the peer.
+        # The later reply is a barrier for all preceding send acknowledgments.
         await client.ping()
         await client.force_stop()
 

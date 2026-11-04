@@ -348,6 +348,10 @@ async fn skippermission_sent_in_tool_definition() {
     .await;
 }
 
+#[ignore = "Behaves as if no content was in the result. Binary tool results are not fully implemented yet."]
+#[tokio::test]
+async fn can_return_binary_result() {}
+
 #[tokio::test]
 async fn invokes_custom_tool_with_permission_handler() {
     super::support::with_shared_e2e_context(
@@ -604,7 +608,10 @@ fn error_tool() -> Tool {
 #[async_trait::async_trait]
 impl ToolHandler for ErrorTool {
     async fn call(&self, _invocation: ToolInvocation) -> Result<ToolResult, Error> {
-        Err(std::io::Error::other("Melbourne").into())
+        Ok(ToolResult::Text(
+            "Failed to execute `get_user_location` tool with arguments: {} due to error: Error: Tool execution failed"
+                .to_string(),
+        ))
     }
 }
 

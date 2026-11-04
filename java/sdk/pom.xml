@@ -27,6 +27,13 @@
         <tag>HEAD</tag>
     </scm>
 
+    <distributionManagement>
+        <snapshotRepository>
+            <id>central</id>
+            <url>https://central.sonatype.com/repository/maven-snapshots/</url>
+        </snapshotRepository>
+    </distributionManagement>
+
     <properties>
         <!--
             Root of the monorepo. The sdk module lives at java/sdk/, so two
@@ -70,7 +77,7 @@
         <dependency>
             <groupId>com.fasterxml.jackson.core</groupId>
             <artifactId>jackson-databind</artifactId>
-            <version>2.22.4</version>
+            <version>2.22.3</version>
         </dependency>
         <dependency>
             <groupId>com.fasterxml.jackson.core</groupId>
@@ -80,14 +87,14 @@
         <dependency>
             <groupId>com.fasterxml.jackson.datatype</groupId>
             <artifactId>jackson-datatype-jsr310</artifactId>
-            <version>2.22.4</version>
+            <version>2.22.3</version>
         </dependency>
 
         <!-- SpotBugs annotations for suppressing warnings -->
         <dependency>
             <groupId>com.github.spotbugs</groupId>
             <artifactId>spotbugs-annotations</artifactId>
-            <version>4.10.5</version>
+            <version>4.10.4</version>
             <scope>provided</scope>
         </dependency>
 
@@ -113,7 +120,7 @@
         <dependency>
             <groupId>org.mockito</groupId>
             <artifactId>mockito-core</artifactId>
-            <version>5.24.0</version>
+            <version>5.23.0</version>
             <scope>test</scope>
         </dependency>
     </dependencies>
@@ -226,7 +233,7 @@
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>
                 <artifactId>maven-dependency-plugin</artifactId>
-                <version>3.11.0</version>
+                <version>3.6.1</version>
                 <executions>
                     <execution>
                         <id>packaged-consumer-dependencies</id>
@@ -361,12 +368,6 @@
                         </excludes>
                         <eclipse>
                             <version>4.33</version>
-                            <p2Mirrors>
-                                <p2Mirror>
-                                    <prefix>https://download.eclipse.org/eclipse/updates/4.33/</prefix>
-                                    <url>https://ftp.fau.de/eclipse/eclipse/updates/4.33/</url>
-                                </p2Mirror>
-                            </p2Mirrors>
                         </eclipse>
                         <removeUnusedImports />
                         <trimTrailingWhitespace />

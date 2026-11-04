@@ -22,7 +22,6 @@ import java.time.Duration;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.CancellationException;
 import java.util.concurrent.CompletionException;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.TimeUnit;
@@ -32,17 +31,13 @@ import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
-import org.junit.jupiter.api.Timeout;
 
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.github.copilot.generated.McpOauthRequestReason;
-import com.github.copilot.generated.SessionEvent;
-import com.github.copilot.generated.SessionMcpServerStatusChangedEvent;
 import com.github.copilot.generated.rpc.SessionMcpAppsCallToolParams;
 import com.github.copilot.generated.rpc.McpServerStatus;
 import com.github.copilot.generated.rpc.SessionMcpListToolsParams;
-import com.github.copilot.generated.rpc.SessionMcpListResult;
 import com.github.copilot.generated.rpc.SessionMcpOauthHandlePendingRequestParams;
 import com.github.copilot.generated.rpc.SessionMcpOauthLoginParams;
 import com.github.copilot.rpc.McpAuthInvocation;
@@ -78,21 +73,17 @@ public class McpOAuthE2ETest {
     }
 
     @Test
-    @Timeout(value = 900, unit = TimeUnit.SECONDS, threadMode = Timeout.ThreadMode.SAME_THREAD)
     void testUsesCimdUrlInsteadOfDynamicRegistration() throws Exception {
-        var statusObserver = new McpStatusObserver("oauth-cimd-mcp");
         try (var oauthServer = OAuthMcpServer.start(ctx.getRepoRoot(), false, true);
                 var client = ctx.createClient();
-                var session = client.createSession(new SessionConfig().setOnEvent(statusObserver::onEvent)
+                var session = client.createSession(new SessionConfig()
                         .setOnPermissionRequest(PermissionHandler.APPROVE_ALL).setAuthClientIdMetadataUrl(CIMD_URL)
                         .setMcpServers(Map.of("oauth-cimd-mcp",
                                 new McpHttpServerConfig().setUrl(oauthServer.url() + "/mcp").setTools(List.of("*")))))
                         .get()) {
-            waitForMcpServerStatus(session, "oauth-cimd-mcp", McpServerStatus.NEEDS_AUTH, new AtomicReference<>(),
-                    statusObserver);
-            var result = E2ETestContext
-                    .awaitReply(session.getRpc().mcp.oauth.login(new SessionMcpOauthLoginParams(session.getSessionId(),
-                            "oauth-cimd-mcp", null, null, null, null, null, null, null)), 30, TimeUnit.SECONDS);
+            waitForMcpServerStatus(session, "oauth-cimd-mcp", McpServerStatus.NEEDS_AUTH, new AtomicReference<>());
+            var result = session.getRpc().mcp.oauth.login(new SessionMcpOauthLoginParams(session.getSessionId(),
+                    "oauth-cimd-mcp", null, null, null, null, null, null, null)).get(30, TimeUnit.SECONDS);
             assertNotNull(result.authorizationUrl());
             var clientId = List.of(URI.create(result.authorizationUrl()).getQuery().split("&")).stream()
                     .filter(part -> part.startsWith("client_id=")).findFirst()
@@ -104,19 +95,17 @@ public class McpOAuthE2ETest {
     }
 
     @Test
-    @Timeout(value = 900, unit = TimeUnit.SECONDS, threadMode = Timeout.ThreadMode.SAME_THREAD)
     void testShouldSatisfyMcpOauthUsingHostProvidedToken() throws Exception {
         try (var oauthServer = OAuthMcpServer.start(ctx.getRepoRoot())) {
             var serverName = "oauth-protected-mcp";
             var observedRequest = new java.util.concurrent.atomic.AtomicReference<com.github.copilot.rpc.McpAuthRequest>();
             var observedInvocation = new java.util.concurrent.atomic.AtomicReference<McpAuthInvocation>();
             var observedCapability = new AtomicReference<Boolean>();
-            var statusObserver = new McpStatusObserver(serverName);
 
             try (var client = ctx.createClient();
                     var session = client
                             .createSession(new SessionConfig().setOnPermissionRequest(PermissionHandler.APPROVE_ALL)
-                                    .setOnEvent(statusObserver::onEvent).setOnMcpAuthRequest(new McpAuthHandler() {
+                                    .setOnMcpAuthRequest(new McpAuthHandler() {
                                         @Override
                                         public java.util.concurrent.CompletableFuture<McpAuthResult> handle(
                                                 McpAuthRequest request, McpAuthInvocation invocation) {
@@ -137,13 +126,12 @@ public class McpOAuthE2ETest {
                                     }).setMcpServers(Map.of(serverName, new McpHttpServerConfig()
                                             .setUrl(oauthServer.url() + "/mcp").setTools(List.of("*")))))
                             .get()) {
-                waitForMcpServerStatus(session, serverName, McpServerStatus.CONNECTED, observedRequest, statusObserver);
+                waitForMcpServerStatus(session, serverName, McpServerStatus.CONNECTED, observedRequest);
                 assertNotNull(observedInvocation.get(), "MCP auth invocation should be provided");
                 assertEquals(session.getSessionId(), observedInvocation.get().getSessionId());
                 assertEquals(Boolean.FALSE, observedCapability.get(),
                         "Initial authentication cannot advertise refresh");
-                var tools = E2ETestContext.awaitReply(
-                        session.getRpc().mcp.listTools(new SessionMcpListToolsParams(null, serverName)), 30,
+                var tools = session.getRpc().mcp.listTools(new SessionMcpListToolsParams(null, serverName)).get(30,
                         TimeUnit.SECONDS);
                 assertTrue(tools.tools().stream().anyMatch(tool -> "whoami".equals(tool.name())));
             }
@@ -169,14 +157,12 @@ public class McpOAuthE2ETest {
     }
 
     @Test
-    @Timeout(value = 900, unit = TimeUnit.SECONDS, threadMode = Timeout.ThreadMode.SAME_THREAD)
     void testShouldRequestReplacementTokensAcrossMcpOauthLifecycle() throws Exception {
         try (var oauthServer = OAuthMcpServer.start(ctx.getRepoRoot(), true)) {
             var serverName = "oauth-lifecycle-mcp";
             var observedReasons = new CopyOnWriteArrayList<McpOauthRequestReason>();
             var observedRequest = new AtomicReference<McpAuthRequest>();
             var refreshCount = new java.util.concurrent.atomic.AtomicInteger();
-            var statusObserver = new McpStatusObserver(serverName);
 
             try (var client = ctx.createClient();
                     var session = client.createSession(new SessionConfig().setEnableMcpApps(true)
@@ -210,11 +196,8 @@ public class McpOAuthE2ETest {
                             }).setMcpServers(Map.of(serverName, new McpHttpServerConfig()
                                     .setUrl(oauthServer.url() + "/mcp").setTools(List.of("*")))))
                             .get()) {
-                try (var statusSubscription = session.on(statusObserver::onEvent)) {
-                    oauthServer.releaseInitialChallenge();
-                    waitForMcpServerStatus(session, serverName, McpServerStatus.CONNECTED, observedRequest,
-                            statusObserver);
-                }
+                oauthServer.releaseInitialChallenge();
+                waitForMcpServerStatus(session, serverName, McpServerStatus.CONNECTED, observedRequest);
                 callWhoami(session, serverName, "refresh");
                 callWhoami(session, serverName, "upscope");
                 callWhoami(session, serverName, "reauth");
@@ -234,18 +217,16 @@ public class McpOAuthE2ETest {
     }
 
     @Test
-    @Timeout(value = 900, unit = TimeUnit.SECONDS, threadMode = Timeout.ThreadMode.SAME_THREAD)
     void testShouldCancelPendingMcpOauthRequest() throws Exception {
         try (var oauthServer = OAuthMcpServer.start(ctx.getRepoRoot())) {
             var serverName = "oauth-cancelled-mcp";
             var observedRequest = new java.util.concurrent.atomic.AtomicReference<com.github.copilot.rpc.McpAuthRequest>();
             var requestSeen = new CompletableFuture<McpAuthRequest>();
-            var statusObserver = new McpStatusObserver(serverName);
 
             try (var client = ctx.createClient();
                     var session = client
                             .createSession(new SessionConfig().setOnPermissionRequest(PermissionHandler.APPROVE_ALL)
-                                    .setOnEvent(statusObserver::onEvent).setOnMcpAuthRequest((request, invocation) -> {
+                                    .setOnMcpAuthRequest((request, invocation) -> {
                                         assertNotNull(invocation);
                                         observedRequest.set(request);
                                         requestSeen.complete(request);
@@ -254,8 +235,7 @@ public class McpOAuthE2ETest {
                                     }).setMcpServers(Map.of(serverName, new McpHttpServerConfig()
                                             .setUrl(oauthServer.url() + "/mcp").setTools(List.of("*")))))
                             .get()) {
-                waitForMcpServerStatus(session, serverName, McpServerStatus.NEEDS_AUTH, observedRequest,
-                        statusObserver);
+                waitForMcpServerStatus(session, serverName, McpServerStatus.NEEDS_AUTH, observedRequest);
 
                 // Race: session.create kicks off the MCP connection, but the SDK
                 // registers its `mcp.oauth_required` interest only after create
@@ -264,7 +244,7 @@ public class McpOAuthE2ETest {
                 // retry (interest now registered) fires the callback with the same
                 // INITIAL reason. Wait for the callback instead of sampling it the
                 // instant `needs-auth` appears, which is what made this test flaky.
-                var request = E2ETestContext.awaitReply(requestSeen, 30, TimeUnit.SECONDS);
+                var request = requestSeen.get(30, TimeUnit.SECONDS);
                 assertEquals(serverName, request.serverName());
                 assertEquals(McpOauthRequestReason.INITIAL, request.reason());
             }
@@ -272,72 +252,53 @@ public class McpOAuthE2ETest {
     }
 
     @Test
-    @Timeout(value = 900, unit = TimeUnit.SECONDS, threadMode = Timeout.ThreadMode.SAME_THREAD)
     void testShouldResolvePendingMcpOauthRequestThroughRpc() throws Exception {
         try (var oauthServer = OAuthMcpServer.start(ctx.getRepoRoot())) {
             var serverName = "oauth-direct-rpc-mcp";
             var observedRequest = new AtomicReference<McpAuthRequest>();
-            var observedRequestIds = new CopyOnWriteArrayList<String>();
             var requestSeen = new CompletableFuture<McpAuthRequest>();
             var pendingHandlerResult = new CompletableFuture<McpAuthResult>();
-            var statusObserver = new McpStatusObserver(serverName);
 
             try (var client = ctx.createClient();
                     var session = client.createSession(new SessionConfig().setEnableMcpApps(true)
-                            .setOnEvent(statusObserver::onEvent).setOnPermissionRequest(PermissionHandler.APPROVE_ALL)
+                            .setOnPermissionRequest(PermissionHandler.APPROVE_ALL)
                             .setOnMcpAuthRequest((request, invocation) -> {
                                 assertNotNull(invocation);
                                 observedRequest.set(request);
-                                observedRequestIds.add(request.requestId());
                                 requestSeen.complete(request);
                                 return pendingHandlerResult;
                             }).setMcpServers(Map.of(serverName, new McpHttpServerConfig()
                                     .setUrl(oauthServer.url() + "/mcp").setTools(List.of("*")))))
                             .get()) {
-                CompletableFuture<SessionMcpListResult> current = null;
-                var lastReply = new AtomicReference<Object>("<no completed reply>");
-                try {
-                    current = awaitAuthRequest(() -> session.getRpc().mcp.list(), requestSeen, lastReply::set);
-                    var request = requestSeen.get();
-                    assertEquals(serverName, request.serverName());
-                    assertEquals(oauthServer.url() + "/mcp", request.serverUrl());
-                    assertEquals(McpOauthRequestReason.INITIAL, request.reason());
-                    assertNotNull(request.wwwAuthenticateParams());
-                    assertEquals(oauthServer.url() + "/.well-known/oauth-protected-resource",
-                            request.wwwAuthenticateParams().resourceMetadataUrl());
-                    assertEquals("mcp.read", request.wwwAuthenticateParams().scope());
-                    assertEquals("invalid_token", request.wwwAuthenticateParams().error());
-
-                    var handled = E2ETestContext
-                            .awaitReply(
-                                    session.getRpc().mcp.oauth
-                                            .handlePendingRequest(
-                                                    new SessionMcpOauthHandlePendingRequestParams(null,
-                                                            request.requestId(),
-                                                            Map.of("kind", "token", "accessToken", EXPECTED_TOKEN,
-                                                                    "tokenType", "Bearer", "expiresIn", 3600L))),
-                                    30, TimeUnit.SECONDS);
-                    assertTrue(handled.success());
-
-                    pendingHandlerResult.complete(McpAuthResult.cancelled());
-                    waitForMcpServerStatus(session, serverName, McpServerStatus.CONNECTED, observedRequest,
-                            statusObserver, current);
-                    var tools = E2ETestContext.awaitReply(
-                            session.getRpc().mcp.listTools(new SessionMcpListToolsParams(null, serverName)), 30,
-                            TimeUnit.SECONDS);
-                    assertTrue(tools.tools().stream().anyMatch(tool -> "whoami".equals(tool.name())));
-                } catch (Exception | AssertionError failure) {
-                    addReplyFailure(failure, current);
-                    failure.addSuppressed(new IllegalStateException("MCP OAuth request IDs: " + observedRequestIds
-                            + "; last reply=" + lastReply.get() + "; last auth request=" + observedRequest.get()
-                            + "; last cached status=" + statusObserver.latestStatus.get()));
-                    throw failure;
-                } finally {
-                    if (current != null) {
-                        current.cancel(true);
+                var connected = CompletableFuture.runAsync(() -> {
+                    try {
+                        waitForMcpServerStatus(session, serverName, McpServerStatus.CONNECTED, observedRequest);
+                    } catch (Exception ex) {
+                        throw new CompletionException(ex);
                     }
-                    pendingHandlerResult.complete(McpAuthResult.cancelled());
-                }
+                });
+
+                var request = requestSeen.get(30, TimeUnit.SECONDS);
+                assertEquals(serverName, request.serverName());
+                assertEquals(oauthServer.url() + "/mcp", request.serverUrl());
+                assertEquals(McpOauthRequestReason.INITIAL, request.reason());
+                assertNotNull(request.wwwAuthenticateParams());
+                assertEquals(oauthServer.url() + "/.well-known/oauth-protected-resource",
+                        request.wwwAuthenticateParams().resourceMetadataUrl());
+                assertEquals("mcp.read", request.wwwAuthenticateParams().scope());
+                assertEquals("invalid_token", request.wwwAuthenticateParams().error());
+
+                var handled = session.getRpc().mcp.oauth.handlePendingRequest(
+                        new SessionMcpOauthHandlePendingRequestParams(null, request.requestId(), Map.of("kind", "token",
+                                "accessToken", EXPECTED_TOKEN, "tokenType", "Bearer", "expiresIn", 3600L)))
+                        .get(30, TimeUnit.SECONDS);
+                assertTrue(handled.success());
+
+                pendingHandlerResult.complete(McpAuthResult.cancelled());
+                connected.get(60, TimeUnit.SECONDS);
+                var tools = session.getRpc().mcp.listTools(new SessionMcpListToolsParams(null, serverName)).get(30,
+                        TimeUnit.SECONDS);
+                assertTrue(tools.tools().stream().anyMatch(tool -> "whoami".equals(tool.name())));
             } finally {
                 pendingHandlerResult.complete(McpAuthResult.cancelled());
             }
@@ -349,262 +310,32 @@ public class McpOAuthE2ETest {
     }
 
     private static void callWhoami(CopilotSession session, String serverName, String scenario) throws Exception {
-        var result = E2ETestContext.awaitReply(session.getRpc().mcp.apps.callTool(
-                new SessionMcpAppsCallToolParams(null, serverName, "whoami", Map.of("scenario", scenario), serverName)),
-                30, TimeUnit.SECONDS);
+        var result = session.getRpc().mcp.apps.callTool(
+                new SessionMcpAppsCallToolParams(null, serverName, "whoami", Map.of("scenario", scenario), serverName))
+                .get(30, TimeUnit.SECONDS);
         var content = result.path("content");
         assertEquals(1, content.size());
         assertEquals("oauth-test-user", content.get(0).path("text").asText());
     }
 
     private static void waitForMcpServerStatus(CopilotSession session, String serverName, McpServerStatus status,
-            java.util.concurrent.atomic.AtomicReference<com.github.copilot.rpc.McpAuthRequest> observedRequest,
-            McpStatusObserver statusObserver) throws Exception {
-        waitForMcpServerStatus(session, serverName, status, observedRequest, statusObserver, null);
-    }
-
-    private static void waitForMcpServerStatus(CopilotSession session, String serverName, McpServerStatus status,
-            AtomicReference<McpAuthRequest> observedRequest, McpStatusObserver statusObserver,
-            CompletableFuture<SessionMcpListResult> firstQuery) throws Exception {
-        var lastServer = new java.util.concurrent.atomic.AtomicReference<>("<not listed>");
-        try {
-            E2ETestContext.awaitReadiness(() -> session.getRpc().mcp.list(), firstQuery, result -> {
-                var server = result.servers().stream().filter(candidate -> serverName.equals(candidate.name()))
-                        .findFirst();
-                lastServer.set(server.map(Object::toString).orElse("<not listed>"));
-                return server.isPresent() && status.equals(server.get().status());
-            }, 200, serverName + " did not reach " + status);
-        } catch (Exception | AssertionError failure) {
-            failure.addSuppressed(new IllegalStateException("last server=" + lastServer.get() + "; last auth request="
-                    + observedRequest.get() + "; last cached status=" + statusObserver.latestStatus.get()));
-            throw failure;
-        }
-    }
-
-    private static <T> CompletableFuture<T> awaitAuthRequest(java.util.function.Supplier<CompletableFuture<T>> query,
-            CompletableFuture<?> requestSeen, java.util.function.Consumer<T> observe) throws Exception {
-        var deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(30);
-        var current = query.get();
-        boolean transferred = false;
-        try {
-            while (!requestSeen.isDone()) {
-                E2ETestContext.awaitReply(CompletableFuture.anyOf(requestSeen, current),
-                        Math.max(0, deadline - System.nanoTime()), TimeUnit.NANOSECONDS);
-                if (current.isDone()) {
-                    observe.accept(current.get());
-                }
-                if (requestSeen.isDone()) {
-                    break;
-                }
-                Thread.sleep(200);
-                if (!requestSeen.isDone()) {
-                    if (System.nanoTime() >= deadline) {
-                        E2ETestContext.awaitReply(requestSeen, 0, TimeUnit.NANOSECONDS);
-                        break;
-                    }
-                    current = query.get();
-                }
+            java.util.concurrent.atomic.AtomicReference<com.github.copilot.rpc.McpAuthRequest> observedRequest)
+            throws Exception {
+        var deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(60);
+        var lastStatus = "<not listed>";
+        while (System.nanoTime() < deadline) {
+            var result = session.getRpc().mcp.list().get(5, TimeUnit.SECONDS);
+            var server = result.servers().stream().filter(candidate -> serverName.equals(candidate.name())).findFirst();
+            if (server.isPresent()) {
+                lastStatus = String.valueOf(server.get().status());
             }
-            requestSeen.get();
-            if (current.isDone()) {
-                observe.accept(current.get());
+            if (server.isPresent() && status.equals(server.get().status())) {
+                return;
             }
-            transferred = true;
-            return current;
-        } catch (Exception | AssertionError failure) {
-            addReplyFailure(failure, current);
-            throw failure;
-        } finally {
-            if (!transferred) {
-                current.cancel(true);
-            }
+            Thread.sleep(200);
         }
-    }
-
-    private static void addReplyFailure(Throwable failure, CompletableFuture<?> reply) {
-        if (reply != null && reply.isCompletedExceptionally()) {
-            try {
-                reply.join();
-            } catch (CompletionException | CancellationException replyFailure) {
-                if (failure != replyFailure && !(replyFailure instanceof CompletionException
-                        && failure.getCause() == replyFailure.getCause())) {
-                    failure.addSuppressed(replyFailure);
-                }
-            }
-        }
-    }
-
-    @Test
-    @Timeout(value = 1, unit = TimeUnit.MINUTES, threadMode = Timeout.ThreadMode.SAME_THREAD)
-    void authRequestIsServicedWhileItsReadinessQueryWaitsForAuthentication() throws Exception {
-        var current = new CompletableFuture<String>();
-        var requestSeen = new CompletableFuture<String>();
-        var calls = new java.util.concurrent.atomic.AtomicInteger();
-        var publisher = new Thread(() -> {
-            while (current.getNumberOfDependents() == 0) {
-                if (Thread.interrupted()) {
-                    return;
-                }
-                java.util.concurrent.locks.LockSupport.parkNanos(TimeUnit.MILLISECONDS.toNanos(1));
-            }
-            requestSeen.complete("authenticate");
-        });
-        publisher.start();
-        try {
-            var retained = awaitAuthRequest(() -> {
-                calls.incrementAndGet();
-                return current;
-            }, requestSeen, value -> fail("the readiness reply must stay held until authentication"));
-            assertEquals("authenticate", requestSeen.get());
-            assertSame(current, retained);
-            assertEquals(1, calls.get());
-            assertFalse(current.isDone(), "auth must be serviced before waiting for CONNECTED");
-            current.complete("connected");
-            assertEquals("connected", E2ETestContext.awaitReadiness(() -> {
-                throw new AssertionError("the retained query must be consumed");
-            }, retained, "connected"::equals, 200, "not connected"));
-        } finally {
-            publisher.interrupt();
-            publisher.join();
-            current.cancel(true);
-            requestSeen.cancel(true);
-        }
-    }
-
-    @Test
-    @Timeout(value = 1, unit = TimeUnit.MINUTES, threadMode = Timeout.ThreadMode.SAME_THREAD)
-    void authRequestCanBeDrivenByASecondReadinessQuery() throws Exception {
-        var pending = CompletableFuture.completedFuture("needs-auth");
-        var current = new CompletableFuture<String>();
-        var requestSeen = new CompletableFuture<String>();
-        var last = new AtomicReference<String>();
-        var calls = new java.util.concurrent.atomic.AtomicInteger();
-        try {
-            var retained = awaitAuthRequest(() -> {
-                return switch (calls.incrementAndGet()) {
-                    case 1 -> pending;
-                    case 2 -> {
-                        assertTrue(pending.isDone(), "queries must not overlap");
-                        requestSeen.complete("authenticate");
-                        yield current;
-                    }
-                    default -> throw new AssertionError("must service auth before dispatching more queries");
-                };
-            }, requestSeen, last::set);
-            assertEquals("authenticate", requestSeen.get());
-            assertEquals("needs-auth", last.get());
-            assertSame(current, retained);
-            assertEquals(2, calls.get());
-            assertFalse(current.isDone());
-        } finally {
-            current.cancel(true);
-            requestSeen.cancel(true);
-        }
-    }
-
-    @Test
-    @Timeout(value = 1, unit = TimeUnit.MINUTES, threadMode = Timeout.ThreadMode.SAME_THREAD)
-    void authReadinessPreservesQueryFailureWithoutRetrying() {
-        var fault = new IOException("the status RPC failed");
-        var calls = new java.util.concurrent.atomic.AtomicInteger();
-        var failure = assertThrows(java.util.concurrent.ExecutionException.class, () -> awaitAuthRequest(() -> {
-            calls.incrementAndGet();
-            return CompletableFuture.failedFuture(fault);
-        }, new CompletableFuture<>(), value -> fail("a failed reply cannot be an observation")));
-        assertSame(fault, failure.getCause());
-        assertEquals(1, calls.get());
-        assertEquals(0, failure.getSuppressed().length, "the same query fault need not be reported twice");
-    }
-
-    @Test
-    @Timeout(value = 1, unit = TimeUnit.MINUTES, threadMode = Timeout.ThreadMode.SAME_THREAD)
-    void authReadinessCancelsTheOutstandingQueryWhenItsAuthRequestFails() {
-        var current = new CompletableFuture<String>();
-        var fault = new IOException("auth request delivery failed");
-        var failure = assertThrows(java.util.concurrent.ExecutionException.class, () -> awaitAuthRequest(() -> current,
-                CompletableFuture.failedFuture(fault), value -> fail("the readiness query must stay pending")));
-        assertSame(fault, failure.getCause());
-        assertTrue(current.isCancelled());
-    }
-
-    @Test
-    @Timeout(value = 1, unit = TimeUnit.MINUTES, threadMode = Timeout.ThreadMode.SAME_THREAD)
-    void authReadinessCancelsItsQueryOnInterruptionWithoutBlockingCleanup() {
-        var current = new CompletableFuture<String>();
-        try {
-            assertThrows(InterruptedException.class, () -> awaitAuthRequest(() -> {
-                Thread.currentThread().interrupt();
-                return current;
-            }, new CompletableFuture<>(), value -> fail("the readiness query must stay pending")));
-            assertTrue(current.isCancelled());
-            assertFalse(Thread.currentThread().isInterrupted());
-        } finally {
-            Thread.interrupted();
-            current.cancel(true);
-        }
-    }
-
-    @Test
-    void authFailureRetainsAnIndependentExceptionalReadinessReply() {
-        var bodyFailure = new AssertionError("auth assertion failed");
-        var queryFailure = new IOException("the status RPC failed independently");
-        addReplyFailure(bodyFailure, CompletableFuture.failedFuture(queryFailure));
-        assertEquals(1, bodyFailure.getSuppressed().length);
-        assertSame(queryFailure, bodyFailure.getSuppressed()[0].getCause());
-    }
-
-    @Test
-    void statusObserverRetainsOnlyTheExpectedRootServersLatestStatus() {
-        var serverName = "matching-server";
-        var observer = new McpStatusObserver(serverName);
-        var event = new SessionMcpServerStatusChangedEvent();
-        observer.onEvent(null);
-        observer.onEvent(event);
-        assertNull(observer.latestStatus.get());
-
-        var connected = new SessionMcpServerStatusChangedEvent.SessionMcpServerStatusChangedEventData(serverName,
-                com.github.copilot.generated.McpServerStatus.CONNECTED, null, null, null);
-        event.setData(connected);
-        event.setAgentId("child-agent");
-        observer.onEvent(event);
-        assertNull(observer.latestStatus.get());
-
-        event.setAgentId(null);
-        event.setData(new SessionMcpServerStatusChangedEvent.SessionMcpServerStatusChangedEventData("other-server",
-                com.github.copilot.generated.McpServerStatus.CONNECTED, null, null, null));
-        observer.onEvent(event);
-        assertNull(observer.latestStatus.get());
-
-        event.setData(connected);
-        observer.onEvent(event);
-        assertEquals(com.github.copilot.generated.McpServerStatus.CONNECTED, observer.latestStatus.get());
-        event.setData(new SessionMcpServerStatusChangedEvent.SessionMcpServerStatusChangedEventData(serverName,
-                com.github.copilot.generated.McpServerStatus.FAILED, "later failure", null, null));
-        observer.onEvent(event);
-        assertEquals(com.github.copilot.generated.McpServerStatus.FAILED, observer.latestStatus.get());
-
-        event.setData(new SessionMcpServerStatusChangedEvent.SessionMcpServerStatusChangedEventData(serverName, null,
-                null, null, null));
-        observer.onEvent(event);
-        assertNull(observer.latestStatus.get());
-    }
-
-    private static final class McpStatusObserver {
-        private final String serverName;
-        private final AtomicReference<com.github.copilot.generated.McpServerStatus> latestStatus = new AtomicReference<>();
-
-        private McpStatusObserver(String serverName) {
-            this.serverName = serverName;
-        }
-
-        private void onEvent(SessionEvent event) {
-            if (event instanceof SessionMcpServerStatusChangedEvent statusEvent && event.getAgentId() == null) {
-                var data = statusEvent.getData();
-                if (data != null && serverName.equals(data.serverName())) {
-                    latestStatus.set(data.status());
-                }
-            }
-        }
+        fail(serverName + " did not reach " + status + "; last status was " + lastStatus + "; auth handler invoked="
+                + (observedRequest.get() != null));
     }
 
     @JsonIgnoreProperties(ignoreUnknown = true)
@@ -643,32 +374,19 @@ public class McpOAuthE2ETest {
             stderrThread.setDaemon(true);
             stderrThread.start();
             try (var reader = new BufferedReader(new InputStreamReader(process.getInputStream()))) {
-                var announcedUrl = new java.util.concurrent.atomic.AtomicReference<String>();
-                var line = new StringBuilder();
-                E2ETestContext.awaitBufferedCondition(() -> {
-                    while (reader.ready()) {
-                        int next = reader.read();
-                        if (next == -1) {
-                            throw new IOException("OAuth MCP server exited: " + stderr);
-                        }
-                        if (next == '\n') {
-                            String completeLine = line.toString().stripTrailing();
-                            line.setLength(0);
-                            if (completeLine.startsWith("Listening: ")) {
-                                announcedUrl.set(completeLine.substring("Listening: ".length()));
-                                return true;
-                            }
-                        } else {
-                            line.append((char) next);
+                var deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(10);
+                while (System.nanoTime() < deadline) {
+                    if (reader.ready()) {
+                        var line = reader.readLine();
+                        if (line != null && line.startsWith("Listening: ")) {
+                            return new OAuthMcpServer(process, line.substring("Listening: ".length()));
                         }
                     }
-                    return false;
-                }, 10_000, 50, "Timed out waiting for OAuth MCP server: " + stderr);
-                return new OAuthMcpServer(process, announcedUrl.get());
-            } catch (Exception | AssertionError failure) {
-                process.destroyForcibly();
-                throw failure;
+                    Thread.sleep(50);
+                }
             }
+            process.destroyForcibly();
+            throw new AssertionError("Timed out waiting for OAuth MCP server: " + stderr);
         }
 
         void releaseInitialChallenge() throws Exception {

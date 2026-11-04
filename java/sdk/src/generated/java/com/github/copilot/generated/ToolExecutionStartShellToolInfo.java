@@ -10,7 +10,6 @@ package com.github.copilot.generated;
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.annotation.JsonProperty;
-import com.github.copilot.CopilotExperimental;
 import java.util.List;
 import javax.annotation.processing.Generated;
 
@@ -28,7 +27,6 @@ public record ToolExecutionStartShellToolInfo(
     /** Whether the command includes a file write redirection (e.g., > or >>). */
     @JsonProperty("hasWriteFileRedirection") Boolean hasWriteFileRedirection,
     /** The command with a redundant leading `cd` into the working directory removed, present only when there was one to remove. Computed with the same routine the shell driver applies before spawning, so a surface that renders this shows the text that actually runs. Consumers that display it should keep the original tool arguments available on demand. */
-    @CopilotExperimental
     @JsonProperty("displayCommand") String displayCommand
 ) {
 }

@@ -23,7 +23,6 @@ import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.github.copilot.CopilotExperimental;
 import com.github.copilot.CopilotRequestHandler;
 import com.github.copilot.generated.rpc.GitHubTelemetryNotification;
-import com.github.copilot.generated.rpc.EntraAuthConfig;
 
 /**
  * Configuration options for creating a
@@ -57,7 +56,6 @@ public class CopilotClientOptions {
     private String cliUrl;
     private RuntimeConnection connection;
     private ClientInfo clientInfo;
-    private EntraAuthOptions entra;
     private String copilotHome;
     private String cwd;
     private Map<String, String> environment;
@@ -67,7 +65,6 @@ public class CopilotClientOptions {
     private CopilotClientMode mode = CopilotClientMode.COPILOT_CLI;
     private ExtensionLaunchProvider extensionLaunchProvider;
     private InstallationConfirmationHandler installationConfirmationHandler;
-    private KerberosAuthConfig kerberosAuth;
     private Supplier<CompletableFuture<List<ModelInfo>>> onListModels;
     private CopilotRequestHandler requestHandler;
     private Function<GitHubTelemetryNotification, CompletableFuture<Void>> onGitHubTelemetry;
@@ -218,32 +215,6 @@ public class CopilotClientOptions {
             InstallationConfirmationHandler installationConfirmationHandler) {
         this.installationConfirmationHandler = Objects.requireNonNull(installationConfirmationHandler,
                 "installationConfirmationHandler must not be null");
-        return this;
-    }
-
-    /**
-     * Gets the SDK-host Kerberos credential callback configuration.
-     *
-     * @return the configuration, or {@code null} if not set
-     */
-    @JsonIgnore
-    public KerberosAuthConfig getKerberosAuth() {
-        return kerberosAuth;
-    }
-
-    /**
-     * Supplies Kerberos credentials from the SDK host.
-     * <p>
-     * When provided, the client handles the runtime's {@code kerberosAuth.acquire}
-     * requests with the configured callback and registers it during startup, before
-     * any session can be created. Startup fails if registration fails.
-     *
-     * @param kerberosAuth
-     *            the configuration (must not be {@code null})
-     * @return this options instance for method chaining
-     */
-    public CopilotClientOptions setKerberosAuth(KerberosAuthConfig kerberosAuth) {
-        this.kerberosAuth = Objects.requireNonNull(kerberosAuth, "kerberosAuth must not be null");
         return this;
     }
 
@@ -552,7 +523,7 @@ public class CopilotClientOptions {
     /**
      * Sets the log level for the CLI process.
      * <p>
-     * Valid levels include: "none", "error", "warning", "info", "debug", "all".
+     * Valid levels include: "error", "warn", "info", "debug", "trace".
      *
      * @param logLevel
      *            the log level (must not be {@code null} or empty)
@@ -779,44 +750,6 @@ public class CopilotClientOptions {
     }
 
     /**
-     * Gets the host's Entra registration, or null when built-in Entra sign-in and
-     * token renewal are disabled.
-     *
-     * @return the Entra configuration
-     */
-    @CopilotExperimental
-    public EntraAuthOptions getEntra() {
-        return entra;
-    }
-
-    /**
-     * Sets the host application's Entra registration for its sessions.
-     *
-     * @param entra
-     *            the Entra configuration
-     * @return this options instance
-     */
-    @CopilotExperimental
-    public CopilotClientOptions setEntra(EntraAuthConfig entra) {
-        Objects.requireNonNull(entra, "entra must not be null");
-        this.entra = new EntraAuthOptions().setClientId(entra.clientId()).setMatsAppName(entra.matsAppName());
-        return this;
-    }
-
-    /**
-     * Sets the Entra application and optional host-owned acquisition callback.
-     *
-     * @param entra
-     *            the host's Entra options
-     * @return this options instance
-     */
-    @CopilotExperimental
-    public CopilotClientOptions setEntra(EntraAuthOptions entra) {
-        this.entra = Objects.requireNonNull(entra, "entra must not be null");
-        return this;
-    }
-
-    /**
      * Declares the integrating application's identity, forwarded to the runtime on
      * the {@code server.connect} handshake.
      * <p>
@@ -919,10 +852,8 @@ public class CopilotClientOptions {
      * Sets whether to use the logged-in user for authentication.
      * <p>
      * When true, the CLI server will attempt to use stored OAuth tokens or gh CLI
-     * auth. When false, only explicit tokens such as gitHubToken are used;
-     * environment variable tokens (COPILOT_GITHUB_TOKEN, GH_TOKEN, GITHUB_TOKEN)
-     * are ignored. Default: true (but defaults to false when gitHubToken is
-     * provided).
+     * auth. When false, only explicit tokens (gitHubToken or environment variables)
+     * are used. Default: true (but defaults to false when gitHubToken is provided).
      * <p>
      *
      * @param useLoggedInUser
@@ -991,14 +922,12 @@ public class CopilotClientOptions {
         copy.cliUrl = this.cliUrl;
         copy.connection = this.connection;
         copy.clientInfo = this.clientInfo;
-        copy.entra = this.entra;
         copy.copilotHome = this.copilotHome;
         copy.cwd = this.cwd;
         copy.environment = this.environment != null ? new java.util.HashMap<>(this.environment) : null;
         copy.executor = this.executor;
         copy.extensionLaunchProvider = this.extensionLaunchProvider;
         copy.installationConfirmationHandler = this.installationConfirmationHandler;
-        copy.kerberosAuth = this.kerberosAuth;
         copy.gitHubToken = this.gitHubToken;
         copy.logLevel = this.logLevel;
         copy.onListModels = this.onListModels;

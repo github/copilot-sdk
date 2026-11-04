@@ -74,22 +74,17 @@ python chat.py
 ## Quick Start
 
 For experimental in-process AHP hosting, use `client.start_ahp_host(AhpHostOptions(...))`.
-Set `authentication=AhpHostAuthentication(mode)` with `"github"`, `"none"`, or
-`"custom"` in every client mode. Custom policies require a stable nonempty `require_identity`
-and async `authenticate(request)`: return `AhpAuthenticationResult(identity, expires_at)`
-with that exact identity and a future RFC3339 expiration, or `None` to reject.
-The request contains the decrypted admission `token` and an `asyncio.Event`
-(`cancellation_event`) set when validation ends. Exceptions reject access.
-Import these handwritten types from `copilot`. Admission tokens never configure
-GitHub authentication or inference. Factories receive trusted `request.authentication`
-beside `request.config`, never inside it. Select `local_server=HostLocalServerOptions()`,
+Select `local_server=HostLocalServerOptions()` for a local listener,
 `github_environment=HostGitHubEnvironmentOptions(name="My app", compute_id="stable-installation-id")`
-for Mission Control/WPS (GitHub authentication only), or both; import transports
-from `copilot.rpc`. At least one transport is required. GitHub-only hosts have no
-`url` or `token`; `host.environment_id` identifies their environment.
-`await host.list_sessions()` lists live and dormant sessions. Top-level `compute_id`
-reuses the durable catalog across transports and must match `github_environment.compute_id`.
-Omitted local identities persist. Dormant application publications need a resume callback.
+for Mission Control/WPS, or both. Import the transport types from `copilot.rpc`.
+At least one transport is required. GitHub-only hosts have no `url` or `token`;
+`host.environment_id` exposes their Mission Control identity.
+Call `await host.list_sessions()` to read the complete advertised catalog of live
+and dormant sessions.
+Set top-level `compute_id` to reuse the durable catalog across local and Mission
+Control hosting; it must agree with `github_environment.compute_id` when both are
+supplied. The runtime persists an omitted local-only identity. Publication
+survives host shutdown; dormant application sessions require your resume callback.
 See [runtime-supervised AHP hosting](../docs/runtime-supervised-host.md) for creation
 and resume callbacks, resident-session publication, ownership, and shared-snapshot E2Es.
 
@@ -325,8 +320,6 @@ templates, and assets, set its descriptor's `directory` to the absolute path of
 the folder that holds them:
 
 ```python
-from copilot import SkillProviderDescriptor
-
 SkillProviderDescriptor(
     name="release-notes",
     description="Writes release notes in the team's format.",
@@ -371,15 +364,6 @@ client = CopilotClient(connection=RuntimeConnection.for_uri("localhost:3000"))
 
 **CopilotClient Constructor:**
 
-<!-- docs-validate: hidden -->
-```python
-from copilot import CopilotClient, RuntimeConnection
-
-CopilotClient()  # spawn the bundled runtime with defaults
-CopilotClient(connection=RuntimeConnection.for_stdio(), log_level="debug", github_token="token")
-```
-<!-- /docs-validate: hidden -->
-
 ```python
 CopilotClient()                                                   # spawn the bundled runtime with defaults
 CopilotClient(connection=..., log_level="debug", github_token=..., ...)
@@ -396,13 +380,13 @@ All options are kw-only parameters:
 - `env` (dict | None): Environment variables for the CLI process.
 
     For the native standalone runtime, include
-    `{"COPILOT_TELEMETRY_DISABLED": "true"}` in `env` before startup to
-    disable Copilot-owned GitHub and Entra authentication telemetry process-wide, including
+    `{"COPILOT_GITHUB_TELEMETRY_DISABLED": "true"}` in `env` before startup to
+    disable direct GitHub telemetry uploads for the entire host, including
     sessionless events. Authentication, `on_github_telemetry` forwarding, and
     user-configured OpenTelemetry export remain unchanged. This is separate from
     `enable_session_telemetry=False`, which disables only a session's pipeline.
-    The value must be exactly `"true"`; changing it requires a process restart.
-    `COPILOT_GITHUB_TELEMETRY_DISABLED` remains native-runtime/GitHub-only. In-process connections reject
+    The value must be exactly `"true"`; changing it requires a runtime restart.
+    The Node CLI host does not use this variable. In-process connections reject
     per-client `env`; set the variable in the host process environment before
     starting the runtime instead.
 
@@ -410,11 +394,11 @@ All options are kw-only parameters:
 - `base_directory` (str | None): Base directory for Copilot data (session state, config, etc.). Sets `COPILOT_HOME` on the spawned CLI process. When `None`, the CLI defaults to `~/.copilot`. Useful in restricted environments where only specific directories are writable. Ignored when using a `UriRuntimeConnection`.
 - `extension_launch_provider` (ExtensionLaunchProviderHandler | None): Experimental connection-level resolver for extension launch profiles. The client installs the reverse-RPC handler and registers the provider during startup before sessions can be created.
 - `installation_confirmation_handler` (InstallationConfirmationHandler | None): Experimental connection-global human review for `installations.confirm`. Receives the typed request and one cancellation signal, and returns an explicit decision. Does not enable installation capabilities.
-- `kerberos_auth` (KerberosAuthConfig | None): Supplies Kerberos credentials from the SDK host. The client installs the `kerberosAuth.acquire` handler and registers `mode` and `scope` during startup before sessions can be created. See [Kerberos authentication callback](#kerberos-authentication-callback).
 - `use_logged_in_user` (bool | None): Whether to use logged-in user for authentication (default: True, but False when `github_token` is provided).
 - `telemetry` (dict | None): OpenTelemetry configuration for the CLI process. Providing this enables telemetry — no separate flag needed. See [Telemetry](#telemetry) below.
 - `session_fs` (dict | None): Connection-level session filesystem provider configuration. To let `view` read provider-only images, set `capabilities.binary` to `True` and return a provider implementing `SessionFsBinaryProvider` (`read_file_bytes(path)` and `write_file_bytes(path, content, mode=None)`) from `create_session_fs_handler`; image reads do not fall back to local files. Binary reads and writes are limited to 50,330,880 raw bytes (approximately 48 MiB); larger results return a filesystem error before encoding or decoding.
 - `session_idle_timeout_seconds` (int | None): Server-wide session idle timeout in seconds. Set to `None` or `0` to disable.
+- `enable_remote_sessions` (bool): Enable remote/cloud session support (default: False).
 - `on_list_models` (callable | None): Custom handler for `list_models()`. When provided, the handler is called instead of querying the runtime.
 - `mode` (str): Client mode (default: `"copilot-cli"`).
 
@@ -431,17 +415,11 @@ path or `COPILOT_CLI_PATH` overrides the downloaded runtime.
 
 Child-process connections (`for_stdio`/`for_tcp`) also expose a per-connection
 `env` field for the spawned process. Set it on the returned connection instead of
-the client-level `env` — setting both raises. The mapping replaces the child's
-entire environment rather than adding to it, so start from `os.environ` to keep
-the variables the runtime needs, such as `PATH`:
+the client-level `env` — setting both raises:
 
 ```python
-import os
-
-from copilot import CopilotClient, RuntimeConnection
-
 conn = RuntimeConnection.for_stdio()
-conn.env = {**os.environ, "MY_VAR": "value"}
+conn.env = {"MY_VAR": "value"}
 client = CopilotClient(connection=conn)  # do NOT also pass env=... here
 ```
 
@@ -489,46 +467,6 @@ Capability negotiation does not promise availability; preserve typed refusals
 instead of falling back to raw configuration writes. Generated presence and
 transport tests do not establish a working installer, live OAuth or restart
 safety.
-
-### Kerberos authentication callback
-
-Provide `kerberos_auth={"mode": ..., "callback": ...}` (a `KerberosAuthConfig`) to `CopilotClient` when Kerberos tickets must be obtained by the SDK host, for example from Windows when the runtime runs in WSL. The runtime currently uses it for proxy authentication. The callback receives a `KerberosAuthAcquireRequest` whose `spn` is a service principal in the platform-independent `service/host[@REALM]` form, and returns a fresh base64 SPNEGO token without the `Negotiate ` prefix, or `None` when credentials are unavailable. The callback may be sync or async and should validate the principal before issuing credentials.
-
-<!-- docs-validate: hidden -->
-```python
-from copilot import CopilotClient, KerberosAuthAcquireRequest
-
-
-async def get_spnego_token(spn: str) -> str:
-    return ""
-
-
-async def acquire_token(request: KerberosAuthAcquireRequest) -> str | None:
-    if request.spn != "HTTP/proxy.example.com":
-        return None
-    return await get_spnego_token(request.spn)  # Your Kerberos/SSPI integration.
-
-
-client = CopilotClient(kerberos_auth={"mode": "fallback", "callback": acquire_token})
-```
-<!-- /docs-validate: hidden -->
-
-```python
-from copilot import CopilotClient, KerberosAuthAcquireRequest
-
-
-async def acquire_token(request: KerberosAuthAcquireRequest) -> str | None:
-    if request.spn != "HTTP/proxy.example.com":
-        return None
-    return await get_spnego_token(request.spn)  # Your Kerberos/SSPI integration.
-
-
-client = CopilotClient(kerberos_auth={"mode": "fallback", "callback": acquire_token})
-```
-
-With `mode="fallback"`, native credential acquisition (including the first token) is tried first; only failure invokes the callback. With `mode="always"`, native credential lookup is never attempted. Without this option, behavior is unchanged. Registration happens during `start()`, before sessions can be created; if it fails, `start()` fails.
-
-By default the callback authenticates only requests made for sessions this client creates or resumes. With `scope="runtime"` it also authenticates the runtime's shared background traffic, such as catalog refreshes and telemetry; only one connection at a time can hold that scope, so `start()` fails if another client holds it. The registration ends when the connection closes; a `start()` that fails or is cancelled closes it. In `fallback` mode, if the callback cannot supply a valid token, the native credential error is reported. In `always` mode, a disconnected, raising, or empty callback fails authentication. The runtime waits at most 30 seconds for the callback (less when the request's own deadline is sooner) and treats a timeout as a callback failure. When the runtime stops waiting or the connection closes, an awaitable the callback returned is cancelled with `asyncio.CancelledError`; if that awaitable is cancelled otherwise, the runtime receives a callback failure. Like other client callbacks, the callback runs on the client's event loop, so keep a sync callback fast and offload a blocking lookup, for example with `await asyncio.to_thread(lookup, request.spn)`; its late result is ignored. Tokens are not cached and must not be logged or persisted. The callback supplies the initial SPNEGO token only; exchanges requiring continuation tokens still need native negotiation.
 
 ### In-process (FFI) transport
 
@@ -587,24 +525,6 @@ These are passed as keyword arguments to `create_session()`:
 - `interactive_user` (bool): Declares that a person types this session's messages, as in an editor chat panel. Enables the runtime's user-message analysis telemetry for user-authored messages; automated messages stay excluded. Defaults to `False`. Ignored for cloud sessions. Re-supply it when cold-resuming a session; it is ignored when resuming a session that is already active.
 - `hooks` (SessionHooks): Hook handlers for session lifecycle events. See [Session Hooks](#session-hooks) section.
 
-<!-- docs-validate: hidden -->
-```python
-async def acquire_token_for_host(host: str) -> str:
-    return ""
-
-
-async def provide_github_token(args):
-    return {
-        "kind": "token",
-        "accessToken": await acquire_token_for_host(args["host"]),
-        "expiresIn": 8 * 60 * 60,
-    }
-
-
-session = await client.create_session(github_token_provider=provide_github_token)
-```
-<!-- /docs-validate: hidden -->
-
 ```python
 async def provide_github_token(args):
     return {
@@ -659,38 +579,6 @@ unsubscribe()
 
 Define tools with automatic JSON schema generation using the `@define_tool` decorator and Pydantic models:
 
-<!-- docs-validate: hidden -->
-<!--
-```python
-from typing import Any
-
-from pydantic import BaseModel, Field
-from copilot import CopilotClient, define_tool
-
-
-async def fetch_issue(issue_id: str) -> Any: ...
-
-
-class LookupIssueParams(BaseModel):
-    id: str = Field(description="Issue identifier")
-
-
-@define_tool(description="Fetch issue details from our tracker")
-async def lookup_issue(params: LookupIssueParams) -> str:
-    issue = await fetch_issue(params.id)
-    return issue.summary
-
-
-async with await client.create_session(
-    on_permission_request=PermissionHandler.approve_all,
-    model="gpt-5",
-    tools=[lookup_issue],
-) as session:
-    ...
-```
--->
-<!-- /docs-validate: hidden -->
-
 ```python
 from pydantic import BaseModel, Field
 from copilot import CopilotClient, define_tool
@@ -719,52 +607,6 @@ async with await client.create_session(
 #### Low-level API (without Pydantic)
 
 For users who prefer manual schema definition:
-
-<!-- docs-validate: hidden -->
-<!--
-```python
-from typing import Any
-
-from copilot import CopilotClient
-from copilot.tools import Tool, ToolInvocation, ToolResult
-from copilot.session import PermissionHandler
-
-
-async def fetch_issue(issue_id: str) -> Any: ...
-
-
-async def lookup_issue(invocation: ToolInvocation) -> ToolResult:
-    issue_id = invocation.arguments["id"]
-    issue = await fetch_issue(issue_id)
-    return ToolResult(
-        text_result_for_llm=issue.summary,
-        result_type="success",
-        session_log=f"Fetched issue {issue_id}",
-    )
-
-
-async with await client.create_session(
-    on_permission_request=PermissionHandler.approve_all,
-    model="gpt-5",
-    tools=[
-        Tool(
-            name="lookup_issue",
-            description="Fetch issue details from our tracker",
-            parameters={
-                "type": "object",
-                "properties": {
-                    "id": {"type": "string", "description": "Issue identifier"},
-                },
-                "required": ["id"],
-            },
-            handler=lookup_issue,
-        )
-    ],
-) as session:
-    ...
-```
--->
-<!-- /docs-validate: hidden -->
 
 ```python
 from copilot import CopilotClient
@@ -807,26 +649,6 @@ The SDK automatically handles `tool.call`, executes your handler (sync or async)
 
 You can also create a declaration-only tool with generated Pydantic parameters:
 
-<!-- docs-validate: hidden -->
-<!--
-```python
-from pydantic import BaseModel, Field
-from copilot import define_tool
-
-
-class LookupIssueParams(BaseModel):
-    id: str = Field(description="Issue identifier")
-
-
-tool = define_tool(
-    "lookup_issue",
-    description="Fetch issue details from our tracker",
-    params_type=LookupIssueParams,
-)
-```
--->
-<!-- /docs-validate: hidden -->
-
 ```python
 tool = define_tool(
     "lookup_issue",
@@ -848,33 +670,6 @@ finish on the handler they already captured, a rejected replacement leaves the
 previous handlers in place, and concurrent `set_tools()` calls on the same
 session are applied in order.
 
-<!-- docs-validate: hidden -->
-<!--
-```python
-from pydantic import BaseModel, Field
-from copilot import define_tool
-
-
-class LookupParams(BaseModel):
-    id: str = Field(description="Record identifier")
-
-
-@define_tool(description="Fetch issue details from our tracker")
-async def lookup_issue(params: LookupParams) -> str:
-    return params.id
-
-
-@define_tool(description="Fetch customer details from our CRM")
-async def lookup_customer(params: LookupParams) -> str:
-    return params.id
-
-
-await session.set_tools([lookup_issue, lookup_customer])
-await session.set_tools([])  # remove this client's custom tools
-```
--->
-<!-- /docs-validate: hidden -->
-
 ```python
 await session.set_tools([lookup_issue, lookup_customer])
 await session.set_tools([])  # remove this client's custom tools
@@ -886,30 +681,6 @@ the shared behavior and active-turn limitations.
 #### Overriding Built-in Tools
 
 If you register a tool with the same name as a built-in CLI tool (e.g. `edit_file`, `read_file`), the SDK will throw an error unless you explicitly opt in by setting `overrides_built_in_tool=True`. This flag signals that you intend to replace the built-in tool with your custom implementation.
-
-<!-- docs-validate: hidden -->
-<!--
-```python
-from pydantic import BaseModel, Field
-from copilot import define_tool
-
-
-class EditFileParams(BaseModel):
-    path: str = Field(description="File path")
-    content: str = Field(description="New file content")
-
-
-@define_tool(
-    name="edit_file",
-    description="Custom file editor with project-specific validation",
-    overrides_built_in_tool=True,
-)
-async def edit_file(params: EditFileParams) -> str:
-    # your logic
-    return ""
-```
--->
-<!-- /docs-validate: hidden -->
 
 ```python
 class EditFileParams(BaseModel):
@@ -949,29 +720,6 @@ use an object schema if references are needed.
 
 Set `skip_permission=True` on a tool definition to allow it to execute without triggering a permission prompt:
 
-<!-- docs-validate: hidden -->
-<!--
-```python
-from pydantic import BaseModel, Field
-from copilot import define_tool
-
-
-class LookupParams(BaseModel):
-    id: str = Field(description="Record identifier")
-
-
-@define_tool(
-    name="safe_lookup",
-    description="A read-only lookup that needs no confirmation",
-    skip_permission=True,
-)
-async def safe_lookup(params: LookupParams) -> str:
-    # your logic
-    return ""
-```
--->
-<!-- /docs-validate: hidden -->
-
 ```python
 @define_tool(name="safe_lookup", description="A read-only lookup that needs no confirmation", skip_permission=True)
 async def safe_lookup(params: LookupParams) -> str:
@@ -981,25 +729,6 @@ async def safe_lookup(params: LookupParams) -> str:
 #### Deferring Tools
 
 Set `defer` to control whether a tool may be loaded lazily via tool search rather than always pre-loaded. Use `"auto"` to allow the tool to be deferred and surfaced through tool search, or `"never"` to force it to always be pre-loaded. Defaults to `"auto"`.
-
-<!-- docs-validate: hidden -->
-<!--
-```python
-from pydantic import BaseModel, Field
-from copilot import define_tool
-
-
-class LookupParams(BaseModel):
-    id: str = Field(description="Record identifier")
-
-
-@define_tool(name="lookup_issue", description="Fetch issue details", defer="auto")
-async def lookup_issue(params: LookupParams) -> str:
-    # your logic
-    return ""
-```
--->
-<!-- /docs-validate: hidden -->
 
 ```python
 @define_tool(name="lookup_issue", description="Fetch issue details", defer="auto")
@@ -1014,8 +743,6 @@ Change the Auto routing preference without changing the selected model. The runt
 Watch for the outcome through the `session.model_change` event on success or the ephemeral `session.auto_tier_switch_failed` event on failure. A failed activation leaves the incumbent effective tier unchanged. Read the authoritative committed, pending, and activating preferences at any time through the session's `model.getCurrent` RPC method.
 
 ```python
-from copilot import ModelSwitchAutoTierStatus
-
 result = await session.set_auto_tier("intelligence")
 if result.status == ModelSwitchAutoTierStatus.PENDING:
     ...  # Accepted, but not yet in effect.
@@ -1032,40 +759,6 @@ See [Auto tier persistence](../docs/features/session-persistence.md#auto-tier-pe
 
 The SDK supports image attachments via the `attachments` parameter. You can attach images by providing their file path, or by passing base64-encoded data directly using a blob attachment:
 
-<!-- docs-validate: hidden -->
-<!--
-```python
-import base64
-from pathlib import Path
-
-base64_image_data = base64.b64encode(Path("/path/to/image.png").read_bytes()).decode("ascii")
-
-# File attachment — runtime reads from disk
-await session.send(
-    "What's in this image?",
-    attachments=[
-        {
-            "type": "file",
-            "path": "/path/to/image.jpg",
-        }
-    ],
-)
-
-# Blob attachment — provide base64 data directly
-await session.send(
-    "What's in this image?",
-    attachments=[
-        {
-            "type": "blob",
-            "data": base64_image_data,
-            "mimeType": "image/png",
-        }
-    ],
-)
-```
--->
-<!-- /docs-validate: hidden -->
-
 ```python
 # File attachment — runtime reads from disk
 await session.send(
@@ -1091,7 +784,7 @@ await session.send(
 )
 ```
 
-Supported image formats are PNG, JPEG, WebP, and GIF. Images in other formats, such as BMP or TIFF, are not sent to the model. The agent's `view` tool can also read images directly from the filesystem, so you can also ask questions like:
+Supported image formats include JPG, PNG, GIF, and other common image types. The agent's `view` tool can also read images directly from the filesystem, so you can also ask questions like:
 
 ```python
 await session.send("What does the most recent jpg in this directory portray?")
@@ -1504,23 +1197,15 @@ When `enable_managed_settings` is true for the session, `approve_all` raises an 
 Provide your own function to inspect each request and apply custom logic (sync or async). Check `managed_approval_required` before any automatic approval:
 
 ```python
-from copilot import (
-    CopilotClient,
-    PermissionNoResult,
-    PermissionRequest,
-    PermissionRequestResult,
-)
+from copilot import PermissionNoResult, PermissionRequest, PermissionRequestResult
 from copilot.rpc import (
     PermissionDecisionApproveOnce,
     PermissionDecisionReject,
 )
-from copilot.session import PermissionInvocation
 from copilot.session_events import PermissionRequestShell
 
 
-def on_permission_request(
-    request: PermissionRequest, invocation: PermissionInvocation
-) -> PermissionRequestResult:
+def on_permission_request(request: PermissionRequest, invocation: dict) -> PermissionRequestResult:
     if getattr(request, "managed_approval_required", False) is True:
         return PermissionNoResult()
 
@@ -1534,25 +1219,17 @@ def on_permission_request(
             return PermissionDecisionApproveOnce()
 
 
-async with CopilotClient() as client:
-    session = await client.create_session(
-        on_permission_request=on_permission_request,
-        model="gpt-5",
-    )
+session = await client.create_session(
+    on_permission_request=on_permission_request,
+    model="gpt-5",
+)
 ```
 
 Async handlers are also supported:
 
 ```python
-import asyncio
-
-from copilot import PermissionNoResult, PermissionRequest, PermissionRequestResult
-from copilot.rpc import PermissionDecisionApproveOnce
-from copilot.session import PermissionInvocation
-
-
 async def on_permission_request(
-    request: PermissionRequest, invocation: PermissionInvocation
+    request: PermissionRequest, invocation: dict
 ) -> PermissionRequestResult:
     if getattr(request, "managed_approval_required", False) is True:
         return PermissionNoResult()
@@ -1600,7 +1277,7 @@ It defaults to `True` in all modes; set it to `False` to reject recovery. If rep
 `session.transcript_recovery` reports `planned_backup_path`,
 `invalid_line_numbers` (including discarded torn-tail lines), and
 `session_start_moved`; otherwise it is `None`. If repair is rejected, the
-public `copilot.JsonRpcError` exposes the server's `code` and `data` (with
+existing `JsonRpcError` exposes the server's `code` and `data` (with
 `invalidLineNumbers` and `sessionStartMoved`) alongside its message.
 Disabling recovery still permits adding a missing newline after an intact final
 record; it rejects torn tails.
@@ -1618,8 +1295,6 @@ async def handle_user_input(request, invocation):
     # request["question"] - The question to ask
     # request.get("choices") - Optional list of choices for multiple choice
     # request.get("allowFreeform", True) - Whether freeform input is allowed
-    # request.get("requestId") - Runtime ID of the pending request (absent on older runtimes);
-    #   pass it as request_id to session.rpc.ui.handle_pending_user_input to answer out of band
 
     print(f"Agent asks: {request['question']}")
     if request.get("choices"):

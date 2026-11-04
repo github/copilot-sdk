@@ -30,6 +30,7 @@ from copilot import (
     ExtensionLaunchProviderResolveRequest,
     ExtensionLaunchProviderResolveResult,
     OpenCanvasInstance,
+    RemoteSessionMode,
     RuntimeConnection,
 )
 from copilot.rpc import PingRequest
@@ -537,6 +538,7 @@ class TestClientOptions:
                 },
                 memory={"enabled": True},
                 github_token="session-create-token",
+                remote_session=RemoteSessionMode.EXPORT,
                 cloud=CloudSessionOptions(
                     repository=CloudSessionRepository(
                         owner="github",
@@ -606,7 +608,7 @@ class TestClientOptions:
                 assert params["largeOutput"]["outputDir"] == output_directory
                 assert params["memory"]["enabled"] is True
                 assert params["gitHubToken"] == "session-create-token"
-                assert "remoteSession" not in params
+                assert params["remoteSession"] == "export"
                 assert params["cloud"]["repository"]["owner"] == "github"
                 assert params["requestMcpApps"] is True
                 assert params["requestCanvasRenderer"] is True
@@ -718,6 +720,7 @@ class TestClientOptions:
                     "output_directory": output_directory,
                 },
                 memory={"enabled": False},
+                remote_session=RemoteSessionMode.ON,
                 open_canvases=[
                     OpenCanvasInstance(
                         canvas_id="resume-canvas",
@@ -748,7 +751,7 @@ class TestClientOptions:
                 assert params["largeOutput"]["maxSizeBytes"] == 2048
                 assert params["largeOutput"]["outputDir"] == output_directory
                 assert params["memory"]["enabled"] is False
-                assert "remoteSession" not in params
+                assert params["remoteSession"] == "on"
 
                 open_canvas = params["openCanvases"][0]
                 assert open_canvas["canvasId"] == "resume-canvas"

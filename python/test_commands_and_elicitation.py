@@ -6,7 +6,6 @@ Mirrors the Node.js client.test.ts tests for these features.
 """
 
 import asyncio
-from unittest.mock import Mock
 
 import pytest
 
@@ -16,14 +15,11 @@ from copilot.session import (
     AutoModeSwitchResponse,
     CommandContext,
     CommandDefinition,
-    CopilotSession,
     ElicitationContext,
     ElicitationResult,
     ExitPlanModeRequest,
     ExitPlanModeResult,
     PermissionHandler,
-    UserInputRequest,
-    UserInputResponse,
 )
 from e2e.testharness import CLI_PATH
 
@@ -770,128 +766,6 @@ class TestOnElicitationContext:
             assert schema["required"] == ["name", "age"]
         finally:
             await client.force_stop()
-
-
-# ============================================================================
-# Mode callback request IDs (userInput.request / exitPlanMode.request)
-# ============================================================================
-
-
-def _client_with_session() -> tuple[CopilotClient, CopilotSession]:
-    client = CopilotClient(connection=RuntimeConnection.for_uri("localhost:1234"))
-    session = CopilotSession("session-1", Mock())
-    client._sessions[session.session_id] = session
-    return client, session
-
-
-class TestModeCallbackRequestIds:
-    @pytest.mark.asyncio
-    async def test_user_input_request_threads_runtime_request_id(self):
-        client, session = _client_with_session()
-        received: list[UserInputRequest] = []
-
-        def handler(request: UserInputRequest, invocation: dict[str, str]) -> UserInputResponse:
-            received.append(request)
-            return {"answer": "yes", "wasFreeform": True}
-
-        session._register_user_input_handler(handler)
-
-        result = await client._handle_user_input_request(
-            {
-                "sessionId": session.session_id,
-                "question": "Proceed?",
-                "choices": ["yes", "no"],
-                "allowFreeform": False,
-                "requestId": "user-input-request-1",
-            }
-        )
-
-        assert result == {"answer": "yes", "wasFreeform": True}
-        assert received == [
-            {
-                "question": "Proceed?",
-                "choices": ["yes", "no"],
-                "allowFreeform": False,
-                "requestId": "user-input-request-1",
-            }
-        ]
-
-    @pytest.mark.asyncio
-    @pytest.mark.parametrize("extra", [{}, {"requestId": ""}, {"requestId": None}])
-    async def test_user_input_request_omits_missing_request_id(self, extra: dict):
-        client, session = _client_with_session()
-        received: list[UserInputRequest] = []
-
-        def handler(request: UserInputRequest, invocation: dict[str, str]) -> UserInputResponse:
-            received.append(request)
-            return {"answer": "yes", "wasFreeform": True}
-
-        session._register_user_input_handler(handler)
-
-        await client._handle_user_input_request(
-            {"sessionId": session.session_id, "question": "Proceed?", **extra}
-        )
-
-        assert len(received) == 1, received
-        assert "requestId" not in received[0], received[0]
-
-    @pytest.mark.asyncio
-    async def test_exit_plan_mode_request_threads_runtime_request_id(self):
-        client, session = _client_with_session()
-        received: list[ExitPlanModeRequest] = []
-
-        def handler(request: ExitPlanModeRequest, invocation: dict[str, str]) -> ExitPlanModeResult:
-            received.append(request)
-            return {"approved": True, "selectedAction": "interactive"}
-
-        session._register_exit_plan_mode_handler(handler)
-
-        result = await client._handle_exit_plan_mode_request(
-            {
-                "sessionId": session.session_id,
-                "summary": "Review the plan",
-                "planContent": "Plan body",
-                "actions": ["interactive", "autopilot"],
-                "recommendedAction": "autopilot",
-                "requestId": "exit-plan-request-1",
-            }
-        )
-
-        assert result == {"approved": True, "selectedAction": "interactive"}
-        assert received == [
-            {
-                "summary": "Review the plan",
-                "planContent": "Plan body",
-                "actions": ["interactive", "autopilot"],
-                "recommendedAction": "autopilot",
-                "requestId": "exit-plan-request-1",
-            }
-        ]
-
-    @pytest.mark.asyncio
-    @pytest.mark.parametrize("extra", [{}, {"requestId": ""}, {"requestId": None}])
-    async def test_exit_plan_mode_request_omits_missing_request_id(self, extra: dict):
-        client, session = _client_with_session()
-        received: list[ExitPlanModeRequest] = []
-
-        def handler(request: ExitPlanModeRequest, invocation: dict[str, str]) -> ExitPlanModeResult:
-            received.append(request)
-            return {"approved": True}
-
-        session._register_exit_plan_mode_handler(handler)
-
-        await client._handle_exit_plan_mode_request(
-            {
-                "sessionId": session.session_id,
-                "summary": "Review the plan",
-                "actions": ["interactive"],
-                "recommendedAction": "interactive",
-                **extra,
-            }
-        )
-
-        assert len(received) == 1, received
-        assert "requestId" not in received[0], received[0]
 
 
 # ============================================================================

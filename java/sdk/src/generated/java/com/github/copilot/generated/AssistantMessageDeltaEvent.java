@@ -39,7 +39,6 @@ public final class AssistantMessageDeltaEvent extends SessionEvent {
         /** Incremental text chunk to append to the message content */
         @JsonProperty("deltaContent") String deltaContent,
         /** Tool call ID of the parent tool invocation when this event originates from a sub-agent */
-        @Deprecated
         @JsonProperty("parentToolCallId") String parentToolCallId
     ) {
     }

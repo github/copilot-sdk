@@ -45,7 +45,7 @@ For Go, Java, and Rust, [install the CLI manually](https://github.com/features/c
 
 ## Architecture
 
-All SDKs drive the Copilot agent runtime over JSON-RPC. By default the runtime is hosted by the Copilot CLI running as a child process in server mode:
+All SDKs communicate with the Copilot CLI server via JSON-RPC:
 
 ```
 Your Application
@@ -56,18 +56,6 @@ Your Application
 ```
 
 The SDK manages the CLI process lifecycle automatically. You can also connect to an external CLI server—see the [Getting Started Guide](./docs/getting-started.md#connecting-to-an-external-cli-server) for details on running the CLI in server mode.
-
-Every SDK also offers an experimental in-process transport. It loads the native Copilot runtime into your application through a C ABI and carries the same JSON-RPC messages over an in-memory connection, so no CLI process is started:
-
-```
-Your Application
-       ↓
-  SDK Client
-       ↓ JSON-RPC (in memory, C ABI)
-  Native Copilot runtime
-```
-
-See [Run the Copilot runtime in process](./docs/setup/in-process-runtime.md) for the connection option in each language and its requirements.
 
 ### Portable elicitation schemas
 

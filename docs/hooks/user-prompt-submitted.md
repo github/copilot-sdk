@@ -129,8 +129,8 @@ public interface UserPromptSubmittedHandler {
 
 | Field | Type | Description |
 |-------|------|-------------|
-| `timestamp` | SDK timestamp type | When the hook was triggered |
-| `workingDirectory` | string | Current working directory |
+| `timestamp` | number | Unix timestamp when the hook was triggered |
+| `cwd` | string | Current working directory |
 | `prompt` | string | The user's submitted prompt |
 
 ## Output
@@ -189,10 +189,7 @@ const session = await client.createSession({
 <summary><strong>Python</strong></summary>
 
 ```python
-from copilot import CopilotClient
 from copilot.session import PermissionHandler
-
-client = CopilotClient()
 
 async def on_user_prompt_submitted(input_data, invocation):
     print(f"[{invocation['session_id']}] User: {input_data['prompt']}")
@@ -290,31 +287,7 @@ var session = await client.CreateSessionAsync(new SessionConfig
 <details>
 <summary><strong>Java</strong></summary>
 
-<!-- docs-validate: hidden -->
-```java
-import com.github.copilot.*;
-import com.github.copilot.rpc.*;
-import java.util.concurrent.CompletableFuture;
-
-public class UserPromptSubmittedExample {
-    public static void main(String[] args) throws Exception {
-        try (var client = new CopilotClient()) {
-            var hooks = new SessionHooks()
-                .setOnUserPromptSubmitted((input, invocation) -> {
-                    System.out.println("[" + invocation.getSessionId() + "] User: " + input.prompt());
-                    return CompletableFuture.completedFuture(null);
-                });
-
-            var session = client.createSession(
-                new SessionConfig()
-                    .setOnPermissionRequest(PermissionHandler.APPROVE_ALL)
-                    .setHooks(hooks)
-            ).get();
-        }
-    }
-}
-```
-<!-- /docs-validate: hidden -->
+<!-- docs-validate: skip -->
 ```java
 import com.github.copilot.*;
 import com.github.copilot.rpc.*;

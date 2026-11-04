@@ -28,6 +28,54 @@ impl SystemMessageTransform for TestTransform {
 }
 
 #[tokio::test]
+async fn dispatch_applies_matching_transform() {
+    let transform = TestTransform;
+    let mut sections = HashMap::new();
+    sections.insert(
+        "instructions".to_string(),
+        TransformSection {
+            content: "be helpful".to_string(),
+        },
+    );
+
+    let response = dispatch_transform(&transform, &SessionId::new("sess-1"), sections).await;
+    assert_eq!(
+        response.sections["instructions"].content,
+        "[modified] be helpful"
+    );
+}
+
+#[tokio::test]
+async fn dispatch_passes_through_unhandled_section() {
+    let transform = TestTransform;
+    let mut sections = HashMap::new();
+    sections.insert(
+        "context".to_string(),
+        TransformSection {
+            content: "original context".to_string(),
+        },
+    );
+
+    let response = dispatch_transform(&transform, &SessionId::new("sess-1"), sections).await;
+    assert_eq!(response.sections["context"].content, "original context");
+}
+
+#[tokio::test]
+async fn dispatch_unknown_section_passes_through() {
+    let transform = TestTransform;
+    let mut sections = HashMap::new();
+    sections.insert(
+        "unknown".to_string(),
+        TransformSection {
+            content: "mystery".to_string(),
+        },
+    );
+
+    let response = dispatch_transform(&transform, &SessionId::new("sess-1"), sections).await;
+    assert_eq!(response.sections["unknown"].content, "mystery");
+}
+
+#[tokio::test]
 async fn dispatch_mixed_sections() {
     let transform = TestTransform;
     let mut sections = HashMap::new();
@@ -57,4 +105,11 @@ async fn dispatch_mixed_sections() {
     );
     assert_eq!(response.sections["context"].content, "some context");
     assert_eq!(response.sections["other"].content, "other stuff");
+}
+
+#[tokio::test]
+async fn section_ids_returns_registered_sections() {
+    let transform = TestTransform;
+    let ids = transform.section_ids();
+    assert_eq!(ids, vec!["instructions", "context"]);
 }

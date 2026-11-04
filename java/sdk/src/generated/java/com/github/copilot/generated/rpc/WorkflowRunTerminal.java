@@ -34,7 +34,6 @@ public record WorkflowRunTerminal(
     /** Prompt-safe preview of the completed result. */
     @JsonProperty("resultPreview") String resultPreview,
     /** Pause initiator metadata, or null when the run did not pause. */
-    @JsonInclude(JsonInclude.Include.ALWAYS)
     @JsonProperty("pauseInfo") Object pauseInfo
 ) {
 }

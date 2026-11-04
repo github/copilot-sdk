@@ -11,7 +11,6 @@ from pydantic import BaseModel, Field
 
 from copilot import (
     AhpHost,
-    AhpHostAuthentication,
     AhpHostOptions,
     AhpSessionCreateRequest,
     AhpSessionResumeRequest,
@@ -124,9 +123,7 @@ class Application:
         from copilot.rpc import HostLocalServerOptions
 
         return AhpHostOptions(
-            authentication=AhpHostAuthentication("github"),
             local_server=HostLocalServerOptions(),
-            allow_creating_new_sessions=True,
             create_session=self.create,
             resume_session=self.resume,
             on_session_released=self.release,

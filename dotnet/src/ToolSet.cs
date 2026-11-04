@@ -37,7 +37,7 @@ namespace GitHub.Copilot;
 /// </example>
 public sealed class ToolSet : List<string>
 {
-    private static readonly Regex s_validToolName = new(@"\A[a-zA-Z0-9_-]+\z", RegexOptions.Compiled);
+    private static readonly Regex s_validToolName = new(@"^[a-zA-Z0-9_-]+$", RegexOptions.Compiled);
 
     /// <summary>
     /// Adds one or more built-in tool patterns.

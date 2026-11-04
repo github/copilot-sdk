@@ -46,20 +46,13 @@
         <!-- <module>copilot-native-all</module> -->
     </modules>
 
-    <distributionManagement>
-        <snapshotRepository>
-            <id>central</id>
-            <url>https://central.sonatype.com/repository/maven-snapshots/</url>
-        </snapshotRepository>
-    </distributionManagement>
-
     <properties>
         <!--
             CI-friendly version. This single property drives the version of the
             parent and every module (they all declare <version>${revision}</version>).
-            The committed value stays a -SNAPSHOT for local development.
-            Publishing overrides it with the Java Maven version; previews use
-            a rolling base-version -SNAPSHOT (supplied by .github/workflows/publish.yml); no
+            The committed value stays a -SNAPSHOT for local development and the
+            daily snapshot publish. Releases override it at build time with
+            -Drevision=X.Y.Z (supplied by .github/workflows/publish.yml); no
             release or next-development version is ever committed to the repo.
             flatten-maven-plugin (ossrh mode, configured below) resolves
             ${revision} into the installed and published POMs.
@@ -113,12 +106,12 @@
                 <plugin>
                     <groupId>org.apache.maven.plugins</groupId>
                     <artifactId>maven-surefire-plugin</artifactId>
-                    <version>3.6.1</version>
+                    <version>3.6.0</version>
                 </plugin>
                 <plugin>
                     <groupId>org.apache.maven.plugins</groupId>
                     <artifactId>maven-failsafe-plugin</artifactId>
-                    <version>3.6.1</version>
+                    <version>3.6.0</version>
                 </plugin>
                 <plugin>
                     <groupId>org.apache.maven.plugins</groupId>
@@ -143,17 +136,17 @@
                 <plugin>
                     <groupId>com.github.spotbugs</groupId>
                     <artifactId>spotbugs-maven-plugin</artifactId>
-                    <version>4.10.5.0</version>
+                    <version>4.10.4.1</version>
                 </plugin>
                 <plugin>
                     <groupId>com.diffplug.spotless</groupId>
                     <artifactId>spotless-maven-plugin</artifactId>
-                    <version>3.10.4</version>
+                    <version>2.46.1</version>
                 </plugin>
                 <plugin>
                     <groupId>org.jacoco</groupId>
                     <artifactId>jacoco-maven-plugin</artifactId>
-                    <version>0.8.16</version>
+                    <version>0.8.15</version>
                 </plugin>
                 <plugin>
                     <groupId>org.codehaus.mojo</groupId>
@@ -168,7 +161,7 @@
                 <plugin>
                     <groupId>org.sonatype.central</groupId>
                     <artifactId>central-publishing-maven-plugin</artifactId>
-                    <version>0.12.0</version>
+                    <version>0.11.0</version>
                 </plugin>
                 <plugin>
                     <groupId>org.codehaus.mojo</groupId>

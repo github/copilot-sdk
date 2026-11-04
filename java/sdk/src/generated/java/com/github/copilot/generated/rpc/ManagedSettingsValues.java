@@ -34,8 +34,6 @@ public record ManagedSettingsValues(
     /** Managed reasoning-effort default for the managed concrete model. The runtime clamps it to an entitled effort when model availability is known. */
     @JsonProperty("effortLevel") String effortLevel,
     /** Managed context-tier default for the managed concrete model. */
-    @JsonProperty("contextTier") ContextTier contextTier,
-    /** Organization-specific information for clients to surface to end users. Present when policy sets `communication.support.url`. */
-    @JsonProperty("communication") ManagedCommunicationSettings communication
+    @JsonProperty("contextTier") ContextTier contextTier
 ) {
 }

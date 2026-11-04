@@ -8,19 +8,13 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"log"
 	"os"
 	"reflect"
 	"sync"
 	"sync/atomic"
-	"time"
 )
 
 const version = "2.0"
-
-// processExitGracePeriod bounds how long a request whose connection has closed
-// waits for the watched CLI process to report its exit.
-const processExitGracePeriod = time.Second
 
 // Standard JSON-RPC 2.0 error codes.
 var (
@@ -76,13 +70,11 @@ type RequestContextHandler func(ctx context.Context, params json.RawMessage) (js
 type Client struct {
 	reader                 *headerReader // reads frames from the remote side
 	stdout                 io.ReadCloser
-	stdin                  io.WriteCloser
 	writer                 chan *headerWriter // 1-buffered; holds the writer when not in use
 	mu                     sync.Mutex
 	pendingRequests        map[string]chan *Response
 	pendingInlineCallbacks map[string]func(json.RawMessage) error
 	requestHandlers        map[string]RequestContextHandler
-	requestPreparations    map[string]func(json.RawMessage) *Error
 	incomingRequestCancels map[string]*incomingRequestCancel
 	running                atomic.Bool
 	stopChan               chan struct{}
@@ -100,12 +92,10 @@ func NewClient(stdin io.WriteCloser, stdout io.ReadCloser) *Client {
 	c := &Client{
 		reader:                 newHeaderReader(stdout),
 		stdout:                 stdout,
-		stdin:                  stdin,
 		writer:                 make(chan *headerWriter, 1),
 		pendingRequests:        make(map[string]chan *Response),
 		pendingInlineCallbacks: make(map[string]func(json.RawMessage) error),
 		requestHandlers:        make(map[string]RequestContextHandler),
-		requestPreparations:    make(map[string]func(json.RawMessage) *Error),
 		incomingRequestCancels: make(map[string]*incomingRequestCancel),
 		stopChan:               make(chan struct{}),
 		connectionClosed:       make(chan struct{}),
@@ -146,18 +136,12 @@ func (c *Client) Start() {
 
 // Stop stops the client and cleans up
 func (c *Client) Stop() {
-	c.mu.Lock()
 	if !c.running.Load() {
-		c.mu.Unlock()
 		return
 	}
 	c.running.Store(false)
 	close(c.stopChan)
-	c.mu.Unlock()
 
-	if err := c.stdin.Close(); err != nil && !errors.Is(err, io.ErrClosedPipe) && !errors.Is(err, os.ErrClosed) {
-		log.Printf("Failed to close JSON-RPC writer: %v", err)
-	}
 	// Close stdout to unblock the readLoop
 	if c.stdout != nil {
 		c.stdout.Close()
@@ -234,21 +218,11 @@ func (c *Client) SetRequestHandler(method string, handler RequestHandler) {
 func (c *Client) SetRequestContextHandler(method string, handler RequestContextHandler) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
-	delete(c.requestPreparations, method)
 	if handler == nil {
 		delete(c.requestHandlers, method)
 		return
 	}
 	c.requestHandlers[method] = handler
-}
-
-// SetRequestHandlerWithPreparation registers request state in read order before
-// later notifications can run. Preparation must not block or invoke user code.
-func (c *Client) SetRequestHandlerWithPreparation(method string, handler RequestHandler, prepare func(json.RawMessage) *Error) {
-	c.SetRequestHandler(method, handler)
-	c.mu.Lock()
-	defer c.mu.Unlock()
-	c.requestPreparations[method] = prepare
 }
 
 // ConnectionClosed returns a channel that closes when the JSON-RPC read loop
@@ -296,7 +270,7 @@ func (c *Client) RequestWithInlineResponse(ctx context.Context, method string, p
 		c.mu.Unlock()
 	}()
 
-	// Check if the process exited or the connection closed before sending
+	// Check if process already exited before sending
 	if c.processDone != nil {
 		select {
 		case <-ctx.Done():
@@ -306,8 +280,6 @@ func (c *Client) RequestWithInlineResponse(ctx context.Context, method string, p
 				return nil, err
 			}
 			return nil, fmt.Errorf("process exited unexpectedly")
-		case <-c.connectionClosed:
-			return c.responseAfterConnectionClosed(ctx, responseChan)
 		default:
 			// Process still running, continue
 		}
@@ -344,32 +316,12 @@ func (c *Client) RequestWithInlineResponse(ctx context.Context, method string, p
 		}
 		return nil, fmt.Errorf("failed to send request: %w", err)
 	}
-	if method == "session.sendAndWait" {
-		defer func() {
-			if ctx.Err() != nil {
-				c.mu.Lock()
-				if c.running.Load() {
-					c.wg.Add(1)
-					go func() {
-						defer c.wg.Done()
-						if err := c.sendMessage(context.WithoutCancel(ctx), map[string]any{
-							"jsonrpc": version, "method": "$/cancelRequest",
-							"params": map[string]string{"id": requestID},
-						}); err != nil && c.running.Load() {
-							log.Printf("Failed to cancel completion request: %v", err)
-						}
-					}()
-				}
-				c.mu.Unlock()
-			}
-		}()
-	}
 
 	// Wait for response, also checking for process exit
 	if c.processDone != nil {
 		select {
 		case <-ctx.Done():
-			return responseAfterShutdown(responseChan, ctx.Err())
+			return nil, ctx.Err()
 		case response := <-responseChan:
 			if response.Error != nil {
 				return nil, response.Error
@@ -380,15 +332,13 @@ func (c *Client) RequestWithInlineResponse(ctx context.Context, method string, p
 				return responseAfterShutdown(responseChan, err)
 			}
 			return responseAfterShutdown(responseChan, fmt.Errorf("process exited unexpectedly"))
-		case <-c.connectionClosed:
-			return c.responseAfterConnectionClosed(ctx, responseChan)
 		case <-c.stopChan:
 			return responseAfterShutdown(responseChan, fmt.Errorf("client stopped"))
 		}
 	}
 	select {
 	case <-ctx.Done():
-		return responseAfterShutdown(responseChan, ctx.Err())
+		return nil, ctx.Err()
 	case response := <-responseChan:
 		if response.Error != nil {
 			return nil, response.Error
@@ -398,39 +348,6 @@ func (c *Client) RequestWithInlineResponse(ctx context.Context, method string, p
 		return responseAfterShutdown(responseChan, fmt.Errorf("connection closed"))
 	case <-c.stopChan:
 		return responseAfterShutdown(responseChan, fmt.Errorf("client stopped"))
-	}
-}
-
-// responseAfterConnectionClosed settles a request whose connection closed while
-// the CLI process is watched. The connection usually closes because the process
-// exited, and the exit is reported moments later with the error that carries
-// the CLI's stderr, so wait up to processExitGracePeriod for it. A process still
-// running after that has lost its connection, and no reply will ever come.
-func (c *Client) responseAfterConnectionClosed(ctx context.Context, responseChan <-chan *Response) (json.RawMessage, error) {
-	select {
-	case response := <-responseChan:
-		// The read loop admitted this reply before it ended.
-		if response.Error != nil {
-			return nil, response.Error
-		}
-		return response.Result, nil
-	default:
-	}
-
-	timer := time.NewTimer(processExitGracePeriod)
-	defer timer.Stop()
-	select {
-	case <-c.processDone:
-		if err := c.getProcessError(); err != nil {
-			return nil, err
-		}
-		return nil, fmt.Errorf("process exited unexpectedly")
-	case <-c.stopChan:
-		return nil, fmt.Errorf("client stopped")
-	case <-ctx.Done():
-		return nil, ctx.Err()
-	case <-timer.C:
-		return nil, fmt.Errorf("connection closed")
 	}
 }
 
@@ -572,7 +489,6 @@ func (c *Client) handleRequest(request *Request) {
 
 	c.mu.Lock()
 	handler := c.requestHandlers[request.Method]
-	prepare := c.requestPreparations[request.Method]
 	c.mu.Unlock()
 
 	if handler == nil {
@@ -583,14 +499,6 @@ func (c *Client) handleRequest(request *Request) {
 			})
 		}
 		return
-	}
-	if prepare != nil {
-		if err := prepare(request.Params); err != nil {
-			if request.IsCall() {
-				c.sendErrorResponse(context.Background(), request.ID, err)
-			}
-			return
-		}
 	}
 
 	handlerCtx := context.Background()
@@ -723,7 +631,7 @@ func decodeMessage(data []byte) (any, error) {
 		Method  string          `json:"method,omitempty"`
 		Params  json.RawMessage `json:"params,omitempty"`
 		Result  json.RawMessage `json:"result,omitempty"`
-		Error   json.RawMessage `json:"error,omitempty"`
+		Error   *Error          `json:"error,omitempty"`
 	}
 	if err := json.Unmarshal(data, &msg); err != nil {
 		return nil, fmt.Errorf("unmarshaling jsonrpc message: %w", err)
@@ -740,30 +648,17 @@ func decodeMessage(data []byte) (any, error) {
 		}, nil
 	}
 	if len(msg.ID) > 0 {
-		var responseError *Error
-		if len(msg.Error) > 0 {
-			err := json.Unmarshal(msg.Error, &responseError)
-			if err == nil && responseError == nil {
-				err = errors.New("error must be an object")
-			}
-			if err != nil {
-				responseError = &Error{
-					Code:    ErrInternal.Code,
-					Message: fmt.Sprintf("invalid JSON-RPC error response: %v", err),
-				}
-			}
-		}
-		if responseError != nil && len(msg.Result) > 0 {
+		if msg.Error != nil && len(msg.Result) > 0 {
 			return nil, fmt.Errorf("response must not contain both result and error: %w", ErrInvalidRequest)
 		}
-		if responseError == nil && len(msg.Result) == 0 {
+		if msg.Error == nil && len(msg.Result) == 0 {
 			return nil, fmt.Errorf("response must contain either result or error: %w", ErrInvalidRequest)
 		}
 		return &Response{
 			JSONRPC: msg.JSONRPC,
 			ID:      msg.ID,
 			Result:  msg.Result,
-			Error:   responseError,
+			Error:   msg.Error,
 		}, nil
 	}
 	return nil, fmt.Errorf("message is neither a request nor a response: %w", ErrInvalidRequest)

@@ -14,7 +14,7 @@ import com.github.copilot.CopilotExperimental;
 import javax.annotation.processing.Generated;
 
 /**
- * Selects which accounts collection to enumerate. Collection-specific options are optional.
+ * Selects which accounts collection to enumerate. A no-arg selector is the empty-payload variant.
  *
  * @apiNote This type is experimental and may change in a future version.
  *

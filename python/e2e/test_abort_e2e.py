@@ -88,7 +88,7 @@ class TestAbort:
             value = (invocation.arguments or {}).get("value", "")
             if not tool_started.done():
                 tool_started.set_result(value)
-            result = await release_tool
+            result = await asyncio.wait_for(release_tool, timeout=60.0)
             return ToolResult(text_result_for_llm=str(result))
 
         session = await ctx.client.create_session(
@@ -109,13 +109,14 @@ class TestAbort:
             ],
         )
 
-        send_task = asyncio.create_task(
-            session.send("Use slow_analysis with value 'test_abort'. Wait for the result.")
-        )
         try:
+            # Fire-and-forget
+            asyncio.ensure_future(
+                session.send("Use slow_analysis with value 'test_abort'. Wait for the result.")
+            )
+
             tool_value = await asyncio.wait_for(tool_started, timeout=60.0)
             assert tool_value == "test_abort"
-            await asyncio.wait_for(send_task, timeout=60.0)
 
             # Abort while the tool is running
             await session.abort()
@@ -145,6 +146,4 @@ class TestAbort:
         finally:
             if not release_tool.done():
                 release_tool.set_result("CLEANUP")
-            send_task.cancel()
-            await asyncio.gather(send_task, return_exceptions=True)
             await session.disconnect()

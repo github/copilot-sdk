@@ -610,12 +610,9 @@ func findToolName(messages []copilot.SessionEvent, toolCallID string) string {
 
 func waitForFile(path string, timeout time.Duration) error {
 	deadline := time.Now().Add(timeout)
-	for {
+	for time.Now().Before(deadline) {
 		if _, err := os.Stat(path); err == nil {
 			return nil
-		}
-		if !time.Now().Before(deadline) {
-			break
 		}
 		time.Sleep(50 * time.Millisecond)
 	}
@@ -624,13 +621,10 @@ func waitForFile(path string, timeout time.Duration) error {
 
 func waitForFileContent(path string, needle string, timeout time.Duration) error {
 	deadline := time.Now().Add(timeout)
-	for {
+	for time.Now().Before(deadline) {
 		content, err := os.ReadFile(path)
 		if err == nil && strings.Contains(string(content), needle) {
 			return nil
-		}
-		if !time.Now().Before(deadline) {
-			break
 		}
 		time.Sleep(50 * time.Millisecond)
 	}

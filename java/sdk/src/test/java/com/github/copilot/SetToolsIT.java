@@ -60,8 +60,8 @@ class SetToolsIT {
                             .setOnPermissionRequest(PermissionHandler.APPROVE_ALL))
                     .get(30, TimeUnit.SECONDS);
             try {
-                AssistantMessageEvent first = session.sendAndWait(new MessageOptions().setPrompt(FRUIT_PROMPT), 0)
-                        .get(90, TimeUnit.SECONDS);
+                AssistantMessageEvent first = session.sendAndWait(new MessageOptions().setPrompt(FRUIT_PROMPT)).get(90,
+                        TimeUnit.SECONDS);
                 assertNotNull(first);
                 assertTrue(first.getData().content().contains("apple"), first.getData().content());
 
@@ -70,7 +70,7 @@ class SetToolsIT {
                         .get(30, TimeUnit.SECONDS);
 
                 AssistantMessageEvent second = session
-                        .sendAndWait(new MessageOptions().setPrompt(FRUIT_AND_VEGETABLE_PROMPT), 0)
+                        .sendAndWait(new MessageOptions().setPrompt(FRUIT_AND_VEGETABLE_PROMPT))
                         .get(90, TimeUnit.SECONDS);
                 assertNotNull(second);
                 assertTrue(second.getData().content().contains("dragonfruit"), second.getData().content());
@@ -104,7 +104,7 @@ class SetToolsIT {
                             .setOnPermissionRequest(PermissionHandler.APPROVE_ALL))
                     .get(30, TimeUnit.SECONDS);
             String sessionId = created.getSessionId();
-            AssistantMessageEvent first = created.sendAndWait(new MessageOptions().setPrompt(FRUIT_PROMPT), 0).get(90,
+            AssistantMessageEvent first = created.sendAndWait(new MessageOptions().setPrompt(FRUIT_PROMPT)).get(90,
                     TimeUnit.SECONDS);
             assertNotNull(first);
             assertTrue(first.getData().content().contains("apple"), first.getData().content());
@@ -120,7 +120,7 @@ class SetToolsIT {
             try {
                 resumed.setTools(List.of(lookupVegetable(vegetableLookups))).get(30, TimeUnit.SECONDS);
 
-                AssistantMessageEvent answer = resumed.sendAndWait(new MessageOptions().setPrompt(VEGETABLE_PROMPT), 0)
+                AssistantMessageEvent answer = resumed.sendAndWait(new MessageOptions().setPrompt(VEGETABLE_PROMPT))
                         .get(90, TimeUnit.SECONDS);
                 assertNotNull(answer);
                 assertTrue(answer.getData().content().contains("carrot"), answer.getData().content());
@@ -155,8 +155,8 @@ class SetToolsIT {
                         () -> session.setTools(List.of(lookupFruit("dragonfruit", replacementLookups), invalidTool()))
                                 .get(30, TimeUnit.SECONDS));
 
-                AssistantMessageEvent answer = session.sendAndWait(new MessageOptions().setPrompt(FRUIT_PROMPT), 0)
-                        .get(90, TimeUnit.SECONDS);
+                AssistantMessageEvent answer = session.sendAndWait(new MessageOptions().setPrompt(FRUIT_PROMPT)).get(90,
+                        TimeUnit.SECONDS);
                 assertNotNull(answer);
                 assertTrue(answer.getData().content().contains("apple"), answer.getData().content());
                 assertEquals(List.of(42), originalLookups);

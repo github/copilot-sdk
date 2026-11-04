@@ -4,7 +4,6 @@
 
 using Xunit;
 using InstallationDecision = GitHub.Copilot.Rpc.InstallationDecision;
-using KerberosAuthMode = GitHub.Copilot.Rpc.KerberosAuthMode;
 using SandboxConfig = GitHub.Copilot.Rpc.SandboxConfig;
 
 namespace GitHub.Copilot.Test.Unit;
@@ -18,11 +17,6 @@ public class CloneTests
         var extensionLaunchProvider = new TestExtensionLaunchProvider();
         InstallationConfirmationHandler installationConfirmationHandler =
             (_request, _context) => ValueTask.FromResult(InstallationDecision.Decline);
-        var kerberosAuth = new KerberosAuthConfig
-        {
-            Mode = KerberosAuthMode.Fallback,
-            Callback = (_request, _cancellationToken) => Task.FromResult<string?>(null),
-        };
         var original = new CopilotClientOptions
         {
             Connection = RuntimeConnection.ForTcp(port: 8080, connectionToken: "tok", path: "/usr/bin/copilot", args: ["--verbose", "--debug"]),
@@ -33,9 +27,9 @@ public class CloneTests
             UseLoggedInUser = false,
             BaseDirectory = "/custom/copilot/home",
             BuiltinPluginDirectories = ["/plugins/core", "/plugins/github"],
+            EnableRemoteSessions = true,
             SessionIdleTimeoutSeconds = 600,
             ExtensionLaunchProvider = extensionLaunchProvider,
-            KerberosAuth = kerberosAuth,
             InstallationConfirmationHandler = installationConfirmationHandler,
             ClientInfo = new CopilotClientInfo
             {
@@ -57,9 +51,9 @@ public class CloneTests
         Assert.Equal(original.BaseDirectory, clone.BaseDirectory);
         Assert.Equal(original.BuiltinPluginDirectories, clone.BuiltinPluginDirectories);
         Assert.NotSame(original.BuiltinPluginDirectories, clone.BuiltinPluginDirectories);
+        Assert.Equal(original.EnableRemoteSessions, clone.EnableRemoteSessions);
         Assert.Equal(original.SessionIdleTimeoutSeconds, clone.SessionIdleTimeoutSeconds);
         Assert.Same(extensionLaunchProvider, clone.ExtensionLaunchProvider);
-        Assert.Same(kerberosAuth, clone.KerberosAuth);
         Assert.Same(installationConfirmationHandler, clone.InstallationConfirmationHandler);
         Assert.Same(original.ClientInfo, clone.ClientInfo);
     }

@@ -1,5 +1,3 @@
-#![cfg(test)]
-
 use super::*;
 
 #[path = "lifetime_tests.rs"]
@@ -686,7 +684,6 @@ async fn release_before_request_poll_prevents_factory_invocation() {
     let (options, mut created, _) = factory_options();
     let host = start_factory(&client, &mut peer, options).await;
     let params: HostSessionCreateCallback = serde_json::from_value(json!({
-        "authentication": {"mode": "github", "identity": "test-owner"},
         "hostId": host.host_id, "handoffId": "ended", "config": {"sessionId":"ended"}
     }))
     .unwrap();

@@ -128,6 +128,38 @@ async fn force_stop_wakes_a_pending_receive_without_producer_shutdown() {
 }
 
 #[tokio::test]
+async fn recv_yields_then_closes_on_drop_sender() {
+    let (tx, rx) = broadcast::channel(8);
+    let mut sub = EventSubscription::new(rx);
+    tx.send(make_event("a")).unwrap();
+    tx.send(make_event("b")).unwrap();
+    drop(tx);
+
+    assert_eq!(recv_ready(&mut sub).unwrap().id, "a");
+    assert_eq!(recv_ready(&mut sub).unwrap().id, "b");
+    assert!(matches!(
+        recv_ready(&mut sub).unwrap_err().kind(),
+        RecvErrorKind::Closed
+    ));
+}
+
+#[tokio::test]
+async fn recv_surfaces_lag() {
+    let (tx, rx) = broadcast::channel(2);
+    let mut sub = EventSubscription::new(rx);
+    for id in ["a", "b", "c", "d"] {
+        tx.send(make_event(id)).unwrap();
+    }
+    let err = recv_ready(&mut sub).expect_err("expected a Lagged error");
+    let RecvErrorKind::Lagged(l) = err.kind() else {
+        panic!("expected Lagged, got {:?}", err.kind());
+    };
+    assert_eq!(l.skipped(), 2);
+    assert_eq!(recv_ready(&mut sub).unwrap().id, "c");
+    assert_eq!(recv_ready(&mut sub).unwrap().id, "d");
+}
+
+#[tokio::test]
 async fn stream_impl_matches_recv_semantics() {
     let (tx, rx) = broadcast::channel(8);
     let mut sub = EventSubscription::new(rx);
@@ -342,6 +374,15 @@ async fn dropping_unpolled_bootstrap_owner_discards_backlog_without_transfer() {
     for sub in [&mut second, &mut third] {
         assert_eq!(recv_ready(sub).unwrap().id, "live");
     }
+}
+
+#[tokio::test]
+async fn ordinary_subscription_does_not_replay_events_without_a_receiver() {
+    let (tx, _) = broadcast::channel(8);
+    assert!(tx.send(make_event("before-subscribe")).is_err());
+    let mut sub = EventSubscription::new(tx.subscribe());
+    tx.send(make_event("live")).unwrap();
+    assert_eq!(recv_ready(&mut sub).unwrap().id, "live");
 }
 
 #[tokio::test]

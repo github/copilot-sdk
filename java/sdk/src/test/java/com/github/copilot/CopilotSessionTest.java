@@ -22,7 +22,6 @@ import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
-import org.junit.jupiter.api.Timeout;
 
 import com.github.copilot.generated.SessionEvent;
 import com.github.copilot.generated.AbortEvent;
@@ -764,7 +763,6 @@ public class CopilotSessionTest {
      * @see Snapshot: session/should_get_last_session_id
      */
     @Test
-    @Timeout(value = 900, unit = TimeUnit.SECONDS, threadMode = Timeout.ThreadMode.SAME_THREAD)
     void testShouldGetLastSessionId() throws Exception {
         ctx.configureForTest("session", "should_get_last_session_id");
 
@@ -774,7 +772,7 @@ public class CopilotSessionTest {
                 CompletableFuture<CopilotSession> createFuture = client
                         .createSession(new SessionConfig().setOnPermissionRequest(PermissionHandler.APPROVE_ALL));
                 try {
-                    session = E2ETestContext.awaitReply(createFuture, 45, TimeUnit.SECONDS);
+                    session = createFuture.get(45, TimeUnit.SECONDS);
                     break;
                 } catch (java.util.concurrent.TimeoutException e) {
                     createFuture.cancel(true);
@@ -791,14 +789,29 @@ public class CopilotSessionTest {
             }
             assertNotNull(session, "Session should be created");
 
-            E2ETestContext.awaitReply(session.sendAndWait(new MessageOptions().setPrompt("Say hello")), 60,
-                    TimeUnit.SECONDS);
+            session.sendAndWait(new MessageOptions().setPrompt("Say hello")).get(60, TimeUnit.SECONDS);
             String sessionId = session.getSessionId();
             session.close();
 
-            // Persistence is asynchronous, not a ten-second API contract.
-            String lastId = E2ETestContext.awaitReadiness(client::getLastSessionId, sessionId::equals, 50,
-                    "Last session ID did not become " + sessionId);
+            // Poll until getLastSessionId returns the expected value.
+            // Session state is persisted asynchronously; polling keeps fast
+            // machines fast and slow CI safe (mirrors Node.js/.NET patterns).
+            String lastId = null;
+            long deadline = System.currentTimeMillis() + 10_000;
+            while (System.currentTimeMillis() < deadline) {
+                long remaining = Math.max(1, deadline - System.currentTimeMillis());
+                long iterationTimeout = Math.min(remaining, 500);
+                try {
+                    lastId = client.getLastSessionId().get(iterationTimeout, TimeUnit.MILLISECONDS);
+                } catch (java.util.concurrent.TimeoutException ignored) {
+                    // RPC call took longer than the per-iteration cap; retry
+                    continue;
+                }
+                if (sessionId.equals(lastId)) {
+                    break;
+                }
+                Thread.sleep(50);
+            }
             assertNotNull(lastId, "Last session ID should not be null");
             assertEquals(sessionId, lastId, "Last session ID should match the current session ID");
         }
@@ -868,7 +881,6 @@ public class CopilotSessionTest {
      * @see Snapshot: session/should_get_session_metadata_by_id
      */
     @Test
-    @Timeout(value = 900, unit = TimeUnit.SECONDS, threadMode = Timeout.ThreadMode.SAME_THREAD)
     void testShouldGetSessionMetadataById() throws Exception {
         ctx.configureForTest("session", "should_get_session_metadata_by_id");
 
@@ -877,19 +889,33 @@ public class CopilotSessionTest {
                     .createSession(new SessionConfig().setOnPermissionRequest(PermissionHandler.APPROVE_ALL)).get();
 
             // Send a message to persist the session to disk
-            E2ETestContext.awaitReply(session.sendAndWait(new MessageOptions().setPrompt("Say hello")), 60,
-                    TimeUnit.SECONDS);
+            session.sendAndWait(new MessageOptions().setPrompt("Say hello")).get(60, TimeUnit.SECONDS);
 
-            // Observe automatic persistence without forcing a save.
+            // Poll until metadata becomes available; the CLI persists session
+            // state asynchronously so it may not be queryable immediately
+            // (mirrors .NET WaitForConditionAsync pattern).
             var sessionId = session.getSessionId();
-            var metadata = E2ETestContext.awaitReadiness(() -> client.getSessionMetadata(sessionId),
-                    java.util.Objects::nonNull, 50, "Session metadata did not become available for " + sessionId);
-            assertNotNull(metadata, "getSessionMetadata() should return the persisted session");
+            com.github.copilot.rpc.SessionMetadata metadata = null;
+            long deadline = System.currentTimeMillis() + 10_000;
+            while (System.currentTimeMillis() < deadline) {
+                long remaining = Math.max(1, deadline - System.currentTimeMillis());
+                long iterationTimeout = Math.min(remaining, 500);
+                try {
+                    metadata = client.getSessionMetadata(sessionId).get(iterationTimeout, TimeUnit.MILLISECONDS);
+                } catch (java.util.concurrent.TimeoutException ignored) {
+                    // RPC call took longer than the per-iteration cap; retry
+                    continue;
+                }
+                if (metadata != null) {
+                    break;
+                }
+                Thread.sleep(50);
+            }
+            assertNotNull(metadata, "Timed out waiting for getSessionMetadata() to return the persisted session");
             assertEquals(sessionId, metadata.getSessionId(), "Metadata session ID should match");
 
             // A non-existent session should return null
-            var notFound = E2ETestContext.awaitReply(client.getSessionMetadata("non-existent-session-id"), 30,
-                    TimeUnit.SECONDS);
+            var notFound = client.getSessionMetadata("non-existent-session-id").get(30, TimeUnit.SECONDS);
             assertNull(notFound, "Non-existent session should return null");
 
             session.close();

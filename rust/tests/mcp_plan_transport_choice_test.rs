@@ -3,7 +3,9 @@
 #![allow(clippy::unwrap_used)]
 
 use github_copilot_sdk::rpc::{
-    McpPlanTransportChoice, McpPlanTransportChoicePackage, McpPlanTransportChoiceRemote,
+    McpInstallPlan, McpPlanPackageInstallMethod, McpPlanRemoteInstallMethod,
+    McpPlanRemoteTransport, McpPlanTransportChoice, McpPlanTransportChoicePackage,
+    McpPlanTransportChoiceRemote,
 };
 use serde_json::{Value, json};
 
@@ -28,6 +30,57 @@ fn remote_choice() -> Value {
         "requiredValues": [],
         "secretPlaceholders": []
     })
+}
+
+#[test]
+fn plan_exposes_typed_package_and_remote_choices_without_changing_wire_shape() {
+    let wire = json!([package_choice(), remote_choice()]);
+    let choices: Vec<McpPlanTransportChoice> = serde_json::from_value(wire.clone()).unwrap();
+    let plan = McpInstallPlan {
+        transport_choices: choices,
+        ..Default::default()
+    };
+
+    let McpPlanTransportChoice::Package(package) = &plan.transport_choices[0] else {
+        panic!("expected package choice");
+    };
+    assert_eq!(package.choice_id, "package-choice");
+    assert_eq!(package.package_identifier, "@example/mcp-server");
+    assert_eq!(package.install_method, McpPlanPackageInstallMethod::Package);
+
+    let McpPlanTransportChoice::Remote(remote) = &plan.transport_choices[1] else {
+        panic!("expected remote choice");
+    };
+    assert_eq!(remote.choice_id, "remote-choice");
+    assert_eq!(remote.endpoint, "https://example.test/mcp");
+    assert_eq!(remote.install_method, McpPlanRemoteInstallMethod::Remote);
+    assert_eq!(remote.transport, McpPlanRemoteTransport::StreamableHttp);
+    assert!(remote.required_values.is_empty());
+    assert!(remote.secret_placeholders.is_empty());
+    assert_eq!(serde_json::to_value(&plan.transport_choices).unwrap(), wire);
+}
+
+#[test]
+fn choices_preserve_declared_values_and_secret_placeholders() {
+    let mut wire = remote_choice();
+    wire["requiredValues"] = json!([{
+        "kind": "enum",
+        "key": "region",
+        "category": "url-variable",
+        "valueType": "enum",
+        "enumValues": ["eu", "us"],
+        "required": true,
+        "isRepeated": false,
+        "defaultValue": "eu",
+        "title": "Region"
+    }]);
+    wire["secretPlaceholders"] = json!([{
+        "key": "token",
+        "placeholder": "${secret:opaque-id}",
+        "title": "Access token"
+    }]);
+    let choice: McpPlanTransportChoice = serde_json::from_value(wire.clone()).unwrap();
+    assert_eq!(serde_json::to_value(choice).unwrap(), wire);
 }
 
 #[test]
@@ -91,4 +144,34 @@ fn mismatched_discriminators_and_incomplete_payloads_are_rejected() {
             }
         }
     }
+}
+
+#[test]
+fn unconstrained_enums_retain_forward_compatibility() {
+    assert_eq!(
+        serde_json::from_value::<McpPlanPackageInstallMethod>(json!("future-method")).unwrap(),
+        McpPlanPackageInstallMethod::Unknown
+    );
+    assert_eq!(
+        serde_json::from_value::<McpPlanRemoteInstallMethod>(json!("future-method")).unwrap(),
+        McpPlanRemoteInstallMethod::Unknown
+    );
+
+    let mut wire = remote_choice();
+    wire["transport"] = json!("future-transport");
+    let McpPlanTransportChoice::Remote(remote) =
+        serde_json::from_value::<McpPlanTransportChoice>(wire).unwrap()
+    else {
+        panic!("expected remote choice");
+    };
+    assert_eq!(remote.transport, McpPlanRemoteTransport::Unknown);
+}
+
+#[test]
+fn extra_fields_retain_existing_struct_compatibility() {
+    let original = remote_choice();
+    let mut wire = original.clone();
+    wire["futureMetadata"] = json!({"version": 2});
+    let choice: McpPlanTransportChoice = serde_json::from_value(wire).unwrap();
+    assert_eq!(serde_json::to_value(choice).unwrap(), original);
 }

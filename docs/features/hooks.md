@@ -33,7 +33,7 @@ flowchart LR
 
 All hooks are **optional**—register only the ones you need. Returning `null` (or the language equivalent) from any hook tells the SDK to continue with default behavior.
 
-Repository hooks and settings require workspace trust. Ambient user hooks require `enableConfigDiscovery: true` (default: false), but not workspace trust.
+File-based repository hooks and repository hook settings are loaded only after the workspace is trusted. User hooks remain available before workspace trust is granted.
 
 ## Repository hooks from additional directories
 
@@ -144,19 +144,7 @@ const session = await client.createSession({
 <summary><strong>Python</strong></summary>
 
 ```python
-from copilot import CopilotClient
-from copilot.session import PermissionDecisionApproveOnce
-
-async def on_session_start(input_data, invocation):
-    print(f"Session {invocation['session_id']} started")
-    return None
-
-async def on_pre_tool_use(input_data, invocation):
-    return {"permissionDecision": "allow"}
-
-async def on_post_tool_use(input_data, invocation):
-    print(f"Tool finished: {input_data['toolName']}")
-    return None
+from copilot import CopilotClient, PermissionDecisionApproveOnce
 
 client = CopilotClient()
 await client.start()
@@ -361,12 +349,9 @@ const session = await client.createSession({
 <summary><strong>Python</strong></summary>
 
 ```python
-from copilot import CopilotClient
-from copilot.session import PermissionDecisionApproveOnce
+from copilot import PermissionDecisionApproveOnce
 
 READ_ONLY_TOOLS = ["read_file", "glob", "grep", "view"]
-
-client = CopilotClient()
 
 async def on_pre_tool_use(input_data, invocation):
     if input_data["toolName"] not in READ_ONLY_TOOLS:
@@ -687,7 +672,7 @@ const session = await client.createSession({
 
 ```python
 import json, aiofiles
-from copilot.session import PermissionDecisionApproveOnce
+from copilot import PermissionDecisionApproveOnce
 
 audit_log = []
 
@@ -818,10 +803,7 @@ const session = await client.createSession({
 
 ```python
 import subprocess
-from copilot import CopilotClient
-from copilot.session import PermissionDecisionApproveOnce
-
-client = CopilotClient()
+from copilot import PermissionDecisionApproveOnce
 
 async def on_session_end(input_data, invocation):
     sid = invocation["session_id"][:8]
@@ -1048,12 +1030,9 @@ const session = await client.createSession({
 <summary><strong>Python</strong></summary>
 
 ```python
-from copilot import CopilotClient
-from copilot.session import PermissionDecisionApproveOnce
+from copilot import PermissionDecisionApproveOnce
 
 session_metrics = {}
-
-client = CopilotClient()
 
 async def on_session_start(input_data, invocation):
     session_metrics[invocation["session_id"]] = {

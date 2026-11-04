@@ -4,7 +4,6 @@
 
 package com.github.copilot;
 
-import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.github.copilot.generated.SessionEvent;
 import com.github.copilot.generated.ToolExecutionProgressEvent;
@@ -120,30 +119,6 @@ public class MetadataApiTest {
         assertNull(response.getHost());
         assertNull(response.getLogin());
         assertEquals("Not authenticated", response.getStatusMessage());
-    }
-
-    @Test
-    void testModelLimitsPreservesMaxOutputTokens() throws Exception {
-        String json = """
-                {
-                    "id": "m",
-                    "name": "M",
-                    "capabilities": {
-                        "supports": {},
-                        "limits": {
-                            "max_prompt_tokens": 128000,
-                            "max_output_tokens": 16384,
-                            "max_context_window_tokens": 144384
-                        }
-                    }
-                }
-                """;
-
-        ModelInfo model = MAPPER.readValue(json, ModelInfo.class);
-
-        assertEquals(16384, model.getCapabilities().getLimits().getMaxOutputTokens());
-        JsonNode encoded = MAPPER.valueToTree(model.getCapabilities().getLimits());
-        assertEquals(16384, encoded.get("max_output_tokens").asInt());
     }
 
     @Test

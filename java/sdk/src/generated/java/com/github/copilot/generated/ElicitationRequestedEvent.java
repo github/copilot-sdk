@@ -40,8 +40,6 @@ public final class ElicitationRequestedEvent extends SessionEvent {
         @JsonProperty("toolCallId") String toolCallId,
         /** The source that initiated the request (MCP server name, or absent for agent-initiated) */
         @JsonProperty("elicitationSource") String elicitationSource,
-        /** Display label for a Connector-owned MCP server that initiated the request, from the trusted Connector catalog; absent for other sources. `elicitationSource` stays the identity. */
-        @JsonProperty("elicitationSourceDisplayName") String elicitationSourceDisplayName,
         /** Message describing what information is needed from the user */
         @JsonProperty("message") String message,
         /** Elicitation mode; "form" for structured input, "url" for browser-based. Defaults to "form" when absent. */

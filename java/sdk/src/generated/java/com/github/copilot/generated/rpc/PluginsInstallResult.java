@@ -11,7 +11,6 @@ import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import com.github.copilot.CopilotExperimental;
-import java.util.List;
 import javax.annotation.processing.Generated;
 
 /**
@@ -34,8 +33,6 @@ public record PluginsInstallResult(
     /** Optional post-install message provided by the plugin (e.g. setup instructions) */
     @JsonProperty("postInstallMessage") String postInstallMessage,
     /** Set when the install path is deprecated (e.g. direct repo / URL / local installs). Callers should surface this to end users. */
-    @JsonProperty("deprecationWarning") String deprecationWarning,
-    /** Report-and-ignore warnings raised while reading the plugin's manifest, such as a field the manifest's schema does not define and the loader therefore ignored. Callers should surface these to end users: a plugin whose skills sit behind an ignored field otherwise installs, lists, and contributes nothing, with no signal to its author. Absent when the manifest raised none. */
-    @JsonProperty("warnings") List<String> warnings
+    @JsonProperty("deprecationWarning") String deprecationWarning
 ) {
 }

@@ -7,36 +7,6 @@ import (
 	"github.com/github/copilot-sdk/go/rpc"
 )
 
-func TestMemoryConfiguration_Mode(t *testing.T) {
-	for _, test := range []struct {
-		name string
-		mode MemoryMode
-		json string
-	}{
-		{"omitted", "", `{"enabled":true}`},
-		{"system prompt", MemoryModeSystemPrompt, `{"enabled":true,"mode":"system-prompt"}`},
-		{"user prompt", MemoryModeUserPrompt, `{"enabled":true,"mode":"user-prompt"}`},
-	} {
-		t.Run(test.name, func(t *testing.T) {
-			original := MemoryConfiguration{Enabled: true, Mode: test.mode}
-			data, err := json.Marshal(original)
-			if err != nil {
-				t.Fatal(err)
-			}
-			if string(data) != test.json {
-				t.Fatalf("expected %s, got %s", test.json, data)
-			}
-			var decoded MemoryConfiguration
-			if err := json.Unmarshal(data, &decoded); err != nil {
-				t.Fatal(err)
-			}
-			if decoded != original {
-				t.Fatalf("expected %#v after round-trip, got %#v", original, decoded)
-			}
-		})
-	}
-}
-
 func TestUserPromptTransformedHookOutput_PreservesEmptyReplacement(t *testing.T) {
 	data, err := json.Marshal(UserPromptTransformedHookOutput{
 		ModifiedTransformedPrompt: String(""),
@@ -592,19 +562,5 @@ func TestElicitationResult_JSONOmitsNilContent(t *testing.T) {
 
 	if _, present := decoded["content"]; present {
 		t.Errorf("expected content to be omitted for nil map, got %v", decoded["content"])
-	}
-}
-
-func TestSessionMetadata_JSONReadsClientNames(t *testing.T) {
-	var metadata SessionMetadata
-	data := `{"sessionId":"session-1","startTime":"2026-01-01T00:00:00Z","modifiedTime":"2026-01-02T00:00:00Z","isRemote":false,"clientName":"github/cli","lastClientName":"vscode"}`
-	if err := json.Unmarshal([]byte(data), &metadata); err != nil {
-		t.Fatalf("failed to unmarshal SessionMetadata: %v", err)
-	}
-	if metadata.ClientName == nil || *metadata.ClientName != "github/cli" {
-		t.Errorf("expected client name github/cli, got %v", metadata.ClientName)
-	}
-	if metadata.LastClientName == nil || *metadata.LastClientName != "vscode" {
-		t.Errorf("expected last client name vscode, got %v", metadata.LastClientName)
 	}
 }

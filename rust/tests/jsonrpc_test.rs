@@ -101,62 +101,6 @@ async fn request_response_round_trip() {
 }
 
 #[tokio::test]
-async fn unreadable_error_fails_request_and_keeps_reading() {
-    for (error_json, extension_json) in [
-        "null",
-        r#""not an object""#,
-        r#"{"code":-32603,"message":42}"#,
-        r#"{"code":9223372036854775808,"message":"overflow"}"#,
-        r#"{"code":true,"message":"\ud83d"}"#,
-        r#"{"code":-32603,"message":"readable","data":{"detail":true}}"#,
-    ]
-    .into_iter()
-    .flat_map(|error| ["", r#","peerExtension":true"#].map(|extension| (error, extension)))
-    {
-        let (client_write, mut server_read) = duplex(4096);
-        let (mut server_write, client_read) = duplex(4096);
-        let (notification_tx, _) = broadcast::channel(16);
-        let (request_tx, _request_rx) = mpsc::unbounded_channel();
-        let client = JsonRpcClient::new(client_write, client_read, notification_tx, request_tx);
-
-        let peer = async {
-            for i in 0..2 {
-                let request: JsonRpcRequest =
-                    serde_json::from_slice(&read_framed(&mut server_read).await).unwrap();
-                let payload = if i == 0 {
-                    format!(r#""error":{error_json}"#)
-                } else {
-                    r#""result":{"recovered":true}"#.to_string()
-                };
-                let body = format!(
-                    r#"{{"jsonrpc":"2.0","id":{}{extension_json},{payload}}}"#,
-                    request.id
-                );
-                write_framed(&mut server_write, body.as_bytes()).await;
-            }
-        };
-        let requests = async {
-            let first = client.send_request("bad", None).await;
-            if error_json.contains("readable") {
-                let error = first.unwrap().error.unwrap();
-                assert_eq!(error.message, "readable");
-                assert_eq!(error.data, Some(serde_json::json!({"detail": true})));
-            } else {
-                let error = first.expect_err("malformed error must fail its request");
-                assert!(matches!(error.kind(), ErrorKind::Json), "{error:?}");
-            }
-            let next = client.send_request("next", None).await.unwrap();
-            assert_eq!(next.result, Some(serde_json::json!({"recovered": true})));
-        };
-        tokio::time::timeout(std::time::Duration::from_secs(5), async {
-            tokio::join!(peer, requests);
-        })
-        .await
-        .expect("requests did not settle while the peer remained connected");
-    }
-}
-
-#[tokio::test]
 async fn notification_broadcasting() {
     let (_client_write, _discard) = duplex(4096);
     let (mut server_write, client_read) = duplex(4096);
@@ -178,14 +122,14 @@ async fn notification_broadcasting() {
     )
     .await;
 
-    let received: std::sync::Arc<JsonRpcNotification> =
+    let received: JsonRpcNotification =
         tokio::time::timeout(std::time::Duration::from_secs(2), notification_rx.recv())
             .await
             .expect("timed out waiting for notification")
             .unwrap();
 
     assert_eq!(received.method, "session.event");
-    assert_eq!(received.params.as_ref().unwrap()["session_id"], "s1");
+    assert_eq!(received.params.unwrap()["session_id"], "s1");
 }
 
 #[tokio::test]
@@ -272,6 +216,23 @@ async fn error_response_round_trip() {
     let error = response.error.unwrap();
     assert_eq!(error.code, -32600);
     assert_eq!(error.message, "Invalid Request");
+}
+
+#[tokio::test]
+async fn read_loop_terminates_on_eof() {
+    let (client_write, _discard) = duplex(4096);
+    let (server_write, client_read) = duplex(4096);
+
+    let (notification_tx, _) = broadcast::channel(16);
+    let (request_tx, _) = mpsc::unbounded_channel();
+
+    let _client = JsonRpcClient::new(client_write, client_read, notification_tx, request_tx);
+
+    // Drop the server side — the read loop should see EOF and stop.
+    drop(server_write);
+
+    // Give the read loop time to notice EOF.
+    tokio::time::sleep(std::time::Duration::from_millis(100)).await;
 }
 
 /// Cancel-safety regression: dropping a `write()` future after the actor has
@@ -471,6 +432,16 @@ async fn send_request_cancellation_does_not_leak_pending() {
     let response = client.send_request("second", None).await.unwrap();
     assert_eq!(response.result.unwrap()["ok"], true);
     server_task.await.unwrap();
+}
+
+#[test]
+fn lone_surrogate_yields_unexpected_end_of_hex_escape() {
+    let error = serde_json::from_slice::<serde_json::Value>(br#""\ud83d""#).unwrap_err();
+
+    assert_eq!(
+        error.to_string(),
+        "unexpected end of hex escape at line 1 column 8"
+    );
 }
 
 #[tokio::test]
@@ -690,7 +661,7 @@ async fn null_id_error_with_nothing_pending_keeps_the_connection() {
         br#"{"jsonrpc":"2.0","method":"session.event","params":{}}"#,
     )
     .await;
-    let notification: std::sync::Arc<JsonRpcNotification> =
+    let notification: JsonRpcNotification =
         tokio::time::timeout(std::time::Duration::from_secs(5), notifications.recv())
             .await
             .expect("the notification after the error arrives")
@@ -750,124 +721,4 @@ async fn valid_pairs_and_escaped_backslashes_are_untouched() {
     assert_eq!(result["path"], serde_json::json!(r"C:\ud83d"));
     assert_eq!(result["invalid"], serde_json::json!("\u{FFFD}"));
     server_task.await.unwrap();
-}
-
-/// Once the peer has closed its side, the read loop has ended and failed the
-/// requests waiting for a response. A request sent after that fails at once and
-/// is never written, though the transport may still take writes, as a TCP
-/// socket does after the peer's FIN.
-#[tokio::test]
-async fn request_after_the_peer_closed_fails_at_once() {
-    let (client_write, mut server_read) = duplex(4096);
-    let (server_write, client_read) = duplex(4096);
-    let (notification_tx, _) = broadcast::channel(16);
-    let (request_tx, _request_rx) = mpsc::unbounded_channel();
-    let client = std::sync::Arc::new(JsonRpcClient::new(
-        client_write,
-        client_read,
-        notification_tx,
-        request_tx,
-    ));
-
-    let waiting = tokio::spawn({
-        let client = client.clone();
-        async move { client.send_request("test.wait", None).await }
-    });
-    let request: JsonRpcRequest =
-        serde_json::from_slice(&read_framed(&mut server_read).await).unwrap();
-    assert_eq!(request.method, "test.wait");
-
-    // The peer closes its side: the read loop ends and fails the waiting request.
-    drop(server_write);
-    let drained = tokio::time::timeout(std::time::Duration::from_secs(5), waiting)
-        .await
-        .expect("the waiting request was not failed")
-        .unwrap()
-        .unwrap_err();
-    assert_eq!(drained.to_string(), "request cancelled");
-
-    let late = tokio::time::timeout(
-        std::time::Duration::from_secs(5),
-        client.send_request("test.late", None),
-    )
-    .await
-    .expect("the request after the close was not refused")
-    .unwrap_err();
-    assert_eq!(late.kind(), &ErrorKind::Io);
-    assert!(late.is_transport_failure());
-
-    // Nothing was written for it: once the client is gone, the pipe holds no frame.
-    drop(client);
-    let mut written = Vec::new();
-    tokio::time::timeout(
-        std::time::Duration::from_secs(5),
-        server_read.read_to_end(&mut written),
-    )
-    .await
-    .expect("the writer was not released")
-    .unwrap();
-    assert!(written.is_empty(), "frames written: {written:?}");
-}
-
-/// A `session.sendAndWait` refused because the connection is closed is never
-/// written, and dropping its request does not queue a `$/cancelRequest` for the
-/// id that was never sent: the pipe holds no frame at all.
-#[tokio::test]
-async fn send_and_wait_after_the_peer_closed_writes_no_cancel_frame() {
-    let (client_write, mut server_read) = duplex(4096);
-    let (server_write, client_read) = duplex(4096);
-    let (notification_tx, _) = broadcast::channel(16);
-    let (request_tx, _request_rx) = mpsc::unbounded_channel();
-    let client = std::sync::Arc::new(JsonRpcClient::new(
-        client_write,
-        client_read,
-        notification_tx,
-        request_tx,
-    ));
-
-    let waiting = tokio::spawn({
-        let client = client.clone();
-        async move { client.send_request("test.wait", None).await }
-    });
-    let request: JsonRpcRequest =
-        serde_json::from_slice(&read_framed(&mut server_read).await).unwrap();
-    assert_eq!(request.method, "test.wait");
-
-    // The peer closes its side: the read loop ends and fails the waiting request.
-    drop(server_write);
-    tokio::time::timeout(std::time::Duration::from_secs(5), waiting)
-        .await
-        .expect("the waiting request was not failed")
-        .unwrap()
-        .unwrap_err();
-
-    let late = tokio::time::timeout(
-        std::time::Duration::from_secs(5),
-        client.send_request("session.sendAndWait", None),
-    )
-    .await
-    .expect("the request after the close was not refused")
-    .unwrap_err();
-    assert_eq!(late.kind(), &ErrorKind::Io);
-
-    // A frame queued for the writer arrives within moments; none may.
-    if let Ok(frame) = tokio::time::timeout(
-        std::time::Duration::from_millis(300),
-        read_framed(&mut server_read),
-    )
-    .await
-    {
-        panic!("a frame was written: {}", String::from_utf8_lossy(&frame));
-    }
-
-    drop(client);
-    let mut written = Vec::new();
-    tokio::time::timeout(
-        std::time::Duration::from_secs(5),
-        server_read.read_to_end(&mut written),
-    )
-    .await
-    .expect("the writer was not released")
-    .unwrap();
-    assert!(written.is_empty(), "frames written: {written:?}");
 }

@@ -30,27 +30,25 @@ runtime.
 
 ## Installation
 
-Stable releases are available from Maven Central. Preview versions use Maven `-SNAPSHOT` coordinates and the repository shown in [Snapshot builds](#snapshot-builds).
-
 ### Maven
 
 ```xml
 <dependency>
     <groupId>com.github</groupId>
     <artifactId>copilot-sdk-java</artifactId>
-    <version>1.0.15</version>
+    <version>1.0.14-preview.1</version>
 </dependency>
 ```
 
 ### Gradle
 
 ```groovy
-implementation 'com.github:copilot-sdk-java:1.0.15'
+implementation 'com.github:copilot-sdk-java:1.0.14-preview.1'
 ```
 
 ### Snapshot builds
 
-Java previews are published three times per weekday, at 10:00, 13:00, and 15:00 Pacific, through the matched SDK release pipeline. Previews with the same base SDK version update one rolling Maven coordinate: SDK `1.0.15-preview.1`, `1.0.15-preview.2`, and later `1.0.15` previews all publish Java `1.0.15-SNAPSHOT`. To use them, add the snapshot repository and depend on that version:
+Snapshot builds of the next development version are published to Maven Central Snapshots. To use them, add the snapshot repository and depend on the development version:
 
 #### Maven
 
@@ -59,7 +57,6 @@ Java previews are published three times per weekday, at 10:00, 13:00, and 15:00 
     <repository>
         <id>central-snapshots</id>
         <url>https://central.sonatype.com/repository/maven-snapshots/</url>
-        <releases><enabled>false</enabled></releases>
         <snapshots><enabled>true</enabled></snapshots>
     </repository>
 </repositories>
@@ -67,26 +64,14 @@ Java previews are published three times per weekday, at 10:00, 13:00, and 15:00 
 <dependency>
     <groupId>com.github</groupId>
     <artifactId>copilot-sdk-java</artifactId>
-    <version>1.0.15-SNAPSHOT</version>
+    <version>1.0.15-preview.1-SNAPSHOT</version>
 </dependency>
 ```
 
 #### Gradle
 
 ```groovy
-repositories {
-    mavenCentral()
-    maven {
-        url = uri('https://central.sonatype.com/repository/maven-snapshots/')
-        mavenContent { snapshotsOnly() }
-    }
-}
-```
-
-Then add the snapshot dependency:
-
-```groovy
-implementation 'com.github:copilot-sdk-java:1.0.15-SNAPSHOT'
+implementation 'com.github:copilot-sdk-java:1.0.15-preview.1-SNAPSHOT'
 ```
 
 ## In-process mode (experimental)
@@ -137,31 +122,21 @@ client.start().get();
 ```
 
 For the native standalone runtime, include
-`"COPILOT_TELEMETRY_DISABLED", "true"` in the environment map passed to
-`CopilotClientOptions.setEnvironment(...)` before startup to disable Copilot-owned
-GitHub and Entra authentication telemetry process-wide, including sessionless events.
+`"COPILOT_GITHUB_TELEMETRY_DISABLED", "true"` in the environment map passed to
+`CopilotClientOptions.setEnvironment(...)` before startup to disable direct
+GitHub telemetry uploads for the entire host, including sessionless events.
 Authentication, `setOnGitHubTelemetry(...)` forwarding, and user-configured
 OpenTelemetry export remain unchanged. This is separate from
 `SessionConfig.setEnableSessionTelemetry(false)`, which disables only a session's
-pipeline. The value must be exactly `"true"`; changing it requires a process
-restart. `COPILOT_GITHUB_TELEMETRY_DISABLED` remains native-runtime/GitHub-only. In-process connections
+pipeline. The value must be exactly `"true"`; changing it requires a runtime
+restart. The Node CLI host does not use this variable. In-process connections
 reject per-client environment maps; set the variable in the host process
 environment before starting the runtime instead.
 
 ## Quick Start
 
 For experimental in-process AHP hosting, select a transport explicitly:
-`client.startAhpHost(new AhpHostOptions().setAuthentication(AhpHostAuthentication.github()).setLocalServer(new HostLocalServerOptions(null, null, null, null)))`.
-Admission is explicit in every client mode: select `github()`, `none()`, or
-`custom("stable-owner", request -> CompletableFuture.completedFuture(new AhpAuthenticationResult("stable-owner", "2099-01-01T00:00:00Z")))`.
-Custom validators receive the decrypted admission token and a cancellation
-stage. Return a matching identity and required future RFC3339 `expiresAt`, or
-reject with null/an exceptional future. Cancellation completes on timeout,
-disconnect, or validation completion; late results cannot admit a client.
-`none()` does not disable the independent WebSocket connection secret.
-Mission Control requires `github()`. Create/resume callbacks receive trusted
-`request.authentication()` separately from `request.config()`; custom tokens
-never become GitHub or model-provider credentials.
+`client.startAhpHost(new AhpHostOptions().setLocalServer(new HostLocalServerOptions(null, null, null, null)))`.
 The transport types are in `com.github.copilot.generated.rpc`. For GitHub Mission
 Control, use `.setGithubEnvironment(new HostGitHubEnvironmentOptions("My host", "compute-id"))`
 instead, or configure both transports. GitHub environment name and compute ID are
@@ -312,49 +287,6 @@ expiry, or loss of the original connection retires the review. Separately
 spawned UI work should observe this signal and retire itself when it completes.
 Dropping an outbound installation or OAuth future does not cancel that
 operation.
-
-### Kerberos authentication callback
-
-Use `CopilotClientOptions.setKerberosAuth(new KerberosAuthConfig(mode, callback))`
-when Kerberos tickets must be obtained by the SDK host, for example from Windows
-when the runtime runs in WSL. The runtime currently uses it for proxy
-authentication. The callback receives the generated `KerberosAuthAcquireRequest`,
-whose `spn()` is a service principal in the platform-independent
-`service/host[@REALM]` form, and returns a `CompletableFuture<String>` with a
-fresh base64 SPNEGO token without the `Negotiate ` prefix, or `null` when
-credentials are unavailable. The callback should validate the principal before
-issuing credentials.
-
-```java
-import com.github.copilot.generated.rpc.KerberosAuthMode;
-import com.github.copilot.rpc.CopilotClientOptions;
-import com.github.copilot.rpc.KerberosAuthConfig;
-
-var options = new CopilotClientOptions().setKerberosAuth(new KerberosAuthConfig(KerberosAuthMode.FALLBACK,
-        request -> acquireSpnegoToken(request.spn())));
-```
-
-With `KerberosAuthMode.FALLBACK`, native credential acquisition (including the
-first token) is tried first; only failure invokes the callback. With
-`KerberosAuthMode.ALWAYS`, native credential lookup is never attempted. Without
-this option, behavior is unchanged. Registration happens during `start()`,
-before sessions can be created, and startup fails if it is rejected.
-
-By default the callback authenticates only requests made for sessions this
-client creates or resumes. With `KerberosAuthScope.RUNTIME` it also
-authenticates the runtime's shared background traffic, such as catalog refreshes
-and telemetry; only one connection at a time can hold that scope, so startup
-fails if another client holds it. The registration ends when the connection
-closes. In `FALLBACK` mode, if the callback cannot supply a valid token,
-the native credential error is reported. In `ALWAYS` mode, a disconnected,
-failing, or empty callback fails authentication. The runtime waits at most 30
-seconds for the callback (less when the request's own deadline is sooner) and
-treats a timeout as a callback failure. The callback runs on the client
-executor; if the executor rejects it, the lookup fails. When the runtime cancels
-a lookup or the connection closes, a queued invocation is skipped and the
-returned future is cancelled. Tokens are not cached and must not be
-logged or persisted. The callback supplies the initial SPNEGO token only;
-exchanges requiring continuation tokens still need native negotiation.
 
 `SessionConfig.setAutopilot(AutopilotOptions)` and the corresponding
 `ResumeSessionConfig` setter configure experimental Autopilot policy.
@@ -647,12 +579,6 @@ class ProgressTools {
 }
 ```
 
-`@CopilotTool` and `@CopilotToolParam` are experimental.
-Compiling a tool class also compiles the companion class that the annotation processor generates for it, and that class implements an experimental interface.
-So the build needs `-Acopilot.experimental.allowed=true`; [Using experimental APIs](#using-experimental-apis) shows the Maven and Gradle settings.
-Annotating your tool class with `@AllowCopilotExperimental` does not help here, because the generated companion is a separate top-level class that the annotation does not cover.
-On JDK 23 and later, `javac` runs the SDK's annotation processors only when you ask for them, for example with `-proc:full`, and otherwise generates no companion class.
-
 Position examples:
 
 ```java
@@ -730,6 +656,8 @@ Chain fluent modifiers to set tool options:
 - `.skipPermission(boolean)` — bypass permission prompts
 - `.defer(ToolDefer)` — control deferred execution (`AUTO`, `NEVER`)
 - `.overridesBuiltInTool(boolean)` — shadow built-in tools
+
+For design context and decision rationale, see [ADR-006](docs/adr/adr-006-tool-definition-inline.md).
 
 ### String-schema `apply_patch` overrides
 
@@ -1031,7 +959,7 @@ The processor uses standard JSR 269 annotation processing APIs for maximum porta
 | Local variable with experimental type (including `var` inference) | ❌ | Move the usage into a declaration the processor can see, or use the compiler flag |
 | Cast to experimental type | ❌ | Use the compiler flag for a whole-compilation opt-in |
 
-In practice, these gaps rarely matter: any meaningful use of an experimental SDK type almost always appears in a field declaration, method signature, or type hierarchy — all of which are caught. A purely inline expression with no declaration footprint (e.g., `session.rpc().experimental.foo().join()`) is the only case that would slip through.
+In practice, these gaps rarely matter: any meaningful use of an experimental SDK type almost always appears in a field declaration, method signature, or type hierarchy — all of which are caught. A purely inline expression with no declaration footprint (e.g., `session.rpc().experimental.foo().join()`) is the only case that would slip through. See [ADR-004](docs/adr/adr-004-copilotexperimental.md) for the design rationale.
 
 ### Example
 
@@ -1101,7 +1029,7 @@ CI enforces both checks. Spotless runs explicitly in CI; `mvn verify` alone does
 
 #### Development Setup for native embedding
 
-Run native-runtime Maven commands from the `java` directory. Native packaging requires Node.js in addition to JDK 25 and Maven. In a standalone SDK checkout, `copilot-native/scripts/fetch-native.mjs` retrieves the pinned runtime package from the corresponding GitHub release. When the SDK is nested in the Copilot runtime source tree, it instead stages the same-checkout artifacts from `dist-cli`; run `pnpm run build:cli` from the runtime root first.
+Run native-runtime Maven commands from the `java` directory. Native packaging requires Node.js in addition to JDK 25 and Maven. In a standalone SDK checkout, `copilot-native/scripts/fetch-native.mjs` retrieves the pinned runtime package from the corresponding GitHub release. When the SDK is nested in `copilot-agent-runtime`, it instead stages the same-checkout artifacts from `dist-cli`; run `pnpm run build:cli` from the runtime repository first.
 
 On a native Linux glibc host, Maven activates `native-linux-x64` or `native-linux-arm64` for the matching architecture when `copilot.native.libc=glibc` is set. On a Linux musl host, Maven activates `native-linuxmusl-x64` or `native-linuxmusl-arm64` for the matching architecture when `copilot.native.libc=musl` is set. On Windows x64, Windows ARM64, Intel macOS, and Apple Silicon macOS, Maven activates `native-win32-x64`, `native-win32-arm64`, `native-darwin-x64`, or `native-darwin-arm64` automatically. The matching profile validates the host, runs the native script tests, stages the platform package during `generate-resources`, packages the classifier JAR during `package`, and verifies its native contents.
 
@@ -1169,11 +1097,11 @@ Each classifier JAR includes `runtime.node`, `platform.properties`, and `copilot
 
 The Java SDK uses [Maven CI-friendly versions](https://maven.apache.org/maven-ci-friendly.html). Every module declares `<version>${revision}</version>`, and the single source of truth is the `<revision>` property in `java/pom.xml`. The committed value stays a `-SNAPSHOT` for local development. Published artifacts contain a concrete version rather than the unresolved `${revision}` property.
 
-Stable, prerelease, and public unstable releases include all six SDKs. SDK and runtime versions are numbered independently; each Java release contains the matching runtime artifacts in its native classifier JARs. Java prereleases append `-SNAPSHOT` to the SDK version; stable and public unstable versions remain unchanged.
+Stable, prerelease, and public unstable releases include all six SDKs. SDK and runtime versions are numbered independently; each Java release contains the matching runtime artifacts in its native classifier JARs. Public unstable versions use `X.Y.Z-unstable.<run-id>.g<sha>`. Maven `-SNAPSHOT` builds are a separate development channel.
 
 Release artifacts and source references are public:
 
-- Stable and public unstable Java packages are available from Maven Central; previews use Central Portal snapshots.
+- Java packages are available from Maven Central.
 - The `java/v<SDK-version>` and `v<SDK-version>` tags identify the corresponding public SDK source snapshot in [`github/copilot-sdk`](https://github.com/github/copilot-sdk).
 - Stable/prerelease versions also have a combined `v<SDK-version>` [GitHub release](https://github.com/github/copilot-sdk/releases) and versioned Java documentation. Prerelease documentation does not replace the latest documentation.
 - Unstable releases create source tags without advancing SDK `main`, creating an SDK GitHub release announcement, or deploying Java documentation. Their runtime assets are available in the separate `runtime-<runtime-version>` release.

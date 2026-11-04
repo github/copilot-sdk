@@ -442,6 +442,7 @@ func TestClientOptionsE2E(t *testing.T) {
 			CoauthorEnabled:                    copilot.Bool(false),
 			ManageScheduleEnabled:              copilot.Bool(false),
 			GitHubToken:                        "advanced-create-session-token",
+			RemoteSession:                      rpc.RemoteSessionModeExport,
 			SkillDirectories:                   []string{"skills"},
 			PluginDirectories:                  []string{"plugins"},
 			InstructionDirectories:             []string{"instructions"},
@@ -497,6 +498,7 @@ func TestClientOptionsE2E(t *testing.T) {
 			"coauthorEnabled":                    false,
 			"manageScheduleEnabled":              false,
 			"gitHubToken":                        "advanced-create-session-token",
+			"remoteSession":                      "export",
 			"requestMcpApps":                     true,
 			"requestCanvasRenderer":              true,
 			"requestExtensions":                  true,
@@ -506,9 +508,6 @@ func TestClientOptionsE2E(t *testing.T) {
 		for key, expected := range expectedValues {
 			if params[key] != expected {
 				t.Fatalf("Expected %s=%#v, got %#v in %#v", key, expected, params[key], params)
-			}
-			if _, exists := params["remoteSession"]; exists {
-				t.Fatalf("High-level session creation must omit legacy remoteSession, got %#v", params)
 			}
 		}
 		assertStringArray(t, params["availableTools"], []string{"read_file"})

@@ -162,6 +162,10 @@ async fn should_not_provide_skills_to_agent_without_skills_field() {
     .await;
 }
 
+#[ignore = "Upstream skips applying skills on resume because the feature is not reliable yet."]
+#[tokio::test]
+async fn should_apply_skill_on_session_resume_with_skilldirectories() {}
+
 #[tokio::test]
 async fn should_reload_replaced_skill_and_replay_it_on_resume() {
     super::support::with_dedicated_e2e_context(

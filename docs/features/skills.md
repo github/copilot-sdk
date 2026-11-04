@@ -42,8 +42,7 @@ await session.sendAndWait({ prompt: "Review this code for security issues" });
 <summary><strong>Python</strong></summary>
 
 ```python
-from copilot import CopilotClient
-from copilot.session import PermissionDecisionApproveOnce
+from copilot import CopilotClient, PermissionDecisionApproveOnce
 
 async def main():
     client = CopilotClient()
@@ -192,10 +191,7 @@ const session = await client.createSession({
 <summary><strong>Python</strong></summary>
 
 ```python
-from copilot import CopilotClient
 from copilot.session import PermissionHandler
-
-client = CopilotClient()
 
 session = await client.create_session(
     on_permission_request=PermissionHandler.approve_all,
@@ -310,11 +306,11 @@ skills/
     └── SKILL.md
 ```
 
-The `skillDirectories` option points to the parent directory (e.g., `./skills`). The CLI searches that directory recursively and loads the topmost `SKILL.md` on each path, so skills grouped in category folders (for example `skills/testing/coverage/SKILL.md`) are found too. It does not look inside a directory that already holds a `SKILL.md`: files nested in a skill's folder are that skill's resources, not separate skills. Directories whose names start with `.` are skipped.
+The `skillDirectories` option points to the parent directory (e.g., `./skills`). The CLI discovers all `SKILL.md` files in immediate subdirectories.
 
 ### SKILL.md format
 
-A `SKILL.md` file is a markdown document that starts with a YAML frontmatter block:
+A `SKILL.md` file is a markdown document with optional YAML frontmatter:
 
 ```markdown
 ---
@@ -337,8 +333,6 @@ Provide specific line-number references and suggested fixes.
 The frontmatter fields:
 * **`name`**: The skill's identifier (used with `disabledSkills` to selectively disable it). If omitted, the directory name is used.
 * **`description`**: A short description of what the skill does.
-
-Both fields are optional, but the frontmatter block itself is required: a `SKILL.md` without the `---` lines is skipped.
 
 The markdown body contains the instructions that are injected into the session context when the skill is loaded.
 
@@ -849,9 +843,8 @@ const session = await client.createSession({
 
 1. **Check path exists** - Verify the skill directory path is correct and contains subdirectories with `SKILL.md` files
 1. **Check permissions** - Ensure the SDK can read the directory
-1. **Check SKILL.md format** - Verify the file starts with a YAML frontmatter block and that the frontmatter uses valid syntax
-1. **Check the runtime log** - Each skipped skill is logged as a warning with its path and the reason, for example missing frontmatter, an invalid `name`, or a name that another skill already uses (see [Log directory](../troubleshooting/debugging.md#log-directory))
-1. **Check the reload diagnostics** - `skills.reload` rescans the skill directories and returns the same problems in its `warnings` and `errors` lists
+1. **Check SKILL.md format** - Verify the markdown is well-formed and any YAML frontmatter uses valid syntax
+1. **Enable debug logging** - Set `logLevel: "debug"` to see skill loading logs
 
 ### Skill conflicts
 

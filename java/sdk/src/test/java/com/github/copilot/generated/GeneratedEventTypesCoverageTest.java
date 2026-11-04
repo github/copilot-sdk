@@ -6,8 +6,6 @@ package com.github.copilot.generated;
 
 import static org.junit.jupiter.api.Assertions.*;
 
-import java.util.List;
-
 import org.junit.jupiter.api.Test;
 
 import com.fasterxml.jackson.databind.DeserializationFeature;
@@ -702,22 +700,5 @@ public class GeneratedEventTypesCoverageTest {
     @Test
     void testSessionMcpServersLoadedStatusEnumFromValue() {
         assertThrows(IllegalArgumentException.class, () -> McpServerStatus.fromValue("unknown"));
-    }
-
-    // ── Schema-deprecated payload properties ───────────────────────────────
-
-    @Test
-    void schemaDeprecatedParentToolCallIdAccessorsAreDeprecated() throws Exception {
-        for (var recordType : List.of(AssistantMessageEvent.AssistantMessageEventData.class,
-                AssistantMessageDeltaEvent.AssistantMessageDeltaEventData.class,
-                AssistantUsageEvent.AssistantUsageEventData.class,
-                ToolExecutionStartEvent.ToolExecutionStartEventData.class,
-                ToolExecutionCompleteEvent.ToolExecutionCompleteEventData.class)) {
-            assertTrue(recordType.getMethod("parentToolCallId").isAnnotationPresent(Deprecated.class),
-                    () -> recordType.getSimpleName() + ".parentToolCallId must be deprecated");
-        }
-        assertFalse(
-                HookEndEvent.HookEndEventData.class.getMethod("parentToolCallId").isAnnotationPresent(Deprecated.class),
-                "HookEndEventData.parentToolCallId must remain supported");
     }
 }

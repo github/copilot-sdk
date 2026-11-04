@@ -359,7 +359,7 @@ async fn typed_wait_returns_stop_hook_correction() {
 
 struct StopGate {
     entered: Semaphore,
-    release: Arc<Semaphore>,
+    release: Semaphore,
     calls: AtomicUsize,
 }
 
@@ -367,17 +367,9 @@ impl StopGate {
     fn new() -> Self {
         Self {
             entered: Semaphore::new(0),
-            release: Arc::new(Semaphore::new(0)),
+            release: Semaphore::new(0),
             calls: AtomicUsize::new(0),
         }
-    }
-}
-
-struct ReleaseOnDrop(Arc<Semaphore>);
-
-impl Drop for ReleaseOnDrop {
-    fn drop(&mut self) {
-        self.0.add_permits(1);
     }
 }
 
@@ -390,7 +382,11 @@ impl SessionHooks for StopGate {
     ) -> Option<AgentStopOutput> {
         if self.calls.fetch_add(1, Ordering::SeqCst) == 0 {
             self.entered.add_permits(1);
-            self.release.acquire().await.unwrap().forget();
+            tokio::time::timeout(Duration::from_secs(30), self.release.acquire())
+                .await
+                .unwrap()
+                .unwrap()
+                .forget();
         }
         None
     }
@@ -405,7 +401,6 @@ async fn typed_wait_returns_late_steering_response() {
         |ctx| {
             Box::pin(async move {
                 let gate = Arc::new(StopGate::new());
-                let _release = ReleaseOnDrop(gate.release.clone());
                 let client = ctx.start_client().await;
                 let session = client
                     .create_session(config(ctx.proxy_url()).with_hooks(gate.clone()))
@@ -474,7 +469,6 @@ async fn send_selects_correlated_response_after_idle() {
         &E2E, "structured_output", "send_selects_correlated_response_after_idle", |ctx| {
             Box::pin(async move {
                 let gate = Arc::new(StopGate::new());
-                let _release = ReleaseOnDrop(gate.release.clone());
                 let tool = define_tool("read_inventory", "Read the current widget count and color.",
                     |_inv, _: NoArgs| async { Ok(ToolResult::Text("The inventory contains 42 red widgets.".into())) });
                 let client = ctx.start_client().await;
@@ -546,7 +540,6 @@ async fn typed_result_after_terminal_tool_and_steering() {
             Box::pin(async move {
                 let entered = Arc::new(Semaphore::new(0));
                 let release = Arc::new(Semaphore::new(0));
-                let _release = ReleaseOnDrop(release.clone());
                 let calls = Arc::new(AtomicUsize::new(0));
                 let (tool_entered, tool_release, tool_calls) = (entered.clone(), release.clone(), calls.clone());
                 let mut tool = define_tool("lookup_number", "Return the number needed for the calculation.",
@@ -555,7 +548,7 @@ async fn typed_result_after_terminal_tool_and_steering() {
                         async move {
                             calls.fetch_add(1, Ordering::SeqCst);
                             entered.add_permits(1);
-                            release.acquire().await.unwrap().forget();
+                            tokio::time::timeout(Duration::from_secs(30), release.acquire()).await.unwrap().unwrap().forget();
                             Ok(ToolResult::Text("58".into()))
                         }
                     });

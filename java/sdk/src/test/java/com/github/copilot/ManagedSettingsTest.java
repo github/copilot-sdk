@@ -30,25 +30,20 @@ class ManagedSettingsTest {
         var managedSettings = new ManagedSettings().setPermissions(permissions);
 
         var create = SessionRequestBuilder.buildCreateRequest(new SessionConfig().setEnableManagedSettings(true)
-                .setExcludedManagedSettings(List.of("sandbox", "allowedMcpServers"))
                 .setEnforceManagedModelDefaults(true).setInteractiveUser(true).setManagedSettings(managedSettings),
                 "managed-create");
         var resume = SessionRequestBuilder.buildResumeRequest("managed-resume",
                 new ResumeSessionConfig().setEnableManagedSettings(true).setEnforceManagedModelDefaults(true)
-                        .setExcludedManagedSettings(List.of("deniedMcpServers")).setInteractiveUser(true)
-                        .setManagedSettings(managedSettings));
+                        .setInteractiveUser(true).setManagedSettings(managedSettings));
 
         assertEquals(managedSettings, create.getManagedSettings());
         assertEquals(managedSettings, resume.getManagedSettings());
-        assertEquals(List.of("sandbox", "allowedMcpServers"), create.getExcludedManagedSettings());
-        assertEquals(List.of("deniedMcpServers"), resume.getExcludedManagedSettings());
         assertTrue(create.getEnforceManagedModelDefaults());
         assertTrue(resume.getEnforceManagedModelDefaults());
         assertEquals(Boolean.TRUE, create.getInteractiveUser());
         assertEquals(Boolean.TRUE, resume.getInteractiveUser());
         var json = new ObjectMapper().writeValueAsString(create);
         assertTrue(json.contains("\"enableManagedSettings\":true"));
-        assertTrue(json.contains("\"excludedManagedSettings\":[\"sandbox\",\"allowedMcpServers\"]"));
         assertTrue(json.contains("\"enforceManagedModelDefaults\":true"));
         assertTrue(json.contains("\"interactiveUser\":true"));
         assertTrue(json.contains("\"managedSettings\":{\"permissions\""));

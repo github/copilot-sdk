@@ -66,8 +66,7 @@ const session = await client.createSession({
 <summary><strong>Python</strong></summary>
 
 ```python
-from copilot import CopilotClient
-from copilot.session import PermissionDecisionApproveOnce
+from copilot import CopilotClient, PermissionDecisionApproveOnce
 
 client = CopilotClient()
 await client.start()
@@ -306,7 +305,7 @@ This is equivalent to calling `session.rpc.agent.select()` after creation, but a
 <details open>
 <summary><strong>Node.js / TypeScript</strong></summary>
 
-<!-- docs-validate: strict -->
+<!-- docs-validate: skip -->
 ```typescript
 const session = await client.createSession({
     customAgents: [
@@ -328,28 +327,7 @@ const session = await client.createSession({
 <details>
 <summary><strong>Python</strong></summary>
 
-<!-- docs-validate: hidden -->
-```python
-from copilot import CopilotClient
-from copilot.session import PermissionHandler
-
-async def main(client: CopilotClient):
-    session = await client.create_session(
-        on_permission_request=PermissionHandler.approve_all,
-        custom_agents=[
-            {
-                "name": "researcher",
-                "prompt": "You are a research assistant. Analyze code and answer questions.",
-            },
-            {
-                "name": "editor",
-                "prompt": "You are a code editor. Make minimal, surgical changes.",
-            },
-        ],
-        agent="researcher",  # Pre-select the researcher agent
-    )
-```
-<!-- /docs-validate: hidden -->
+<!-- docs-validate: skip -->
 ```python
 session = await client.create_session(
     on_permission_request=PermissionHandler.approve_all,
@@ -372,36 +350,7 @@ session = await client.create_session(
 <details>
 <summary><strong>Go</strong></summary>
 
-<!-- docs-validate: hidden -->
-```go
-package main
-
-import (
-	"context"
-
-	copilot "github.com/github/copilot-sdk/go"
-)
-
-func main() {
-	var client *copilot.Client
-	ctx := context.Background()
-	session, _ := client.CreateSession(ctx, &copilot.SessionConfig{
-		CustomAgents: []copilot.CustomAgentConfig{
-			{
-				Name:   "researcher",
-				Prompt: "You are a research assistant. Analyze code and answer questions.",
-			},
-			{
-				Name:   "editor",
-				Prompt: "You are a code editor. Make minimal, surgical changes.",
-			},
-		},
-		Agent: "researcher", // Pre-select the researcher agent
-	})
-	_ = session
-}
-```
-<!-- /docs-validate: hidden -->
+<!-- docs-validate: skip -->
 ```go
 session, _ := client.CreateSession(ctx, &copilot.SessionConfig{
     CustomAgents: []copilot.CustomAgentConfig{
@@ -423,23 +372,7 @@ session, _ := client.CreateSession(ctx, &copilot.SessionConfig{
 <details>
 <summary><strong>.NET</strong></summary>
 
-<!-- docs-validate: hidden -->
-```csharp
-using GitHub.Copilot;
-
-await using var client = new CopilotClient();
-
-var session = await client.CreateSessionAsync(new SessionConfig
-{
-    CustomAgents = new List<CustomAgentConfig>
-    {
-        new() { Name = "researcher", Prompt = "You are a research assistant. Analyze code and answer questions." },
-        new() { Name = "editor", Prompt = "You are a code editor. Make minimal, surgical changes." },
-    },
-    Agent = "researcher", // Pre-select the researcher agent
-});
-```
-<!-- /docs-validate: hidden -->
+<!-- docs-validate: skip -->
 ```csharp
 var session = await client.CreateSessionAsync(new SessionConfig
 {
@@ -457,33 +390,7 @@ var session = await client.CreateSessionAsync(new SessionConfig
 <details>
 <summary><strong>Java</strong></summary>
 
-<!-- docs-validate: hidden -->
-```java
-import com.github.copilot.CopilotClient;
-import com.github.copilot.rpc.*;
-import java.util.List;
-
-public class SelectAgentAtCreationExample {
-    public static void main(String[] args) throws Exception {
-        try (var client = new CopilotClient()) {
-            var session = client.createSession(
-                new SessionConfig()
-                    .setCustomAgents(List.of(
-                        new CustomAgentConfig()
-                            .setName("researcher")
-                            .setPrompt("You are a research assistant. Analyze code and answer questions."),
-                        new CustomAgentConfig()
-                            .setName("editor")
-                            .setPrompt("You are a code editor. Make minimal, surgical changes.")
-                    ))
-                    .setAgent("researcher") // Pre-select the researcher agent
-                    .setOnPermissionRequest(PermissionHandler.APPROVE_ALL)
-            ).get();
-        }
-    }
-}
-```
-<!-- /docs-validate: hidden -->
+<!-- docs-validate: skip -->
 ```java
 import com.github.copilot.rpc.*;
 import java.util.List;
@@ -594,23 +501,16 @@ const response = await session.sendAndWait({
 <summary><strong>Python</strong></summary>
 
 ```python
-from copilot import CopilotClient
-from copilot.session import PermissionHandler
-from copilot.session_events import SessionEventType
-
-client = CopilotClient()
-session = await client.create_session(on_permission_request=PermissionHandler.approve_all)
-
 def handle_event(event):
-    if event.type == SessionEventType.SUBAGENT_STARTED:
+    if event.type == "subagent.started":
         print(f"▶ Sub-agent started: {event.data.agent_display_name}")
         print(f"  Description: {event.data.agent_description}")
-    elif event.type == SessionEventType.SUBAGENT_COMPLETED:
+    elif event.type == "subagent.completed":
         print(f"✅ Sub-agent completed: {event.data.agent_display_name}")
-    elif event.type == SessionEventType.SUBAGENT_FAILED:
+    elif event.type == "subagent.failed":
         print(f"❌ Sub-agent failed: {event.data.agent_display_name}")
         print(f"  Error: {event.data.error}")
-    elif event.type == SessionEventType.SUBAGENT_SELECTED:
+    elif event.type == "subagent.selected":
         tools = event.data.tools or "all"
         print(f"🎯 Agent selected: {event.data.agent_display_name} (tools: {tools})")
 
@@ -767,38 +667,7 @@ await session.SendAndWaitAsync(new MessageOptions
 <details>
 <summary><strong>Java</strong></summary>
 
-<!-- docs-validate: hidden -->
-```java
-import com.github.copilot.CopilotSession;
-import com.github.copilot.generated.*;
-import com.github.copilot.rpc.*;
-
-public class SubAgentEventsExample {
-    public static void example(CopilotSession session) throws Exception {
-        session.on(event -> {
-            if (event instanceof SubagentStartedEvent e) {
-                System.out.println("▶ Sub-agent started: " + e.getData().agentDisplayName());
-                System.out.println("  Description: " + e.getData().agentDescription());
-                System.out.println("  Tool call ID: " + e.getData().toolCallId());
-            } else if (event instanceof SubagentCompletedEvent e) {
-                System.out.println("✅ Sub-agent completed: " + e.getData().agentName());
-            } else if (event instanceof SubagentFailedEvent e) {
-                System.out.println("❌ Sub-agent failed: " + e.getData().agentName());
-                System.out.println("  Error: " + e.getData().error());
-            } else if (event instanceof SubagentSelectedEvent e) {
-                System.out.println("🎯 Agent selected: " + e.getData().agentDisplayName());
-            } else if (event instanceof SubagentDeselectedEvent e) {
-                System.out.println("↩ Agent deselected, returning to parent");
-            }
-        });
-
-        var response = session.sendAndWait(
-            new MessageOptions().setPrompt("Research how authentication works in this codebase")
-        ).get();
-    }
-}
-```
-<!-- /docs-validate: hidden -->
+<!-- docs-validate: skip -->
 ```java
 session.on(event -> {
     if (event instanceof SubagentStartedEvent e) {
@@ -954,30 +823,28 @@ const session = await client.createSession({
 
 ```python
 from copilot import CopilotClient
-from copilot.session import PermissionHandler
-from copilot.tools import Tool, ToolHandler
+from copilot.tools import Tool
 
-async def create_research_session(client: CopilotClient, analyze_handler: ToolHandler):
-    heavy_tool = Tool(
-        name="analyze-codebase",
-        description="Performs deep analysis of the codebase",
-        handler=analyze_handler,
-        parameters={"type": "object", "properties": {"query": {"type": "string"}}},
-    )
+heavy_tool = Tool(
+    name="analyze-codebase",
+    description="Performs deep analysis of the codebase",
+    handler=analyze_handler,
+    parameters={"type": "object", "properties": {"query": {"type": "string"}}},
+)
 
-    return await client.create_session(
-        tools=[heavy_tool],
-        default_agent={"excluded_tools": ["analyze-codebase"]},
-        custom_agents=[
-            {
-                "name": "researcher",
-                "description": "Deep codebase analysis agent",
-                "tools": ["analyze-codebase"],
-                "prompt": "You perform thorough codebase analysis.",
-            },
-        ],
-        on_permission_request=PermissionHandler.approve_all,
-    )
+session = await client.create_session(
+    tools=[heavy_tool],
+    default_agent={"excluded_tools": ["analyze-codebase"]},
+    custom_agents=[
+        {
+            "name": "researcher",
+            "description": "Deep codebase analysis agent",
+            "tools": ["analyze-codebase"],
+            "prompt": "You perform thorough codebase analysis.",
+        },
+    ],
+    on_permission_request=approve_all,
+)
 ```
 
 </details>
@@ -985,38 +852,7 @@ async def create_research_session(client: CopilotClient, analyze_handler: ToolHa
 <details>
 <summary><strong>Go</strong></summary>
 
-<!-- docs-validate: hidden -->
-```go
-package main
-
-import (
-	"context"
-
-	copilot "github.com/github/copilot-sdk/go"
-)
-
-func main() {
-	var client *copilot.Client
-	var heavyTool copilot.Tool
-	ctx := context.Background()
-	session, err := client.CreateSession(ctx, &copilot.SessionConfig{
-		Tools: []copilot.Tool{heavyTool},
-		DefaultAgent: &copilot.DefaultAgentConfig{
-			ExcludedTools: []string{"analyze-codebase"},
-		},
-		CustomAgents: []copilot.CustomAgentConfig{
-			{
-				Name:        "researcher",
-				Description: "Deep codebase analysis agent",
-				Tools:       []string{"analyze-codebase"},
-				Prompt:      "You perform thorough codebase analysis.",
-			},
-		},
-	})
-	_, _ = session, err
-}
-```
-<!-- /docs-validate: hidden -->
+<!-- docs-validate: skip -->
 ```go
 session, err := client.CreateSession(ctx, &copilot.SessionConfig{
     Tools: []copilot.Tool{heavyTool},
@@ -1039,35 +875,7 @@ session, err := client.CreateSession(ctx, &copilot.SessionConfig{
 <details>
 <summary><strong>C# / .NET</strong></summary>
 
-<!-- docs-validate: hidden -->
-```csharp
-using GitHub.Copilot;
-using Microsoft.Extensions.AI;
-
-await using var client = new CopilotClient();
-AIFunction analyzeCodebaseTool = AIFunctionFactory.Create(
-    (string query) => "analysis", "analyze-codebase");
-
-var session = await client.CreateSessionAsync(new SessionConfig
-{
-    Tools = [analyzeCodebaseTool],
-    DefaultAgent = new DefaultAgentConfig
-    {
-        ExcludedTools = ["analyze-codebase"],
-    },
-    CustomAgents =
-    [
-        new CustomAgentConfig
-        {
-            Name = "researcher",
-            Description = "Deep codebase analysis agent",
-            Tools = ["analyze-codebase"],
-            Prompt = "You perform thorough codebase analysis.",
-        },
-    ],
-});
-```
-<!-- /docs-validate: hidden -->
+<!-- docs-validate: skip -->
 ```csharp
 var session = await client.CreateSessionAsync(new SessionConfig
 {

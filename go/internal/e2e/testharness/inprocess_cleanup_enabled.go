@@ -3,24 +3,16 @@
 package testharness
 
 import (
-	"log"
+	"fmt"
 	"time"
 
 	"github.com/github/copilot-sdk/go/internal/ffihost"
 )
 
 func waitForInProcessCleanup() error {
-	return waitForDeferredCleanup(ffihost.WaitForCleanup, func() {
-		log.Print("deferred in-process cleanup still pending; the Go test watchdog owns a stuck cleanup")
-	})
-}
-
-func waitForDeferredCleanup(wait func(time.Duration) bool, reportPending func()) error {
-	const interval = 10 * time.Second
-	// Observe completion without retrying disposal or moving on to tear down
-	// the proxy and directories while a deferred native callback still uses them.
-	for !wait(interval) {
-		reportPending()
+	const timeout = 10 * time.Second
+	if !ffihost.WaitForCleanup(timeout) {
+		return fmt.Errorf("timed out after %s waiting for deferred in-process cleanup", timeout)
 	}
 	return nil
 }

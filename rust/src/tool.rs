@@ -20,7 +20,7 @@ use indexmap::IndexMap;
 pub use schemars::JsonSchema;
 
 use crate::Error;
-#[cfg(feature = "derive")]
+#[cfg(any(feature = "derive", test))]
 use crate::types::Tool;
 use crate::types::{ToolBinaryResult, ToolInvocation, ToolResult, ToolResultExpanded};
 
@@ -253,11 +253,6 @@ pub fn convert_mcp_call_tool_result(value: &serde_json::Value) -> Option<ToolRes
 #[async_trait]
 pub trait ToolHandler: Send + Sync + 'static {
     /// Handle a tool invocation from the agent.
-    ///
-    /// Returning `Err` fails the tool call without showing the error text to
-    /// the model, which sees a generic failure message instead. To give the
-    /// model specific failure text, return `Ok` with a failure result built by
-    /// [`ToolResultExpanded::new`] with `result_type` `"failure"`.
     async fn call(&self, invocation: ToolInvocation) -> Result<ToolResult, Error>;
 }
 

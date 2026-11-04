@@ -3,7 +3,6 @@ import base64
 
 import httpx
 import pytest
-from websockets.asyncio.server import serve as ws_serve
 
 from copilot.copilot_request_handler import (
     CopilotRequestContext,
@@ -143,95 +142,6 @@ async def test_websocket_invocation_identity_is_per_queued_message(legacy):
                 "trajectory",
             )
             assert ctx.cancel_event is connection_ctx.cancel_event
-
-
-async def test_default_websocket_forwarder_filters_handshake_headers():
-    received_headers = []
-
-    def capture_handshake(connection, request):
-        received_headers.append(request.headers)
-
-    async def upstream(connection):
-        await connection.close()
-
-    async with ws_serve(upstream, "127.0.0.1", 0, process_request=capture_handshake) as server:
-        port = server.sockets[0].getsockname()[1]
-        rpc = _WithheldAckRpc()
-        adapter = create_copilot_request_adapter(CopilotRequestHandler(), lambda: rpc)
-        await adapter.http_request_start(
-            LlmInferenceHTTPRequestStartRequest(
-                request_id="handshake-headers",
-                transport=LlmInferenceHTTPRequestStartTransport.WEBSOCKET,
-                method="GET",
-                url=f"ws://127.0.0.1:{port}/",
-                headers={
-                    "Authorization": ["Bearer test-token"],
-                    "X-Custom": ["one", "two"],
-                    "Proxy-Connection": ["keep-alive"],
-                    "Sec-WebSocket-Key": ["inbound-key"],
-                    "sEc-WeBsOcKeT-Protocol": ["inbound-protocol"],
-                    "SEC-WEBSOCKET-EXTENSIONS": ["inbound-extension"],
-                    "sec-websocket-version": ["0"],
-                    "Sec-WebSocket-Custom": ["inbound-custom"],
-                },
-            )
-        )
-        await asyncio.wait_for(adapter._pending["handshake-headers"].task, timeout=2)
-
-    assert len(received_headers) == 1
-    headers = received_headers[0]
-    assert headers["Authorization"] == "Bearer test-token"
-    assert headers.get_all("X-Custom") == ["one", "two"]
-    assert "Proxy-Connection" not in headers
-    assert len(headers.get_all("Sec-WebSocket-Key")) == 1
-    assert headers["Sec-WebSocket-Key"] != "inbound-key"
-    assert "Sec-WebSocket-Protocol" not in headers
-    assert "inbound-extension" not in headers.get("Sec-WebSocket-Extensions", "")
-    assert headers.get_all("Sec-WebSocket-Version") == ["13"]
-    assert "Sec-WebSocket-Custom" not in headers
-    assert [start.status for start in rpc.starts] == [101]
-    assert rpc.chunks[-1].end
-    assert rpc.chunks[-1].error is None
-
-
-async def test_default_websocket_forwarder_relays_messages_above_one_mebibyte():
-    # The websockets library rejects incoming messages above 1 MiB unless told
-    # otherwise; the default pass-through must relay larger upstream messages.
-    message = "x" * (2 * 1024 * 1024 + 1)
-
-    async def upstream(connection):
-        async for _ in connection:
-            await connection.send(message)
-
-    async with ws_serve(upstream, "127.0.0.1", 0) as server:
-        port = server.sockets[0].getsockname()[1]
-        rpc = _WithheldAckRpc()
-        adapter = create_copilot_request_adapter(CopilotRequestHandler(), lambda: rpc)
-        await adapter.http_request_start(
-            LlmInferenceHTTPRequestStartRequest(
-                request_id="large-message",
-                transport=LlmInferenceHTTPRequestStartTransport.WEBSOCKET,
-                method="GET",
-                url=f"ws://127.0.0.1:{port}/",
-                headers={},
-            )
-        )
-        task = adapter._pending["large-message"].task
-        await adapter.http_request_chunk(
-            LlmInferenceHTTPRequestChunkRequest(request_id="large-message", data="request")
-        )
-        await _wait_for(lambda: rpc.chunks, rpc.changed, timeout=10)
-        assert rpc.chunks[0].error is None
-        rpc.acknowledge(0)
-        await adapter.http_request_chunk(
-            LlmInferenceHTTPRequestChunkRequest(request_id="large-message", data="", end=True)
-        )
-        await asyncio.wait_for(task, timeout=10)
-
-    assert rpc.starts[0].status == 101
-    assert [chunk.data for chunk in rpc.data_chunks] == [message]
-    assert rpc.chunks[-1].end
-    assert rpc.chunks[-1].error is None
 
 
 async def _wait_for(predicate, changed: asyncio.Event, timeout: float = 2.0) -> None:

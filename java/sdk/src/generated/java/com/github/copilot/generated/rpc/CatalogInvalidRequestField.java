@@ -20,8 +20,6 @@ public enum CatalogInvalidRequestField {
     POLICYSESSIONID("policySessionId"),
     /** The {@code query} variant. */
     QUERY("query"),
-    /** The {@code product} variant. */
-    PRODUCT("product"),
     /** The {@code limit} variant. */
     LIMIT("limit"),
     /** The {@code kinds} variant. */

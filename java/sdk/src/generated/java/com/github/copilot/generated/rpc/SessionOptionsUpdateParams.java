@@ -67,20 +67,17 @@ Omitted values preserve the current setting. Re-supply consent on cold resume. *
     @JsonProperty("excludedBuiltinAgents") List<String> excludedBuiltinAgents,
     /** Controls how availableTools (allowlist) and excludedTools (denylist) combine when both are set. */
     @JsonProperty("toolFilterPrecedence") OptionsUpdateToolFilterPrecedence toolFilterPrecedence,
-    /** Deprecated and ignored. Shell command analysis is always enabled; retained for wire compatibility. */
-    @Deprecated
+    /** Whether shell-script safety heuristics are enabled. */
     @JsonProperty("enableScriptSafety") Boolean enableScriptSafety,
     /** Per-session settings for built-in shell tools. */
     @JsonProperty("shell") ShellOptions shell,
     /** Use shell.initProfile instead. Shell init profile (`None` or `NonInteractive`). */
-    @Deprecated
     @JsonProperty("shellInitProfile") String shellInitProfile,
     /** PowerShell process flags applied to built-in and user-requested shell commands. */
     @JsonProperty("shellProcessFlags") List<String> shellProcessFlags,
     /** Resolved sandbox configuration. */
     @JsonProperty("sandboxConfig") SandboxConfig sandboxConfig,
     /** Origin of the sandbox choice. Settings-derived origins (never_configured, user_enabled, user_disabled, repository_policy) let managed policy floor a host preference; explicit below-floor changes remain policy conflicts unless a session opt-out is authorized. Also used for telemetry provenance. */
-    @CopilotExperimental
     @JsonProperty("sandboxConfigSource") SandboxConfigSource sandboxConfigSource,
     /** Whether interactive shell sessions are logged. */
     @JsonProperty("logInteractiveShells") Boolean logInteractiveShells,
@@ -139,7 +136,6 @@ Omitted values preserve the current setting. Re-supply consent on cold resume. *
     /** Whether subagent callback events should be forwarded into the session event log sink. */
     @JsonProperty("eventsLogIncludesSubagents") Boolean eventsLogIncludesSubagents,
     /** Additional content-exclusion policies to merge into the session's policy set. */
-    @CopilotExperimental
     @JsonProperty("additionalContentExclusionPolicies") List<OptionsUpdateAdditionalContentExclusionPolicy> additionalContentExclusionPolicies,
     /** Whether to expose the `manage_schedule` tool to the agent. The runtime always owns the per-session schedule registry; this flag only controls tool exposure (typically gated to staff users). */
     @JsonProperty("manageScheduleEnabled") Boolean manageScheduleEnabled,

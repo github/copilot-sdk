@@ -10,7 +10,6 @@ package com.github.copilot.generated.rpc;
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.annotation.JsonProperty;
-import com.github.copilot.CopilotExperimental;
 import java.util.List;
 import java.util.Map;
 import javax.annotation.processing.Generated;
@@ -50,8 +49,6 @@ public record SessionOpenOptions(
     @JsonProperty("expAssignments") Object expAssignments,
     /** Opt-in: self-fetch and enforce enterprise managed settings, including managed hook policies, at session bootstrap. */
     @JsonProperty("enableManagedSettings") Boolean enableManagedSettings,
-    /** Managed-setting paths this trusted SDK host enforces externally or does not support, excluded from fetched, device, and policy-helper policy for this session. Exact dotted paths exclude a setting and its descendants (for example sandbox or permissions.disableBypassPermissionsMode); wildcards and array indices are not supported. Host-injected managedSettings and policy availability checks are not excluded. Not persisted; re-supply on resume, where omission restores full enforcement. Requires enableManagedSettings to self-fetch policy. */
-    @JsonProperty("excludedManagedSettings") List<String> excludedManagedSettings,
     /** Opt in to enforcing non-overridable managed model controls on session model, Auto-tier, reasoning-effort, and context-tier changes. Managed defaults still apply when omitted; this option only turns conflicting changes into errors. */
     @JsonProperty("enforceManagedModelDefaults") Boolean enforceManagedModelDefaults,
     /** Permissions-only enterprise policy injected by the SDK host at session create or resume. Composes restrictively with self-fetched and device policy and is not persisted. */
@@ -73,10 +70,8 @@ public record SessionOpenOptions(
     /** Whether a CLI host explicitly requested the initial Auto preference. False preserves a settings-derived preference without validating availability during creation; execution still validates it. Defaults to true and is ignored for non-CLI callers. */
     @JsonProperty("autoTierIsExplicit") Boolean autoTierIsExplicit,
     /** Named BYOK provider connections, additive to CAPI auth. Combining with `provider` is rejected. */
-    @CopilotExperimental
     @JsonProperty("providers") List<NamedProviderConfig> providers,
     /** BYOK model definitions added to the selectable model list, each referencing a provider name. */
-    @CopilotExperimental
     @JsonProperty("models") List<ProviderModelConfig> models,
     /** Working directory to anchor the session. */
     @JsonProperty("workingDirectory") String workingDirectory,
@@ -102,20 +97,17 @@ public record SessionOpenOptions(
     @JsonProperty("includedBuiltinAgents") List<String> includedBuiltinAgents,
     /** Built-in subagent names to exclude from this session. Excluded built-ins are hidden from agent discovery and cannot be dispatched unless a custom agent with the same name is available. */
     @JsonProperty("excludedBuiltinAgents") List<String> excludedBuiltinAgents,
-    /** Deprecated and ignored. Shell command analysis is always enabled; retained for wire compatibility. */
-    @Deprecated
+    /** Whether shell-script safety heuristics are enabled. */
     @JsonProperty("enableScriptSafety") Boolean enableScriptSafety,
     /** Per-session settings for built-in shell tools. */
     @JsonProperty("shell") ShellOptions shell,
     /** Use shell.initProfile instead. Shell init profile. */
-    @Deprecated
     @JsonProperty("shellInitProfile") String shellInitProfile,
     /** PowerShell process flags applied to built-in and user-requested shell commands. */
     @JsonProperty("shellProcessFlags") List<String> shellProcessFlags,
     /** Resolved sandbox configuration. */
     @JsonProperty("sandboxConfig") SandboxConfig sandboxConfig,
     /** Origin of the sandbox choice. Settings-derived origins (never_configured, user_enabled, user_disabled, repository_policy) let managed policy floor a host preference; explicit below-floor changes remain policy conflicts unless a session opt-out is authorized. Also used for telemetry provenance. */
-    @CopilotExperimental
     @JsonProperty("sandboxConfigSource") SandboxConfigSource sandboxConfigSource,
     /** Whether interactive shell sessions are logged. */
     @JsonProperty("logInteractiveShells") Boolean logInteractiveShells,
@@ -124,7 +116,6 @@ public record SessionOpenOptions(
     /** MCP server names disabled for this session. Disabled servers are not started or authenticated on create or cold resume. */
     @JsonProperty("disabledMcpServers") List<String> disabledMcpServers,
     /** Non-secret host-managed HTTP MCP servers keyed by stable managed identity. Managed provenance is runtime-established from this separate field and credentials are supplied through dynamic-header refresh. */
-    @CopilotExperimental
     @JsonProperty("managedMcpServers") Map<String, ManagedMcpServerConfig> managedMcpServers,
     /** Whether to include instructions from every MCP server in the system prompt instead of only allowlisted servers. */
     @JsonProperty("allowAllMcpServerInstructions") Boolean allowAllMcpServerInstructions,
@@ -141,7 +132,6 @@ public record SessionOpenOptions(
     /** Whether skill loading is enabled. When omitted, explicit SDK skill roots or an SDK skill provider enable skills independently of enableConfigDiscovery. */
     @JsonProperty("enableSkills") Boolean enableSkills,
     /** Whether the requesting SDK session has a skill provider. The provider remains ephemeral and is never persisted in session options or history. When enableSkills is false, it remains bound but dormant and receives no callbacks. Cloud, relay, handoff, and raw sessions.open flows reject it because they cannot safely pre-register the callback handler. */
-    @CopilotExperimental
     @JsonProperty("hasSkillProvider") Boolean hasSkillProvider,
     /** Built-in skill names to include in this session. When specified, only these runtime-bundled skills are available. Skills from other sources with the same name remain available. */
     @JsonProperty("includedBuiltinSkills") List<String> includedBuiltinSkills,
@@ -164,7 +154,6 @@ public record SessionOpenOptions(
     /** Whether model responses stream as delta events. */
     @JsonProperty("enableStreaming") Boolean enableStreaming,
     /** Experimental: enable native model citations for supported Anthropic and OpenAI models, normalized onto the `assistant.message` event. Off by default; may change or be removed while the citations surface is experimental. */
-    @CopilotExperimental
     @JsonProperty("enableCitations") Boolean enableCitations,
     /** Override URL for the Copilot API endpoint. */
     @JsonProperty("copilotUrl") String copilotUrl,
@@ -193,7 +182,6 @@ public record SessionOpenOptions(
     /** Override Copilot configuration directory. */
     @JsonProperty("configDir") String configDir,
     /** Additional content-exclusion policies to merge into the session policy set. */
-    @CopilotExperimental
     @JsonProperty("additionalContentExclusionPolicies") List<SessionOpenOptionsAdditionalContentExclusionPolicy> additionalContentExclusionPolicies,
     /** Live gate for repository-origin file hooks, including the primary repository, trusted repository-configured roots, and accepted startup additional directories (including CLI --add-dir). False suppresses these hooks; explicit hookDirectories and SDK callbacks are independent. Additional-root eligibility and the DISABLE_ADDITIONAL_DIRECTORY_HOOKS escape hatch are captured at create/cold resume, not expanded by later grants or feature-flag changes. Discovery uses containing Git roots, so supply only trusted repositories: commands and prompts need no further approval. Policy, hook-disable settings, and sandbox rules still apply. Provider-backed sessions skip repository hooks with a warning on omission, skip silently on false, and reject explicit true. */
     @JsonProperty("enableFileHooks") Boolean enableFileHooks,

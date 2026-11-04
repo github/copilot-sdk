@@ -131,21 +131,6 @@ async fn typed_dispatch_retains_optional_child_identity_and_old_root_inputs() {
                 enriched.then_some("parent-actor"),
                 "{hook}"
             );
-            assert_eq!(
-                actor.tool_call_id(),
-                enriched.then_some("model-call"),
-                "{hook}"
-            );
-            assert_eq!(
-                actor.traceparent(),
-                enriched.then_some("00-0123456789abcdef0123456789abcdef-0123456789abcdef-01"),
-                "{hook}"
-            );
-            assert_eq!(
-                actor.tracestate(),
-                enriched.then_some("vendor=state"),
-                "{hook}"
-            );
         }
     }
 }
@@ -178,9 +163,6 @@ fn hook_identity_input(hook: &str, enriched: bool) -> Value {
     if enriched {
         input["agentId"] = "child-actor".into();
         input["parentAgentId"] = "parent-actor".into();
-        input["toolCallId"] = "model-call".into();
-        input["traceparent"] = "00-0123456789abcdef0123456789abcdef-0123456789abcdef-01".into();
-        input["tracestate"] = "vendor=state".into();
     } else if hook != "subagentStop" {
         input.as_object_mut().unwrap().remove("agentType");
     }
@@ -230,27 +212,16 @@ async fn actor_metadata_does_not_use_tool_arguments_or_null_fields() {
             assert_eq!(actor.agent_id(), None);
             assert_eq!(actor.agent_type(), None);
             assert_eq!(actor.parent_agent_id(), None);
-            assert_eq!(actor.tool_call_id(), None);
-            assert_eq!(actor.traceparent(), None);
-            assert_eq!(actor.tracestate(), None);
             HookOutput::None
         }
     }
     for null_fields in [false, true] {
         let mut input = hook_identity_input("preToolUse", false);
         input["toolArgs"] = serde_json::json!({
-            "agentId": "untrusted", "agentType": "untrusted", "parentAgentId": "untrusted",
-            "toolCallId": "untrusted", "traceparent": "untrusted", "tracestate": "untrusted"
+            "agentId": "untrusted", "agentType": "untrusted", "parentAgentId": "untrusted"
         });
         if null_fields {
-            for key in [
-                "agentId",
-                "agentType",
-                "parentAgentId",
-                "toolCallId",
-                "traceparent",
-                "tracestate",
-            ] {
+            for key in ["agentId", "agentType", "parentAgentId"] {
                 input[key] = Value::Null;
             }
         }
@@ -315,6 +286,43 @@ async fn dispatch_pre_tool_use_deny() {
     let output = &result["output"];
     assert_eq!(output["permissionDecision"], "deny");
     assert_eq!(output["permissionDecisionReason"], "blocked by policy");
+}
+
+#[tokio::test]
+async fn dispatch_pre_tool_use_passthrough() {
+    let hooks = TestHooks;
+    let input = serde_json::json!({
+        "sessionId": "sess-1",
+        "timestamp": 1234567890,
+        "cwd": "/tmp",
+        "toolName": "safe_tool",
+        "toolArgs": {"key": "value"}
+    });
+    let result = dispatch_hook(&hooks, &SessionId::new("sess-1"), "preToolUse", input)
+        .await
+        .unwrap();
+    // No hook registered for this tool — output should be empty object
+    assert_eq!(result["output"], serde_json::json!({}));
+}
+
+#[tokio::test]
+async fn dispatch_user_prompt_submitted() {
+    let hooks = TestHooks;
+    let input = serde_json::json!({
+        "sessionId": "sess-1",
+        "timestamp": 1234567890,
+        "cwd": "/tmp",
+        "prompt": "hello world"
+    });
+    let result = dispatch_hook(
+        &hooks,
+        &SessionId::new("sess-1"),
+        "userPromptSubmitted",
+        input,
+    )
+    .await
+    .unwrap();
+    assert_eq!(result["output"]["modifiedPrompt"], "[prefixed] hello world");
 }
 
 #[tokio::test]
@@ -402,6 +410,22 @@ async fn dispatch_user_prompt_transformed() {
         result["output"]["modifiedTransformedPrompt"],
         "[transformed] <current_datetime>now</current_datetime>\nhello world"
     );
+}
+
+#[tokio::test]
+async fn dispatch_unregistered_hook_returns_empty() {
+    let hooks = TestHooks;
+    let input = serde_json::json!({
+        "sessionId": "sess-1",
+        "timestamp": 1234567890,
+        "cwd": "/tmp",
+        "reason": "complete"
+    });
+    // TestHooks doesn't handle SessionEnd
+    let result = dispatch_hook(&hooks, &SessionId::new("sess-1"), "sessionEnd", input)
+        .await
+        .unwrap();
+    assert_eq!(result["output"], serde_json::json!({}));
 }
 
 #[tokio::test]
@@ -573,6 +597,46 @@ async fn dispatch_mismatched_output_returns_empty() {
     let result = dispatch_hook(&hooks, &SessionId::new("sess-1"), "preToolUse", input)
         .await
         .unwrap();
+    assert_eq!(result["output"], serde_json::json!({}));
+}
+
+#[tokio::test]
+async fn dispatch_post_tool_use_default() {
+    let hooks = TestHooks;
+    let input = serde_json::json!({
+        "sessionId": "sess-1",
+        "timestamp": 1234567890,
+        "cwd": "/tmp",
+        "toolName": "some_tool",
+        "toolArgs": {},
+        "toolResult": "success"
+    });
+    let result = dispatch_hook(&hooks, &SessionId::new("sess-1"), "postToolUse", input)
+        .await
+        .unwrap();
+    assert_eq!(result["output"], serde_json::json!({}));
+}
+
+#[tokio::test]
+async fn dispatch_post_tool_use_failure_default() {
+    // No handler override — should return an empty output object.
+    let hooks = TestHooks;
+    let input = serde_json::json!({
+        "sessionId": "sess-1",
+        "timestamp": 1234567890,
+        "cwd": "/tmp",
+        "toolName": "some_tool",
+        "toolArgs": {"key": "value"},
+        "error": "boom"
+    });
+    let result = dispatch_hook(
+        &hooks,
+        &SessionId::new("sess-1"),
+        "postToolUseFailure",
+        input,
+    )
+    .await
+    .unwrap();
     assert_eq!(result["output"], serde_json::json!({}));
 }
 

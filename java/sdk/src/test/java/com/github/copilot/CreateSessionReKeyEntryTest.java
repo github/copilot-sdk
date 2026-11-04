@@ -62,6 +62,7 @@ class CreateSessionReKeyEntryTest {
                 clientSocket = new Socket(loopback, ss.getLocalPort());
                 serverSocket = ss.accept();
             }
+            serverSocket.setSoTimeout(5000);
             rpcClient = JsonRpcClient.fromSocket(clientSocket);
 
             replyThread = new Thread(() -> {

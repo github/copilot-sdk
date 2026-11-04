@@ -45,6 +45,7 @@ public class ScenarioTestingRuntimeE2ETests(E2ETestFixture fixture, ITestOutputH
                 UseLoggedInUser = false,
                 LogLevel = CopilotLogLevel.Debug,
                 SessionIdleTimeoutSeconds = 23,
+                EnableRemoteSessions = true,
                 Telemetry = new TelemetryConfig
                 {
                     OtlpEndpoint = "http://127.0.0.1:4318",
@@ -81,7 +82,7 @@ public class ScenarioTestingRuntimeE2ETests(E2ETestFixture fixture, ITestOutputH
         var requests = root.GetProperty("requests").EnumerateArray().ToList();
 
         Assert.Contains("--stdio", args);
-        Assert.DoesNotContain("--remote", args);
+        Assert.Contains("--remote", args);
         AssertArgumentValue(args, "--log-level", "debug");
         AssertArgumentValue(args, "--auth-token-env", "COPILOT_SDK_AUTH_TOKEN");
         AssertArgumentValue(args, "--session-idle-timeout", "23");
@@ -135,13 +136,11 @@ public class ScenarioTestingRuntimeE2ETests(E2ETestFixture fixture, ITestOutputH
                 capturePath,
                 root => root.GetProperty("requests").EnumerateArray()
                     .Any(request => request.GetProperty("method").GetString() == "connect"));
-            using var process = Process.GetProcessById(
-                int.Parse(await File.ReadAllTextAsync(pidPath), CultureInfo.InvariantCulture));
-            _ = process.Handle;
             cancellation.Cancel();
             await Assert.ThrowsAnyAsync<OperationCanceledException>(() => start.WaitAsync(TestTimeout));
 
-            await AssertProcessExitedAsync(process);
+            var pid = int.Parse(await File.ReadAllTextAsync(pidPath), CultureInfo.InvariantCulture);
+            await AssertProcessExitedAsync(pid);
         }
         finally
         {
@@ -193,9 +192,6 @@ public class ScenarioTestingRuntimeE2ETests(E2ETestFixture fixture, ITestOutputH
             UseLoggedInUser = false,
         });
         await using var session = await Ctx.CreateSessionAsync(client);
-        using var process = Process.GetProcessById(
-            int.Parse(await File.ReadAllTextAsync(pidPath), CultureInfo.InvariantCulture));
-        _ = process.Handle;
 
         var stopTask = client.StopAsync();
         var completed = await Task.WhenAny(stopTask, Task.Delay(TimeSpan.FromMilliseconds(500)));
@@ -204,34 +200,32 @@ public class ScenarioTestingRuntimeE2ETests(E2ETestFixture fixture, ITestOutputH
         await client.ForceStopAsync();
         await stopTask.WaitAsync(TestTimeout);
 
-        await AssertProcessExitedAsync(process);
+        var pid = int.Parse(await File.ReadAllTextAsync(pidPath), CultureInfo.InvariantCulture);
+        await AssertProcessExitedAsync(pid);
     }
 
     [Fact]
     public async Task Should_Fail_Fast_After_Transport_Failure()
     {
         var (cliPath, capturePath, pidPath) = await CreateFakeRuntimeAsync("normal");
-        var exitPath = Path.Join(Ctx.WorkDir, $"scenario-runtime-exit-{Guid.NewGuid():N}");
         await using var client = Ctx.CreateClient(options: new CopilotClientOptions
         {
             Connection = RuntimeConnection.ForStdio(
                 path: cliPath,
-                args: ["--capture-file", capturePath, "--pid-file", pidPath, "--behavior", "normal", "--exit-file", exitPath]),
+                args: ["--capture-file", capturePath, "--pid-file", pidPath, "--behavior", "normal"]),
             UseLoggedInUser = false,
         });
         await using var session = await Ctx.CreateSessionAsync(client);
 
         var pid = int.Parse(await File.ReadAllTextAsync(pidPath), CultureInfo.InvariantCulture);
         using var process = Process.GetProcessById(pid);
-        _ = process.Handle;
+        process.Kill();
+        await AssertProcessExitedAsync(pid);
 
         Exception sendException;
         Exception pingException;
         try
         {
-            await File.WriteAllTextAsync(exitPath, string.Empty);
-            await AssertProcessExitedAsync(process);
-            Assert.NotEqual(0, process.ExitCode);
             sendException = await Assert.ThrowsAnyAsync<Exception>(
                 () => session.SendAsync(new MessageOptions { Prompt = "This transport is already gone." })
                     .WaitAsync(TimeSpan.FromSeconds(3)));
@@ -302,10 +296,26 @@ public class ScenarioTestingRuntimeE2ETests(E2ETestFixture fixture, ITestOutputH
         Assert.Equal(expectedValue, args[index + 1]);
     }
 
-    private static async Task AssertProcessExitedAsync(Process process)
+    private static async Task AssertProcessExitedAsync(int pid)
     {
-        await process.WaitForExitAsync().WaitAsync(TestTimeout);
-        Assert.True(process.HasExited, "Expected the observed runtime process to exit.");
+        await TestHelper.WaitForConditionAsync(
+            () => Task.FromResult(!IsProcessRunning(pid)),
+            timeout: TestTimeout,
+            pollInterval: TimeSpan.FromMilliseconds(50),
+            timeoutMessage: $"Expected process {pid} to exit.");
+    }
+
+    private static bool IsProcessRunning(int pid)
+    {
+        try
+        {
+            using var process = Process.GetProcessById(pid);
+            return !process.HasExited;
+        }
+        catch (Exception ex) when (ex is ArgumentException or InvalidOperationException)
+        {
+            return false;
+        }
     }
 
     private sealed class RecordingExtensionLaunchProvider : IExtensionLaunchProviderHandler
@@ -340,7 +350,6 @@ public class ScenarioTestingRuntimeE2ETests(E2ETestFixture fixture, ITestOutputH
 
         const captureFile = argument("--capture-file");
         const pidFile = argument("--pid-file");
-        const exitFile = argument("--exit-file");
         const behavior = argument("--behavior") || "normal";
         const requests = [];
         const clientResponses = [];
@@ -463,14 +472,6 @@ public class ScenarioTestingRuntimeE2ETests(E2ETestFixture fixture, ITestOutputH
         });
 
         process.stdin.resume();
-        if (exitFile) {
-          const exitIfRequested = () => {
-            if (fs.existsSync(exitFile)) process.exit(1);
-          };
-          const watcher = fs.watch(require("path").dirname(exitFile), exitIfRequested);
-          watcher.on("error", error => { throw error; });
-          exitIfRequested();
-        }
         saveCapture();
         setInterval(() => {}, 1000);
         """;

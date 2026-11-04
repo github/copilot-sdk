@@ -121,6 +121,8 @@ Here are language-specific implementations:
 <details open>
 <summary><strong>.NET</strong></summary>
 
+<!-- docs-validate: skip -->
+
 ```csharp
 using Azure.Core;
 using Azure.Identity;
@@ -131,7 +133,6 @@ DefaultAzureCredential credential = new(
 await using CopilotClient client = new();
 string foundryUrl = Environment.GetEnvironmentVariable("FOUNDRY_RESOURCE_URL")!;
 
-#pragma warning disable GHCP001 // Bearer token providers are experimental.
 await using CopilotSession session = await client.CreateSessionAsync(new SessionConfig
 {
     Model = "gpt-5.5",
@@ -154,11 +155,11 @@ AssistantMessageEvent? response = await session.SendAndWaitAsync(
 Console.WriteLine(response?.Data.Content);
 ```
 
-The .NET `BearerTokenProvider` property raises the `GHCP001` experimental diagnostic. Suppress it with `#pragma warning disable GHCP001` or a project-level `<NoWarn>GHCP001</NoWarn>`.
-
 </details>
 <details>
 <summary><strong>Go</strong></summary>
+
+<!-- docs-validate: skip -->
 
 ```go
 package main
@@ -235,6 +236,8 @@ func main() {
 <details>
 <summary><strong>Java</strong></summary>
 
+<!-- docs-validate: skip -->
+
 ```java
 import com.azure.core.credential.TokenRequestContext;
 import com.azure.identity.AzureIdentityEnvVars;
@@ -275,7 +278,7 @@ public class ManagedIdentityExample {
                     .get();
             System.out.println(response.getData().content());
 
-            session.close();
+            session.disconnect().get();
         }
     }
 }
@@ -285,6 +288,8 @@ public class ManagedIdentityExample {
 <details>
 <summary><strong>Python</strong></summary>
 
+<!-- docs-validate: skip -->
+
 ```python
 import asyncio
 import os
@@ -292,7 +297,6 @@ import os
 from azure.identity.aio import DefaultAzureCredential
 from copilot import CopilotClient
 from copilot.session import PermissionHandler, ProviderConfig
-from copilot.session_events import AssistantMessageData
 
 async def main():
     credential = DefaultAzureCredential(require_envvar=True)
@@ -317,8 +321,7 @@ async def main():
     )
 
     response = await session.send_and_wait("Hello from Managed Identity!")
-    if response and isinstance(response.data, AssistantMessageData):
-        print(response.data.content)
+    print(response.data.content)
 
     await client.stop()
     await credential.close()

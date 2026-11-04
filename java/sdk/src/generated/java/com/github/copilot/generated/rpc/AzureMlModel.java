@@ -34,7 +34,6 @@ public record AzureMlModel(
     /** Validated Windows ML requirements. */
     @JsonProperty("profile") AzureMlProfile profile,
     /** Provider metadata retained for registration. */
-    @JsonInclude(JsonInclude.Include.ALWAYS)
     @JsonProperty("metadata") Object metadata
 ) {
 }

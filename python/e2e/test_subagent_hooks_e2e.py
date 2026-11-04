@@ -24,7 +24,6 @@ from copilot import (
     SubagentStopHookOutput,
 )
 from copilot.client import CopilotClient, RuntimeConnection
-from copilot.generated.rpc import UpdateSubagentSettingsRequest
 from copilot.session import PermissionHandler
 
 from .inference_request import user_message_text
@@ -35,13 +34,10 @@ pytestmark = pytest.mark.asyncio(loop_scope="module")
 
 CHILD_CONTEXT = "Subagent start hook verified: read the requested file."
 STOP_RESPONSE_PREFIX = "Subagent stop hook verified: "
-REPLAY_MODEL = "claude-sonnet-5"
 
 
 class _RecordingRequestHandler(CopilotRequestHandler):
-    def __init__(self, proxy_url: str) -> None:
-        self._proxy = httpx.URL(proxy_url)
-        self._client = httpx.AsyncClient(trust_env=False, timeout=None, follow_redirects=False)
+    def __init__(self) -> None:
         self.records: list[dict[str, str | None]] = []
         self.child_prompts: list[str] = []
         self.modified_parent_request = asyncio.Event()
@@ -49,32 +45,23 @@ class _RecordingRequestHandler(CopilotRequestHandler):
     async def send_request(
         self, request: httpx.Request, ctx: CopilotRequestContext
     ) -> httpx.Response:
-        record = {
-            "url": str(request.url),
-            "agent_id": ctx.agent_id,
-            "parent_agent_id": ctx.parent_agent_id,
-            "interaction_type": ctx.interaction_type,
-        }
-        self.records.append(record)
+        self.records.append(
+            {
+                "url": str(request.url),
+                "agent_id": ctx.agent_id,
+                "parent_agent_id": ctx.parent_agent_id,
+                "interaction_type": ctx.interaction_type,
+            }
+        )
         if _is_inference_url(str(request.url)):
             body = json.loads(request.content)
-            record["model"] = str(body.get("model"))
             if ctx.parent_agent_id:
                 for text in user_message_text(body):
                     if f"{CHILD_CONTEXT}\n\n" in text:
                         self.child_prompts.append(text)
             elif STOP_RESPONSE_PREFIX in json.dumps(body):
                 self.modified_parent_request.set()
-        request.url = request.url.copy_with(
-            scheme=self._proxy.scheme, host=self._proxy.host, port=self._proxy.port
-        )
-        request.headers["host"] = request.url.netloc.decode("ascii")
-        response = await self._client.send(request, stream=True)
-        record["response_status"] = str(response.status_code)
-        return response
-
-    async def aclose(self) -> None:
-        await self._client.aclose()
+        return await super().send_request(request, ctx)
 
 
 def _is_inference_url(url: str) -> bool:
@@ -106,11 +93,10 @@ class TestSubagentHooks:
     async def test_should_apply_subagent_lifecycle_hook_outputs(self, ctx: E2ETestContext):
         """Test tool and lifecycle hooks for a real subagent under the replay proxy."""
         hook_log = []
-        lifecycle: list[str] = []
         start_calls: list[tuple[SubagentStartHookInput, dict[str, str]]] = []
         stop_calls: list[tuple[SubagentStopHookInput, dict[str, str]]] = []
         subagent_stopped = asyncio.Event()
-        request_handler = _RecordingRequestHandler(ctx.proxy_url)
+        request_handler = _RecordingRequestHandler()
         waiting_text = (
             "I've launched an explore agent to read subagent-test.txt. "
             "Waiting for it to complete..."
@@ -153,14 +139,12 @@ class TestSubagentHooks:
             input_data: SubagentStartHookInput, invocation: dict[str, str]
         ) -> SubagentStartHookOutput:
             start_calls.append((input_data, invocation))
-            lifecycle.append("start")
             return {"additionalContext": CHILD_CONTEXT}
 
         async def on_subagent_stop(
             input_data: SubagentStopHookInput, invocation: dict[str, str]
         ) -> SubagentStopHookOutput:
             stop_calls.append((input_data, invocation))
-            lifecycle.append("stop")
             subagent_stopped.set()
             return {"modifiedResponse": f"{STOP_RESPONSE_PREFIX}{input_data['response']}"}
 
@@ -181,7 +165,6 @@ class TestSubagentHooks:
         try:
             session = await client.create_session(
                 session_id=parent_session_id,
-                model=REPLAY_MODEL,
                 on_permission_request=PermissionHandler.approve_all,
                 hooks={
                     "on_pre_tool_use": on_pre_tool_use,
@@ -191,12 +174,6 @@ class TestSubagentHooks:
                 },
             )
             try:
-                # Keep the built-in agent on the capture's model, not its changing default.
-                await session.rpc.tools.update_subagent_settings(
-                    UpdateSubagentSettingsRequest.from_dict(
-                        {"subagents": {"agents": {"explore": {"model": REPLAY_MODEL}}}}
-                    )
-                )
                 write_file(ctx.work_dir, "subagent-test.txt", "Hello from subagent test!")
 
                 def on_event(event):
@@ -235,7 +212,7 @@ class TestSubagentHooks:
                 stopped, stop_invocation = stop_calls[-1]
                 assert start_invocation == stop_invocation == {"session_id": session.session_id}
                 assert started["sessionId"] == stopped["sessionId"] == session.session_id
-                assert lifecycle == ["start", "stop"]
+                assert stopped["timestamp"] >= started["timestamp"]
                 assert started["agentName"] == stopped["agentName"] == "explore"
                 assert stopped["agentType"] == "explore"
                 assert stopped["agentId"]
@@ -244,7 +221,6 @@ class TestSubagentHooks:
                 for input_data in (started, stopped):
                     assert isinstance(input_data["timestamp"], datetime)
                     assert input_data["timestamp"].tzinfo == UTC
-                    assert input_data["timestamp"] > datetime(1970, 1, 1, tzinfo=UTC)
                     assert os.path.normcase(
                         os.path.normpath(input_data["workingDirectory"])
                     ) == os.path.normcase(os.path.normpath(ctx.work_dir))
@@ -270,11 +246,6 @@ class TestSubagentHooks:
                 await asyncio.wait_for(request_handler.modified_parent_request.wait(), 120)
             finally:
                 first_error = sys.exception()
-                if first_error is not None:
-                    first_error.add_note(
-                        f"Subagent hooks: lifecycle={lifecycle!r}; tools={hook_log!r}; "
-                        f"requests={request_handler.records!r}"
-                    )
                 try:
                     await session.disconnect()
                 except BaseException as cleanup_error:
@@ -284,17 +255,8 @@ class TestSubagentHooks:
         finally:
             first_error = sys.exception()
             try:
-                try:
-                    await client.stop()
-                except BaseException as cleanup_error:
-                    if first_error is None:
-                        raise
-                    first_error.add_note(f"client.stop failed: {cleanup_error!r}")
-            finally:
-                first_error = sys.exception()
-                try:
-                    await request_handler.aclose()
-                except BaseException as cleanup_error:
-                    if first_error is None:
-                        raise
-                    first_error.add_note(f"request_handler.aclose failed: {cleanup_error!r}")
+                await client.stop()
+            except BaseException as cleanup_error:
+                if first_error is None:
+                    raise
+                first_error.add_note(f"client.stop failed: {cleanup_error!r}")

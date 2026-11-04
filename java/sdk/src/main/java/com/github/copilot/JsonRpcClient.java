@@ -55,12 +55,11 @@ class JsonRpcClient implements AutoCloseable {
     private final Map<Long, CompletableFuture<JsonNode>> pendingRequests = new ConcurrentHashMap<>();
     private final Map<String, BiConsumer<String, JsonNode>> notificationHandlers = new ConcurrentHashMap<>();
     private final ExecutorService readerExecutor;
-    private final ExecutorService cancellationExecutor;
     private final CountDownLatch readerExited = new CountDownLatch(1);
     private boolean peerEof;
     private final Object closeHandlerLock = new Object();
     private volatile boolean running = true;
-    private volatile boolean closeNotified;
+    private boolean closeNotified;
     private Runnable closeHandler;
 
     private JsonRpcClient(InputStream inputStream, OutputStream outputStream, Socket socket, Process process) {
@@ -81,11 +80,6 @@ class JsonRpcClient implements AutoCloseable {
         this.ownsStreams = ownsStreams;
         this.readerExecutor = Executors.newSingleThreadExecutor(r -> {
             Thread t = new Thread(r, "jsonrpc-reader");
-            t.setDaemon(true);
-            return t;
-        });
-        this.cancellationExecutor = Executors.newSingleThreadExecutor(r -> {
-            Thread t = new Thread(r, "jsonrpc-cancellation");
             t.setDaemon(true);
             return t;
         });
@@ -174,7 +168,7 @@ class JsonRpcClient implements AutoCloseable {
             }
         }
 
-        var resultFuture = future.thenApply(result -> {
+        return future.thenApply(result -> {
             try {
                 T value = null;
                 if (responseType != Void.class && responseType != void.class) {
@@ -195,25 +189,6 @@ class JsonRpcClient implements AutoCloseable {
                     timingNanos);
             throw ex instanceof RuntimeException re ? re : new RuntimeException(ex);
         });
-        if ("session.sendAndWait".equals(method)) {
-            resultFuture.whenComplete((value, error) -> {
-                if (resultFuture.isCancelled() && pendingRequests.remove(id, future)) {
-                    future.cancel(false);
-                    try {
-                        cancellationExecutor.execute(() -> {
-                            try {
-                                notify("$/cancelRequest", Map.of("id", id));
-                            } catch (IOException failure) {
-                                LOG.log(Level.FINE, "Transport closed while cancelling completion request", failure);
-                            }
-                        });
-                    } catch (java.util.concurrent.RejectedExecutionException closed) {
-                        LOG.log(Level.FINE, "Transport closed before completion cancellation", closed);
-                    }
-                }
-            });
-        }
-        return resultFuture;
     }
 
     /**
@@ -300,11 +275,8 @@ class JsonRpcClient implements AutoCloseable {
     }
 
     private static boolean isCredentialField(String name) {
-        // Protocol messages use a bare "token" for credentials (for example Kerberos
-        // SPNEGO and connection tokens); its rare non-secret uses only lose detail in
-        // diagnostics.
         return name.equals("accessToken") || name.equals("gitHubToken") || name.equals("bearerToken")
-                || name.equals("apiKey") || name.equals("token");
+                || name.equals("apiKey");
     }
 
     private void startReader() {
@@ -367,9 +339,7 @@ class JsonRpcClient implements AutoCloseable {
                     }
 
                     String content = new String(buffer, StandardCharsets.UTF_8);
-                    if (LOG.isLoggable(Level.FINE)) {
-                        LOG.fine("Received: " + redactCredentialsForLogging(content));
-                    }
+                    LOG.fine("Received: " + content);
 
                     handleMessage(content);
                 }
@@ -389,10 +359,6 @@ class JsonRpcClient implements AutoCloseable {
 
     boolean awaitPeerEof(long timeout, TimeUnit unit) throws InterruptedException {
         return readerExited.await(Math.max(0, timeout), unit) && peerEof;
-    }
-
-    boolean isClosed() {
-        return closeNotified;
     }
 
     void setCloseHandler(Runnable handler) {
@@ -491,7 +457,6 @@ class JsonRpcClient implements AutoCloseable {
     public void close() {
         running = false;
         readerExecutor.shutdownNow();
-        cancellationExecutor.shutdownNow();
         notifyClose();
 
         try {

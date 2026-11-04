@@ -75,8 +75,6 @@ public final class ServerRpc {
     final ServerGlobalStateApi globalState;
     /** API methods for the {@code commands} namespace. */
     public final ServerCommandsApi commands;
-    /** API methods for the {@code settings} namespace. */
-    final ServerSettingsApi settings;
     /** API methods for the {@code gitHubRepository} namespace. */
     final ServerGitHubRepositoryApi gitHubRepository;
     /** API methods for the {@code gitHubOwners} namespace. */
@@ -89,22 +87,12 @@ public final class ServerRpc {
     public final ServerSessionFsApi sessionFs;
     /** API methods for the {@code llmInference} namespace. */
     public final ServerLlmInferenceApi llmInference;
-    /** API methods for the {@code kerberosAuth} namespace. */
-    public final ServerKerberosAuthApi kerberosAuth;
     /** API methods for the {@code sessions} namespace. */
     public final ServerSessionsApi sessions;
     /** API methods for the {@code agentRegistry} namespace. */
     public final ServerAgentRegistryApi agentRegistry;
     /** API methods for the {@code connectors} namespace. */
     public final ServerConnectorsApi connectors;
-    /** API methods for the {@code gitHubFetch} namespace. */
-    final ServerGitHubFetchApi gitHubFetch;
-    /** API methods for the {@code gitHubRelease} namespace. */
-    final ServerGitHubReleaseApi gitHubRelease;
-    /** API methods for the {@code cloudTasks} namespace. */
-    final ServerCloudTasksApi cloudTasks;
-    /** API methods for the {@code cafeMetrics} namespace. */
-    final ServerCafeMetricsApi cafeMetrics;
 
     /**
      * Creates a new server RPC client.
@@ -138,21 +126,15 @@ public final class ServerRpc {
         this.agents = new ServerAgentsApi(caller);
         this.globalState = new ServerGlobalStateApi(caller);
         this.commands = new ServerCommandsApi(caller);
-        this.settings = new ServerSettingsApi(caller);
         this.gitHubRepository = new ServerGitHubRepositoryApi(caller);
         this.gitHubOwners = new ServerGitHubOwnersApi(caller);
         this.git = new ServerGitApi(caller);
         this.runtime = new ServerRuntimeApi(caller);
         this.sessionFs = new ServerSessionFsApi(caller);
         this.llmInference = new ServerLlmInferenceApi(caller);
-        this.kerberosAuth = new ServerKerberosAuthApi(caller);
         this.sessions = new ServerSessionsApi(caller);
         this.agentRegistry = new ServerAgentRegistryApi(caller);
         this.connectors = new ServerConnectorsApi(caller);
-        this.gitHubFetch = new ServerGitHubFetchApi(caller);
-        this.gitHubRelease = new ServerGitHubReleaseApi(caller);
-        this.cloudTasks = new ServerCloudTasksApi(caller);
-        this.cafeMetrics = new ServerCafeMetricsApi(caller);
     }
 
     /**

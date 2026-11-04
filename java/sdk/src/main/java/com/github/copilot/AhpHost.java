@@ -10,7 +10,6 @@ import com.github.copilot.generated.rpc.HostListSessionsResult;
 import com.github.copilot.generated.rpc.HostPublishSessionParams;
 import com.github.copilot.generated.rpc.HostPublishSessionResult;
 import com.github.copilot.generated.rpc.HostStartResult;
-import com.github.copilot.generated.rpc.HostSetSessionCreationPolicyParams;
 import com.github.copilot.generated.rpc.HostUnpublishSessionParams;
 import com.github.copilot.generated.rpc.HostUnpublishSessionResult;
 import com.github.copilot.generated.rpc.ServerHostApi;
@@ -119,18 +118,6 @@ public final class AhpHost implements AutoCloseable {
      */
     public CompletableFuture<HostListSessionsResult> listSessions() {
         return rpc.listSessions(new HostListSessionsParams(info.hostId()));
-    }
-
-    /**
-     * Changes subsequent remote admissions without disconnecting clients.
-     * Already-admitted creation may finish.
-     *
-     * @param allowed
-     *            whether remote creation is allowed
-     * @return acknowledgement that the policy was applied
-     */
-    public CompletableFuture<Void> setAllowCreatingNewSessions(boolean allowed) {
-        return rpc.setSessionCreationPolicy(new HostSetSessionCreationPolicyParams(info.hostId(), allowed));
     }
 
     /** Disposes the listener and waits for acknowledged cleanup. */

@@ -85,7 +85,7 @@ var loggerFactory = LoggerFactory.Create(builder =>
 
 var client = new CopilotClient(new CopilotClientOptions
 {
-    LogLevel = CopilotLogLevel.Debug,
+    LogLevel = "debug",
     Logger = loggerFactory.CreateLogger<CopilotClient>()
 });
 ```
@@ -122,7 +122,7 @@ not start a separate logging process.
 
 ```typescript
 const client = new CopilotClient({
-  connection: RuntimeConnection.forStdio({ args: ["--log-dir", "/path/to/logs"] }),
+  cliArgs: ["--log-dir", "/path/to/logs"],
 });
 ```
 
@@ -219,7 +219,7 @@ var client = new CopilotClient(new CopilotClientOptions()
 
    ```typescript
    const client = new CopilotClient({
-     connection: RuntimeConnection.forStdio({ path: "/usr/local/bin/copilot" }),
+     cliPath: "/usr/local/bin/copilot",
    });
    ```
    </details>
@@ -228,31 +228,12 @@ var client = new CopilotClient(new CopilotClientOptions()
    <summary><strong>Python</strong></summary>
 
    ```python
-   from copilot import CopilotClient, RuntimeConnection
-
-   client = CopilotClient(
-       connection=RuntimeConnection.for_stdio(path="/usr/local/bin/copilot")
-   )
+   client = CopilotClient({"cli_path": "/usr/local/bin/copilot"})
    ```
    </details>
 
    <details>
    <summary><strong>Go</strong></summary>
-
-   <!-- docs-validate: hidden -->
-   ```go
-   package main
-
-   import copilot "github.com/github/copilot-sdk/go"
-
-   func main() {
-   	client := copilot.NewClient(&copilot.ClientOptions{
-   		Connection: copilot.StdioConnection{Path: "/usr/local/bin/copilot"},
-   	})
-   	_ = client
-   }
-   ```
-   <!-- /docs-validate: hidden -->
 
    ```go
    client := copilot.NewClient(&copilot.ClientOptions{
@@ -267,7 +248,7 @@ var client = new CopilotClient(new CopilotClientOptions()
    ```csharp
    var client = new CopilotClient(new CopilotClientOptions
    {
-       Connection = RuntimeConnection.ForStdio(path: "/usr/local/bin/copilot"),
+       CliPath = "/usr/local/bin/copilot"
    });
    ```
    </details>
@@ -310,33 +291,12 @@ var client = new CopilotClient(new CopilotClientOptions()
 
    ```python
    import os
-   from copilot import CopilotClient
-
-   client = CopilotClient(github_token=os.environ.get("GITHUB_TOKEN"))
+   client = CopilotClient({"github_token": os.environ.get("GITHUB_TOKEN")})
    ```
    </details>
 
    <details>
    <summary><strong>Go</strong></summary>
-
-   <!-- docs-validate: hidden -->
-   ```go
-   package main
-
-   import (
-   	"os"
-
-   	copilot "github.com/github/copilot-sdk/go"
-   )
-
-   func main() {
-   	client := copilot.NewClient(&copilot.ClientOptions{
-   		GitHubToken: os.Getenv("GITHUB_TOKEN"),
-   	})
-   	_ = client
-   }
-   ```
-   <!-- /docs-validate: hidden -->
 
    ```go
    client := copilot.NewClient(&copilot.ClientOptions{
@@ -398,7 +358,8 @@ var client = new CopilotClient(new CopilotClientOptions()
 1. Check for port conflicts if using TCP mode:
    ```typescript
    const client = new CopilotClient({
-     connection: RuntimeConnection.forTcp({ port: 0 }),  // Use random available port
+     useStdio: false,
+     port: 0,  // Use random available port
    });
    ```
 
@@ -438,31 +399,38 @@ The SDK supports two transport modes:
 **Stdio mode (default):**
 ```typescript
 const client = new CopilotClient({
-  connection: RuntimeConnection.forStdio(),  // This is the default
+  useStdio: true,  // This is the default
 });
 ```
 
 **TCP mode:**
 ```typescript
 const client = new CopilotClient({
-  connection: RuntimeConnection.forTcp({ port: 8080 }),  // Or 0 for random port
+  useStdio: false,
+  port: 8080,  // Or 0 for random port
 });
 ```
 
 **Connect to existing server:**
 ```typescript
 const client = new CopilotClient({
-  connection: RuntimeConnection.forUri("localhost:8080"),  // Connect to running server
+  cliUrl: "localhost:8080",  // Connect to running server
 });
 ```
 
 ### Diagnosing connection failures
 
-1. **Check the connection:**
+1. **Check client state:**
    ```typescript
-   const response = await client.ping();
-   console.log("Server responded at", response.timestamp);
-   // Fails with "Client not connected" if the client is not started
+   console.log("Connection state:", client.getState());
+   // Should be "connected" after start()
+   ```
+
+1. **Listen for state changes:**
+   ```typescript
+   client.on("stateChange", (state) => {
+     console.log("State changed to:", state);
+   });
    ```
 
 1. **Verify CLI process is running:**
@@ -480,6 +448,9 @@ const client = new CopilotClient({
    const session = await client.createSession({
      tools: [myTool],
    });
+   
+   // Check registered tools
+   console.log("Registered tools:", session.getTools?.());
    ```
 
 1. **Check tool schema is valid JSON Schema:**
@@ -512,16 +483,14 @@ const client = new CopilotClient({
 
 ### Tool errors not surfacing
 
-A failed tool call arrives as `tool.execution_complete` with `success: false`, and session errors arrive as `session.error`:
+Subscribe to error events:
 
 ```typescript
-session.on("tool.execution_complete", (event) => {
-  if (!event.data.success) {
-    console.error("Tool error:", event.data.error);
-  }
+session.on("tool.execution_error", (event) => {
+  console.error("Tool error:", event.data);
 });
 
-session.on("session.error", (event) => {
+session.on("error", (event) => {
   console.error("Session error:", event.data);
 });
 ```
@@ -532,22 +501,15 @@ session.on("session.error", (event) => {
 
 1. **Path separators:** Use raw strings or forward slashes:
    ```csharp
-   var options = new CopilotClientOptions
-   {
-       // Verbatim string
-       Connection = RuntimeConnection.ForStdio(path: @"C:\Program Files\GitHub\copilot.exe"),
-   };
-   // or forward slashes
-   options.Connection = RuntimeConnection.ForStdio(path: "C:/Program Files/GitHub/copilot.exe");
+   CliPath = @"C:\Program Files\GitHub\copilot.exe"
+   // or
+   CliPath = "C:/Program Files/GitHub/copilot.exe"
    ```
 
 1. **PATHEXT resolution:** The SDK handles this automatically, but if issues persist:
    ```csharp
-   var server = new McpStdioServerConfig
-   {
-       // Explicitly specify .exe
-       Command = "myserver.exe",  // Not just "myserver"
-   };
+   // Explicitly specify .exe
+   Command = "myserver.exe"  // Not just "myserver"
    ```
 
 1. **Console encoding:** Ensure UTF-8 for proper JSON handling:
@@ -565,7 +527,7 @@ session.on("session.error", (event) => {
 1. **PATH issues in GUI apps:** GUI applications may not inherit shell PATH:
    ```typescript
    const client = new CopilotClient({
-     connection: RuntimeConnection.forStdio({ path: "/opt/homebrew/bin/copilot" }),  // Full path
+     cliPath: "/opt/homebrew/bin/copilot",  // Full path
    });
    ```
 

@@ -126,8 +126,7 @@ final class LlmInferenceAdapter {
                 finalizeError(exchange, 502, "LLM inference handler returned without finalising the response "
                         + "(call endResponse() or errorResponse())", null);
             }
-        } catch (Throwable e) {
-            CopilotRequestHandler.rethrowFatalError(e);
+        } catch (Exception e) {
             if (exchange.cancelled() || exchange.cancellation().isDone()) {
                 // The runtime already cancelled this request; the handler's throw is
                 // just the abort propagating out of its upstream call.

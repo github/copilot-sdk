@@ -42,14 +42,6 @@ type (
 	AssistantUsageCopilotUsageTokenDetail                          = rpc.AssistantUsageCopilotUsageTokenDetail
 	AssistantUsageData                                             = rpc.AssistantUsageData
 	AssistantUsageTransport                                        = rpc.AssistantUsageTransport
-	AssistedApprovalAssessment                                     = rpc.AssistedApprovalAssessment
-	AssistedApprovalAssessmentCompleted                            = rpc.AssistedApprovalAssessmentCompleted
-	AssistedApprovalAssessmentExcluded                             = rpc.AssistedApprovalAssessmentExcluded
-	AssistedApprovalAssessmentFailed                               = rpc.AssistedApprovalAssessmentFailed
-	AssistedApprovalAssessmentNotRun                               = rpc.AssistedApprovalAssessmentNotRun
-	AssistedApprovalAssessmentStatus                               = rpc.AssistedApprovalAssessmentStatus
-	AssistedApprovalAssessmentUnavailable                          = rpc.AssistedApprovalAssessmentUnavailable
-	AssistedApprovalCompletedRecommendation                        = rpc.AssistedApprovalCompletedRecommendation
 	AssistedApprovalJudgeFailureReason                             = rpc.AssistedApprovalJudgeFailureReason
 	AssistedApprovalRecommendation                                 = rpc.AssistedApprovalRecommendation
 	Attachment                                                     = rpc.Attachment
@@ -75,7 +67,6 @@ type (
 	AttachmentSelectionDetails                                     = rpc.AttachmentSelectionDetails
 	AttachmentSelectionDetailsEnd                                  = rpc.AttachmentSelectionDetailsEnd
 	AttachmentSelectionDetailsStart                                = rpc.AttachmentSelectionDetailsStart
-	AttachmentSessionReference                                     = rpc.AttachmentSessionReference
 	AttachmentType                                                 = rpc.AttachmentType
 	AutoModeResolvedReasoningBucket                                = rpc.AutoModeResolvedReasoningBucket
 	AutoModeSwitchCompletedData                                    = rpc.AutoModeSwitchCompletedData
@@ -87,7 +78,6 @@ type (
 	BinaryAssetReference                                           = rpc.BinaryAssetReference
 	BinaryAssetReferenceType                                       = rpc.BinaryAssetReferenceType
 	BinaryAssetType                                                = rpc.BinaryAssetType
-	BlockedPermissionAction                                        = rpc.BlockedPermissionAction
 	CanvasRegistryChangedCanvas                                    = rpc.CanvasRegistryChangedCanvas
 	CanvasRegistryChangedCanvasAction                              = rpc.CanvasRegistryChangedCanvasAction
 	CapabilitiesChangedData                                        = rpc.CapabilitiesChangedData
@@ -162,11 +152,6 @@ type (
 	HumanResponseRecordedResponseResponseKind                      = rpc.HumanResponseRecordedResponseResponseKind
 	HumanResponseRecordedResponseUserInput                         = rpc.HumanResponseRecordedResponseUserInput
 	IndexedSearchState                                             = rpc.IndexedSearchState
-	InstructionUpdateAuthority                                     = rpc.InstructionUpdateAuthority
-	InstructionUpdateBoundary                                      = rpc.InstructionUpdateBoundary
-	InstructionUpdateData                                          = rpc.InstructionUpdateData
-	InstructionUpdateFallback                                      = rpc.InstructionUpdateFallback
-	InstructionUpdateLifetime                                      = rpc.InstructionUpdateLifetime
 	ManagedPermissionsContext                                      = rpc.ManagedPermissionsContext
 	ManagedPluginProgressPhase                                     = rpc.ManagedPluginProgressPhase
 	ManagedSettingsEnforcedAction                                  = rpc.ManagedSettingsEnforcedAction
@@ -198,7 +183,6 @@ type (
 	MCPServerSource                                                = rpc.MCPServerSource
 	MCPServerStatus                                                = rpc.MCPServerStatus
 	MCPServerTransport                                             = rpc.MCPServerTransport
-	MCPSkillOrigin                                                 = rpc.MCPSkillOrigin
 	MCPToolsListChangedData                                        = rpc.MCPToolsListChangedData
 	ModelCallFailureBadRequestKind                                 = rpc.ModelCallFailureBadRequestKind
 	ModelCallFailureData                                           = rpc.ModelCallFailureData
@@ -271,7 +255,6 @@ type (
 	PermissionRecoveryData                                         = rpc.PermissionRecoveryData
 	PermissionRecoveryOnBlocked                                    = rpc.PermissionRecoveryOnBlocked
 	PermissionRecoveryReason                                       = rpc.PermissionRecoveryReason
-	PermissionRecoveryRunState                                     = rpc.PermissionRecoveryRunState
 	PermissionRecoveryStatus                                       = rpc.PermissionRecoveryStatus
 	PermissionRequest                                              = rpc.PermissionRequest
 	PermissionRequestCommand                                       = rpc.PermissionRequestCommand
@@ -307,10 +290,6 @@ type (
 	PersistedBinaryResult                                          = rpc.PersistedBinaryResult
 	PersistedBinaryResultType                                      = rpc.PersistedBinaryResultType
 	PlanChangedOperation                                           = rpc.PlanChangedOperation
-	PolicyHelperCapabilities                                       = rpc.PolicyHelperCapabilities
-	PolicyHelperFailure                                            = rpc.PolicyHelperFailure
-	PolicyHelperFailureDetail                                      = rpc.PolicyHelperFailureDetail
-	PolicyHelperHelpLink                                           = rpc.PolicyHelperHelpLink
 	PossibleURL                                                    = rpc.PossibleURL
 	PromptCacheBreakData                                           = rpc.PromptCacheBreakData
 	ProviderMonthlyUsage                                           = rpc.ProviderMonthlyUsage
@@ -324,7 +303,6 @@ type (
 	ProviderQuotaQuantityKind                                      = rpc.ProviderQuotaQuantityKind
 	ProviderQuotaState                                             = rpc.ProviderQuotaState
 	ProviderQuotaUnit                                              = rpc.ProviderQuotaUnit
-	RawAssistedApprovalAssessment                                  = rpc.RawAssistedApprovalAssessment
 	RawCitationLocation                                            = rpc.RawCitationLocation
 	RawHumanResponseRecordedResponse                               = rpc.RawHumanResponseRecordedResponse
 	RawPermissionPromptRequest                                     = rpc.RawPermissionPromptRequest
@@ -377,7 +355,6 @@ type (
 	SessionIdleData                                                = rpc.SessionIdleData
 	SessionIndexedSearchData                                       = rpc.SessionIndexedSearchData
 	SessionInfoData                                                = rpc.SessionInfoData
-	SessionJournalLinkData                                         = rpc.SessionJournalLinkData
 	SessionLimitsConfig                                            = rpc.SessionLimitsConfig
 	SessionLimitsExhaustedCompletedData                            = rpc.SessionLimitsExhaustedCompletedData
 	SessionLimitsExhaustedRequestedData                            = rpc.SessionLimitsExhaustedRequestedData
@@ -465,7 +442,6 @@ type (
 	SystemNotificationWorkflowPauseInfoUser                        = rpc.SystemNotificationWorkflowPauseInfoUser
 	TaskBlocker                                                    = rpc.TaskBlocker
 	TaskBlockerKind                                                = rpc.TaskBlockerKind
-	TaskBlockerReason                                              = rpc.TaskBlockerReason
 	TaskCompleteData                                               = rpc.TaskCompleteData
 	TaskCompletionOutcome                                          = rpc.TaskCompletionOutcome
 	ToolExecutionCompleteContent                                   = rpc.ToolExecutionCompleteContent
@@ -581,13 +557,6 @@ const (
 	AssistantUsageAPIEndpointWsResponses                                 = rpc.AssistantUsageAPIEndpointWsResponses
 	AssistantUsageTransportHTTP                                          = rpc.AssistantUsageTransportHTTP
 	AssistantUsageTransportWebsocket                                     = rpc.AssistantUsageTransportWebsocket
-	AssistedApprovalAssessmentStatusCompleted                            = rpc.AssistedApprovalAssessmentStatusCompleted
-	AssistedApprovalAssessmentStatusExcluded                             = rpc.AssistedApprovalAssessmentStatusExcluded
-	AssistedApprovalAssessmentStatusFailed                               = rpc.AssistedApprovalAssessmentStatusFailed
-	AssistedApprovalAssessmentStatusNotRun                               = rpc.AssistedApprovalAssessmentStatusNotRun
-	AssistedApprovalAssessmentStatusUnavailable                          = rpc.AssistedApprovalAssessmentStatusUnavailable
-	AssistedApprovalCompletedRecommendationApprove                       = rpc.AssistedApprovalCompletedRecommendationApprove
-	AssistedApprovalCompletedRecommendationRequireApproval               = rpc.AssistedApprovalCompletedRecommendationRequireApproval
 	AssistedApprovalJudgeFailureReasonAbort                              = rpc.AssistedApprovalJudgeFailureReasonAbort
 	AssistedApprovalJudgeFailureReasonEmptyResponse                      = rpc.AssistedApprovalJudgeFailureReasonEmptyResponse
 	AssistedApprovalJudgeFailureReasonModelError                         = rpc.AssistedApprovalJudgeFailureReasonModelError
@@ -615,7 +584,6 @@ const (
 	AttachmentTypeGitHubTreeComparison                                   = rpc.AttachmentTypeGitHubTreeComparison
 	AttachmentTypeGitHubURL                                              = rpc.AttachmentTypeGitHubURL
 	AttachmentTypeSelection                                              = rpc.AttachmentTypeSelection
-	AttachmentTypeSessionReference                                       = rpc.AttachmentTypeSessionReference
 	AutoModeResolvedReasoningBucketHigh                                  = rpc.AutoModeResolvedReasoningBucketHigh
 	AutoModeResolvedReasoningBucketLow                                   = rpc.AutoModeResolvedReasoningBucketLow
 	AutoModeResolvedReasoningBucketMedium                                = rpc.AutoModeResolvedReasoningBucketMedium
@@ -714,15 +682,6 @@ const (
 	IndexedSearchStateFailed                                             = rpc.IndexedSearchStateFailed
 	IndexedSearchStateReady                                              = rpc.IndexedSearchStateReady
 	IndexedSearchStateStarting                                           = rpc.IndexedSearchStateStarting
-	InstructionUpdateAuthorityHost                                       = rpc.InstructionUpdateAuthorityHost
-	InstructionUpdateAuthorityManagedPolicy                              = rpc.InstructionUpdateAuthorityManagedPolicy
-	InstructionUpdateAuthorityRuntime                                    = rpc.InstructionUpdateAuthorityRuntime
-	InstructionUpdateBoundaryAfterToolResults                            = rpc.InstructionUpdateBoundaryAfterToolResults
-	InstructionUpdateBoundaryNextModelRequest                            = rpc.InstructionUpdateBoundaryNextModelRequest
-	InstructionUpdateFallbackRebuildSystemPrompt                         = rpc.InstructionUpdateFallbackRebuildSystemPrompt
-	InstructionUpdateFallbackReject                                      = rpc.InstructionUpdateFallbackReject
-	InstructionUpdateLifetimePersistent                                  = rpc.InstructionUpdateLifetimePersistent
-	InstructionUpdateLifetimeTurn                                        = rpc.InstructionUpdateLifetimeTurn
 	ManagedPluginProgressPhaseComplete                                   = rpc.ManagedPluginProgressPhaseComplete
 	ManagedPluginProgressPhaseInitializing                               = rpc.ManagedPluginProgressPhaseInitializing
 	ManagedPluginProgressPhaseInstalling                                 = rpc.ManagedPluginProgressPhaseInstalling
@@ -795,7 +754,6 @@ const (
 	ModelCallFinishedOutcomeError                                        = rpc.ModelCallFinishedOutcomeError
 	ModelCallFinishedOutcomeRejected                                     = rpc.ModelCallFinishedOutcomeRejected
 	ModelCallFinishedOutcomeSuccess                                      = rpc.ModelCallFinishedOutcomeSuccess
-	ModelCallProductStateErrorInputItemConnectionMismatch                = rpc.ModelCallProductStateErrorInputItemConnectionMismatch
 	ModelCallRequestBodyCompressionFallbackDisabled                      = rpc.ModelCallRequestBodyCompressionFallbackDisabled
 	ModelCallRequestBodyCompressionFallbackRetried                       = rpc.ModelCallRequestBodyCompressionFallbackRetried
 	ModelCallRequestBodyEncodingGzip                                     = rpc.ModelCallRequestBodyEncodingGzip
@@ -863,7 +821,6 @@ const (
 	PermissionApprovalEvaluationReasonCodeInterpreterUnavailable         = rpc.PermissionApprovalEvaluationReasonCodeInterpreterUnavailable
 	PermissionApprovalEvaluationReasonCodeInterpreterWrappedScript       = rpc.PermissionApprovalEvaluationReasonCodeInterpreterWrappedScript
 	PermissionApprovalEvaluationReasonCodeInvalidWorkingDirectory        = rpc.PermissionApprovalEvaluationReasonCodeInvalidWorkingDirectory
-	PermissionApprovalEvaluationReasonCodeJudgeContextTooLarge           = rpc.PermissionApprovalEvaluationReasonCodeJudgeContextTooLarge
 	PermissionApprovalEvaluationReasonCodeJudgeError                     = rpc.PermissionApprovalEvaluationReasonCodeJudgeError
 	PermissionApprovalEvaluationReasonCodeJudgeVerdict                   = rpc.PermissionApprovalEvaluationReasonCodeJudgeVerdict
 	PermissionApprovalEvaluationReasonCodeMalformedScriptActionManifest  = rpc.PermissionApprovalEvaluationReasonCodeMalformedScriptActionManifest
@@ -1054,7 +1011,6 @@ const (
 	SessionEventTypeHookProgress                                         = rpc.SessionEventTypeHookProgress
 	SessionEventTypeHookStart                                            = rpc.SessionEventTypeHookStart
 	SessionEventTypeHumanResponseRecorded                                = rpc.SessionEventTypeHumanResponseRecorded
-	SessionEventTypeInstructionUpdate                                    = rpc.SessionEventTypeInstructionUpdate
 	SessionEventTypeMCPAppToolCallComplete                               = rpc.SessionEventTypeMCPAppToolCallComplete
 	SessionEventTypeMCPHeadersRefreshCompleted                           = rpc.SessionEventTypeMCPHeadersRefreshCompleted
 	SessionEventTypeMCPHeadersRefreshRequired                            = rpc.SessionEventTypeMCPHeadersRefreshRequired
@@ -1112,7 +1068,6 @@ const (
 	SessionEventTypeSessionIdle                                          = rpc.SessionEventTypeSessionIdle
 	SessionEventTypeSessionIndexedSearch                                 = rpc.SessionEventTypeSessionIndexedSearch
 	SessionEventTypeSessionInfo                                          = rpc.SessionEventTypeSessionInfo
-	SessionEventTypeSessionJournalLink                                   = rpc.SessionEventTypeSessionJournalLink
 	SessionEventTypeSessionLimitsExhaustedCompleted                      = rpc.SessionEventTypeSessionLimitsExhaustedCompleted
 	SessionEventTypeSessionLimitsExhaustedRequested                      = rpc.SessionEventTypeSessionLimitsExhaustedRequested
 	SessionEventTypeSessionManagedPluginProgress                         = rpc.SessionEventTypeSessionManagedPluginProgress
@@ -1192,7 +1147,6 @@ const (
 	SkillSourceBuiltin                                        = rpc.SkillSourceBuiltin
 	SkillSourceCustom                                         = rpc.SkillSourceCustom
 	SkillSourceInherited                                      = rpc.SkillSourceInherited
-	SkillSourceMCP                                            = rpc.SkillSourceMCP
 	SkillSourcePersonalAgents                                 = rpc.SkillSourcePersonalAgents
 	SkillSourcePersonalCopilot                                = rpc.SkillSourcePersonalCopilot
 	SkillSourcePlugin                                         = rpc.SkillSourcePlugin
@@ -1229,14 +1183,6 @@ const (
 	SystemNotificationWorkflowPauseInfoTypeCheckpoint         = rpc.SystemNotificationWorkflowPauseInfoTypeCheckpoint
 	SystemNotificationWorkflowPauseInfoTypeUser               = rpc.SystemNotificationWorkflowPauseInfoTypeUser
 	TaskBlockerKindPermissionRecovery                         = rpc.TaskBlockerKindPermissionRecovery
-	TaskBlockerReasonAttemptsExhausted                        = rpc.TaskBlockerReasonAttemptsExhausted
-	TaskBlockerReasonEquivalentAlternativeSucceeded           = rpc.TaskBlockerReasonEquivalentAlternativeSucceeded
-	TaskBlockerReasonPermissionApproved                       = rpc.TaskBlockerReasonPermissionApproved
-	TaskBlockerReasonPermissionDenied                         = rpc.TaskBlockerReasonPermissionDenied
-	TaskBlockerReasonPermissionRecoveryRunLimit               = rpc.TaskBlockerReasonPermissionRecoveryRunLimit
-	TaskBlockerReasonPermissionRequired                       = rpc.TaskBlockerReasonPermissionRequired
-	TaskBlockerReasonRepeatedAttempt                          = rpc.TaskBlockerReasonRepeatedAttempt
-	TaskBlockerReasonResponderUnavailable                     = rpc.TaskBlockerReasonResponderUnavailable
 	TaskCompletionOutcomeBlocked                              = rpc.TaskCompletionOutcomeBlocked
 	TaskCompletionOutcomeCompleted                            = rpc.TaskCompletionOutcomeCompleted
 	TaskCompletionOutcomeContinue                             = rpc.TaskCompletionOutcomeContinue

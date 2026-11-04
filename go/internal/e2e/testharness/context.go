@@ -366,16 +366,13 @@ func (c *TestContext) WaitForExchanges(t *testing.T, minimumCount int) []ParsedH
 	deadline := time.Now().Add(120 * time.Second)
 	var lastErr error
 	var exchanges []ParsedHttpExchange
-	for {
+	for time.Now().Before(deadline) {
 		var err error
 		exchanges, err = c.GetExchanges()
 		if err == nil && len(exchanges) >= minimumCount {
 			return exchanges
 		}
 		lastErr = err
-		if !time.Now().Before(deadline) {
-			break
-		}
 		time.Sleep(100 * time.Millisecond)
 	}
 

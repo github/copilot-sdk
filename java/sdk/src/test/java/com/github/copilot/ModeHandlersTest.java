@@ -99,7 +99,7 @@ public class ModeHandlersTest {
 
             var response = session.sendAndWait(new MessageOptions().setPrompt(
                     "Create a brief implementation plan for adding a greeting.txt file, then request approval with exit_plan_mode.")
-                    .setAgentMode(AgentMode.PLAN), 0).get(120, TimeUnit.SECONDS);
+                    .setAgentMode(AgentMode.PLAN)).get(120, TimeUnit.SECONDS);
 
             var request = handlerCalled.get(10, TimeUnit.SECONDS);
             assertEquals(summary, request.getSummary());

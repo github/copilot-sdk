@@ -14,32 +14,8 @@ import type {
 import type { CopilotSession } from "./session.js";
 import type { SessionConfig, ResumeSessionConfig } from "./types.js";
 
-/** Verified host admission identity, independent of inference authentication. @experimental */
-export type AhpSessionAuthentication =
-    | { mode: "github"; identity: string }
-    | { mode: "custom"; identity: string }
-    | { mode: "none" };
-
-/** Explicit host-wide admission policy. @experimental */
-export type AhpHostAuthentication =
-    | { mode: "github" }
-    | { mode: "none" }
-    | {
-          mode: "custom";
-          /** Stable owner identity. Every accepted credential must match exactly. */
-          requireIdentity: string;
-          /** Receives a decrypted admission token, never used as an inference credential. */
-          authenticate: (request: { token: string; signal: AbortSignal }) => Promise<{
-              identity: string;
-              /** Required future RFC3339 expiration, enforced by the host. */
-              expiresAt: string;
-          } | null>;
-      };
-
 /** Host-selected defaults for a fresh application-owned session. @experimental */
 export interface AhpSessionCreateRequest {
-    /** Trusted admission context supplied by the host, not by the connecting client. */
-    authentication: AhpSessionAuthentication;
     /** Pass these settings to createSession, adding your prompt, tools and callbacks. */
     config: Omit<SessionConfig, "onPermissionRequest">;
     /** Aborted when participation ends, including timeout or owner disconnection. */
@@ -48,8 +24,6 @@ export interface AhpSessionCreateRequest {
 
 /** Host-selected settings for resuming a durable application-owned AHP session. @experimental */
 export interface AhpSessionResumeRequest {
-    /** Trusted admission context under the application's current host policy. */
-    authentication: AhpSessionAuthentication;
     sessionId: string;
     /** Pass to resumeSession, adding application tools, hooks and callbacks. */
     config: Omit<ResumeSessionConfig, "onPermissionRequest">;
@@ -72,21 +46,12 @@ export type AhpHostExit = HostExitedNotification;
  * @experimental
  */
 export interface AhpHostOptions {
-    /** Required even in copilot-cli client mode. Anonymous access must be explicitly selected. */
-    authentication: AhpHostAuthentication;
     /** Stable catalog identity; must agree with githubEnvironment.computeId when both are supplied. */
     computeId?: string;
-    /**
-     * Absolute directory on the runtime host to serve through AHP.
-     * Defaults to the runtime's configured working directory; does not change process or session working directories.
-     */
-    workspace?: string;
     /** Enable a local WebSocket listener; an empty object selects loopback defaults. */
     localServer?: HostLocalServerOptions;
-    /** Register a Mission Control environment and enable remote WPS connections; requires github authentication. */
+    /** Register a Mission Control environment and enable remote WPS connections. */
     githubEnvironment?: HostGitHubEnvironmentOptions;
-    /** Remote creation admission, independent of factories. Omitted means denied. */
-    allowCreatingNewSessions?: boolean;
     /** Called at most once when hosting ends, not on runtime process death. Local, never serialized. */
     onExit?: (exit: AhpHostExit) => void;
     /**
@@ -141,8 +106,7 @@ export class AhpHost {
         private readonly listHostSessions: () => Promise<HostListSessionsResult>,
         private readonly unpublishHostSession: (
             sessionId: string
-        ) => Promise<HostUnpublishSessionResult>,
-        private readonly updateCreationPolicy: (allowed: boolean) => Promise<void>
+        ) => Promise<HostUnpublishSessionResult>
     ) {
         this.hostId = info.hostId;
         this.url = info.url;
@@ -154,11 +118,6 @@ export class AhpHost {
     /** Ask the runtime to stop the listener and await its cleanup, on every call. */
     dispose(): Promise<void> {
         return this.disposeHost();
-    }
-
-    /** Change subsequent remote admissions without disconnecting clients; admitted creation may finish. */
-    setAllowCreatingNewSessions(allowed: boolean): Promise<void> {
-        return this.updateCreationPolicy(allowed);
     }
 
     /** Publish an attached application session into the durable compute-scoped host catalog. */

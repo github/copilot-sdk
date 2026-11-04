@@ -24,28 +24,10 @@ replaces both with the CLI version published for that snapshot.
 npm install @github/copilot-sdk
 ```
 
-## Model provider metadata
-
-`client.listModels()` and `client.rpc.models.list()` preserve the runtime's optional
-`provider` reference on each model: `{ id, kind, label }`. The existing `Model`,
-`ModelInfo`, and `ModelProviderRef` types are available from the package root.
-Native kinds remain `copilot` and `loki`; `id` is opaque and `label` is display text.
-Configured BYOK and older, unattributed rows omit `provider`; do not infer Copilot
-branding from a model ID or fill it from the active account. This metadata identifies
-the model source, not the agent harness, an account, or a new routing/selection API.
-
-## Kerberos authentication callback
-
-Provide `kerberosAuth: { mode, callback }` in `CopilotClientOptions` when Kerberos tickets must be obtained by the SDK host, for example from Windows when the runtime runs in WSL. The runtime currently uses it for proxy authentication. The callback receives `{ spn }`, a service principal in the platform-independent `service/host[@REALM]` form, and returns a fresh base64 SPNEGO token without the `Negotiate ` prefix, or `undefined` when credentials are unavailable. The callback should validate the principal before issuing credentials. Its second argument is an `AbortSignal` that fires when the runtime stops waiting (it cancels the request, for example after its timeout, or the connection closes); the SDK then stops awaiting the callback and ignores any later result.
-
-With `mode: "fallback"`, native credential acquisition (including the first token) is tried first; only failure invokes the callback. With `mode: "always"`, native credential lookup is never attempted. Without this option, behavior is unchanged. Registration happens during `start()`, before sessions can be created.
-
-By default the callback authenticates only requests made for sessions this client creates or resumes. With `scope: "runtime"` it also authenticates the runtime's shared background traffic, such as catalog refreshes and telemetry; only one connection at a time can hold that scope, so startup fails if another client holds it. The registration ends when the connection closes. In `fallback` mode, if the callback cannot supply a valid token, the native credential error is reported. In `always` mode, a disconnected, throwing, or empty callback fails authentication. The runtime waits at most 30 seconds for the callback (less when the request's own deadline is sooner) and treats a timeout as a callback failure. Tokens are not cached and must not be logged or persisted. The callback supplies the initial SPNEGO token only; exchanges requiring continuation tokens still need native negotiation.
-
 ## Runtime-supervised AHP host (experimental)
 
-`startAhpHost()` requires `authentication`: `github`, or direct-only `none` / `custom`
-(`requireIdentity` and a validator returning `{identity,expiresAt}` or `null`):
+`startAhpHost()` exposes copilotd's complete Agent Host Protocol server through the
+same runtime used by the SDK:
 
 ```typescript
 import { CopilotClient } from "@github/copilot-sdk";
@@ -53,7 +35,7 @@ import { CopilotClient } from "@github/copilot-sdk";
 await using client = new CopilotClient();
 await client.start();
 const host = await client.startAhpHost({
-    localServer: {}, authentication: { mode: "github" },
+    localServer: {},
     onExit: (exit) => {
         if (exit.error) console.error(exit.error);
     },
@@ -122,7 +104,7 @@ import { approveAll, CopilotClient, defineTool } from "@github/copilot-sdk";
 
 await using client = new CopilotClient();
 await using host = await client.startAhpHost({
-    localServer: {}, authentication: { mode: "github" },
+    localServer: {},
     createSession: ({ config, signal }) => {
         signal.throwIfAborted();
         return client.createSession({
@@ -187,7 +169,6 @@ runtimes without these RPC operations cannot start a host.
 
 ## Quick Start
 
-<!-- docs-validate: strict -->
 ```typescript
 import { CopilotClient, approveAll } from "@github/copilot-sdk";
 
@@ -222,10 +203,7 @@ await client.stop();
 
 Sessions also support `Symbol.asyncDispose` for use with [`await using`](https://github.com/tc39/proposal-explicit-resource-management) (TypeScript 5.2+ / Node.js 20+):
 
-<!-- docs-validate: strict -->
 ```typescript
-import { approveAll } from "@github/copilot-sdk";
-
 await using session = await client.createSession({
     model: "gpt-5",
     onPermissionRequest: approveAll,
@@ -266,15 +244,16 @@ new CopilotClient(options?: CopilotClientOptions)
 - `logLevel?: "none" | "error" | "warning" | "info" | "debug" | "all"` - Log level. When omitted, the runtime uses its own default (currently `"info"`).
 - `env?: Record<string, string | undefined>` - Environment variables for the runtime process. When omitted, inherits `process.env`.
 
-    Set `COPILOT_TELEMETRY_DISABLED=true` before startup to disable Copilot-owned
-    GitHub and Entra authentication telemetry process-wide, including sessionless
-    events. Authentication, SDK `onGitHubTelemetry` forwarding, and user-configured
-    OpenTelemetry remain unchanged. The value must be exactly `"true"`; restart
-    the process to change it. With `RuntimeConnection.forInProcess()`, set the host
-    process environment; per-client `env` is rejected. `enableSessionTelemetry: false`
-    affects only the session pipeline. The existing native-runtime-only
-    `COPILOT_GITHUB_TELEMETRY_DISABLED=true` remains GitHub-only; the Node CLI host
-    uses the general variable or `--disable-client-telemetry` instead.
+    For the native standalone runtime, set `COPILOT_GITHUB_TELEMETRY_DISABLED=true`
+    before startup to disable direct GitHub telemetry uploads for the entire host,
+    including session and sessionless events. Authentication, SDK
+    `onGitHubTelemetry` forwarding, and user-configured OpenTelemetry export remain
+    unchanged. The value must be exactly `"true"` and is read at startup; changing
+    it requires a runtime restart. With `RuntimeConnection.forInProcess()`, set it
+    in the host process environment; per-client `env` is rejected for that
+    transport. This is separate from `enableSessionTelemetry: false`, which
+    disables only a session's telemetry pipeline. The Node CLI host does not use
+    this environment variable.
 
 - `gitHubToken?: string` - GitHub token for authentication. When provided, takes priority over other auth methods.
 - `useLoggedInUser?: boolean` - Whether to use logged-in user for authentication (default: true, but false when `gitHubToken` is provided). Cannot be used with `RuntimeConnection.forUri`.
@@ -296,6 +275,7 @@ Binary reads and writes are limited to 50,330,880 raw bytes (approximately 48 Mi
 larger results return a filesystem error before encoding or decoding.
 
 - `sessionIdleTimeoutSeconds?: number` - Server-wide idle timeout for sessions in seconds. Ignored when connecting via `RuntimeConnection.forUri`.
+- `enableRemoteSessions?: boolean` - Enable Mission Control remote session support. Ignored when connecting via `RuntimeConnection.forUri`.
 
 #### Installation confirmation (experimental)
 
@@ -362,7 +342,7 @@ Retirement releases session-owned tool, hook, auth/input, provider, workflow, ca
 and transform registrations without changing caller-owned configuration. Late
 registration and callback dispatch are rejected; callbacks already admitted may finish.
 
-##### `createSession(config: SessionConfig): Promise<CopilotSession>`
+##### `createSession(config?: SessionConfig): Promise<CopilotSession>`
 
 Create a new conversation session.
 
@@ -379,7 +359,6 @@ Create a new conversation session.
 - `trustWorkingDirectory?: "session" | "user"` - Grant trust to the canonical working directory during session creation. `"session"` trusts it only for this session; `"user"` persists trust for later sessions. Omit to leave trust unchanged. Not available on resume.
 - `refreshCustomInstructions?: boolean` - Invalidates the process-wide custom-instruction discovery cache before creating this session, so instruction-file edits made in the same runtime are read again. Defaults to `false` (cache reuse). Other sessions in this runtime may observe updated instructions on later turns or discovery. This does not watch files or enable disabled instruction loading. Available on `SessionConfig`, not `ResumeSessionConfig`.
 - `enableSessionStore?: boolean` - Enables the cross-session store for search and retrieval across sessions. When unset in `"copilot-cli"` mode, the runtime default applies (enabled). In `"empty"` mode, defaults to disabled.
-- `enableSessionTelemetry?: boolean` - Disables internal session telemetry only when set to `false`. Omission or `true` enables it for eligible GitHub-authenticated sessions, including custom-provider (BYOK) sessions. Host and account policies still control uploads; this is separate from OpenTelemetry configuration.
 - `gitHubTokenProvider?: GitHubTokenProvider` - Acquires rotating, session-scoped GitHub tokens. Token results require a positive `expiresIn` value in seconds remaining when the callback completes; production tokens typically last eight hours. Cannot be combined with `gitHubToken`.
 - `provider?: ProviderConfig` - Custom API provider configuration (BYOK - Bring Your Own Key). See [Custom Providers](#custom-providers) section.
 - `onPermissionRequest?: PermissionHandler` - Optional handler called before each tool execution to approve or deny it. When omitted, permission requests are emitted as events and left pending for manual resolution. `approveAll` approves requests when managed settings are disabled and throws when `enableManagedSettings` is true. Custom handlers can inspect `managedApprovalRequired` for human-facing confirmation logic. See [Permission Handling](#permission-handling) section.
@@ -402,7 +381,7 @@ const session = await client.createSession({
 
 Initial acquisition runs during session creation or resume. Cancellation, provider errors, and invalid token responses reject that operation instead of falling back to ambient authentication. Idle sessions refresh only before their next credential-consuming operation; there is no background refresh timer.
 
-##### `resumeSession(sessionId: string, config: ResumeSessionConfig): Promise<CopilotSession>`
+##### `resumeSession(sessionId: string, config?: ResumeSessionConfig): Promise<CopilotSession>`
 
 Both create and resume accept experimental `autopilot: AutopilotOptions`, and
 `session.rpc.options.update({ autopilot: ... })` patches the same policy.
@@ -438,8 +417,6 @@ List all available sessions. Optionally filter by working directory context.
 - `summary?: string` - Optional session summary
 - `isRemote: boolean` - Whether the session is remote
 - `context?: SessionContext` - Working directory context from session creation
-- `clientName?: string` - Client that created the session (for example `github/cli`)
-- `lastClientName?: string` - Client that most recently ran the session: the client that created it, or a client that resumed it and then ran it. Resuming a session only to observe it does not change it. Omitted when unknown, such as for sessions persisted before this field existed.
 
 **SessionContext:**
 
@@ -535,11 +512,11 @@ Source is independent of delivery mode. Leaving it unset preserves the existing 
 
 ##### `sendAndWait(options: MessageOptions, timeout?: number): Promise<AssistantMessageEvent | undefined>`
 
-Send a message and wait for its request-owned response completion.
-Remote sessions retain the legacy non-Autopilot `session.idle` or correlated
-`session.autopilot_stopped` wait. Autopilot completion does not wait for or stop
-attached shells. Neither `assistant.idle` nor `session.task_complete` alone
-completes the wait.
+Send a message and wait for response completion: non-Autopilot `session.idle`,
+or the request's root `session.autopilot_stopped` event in Autopilot.
+The latter does not wait for attached shells to finish and does not stop them.
+`session.idle` still means whole-session quiescence; neither `assistant.idle`
+nor `session.task_complete` alone completes the wait.
 Sub-agent events are still delivered to listeners, but do not complete the wait or supply its reply.
 
 **Options:**
@@ -591,10 +568,6 @@ sends do not inherit it. Ordinary immediate steering inherits the active schema
 and originating message ID, even when it arrives too late for the current model
 request and is promoted into a follow-up run. Specifying a schema with
 `mode: "immediate"` is rejected, even while idle.
-Provider schema restrictions still apply, and schemas are not rewritten. Strict
-OpenAI output needs an object root with every property listed in `required`.
-Zod leaves `.optional()` properties out of `required`, so use `.nullable()` for a
-field the model may leave empty.
 The generated `session.rpc.send` and `session.rpc.sendMessages` wrappers expose
 the full `responseFormat` contract when you need to set its name, description,
 or strict option rather than using the convenience defaults (`name: "response"`,
@@ -613,12 +586,19 @@ admission. Schemas larger than 32 MiB when JSON-encoded are also rejected before
 admission, using the runtime's existing request-size ceiling. This does not
 guarantee the schema plus conversation and tools fits the provider's budget.
 
-Structured and unformatted waits return their request's root-agent response when
-its execution completes. Remote sessions retain event-based completion, selecting
-the response and Autopilot terminal by originating request ID. Automatic
-continuation messages do not change ownership. Child-agent events cannot supply
-the result. Legacy errors without an ID cannot provide concurrent request-error
-isolation.
+Structured waits select the last root-agent message whose `originatingMessageId`
+matches the ID returned by their send, then return at a non-autopilot
+`session.idle` or a root `session.autopilot_stopped` whose `requestId` matches
+that original send ID. Automatic continuation messages do not change ownership.
+An absent or different `requestId` cannot complete a correlated wait.
+Other queued work can delay idle, but cannot replace the selected result.
+Unformatted waits also isolate their replies and accept idle only after their
+own request starts. Both forms ignore child-agent events and `session.error`
+events whose `originatingMessageId` belongs to another request. A matching error
+fails its own wait even before a user message is emitted. Errors without an ID
+retain legacy handling: unformatted waits treat them as session-wide, while
+structured waits require their request to have started. Older hosts that omit
+error IDs cannot provide concurrent request-error isolation.
 `turnId` identifies an individual model/tool iteration, not the whole
 run; telemetry interaction IDs are not unique run identifiers.
 
@@ -763,6 +743,10 @@ Capabilities may update during the session. For example, when another client joi
 
 Interactive UI methods for showing dialogs to the user. Only available when the CLI host supports elicitation (`session.capabilities.ui?.elicitation === true`). See [UI Elicitation](#ui-elicitation) for full details.
 
+##### `destroy(): Promise<void>` _(deprecated)_
+
+Deprecated — use `disconnect()` instead.
+
 ---
 
 ## Event Types
@@ -784,38 +768,6 @@ See `SessionEvent` type in the source for full details.
 
 The SDK supports image attachments via the `attachments` parameter. You can attach images by providing their file path, or by passing base64-encoded data directly using a blob attachment:
 
-<!-- docs-validate: strict -->
-<!-- docs-validate: hidden -->
-```typescript
-import type { CopilotSession } from "@github/copilot-sdk";
-
-declare const session: CopilotSession;
-declare const base64ImageData: string;
-
-// File attachment — runtime reads from disk
-await session.send({
-    prompt: "What's in this image?",
-    attachments: [
-        {
-            type: "file",
-            path: "/path/to/image.jpg",
-        },
-    ],
-});
-
-// Blob attachment — provide base64 data directly
-await session.send({
-    prompt: "What's in this image?",
-    attachments: [
-        {
-            type: "blob",
-            data: base64ImageData,
-            mimeType: "image/png",
-        },
-    ],
-});
-```
-<!-- /docs-validate: hidden -->
 ```typescript
 // File attachment — runtime reads from disk
 await session.send({
@@ -841,18 +793,8 @@ await session.send({
 });
 ```
 
-Supported image formats are PNG, JPEG, WebP, and GIF. Images in other formats, such as BMP or TIFF, are not sent to the model. The agent's `view` tool can also read images directly from the filesystem, so you can also ask questions like:
+Supported image formats include JPG, PNG, GIF, and other common image types. The agent's `view` tool can also read images directly from the filesystem, so you can also ask questions like:
 
-<!-- docs-validate: strict -->
-<!-- docs-validate: hidden -->
-```typescript
-import type { CopilotSession } from "@github/copilot-sdk";
-
-declare const session: CopilotSession;
-
-await session.send({ prompt: "What does the most recent jpg in this directory portray?" });
-```
-<!-- /docs-validate: hidden -->
 ```typescript
 await session.send({ prompt: "What does the most recent jpg in this directory portray?" });
 ```
@@ -861,51 +803,6 @@ await session.send({ prompt: "What does the most recent jpg in this directory po
 
 Enable streaming to receive assistant response chunks as they're generated:
 
-<!-- docs-validate: strict -->
-<!-- docs-validate: hidden -->
-```typescript
-import { approveAll } from "@github/copilot-sdk";
-
-const session = await client.createSession({
-    model: "gpt-5",
-    streaming: true,
-    onPermissionRequest: approveAll,
-});
-
-// Wait for completion using typed event handlers
-const done = new Promise<void>((resolve) => {
-    session.on("assistant.message_delta", (event) => {
-        // Streaming message chunk - print incrementally
-        process.stdout.write(event.data.deltaContent);
-    });
-
-    session.on("assistant.reasoning_delta", (event) => {
-        // Streaming reasoning chunk (if model supports reasoning)
-        process.stdout.write(event.data.deltaContent);
-    });
-
-    session.on("assistant.message", (event) => {
-        // Final message - complete content
-        console.log("\n--- Final message ---");
-        console.log(event.data.content);
-    });
-
-    session.on("assistant.reasoning", (event) => {
-        // Final reasoning content (if model supports reasoning)
-        console.log("--- Reasoning ---");
-        console.log(event.data.content);
-    });
-
-    session.on("session.idle", () => {
-        // Session finished processing
-        resolve();
-    });
-});
-
-await session.send({ prompt: "Tell me a short story" });
-await done; // Wait for streaming to complete
-```
-<!-- /docs-validate: hidden -->
 ```typescript
 const session = await client.createSession({
     model: "gpt-5",
@@ -959,10 +856,7 @@ Note: `assistant.message` and `assistant.reasoning` (final events) are always se
 
 ### Manual Server Control
 
-<!-- docs-validate: strict -->
 ```typescript
-import { CopilotClient } from "@github/copilot-sdk";
-
 const client = new CopilotClient({});
 
 // Start manually
@@ -978,31 +872,6 @@ await client.stop();
 
 You can let the CLI call back into your process when the model needs capabilities you own. Use `defineTool` with Zod schemas for type-safe tool definitions:
 
-<!-- docs-validate: strict -->
-<!-- docs-validate: hidden -->
-```ts
-import { z } from "zod";
-import { defineTool } from "@github/copilot-sdk";
-
-declare function fetchIssue(id: string): Promise<string>;
-
-const session = await client.createSession({
-    model: "gpt-5",
-    tools: [
-        defineTool("lookup_issue", {
-            description: "Fetch issue details from our tracker",
-            parameters: z.object({
-                id: z.string().describe("Issue identifier"),
-            }),
-            handler: async ({ id }) => {
-                const issue = await fetchIssue(id);
-                return issue;
-            },
-        }),
-    ],
-});
-```
-<!-- /docs-validate: hidden -->
 ```ts
 import { z } from "zod";
 import { CopilotClient, defineTool } from "@github/copilot-sdk";
@@ -1030,22 +899,6 @@ When Copilot invokes `lookup_issue`, the client automatically runs your handler 
 
 If you register a tool with the same name as a built-in CLI tool (e.g. `edit_file`, `read_file`), the SDK will throw an error unless you explicitly opt in by setting `overridesBuiltInTool: true`. This flag signals that you intend to replace the built-in tool with your custom implementation.
 
-<!-- docs-validate: strict -->
-<!-- docs-validate: hidden -->
-```ts
-import { z } from "zod";
-import { defineTool } from "@github/copilot-sdk";
-
-defineTool("edit_file", {
-    description: "Custom file editor with project-specific validation",
-    parameters: z.object({ path: z.string(), content: z.string() }),
-    overridesBuiltInTool: true,
-    handler: async ({ path, content }) => {
-        /* your logic */
-    },
-});
-```
-<!-- /docs-validate: hidden -->
 ```ts
 defineTool("edit_file", {
     description: "Custom file editor with project-specific validation",
@@ -1062,19 +915,6 @@ An `apply_patch` override can declare a string schema. The model sees a required
 dispatching to any SDK. Both a Zod-inferred Node handler and
 `invocation.arguments` receive the patch text as a string:
 
-<!-- docs-validate: strict -->
-<!-- docs-validate: hidden -->
-```ts
-import { z } from "zod";
-import { defineTool } from "@github/copilot-sdk";
-
-defineTool("apply_patch", {
-    parameters: z.string(),
-    overridesBuiltInTool: true,
-    handler: (patch) => patch.trim(),
-});
-```
-<!-- /docs-validate: hidden -->
 ```ts
 defineTool("apply_patch", {
     parameters: z.string(),
@@ -1090,22 +930,6 @@ use an object schema if references are needed.
 
 Set `skipPermission: true` on a tool definition to allow it to execute without triggering a permission prompt:
 
-<!-- docs-validate: strict -->
-<!-- docs-validate: hidden -->
-```ts
-import { z } from "zod";
-import { defineTool } from "@github/copilot-sdk";
-
-defineTool("safe_lookup", {
-    description: "A read-only lookup that needs no confirmation",
-    parameters: z.object({ id: z.string() }),
-    skipPermission: true,
-    handler: async ({ id }) => {
-        /* your logic */
-    },
-});
-```
-<!-- /docs-validate: hidden -->
 ```ts
 defineTool("safe_lookup", {
     description: "A read-only lookup that needs no confirmation",
@@ -1121,22 +945,6 @@ defineTool("safe_lookup", {
 
 Set `defer` to control whether a tool may be loaded lazily via tool search rather than always pre-loaded. Use `"auto"` to allow the tool to be deferred and surfaced through tool search, or `"never"` to force it to always be pre-loaded. Defaults to `"auto"`.
 
-<!-- docs-validate: strict -->
-<!-- docs-validate: hidden -->
-```ts
-import { z } from "zod";
-import { defineTool } from "@github/copilot-sdk";
-
-defineTool("lookup_issue", {
-    description: "Fetch issue details",
-    parameters: z.object({ id: z.string() }),
-    defer: "auto",
-    handler: async ({ id }) => {
-        /* your logic */
-    },
-});
-```
-<!-- /docs-validate: hidden -->
 ```ts
 defineTool("lookup_issue", {
     description: "Fetch issue details",
@@ -1152,26 +960,6 @@ defineTool("lookup_issue", {
 
 Register slash commands so that users of the CLI's TUI can invoke custom actions via `/commandName`. Each command has a `name`, optional `description`, and a `handler` called when the user executes it.
 
-<!-- docs-validate: strict -->
-<!-- docs-validate: hidden -->
-```ts
-import { approveAll } from "@github/copilot-sdk";
-
-const session = await client.createSession({
-    onPermissionRequest: approveAll,
-    commands: [
-        {
-            name: "deploy",
-            description: "Deploy the app to production",
-            handler: async ({ commandName, args }) => {
-                console.log(`Deploying with args: ${args}`);
-                // Do work here — any thrown error is reported back to the CLI
-            },
-        },
-    ],
-});
-```
-<!-- /docs-validate: hidden -->
 ```ts
 const session = await client.createSession({
     onPermissionRequest: approveAll,
@@ -1198,44 +986,6 @@ When the session has elicitation support — either from the CLI's TUI or from a
 
 > **Capability check:** Elicitation is only available when at least one connected participant advertises support. Always check `session.capabilities.ui?.elicitation` before calling UI methods — this property updates automatically as participants join and leave.
 
-<!-- docs-validate: strict -->
-<!-- docs-validate: hidden -->
-```ts
-import { approveAll } from "@github/copilot-sdk";
-
-const session = await client.createSession({ onPermissionRequest: approveAll });
-
-if (session.capabilities.ui?.elicitation) {
-    // Confirm dialog — returns boolean
-    const ok = await session.ui.confirm("Deploy to production?");
-
-    // Selection dialog — returns selected value or null
-    const env = await session.ui.select("Pick environment", ["production", "staging", "dev"]);
-
-    // Text input — returns string or null
-    const name = await session.ui.input("Project name:", {
-        title: "Name",
-        minLength: 1,
-        maxLength: 50,
-    });
-
-    // Generic elicitation with full schema control
-    const result = await session.ui.elicitation({
-        message: "Configure deployment",
-        requestedSchema: {
-            type: "object",
-            properties: {
-                region: { type: "string", enum: ["us-east", "eu-west"] },
-                dryRun: { type: "boolean", default: true },
-            },
-            required: ["region"],
-        },
-    });
-    // result.action: "accept" | "decline" | "cancel"
-    // result.content: { region: "us-east", dryRun: true } (when accepted)
-}
-```
-<!-- /docs-validate: hidden -->
 ```ts
 const session = await client.createSession({ onPermissionRequest: approveAll });
 
@@ -1276,7 +1026,6 @@ All UI methods throw if elicitation is not supported by the host.
 
 Control the system prompt using `systemMessage` in session config:
 
-<!-- docs-validate: strict -->
 ```typescript
 const session = await client.createSession({
     model: "gpt-5",
@@ -1297,7 +1046,6 @@ The SDK auto-injects environment context, tool instructions, and security guardr
 
 Use `mode: "customize"` to selectively override individual sections of the prompt while preserving the rest:
 
-<!-- docs-validate: strict -->
 ```typescript
 import { SYSTEM_MESSAGE_SECTIONS } from "@github/copilot-sdk";
 import type { SectionOverride, SystemMessageSection } from "@github/copilot-sdk";
@@ -1345,7 +1093,6 @@ Unknown section IDs are handled gracefully: content from `replace`/`append`/`pre
 
 For full control (removes all guardrails), use `mode: "replace"`:
 
-<!-- docs-validate: strict -->
 ```typescript
 const session = await client.createSession({
     model: "gpt-5",
@@ -1360,33 +1107,6 @@ const session = await client.createSession({
 
 By default, sessions use **infinite sessions** which automatically manage context window limits through background compaction and persist state to a workspace directory.
 
-<!-- docs-validate: strict -->
-<!-- docs-validate: hidden -->
-```typescript
-// Default: infinite sessions enabled with default thresholds
-const session = await client.createSession({ model: "gpt-5" });
-
-// Access the workspace path for checkpoints and files
-console.log(session.workspacePath);
-// => ~/.copilot/session-state/{sessionId}/
-
-// Custom thresholds
-const tuned = await client.createSession({
-    model: "gpt-5",
-    infiniteSessions: {
-        enabled: true,
-        backgroundCompactionThreshold: 0.8, // Start compacting at 80% context usage
-        bufferExhaustionThreshold: 0.95, // Block at 95% until compaction completes
-    },
-});
-
-// Disable infinite sessions
-const disabled = await client.createSession({
-    model: "gpt-5",
-    infiniteSessions: { enabled: false },
-});
-```
-<!-- /docs-validate: hidden -->
 ```typescript
 // Default: infinite sessions enabled with default thresholds
 const session = await client.createSession({ model: "gpt-5" });
@@ -1426,22 +1146,6 @@ SDK leaves `memory` unset so the runtime applies its own default, while `"empty"
 defaults `memory` to disabled unless you set it explicitly.
 For more background, see [About GitHub Copilot Memory](https://docs.github.com/en/copilot/concepts/agents/copilot-memory).
 
-<!-- docs-validate: strict -->
-<!-- docs-validate: hidden -->
-```typescript
-// Enable memory for a session
-const enabled = await client.createSession({
-    model: "gpt-5",
-    memory: { enabled: true },
-});
-
-// Disable memory for a session
-const disabled = await client.createSession({
-    model: "gpt-5",
-    memory: { enabled: false },
-});
-```
-<!-- /docs-validate: hidden -->
 ```typescript
 // Enable memory for a session
 const session = await client.createSession({
@@ -1462,29 +1166,6 @@ A skill provider serves skills from your own storage, such as a database, instea
 files on disk. Provider skills join the session's skill catalog and load on demand through the
 `skill` tool, just like file-based skills.
 
-<!-- docs-validate: strict -->
-<!-- docs-validate: hidden -->
-```typescript
-import { approveAll } from "@github/copilot-sdk";
-import type { SkillProvider } from "@github/copilot-sdk";
-
-declare const db: {
-    findSkill(name: string, options: { signal: AbortSignal }): Promise<{ markdown: string } | undefined>;
-};
-
-const skillProvider: SkillProvider = {
-    listSkills: async () => [
-        { name: "release-notes", description: "Writes release notes in the team's format." },
-    ],
-    readSkill: async (name, { signal }) => (await db.findSkill(name, { signal }))?.markdown ?? null,
-};
-
-const session = await client.createSession({
-    onPermissionRequest: approveAll,
-    skillProvider,
-});
-```
-<!-- /docs-validate: hidden -->
 ```typescript
 import type { SkillProvider } from "@github/copilot-sdk";
 
@@ -1538,7 +1219,6 @@ See [Supporting files](../docs/features/skills.md#supporting-files-experimental)
 
 ### Multiple Sessions
 
-<!-- docs-validate: strict -->
 ```typescript
 const session1 = await client.createSession({ model: "gpt-5" });
 const session2 = await client.createSession({ model: "claude-sonnet-4.5" });
@@ -1550,7 +1230,6 @@ await session2.sendAndWait({ prompt: "Hello from session 2" });
 
 ### Custom Session IDs
 
-<!-- docs-validate: strict -->
 ```typescript
 const session = await client.createSession({
     sessionId: "my-custom-session-id",
@@ -1560,25 +1239,6 @@ const session = await client.createSession({
 
 ### File Attachments
 
-<!-- docs-validate: strict -->
-<!-- docs-validate: hidden -->
-```typescript
-import { approveAll } from "@github/copilot-sdk";
-
-const session = await client.createSession({ onPermissionRequest: approveAll });
-
-await session.send({
-    prompt: "Analyze this file",
-    attachments: [
-        {
-            type: "file",
-            path: "/path/to/file.js",
-            displayName: "My File",
-        },
-    ],
-});
-```
-<!-- /docs-validate: hidden -->
 ```typescript
 await session.send({
     prompt: "Analyze this file",
@@ -1607,7 +1267,6 @@ The SDK supports custom OpenAI-compatible API providers (BYOK - Bring Your Own K
 
 **Example with Ollama:**
 
-<!-- docs-validate: strict -->
 ```typescript
 const session = await client.createSession({
     model: "deepseek-coder-v2:16b", // Required when using custom provider
@@ -1623,7 +1282,6 @@ await session.sendAndWait({ prompt: "Hello!" });
 
 **Example with custom OpenAI-compatible API:**
 
-<!-- docs-validate: strict -->
 ```typescript
 const session = await client.createSession({
     model: "gpt-4",
@@ -1637,7 +1295,6 @@ const session = await client.createSession({
 
 **Example with Azure OpenAI:**
 
-<!-- docs-validate: strict -->
 ```typescript
 const session = await client.createSession({
     model: "gpt-4",
@@ -1662,10 +1319,7 @@ const session = await client.createSession({
 
 The SDK supports OpenTelemetry for distributed tracing. Provide a `telemetry` config to enable trace export from the CLI process — this is all most users need:
 
-<!-- docs-validate: strict -->
 ```typescript
-import { CopilotClient } from "@github/copilot-sdk";
-
 const client = new CopilotClient({
     telemetry: {
         otlpEndpoint: "http://localhost:4318",
@@ -1717,17 +1371,6 @@ Callbacks receive optional derived prompt context as `invocation.promptRequest`.
 
 Use the built-in `approveAll` helper when managed settings are disabled:
 
-<!-- docs-validate: strict -->
-<!-- docs-validate: hidden -->
-```typescript
-import { approveAll } from "@github/copilot-sdk";
-
-const session = await client.createSession({
-    model: "gpt-5",
-    onPermissionRequest: approveAll,
-});
-```
-<!-- /docs-validate: hidden -->
 ```typescript
 import { CopilotClient, approveAll } from "@github/copilot-sdk";
 
@@ -1743,7 +1386,6 @@ When `enableManagedSettings` is true for the session, `approveAll` throws. Use a
 
 Provide your own function to inspect each request and apply custom logic. Check `managedApprovalRequired` before any automatic approval:
 
-<!-- docs-validate: strict -->
 ```typescript
 import type { PermissionRequest, PermissionRequestResult } from "@github/copilot-sdk";
 
@@ -1810,53 +1452,6 @@ security checks, user permissions, or sandbox policy. `permissions.limitTo` neit
 enables the sandbox nor changes `sandbox.userPolicy.network`; configure sandbox
 network restrictions explicitly.
 
-### Policy Helper failures and scoped recheck
-
-Snapshots may expose `policyHelperFailure` and `policyHelperCapabilities`.
-Recheck requires session opt-in through `enableManagedSettings: true`.
-Treat helper text as untrusted plain text, keep `diagnostic` secondary,
-and sanitize `helpLink` before navigation.
-
-<!-- docs-validate: strict -->
-<!-- docs-validate: hidden -->
-```typescript
-import type { CopilotSession } from "@github/copilot-sdk";
-
-declare const session: CopilotSession;
-
-const snapshot = await session.rpc.managedSettings.get();
-
-if (snapshot.policyHelperFailure) {
-    console.warn(snapshot.policyHelperFailure.message);
-}
-
-if (snapshot.policyHelperCapabilities?.recheck === true) {
-    const refreshed = await session.rpc.managedSettings.recheckPolicyHelper();
-    // Only a current capable snapshot without policyHelperFailure establishes recovery.
-    console.log(refreshed.policyHelperFailure ?? "Policy Helper recovered");
-}
-```
-<!-- /docs-validate: hidden -->
-```typescript
-const snapshot = await session.rpc.managedSettings.get();
-
-if (snapshot.policyHelperFailure) {
-    console.warn(snapshot.policyHelperFailure.message);
-}
-
-if (snapshot.policyHelperCapabilities?.recheck === true) {
-    const refreshed = await session.rpc.managedSettings.recheckPolicyHelper();
-    // Only a current capable snapshot without policyHelperFailure establishes recovery.
-    console.log(refreshed.policyHelperFailure ?? "Policy Helper recovered");
-}
-```
-
-Older runtimes omit `policyHelperCapabilities`. Do not infer support or recovery
-only because `policyHelperFailure` is absent. Only applicable `session.create` and
-`session.resume` failures attach it to `error.data.policyHelperFailure`, retaining
-the primary code/message. Activation callers read
-`managedSettings.resolve(...).resolved.policyHelperFailure` instead.
-
 ### Permission Result Kinds
 
 The handler must return one of the `PermissionDecision` shapes (or `{ kind: "no-result" }`). Approval scopes are present-tense — they describe the decision to apply, not the outcome reported back on session events:
@@ -1875,16 +1470,6 @@ The handler must return one of the `PermissionDecision` shapes (or `{ kind: "no-
 
 You may pass `onPermissionRequest` when resuming a session too:
 
-<!-- docs-validate: strict -->
-<!-- docs-validate: hidden -->
-```typescript
-import { approveAll } from "@github/copilot-sdk";
-
-const session = await client.resumeSession("session-id", {
-    onPermissionRequest: approveAll,
-});
-```
-<!-- /docs-validate: hidden -->
 ```typescript
 const session = await client.resumeSession("session-id", {
     onPermissionRequest: approveAll,
@@ -1899,7 +1484,6 @@ To let a specific custom tool bypass the permission prompt entirely, set `skipPe
 
 Enable the legacy question-and-answer `ask_user` tool by providing an `onUserInputRequest` handler:
 
-<!-- docs-validate: strict -->
 ```typescript
 const session = await client.createSession({
     model: "gpt-5",
@@ -1907,7 +1491,6 @@ const session = await client.createSession({
         // request.question - The question to ask
         // request.choices - Optional array of choices for multiple choice
         // request.allowFreeform - Whether freeform input is allowed (default: true)
-        // request.requestId - Runtime ID of the pending request (absent on older runtimes)
 
         console.log(`Agent asks: ${request.question}`);
         if (request.choices) {
@@ -1927,10 +1510,7 @@ const session = await client.createSession({
 
 Register an `onElicitationRequest` handler to let your client act as an elicitation provider — presenting form-based UI dialogs on behalf of the agent. When provided, the server notifies your client whenever a tool or MCP server needs structured user input.
 
-<!-- docs-validate: strict -->
 ```typescript
-import { approveAll } from "@github/copilot-sdk";
-
 const session = await client.createSession({
     model: "gpt-5",
     onPermissionRequest: approveAll,
@@ -1971,100 +1551,6 @@ In multi-client scenarios:
 
 Hook into session lifecycle events by providing handlers in the `hooks` configuration:
 
-<!-- docs-validate: strict -->
-<!-- docs-validate: hidden -->
-```typescript
-declare function needsMoreWork(): boolean;
-
-const session = await client.createSession({
-    model: "gpt-5",
-    hooks: {
-        // Called before each tool execution
-        onPreToolUse: async (input, invocation) => {
-            console.log(`About to run tool: ${input.toolName}`);
-            // Return permission decision and optionally modify args
-            return {
-                permissionDecision: "allow", // "allow", "deny", or "ask"
-                modifiedArgs: input.toolArgs, // Optionally modify tool arguments
-                additionalContext: "Extra context for the model",
-            };
-        },
-
-        // Called after each successful tool execution
-        onPostToolUse: async (input, invocation) => {
-            console.log(`Tool ${input.toolName} completed`);
-            // Optionally modify the result or add context
-            return {
-                additionalContext: "Post-execution notes",
-            };
-        },
-
-        // Called after a tool execution whose result was "failure".
-        // onPostToolUse does NOT fire for failed tool calls — register this
-        // hook to observe them. Input includes `error` (the failure message
-        // extracted from the tool's result), not the full result object.
-        onPostToolUseFailure: async (input, invocation) => {
-            console.log(`Tool ${input.toolName} failed: ${input.error}`);
-            // Optionally append hidden guidance to the model.
-            return { additionalContext: "Suggest checking inputs and retrying." };
-        },
-
-        // Called when user submits a prompt
-        onUserPromptSubmitted: async (input, invocation) => {
-            console.log(`User prompt: ${input.prompt}`);
-            return {
-                modifiedPrompt: input.prompt, // Optionally modify the prompt
-            };
-        },
-
-        // Called when session starts
-        onSessionStart: async (input, invocation) => {
-            console.log(`Session started from: ${input.source}`); // "startup", "resume", "new"
-            return {
-                additionalContext: "Session initialization context",
-            };
-        },
-
-        // Called when session ends
-        onSessionEnd: async (input, invocation) => {
-            console.log(`Session ended: ${input.reason}`);
-        },
-
-        // Called when an error occurs
-        onErrorOccurred: async (input, invocation) => {
-            console.error(`Error in ${input.errorContext}: ${input.error}`);
-            return {
-                errorHandling: "retry", // "retry", "skip", or "abort"
-            };
-        },
-
-        // Called when the top-level agent naturally stops
-        onAgentStop: async (input, invocation) => {
-            if (!input.stopHookActive && needsMoreWork()) {
-                return {
-                    decision: "block",
-                    reason: "Run the final validation and fix any failures.",
-                };
-            }
-        },
-
-        // Called before a sub-agent's first turn (the input identifies the parent session)
-        onSubagentStart: (input, invocation) => {
-            console.log(`Starting ${input.agentDisplayName ?? input.agentName}`);
-            return { additionalContext: "Check the requested file before reporting back." };
-        },
-
-        // Called when a sub-agent completes a turn
-        onSubagentStop: (input, invocation) => {
-            console.log(`${input.agentName} replied: ${input.response}`);
-            // Return { decision: "block", reason: "Continue checking the file." }
-            // to request another child turn instead.
-            return { modifiedResponse: `Reviewed: ${input.response}` };
-        },
-    },
-});
-```
-<!-- /docs-validate: hidden -->
 ```typescript
 const session = await client.createSession({
     model: "gpt-5",
@@ -2170,13 +1656,12 @@ const session = await client.createSession({
 
 ## Error Handling
 
-<!-- docs-validate: strict -->
 ```typescript
 try {
-    const session = await client.createSession({});
+    const session = await client.createSession();
     await session.send({ prompt: "Hello" });
 } catch (error) {
-    console.error("Error:", error instanceof Error ? error.message : error);
+    console.error("Error:", error.message);
 }
 ```
 

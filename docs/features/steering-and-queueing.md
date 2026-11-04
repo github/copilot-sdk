@@ -62,7 +62,6 @@ Steering sends a message that is injected directly into the agent's current turn
 <details open>
 <summary><strong>Node.js / TypeScript</strong></summary>
 
-<!-- docs-validate: strict -->
 ```typescript
 import { CopilotClient } from "@github/copilot-sdk";
 
@@ -92,8 +91,7 @@ await session.send({
 <summary><strong>Python</strong></summary>
 
 ```python
-from copilot import CopilotClient
-from copilot.session import PermissionDecisionApproveOnce
+from copilot import CopilotClient, PermissionDecisionApproveOnce
 
 async def main():
     client = CopilotClient()
@@ -236,8 +234,8 @@ try (var client = new CopilotClient()) {
 
 ### How steering works internally
 
-1. The message is added to the session's pending steering messages
-1. Before the next LLM request within the current turn, the runtime injects the message into the conversation
+1. The message is added to the runtime's `ImmediatePromptProcessor` queue
+1. Before the next LLM request within the current turn, the processor injects the message into the conversation
 1. The agent sees the steering message as a new user message and adjusts its response
 1. If the turn completes before the steering message is processed, it is automatically moved to the regular queue for the next turn
 
@@ -251,7 +249,6 @@ Queueing buffers messages to be processed sequentially after the current turn fi
 <details open>
 <summary><strong>Node.js / TypeScript</strong></summary>
 
-<!-- docs-validate: strict -->
 ```typescript
 import { CopilotClient } from "@github/copilot-sdk";
 
@@ -286,8 +283,7 @@ await session.send({
 <summary><strong>Python</strong></summary>
 
 ```python
-from copilot import CopilotClient
-from copilot.session import PermissionDecisionApproveOnce
+from copilot import CopilotClient, PermissionDecisionApproveOnce
 
 async def main():
     client = CopilotClient()
@@ -486,8 +482,8 @@ try (var client = new CopilotClient()) {
 
 ### How queueing works internally
 
-1. The message is added to the session's queue of pending messages
-1. When the current turn completes and the session becomes idle, the runtime starts working through the queue
+1. The message is added to the session's `itemQueue` as a `QueuedItem`
+1. When the current turn completes and the session becomes idle, `processQueuedItems()` runs
 1. Items are dequeued in FIFO order—each message triggers a full agentic turn
 1. If a steering message was pending when the turn ended, it is moved to the front of the queue
 1. Processing continues until the queue is empty, then the session emits an idle event
@@ -499,7 +495,6 @@ You can use both patterns together in a single session. Steering affects the cur
 <details open>
 <summary><strong>Node.js / TypeScript</strong></summary>
 
-<!-- docs-validate: strict -->
 ```typescript
 const session = await client.createSession({
     model: "gpt-5.4",
@@ -528,11 +523,6 @@ await session.send({
 <summary><strong>Python</strong></summary>
 
 ```python
-from copilot import CopilotClient
-from copilot.session import PermissionDecisionApproveOnce
-
-client = CopilotClient()
-
 session = await client.create_session(
     on_permission_request=lambda req, inv: PermissionDecisionApproveOnce(),
     model="gpt-5.4",

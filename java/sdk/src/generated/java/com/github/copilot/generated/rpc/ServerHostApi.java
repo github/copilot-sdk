@@ -118,17 +118,6 @@ public final class ServerHostApi {
     }
 
     /**
-     * Changes remote creation admission on a host owned by this SDK connection without disconnecting clients. Acknowledgement means subsequent admissions use the new policy; already-admitted creation may complete.
-     *
-     * @apiNote This method is experimental and may change in a future version.
-     * @since 1.0.0
-     */
-    @CopilotExperimental
-    public CompletableFuture<Void> setSessionCreationPolicy(HostSetSessionCreationPolicyParams params) {
-        return caller.invoke("host.setSessionCreationPolicy", params, Void.class);
-    }
-
-    /**
      * Resolves current authenticated credentials and remote-control policy only for the runtime-owned Mission Control hosting participant.
      *
      * @apiNote This method is experimental and may change in a future version.
@@ -148,43 +137,6 @@ public final class ServerHostApi {
     @CopilotExperimental
     CompletableFuture<HostConfiguration> getConfiguration() {
         return caller.invoke("host.getConfiguration", java.util.Map.of(), HostConfiguration.class);
-    }
-
-    /**
-     * Resolves the host account credential without applying Mission Control transport policy, only for its supervised GitHub hosting participant.
-     *
-     * @apiNote This method is experimental and may change in a future version.
-     * @since 1.0.0
-     */
-    @CopilotExperimental
-    CompletableFuture<HostEnvironmentCredentials> getAuthenticationCredentials() {
-        return caller.invoke("host.getAuthenticationCredentials", java.util.Map.of(), HostEnvironmentCredentials.class);
-    }
-
-    /**
-     * Validates a decrypted admission credential through the owning application, only for its supervised custom-authentication participant.
-     *
-     * @return a future that completes with the {@code HostAuthenticationResult} value,
-     *     or {@code null} when the result is absent. Callers must handle the
-     *     {@code null} completion value.
-     *
-     * @apiNote This method is experimental and may change in a future version.
-     * @since 1.0.0
-     */
-    @CopilotExperimental
-    CompletableFuture<HostAuthenticationResult> authenticate(HostAuthenticateParams params) {
-        return caller.invoke("host.authenticate", params, HostAuthenticationResult.class);
-    }
-
-    /**
-     * Cancels a supervised participant's pending admission validation.
-     *
-     * @apiNote This method is experimental and may change in a future version.
-     * @since 1.0.0
-     */
-    @CopilotExperimental
-    CompletableFuture<Void> cancelAuthentication(HostCancelAuthenticationParams params) {
-        return caller.invoke("host.cancelAuthentication", params, Void.class);
     }
 
     /**

@@ -2,14 +2,13 @@
 # Test script for Go SDK (when Go is available)
 
 set -e
-set -o pipefail
 
 echo "=== Testing Go SDK ==="
 echo
 
 # Check prerequisites
 if ! command -v go &> /dev/null; then
-    echo "❌ Go is not installed. Please install Go 1.26.0 or later."
+    echo "❌ Go is not installed. Please install Go 1.24 or later."
     echo "   Visit: https://golang.org/dl/"
     exit 1
 fi
@@ -43,13 +42,7 @@ cd "$(dirname "$0")"
 echo "=== Running Go SDK E2E Tests ==="
 echo
 
-if [ -n "${CI_TEST_RESULTS_DIR:-}" ]; then
-    output="${CI_TEST_GO_OUTPUT:-$CI_TEST_RESULTS_DIR/go-sdk-go-subprocess.jsonl}"
-    mkdir -p "$(dirname "$output")"
-    go test -json -v ./... -race -timeout=20m | tee "$output"
-else
-    go test -v ./... -race -timeout=20m
-fi
+go test -v ./... -race -timeout=20m
 
 echo
 echo "✅ All tests passed!"

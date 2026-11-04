@@ -39,14 +39,12 @@ async def _wait_for_mcp_server_status(
     deadline = time.monotonic() + 60
     last_status = "<not listed>"
 
-    while True:
+    while time.monotonic() < deadline:
         result = await session.rpc.mcp.list()
         server = next((s for s in result.servers if s.name == server_name), None)
         if server is not None and server.status == expected_status:
             return
         last_status = server.status if server is not None else "<not listed>"
-        if time.monotonic() >= deadline:
-            break
         await asyncio.sleep(0.2)
 
     raise AssertionError(

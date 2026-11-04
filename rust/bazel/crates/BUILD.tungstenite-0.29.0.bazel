@@ -71,7 +71,7 @@ rust_library(
         "@sdk_vendor__data-encoding-2.11.1//:data_encoding",
         "@sdk_vendor__http-1.5.0//:http",
         "@sdk_vendor__httparse-1.10.1//:httparse",
-        "@sdk_vendor__log-0.4.35//:log",
+        "@sdk_vendor__log-0.4.34//:log",
         "@sdk_vendor__rand-0.9.5//:rand",
         "@sdk_vendor__sha1-0.10.7//:sha1",
         "@sdk_vendor__thiserror-2.0.21//:thiserror",

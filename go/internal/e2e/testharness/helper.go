@@ -47,20 +47,14 @@ func (w *EventWaiter) complete(event *copilot.SessionEvent, err error) {
 }
 
 // Wait waits using only the caller's context, without imposing a default timeout.
-// Retained events and errors take precedence over cancellation.
+// Events received between subscription and Wait are retained.
 func (w *EventWaiter) Wait(ctx context.Context) (*copilot.SessionEvent, error) {
 	defer w.Close()
 	select {
 	case result := <-w.result:
 		return result.event, result.err
 	case <-ctx.Done():
-		err := ctx.Err()
-		select {
-		case result := <-w.result:
-			return result.event, result.err
-		default:
-			return nil, err
-		}
+		return nil, ctx.Err()
 	}
 }
 

@@ -5,7 +5,6 @@
 using System.Collections.Concurrent;
 using System.Net.Http;
 using System.Text.Json;
-using GitHub.Copilot.Rpc;
 using GitHub.Copilot.Test.Harness;
 using Xunit;
 using Xunit.Abstractions;
@@ -19,7 +18,6 @@ public class SubagentHooksE2ETests(E2ETestFixture fixture, ITestOutputHelper out
 {
     private const string ChildContext = "Subagent start hook verified: read the requested file.";
     private const string StopResponsePrefix = "Subagent stop hook verified: ";
-    private const string ReplayModel = "claude-sonnet-5";
 
     [Fact]
     public async Task Should_Apply_Subagent_Lifecycle_Hook_Outputs()
@@ -28,11 +26,7 @@ public class SubagentHooksE2ETests(E2ETestFixture fixture, ITestOutputHelper out
         var lifecycle = new ConcurrentQueue<string>();
         var starts = new ConcurrentQueue<(SubagentStartHookInput Input, string InvocationSessionId)>();
         var stops = new ConcurrentQueue<(SubagentStopHookInput Input, string InvocationSessionId)>();
-        using var replayHttpClient = new HttpClient(new HttpClientHandler { UseProxy = false })
-        {
-            Timeout = System.Threading.Timeout.InfiniteTimeSpan
-        };
-        var requestHandler = new RecordingForwardingRequestHandler(Ctx.ProxyUrl, replayHttpClient);
+        var requestHandler = new RecordingForwardingRequestHandler();
         const string waitingText = "I've launched an explore agent to read subagent-test.txt. Waiting for it to complete...";
         const string finalText = "The explore agent successfully read the file. The contents of **subagent-test.txt** are:\n\n```\nHello from subagent test!\n```";
         var parentSessionId = Guid.NewGuid().ToString();
@@ -41,16 +35,15 @@ public class SubagentHooksE2ETests(E2ETestFixture fixture, ITestOutputHelper out
         // Create a client with the session-based subagents feature flag
         var env = new Dictionary<string, string>(Ctx.GetEnvironment());
         env["COPILOT_EXP_COPILOT_CLI_SESSION_BASED_SUBAGENTS"] = "true";
-        await using var client = Ctx.CreateClient(new CopilotClientOptions
+        var client = Ctx.CreateClient(new CopilotClientOptions
         {
             Connection = RuntimeConnection.ForStdio(),
             RequestHandler = requestHandler
         }, environment: env);
 
-        await using var session = await Ctx.CreateSessionAsync(client, new SessionConfig
+        var session = await Ctx.CreateSessionAsync(client, new SessionConfig
         {
             SessionId = parentSessionId,
-            Model = ReplayModel,
             OnPermissionRequest = PermissionHandler.ApproveAll,
             Hooks = new SessionHooks
             {
@@ -91,15 +84,6 @@ public class SubagentHooksE2ETests(E2ETestFixture fixture, ITestOutputHelper out
                     });
                 },
             },
-        });
-
-        // Keep the built-in agent on the capture's model, not its changing default.
-        await session.Rpc.Tools.UpdateSubagentSettingsAsync(new SubagentSettingsConfig
-        {
-            Agents = new Dictionary<string, SubagentSettingsEntry>
-            {
-                ["explore"] = new() { Model = ReplayModel }
-            }
         });
 
         // Create a file for the sub-agent to read
@@ -153,6 +137,7 @@ public class SubagentHooksE2ETests(E2ETestFixture fixture, ITestOutputHelper out
         Assert.Equal(session.SessionId, stop.InvocationSessionId);
         Assert.Equal(session.SessionId, stop.Input.SessionId);
         Assert.True(stop.Input.Timestamp > DateTimeOffset.UnixEpoch);
+        Assert.True(stop.Input.Timestamp >= start.Input.Timestamp);
         Assert.Equal(Path.GetFullPath(Ctx.WorkDir), Path.GetFullPath(stop.Input.WorkingDirectory));
         Assert.Equal(start.Input.TranscriptPath, stop.Input.TranscriptPath);
         Assert.Equal(start.Input.AgentName, stop.Input.AgentName);
@@ -226,10 +211,8 @@ public class SubagentHooksE2ETests(E2ETestFixture fixture, ITestOutputHelper out
         Assert.NotEqual(subagentRequest.ParentAgentId, subagentRequest.AgentId);
     }
 
-    private sealed class RecordingForwardingRequestHandler(string proxyUrl, HttpClient httpClient)
-        : CopilotRequestHandler(httpClient)
+    private sealed class RecordingForwardingRequestHandler : CopilotRequestHandler
     {
-        private readonly Uri _proxy = new(proxyUrl);
         private readonly ConcurrentBag<RequestRecord> _records = [];
 
         public IReadOnlyCollection<RequestRecord> InferenceRequests =>
@@ -246,13 +229,6 @@ public class SubagentHooksE2ETests(E2ETestFixture fixture, ITestOutputHelper out
                 ctx.ParentAgentId,
                 ctx.InteractionType,
                 body));
-            request.RequestUri = new UriBuilder(request.RequestUri)
-            {
-                Scheme = _proxy.Scheme,
-                Host = _proxy.Host,
-                Port = _proxy.Port,
-            }.Uri;
-            request.Headers.Host = null;
             return await base.SendRequestAsync(request, ctx);
         }
     }

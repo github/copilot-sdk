@@ -198,7 +198,7 @@ public class AutoTierE2ETests(E2ETestFixture fixture, ITestOutputHelper output)
             },
         });
 
-        using var modelChangedTask = TestHelper.ObserveEvent<SessionModelChangeEvent>(
+        var modelChangedTask = TestHelper.GetNextEventOfTypeAsync<SessionModelChangeEvent>(
             session,
             evt => evt.Data.AutoTier == AutoTier.Fast);
 
@@ -216,7 +216,7 @@ public class AutoTierE2ETests(E2ETestFixture fixture, ITestOutputHelper output)
             Prompt = "Reply with exactly AUTO_TIER_FAST_COMMITTED.",
         });
 
-        var modelChanged = await modelChangedTask.Task.WaitAsync(TimeSpan.FromSeconds(120));
+        var modelChanged = await modelChangedTask;
         Assert.Equal("auto", modelChanged.Data.PreviousModel);
         Assert.Equal("auto", modelChanged.Data.NewModel);
         Assert.Equal(AutoTier.Efficiency, modelChanged.Data.PreviousAutoTier);

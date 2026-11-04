@@ -100,14 +100,6 @@ func (p *responseRetirementPeer) serve(expectedSends int) error {
 			result = map[string]any{"ok": true, "protocolVersion": copilot.SDKProtocolVersion, "version": "force-stop-test"}
 		case "session.create":
 			result = map[string]any{"sessionId": "retirement-session"}
-		case "session.sendAndWait":
-			if err := p.write(map[string]any{
-				"jsonrpc": "2.0", "id": request.ID,
-				"error": map[string]any{"code": -32601, "message": "Method not found"},
-			}); err != nil {
-				return err
-			}
-			continue
 		case "session.send":
 			sends++
 			result = map[string]any{"messageId": fmt.Sprintf("message-%d", sends)}

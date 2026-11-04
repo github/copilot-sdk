@@ -190,8 +190,18 @@ public abstract class E2ETestBase : IClassFixture<E2ETestFixture>, IAsyncLifetim
         return exchange.Request.Tools?.Select(t => t.Function.Name).ToList() ?? [];
     }
 
-    protected Task<List<ParsedHttpExchange>> WaitForExchangesAsync(int minimumCount = 1)
-        => TestHelper.WaitForExchangesAsync(Ctx.GetExchangesAsync, minimumCount);
+    protected async Task<List<ParsedHttpExchange>> WaitForExchangesAsync(int minimumCount = 1)
+    {
+        List<ParsedHttpExchange> exchanges = [];
+        await TestHelper.WaitForConditionAsync(
+            async () =>
+            {
+                exchanges = await Ctx.GetExchangesAsync();
+                return exchanges.Count >= minimumCount;
+            },
+            timeoutMessage: $"Timed out waiting for {minimumCount} chat completion request(s)");
+        return exchanges;
+    }
 
     protected async Task<List<ParsedHttpExchange>> SendAndWaitForExchangesAsync(
         CopilotSession session,

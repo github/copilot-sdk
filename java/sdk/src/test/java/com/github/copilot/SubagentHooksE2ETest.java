@@ -18,7 +18,6 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.HashMap;
 import java.util.List;
-import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentLinkedQueue;
@@ -29,9 +28,6 @@ import org.junit.jupiter.api.Test;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.github.copilot.generated.AssistantMessageEvent;
-import com.github.copilot.generated.rpc.SessionToolsUpdateSubagentSettingsParams;
-import com.github.copilot.generated.rpc.SubagentSettingsConfig;
-import com.github.copilot.generated.rpc.SubagentSettingsEntry;
 import com.github.copilot.rpc.CopilotClientOptions;
 import com.github.copilot.rpc.MessageOptions;
 import com.github.copilot.rpc.PermissionHandler;
@@ -49,7 +45,6 @@ public class SubagentHooksE2ETest {
     private static final String SNAPSHOT_NAME = "should_apply_subagent_lifecycle_hook_outputs";
     private static final String CHILD_CONTEXT = "Subagent start hook verified: read the requested file.";
     private static final String STOP_RESPONSE_PREFIX = "Subagent stop hook verified: ";
-    private static final String REPLAY_MODEL = "claude-sonnet-5";
 
     @Test
     void shouldApplySubagentLifecycleHookOutputs() throws Exception {
@@ -57,13 +52,12 @@ public class SubagentHooksE2ETest {
             ctx.configureForTest("subagent_hooks", SNAPSHOT_NAME);
 
             ConcurrentLinkedQueue<HookEntry> hookLog = new ConcurrentLinkedQueue<>();
-            ConcurrentLinkedQueue<String> lifecycle = new ConcurrentLinkedQueue<>();
             ConcurrentLinkedQueue<SubagentStartHookInput> subagentStarts = new ConcurrentLinkedQueue<>();
             ConcurrentLinkedQueue<SubagentStopHookInput> subagentStops = new ConcurrentLinkedQueue<>();
             ConcurrentLinkedQueue<String> startInvocationIds = new ConcurrentLinkedQueue<>();
             ConcurrentLinkedQueue<String> stopInvocationIds = new ConcurrentLinkedQueue<>();
             CompletableFuture<SubagentStopHookInput> subagentStopped = new CompletableFuture<>();
-            RecordingForwardingRequestHandler requestHandler = new RecordingForwardingRequestHandler(ctx.getProxyUrl());
+            RecordingForwardingRequestHandler requestHandler = new RecordingForwardingRequestHandler();
             String waitingText = "I've launched an explore agent to read subagent-test.txt. "
                     + "Waiting for it to complete...";
             String finalText = "The explore agent successfully read the file. "
@@ -76,7 +70,7 @@ public class SubagentHooksE2ETest {
             try (CopilotClient client = ctx
                     .createClient(new CopilotClientOptions().setEnvironment(env).setRequestHandler(requestHandler))) {
                 CopilotSession session = client.createSession(new SessionConfig().setSessionId(parentSessionId)
-                        .setModel(REPLAY_MODEL).setOnPermissionRequest(PermissionHandler.APPROVE_ALL)
+                        .setOnPermissionRequest(PermissionHandler.APPROVE_ALL)
                         .setHooks(new SessionHooks().setOnPreToolUse((input, invocation) -> {
                             hookLog.add(new HookEntry("pre", input.getToolName(), input.getSessionId()));
                             return CompletableFuture.completedFuture(PreToolUseHookOutput.allow());
@@ -90,12 +84,10 @@ public class SubagentHooksE2ETest {
                             return CompletableFuture.completedFuture((PostToolUseHookOutput) null);
                         }).setOnSubagentStart((input, invocation) -> {
                             subagentStarts.add(input);
-                            lifecycle.add("start");
                             startInvocationIds.add(invocation.getSessionId());
                             return CompletableFuture.completedFuture(new SubagentStartHookOutput(CHILD_CONTEXT));
                         }).setOnSubagentStop((input, invocation) -> {
                             subagentStops.add(input);
-                            lifecycle.add("stop");
                             stopInvocationIds.add(invocation.getSessionId());
                             subagentStopped.complete(input);
                             return CompletableFuture.completedFuture(
@@ -108,19 +100,12 @@ public class SubagentHooksE2ETest {
                     }
                 })) {
                     try {
-                        // Keep the built-in agent on the capture's model, not its changing default.
-                        session.getRpc().tools
-                                .updateSubagentSettings(new SessionToolsUpdateSubagentSettingsParams(null,
-                                        new SubagentSettingsConfig(Map.of("explore",
-                                                new SubagentSettingsEntry(REPLAY_MODEL, null, null, null, null, null)),
-                                                null, null, null, null)))
-                                .get();
                         Files.writeString(ctx.getWorkDir().resolve("subagent-test.txt"), "Hello from subagent test!");
                         var response = session.sendAndWait(new MessageOptions()
                                 .setPrompt("Use the task tool to spawn an explore agent that reads the file "
                                         + "subagent-test.txt in the current directory and reports its contents. "
-                                        + "You must use the task tool."),
-                                0).get(120, TimeUnit.SECONDS);
+                                        + "You must use the task tool."))
+                                .get(120, TimeUnit.SECONDS);
                         assertNotNull(response);
                         assertTrue(response.getAgentId() == null || response.getAgentId().isEmpty());
                         assertEquals(finalText, response.getData().content());
@@ -180,8 +165,7 @@ public class SubagentHooksE2ETest {
                         assertEquals(List.of(session.getSessionId()), List.copyOf(stopInvocationIds));
                         SubagentStopHookInput stop = subagentStops.element();
                         assertEquals(start.sessionId(), stop.sessionId());
-                        assertEquals(List.of("start", "stop"), List.copyOf(lifecycle));
-                        assertTrue(stop.timestamp() > 0);
+                        assertTrue(stop.timestamp() >= start.timestamp());
                         assertEquals(start.cwd(), stop.cwd());
                         assertEquals(start.transcriptPath(), stop.transcriptPath());
                         assertEquals(start.agentName(), stop.agentName());
@@ -282,12 +266,7 @@ public class SubagentHooksE2ETest {
     }
 
     private static final class RecordingForwardingRequestHandler extends CopilotRequestHandler {
-        private final String proxyUrl;
         private final ConcurrentLinkedQueue<RequestRecord> records = new ConcurrentLinkedQueue<>();
-
-        RecordingForwardingRequestHandler(String proxyUrl) {
-            this.proxyUrl = proxyUrl;
-        }
 
         List<RequestRecord> inferenceRequests() {
             return records.stream().filter(r -> isInferenceUrl(r.url())).toList();
@@ -301,12 +280,7 @@ public class SubagentHooksE2ETest {
                     isInferenceUrl(request.uri().toString())
                             ? CopilotRequestTestSupport.requestBodyText(request)
                             : ""));
-            var original = request.uri();
-            var query = original.getRawQuery();
-            var target = java.net.URI.create(proxyUrl + original.getRawPath() + (query == null ? "" : "?" + query));
-            var forwarded = HttpRequest.newBuilder(request, (name, value) -> !name.equalsIgnoreCase("host")).uri(target)
-                    .build();
-            return super.sendRequest(forwarded, ctx);
+            return super.sendRequest(request, ctx);
         }
     }
 }

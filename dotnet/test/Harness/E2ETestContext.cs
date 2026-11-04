@@ -239,9 +239,9 @@ public sealed class E2ETestContext : IAsyncDisposable
             replayOnly);
     }
 
-    public Task<List<ParsedHttpExchange>> GetExchangesAsync(CancellationToken cancellationToken = default)
+    public Task<List<ParsedHttpExchange>> GetExchangesAsync()
     {
-        return _proxy.GetExchangesAsync(cancellationToken);
+        return _proxy.GetExchangesAsync();
     }
 
     public Task SetCopilotUserByTokenAsync(string token, CopilotUserConfig response)

@@ -35,8 +35,6 @@ public final class UserMessageEvent extends SessionEvent {
     @JsonIgnoreProperties(ignoreUnknown = true)
     @JsonInclude(JsonInclude.Include.NON_NULL)
     public record UserMessageEventData(
-        /** IDs of accepted assistant messages that caused this delivered inter-agent prompt, referring to assistant.message.data.messageId across the agent tree. Captured when sending and retained through queued or immediate delivery. An empty list means no model-produced dependency; absence means provenance is unavailable. */
-        @JsonProperty("causalDependencies") List<String> causalDependencies,
         /** The user's message text as displayed in the timeline */
         @JsonProperty("content") String content,
         /** Provider reasoning settings anchored before this model-facing message for cache-stable replay; the historical responsesReasoning name is retained for compatibility */

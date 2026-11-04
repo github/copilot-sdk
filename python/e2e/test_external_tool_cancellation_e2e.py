@@ -26,7 +26,7 @@ class TestExternalToolCancellation:
             _ = (invocation.arguments or {}).get("value", "")
             tool_started.set()
             try:
-                result = await release_tool
+                result = await asyncio.wait_for(release_tool, timeout=120.0)
                 return ToolResult(text_result_for_llm=str(result))
             except asyncio.CancelledError:
                 tool_cancelled.set()
@@ -50,17 +50,13 @@ class TestExternalToolCancellation:
             ],
         )
 
-        send_task = asyncio.create_task(
-            session.send("Use slow_analysis with value 'test_abort'. Wait for the result.")
-        )
         try:
+            asyncio.ensure_future(
+                session.send("Use slow_analysis with value 'test_abort'. Wait for the result.")
+            )
             await asyncio.wait_for(tool_started.wait(), timeout=60.0)
-            await asyncio.wait_for(send_task, timeout=60.0)
             await session.disconnect()
             await asyncio.wait_for(tool_cancelled.wait(), timeout=60.0)
         finally:
             if not release_tool.done():
                 release_tool.set_result("RELEASED")
-            send_task.cancel()
-            await asyncio.gather(send_task, return_exceptions=True)
-            await session.disconnect()

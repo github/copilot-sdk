@@ -6,7 +6,6 @@ package com.github.copilot.rpc;
 
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.annotation.JsonProperty;
-import com.github.copilot.generated.rpc.HostDiagnostics;
 
 /**
  * Response from the status.get RPC call.
@@ -30,12 +29,6 @@ public class GetStatusResponse {
     @JsonProperty("protocolVersion")
     private int protocolVersion;
 
-    /**
-     * Host diagnostics, when supplied by the runtime.
-     */
-    @JsonProperty("hostDiagnostics")
-    private HostDiagnostics hostDiagnostics;
-
     public String getVersion() {
         return version;
     }
@@ -51,27 +44,6 @@ public class GetStatusResponse {
 
     public GetStatusResponse setProtocolVersion(int protocolVersion) {
         this.protocolVersion = protocolVersion;
-        return this;
-    }
-
-    /**
-     * Returns the host diagnostics, or {@code null} for older runtimes.
-     *
-     * @return the optional host diagnostics
-     */
-    public HostDiagnostics getHostDiagnostics() {
-        return hostDiagnostics;
-    }
-
-    /**
-     * Sets the optional host diagnostics.
-     *
-     * @param hostDiagnostics
-     *            the host diagnostics
-     * @return this response
-     */
-    public GetStatusResponse setHostDiagnostics(HostDiagnostics hostDiagnostics) {
-        this.hostDiagnostics = hostDiagnostics;
         return this;
     }
 }

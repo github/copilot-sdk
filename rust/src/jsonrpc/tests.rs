@@ -129,52 +129,6 @@ fn deserialize_rejects_non_object() {
 }
 
 #[test]
-fn frame_decoder_preserves_message_classification_payloads_and_errors() {
-    for body in [
-        r#"{"jsonrpc":"2.0","id":1,"result":{}}"#,
-        r#"{"jsonrpc":"2.0","id":1,"result":null}"#,
-        r#"{"jsonrpc":"2.0","id":1,"result":[false,{"value":0.125}]}"#,
-        r#"{"jsonrpc":"2.0","id":1,"error":{"code":4294967296,"message":"wide","data":{"nested":[null,true]}}}"#,
-        r#"{"jsonrpc":"2.0","id":null,"error":{"code":-32700,"message":"uncorrelated"}}"#,
-        r#"{"jsonrpc":"2.0","method":"notify","params":{"text":"value"}}"#,
-        r#"{"jsonrpc":"2.0","method":"notify","params":null,"result":false,"error":false}"#,
-        r#"{"jsonrpc":"2.0","id":2,"method":"request","params":[1,null,true]}"#,
-        r#"{"jsonrpc":"2.0","id":2,"method":"request","result":false,"error":false}"#,
-        r#"{"jsonrpc":"2.0","id":2,"met\u0068od":"request","params":{}}"#,
-        r#"{"jsonrpc":"2.0","id":1,"result":{},"extra":{"nested":[1,2]}}"#,
-        r#"{"jsonrpc":"2.0","id":1,"id":2,"result":{}}"#,
-        r#"{"jsonrpc":"2.0","method":false,"method":"notify","params":{}}"#,
-        r#"{"jsonrpc":"2.0","method":"notify","params":{},"params":[1,2]}"#,
-        r#"{"jsonrpc":"1.0","id":1,"result":{}}"#,
-        r#"{"jsonrpc":false,"id":1,"result":{}}"#,
-        r#"{"id":1,"result":{}}"#,
-        r#"{"jsonrpc":"2.0","id":null,"result":{}}"#,
-        r#"{"jsonrpc":"2.0","id":null,"method":"request"}"#,
-        r#"{"jsonrpc":"2.0","id":1,"method":null}"#,
-        r#"{"jsonrpc":"2.0","id":-1,"result":{}}"#,
-        r#"{"jsonrpc":"2.0","id":1.5,"result":{}}"#,
-        r#"{"jsonrpc":"2.0","id":"string","result":{}}"#,
-        r#"{"jsonrpc":"2.0","id":1,"error":false}"#,
-        r#"{"jsonrpc":"2.0","id":null,"error":null}"#,
-        r#"{"jsonrpc":"2.0","result":{}}"#,
-        r#"["2.0",1,"request",{},null,null]"#,
-        r#"null"#,
-        r#""text""#,
-        r#"{"jsonrpc":"2.0","id":1,"result":"\ud83d"}"#,
-        r#"{"jsonrpc":"2.0","id":1,"result":{}} trailing"#,
-        r#"{"jsonrpc":"2.0","id":1,"result":{},}"#,
-    ] {
-        let expected = serde_json::from_str::<JsonRpcMessage>(body)
-            .map(|message| serde_json::to_value(message).unwrap())
-            .map_err(|error| error.to_string());
-        let actual = JsonRpcMessage::from_slice(body.as_bytes())
-            .map(|message| serde_json::to_value(message).unwrap())
-            .map_err(|error| error.to_string());
-        assert_eq!(actual, expected, "{body}");
-    }
-}
-
-#[test]
 fn deserialize_preserves_optional_payloads() {
     for payload in [
         None,
@@ -231,6 +185,24 @@ fn deserialize_rejects_invalid_metadata() {
     }
 }
 
+#[test]
+fn request_new_sets_version() {
+    let req = JsonRpcRequest::new(42, "test.method", None);
+    assert_eq!(req.jsonrpc, "2.0");
+    assert_eq!(req.id, 42);
+    assert_eq!(req.method, "test.method");
+    assert!(req.params.is_none());
+}
+
+#[test]
+fn request_serializes_camel_case() {
+    let req = JsonRpcRequest::new(1, "ping", Some(serde_json::json!({})));
+    let json = serde_json::to_string(&req).unwrap();
+    assert!(json.contains(r#""jsonrpc":"2.0""#));
+    assert!(json.contains(r#""id":1"#));
+    assert!(json.contains(r#""method":"ping""#));
+}
+
 /// The frame the published framing wrote: the header, then `to_vec`'s body.
 fn published_frame<T: serde::Serialize>(message: &T) -> Vec<u8> {
     let body = serde_json::to_vec(message).unwrap();
@@ -277,6 +249,31 @@ fn encode_frame_gives_back_large_spare_capacity() {
         frame.buf.len(),
         frame.buf.capacity()
     );
+}
+
+#[test]
+fn encode_frame_writes_the_header_into_the_room_before_the_body() {
+    // A 100-byte body: a JSON string of 98 characters.
+    let message = "x".repeat(98);
+    let frame = encode_frame(&message).unwrap();
+    let header: &[u8] = b"Content-Length: 100\r\n\r\n";
+    assert_eq!(frame.start, FRAME_PREFIX - header.len());
+    assert_eq!(&frame.buf[frame.start..FRAME_PREFIX], header);
+    assert_eq!(
+        &frame.buf[FRAME_PREFIX..],
+        serde_json::to_vec(&message).unwrap().as_slice()
+    );
+}
+
+#[test]
+fn notification_without_params_omits_field() {
+    let n = JsonRpcNotification {
+        jsonrpc: "2.0".into(),
+        method: "ping".into(),
+        params: None,
+    };
+    let json = serde_json::to_string(&n).unwrap();
+    assert!(!json.contains("params"));
 }
 
 /// `Value::Null` inside `levels` nested arrays.
@@ -375,136 +372,14 @@ fn a_request_passes_the_guard_exactly_when_serde_json_reads_it() {
     );
 }
 
-#[tokio::test]
-async fn request_after_the_read_loop_ended_leaves_no_pending_entry() {
-    for eager in [false, true] {
-        let (client_write, _server_read) = tokio::io::duplex(4096);
-        let (server_write, client_read) = tokio::io::duplex(4096);
-        let (notification_tx, _) = broadcast::channel(16);
-        let (request_tx, _request_rx) = mpsc::unbounded_channel();
-        let client = JsonRpcClient::new(client_write, client_read, notification_tx, request_tx);
-        let closed = client.connection_closed_token();
-        // The peer closes its side: the read loop ends and drains its requests.
-        drop(server_write);
-        tokio::time::timeout(std::time::Duration::from_secs(5), closed.cancelled())
-            .await
-            .expect("the read loop did not end");
-
-        let error = if eager {
-            match client.begin_request_with_inline_callback("ping", None, None) {
-                Err(error) => error,
-                Ok(_) => panic!("the eager request after the close was not refused"),
-            }
-        } else {
-            tokio::time::timeout(
-                std::time::Duration::from_secs(5),
-                client.send_request("ping", None),
-            )
-            .await
-            .expect("the request after the close was not refused")
-            .unwrap_err()
-        };
-        assert_eq!(error.kind(), &ErrorKind::Io);
-        assert!(
-            client.pending_requests.read().is_empty(),
-            "the refused request left its entry (eager: {eager})"
-        );
-    }
-}
-
-#[tokio::test]
-async fn notification_receivers_share_one_parsed_notification() {
-    let (client_write, _server_read) = tokio::io::duplex(4096);
-    let (mut server_write, client_read) = tokio::io::duplex(4096);
-    let (notification_tx, mut first) = broadcast::channel(16);
-    let mut second = notification_tx.subscribe();
-    let (request_tx, _request_rx) = mpsc::unbounded_channel();
-    let _client = JsonRpcClient::new(client_write, client_read, notification_tx, request_tx);
-
-    let body = br#"{"jsonrpc":"2.0","method":"session.event","params":{"sessionId":"s1","event":{"data":{"deltaContent":"hi"}}}}"#;
-    server_write
-        .write_all(format!("Content-Length: {}\r\n\r\n", body.len()).as_bytes())
-        .await
-        .unwrap();
-    server_write.write_all(body).await.unwrap();
-
-    let deadline = std::time::Duration::from_secs(5);
-    let first = tokio::time::timeout(deadline, first.recv())
-        .await
-        .expect("first receiver got no notification")
-        .unwrap();
-    let second = tokio::time::timeout(deadline, second.recv())
-        .await
-        .expect("second receiver got no notification")
-        .unwrap();
-    // Each receiver gets the same parsed notification, not a deep copy of it.
-    assert!(Arc::ptr_eq(&first, &second));
-    assert_eq!(first.method, "session.event");
-    assert_eq!(
-        first.params.as_ref().unwrap()["event"]["data"]["deltaContent"],
-        "hi"
-    );
-}
-
-#[tokio::test]
-async fn a_frame_body_is_reserved_as_it_arrives_not_as_declared() {
-    let (client_write, _server_read) = tokio::io::duplex(4096);
-    let (mut server_write, client_read) = tokio::io::duplex(4096);
-    let (notification_tx, _) = broadcast::channel(16);
-    let (request_tx, _request_rx) = mpsc::unbounded_channel();
-    let client = JsonRpcClient::new(client_write, client_read, notification_tx, request_tx);
-    let closed = client.connection_closed_token();
-
-    // No address space holds a 1 PiB body, so reserving the declared length
-    // before the body arrives fails the allocation and aborts the process.
-    server_write
-        .write_all(b"Content-Length: 1125899906842624\r\n\r\n{\"jsonrpc\":\"2.0\"")
-        .await
-        .unwrap();
-    tokio::time::sleep(std::time::Duration::from_millis(100)).await;
-    assert!(
-        !closed.is_cancelled(),
-        "the connection ended while the peer was still sending the frame"
-    );
-
-    // The peer closes mid-frame: the truncated read ends the connection.
-    drop(server_write);
-    tokio::time::timeout(std::time::Duration::from_secs(5), closed.cancelled())
-        .await
-        .expect("the read loop did not end at the truncated frame");
-}
-
-#[tokio::test]
-async fn a_frame_body_larger_than_the_first_reserve_arrives_whole() {
-    let (client_write, _server_read) = tokio::io::duplex(4096);
-    let (mut server_write, client_read) = tokio::io::duplex(4096);
-    let (notification_tx, mut notifications) = broadcast::channel(16);
-    let (request_tx, _request_rx) = mpsc::unbounded_channel();
-    let _client = JsonRpcClient::new(client_write, client_read, notification_tx, request_tx);
-
-    // Several reserve steps, the last one partial, each fed through a pipe
-    // far smaller than the body.
-    let text = "x".repeat(FRAME_BODY_FIRST_RESERVE * 5 + 17);
-    let body = serde_json::to_vec(&serde_json::json!({
-        "jsonrpc": "2.0",
-        "method": "session.event",
-        "params": { "text": text },
-    }))
-    .unwrap();
-    let writer = tokio::spawn(async move {
-        server_write
-            .write_all(format!("Content-Length: {}\r\n\r\n", body.len()).as_bytes())
-            .await
-            .unwrap();
-        server_write.write_all(&body).await.unwrap();
-        server_write
-    });
-
-    let notification =
-        tokio::time::timeout(std::time::Duration::from_secs(5), notifications.recv())
-            .await
-            .expect("the large notification did not arrive")
-            .unwrap();
-    assert_eq!(notification.params.as_ref().unwrap()["text"], text);
-    drop(writer.await.unwrap());
+#[test]
+fn response_without_error_omits_field() {
+    let r = JsonRpcResponse {
+        jsonrpc: "2.0".into(),
+        id: 1,
+        result: Some(serde_json::json!(true)),
+        error: None,
+    };
+    let json = serde_json::to_string(&r).unwrap();
+    assert!(!json.contains("error"));
 }

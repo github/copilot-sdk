@@ -1027,7 +1027,7 @@ func assertGitHubMCPConfigApplied(t *testing.T, ctx *testharness.TestContext, se
 	}
 	deadline := time.Now().Add(60 * time.Second)
 	var lastRequests []testharness.CapturedRequest
-	for {
+	for time.Now().Before(deadline) {
 		requests, err := ctx.GetRequests()
 		if err == nil {
 			lastRequests = requests
@@ -1050,9 +1050,6 @@ func assertGitHubMCPConfigApplied(t *testing.T, ctx *testharness.TestContext, se
 				assertCapturedHeader(t, writableRequest.Headers, "x-mcp-insiders", "true")
 				return
 			}
-		}
-		if !time.Now().Before(deadline) {
-			break
 		}
 		time.Sleep(200 * time.Millisecond)
 	}

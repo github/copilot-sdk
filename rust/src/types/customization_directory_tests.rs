@@ -4,7 +4,7 @@
 
 use std::path::PathBuf;
 
-use serde_json::Value;
+use serde_json::{Value, json};
 
 use super::{ResumeSessionConfig, SessionConfig, SessionId};
 
@@ -65,5 +65,24 @@ fn create_and_resume_preserve_discovery_roots_without_client_rebasing() {
         assert_roots(&serde_json::to_value(wire).unwrap(), roots.as_deref());
         let (wire, _) = resume.into_wire().unwrap();
         assert_roots(&serde_json::to_value(wire).unwrap(), roots.as_deref());
+    }
+}
+
+#[test]
+fn host_factory_forwards_agent_and_hook_roots() {
+    let create = SessionConfig::default()
+        .with_agent_directories(["relative-agents"])
+        .with_hook_directories(Vec::<PathBuf>::new());
+    let resume = ResumeSessionConfig::new(SessionId::from("resumed"))
+        .with_agent_directories(["relative-agents"])
+        .with_hook_directories(Vec::<PathBuf>::new());
+    for wire in [
+        crate::ahp_host::config_for_host(&create).unwrap(),
+        crate::ahp_host::resume_config_for_host(&resume).unwrap(),
+    ] {
+        assert_eq!(wire["agentDirectories"], json!(["relative-agents"]));
+        assert_eq!(wire["hookDirectories"], json!([]));
+        assert!(wire.get("customAgents").is_none());
+        assert!(wire.get("hooks").is_none());
     }
 }
