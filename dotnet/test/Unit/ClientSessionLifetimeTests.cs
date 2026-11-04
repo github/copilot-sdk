@@ -867,6 +867,46 @@ public sealed partial class ClientSessionLifetimeTests
     }
 
     [Fact]
+    public async Task StopAsync_Shuts_Down_Runtime_When_Session_Detach_Never_Answers()
+    {
+        await using var server = await FakeCopilotServer.StartAsync();
+        server.IgnoreDetach();
+        await using var client = new CopilotClient(new CopilotClientOptions { Connection = RuntimeConnection.ForUri(server.Url) });
+        await client.StartAsync();
+        _ = await client.CreateSessionAsync(new SessionConfig
+        {
+            OnPermissionRequest = PermissionHandler.ApproveAll
+        });
+        using var process = StartExitedProcess();
+        await ReplaceConnectionResourcesAsync(client, process);
+
+        var error = await Assert.ThrowsAsync<IOException>(() => client.StopAsync().WaitAsync(TimeSpan.FromSeconds(30)));
+
+        Assert.Contains("session.detach did not complete within the 10s shutdown timeout", error.Message);
+        Assert.Equal(1, server.RuntimeShutdownCount);
+    }
+
+    [Fact]
+    public async Task StopAsync_Unregisters_Session_When_Detach_Is_Blocked_On_Write_Lock()
+    {
+        await using var server = await FakeCopilotServer.StartAsync();
+        await using var client = new CopilotClient(new CopilotClientOptions { Connection = RuntimeConnection.ForUri(server.Url) });
+        var session = await client.CreateSessionAsync(new SessionConfig
+        {
+            OnPermissionRequest = PermissionHandler.ApproveAll
+        });
+        var rpc = typeof(CopilotSession).GetProperty("JsonRpc", BindingFlags.Instance | BindingFlags.NonPublic)!.GetValue(session)!;
+        var writeLock = (SemaphoreSlim)rpc.GetType().GetField("_writeLock", BindingFlags.Instance | BindingFlags.NonPublic)!.GetValue(rpc)!;
+        // Model a stalled transport writer; connection teardown owns and disposes the lock.
+        await writeLock.WaitAsync();
+
+        var error = await Assert.ThrowsAsync<IOException>(() => client.StopAsync().WaitAsync(TimeSpan.FromSeconds(30)));
+
+        Assert.Contains("session.detach did not complete within the 10s shutdown timeout", error.Message);
+        AssertSessionCount(client, sessions: 0);
+    }
+
+    [Fact]
     public async Task ResumeSessionAsync_Throws_When_Same_Client_Already_Tracks_Session()
     {
         await using var server = await FakeCopilotServer.StartAsync();
@@ -4413,6 +4453,7 @@ public sealed partial class ClientSessionLifetimeTests
         private int _nextRequestId;
         private string? _lastSessionId;
         private bool _delayDestroy;
+        private bool _ignoreDetach;
         private bool _failRuntimeShutdown;
         private bool _failSessionCreate;
         private bool _failSessionSend;
@@ -4490,6 +4531,11 @@ public sealed partial class ClientSessionLifetimeTests
         public void DelayDestroy()
         {
             _delayDestroy = true;
+        }
+
+        public void IgnoreDetach()
+        {
+            _ignoreDetach = true;
         }
 
         public void CompleteDestroy()
@@ -4640,6 +4686,13 @@ public sealed partial class ClientSessionLifetimeTests
                 var root = message.RootElement;
                 if (root.TryGetProperty("method", out var method))
                 {
+                    if (method.GetString() == "session.detach" && _ignoreDetach)
+                    {
+                        // A hung runtime: the detach is never answered, other requests still are.
+                        _destroyStarted.TrySetResult();
+                        continue;
+                    }
+
                     if (method.GetString() == "session.sendAndWait" && SendCompletion is not null)
                     {
                         _sendCompletionTasks.Add(HandleRequestAsync(stream, root.Clone(), _cts.Token));

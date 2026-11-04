@@ -33,6 +33,8 @@ record RuntimeLifecycleProgressStateData(
     @JsonProperty("kind") String kind,
     /** Opaque progress identifier, unique within the incarnation and kind. */
     @JsonProperty("progressId") String progressId,
+    /** Agent that owns this progress. Absent for the primary agent and progress without an agent owner. */
+    @JsonProperty("agentId") String agentId,
     /** Orders changes to this progress record. */
     @JsonProperty("revision") Long revision,
     /** Progress-owner-defined phase. */

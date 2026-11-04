@@ -504,6 +504,71 @@ class TestClientShutdown:
         process.kill.assert_not_called()
 
     @pytest.mark.asyncio
+    async def test_stop_still_shuts_down_runtime_when_session_detach_never_answers(
+        self, monkeypatch
+    ):
+        calls: list[str] = []
+        process = Mock()
+        process.poll.side_effect = [None, 0]
+        process.wait.return_value = 0
+
+        class Runtime:
+            async def shutdown(self, *, timeout=None):
+                calls.append("runtime.shutdown")
+
+        async def detach(method, params):
+            assert method == "session.detach"
+            calls.append(f"session.detach {params['sessionId']}")
+            await asyncio.Event().wait()
+
+        monkeypatch.setattr(client_module, "_RUNTIME_SHUTDOWN_TIMEOUT_SECONDS", 0.2)
+        client = CopilotClient(connection=RuntimeConnection.for_stdio(path="copilot"))
+        client._rpc = Mock(runtime=Runtime())
+        client._process = process
+        client._cli_process = process
+        client._is_external_server = False
+        sessions = [
+            CopilotSession(session_id, Mock(request=AsyncMock(side_effect=detach)))
+            for session_id in ("first", "second")
+        ]
+        client._sessions = {session.session_id: session for session in sessions}
+        tasks = []
+        for session in sessions:
+            started = asyncio.Event()
+
+            async def blocked(started=started):
+                started.set()
+                await asyncio.Future()
+
+            task = asyncio.create_task(blocked())
+            tasks.append(task)
+            session._pending_external_tools["request-1"] = task
+            await asyncio.wait_for(started.wait(), timeout=1)
+
+        try:
+            with pytest.raises(ExceptionGroup) as raised:
+                await asyncio.wait_for(client.stop(), timeout=5)
+
+            assert calls[0] == "session.detach first"
+            assert calls[-1] == "runtime.shutdown"
+            assert [error.message for error in raised.value.exceptions] == [
+                f"Failed to disconnect session {session_id}: session.detach did not complete "
+                "within the 0.2s shutdown timeout"
+                for session_id in ("first", "second")
+            ]
+            assert client._sessions == {}
+            process.stdin.close.assert_called_once()
+            for session in sessions:
+                with pytest.raises(RuntimeError, match="disconnected"):
+                    session.on(lambda _: None)
+            await asyncio.wait_for(asyncio.gather(*tasks, return_exceptions=True), timeout=1)
+            assert all(task.cancelled() for task in tasks)
+        finally:
+            for task in tasks:
+                task.cancel()
+            await asyncio.gather(*tasks, return_exceptions=True)
+
+    @pytest.mark.asyncio
     async def test_force_stop_and_external_stop_do_not_request_runtime_shutdown(self):
         calls: list[str] = []
         process = Mock()

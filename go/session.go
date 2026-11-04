@@ -2474,9 +2474,15 @@ func (s *Session) GetEvents(ctx context.Context) ([]SessionEvent, error) {
 //	    log.Printf("Failed to disconnect session: %v", err)
 //	}
 func (s *Session) Disconnect() error {
+	return s.disconnect(context.Background())
+}
+
+// disconnect sends session.detach under ctx; [Client.Stop] bounds it so an
+// unresponsive runtime cannot keep Stop from shutting the runtime down.
+func (s *Session) disconnect(ctx context.Context) error {
 	s.clearSkillProvider()
 	s.cancelPendingExternalTools()
-	result, err := s.client.Request(context.Background(), "session.detach", sessionDetachRequest{SessionID: s.SessionID})
+	result, err := s.client.Request(ctx, "session.detach", sessionDetachRequest{SessionID: s.SessionID})
 	if err == nil {
 		var response sessionDetachResponse
 		if decodeErr := json.Unmarshal(result, &response); decodeErr != nil {

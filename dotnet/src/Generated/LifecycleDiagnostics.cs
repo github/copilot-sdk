@@ -94,6 +94,11 @@ internal sealed partial class RuntimeLifecycleSystemStateData
 [Experimental(global::GitHub.Copilot.Diagnostics.Experimental)]
 internal sealed partial class RuntimeLifecycleProgressStateData
 {
+    /// <summary>Agent that owns this progress. Absent for the primary agent and progress without an agent owner.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("agentId")]
+    public string? AgentId { get; set; }
+
     /// <summary>Complete dependency blocker set after this progress change.</summary>
     [JsonPropertyName("blockers")]
     public required RuntimeLifecycleBlocker[] Blockers { get; set; }

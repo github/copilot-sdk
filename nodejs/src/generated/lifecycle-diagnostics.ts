@@ -127,6 +127,10 @@ export interface RuntimeLifecycleProgressStateDiagnosticEvent {
  */
 export interface RuntimeLifecycleProgressStateData {
   /**
+   * Agent that owns this progress. Absent for the primary agent and progress without an agent owner.
+   */
+  agentId?: string;
+  /**
    * Complete dependency blocker set after this progress change.
    */
   blockers: RuntimeLifecycleBlocker[];

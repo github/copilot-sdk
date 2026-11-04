@@ -1224,11 +1224,16 @@ export class CopilotClient {
      * Stops the CLI server and closes all active sessions.
      *
      * This method performs graceful cleanup:
-     * 1. Closes all active sessions (releases in-memory resources)
+     * 1. Closes all active sessions (releases in-memory resources); detach
+     *    requests share one shutdown timeout
      * 2. Requests runtime shutdown for SDK-owned CLI processes
      * 3. Closes the JSON-RPC connection
      * 4. Signals EOF to an owned stdio process and waits for host cleanup, then
      *    terminates the process if it does not exit within the shutdown timeout
+     *
+     * In-process connections first abort active turns without a timeout. That
+     * step is outside the detach deadline, so in-process stop() can still wait
+     * indefinitely if the runtime stops answering abort requests.
      *
      * Note: session data on disk is preserved, so sessions can be resumed later.
      * To permanently remove session data before stopping, call
@@ -1264,9 +1269,16 @@ export class CopilotClient {
         if (this.connectionConfig.kind === "inprocess") {
             await Promise.allSettled(activeSessions.map((session) => session.abort()));
         }
+        // A hung runtime never answers session.detach, so every detach shares one
+        // deadline; past it, stop() moves on to runtime shutdown and termination.
+        let detachDeadlineTimer: ReturnType<typeof setTimeout> | undefined;
+        const detachDeadline = new Promise<"timeout">((resolve) => {
+            detachDeadlineTimer = setTimeout(() => resolve("timeout"), RUNTIME_SHUTDOWN_TIMEOUT_MS);
+        });
         for (const session of activeSessions) {
             const sessionId = session.sessionId;
             let lastError: Error | null = null;
+            let attempts = 0;
 
             // Try up to 3 times with exponential backoff
             for (let attempt = 1; attempt <= 3; attempt++) {
@@ -1276,8 +1288,20 @@ export class CopilotClient {
                     lastError = null;
                     break;
                 }
+                attempts = attempt;
                 try {
-                    await session.disconnect();
+                    const outcome = await Promise.race([
+                        session.disconnect().then(() => "disconnected" as const),
+                        detachDeadline,
+                    ]);
+                    if (outcome === "timeout") {
+                        // The detach is still in flight, which makes another
+                        // disconnect() a no-op, so do not retry it.
+                        lastError = new Error(
+                            `session.detach did not complete within the ${RUNTIME_SHUTDOWN_TIMEOUT_MS}ms shutdown timeout`
+                        );
+                        break;
+                    }
                     lastError = null;
                     break; // Success
                 } catch (error) {
@@ -1298,11 +1322,12 @@ export class CopilotClient {
             if (lastError) {
                 errors.push(
                     new Error(
-                        `Failed to disconnect session ${sessionId} after 3 attempts: ${lastError.message}`
+                        `Failed to disconnect session ${sessionId} after ${attempts} ${attempts === 1 ? "attempt" : "attempts"}: ${lastError.message}`
                     )
                 );
             }
         }
+        clearTimeout(detachDeadlineTimer);
         for (const session of activeSessions) {
             session._markDisconnected();
         }

@@ -178,6 +178,9 @@ pub(crate) struct RuntimeLifecycleProgressStateData {
     pub kind: String,
     /// Opaque progress identifier, unique within the incarnation and kind.
     pub progress_id: String,
+    /// Agent that owns this progress. Absent for the primary agent and progress without an agent owner.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub agent_id: Option<String>,
     /// Orders changes to this progress record.
     pub revision: i64,
     /// Progress-owner-defined phase.

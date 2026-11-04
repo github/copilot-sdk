@@ -8060,6 +8060,68 @@ async fn client_stop_aggregates_session_detach_errors() {
     assert!(msg.contains("session gone"), "unexpected message: {msg}");
 }
 
+#[tokio::test(start_paused = true)]
+async fn client_stop_bounds_session_detach_when_runtime_never_answers() {
+    // A hung runtime never answers session.detach. Client::stop must give up
+    // on every detach after one shared deadline instead of waiting forever.
+    let (client, server_read, server_write) = make_client();
+    let mut server = FakeServer {
+        read: server_read,
+        write: server_write,
+        session_id: String::new(),
+    };
+    let mut sessions = Vec::new();
+    for workspace in ["/tmp/ws-a", "/tmp/ws-b"] {
+        let create = tokio::spawn({
+            let client = client.clone();
+            async move {
+                client
+                    .create_session(SessionConfig::default())
+                    .await
+                    .unwrap()
+            }
+        });
+        let request = server.read_request().await;
+        assert_eq!(request["method"], "session.create");
+        let session_id = requested_session_id(&request).to_string();
+        server
+            .respond(
+                &request,
+                serde_json::json!({ "sessionId": session_id, "workspacePath": workspace }),
+            )
+            .await;
+        sessions.push(timeout(TIMEOUT, create).await.unwrap().unwrap());
+    }
+
+    let started = tokio::time::Instant::now();
+    let stop_handle = tokio::spawn({
+        let client = client.clone();
+        async move { client.stop().await }
+    });
+    let request = server.read_request().await;
+    assert_eq!(request["method"], "session.detach");
+
+    // Leave the detach unanswered. The guard is longer than the 10s stop
+    // deadline, so it only fires if stop() never gives up on it.
+    let stop_result = timeout(Duration::from_secs(60), stop_handle)
+        .await
+        .expect("stop() never moved past an unanswered session.detach")
+        .unwrap();
+    let errors = stop_result.expect_err("expected detach timeouts");
+    assert_eq!(errors.errors().len(), 2);
+    let msg = errors.to_string();
+    assert!(
+        msg.contains("session.detach timed out during Client::stop"),
+        "unexpected message: {msg}"
+    );
+    // One deadline covers every session, not one timeout per session.
+    assert!(
+        started.elapsed() < Duration::from_secs(11),
+        "stop took {:?}",
+        started.elapsed()
+    );
+}
+
 #[test]
 fn session_config_serializes_bucket_b_fields() {
     use std::path::PathBuf;

@@ -3542,8 +3542,10 @@ impl Client {
     /// Cooperatively shut down the client and the CLI child process.
     ///
     /// Walks every still-registered session and sends `session.detach`
-    /// for each one and asks SDK-owned runtimes to shut down. For an owned stdio
-    /// child, closes stdin and waits up to 10 seconds for host cleanup and exit
+    /// for each one, all detaches sharing one 10-second timeout so an
+    /// unresponsive runtime cannot hold the rest of teardown back, and asks
+    /// SDK-owned runtimes to shut down. For an owned stdio child, closes
+    /// stdin and waits up to 10 seconds for host cleanup and exit
     /// before falling back to termination. Terminates the Windows-owned CLI
     /// Job Object when present and bounds the final root-process reap to 10 seconds.
     /// Errors from per-session detaches, runtime shutdown, and final process
@@ -3578,9 +3580,22 @@ impl Client {
         self.inner.installation_confirmation.clear();
 
         // Snapshot the registered session IDs without holding the router
-        // lock across the detach RPCs.
+        // lock across the detach RPCs. A hung runtime never answers
+        // session.detach, so every detach shares one deadline; past it, stop()
+        // moves on to runtime shutdown and termination.
+        let detach_deadline = tokio::time::Instant::now() + RUNTIME_SHUTDOWN_TIMEOUT;
         for session_id in self.inner.router.session_ids() {
-            match self.detach_session(&session_id).await {
+            let detached =
+                tokio::time::timeout_at(detach_deadline, self.detach_session(&session_id))
+                    .await
+                    .unwrap_or_else(|_| {
+                        Err(std::io::Error::new(
+                            std::io::ErrorKind::TimedOut,
+                            "session.detach timed out during Client::stop",
+                        )
+                        .into())
+                    });
+            match detached {
                 Ok(_) => {}
                 Err(e) => {
                     warn!(

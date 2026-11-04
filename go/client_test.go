@@ -618,6 +618,59 @@ func TestClient_StopRequestsRuntimeShutdownForOwnedProcess(t *testing.T) {
 	server.Stop()
 }
 
+func TestClient_StopShutsDownRuntimeWhenSessionDetachNeverAnswers(t *testing.T) {
+	previousTimeout := runtimeShutdownTimeout
+	runtimeShutdownTimeout = 200 * time.Millisecond
+	t.Cleanup(func() { runtimeShutdownTimeout = previousTimeout })
+
+	rpcClient, server, shutdownCalled := newRuntimeShutdownRpcPair(t)
+	t.Cleanup(server.Stop)
+	release := make(chan struct{})
+	t.Cleanup(func() { close(release) })
+	server.SetRequestHandler("session.detach", func(params json.RawMessage) (json.RawMessage, *jsonrpc2.Error) {
+		<-release
+		return []byte(`{"success":true}`), nil
+	})
+	sessions := make(map[string]*Session)
+	for _, id := range []string{"session-1", "session-2"} {
+		sessions[id] = newSession(id, rpcClient, "", false)
+	}
+	client := &Client{
+		process:     &exec.Cmd{},
+		client:      rpcClient,
+		RPC:         rpc.NewServerRPC(rpcClient),
+		sessions:    sessions,
+		processDone: make(chan struct{}),
+	}
+	close(client.processDone)
+
+	stopped := make(chan error, 1)
+	go func() { stopped <- client.Stop() }()
+	var err error
+	select {
+	case err = <-stopped:
+	case <-time.After(5 * time.Second):
+		t.Fatal("Stop did not return while session.detach went unanswered")
+	}
+
+	if !errors.Is(err, context.DeadlineExceeded) {
+		t.Fatalf("Stop error = %v, want a session.detach deadline error", err)
+	}
+	for _, id := range []string{"session-1", "session-2"} {
+		if !strings.Contains(err.Error(), "failed to disconnect session "+id) {
+			t.Errorf("Stop error = %v, want a disconnect failure for %s", err, id)
+		}
+	}
+	select {
+	case <-shutdownCalled:
+	default:
+		t.Fatal("Stop did not request runtime.shutdown")
+	}
+	if len(client.sessions) != 0 {
+		t.Fatal("Stop did not clear sessions")
+	}
+}
+
 func TestClient_ForceStopAndExternalStopDoNotRequestRuntimeShutdown(t *testing.T) {
 	rpcClient, server, shutdownCalled := newRuntimeShutdownRpcPair(t)
 	client := &Client{

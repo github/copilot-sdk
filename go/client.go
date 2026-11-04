@@ -622,7 +622,9 @@ func (c *Client) initializeConnection(ctx context.Context) error {
 // Stop stops the CLI server and closes all active sessions.
 //
 // This method performs graceful cleanup:
-//  1. Closes all active sessions (releases in-memory resources)
+//  1. Closes all active sessions (releases in-memory resources); detach requests
+//     share one 10 second timeout, so an unresponsive runtime cannot hold the
+//     remaining steps back
 //  2. Requests runtime shutdown for SDK-owned CLI processes
 //  3. Closes owned stdio input and waits up to 10 seconds for host cleanup and exit
 //  4. Terminates any remaining owned CLI process and closes the JSON-RPC connection
@@ -650,11 +652,15 @@ func (c *Client) Stop() error {
 	}
 	c.sessionsMux.Unlock()
 
+	// A hung runtime never answers session.detach, so every detach shares one
+	// deadline; past it, Stop moves on to runtime shutdown and termination.
+	detachCtx, cancelDetach := context.WithTimeout(context.Background(), runtimeShutdownTimeout)
 	for _, session := range sessions {
-		if err := session.Disconnect(); err != nil {
+		if err := session.disconnect(detachCtx); err != nil {
 			errs = append(errs, fmt.Errorf("failed to disconnect session %s: %w", session.SessionID, err))
 		}
 	}
+	cancelDetach()
 
 	c.sessionsMux.Lock()
 	c.sessions = make(map[string]*Session)
@@ -2280,7 +2286,10 @@ func (c *Client) ListModels(ctx context.Context) ([]ModelInfo, error) {
 
 // minProtocolVersion is the minimum protocol version this SDK can communicate with.
 const minProtocolVersion = 3
-const runtimeShutdownTimeout = 10 * time.Second
+
+// runtimeShutdownTimeout is a variable so tests can shorten it.
+var runtimeShutdownTimeout = 10 * time.Second
+
 const processExitTimeout = 10 * time.Second
 
 // verifyProtocolVersion sends the `connect` handshake (carrying the optional token) and

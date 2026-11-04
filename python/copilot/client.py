@@ -2350,7 +2350,9 @@ class CopilotClient:
         Stop the CLI server and close all active sessions.
 
         This method performs graceful cleanup:
-        1. Closes all active sessions (releases in-memory resources)
+        1. Closes all active sessions (releases in-memory resources); detach
+           requests share one shutdown timeout, so an unresponsive runtime
+           cannot hold the remaining steps back
         2. Requests runtime shutdown for SDK-owned CLI processes
         3. Closes owned stdio input and waits for host cleanup and natural exit
         4. Closes the JSON-RPC connection and terminates any remaining owned process
@@ -2385,9 +2387,23 @@ class CopilotClient:
             sessions_to_destroy = list(self._sessions.values())
             self._sessions.clear()
 
+        # A hung runtime never answers session.detach, so every detach shares one
+        # deadline; past it, stop() moves on to runtime shutdown and termination.
+        loop = asyncio.get_running_loop()
+        detach_deadline = loop.time() + _RUNTIME_SHUTDOWN_TIMEOUT_SECONDS
         for session in sessions_to_destroy:
             try:
-                await session.disconnect()
+                await asyncio.wait_for(
+                    session.disconnect(), timeout=max(0.0, detach_deadline - loop.time())
+                )
+            except TimeoutError:
+                errors.append(
+                    StopError(
+                        message=f"Failed to disconnect session {session.session_id}: "
+                        "session.detach did not complete within the "
+                        f"{_RUNTIME_SHUTDOWN_TIMEOUT_SECONDS}s shutdown timeout"
+                    )
+                )
             except Exception as e:
                 logger.debug(
                     "Error while cleaning up Copilot session %s",
@@ -2397,6 +2413,8 @@ class CopilotClient:
                 errors.append(
                     StopError(message=f"Failed to disconnect session {session.session_id}: {e}")
                 )
+            finally:
+                session._mark_disconnected()
         with self._github_token_providers_lock:
             self._github_token_providers.clear()
 

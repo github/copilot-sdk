@@ -532,7 +532,8 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
     /// <para>
     /// This method performs graceful cleanup:
     /// <list type="number">
-    ///     <item>Closes all active sessions (releases in-memory resources)</item>
+    ///     <item>Closes all active sessions (releases in-memory resources); detach requests share one
+    ///     shutdown timeout, so an unresponsive runtime cannot hold the remaining steps back</item>
     ///     <item>Requests runtime shutdown for SDK-owned CLI processes</item>
     ///     <item>Closes the JSON-RPC connection</item>
     ///     <item>Terminates the CLI server process (if spawned by this client)</item>
@@ -557,15 +558,29 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
         List<Exception> errors = [];
         CancelPendingExternalTools(sessions);
 
+        // A hung runtime never answers session.detach, so every detach shares one
+        // deadline; past it, StopAsync moves on to runtime shutdown and termination.
+        using var detachTimeout = new CancellationTokenSource(s_runtimeShutdownTimeout);
         foreach (var session in sessions)
         {
             try
             {
-                await session.DisposeAsync();
+                await session.DisposeAsync().AsTask().WaitAsync(Timeout.InfiniteTimeSpan, detachTimeout.Token);
+            }
+            catch (OperationCanceledException) when (detachTimeout.IsCancellationRequested)
+            {
+                errors.Add(new IOException(
+                    $"Failed to dispose session {session.SessionId}: session.detach did not complete within the {s_runtimeShutdownTimeout.TotalSeconds}s shutdown timeout"));
             }
             catch (Exception ex)
             {
                 errors.Add(new IOException($"Failed to dispose session {session.SessionId}: {ex.Message}", ex));
+            }
+            finally
+            {
+                // A timed-out disposal may still be waiting for the transport write lock.
+                session.Retire();
+                session.RemoveFromClient();
             }
         }
 
