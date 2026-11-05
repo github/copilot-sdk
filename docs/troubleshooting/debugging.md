@@ -201,7 +201,7 @@ var client = new CopilotClient(new CopilotClientOptions()
 
 ### "CLI not found" / "Copilot: command not found"
 
-**Cause:** The Copilot CLI is not installed or not in PATH.
+**Cause:** The Copilot CLI is missing or its configured path is invalid.
 
 **Solution:**
 
@@ -212,7 +212,7 @@ var client = new CopilotClient(new CopilotClientOptions()
    copilot --version
    ```
 
-1. Or specify the full path:
+1. Specify the full path:
 
    <details open>
    <summary><strong>Node.js</strong></summary>
@@ -412,7 +412,7 @@ MCP (Model Context Protocol) servers can be tricky to debug. For comprehensive M
 * [ ] Command path is correct (use absolute paths)
 * [ ] Tools are enabled: `tools: ["*"]`
 * [ ] Server responds to `initialize` request correctly
-* [ ] Working directory (`cwd`) is set if needed
+* [ ] Working directory (`workingDirectory`) is set if needed
 
 ### Test your MCP server
 

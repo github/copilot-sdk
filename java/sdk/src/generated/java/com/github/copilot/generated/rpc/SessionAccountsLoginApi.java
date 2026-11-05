@@ -32,7 +32,7 @@ public final class SessionAccountsLoginApi {
     }
 
     /**
-     * Begin an interactive login flow for a provider kind (dispatch is kind-only) and return its opaque flow id and first step.
+     * Begin an interactive login flow for a provider kind, optionally selecting how to authorize (`method`: `web` by default, or `device-code`), and return its opaque flow id and first step.
      * <p>
      * Note: the {@code sessionId} field in the params record is overridden
      * by the session-scoped wrapper; any value provided is ignored.
@@ -48,7 +48,7 @@ public final class SessionAccountsLoginApi {
     }
 
     /**
-     * Begin an interactive login flow for a provider kind (dispatch is kind-only) and return its opaque flow id and first step.
+     * Begin an interactive login flow for a provider kind, optionally selecting how to authorize (`method`: `web` by default, or `device-code`), and return its opaque flow id and first step.
      * <p>
      * Accepts the extensible request, including inputs added after the params record.
      *

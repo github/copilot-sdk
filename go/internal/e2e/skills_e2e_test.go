@@ -48,6 +48,7 @@ IMPORTANT: You MUST include the exact text "` + marker + `" somewhere in EVERY r
 }
 
 func TestSkillsE2E(t *testing.T) {
+	t.Parallel()
 	ctx := testharness.NewTestContext(t)
 	client := ctx.NewClient()
 	t.Cleanup(func() { client.ForceStop() })

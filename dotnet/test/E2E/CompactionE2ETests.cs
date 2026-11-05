@@ -2,7 +2,9 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *--------------------------------------------------------------------------------------------*/
 
+using System.Diagnostics;
 using GitHub.Copilot.Test.Harness;
+using Microsoft.Extensions.Logging;
 using Xunit;
 using Xunit.Abstractions;
 
@@ -28,23 +30,54 @@ public class CompactionE2ETests(E2ETestFixture fixture, ITestOutputHelper output
         // The first prompt leaves the session below the compaction processor's minimum
         // message count. The second prompt is therefore the first deterministic point
         // at which low thresholds can trigger compaction.
+        var elapsed = Stopwatch.StartNew();
         using var compactionStarted = TestHelper.ObserveEvent<SessionCompactionStartEvent>(session);
         using var compactionCompleted = TestHelper.ObserveEvent<SessionCompactionCompleteEvent>(
             session,
             evt => evt.Data.Success);
 
-        await session.SendAndWaitAsync(new MessageOptions
+        var firstResponse = await session.SendAndWaitAsync(new MessageOptions
         {
             Prompt = "Tell me a story about a dragon. Be detailed."
         });
-        await session.SendAndWaitAsync(new MessageOptions
+        var firstResponseElapsedMs = elapsed.ElapsedMilliseconds;
+        var secondResponse = await session.SendAndWaitAsync(new MessageOptions
         {
             Prompt = "Continue the story with more details about the dragon's castle."
         });
+        var secondResponseElapsedMs = elapsed.ElapsedMilliseconds;
 
-        await Task.WhenAll(compactionStarted.Task, compactionCompleted.Task).WaitAsync(CompactionTimeout);
-        var startEvent = await compactionStarted.Task;
-        var completeEvent = await compactionCompleted.Task;
+        SessionCompactionStartEvent startEvent;
+        SessionCompactionCompleteEvent completeEvent;
+        try
+        {
+            await Task.WhenAll(compactionStarted.Task, compactionCompleted.Task).WaitAsync(CompactionTimeout);
+            startEvent = await compactionStarted.Task;
+            completeEvent = await compactionCompleted.Task;
+        }
+        catch (TimeoutException)
+        {
+            try
+            {
+                var events = await session.GetEventsAsync();
+                var exchanges = await Ctx.GetExchangesAsync();
+                Logger.LogWarning(
+                    "SDK compaction failure: firstResponse={FirstResponse}, secondResponse={SecondResponse}, firstResponseElapsedMs={FirstElapsedMs}, secondResponseElapsedMs={SecondElapsedMs}, startDelivered={StartDelivered}, completionDelivered={CompletionDelivered}, persistedEvents={Events}, requests={Requests}",
+                    firstResponse is not null,
+                    secondResponse is not null,
+                    firstResponseElapsedMs,
+                    secondResponseElapsedMs,
+                    compactionStarted.Task.Status == TaskStatus.RanToCompletion,
+                    compactionCompleted.Task.Status == TaskStatus.RanToCompletion,
+                    string.Join(", ", events.GroupBy(evt => evt.GetType().Name).Select(group => $"{group.Key}={group.Count()}")),
+                    string.Join(", ", exchanges.Select(exchange => $"model={exchange.Request.Model}; messages={exchange.Request.Messages.Count}; compaction={exchange.CompactionUsage is not null}")));
+            }
+            catch (Exception diagnosticError)
+            {
+                Logger.LogWarning(diagnosticError, "SDK compaction failure diagnostics could not be collected");
+            }
+            throw;
+        }
 
         Assert.True(startEvent.Data.ConversationTokens.GetValueOrDefault() > 0, "Expected compaction to report conversation tokens at start");
         Assert.True(completeEvent.Data.Success, "Expected compaction to succeed");

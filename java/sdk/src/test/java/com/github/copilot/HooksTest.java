@@ -4,6 +4,8 @@
 
 package com.github.copilot;
 
+import org.junit.jupiter.api.Tag;
+
 import static org.junit.jupiter.api.Assertions.*;
 
 import java.nio.file.Files;
@@ -11,6 +13,7 @@ import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Set;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 
@@ -25,7 +28,6 @@ import com.github.copilot.rpc.PermissionHandler;
 import com.github.copilot.rpc.PostToolUseHookInput;
 import com.github.copilot.rpc.PreToolUseHookInput;
 import com.github.copilot.rpc.PreToolUseHookOutput;
-import com.github.copilot.rpc.SessionConfig;
 import com.github.copilot.rpc.SessionHooks;
 import com.github.copilot.rpc.UserPromptTransformedHookInput;
 import com.github.copilot.rpc.UserPromptTransformedHookOutput;
@@ -44,6 +46,7 @@ import com.github.copilot.rpc.UserPromptTransformedHookOutput;
  * Node.js SDKs and require test harness updates to properly invoke these hooks.
  * </p>
  */
+@Tag("e2e")
 public class HooksTest {
 
     private static E2ETestContext ctx;
@@ -69,10 +72,10 @@ public class HooksTest {
     void testInvokePreToolUseHookWhenModelRunsATool() throws Exception {
         ctx.configureForTest("hooks", "invoke_pre_tool_use_hook_when_model_runs_a_tool");
 
-        var preToolUseInputs = new ArrayList<PreToolUseHookInput>();
+        var preToolUseInputs = new CopyOnWriteArrayList<PreToolUseHookInput>();
         final String[] sessionIdHolder = new String[1];
 
-        var config = new SessionConfig().setOnPermissionRequest(PermissionHandler.APPROVE_ALL)
+        var config = ctx.newSessionConfig().setOnPermissionRequest(PermissionHandler.APPROVE_ALL)
                 .setHooks(new SessionHooks().setOnPreToolUse((input, invocation) -> {
                     preToolUseInputs.add(input);
                     assertEquals(sessionIdHolder[0], invocation.getSessionId());
@@ -109,10 +112,10 @@ public class HooksTest {
     void testInvokePostToolUseHookAfterModelRunsATool() throws Exception {
         ctx.configureForTest("hooks", "invoke_post_tool_use_hook_after_model_runs_a_tool");
 
-        var postToolUseInputs = new ArrayList<PostToolUseHookInput>();
+        var postToolUseInputs = new CopyOnWriteArrayList<PostToolUseHookInput>();
         final String[] sessionIdHolder = new String[1];
 
-        var config = new SessionConfig().setOnPermissionRequest(PermissionHandler.APPROVE_ALL)
+        var config = ctx.newSessionConfig().setOnPermissionRequest(PermissionHandler.APPROVE_ALL)
                 .setHooks(new SessionHooks().setOnPostToolUse((input, invocation) -> {
                     postToolUseInputs.add(input);
                     assertEquals(sessionIdHolder[0], invocation.getSessionId());
@@ -151,10 +154,10 @@ public class HooksTest {
     void testInvokeBothHooksForSingleToolCall() throws Exception {
         ctx.configureForTest("hooks", "invoke_both_hooks_for_single_tool_call");
 
-        var preToolUseInputs = new ArrayList<PreToolUseHookInput>();
-        var postToolUseInputs = new ArrayList<PostToolUseHookInput>();
+        var preToolUseInputs = new CopyOnWriteArrayList<PreToolUseHookInput>();
+        var postToolUseInputs = new CopyOnWriteArrayList<PostToolUseHookInput>();
 
-        var config = new SessionConfig().setOnPermissionRequest(PermissionHandler.APPROVE_ALL)
+        var config = ctx.newSessionConfig().setOnPermissionRequest(PermissionHandler.APPROVE_ALL)
                 .setHooks(new SessionHooks().setOnPreToolUse((input, invocation) -> {
                     preToolUseInputs.add(input);
                     return CompletableFuture.completedFuture(PreToolUseHookOutput.allow());
@@ -198,9 +201,9 @@ public class HooksTest {
     void testDenyToolExecutionWhenPreToolUseReturnsDeny() throws Exception {
         ctx.configureForTest("hooks", "deny_tool_execution_when_pre_tool_use_returns_deny");
 
-        var preToolUseInputs = new ArrayList<PreToolUseHookInput>();
+        var preToolUseInputs = new CopyOnWriteArrayList<PreToolUseHookInput>();
 
-        var config = new SessionConfig().setOnPermissionRequest(PermissionHandler.APPROVE_ALL)
+        var config = ctx.newSessionConfig().setOnPermissionRequest(PermissionHandler.APPROVE_ALL)
                 .setHooks(new SessionHooks().setOnPreToolUse((input, invocation) -> {
                     preToolUseInputs.add(input);
                     // Deny all tool calls
@@ -242,7 +245,7 @@ public class HooksTest {
 
         var inputs = new ArrayList<AgentStopHookInput>();
         final String[] sessionIdHolder = new String[1];
-        var config = new SessionConfig().setOnPermissionRequest(PermissionHandler.APPROVE_ALL)
+        var config = ctx.newSessionConfig().setOnPermissionRequest(PermissionHandler.APPROVE_ALL)
                 .setHooks(new SessionHooks().setOnAgentStop((input, invocation) -> {
                     assertEquals(sessionIdHolder[0], invocation.getSessionId());
                     inputs.add(input);
@@ -276,7 +279,7 @@ public class HooksTest {
                 "should_invoke_userprompttransformed_hook_and_modify_transformed_prompt");
 
         var inputs = new ArrayList<UserPromptTransformedHookInput>();
-        var config = new SessionConfig().setOnPermissionRequest(PermissionHandler.APPROVE_ALL)
+        var config = ctx.newSessionConfig().setOnPermissionRequest(PermissionHandler.APPROVE_ALL)
                 .setHooks(new SessionHooks().setOnUserPromptTransformed((input, invocation) -> {
                     assertFalse(invocation.getSessionId().isBlank());
                     inputs.add(input);

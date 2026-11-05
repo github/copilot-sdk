@@ -125,23 +125,6 @@ _, err = session.RPC.Remote.Disable(ctx)
 
 #### C#
 
-<!-- docs-validate: hidden -->
-```csharp
-await using var client = new CopilotClient();
-await using var session = await client.CreateSessionAsync(new SessionConfig
-{
-    OnPermissionRequest = PermissionHandler.ApproveAll,
-});
-
-#pragma warning disable GHCP001 // The remote RPC API is experimental.
-var result = await session.Rpc.Remote.EnableAsync(mode: RemoteSessionMode.Export);
-Console.WriteLine($"Remote URL: {result.Url}");
-
-// Later: stop sharing
-await session.Rpc.Remote.DisableAsync();
-```
-<!-- /docs-validate: hidden -->
-
 ```csharp
 #pragma warning disable GHCP001 // The remote RPC API is experimental.
 var result = await session.Rpc.Remote.EnableAsync(mode: RemoteSessionMode.Export);

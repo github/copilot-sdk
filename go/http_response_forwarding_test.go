@@ -2,6 +2,7 @@ package copilot
 
 import (
 	"bufio"
+	"bytes"
 	"encoding/base64"
 	"encoding/json"
 	"errors"
@@ -31,6 +32,20 @@ type trackedResponseBody struct {
 	reader    *io.PipeReader
 	closed    chan struct{}
 	closeOnce sync.Once
+}
+
+type observedResponseBody struct {
+	*trackedResponseBody
+	reads chan int
+}
+
+func (b *observedResponseBody) Read(p []byte) (int, error) {
+	select {
+	case b.reads <- len(p):
+		return b.trackedResponseBody.Read(p)
+	case <-b.closed:
+		return 0, io.ErrClosedPipe
+	}
 }
 
 type zeroProgressResponseBody struct {
@@ -409,9 +424,21 @@ func TestHTTPResponseReaderCloseStopsZeroProgressSource(t *testing.T) {
 
 func TestHTTPResponseReadsAheadAndCoalescesUnderOneOutstandingRPC(t *testing.T) {
 	body, writer := newTrackedResponseBody()
-	peer := newResponseProtocolPeer(t, body)
+	observed := &observedResponseBody{trackedResponseBody: body, reads: make(chan int)}
+	peer := newResponseProtocolPeer(t, observed)
 	peer.startAndAck()
 
+	nextRead := func() int {
+		t.Helper()
+		select {
+		case size := <-observed.reads:
+			return size
+		case <-time.After(responseProtocolTimeout):
+			t.Fatal("source did not start its next read")
+			return 0
+		}
+	}
+	nextRead()
 	if _, err := writer.Write([]byte("first")); err != nil {
 		t.Fatal(err)
 	}
@@ -420,22 +447,19 @@ func TestHTTPResponseReadsAheadAndCoalescesUnderOneOutstandingRPC(t *testing.T) 
 		t.Fatalf("first chunk = %q", got)
 	}
 
-	writeDone := make(chan error, 1)
-	go func() {
-		for range 32 {
-			if _, err := writer.Write(make([]byte, 1024)); err != nil {
-				writeDone <- err
-				return
-			}
+	var prefix []byte
+	for i := range 7 {
+		nextRead()
+		piece := bytes.Repeat([]byte{byte(i)}, 1024)
+		prefix = append(prefix, piece...)
+		if _, err := writer.Write(piece); err != nil {
+			t.Fatal(err)
 		}
-		_, err := writer.Write([]byte("last"))
-		writeDone <- err
-	}()
-
-	select {
-	case err := <-writeDone:
-		t.Fatalf("writer completed before read-ahead space was released: %v", err)
-	case <-time.After(50 * time.Millisecond):
+	}
+	// Entering the following Read proves all seven preceding pieces were buffered.
+	remaining := httpResponseReadAheadSize - len(prefix)
+	if got := nextRead(); got != remaining {
+		t.Fatalf("remaining read-ahead capacity = %d, want %d", got, remaining)
 	}
 	if _, ok := peer.nextRequestWithin(50 * time.Millisecond); ok {
 		t.Fatal("sent another data RPC while the first acknowledgement was withheld")
@@ -443,8 +467,58 @@ func TestHTTPResponseReadsAheadAndCoalescesUnderOneOutstandingRPC(t *testing.T) 
 
 	peer.ack(first)
 	combined := peer.nextRequest()
-	if got := len(responseChunkData(t, combined)); got != httpResponseReadAheadSize {
-		t.Fatalf("coalesced chunk size = %d, want %d", got, httpResponseReadAheadSize)
+	if got := responseChunkData(t, combined); !bytes.Equal(got, prefix) {
+		t.Fatalf("coalesced chunk = %d bytes, want the %d-byte source prefix", len(got), len(prefix))
+	}
+
+	buffered := append(bytes.Repeat([]byte("a"), remaining), bytes.Repeat([]byte("b"), len(prefix))...)
+	if _, err := writer.Write(buffered[:remaining]); err != nil {
+		t.Fatal(err)
+	}
+	if got := nextRead(); got != len(prefix) {
+		t.Fatalf("remaining read-ahead capacity = %d, want %d", got, len(prefix))
+	}
+	if _, err := writer.Write(buffered[remaining:]); err != nil {
+		t.Fatal(err)
+	}
+	writeDone := make(chan error, 1)
+	writerStopped := make(chan struct{})
+	go func() {
+		defer close(writerStopped)
+		_, err := writer.Write([]byte("last"))
+		writeDone <- err
+	}()
+	t.Cleanup(func() {
+		peer.close()
+		select {
+		case <-writerStopped:
+		case <-time.After(responseProtocolTimeout):
+			t.Error("source writer did not stop")
+		}
+	})
+	select {
+	case size := <-observed.reads:
+		t.Fatalf("source started another read of %d bytes with a full read-ahead buffer", size)
+	case err := <-writeDone:
+		t.Fatalf("writer completed before read-ahead space was released: %v", err)
+	case <-time.After(50 * time.Millisecond):
+	}
+	if _, ok := peer.nextRequestWithin(50 * time.Millisecond); ok {
+		t.Fatal("sent another data RPC while the coalesced chunk acknowledgement was withheld")
+	}
+
+	peer.ack(combined)
+	chunk := peer.nextRequest()
+	data := responseChunkData(t, chunk)
+	if len(data) != remaining && len(data) != httpResponseReadAheadSize {
+		t.Fatalf("buffered chunk size = %d, want %d or %d", len(data), remaining, httpResponseReadAheadSize)
+	}
+	if !bytes.Equal(data, buffered[:len(data)]) {
+		t.Fatalf("buffered chunk = %d bytes, want the matching source prefix", len(data))
+	}
+	// The final fill may not have been appended when the acknowledgement arrives.
+	if got := nextRead(); got != len(data) {
+		t.Fatalf("released read-ahead capacity = %d, want %d", got, len(data))
 	}
 	select {
 	case err := <-writeDone:
@@ -454,17 +528,20 @@ func TestHTTPResponseReadsAheadAndCoalescesUnderOneOutstandingRPC(t *testing.T) 
 	case <-time.After(responseProtocolTimeout):
 		t.Fatal("source did not resume after acknowledgement")
 	}
-	if _, ok := peer.nextRequestWithin(50 * time.Millisecond); ok {
-		t.Fatal("sent another data RPC while the coalesced chunk acknowledgement was withheld")
-	}
-
-	peer.ack(combined)
-	last := peer.nextRequest()
-	if got := string(responseChunkData(t, last)); got != "last" {
-		t.Fatalf("last chunk = %q", got)
+	wantLast := append(buffered[len(data):], []byte("last")...)
+	if got := nextRead(); got != httpResponseReadAheadSize-len(wantLast) {
+		t.Fatalf("remaining read-ahead capacity = %d, want %d", got, httpResponseReadAheadSize-len(wantLast))
 	}
 	if err := writer.Close(); err != nil {
 		t.Fatal(err)
+	}
+	if _, ok := peer.nextRequestWithin(50 * time.Millisecond); ok {
+		t.Fatal("sent another data RPC while the buffered chunk acknowledgement was withheld")
+	}
+	peer.ack(chunk)
+	last := peer.nextRequest()
+	if got := responseChunkData(t, last); !bytes.Equal(got, wantLast) {
+		t.Fatalf("last chunk = %d bytes, want the %d-byte source suffix", len(got), len(wantLast))
 	}
 	peer.ack(last)
 	end := peer.nextRequest()
@@ -472,6 +549,7 @@ func TestHTTPResponseReadsAheadAndCoalescesUnderOneOutstandingRPC(t *testing.T) 
 		t.Fatalf("unexpected terminal chunk: %s", end.Params)
 	}
 	peer.ack(end)
+	waitForBodyClose(t, body)
 }
 
 func TestHTTPResponseFlushesPartialBytesImmediately(t *testing.T) {

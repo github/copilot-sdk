@@ -192,30 +192,6 @@ Cloud sessions initialize in two phases: `createSession` resolves as soon as Mis
 To send reliably, subscribe to events **before** sending and await the first `session.start` event whose `producer` is `"copilot-agent"`:
 
 <!-- docs-validate: strict -->
-<!-- docs-validate: hidden -->
-```typescript
-import type { CopilotSession } from "@github/copilot-sdk";
-
-const session: CopilotSession = await client.createSession({
-  streaming: true,
-  cloud: { repository: { owner: "github", name: "copilot-sdk" } },
-  onPermissionRequest: async () => ({ kind: "approve-once" }),
-});
-
-const ready = new Promise<void>((resolve) => {
-  const off = session.on("session.start", (event) => {
-    if (event.data?.producer === "copilot-agent") {
-      off();
-      resolve();
-    }
-  });
-});
-
-await ready;
-await session.send({ prompt: "Summarize the README" });
-```
-<!-- /docs-validate: hidden -->
-
 ```typescript
 import { CopilotClient, type CopilotSession } from "@github/copilot-sdk";
 
@@ -258,14 +234,14 @@ Capture the URL by subscribing to `session.info` and filtering by `infoType: "re
 <!-- docs-validate: strict -->
 <!-- docs-validate: hidden -->
 ```typescript
-const session = await client.createSession({
-  cloud: { repository: { owner: "github", name: "copilot-sdk" } },
-  onPermissionRequest: async () => ({ kind: "approve-once" }),
-});
+import type { CopilotSession } from "@github/copilot-sdk";
+
+declare const session: CopilotSession;
 
 session.on("session.info", (event) => {
   if (event.data?.infoType === "remote" && event.data.url) {
     console.log("Open from web or mobile:", event.data.url);
+    // For example, surface in your UI as a shareable link or QR code.
   }
 });
 ```
@@ -302,21 +278,7 @@ Use `branch` when the work should start from a specific branch. If your app is c
 
 The `cloud` option only applies when creating a new session. To resume an existing cloud session, use the standard resume API for the SDK language:
 
-<!-- docs-validate: hidden -->
 <!-- docs-validate: strict -->
-```typescript
-import { CopilotClient } from "@github/copilot-sdk";
-
-const client = new CopilotClient();
-await client.start();
-
-const session = await client.resumeSession("session-id", {
-  onPermissionRequest: async () => ({ kind: "approve-once" }),
-});
-void session;
-```
-<!-- /docs-validate: hidden -->
-
 ```typescript
 const session = await client.resumeSession("session-id", {
   onPermissionRequest: async () => ({ kind: "approve-once" }),
@@ -336,24 +298,12 @@ In TypeScript, check for the reason before retrying:
 <!-- docs-validate: hidden -->
 <!-- docs-validate: strict -->
 ```typescript
-import {
-  CopilotClient,
-  type CloudSessionRepository,
-} from "@github/copilot-sdk";
+import type { CloudSessionRepository } from "@github/copilot-sdk";
 
-const client = new CopilotClient();
-await client.start();
-
-const repository: CloudSessionRepository = {
-  owner: "github",
-  name: "copilot-sdk",
-};
+declare const repository: CloudSessionRepository;
 
 try {
-  await client.createSession({
-    cloud: { repository },
-    onPermissionRequest: async () => ({ kind: "approve-once" }),
-  });
+  await client.createSession({ cloud: { repository } });
 } catch (error) {
   if ((error as { reason?: string }).reason === "policy_blocked") {
     // Show an admin-facing message or link to org policy settings.

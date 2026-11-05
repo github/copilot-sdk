@@ -269,14 +269,10 @@ export interface StdioRuntimeConnection extends ChildProcessRuntimeConnection {
  * {@link RuntimeConnection.forInProcess}.
  *
  * @experimental The in-process (FFI) transport is experimental and its behavior may
- * change. Per-client options that are lowered to environment variables — including
- * {@link CopilotClientOptions.env}, {@link CopilotClientOptions.telemetry},
- * {@link CopilotClientOptions.gitHubToken}, and
- * {@link CopilotClientOptions.baseDirectory} — are **not** honored with this
- * transport, because the native runtime loads into the shared host process and its
- * worker inherits that process's ambient environment. To configure the in-process
- * runtime, set the corresponding environment variables on the host process before
- * constructing the client. See https://github.com/github/copilot-sdk/issues/1934.
+ * change. Typed authentication and {@link CopilotClientOptions.baseDirectory}
+ * are scoped to this host. Client-level `env`, `workingDirectory` and
+ * `telemetry` are unsupported; set working directories
+ * on individual sessions.
  */
 export interface InProcessRuntimeConnection {
     readonly kind: "inprocess";
@@ -369,11 +365,9 @@ export const RuntimeConnection = {
     /**
      * Host the runtime in-process over the native runtime library's C ABI (FFI).
      *
-     * @experimental Per-client options lowered to environment variables (`env`,
-     * `telemetry`, `gitHubToken`, `baseDirectory`) are **not** honored in-process;
-     * the worker inherits the host process's ambient environment. Set the
-     * corresponding environment variables on the host process instead. See
-     * https://github.com/github/copilot-sdk/issues/1934.
+     * @experimental Runtime configuration from `gitHubToken` and
+     * `baseDirectory` is scoped to this host, not the process environment.
+     * Client-level `env`, `telemetry` and `workingDirectory` are unsupported.
      */
     forInProcess(
         options: Pick<InProcessRuntimeConnection, "runOnUiThread"> = {}
@@ -466,7 +460,31 @@ export interface EntraAuthOptions extends EntraAuthConfig {
     tokenProvider?: EntraTokenProvider;
 }
 
+/**
+ * SDK test infrastructure only; not a supported production configuration API.
+ * Supplied values override the runtime's startup environment without changing the host environment.
+ * @internal
+ */
+export interface InternalTestOptions {
+    /** Replay endpoint for Copilot API requests. */
+    copilotApiUrl?: string;
+    /** Replay endpoint for GitHub API requests, including startup authentication. */
+    githubApiUrl?: string;
+    /** HTTP/HTTPS interception proxy for the runtime and its subprocesses. */
+    proxyUrl?: string;
+    /** Comma-separated destinations that bypass the interception proxy. */
+    noProxy?: string;
+    /** PEM CA-bundle path trusted by the runtime and its subprocesses. */
+    caCertificatePath?: string;
+}
+
 export interface CopilotClientOptions {
+    /**
+     * SDK test infrastructure only; unsupported and subject to change.
+     * Applies only to runtimes owned by this client.
+     * @internal
+     */
+    internalTestOptions?: InternalTestOptions;
     /**
      * Host application's Microsoft Entra registration, shared by its sessions.
      * Required for built-in Entra sign-in and token renewal; other authentication methods remain available.
@@ -502,6 +520,7 @@ export interface CopilotClientOptions {
     /**
      * Base directory for Copilot data (session state, config, etc.).
      * Sets the COPILOT_HOME environment variable on the spawned runtime.
+     * In-process hosts also keep their runtime cache in this directory's `cache` subdirectory.
      * When not set, the runtime defaults to ~/.copilot.
      * Ignored when connecting to an existing runtime via {@link RuntimeConnection.forUri}.
      */
@@ -543,6 +562,7 @@ export interface CopilotClientOptions {
 
     /**
      * Environment variables to pass to the runtime process. If not set, inherits process.env.
+     * Unsupported with {@link RuntimeConnection.forInProcess}; use typed client/session options.
      */
     env?: Record<string, string | undefined>;
 

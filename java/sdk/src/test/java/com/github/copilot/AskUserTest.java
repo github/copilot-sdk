@@ -4,6 +4,8 @@
 
 package com.github.copilot;
 
+import org.junit.jupiter.api.Tag;
+
 import static org.junit.jupiter.api.Assertions.*;
 
 import java.util.ArrayList;
@@ -15,7 +17,6 @@ import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 
 import com.github.copilot.rpc.MessageOptions;
-import com.github.copilot.rpc.SessionConfig;
 import com.github.copilot.rpc.PermissionHandler;
 import com.github.copilot.rpc.UserInputRequest;
 import com.github.copilot.rpc.UserInputResponse;
@@ -28,6 +29,7 @@ import com.github.copilot.rpc.UserInputResponse;
  * response replay. Snapshots are stored in test/snapshots/ask_user/.
  * </p>
  */
+@Tag("e2e")
 public class AskUserTest {
 
     private static E2ETestContext ctx;
@@ -57,7 +59,7 @@ public class AskUserTest {
         var userInputRequests = new ArrayList<UserInputRequest>();
         final String[] sessionIdHolder = new String[1];
 
-        var config = new SessionConfig().setOnPermissionRequest(PermissionHandler.APPROVE_ALL)
+        var config = ctx.newSessionConfig().setOnPermissionRequest(PermissionHandler.APPROVE_ALL)
                 .setOnUserInputRequest((request, invocation) -> {
                     userInputRequests.add(request);
                     assertEquals(sessionIdHolder[0], invocation.getSessionId());
@@ -100,7 +102,7 @@ public class AskUserTest {
 
         var userInputRequests = new ArrayList<UserInputRequest>();
 
-        var config = new SessionConfig().setOnPermissionRequest(PermissionHandler.APPROVE_ALL)
+        var config = ctx.newSessionConfig().setOnPermissionRequest(PermissionHandler.APPROVE_ALL)
                 .setOnUserInputRequest((request, invocation) -> {
                     userInputRequests.add(request);
 
@@ -141,7 +143,7 @@ public class AskUserTest {
         final var userInputRequests = new ArrayList<UserInputRequest>();
         String freeformAnswer = "This is my custom freeform answer that was not in the choices";
 
-        var config = new SessionConfig().setOnPermissionRequest(PermissionHandler.APPROVE_ALL)
+        var config = ctx.newSessionConfig().setOnPermissionRequest(PermissionHandler.APPROVE_ALL)
                 .setOnUserInputRequest((request, invocation) -> {
                     userInputRequests.add(request);
 

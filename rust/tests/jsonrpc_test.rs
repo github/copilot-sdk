@@ -277,11 +277,9 @@ async fn error_response_round_trip() {
 /// Cancel-safety regression: dropping a `write()` future after the actor has
 /// committed to writing must NOT produce a partial frame on the wire.
 ///
-/// Strategy: spawn a reader task that waits before draining the wire, so
-/// the actor's `write_all` blocks waiting for room. Race the caller's
-/// future against a sleep; when the sleep wins, the caller's future is
-/// dropped while suspended on `ack_rx.await`. Release the reader and
-/// verify both frames land on the wire intact.
+/// Strategy: read a prefix to acknowledge that writing has begun, then
+/// cancel the caller while the rest of the frame cannot fit in the wire.
+/// Drain the wire and verify both frames land on it intact.
 ///
 /// Closes RFD-400 finding #1: `JsonRpcClient::write` was holding a Tokio
 /// mutex across `write_all` + `flush`, so caller cancellation mid-frame
@@ -292,8 +290,6 @@ async fn error_response_round_trip() {
 async fn write_actor_completes_on_caller_cancel() {
     use std::sync::Arc;
 
-    use tokio::sync::Notify;
-
     let (client_write, mut server_read) = duplex(8);
     let (_server_write, client_read) = duplex(8);
 
@@ -301,12 +297,33 @@ async fn write_actor_completes_on_caller_cancel() {
     let (request_tx, _) = mpsc::unbounded_channel();
     let client = JsonRpcClient::new(client_write, client_read, notification_tx, request_tx);
 
-    // Reader task that waits for `start` before draining; this gives us
-    // a window where the actor's write_all is suspended waiting for room.
-    let start = Arc::new(Notify::new());
-    let start_clone = start.clone();
+    let frame_a = JsonRpcRequest {
+        jsonrpc: "2.0".to_string(),
+        id: 100,
+        method: "first.write".to_string(),
+        params: None,
+    };
+    let frame_b = JsonRpcRequest {
+        jsonrpc: "2.0".to_string(),
+        id: 101,
+        method: "second.write".to_string(),
+        params: None,
+    };
+
+    let mut prefix = [0; 8];
+    {
+        let writing = client.write(&frame_a);
+        tokio::pin!(writing);
+        tokio::select! {
+            _ = &mut writing => panic!("write completed before the wire was drained"),
+            result = server_read.read_exact(&mut prefix) => { result.unwrap(); }
+        }
+        // The entire frame cannot fit in the eight-byte wire even after this
+        // prefix is read, so cancellation is inside a committed, incomplete write.
+    }
+
     let reader_task = tokio::spawn(async move {
-        start_clone.notified().await;
+        let mut server_read = std::io::Cursor::new(prefix).chain(server_read);
         let mut frames = Vec::new();
         for _ in 0..2 {
             let mut header = String::new();
@@ -336,41 +353,13 @@ async fn write_actor_completes_on_caller_cancel() {
         frames
     });
 
-    let frame_a = JsonRpcRequest {
-        jsonrpc: "2.0".to_string(),
-        id: 100,
-        method: "first.write".to_string(),
-        params: None,
-    };
-    let frame_b = JsonRpcRequest {
-        jsonrpc: "2.0".to_string(),
-        id: 101,
-        method: "second.write".to_string(),
-        params: None,
-    };
-
-    // First write: race the future against a sleep. With the reader
-    // gated, the actor's write_all blocks at the 8-byte buffer boundary,
-    // so the future stays suspended on `ack_rx.await`. The sleep wins
-    // after 50ms, dropping the caller's future. The actor still owns the
-    // write and must complete it once the reader drains.
-    tokio::select! {
-        _ = client.write(&frame_a) => panic!("write completed too quickly to test cancellation"),
-        _ = tokio::time::sleep(std::time::Duration::from_millis(50)) => {}
-    }
-
-    // Enqueue the second write before releasing the reader. Both frames
-    // are now in the actor's queue; the actor will drain them in order
-    // once the reader starts pulling bytes.
+    // The actor must finish the cancelled caller's frame before this next one.
     let second_handle = tokio::spawn({
         let frame_b = frame_b.clone();
-        let client_arc = std::sync::Arc::new(client);
+        let client_arc = Arc::new(client);
         let client_clone = client_arc.clone();
         async move { client_clone.write(&frame_b).await }
     });
-
-    // Release the reader so both frames can flow through the actor.
-    start.notify_one();
 
     let frames = reader_task.await.unwrap();
     second_handle.await.unwrap().unwrap();

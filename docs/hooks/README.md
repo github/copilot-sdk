@@ -5,6 +5,7 @@ Detailed API reference for each session hook in the GitHub Copilot SDK.
 * [Hooks overview](./hooks-overview.md): quick start, common patterns, and hook invocation context
 * [Pre-tool use](./pre-tool-use.md): approve, deny, or modify tool calls
 * [Post-tool use](./post-tool-use.md): transform tool results
+* [Pre-MCP tool call](./pre-mcp-tool-call.md): control the `_meta` sent with MCP tool calls
 * [User prompt submitted](./user-prompt-submitted.md): modify or filter user messages
 * [User prompt transformed](./user-prompt-transformed.md): inspect or replace model-facing prompts
 * [Session lifecycle](./session-lifecycle.md): session start and end

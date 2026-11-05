@@ -728,6 +728,8 @@ pub mod rpc_methods {
     /// `session.canvas.provider.unregister`
     pub(crate) const SESSION_CANVAS_PROVIDER_UNREGISTER: &str =
         "session.canvas.provider.unregister";
+    /// `session.canvasSource.close`
+    pub(crate) const SESSION_CANVASSOURCE_CLOSE: &str = "session.canvasSource.close";
     /// `session.workflow.run`
     pub const SESSION_WORKFLOW_RUN: &str = "session.workflow.run";
     /// `session.workflow.resume`
@@ -1279,6 +1281,8 @@ pub mod rpc_methods {
     /// `session.history.cancelBackgroundCompaction`
     pub const SESSION_HISTORY_CANCELBACKGROUNDCOMPACTION: &str =
         "session.history.cancelBackgroundCompaction";
+    /// `session.history.setCompactionConfig`
+    pub const SESSION_HISTORY_SETCOMPACTIONCONFIG: &str = "session.history.setCompactionConfig";
     /// `session.history.abortManualCompaction`
     pub const SESSION_HISTORY_ABORTMANUALCOMPACTION: &str = "session.history.abortManualCompaction";
     /// `session.history.summarizeForHandoff`
@@ -1442,8 +1446,9 @@ pub use sdk_api_shared::{
     AgentInfoSource, ApiKeyAuthInfo, ApiKeyAuthInfoType, AuthIdentity, AuthInfo, AuthInfoType,
     AuthLoginAccount, AuthLoginResultDto, AuthLoginResultStatus, AuthLoginStep,
     AuthLoginStepAwaiting, AuthLoginStepAwaitingKind, AuthLoginStepCompleted,
-    AuthLoginStepCompletedKind, AuthLoginStepError, AuthLoginStepErrorKind,
-    AuthLoginStepInputRequired, AuthLoginStepInputRequiredKind, AuthLoginStepNeedsInteraction,
+    AuthLoginStepCompletedKind, AuthLoginStepDeviceCode, AuthLoginStepDeviceCodeKind,
+    AuthLoginStepError, AuthLoginStepErrorKind, AuthLoginStepInputRequired,
+    AuthLoginStepInputRequiredKind, AuthLoginStepNeedsInteraction,
     AuthLoginStepNeedsInteractionKind, AuthLoginStepOpenUrl, AuthLoginStepOpenUrlKind,
     AuthValidationError, AutoTierBilling, AutoTierBillingPromo, AutoTierDescriptor,
     AutoTierMetadata, AutoTierStatus, AutopilotEvaluateIdleContinuationOutcome,
@@ -2025,10 +2030,10 @@ pub use sdk_api_integrations::{
     CanvasHostContextCapabilities, CanvasList, CanvasListOpenResult, CanvasOpenRequest,
     CanvasOpenResult, CanvasProviderCloseRequest, CanvasProviderInvokeActionRequest,
     CanvasProviderOpenRequest, CanvasProviderOpenResult, CanvasProviderRegisterRequest,
-    CanvasProviderUnregisterRequest, CanvasSessionContext, CardDigest, CardDigestAlgorithm,
-    CatalogHandleRejectedError, CatalogHandleRejectedErrorKind, CatalogHandleRejectionReason,
-    CatalogHandleType, CatalogNotInstallableError, CatalogNotInstallableErrorKind,
-    CatalogNotInstallableReason, CatalogUnavailableTransportError,
+    CanvasProviderUnregisterRequest, CanvasSessionContext, CanvasSourceCloseRequest, CardDigest,
+    CardDigestAlgorithm, CatalogHandleRejectedError, CatalogHandleRejectedErrorKind,
+    CatalogHandleRejectionReason, CatalogHandleType, CatalogNotInstallableError,
+    CatalogNotInstallableErrorKind, CatalogNotInstallableReason, CatalogUnavailableTransportError,
     CatalogUnavailableTransportErrorKind, CatalogUnavailableTransportReason, DiscoveredMcpServer,
     DiscoveredMcpServerType, ExtensionContextPushInput, ExtensionContextPushInputType,
     ExtensionLaunchProfile, ExtensionLaunchProviderResolveRequest,
@@ -2236,9 +2241,9 @@ pub use sdk_api_host::{
     AuthEnumerateValueLoginAccountsKind, AuthEnumerateValueProviders,
     AuthEnumerateValueProvidersKind, AuthLoginAdvanceRequest, AuthLoginBeginOptions,
     AuthLoginBeginRequest, AuthLoginBegun, AuthLoginCancelRequest, AuthLoginIdentity,
-    AuthLoginMode, AuthReadQuery, AuthReadQueryActiveAccount, AuthReadQueryActiveAccountKind,
-    AuthReadQueryLastErrors, AuthReadQueryLastErrorsKind, AuthReadQueryStatus,
-    AuthReadQueryStatusKind, AuthReadValue, AuthReadValueActiveAccount,
+    AuthLoginMethod, AuthLoginMode, AuthReadQuery, AuthReadQueryActiveAccount,
+    AuthReadQueryActiveAccountKind, AuthReadQueryLastErrors, AuthReadQueryLastErrorsKind,
+    AuthReadQueryStatus, AuthReadQueryStatusKind, AuthReadValue, AuthReadValueActiveAccount,
     AuthReadValueActiveAccountKind, AuthReadValueLastErrors, AuthReadValueLastErrorsKind,
     AuthReadValueStatus, AuthReadValueStatusKind, AuthStatusDto, AuthValidationErrors, AuthWrite,
     AuthWriteLogout, AuthWriteLogoutKind, AuthWriteResult, AuthWriteSetCredentials,
@@ -2496,9 +2501,10 @@ pub use sdk_api_services::{
     HistoryCancelBackgroundCompactionResult, HistoryClearContextRequest, HistoryClearContextResult,
     HistoryCompactRequest, HistoryCompactRequestTrigger, HistoryCompactResult,
     HistoryListRewindPointsResult, HistoryPreviewRewindRequest, HistoryPreviewRewindResult,
-    HistoryRewindMode, HistoryRewindRequest, HistoryRewindResult, HistorySummarizeForHandoffResult,
-    HistoryTruncateRequest, HistoryTruncateResult, HookOrigin, HookType, HooksDiscoverOptions,
-    HooksDiscoverRequest, HooksDiscoverResult, HostAuthenticateRequest, HostAuthenticateResult,
+    HistoryRewindMode, HistoryRewindRequest, HistoryRewindResult,
+    HistorySetCompactionConfigRequest, HistorySummarizeForHandoffResult, HistoryTruncateRequest,
+    HistoryTruncateResult, HookOrigin, HookType, HooksDiscoverOptions, HooksDiscoverRequest,
+    HooksDiscoverResult, HostAuthenticateRequest, HostAuthenticateResult,
     HostAuthenticationCancelledNotification, HostAuthenticationResult,
     HostCancelAuthenticationRequest, HostCancelAuthenticationResult, HostConfiguration,
     HostCreateSessionResult, HostDiagnostics, HostDisposeRequest, HostDisposeResult,

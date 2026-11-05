@@ -9,13 +9,10 @@ import (
 )
 
 func TestPerSessionAuthE2E(t *testing.T) {
+	t.Parallel()
 	ctx := testharness.NewTestContext(t)
 
-	// Create client with COPILOT_DEBUG_GITHUB_API_URL redirected to the proxy
-	// so per-session auth token resolution (fetchCopilotUser) is intercepted.
-	client := ctx.NewClient(func(opts *copilot.ClientOptions) {
-		opts.Env = append(opts.Env, "COPILOT_DEBUG_GITHUB_API_URL="+ctx.ProxyURL)
-	})
+	client := ctx.NewClient()
 	t.Cleanup(func() { client.ForceStop() })
 	// Register per-token user configs on the proxy
 	if err := ctx.SetCopilotUserByToken("token-alice", map[string]interface{}{

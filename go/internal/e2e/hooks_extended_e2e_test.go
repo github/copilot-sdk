@@ -21,6 +21,7 @@ import (
 // additionalContext / errorHandling / modifiedArgs / modifiedResult /
 // sessionSummary) is asserted alongside hook invocation.
 func TestHooksExtendedE2E(t *testing.T) {
+	t.Parallel()
 	ctx := testharness.NewTestContext(t)
 	client := ctx.NewClient()
 	t.Cleanup(func() { client.ForceStop() })

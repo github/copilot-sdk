@@ -27,7 +27,7 @@ import javax.annotation.processing.Generated;
 public record SessionPluginsDisableParams(
     /** Target session identifier */
     @JsonProperty("sessionId") String sessionId,
-    /** Plugin names or "plugin@marketplace" specs to disable. Unknown names are ignored. Non-marketplace direct installs cannot be disabled via this API; uninstall them instead. Plugin-owned MCP servers are stopped in active sessions immediately; other plugin contributions remain available until each session reloads plugins. */
+    /** Plugin names, "plugin@marketplace" specs, or opaque directSourceId values from inventory to disable. Use directSourceId to distinguish same-named direct installations. This persists user-level enablement, not a session-only override. Unknown targets and session-only plugin-directory mounts are ignored. Plugin-owned MCP servers are stopped in active sessions immediately; other plugin contributions remain available until each session reloads plugins. */
     @JsonProperty("names") List<String> names
 ) {
 }

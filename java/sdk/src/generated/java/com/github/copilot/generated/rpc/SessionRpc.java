@@ -43,6 +43,8 @@ public final class SessionRpc {
     public final SessionDebugApi debug;
     /** API methods for the {@code canvas} namespace. */
     public final SessionCanvasApi canvas;
+    /** API methods for the {@code canvasSource} namespace. */
+    final SessionCanvasSourceApi canvasSource;
     /** API methods for the {@code workflow} namespace. */
     public final SessionWorkflowApi workflow;
     /** API methods for the {@code model} namespace. */
@@ -146,6 +148,7 @@ public final class SessionRpc {
         this.accounts = new SessionAccountsApi(caller, sessionId);
         this.debug = new SessionDebugApi(caller, sessionId);
         this.canvas = new SessionCanvasApi(caller, sessionId);
+        this.canvasSource = new SessionCanvasSourceApi(caller, sessionId);
         this.workflow = new SessionWorkflowApi(caller, sessionId);
         this.model = new SessionModelApi(caller, sessionId);
         this.mode = new SessionModeApi(caller, sessionId);

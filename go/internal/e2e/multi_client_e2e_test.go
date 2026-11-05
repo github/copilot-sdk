@@ -15,6 +15,7 @@ import (
 )
 
 func TestMultiClientE2E(t *testing.T) {
+	t.Parallel()
 	// Use TCP mode so a second client can connect to the same CLI process
 	ctx := testharness.NewTestContext(t)
 	client1 := ctx.NewClient(func(opts *copilot.ClientOptions) {

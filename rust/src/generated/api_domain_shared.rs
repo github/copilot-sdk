@@ -651,6 +651,9 @@ pub struct AgentInfo {
     /// Absolute local file path of the agent definition. Only set for file-based agents loaded from disk; remote agents do not have a path.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub path: Option<String>,
+    /// Opaque identity of the plugin owning this agent. Matches plugins.list().plugins[].id on the same runtime host. Compare the complete value without parsing it. Omitted for non-plugin agents.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub plugin_id: Option<String>,
     /// Authored base prompt for the agent. Runtime prompt assembly may add dynamic context at invocation time. Omitted from `session.agent.list` unless `includePrompt` is true.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub prompt: Option<String>,
@@ -845,6 +848,28 @@ pub struct AuthLoginStepError {
     pub kind: AuthLoginStepErrorKind,
     /// Human-readable failure message.
     pub message: String,
+}
+
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct AuthLoginStepDeviceCode {
+    /// Seconds until the one-time code expires, measured from when this step was produced. Consumers can show a countdown or pick their own timeout instead of blocking until the provider rejects the code.
+    pub expires_in: i64,
+    /// Minimum seconds between authorization polls required by the provider. The runtime performs the polling itself for the duration of the single `advance` call, so this is informational (for example to drive a progress indicator); repeating `advance` is rejected as already advancing.
+    pub interval: i64,
+    /// Login flow step variant discriminator.
+    pub kind: AuthLoginStepDeviceCodeKind,
+    /// One-time code the user enters at the verification URI.
+    pub user_code: String,
+    /// Page where the user enters the one-time code (consumer-driven browser-open).
+    pub verification_uri: String,
 }
 
 /// Validation error from an authentication attempt.
@@ -2260,6 +2285,9 @@ pub struct DiagnosticSourcesConfiguration {
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct DiscoveredExtensionPlugin {
+    /// Opaque identity of the owning plugin. Matches plugins.list().plugins[].id on the same runtime host. Compare the complete value without parsing it. May be absent on older runtimes.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub id: Option<String>,
     /// Installed plugin name
     pub name: String,
 }
@@ -2758,6 +2786,9 @@ pub struct InstalledPluginInfo {
     /// HTTPS URL of the plugin's icon on raw.githubusercontent.com, retained from the catalogue entry it was installed from. Untrusted external content: load it without credentials. Present only for a direct install pinned to one GitHub commit whose catalogue entry had an icon.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub icon_url: Option<String>,
+    /// Opaque plugin identity in this runtime's inventory. Matches MCP effectiveSource.plugin.id for the same plugin. Stable across enablement changes, updates and restarts while the installation source is unchanged; not a cross-host identifier or a mutation argument. Compare the complete value without parsing it. May be absent on older runtimes.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub id: Option<String>,
     /// Whether the managed desired plugin currently has an installed or live record. Set to false for a managed desired entry retained in the listing after installation or reconciliation failed.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub installed: Option<bool>,
@@ -2774,6 +2805,9 @@ pub struct InstalledPluginInfo {
     pub marketplace: String,
     /// Plugin name
     pub name: String,
+    /// Absolute local directory containing this plugin's installed content, including disabled installations. Absent when the runtime has no resolved content directory. This is the plugin root, not its marketplace directory; clients must not forward it back as an additional plugin.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub root_path: Option<String>,
     /// Runtime-reported plugin provenance. Currently set to "builtin" only for plugins registered through the trusted host built-in boundary; absent for installed, marketplace, direct, and live plugins.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub source: Option<String>,
@@ -2813,6 +2847,9 @@ pub struct InstructionSource {
     pub label: String,
     /// Where this source lives — used for UI grouping
     pub location: InstructionSourceLocation,
+    /// Opaque identity of the plugin owning this instruction source. Matches plugins.list().plugins[].id on the same runtime host. Compare the complete value without parsing it. Omitted for non-plugin sources.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub plugin_id: Option<String>,
     /// The project path this source was discovered from. Only set by sessionless discovery for repository, working-directory, and project-scoped plugin sources, where it disambiguates sources across multiple workspace roots. The session-scoped getSources leaves it unset.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub project_path: Option<String>,
@@ -4302,6 +4339,9 @@ pub struct Plugin {
     pub direct_source_id: Option<String>,
     /// Whether the plugin is currently enabled
     pub enabled: bool,
+    /// Opaque plugin identity in this runtime's inventory. Matches global inventory id and MCP effectiveSource.plugin.id for the same plugin. Stable across enablement changes, updates and restarts while the source is unchanged. Session-only plugin identities are scoped to their session; not a cross-host identifier or a mutation argument. Compare the complete value without parsing it. May be absent on older runtimes.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub id: Option<String>,
     /// Whether this managed desired plugin has an installed or live record.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub installed: Option<bool>,
@@ -4318,6 +4358,9 @@ pub struct Plugin {
     pub marketplace: String,
     /// Plugin name
     pub name: String,
+    /// Absolute local directory containing this plugin's resolved content, including disabled installations. Absent when no content directory is resolved. This is the plugin root, not its marketplace directory; clients must not forward it back as an additional plugin.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub root_path: Option<String>,
     /// Runtime plugin provenance, such as "builtin".
     #[serde(skip_serializing_if = "Option::is_none")]
     pub source: Option<String>,
@@ -4773,6 +4816,9 @@ pub struct ServerSkill {
     /// Absolute path to the skill file
     #[serde(skip_serializing_if = "Option::is_none")]
     pub path: Option<String>,
+    /// Opaque identity of the plugin owning this skill. Matches plugins.list().plugins[].id on the same runtime host. Compare the complete value without parsing it. Omitted for non-plugin skills.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub plugin_id: Option<String>,
     /// The project path this skill belongs to (only for project/inherited skills)
     #[serde(skip_serializing_if = "Option::is_none")]
     pub project_path: Option<String>,
@@ -4913,6 +4959,9 @@ pub struct Skill {
     /// Absolute path to the skill file
     #[serde(skip_serializing_if = "Option::is_none")]
     pub path: Option<String>,
+    /// Opaque identity of the plugin owning this skill. Matches plugins.list().plugins[].id on the same runtime host. Compare the complete value without parsing it. Omitted for non-plugin skills.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub plugin_id: Option<String>,
     /// Name of the plugin that provides the skill, when source is 'plugin'
     #[serde(skip_serializing_if = "Option::is_none")]
     pub plugin_name: Option<String>,
@@ -5678,7 +5727,7 @@ pub enum AccountKind {
 /// </div>
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
 pub enum LoginProviderKind {
-    /// OAuth github.com sign-in via the browser (web loopback + PKCE).
+    /// OAuth github.com sign-in, in the browser (web loopback + PKCE) or by device code — see the login method.
     #[serde(rename = "githubDotCom")]
     GitHubDotCom,
     /// A GitHub Enterprise Cloud account — a GitHub account on a non-github.com host, e.g. *.ghe.com; the host is supplied interactively through the neutral input-required step.
@@ -5831,7 +5880,15 @@ pub enum AuthLoginStepErrorKind {
     Error,
 }
 
-/// One step in an interactive login flow. The consumer acts on the step and calls advance to proceed. Browser-open is encoded as two distinct steps by design: `open-url` is CONSUMER-driven (the provider surfaces the authorize URL and the consumer opens it — github.com/GHEC web), while `needs-interaction` is PROVIDER-driven (the provider opens the browser or broker UI itself and does not surface a URL — Entra).
+/// Login flow step variant discriminator.
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub enum AuthLoginStepDeviceCodeKind {
+    #[serde(rename = "device-code")]
+    #[default]
+    DeviceCode,
+}
+
+/// One step in an interactive login flow. The consumer acts on the step and calls advance to proceed. Browser-open is encoded as two distinct steps by design: `open-url` is CONSUMER-driven (the provider surfaces the authorize URL and the consumer opens it — github.com/GHEC web), while `needs-interaction` is PROVIDER-driven (the provider opens the browser or broker UI itself and does not surface a URL — Entra). A device-code flow surfaces its one-time code as `device-code`; the consumer shows the code, may open the verification URI, and calls advance, which resolves once the user has authorized the device.
 ///
 /// <div class="warning">
 ///
@@ -5848,6 +5905,7 @@ pub enum AuthLoginStep {
     NeedsInteraction(AuthLoginStepNeedsInteraction),
     Completed(AuthLoginStepCompleted),
     Error(AuthLoginStepError),
+    DeviceCode(AuthLoginStepDeviceCode),
 }
 
 /// Outcome of applying the session-idle Autopilot continuation policy.

@@ -209,7 +209,7 @@ pub enum Transport {
     /// Loads the native runtime library and speaks JSON-RPC over its C ABI.
     /// This is **experimental**. Per-client [`ClientOptions::program`],
     /// [`ClientOptions::extra_args`], [`ClientOptions::working_directory`],
-    /// [`ClientOptions::env`]/[`ClientOptions::env_remove`],
+    /// [`ClientOptions::env`], [`ClientOptions::env_remove`],
     /// and [`ClientOptions::telemetry`] are not supported because native
     /// runtime code shares the host process. Typed runtime options such as
     /// authentication, log level, and [`ClientOptions::base_directory`] remain
@@ -318,6 +318,49 @@ pub fn install_bundled_runtime() -> Option<PathBuf> {
     }
 }
 
+/// Unsupported SDK test infrastructure configuration.
+/// Unset values inherit startup configuration; empty strings clear overrides.
+#[derive(Clone, Default)]
+#[doc(hidden)]
+pub struct InternalTestOptions {
+    /// Replay endpoint for Copilot API requests.
+    pub copilot_api_url: Option<String>,
+    /// Replay endpoint for GitHub API requests, including startup authentication.
+    pub github_api_url: Option<String>,
+    /// HTTP/HTTPS interception proxy for the runtime and its subprocesses.
+    pub proxy_url: Option<String>,
+    /// Comma-separated destinations that bypass the interception proxy.
+    pub no_proxy: Option<String>,
+    /// PEM CA-bundle path trusted by the runtime and its subprocesses.
+    pub ca_certificate_path: Option<String>,
+}
+
+#[cfg(feature = "runtime")]
+impl InternalTestOptions {
+    fn environment(&self) -> impl Iterator<Item = (&'static str, &str)> {
+        [
+            ("COPILOT_API_URL", self.copilot_api_url.as_deref()),
+            (
+                "COPILOT_DEBUG_GITHUB_API_URL",
+                self.github_api_url.as_deref(),
+            ),
+            ("HTTP_PROXY", self.proxy_url.as_deref()),
+            ("HTTPS_PROXY", self.proxy_url.as_deref()),
+            ("http_proxy", self.proxy_url.as_deref()),
+            ("https_proxy", self.proxy_url.as_deref()),
+            ("NO_PROXY", self.no_proxy.as_deref()),
+            ("no_proxy", self.no_proxy.as_deref()),
+            ("NODE_EXTRA_CA_CERTS", self.ca_certificate_path.as_deref()),
+            ("SSL_CERT_FILE", self.ca_certificate_path.as_deref()),
+            ("REQUESTS_CA_BUNDLE", self.ca_certificate_path.as_deref()),
+            ("CURL_CA_BUNDLE", self.ca_certificate_path.as_deref()),
+            ("GIT_SSL_CAINFO", self.ca_certificate_path.as_deref()),
+        ]
+        .into_iter()
+        .filter_map(|(key, value)| value.map(|value| (key, value)))
+    }
+}
+
 /// Options for starting a [`Client`].
 ///
 /// When `program` is [`CliProgram::Resolve`] (the default), [`Client::start`]
@@ -331,6 +374,10 @@ pub fn install_bundled_runtime() -> Option<PathBuf> {
 /// This skips auto-resolution entirely.
 #[non_exhaustive]
 pub struct ClientOptions {
+    /// Unsupported SDK test infrastructure configuration for an owned runtime.
+    /// Supplied values override startup configuration without changing the host environment.
+    #[doc(hidden)]
+    pub internal_test_options: Option<InternalTestOptions>,
     /// How to locate the child-process runtime.
     pub program: CliProgram,
     /// Arguments prepended before `--server` (e.g. the script path for node).
@@ -339,7 +386,9 @@ pub struct ClientOptions {
     ///
     /// Setting this option is not supported with [`Transport::InProcess`].
     pub working_directory: PathBuf,
-    /// Environment variables set on the child process.
+    /// Environment variables for the child process.
+    ///
+    /// Nonempty values are unsupported with [`Transport::InProcess`].
     pub env: Vec<(OsString, OsString)>,
     /// Environment variable names to remove from the child process.
     pub env_remove: Vec<OsString>,
@@ -462,6 +511,7 @@ pub struct ClientOptions {
     /// auth, telemetry buffers). When set, exported as `COPILOT_HOME` to
     /// the spawned CLI process. Useful for sandboxing test runs or
     /// running multiple isolated SDK instances side-by-side.
+    /// In-process hosts also keep their runtime cache in its `cache` subdirectory.
     pub base_directory: Option<PathBuf>,
     /// Existing in-process runtime server to attach to without taking ownership.
     ///
@@ -924,6 +974,7 @@ impl TelemetryConfig {
 impl Default for ClientOptions {
     fn default() -> Self {
         Self {
+            internal_test_options: None,
             program: CliProgram::Resolve,
             prefix_args: Vec::new(),
             working_directory: PathBuf::new(),
@@ -960,6 +1011,13 @@ impl Default for ClientOptions {
 }
 
 impl ClientOptions {
+    /// Configure unsupported SDK test infrastructure overrides.
+    #[doc(hidden)]
+    pub fn with_internal_test_options(mut self, options: InternalTestOptions) -> Self {
+        self.internal_test_options = Some(options);
+        self
+    }
+
     /// Construct a new [`ClientOptions`] with default values.
     ///
     /// Equivalent to [`ClientOptions::default`]; provided as a documented
@@ -1335,6 +1393,10 @@ fn inprocess_environment(options: &ClientOptions) -> Result<Vec<(String, String)
             )
         })?;
         environment.push(("COPILOT_HOME".to_owned(), value.to_owned()));
+        environment.push((
+            "COPILOT_CACHE_HOME".to_owned(),
+            base_directory.join("cache").to_string_lossy().into_owned(),
+        ));
     }
     if options.mode == ClientMode::Empty {
         environment.push(("COPILOT_DISABLE_KEYTAR".to_owned(), "1".to_owned()));
@@ -1344,6 +1406,13 @@ fn inprocess_environment(options: &ClientOptions) -> Result<Vec<(String, String)
     }
     if options.disable_client_telemetry {
         environment.push(("COPILOT_TELEMETRY_DISABLED".to_owned(), "true".to_owned()));
+    }
+    if let Some(test_options) = &options.internal_test_options {
+        environment.extend(
+            test_options
+                .environment()
+                .map(|(key, value)| (key.to_owned(), value.to_owned())),
+        );
     }
     // The embedded host captures inheritance and normalizes platform-specific environment names.
     Ok(environment)
@@ -1366,9 +1435,15 @@ fn validate_inprocess_options(options: &ClientOptions) -> Result<()> {
         ));
     }
 
-    let unsupported = if !options.working_directory.as_os_str().is_empty() {
-        Some("working_directory")
-    } else if !options.env.is_empty() {
+    if !options.working_directory.as_os_str().is_empty() {
+        return Err(Error::with_message(
+            ErrorKind::InvalidConfig,
+            "ClientOptions::working_directory is not supported with Transport::InProcess; \
+             set SessionConfig::working_directory instead",
+        ));
+    }
+
+    let unsupported = if !options.env.is_empty() {
         Some("env")
     } else if !options.env_remove.is_empty() {
         Some("env_remove")
@@ -1410,6 +1485,30 @@ impl std::fmt::Debug for Client {
             .field("working_directory", &self.inner.cwd)
             .field("pid", &self.pid())
             .finish()
+    }
+}
+
+/// A spawn failure with the context that names what was being started. The
+/// original `io::Error` is its source, so callers can still inspect the OS
+/// error code and any nested source.
+#[cfg(feature = "runtime")]
+#[derive(Debug)]
+struct SpawnError {
+    context: String,
+    source: std::io::Error,
+}
+
+#[cfg(feature = "runtime")]
+impl std::fmt::Display for SpawnError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}: {}", self.context, self.source)
+    }
+}
+
+#[cfg(feature = "runtime")]
+impl std::error::Error for SpawnError {
+    fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
+        Some(&self.source)
     }
 }
 
@@ -1595,6 +1694,12 @@ impl Client {
         // Auth options only make sense when the SDK spawns the CLI; with an
         // external server, the server manages its own auth.
         if matches!(options.transport, Transport::External { .. }) {
+            if options.internal_test_options.is_some() {
+                return Err(Error::with_message(
+                    ErrorKind::InvalidConfig,
+                    "internal_test_options requires a runtime owned by this client",
+                ));
+            }
             if options.github_token.is_some() {
                 return Err(Error::with_message(
                     ErrorKind::InvalidConfig,
@@ -2627,6 +2732,9 @@ impl Client {
         for key in &options.env_remove {
             command.env_remove(key);
         }
+        if let Some(test_options) = &options.internal_test_options {
+            command.envs(test_options.environment());
+        }
         if options.disable_client_telemetry {
             command.env("COPILOT_TELEMETRY_DISABLED", "true");
         }
@@ -2694,6 +2802,42 @@ impl Client {
         }
     }
 
+    /// Spawns the CLI. On Unix a missing working directory fails the spawn
+    /// with the same error as a missing program, so the error names the one
+    /// at fault. The original `io::Error` stays in the source chain.
+    #[cfg(feature = "runtime")]
+    fn spawn_cli(
+        command: &mut Command,
+        program: &Path,
+        working_directory: &Path,
+    ) -> Result<(Child, Option<process_tree::ProcessTree>)> {
+        process_tree::spawn(command).map_err(|source| {
+            // Only claim the directory is at fault when it is known to be
+            // missing or not a directory; any other failure to inspect it
+            // (for example `PermissionDenied`) says nothing about the spawn.
+            let working_directory_unusable = match std::fs::metadata(working_directory) {
+                Ok(metadata) => !metadata.is_dir(),
+                Err(error) => matches!(
+                    error.kind(),
+                    std::io::ErrorKind::NotFound | std::io::ErrorKind::NotADirectory
+                ),
+            };
+            let context = if working_directory_unusable {
+                format!(
+                    "working directory {} does not exist or is not a directory",
+                    working_directory.display()
+                )
+            } else {
+                format!(
+                    "failed to start {} in {}",
+                    program.display(),
+                    working_directory.display()
+                )
+            };
+            Error::new(ErrorKind::Io, SpawnError { context, source })
+        })
+    }
+
     #[cfg(feature = "runtime")]
     fn spawn_stdio(
         program: &Path,
@@ -2711,7 +2855,7 @@ impl Client {
             .args(&options.extra_args)
             .stdin(Stdio::piped());
         let spawn_start = Instant::now();
-        let (child, tree) = process_tree::spawn(&mut command)?;
+        let (child, tree) = Self::spawn_cli(&mut command, program, working_directory)?;
         let spawn_elapsed = spawn_start.elapsed();
         debug!(
             elapsed_ms = spawn_elapsed.as_millis(),
@@ -2744,7 +2888,7 @@ impl Client {
             .args(&options.extra_args)
             .stdin(Stdio::null());
         let spawn_start = Instant::now();
-        let (mut child, tree) = process_tree::spawn(&mut command)?;
+        let (mut child, tree) = Self::spawn_cli(&mut command, program, working_directory)?;
         let spawn_elapsed = spawn_start.elapsed();
         debug!(
             elapsed_ms = spawn_elapsed.as_millis(),

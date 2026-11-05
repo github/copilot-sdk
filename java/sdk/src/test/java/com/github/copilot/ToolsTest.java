@@ -4,6 +4,8 @@
 
 package com.github.copilot;
 
+import org.junit.jupiter.api.Tag;
+
 import static org.junit.jupiter.api.Assertions.*;
 
 import java.nio.file.Files;
@@ -26,7 +28,6 @@ import com.github.copilot.rpc.PermissionHandler;
 import com.github.copilot.rpc.PermissionRequest;
 import com.github.copilot.rpc.PermissionRequestResult;
 import com.github.copilot.rpc.PermissionRequestResultKind;
-import com.github.copilot.rpc.SessionConfig;
 import com.github.copilot.rpc.ToolDefinition;
 
 /**
@@ -37,6 +38,7 @@ import com.github.copilot.rpc.ToolDefinition;
  * response replay. Snapshots are stored in test/snapshots/tools/.
  * </p>
  */
+@Tag("e2e")
 public class ToolsTest {
 
     private static E2ETestContext ctx;
@@ -68,7 +70,7 @@ public class ToolsTest {
 
         try (CopilotClient client = ctx.createClient()) {
             CopilotSession session = client
-                    .createSession(new SessionConfig().setOnPermissionRequest(PermissionHandler.APPROVE_ALL)).get();
+                    .createSession(ctx.newSessionConfig().setOnPermissionRequest(PermissionHandler.APPROVE_ALL)).get();
 
             AssistantMessageEvent response = session
                     .sendAndWait(
@@ -111,7 +113,7 @@ public class ToolsTest {
                 });
 
         try (CopilotClient client = ctx.createClient()) {
-            CopilotSession session = client.createSession(new SessionConfig().setTools(List.of(encryptTool))
+            CopilotSession session = client.createSession(ctx.newSessionConfig().setTools(List.of(encryptTool))
                     .setOnPermissionRequest(PermissionHandler.APPROVE_ALL)).get();
 
             AssistantMessageEvent response = session
@@ -148,7 +150,7 @@ public class ToolsTest {
                 });
 
         try (CopilotClient client = ctx.createClient()) {
-            CopilotSession session = client.createSession(new SessionConfig().setTools(List.of(errorTool))
+            CopilotSession session = client.createSession(ctx.newSessionConfig().setTools(List.of(errorTool))
                     .setOnPermissionRequest(PermissionHandler.APPROVE_ALL)).get();
 
             AssistantMessageEvent response = session
@@ -210,7 +212,7 @@ public class ToolsTest {
                 });
 
         try (CopilotClient client = ctx.createClient()) {
-            CopilotSession session = client.createSession(new SessionConfig().setTools(List.of(dbQueryTool))
+            CopilotSession session = client.createSession(ctx.newSessionConfig().setTools(List.of(dbQueryTool))
                     .setOnPermissionRequest(PermissionHandler.APPROVE_ALL)).get();
 
             AssistantMessageEvent response = session
@@ -255,8 +257,8 @@ public class ToolsTest {
                 });
 
         try (CopilotClient client = ctx.createClient()) {
-            CopilotSession session = client.createSession(
-                    new SessionConfig().setTools(List.of(encryptTool)).setOnPermissionRequest((request, invocation) -> {
+            CopilotSession session = client.createSession(ctx.newSessionConfig().setTools(List.of(encryptTool))
+                    .setOnPermissionRequest((request, invocation) -> {
                         permissionRequests.add(request);
                         return PermissionHandler.APPROVE_ALL.handle(request, invocation);
                     })).get();
@@ -306,7 +308,7 @@ public class ToolsTest {
 
         try (CopilotClient client = ctx.createClient()) {
             CopilotSession session = client
-                    .createSession(new SessionConfig().setTools(List.of(encryptTool))
+                    .createSession(ctx.newSessionConfig().setTools(List.of(encryptTool))
                             .setOnPermissionRequest((request, invocation) -> CompletableFuture.completedFuture(
                                     new PermissionRequestResult().setKind(PermissionRequestResultKind.REJECTED))))
                     .get();
@@ -346,7 +348,7 @@ public class ToolsTest {
                 });
 
         try (CopilotClient client = ctx.createClient()) {
-            CopilotSession session = client.createSession(new SessionConfig().setTools(List.of(customGrep))
+            CopilotSession session = client.createSession(ctx.newSessionConfig().setTools(List.of(customGrep))
                     .setOnPermissionRequest(PermissionHandler.APPROVE_ALL)).get();
 
             AssistantMessageEvent response = session
@@ -396,7 +398,7 @@ public class ToolsTest {
                 });
 
         try (CopilotClient client = ctx.createClient()) {
-            CopilotSession session = client.createSession(new SessionConfig()
+            CopilotSession session = client.createSession(ctx.newSessionConfig()
                     .setTools(List.of(lookupCity, lookupCountry)).setOnPermissionRequest(PermissionHandler.APPROVE_ALL))
                     .get();
 
@@ -446,7 +448,7 @@ public class ToolsTest {
                 });
 
         try (CopilotClient client = ctx.createClient()) {
-            CopilotSession session = client.createSession(new SessionConfig()
+            CopilotSession session = client.createSession(ctx.newSessionConfig()
                     .setTools(List.of(allowedTool, excludedTool))
                     .setAvailableTools(List.of("allowed_tool", "excluded_tool"))
                     .setExcludedTools(List.of("excluded_tool")).setOnPermissionRequest(PermissionHandler.APPROVE_ALL))

@@ -16,6 +16,7 @@ registered SDK callbacks, see [Repository hooks from additional directories](../
 | Hook | Trigger | Use Case |
 |------|---------|----------|
 | [`onPreToolUse`](./pre-tool-use.md) | Before a tool executes | Permission control, argument validation |
+| [`onPreMcpToolCall`](./pre-mcp-tool-call.md) | Before an MCP tool call is sent | Attach or remove MCP request metadata |
 | [`onPostToolUse`](./post-tool-use.md) | After a tool executes (success only) | Result transformation, logging |
 | [`onPostToolUseFailure`](./post-tool-use.md#failure-variant) | After a tool execution whose result was a failure | Inject retry guidance, log failures |
 | [`onUserPromptSubmitted`](./user-prompt-submitted.md) | When user sends a message | Prompt modification, filtering |
@@ -24,6 +25,8 @@ registered SDK callbacks, see [Repository hooks from additional directories](../
 | [`onSessionEnd`](./session-lifecycle.md#session-end-hook) | Session ends | Cleanup, analytics |
 | [`onErrorOccurred`](./error-handling.md) | Error happens | Custom error handling |
 | [`onAgentStop`](./session-lifecycle.md#agent-stop-hook) | Top-level agent naturally stops | Validate completion or request another turn |
+| [`onSubagentStart`](../features/fleet-mode.md#lifecycle-hooks) | Before a sub-agent's first turn | Prepend context to its prompt |
+| [`onSubagentStop`](../features/fleet-mode.md#lifecycle-hooks) | After a sub-agent completes a turn | Request another turn or replace its response |
 
 ## Hook metadata
 

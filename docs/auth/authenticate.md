@@ -223,6 +223,20 @@ await client.start()
 <details>
 <summary><strong>Rust</strong></summary>
 
+<!-- docs-validate: hidden -->
+```rust
+let user_access_token = String::new();
+
+use github_copilot_sdk::{Client, ClientOptions};
+
+let client = Client::start(
+    ClientOptions::default()
+        .with_github_token(user_access_token)
+        .with_use_logged_in_user(false),
+).await?;
+```
+<!-- /docs-validate: hidden -->
+
 ```rust
 use github_copilot_sdk::{Client, ClientOptions};
 

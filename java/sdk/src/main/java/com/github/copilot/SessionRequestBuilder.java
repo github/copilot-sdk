@@ -152,6 +152,9 @@ final class SessionRequestBuilder {
         request.setRequestPermission(true);
         // Always send envValueMode=direct for MCP servers
         request.setEnvValueMode("direct");
+        // Always send "excluded" precedence so caller-supplied excludedTools
+        // win over any built-in availableTools defaults the runtime applies.
+        request.setToolFilterPrecedence("excluded");
         request.setSessionId(sessionId);
         if (config == null) {
             request.setCustomAgentsLocalOnly(resolveCustomAgentsLocalOnly(null, mode));
@@ -305,6 +308,9 @@ final class SessionRequestBuilder {
         request.setRequestPermission(true);
         // Always send envValueMode=direct for MCP servers
         request.setEnvValueMode("direct");
+        // Always send "excluded" precedence so caller-supplied excludedTools
+        // win over any built-in availableTools defaults the runtime applies.
+        request.setToolFilterPrecedence("excluded");
 
         if (config == null) {
             request.setCustomAgentsLocalOnly(resolveCustomAgentsLocalOnly(null, mode));

@@ -803,38 +803,6 @@ tokio::spawn(async move {
 <details>
 <summary><strong>.NET</strong></summary>
 
-<!-- docs-validate: hidden -->
-```csharp
-using GitHub.Copilot;
-
-public static class EventSubscriptionExample
-{
-    public static void Example(CopilotSession session)
-    {
-        // Subscribe to all events
-        var unsubscribe = session.On<SessionEvent>(ev => Console.WriteLine($"Event: {ev.Type}"));
-
-        // Filter by event type using pattern matching
-        session.On<SessionEvent>(ev =>
-        {
-            switch (ev)
-            {
-                case SessionIdleEvent:
-                    Console.WriteLine("Session is idle");
-                    break;
-                case AssistantMessageEvent msg:
-                    Console.WriteLine($"Message: {msg.Data.Content}");
-                    break;
-            }
-        });
-
-        // Later, to unsubscribe:
-        unsubscribe.Dispose();
-    }
-}
-```
-<!-- /docs-validate: hidden -->
-
 ```csharp
 // Subscribe to all events
 var unsubscribe = session.On<SessionEvent>(ev => Console.WriteLine($"Event: {ev.Type}"));
@@ -2183,18 +2151,6 @@ Pass a `telemetry` (or `Telemetry`) config when creating the client. This is the
 <summary><strong>Node.js / TypeScript</strong></summary>
 
 <!-- docs-validate: strict -->
-<!-- docs-validate: hidden -->
-```typescript
-import { CopilotClient as SdkClient } from "@github/copilot-sdk";
-
-new SdkClient({
-  telemetry: {
-    otlpEndpoint: "http://localhost:4318",
-  },
-});
-```
-<!-- /docs-validate: hidden -->
-
 ```typescript
 import { CopilotClient } from "@github/copilot-sdk";
 
@@ -2263,7 +2219,6 @@ Dependency: `go.opentelemetry.io/otel`
 <details>
 <summary><strong>Rust</strong></summary>
 
-<!-- docs-validate: skip -->
 ```rust
 use github_copilot_sdk::{Client, ClientOptions, OtelExporterType, TelemetryConfig};
 
@@ -2331,20 +2286,9 @@ The OTLP protocol field configures the CLI's `"otlp-http"` exporter for all sign
 To write traces to a local file instead of an OTLP endpoint:
 
 <!-- docs-validate: strict -->
-<!-- docs-validate: hidden -->
 ```typescript
-import { CopilotClient as SdkClient } from "@github/copilot-sdk";
+import { CopilotClient } from "@github/copilot-sdk";
 
-new SdkClient({
-  telemetry: {
-    filePath: "./traces.jsonl",
-    exporterType: "file",
-  },
-});
-```
-<!-- /docs-validate: hidden -->
-
-```typescript
 const client = new CopilotClient({
   telemetry: {
     filePath: "./traces.jsonl",

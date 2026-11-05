@@ -213,7 +213,7 @@ internal sealed partial class FfiRuntimeHost : IDisposable
 
     private static byte[]? BuildEnvJson(IReadOnlyDictionary<string, string>? environment)
     {
-        if (environment is null || environment.Count == 0)
+        if (environment is null)
         {
             return null;
         }

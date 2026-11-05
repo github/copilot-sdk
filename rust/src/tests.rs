@@ -396,6 +396,17 @@ fn inprocess_rejects_process_scoped_options() {
 }
 
 #[test]
+fn inprocess_working_directory_rejection_recommends_session_config() {
+    let error = validate_inprocess_options(&ClientOptions::new().with_cwd(".")).unwrap_err();
+    assert!(
+        error
+            .to_string()
+            .contains("set SessionConfig::working_directory instead"),
+        "{error}"
+    );
+}
+
+#[test]
 fn inprocess_captures_the_client_telemetry_option_without_changing_other_settings() {
     for disabled in [false, true] {
         let options = ClientOptions::new()
@@ -423,7 +434,16 @@ fn inprocess_sends_only_typed_overrides() {
     let environment = inprocess_environment(&options).unwrap();
     assert_eq!(
         environment,
-        vec![("COPILOT_HOME".to_owned(), "isolated-state".to_owned())]
+        vec![
+            ("COPILOT_HOME".to_owned(), "isolated-state".to_owned()),
+            (
+                "COPILOT_CACHE_HOME".to_owned(),
+                Path::new("isolated-state")
+                    .join("cache")
+                    .to_string_lossy()
+                    .into_owned(),
+            ),
+        ]
     );
     assert!(
         inprocess_environment(&ClientOptions::new())
@@ -442,6 +462,103 @@ fn build_command_honors_the_client_telemetry_option_over_an_environment_override
         env_value(&command, "COPILOT_TELEMETRY_DISABLED"),
         Some(std::ffi::OsStr::new("true"))
     );
+}
+
+/// The original `io::Error` of a failed spawn, found by walking the source chain.
+fn spawn_os_error(error: &Error) -> Option<&std::io::Error> {
+    let mut source = std::error::Error::source(error);
+    while let Some(current) = source {
+        if let Some(os_error) = current.downcast_ref::<std::io::Error>() {
+            return Some(os_error);
+        }
+        source = std::error::Error::source(current);
+    }
+    None
+}
+
+async fn spawn_error(program: PathBuf, working_directory: &Path, tcp: bool) -> Error {
+    let transport = if tcp {
+        Transport::Tcp {
+            port: 0,
+            connection_token: None,
+        }
+    } else {
+        Transport::Stdio
+    };
+    let options = ClientOptions::new()
+        .with_program(CliProgram::Path(program))
+        .with_cwd(working_directory)
+        .with_transport(transport);
+    match Client::start(options).await {
+        Ok(_) => panic!("start unexpectedly spawned the CLI"),
+        Err(error) => error,
+    }
+}
+
+#[tokio::test]
+async fn spawn_failure_names_a_working_directory_that_is_missing_or_not_a_directory() {
+    let temp = tempfile::tempdir().unwrap();
+    let file = temp.path().join("file");
+    std::fs::write(&file, "").unwrap();
+    let program = std::env::current_exe().unwrap();
+    for tcp in [false, true] {
+        for working_directory in [temp.path().join("missing"), file.clone()] {
+            let error = spawn_error(program.clone(), &working_directory, tcp).await;
+            assert_eq!(error.kind(), &ErrorKind::Io);
+            let expected = format!(
+                "working directory {} does not exist or is not a directory: ",
+                working_directory.display()
+            );
+            assert!(error.to_string().starts_with(&expected), "{error}");
+            let os_error = spawn_os_error(&error).expect("the io::Error stays in the source chain");
+            assert!(os_error.raw_os_error().is_some(), "{os_error:?}");
+        }
+    }
+}
+
+#[cfg(unix)]
+#[tokio::test]
+async fn spawn_failure_does_not_blame_a_working_directory_it_cannot_inspect() {
+    use std::os::unix::fs::PermissionsExt;
+
+    let temp = tempfile::tempdir().unwrap();
+    let parent = temp.path().join("locked");
+    let working_directory = parent.join("cwd");
+    std::fs::create_dir_all(&working_directory).unwrap();
+    std::fs::set_permissions(&parent, std::fs::Permissions::from_mode(0o000)).unwrap();
+    // Root, or a filesystem that ignores modes, can still inspect the directory.
+    let inspectable = std::fs::metadata(&working_directory).is_ok();
+    let program = temp.path().join("missing-copilot");
+    let error = spawn_error(program.clone(), &working_directory, false).await;
+    std::fs::set_permissions(&parent, std::fs::Permissions::from_mode(0o755)).unwrap();
+    if inspectable {
+        return;
+    }
+    assert_eq!(error.kind(), &ErrorKind::Io);
+    let expected = format!(
+        "failed to start {} in {}: ",
+        program.display(),
+        working_directory.display()
+    );
+    assert!(error.to_string().starts_with(&expected), "{error}");
+}
+
+#[tokio::test]
+async fn spawn_failure_names_a_missing_program_and_its_working_directory() {
+    let temp = tempfile::tempdir().unwrap();
+    let program = temp.path().join("missing-copilot");
+    for tcp in [false, true] {
+        let error = spawn_error(program.clone(), temp.path(), tcp).await;
+        assert_eq!(error.kind(), &ErrorKind::Io);
+        let expected = format!(
+            "failed to start {} in {}: ",
+            program.display(),
+            temp.path().display()
+        );
+        assert!(error.to_string().starts_with(&expected), "{error}");
+        let os_error = spawn_os_error(&error).expect("the io::Error stays in the source chain");
+        assert!(os_error.raw_os_error().is_some(), "{os_error:?}");
+    }
 }
 
 #[cfg(not(feature = "in-process"))]
@@ -513,6 +630,52 @@ fn build_command_injects_github_token_by_default() {
         .find(|(k, _)| *k == std::ffi::OsStr::new("COPILOT_SDK_AUTH_TOKEN"))
         .and_then(|(_, v)| v);
     assert_eq!(value, Some(std::ffi::OsStr::new("just-the-token")));
+}
+
+#[test]
+fn internal_test_options_override_owned_runtime_configuration() {
+    let options = ClientOptions::new()
+        .with_env([("HTTP_PROXY", "inherited"), ("UNRELATED", "preserved")])
+        .with_internal_test_options(InternalTestOptions {
+            copilot_api_url: Some("http://replay".into()),
+            github_api_url: Some("http://github-replay".into()),
+            proxy_url: Some("http://interception".into()),
+            no_proxy: Some(String::new()),
+            ca_certificate_path: Some("/test/ca.pem".into()),
+        });
+    let command = Client::build_command(Path::new("/bin/echo"), &options, Path::new("/tmp"));
+    let environment = inprocess_environment(&options).unwrap();
+    for (key, expected) in [
+        ("COPILOT_API_URL", "http://replay"),
+        ("COPILOT_DEBUG_GITHUB_API_URL", "http://github-replay"),
+        ("HTTP_PROXY", "http://interception"),
+        ("HTTPS_PROXY", "http://interception"),
+        ("NO_PROXY", ""),
+        ("NODE_EXTRA_CA_CERTS", "/test/ca.pem"),
+        ("SSL_CERT_FILE", "/test/ca.pem"),
+        ("REQUESTS_CA_BUNDLE", "/test/ca.pem"),
+        ("CURL_CA_BUNDLE", "/test/ca.pem"),
+        ("GIT_SSL_CAINFO", "/test/ca.pem"),
+    ] {
+        assert_eq!(
+            env_value(&command, key),
+            Some(std::ffi::OsStr::new(expected)),
+            "{key}"
+        );
+        assert_eq!(
+            environment
+                .iter()
+                .find(|(name, _)| name == key)
+                .map(|(_, value)| value.as_str()),
+            Some(expected),
+            "{key}"
+        );
+    }
+    assert_eq!(
+        env_value(&command, "UNRELATED"),
+        Some(std::ffi::OsStr::new("preserved"))
+    );
+    assert_eq!(options.env[0].1, std::ffi::OsStr::new("inherited"));
 }
 
 fn env_value<'a>(cmd: &'a tokio::process::Command, key: &str) -> Option<&'a std::ffi::OsStr> {
@@ -997,7 +1160,7 @@ async fn list_models_uses_on_list_models_handler_when_set() {
     assert_eq!(calls.load(Ordering::SeqCst), 1);
 }
 
-#[tokio::test]
+#[tokio::test(start_paused = true)]
 async fn list_models_serializes_concurrent_cache_misses() {
     use std::sync::atomic::{AtomicUsize, Ordering};
 
@@ -1053,7 +1216,7 @@ async fn connection_state_tracks_construction_stop_and_force_stop() {
     }
 }
 
-#[tokio::test]
+#[tokio::test(start_paused = true)]
 async fn cancelled_resume_session_unregisters_pending_session() {
     let (client_write, _server_read) = tokio::io::duplex(8192);
     let (_server_write, client_read) = tokio::io::duplex(8192);

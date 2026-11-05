@@ -314,33 +314,52 @@ class CopilotClientTransportTest {
     @Test
     void inProcessRejectsPerProcessOptions() {
         assertInProcessRejected(new CopilotClientOptions().setEnvironment(Map.of("FOO", "bar")), "Environment");
-        assertInProcessRejected(new CopilotClientOptions().setTelemetry(new TelemetryConfig()), "Telemetry");
+        var telemetryError = assertInProcessRejected(new CopilotClientOptions().setTelemetry(new TelemetryConfig()),
+                "Telemetry");
+        assertTrue(telemetryError.getMessage().contains("host process environment"), telemetryError.getMessage());
         assertInProcessRejected(new CopilotClientOptions().setCwd("/tmp"), "Cwd");
-        assertInProcessRejected(new CopilotClientOptions().setCliArgs(new String[]{"--extra"}), "CliArgs");
+        assertInProcessRejected(new CopilotClientOptions().setCliArgs(new String[]{"--log-level", "debug"}), "CliArgs");
     }
 
     @Test
-    void e2eContextClearsInProcessIncompatibleOptions() throws Exception {
+    void inProcessAcceptsTypedConfiguration() throws Exception {
+        var options = new CopilotClientOptions().setConnection(RuntimeConnection.forInProcess())
+                .setCopilotHome("owned-home").setLogLevel("debug");
+        try (var runtime = new FakeInProcessRuntime(); var client = new CopilotClient(options)) {
+            client.setInProcessTransportFactory(received -> {
+                assertEquals(null, received.getEnvironment());
+                assertEquals("owned-home", received.getCopilotHome());
+                assertEquals("debug", received.getLogLevel());
+                return runtime.open(received);
+            });
+            client.start().get(30, TimeUnit.SECONDS);
+            assertTrue(runtime.opened.get());
+        }
+    }
+
+    @Test
+    void e2eContextUsesTypedInProcessConfiguration() throws Exception {
         try (var context = E2ETestContext.create()) {
-            var options = new CopilotClientOptions().setConnection(RuntimeConnection.forInProcess())
-                    .setEnvironment(Map.of("TEST_KEY", "test-value")).setCwd(context.getWorkDir().toString())
-                    .setCliArgs(new String[]{"--subprocess-only"});
+            var options = new CopilotClientOptions().setConnection(RuntimeConnection.forInProcess());
 
             try (var client = context.createClient(options)) {
                 assertInstanceOf(InProcessRuntimeConnection.class, client.getRuntimeConnection());
-                assertTrue(options.getEnvironment() == null || options.getEnvironment().isEmpty());
+                assertEquals(null, options.getEnvironment());
+                assertEquals(context.getProxyUrl(), options.getInternalTestOptions().getCopilotApiUrl());
+                assertEquals(context.getHomeDir().toString(), options.getCopilotHome());
                 assertEquals(null, options.getCwd());
-                assertTrue(options.getCliArgs() == null || options.getCliArgs().length == 0);
+                assertEquals(context.getWorkDir().toString(), context.newSessionConfig().getWorkingDirectory());
             }
         }
     }
 
-    private static void assertInProcessRejected(CopilotClientOptions options, String optionName) {
+    private static IllegalArgumentException assertInProcessRejected(CopilotClientOptions options, String optionName) {
         options.setConnection(RuntimeConnection.forInProcess());
         var error = assertThrows(IllegalArgumentException.class, () -> new CopilotClient(options));
         assertTrue(error.getMessage().contains(optionName), "Expected '" + optionName + "' in: " + error.getMessage());
         assertTrue(error.getMessage().contains("forInProcess"),
                 "Expected the in-process transport to be named in: " + error.getMessage());
+        return error;
     }
 
     private static String rootMessage(Throwable error) {

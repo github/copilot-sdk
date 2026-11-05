@@ -1016,7 +1016,8 @@ public record ToolDefinition(@JsonProperty("name") String name, @JsonProperty("d
             mapper.registerModule(new JavaTimeModule());
             mapper.configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false);
             mapper.configure(SerializationFeature.WRITE_DATES_AS_TIMESTAMPS, false);
-            mapper.setDefaultPropertyInclusion(JsonInclude.Include.NON_NULL);
+            mapper.setDefaultPropertyInclusion(
+                    JsonInclude.Value.construct(JsonInclude.Include.NON_NULL, JsonInclude.Include.ALWAYS));
             return mapper;
         }
     }

@@ -963,7 +963,7 @@ fn requested_session_id(request: &Value) -> &str {
         .expect("session request should include sessionId")
 }
 
-#[tokio::test]
+#[tokio::test(start_paused = true)]
 async fn create_session_registers_mcp_auth_interest_only_with_handler() {
     let (client, mut server_read, mut server_write) = make_client();
     let create_handle = tokio::spawn({
@@ -1130,7 +1130,7 @@ async fn create_session_mcp_auth_registration_failure_cancels_external_tools() {
     timeout(TIMEOUT, cancelled_rx).await.unwrap().unwrap();
 }
 
-#[tokio::test]
+#[tokio::test(start_paused = true)]
 async fn cloud_create_session_registers_mcp_auth_interest_after_create_only_with_handler() {
     let cloud = || {
         CloudSessionOptions::with_repository(
@@ -1206,7 +1206,7 @@ async fn cloud_create_session_registers_mcp_auth_interest_after_create_only_with
     let _session = timeout(TIMEOUT, create_handle).await.unwrap().unwrap();
 }
 
-#[tokio::test]
+#[tokio::test(start_paused = true)]
 async fn resume_session_registers_mcp_auth_interest_only_with_handler() {
     use github_copilot_sdk::types::ResumeSessionConfig;
 
@@ -2828,7 +2828,7 @@ async fn default_exit_plan_mode_response_omits_optional_fields() {
     assert!(response["result"].get("feedback").is_none());
 }
 
-#[tokio::test]
+#[tokio::test(start_paused = true)]
 async fn user_input_requested_notification_does_not_double_dispatch() {
     use std::sync::atomic::{AtomicUsize, Ordering};
     // Regression for a double-dispatched prompt. The CLI sends BOTH a
@@ -3232,7 +3232,7 @@ async fn session_event_notification_preserves_unknown_event_payloads() {
     }
 }
 
-#[tokio::test]
+#[tokio::test(start_paused = true)]
 async fn router_routes_to_correct_session() {
     let (client, mut server_read, mut server_write) = make_client();
 
@@ -4672,7 +4672,7 @@ async fn structured_output_rejects_aborted_missing_and_tool_only_responses() {
     }
 }
 
-#[tokio::test]
+#[tokio::test(start_paused = true)]
 async fn structured_output_timeout_and_cancellation_do_not_block_later_sends() {
     let (session, mut server) = create_session_pair().await;
     let session = Arc::new(session);
@@ -5202,7 +5202,7 @@ async fn send_and_wait_ignores_child_events_even_when_child_was_not_announced() 
     );
 }
 
-#[tokio::test]
+#[tokio::test(start_paused = true)]
 async fn send_and_wait_times_out() {
     let (session, mut server) = create_session_pair().await;
     let session = Arc::new(session);
@@ -5238,7 +5238,7 @@ async fn send_and_wait_times_out() {
 /// `send_and_wait` calls must succeed without `SendWhileWaiting`.
 ///
 /// Closes RFD-400 review finding #2.
-#[tokio::test]
+#[tokio::test(start_paused = true)]
 async fn send_and_wait_outer_cancellation_clears_waiter() {
     let (session, mut server) = create_session_pair().await;
     let session = Arc::new(session);
@@ -5367,7 +5367,6 @@ async fn stop_event_loop_completes_in_flight_handler() {
         ) -> Option<UserInputResponse> {
             self.entered.notify_one();
             self.release.notified().await;
-            tokio::time::sleep(Duration::from_millis(150)).await;
             Some(UserInputResponse {
                 answer: "completed".to_string(),
                 was_freeform: false,
@@ -5510,7 +5509,6 @@ async fn drop_session_does_not_abort_handler() {
         ) -> Option<UserInputResponse> {
             self.entered.notify_one();
             self.release.notified().await;
-            tokio::time::sleep(Duration::from_millis(100)).await;
             self.completed.store(true, Ordering::SeqCst);
             Some(UserInputResponse {
                 answer: "done".to_string(),
@@ -6162,7 +6160,7 @@ async fn connection_close_cancels_blocked_external_tool() {
     timeout(TIMEOUT, cancelled_rx).await.unwrap().unwrap();
 }
 
-#[tokio::test]
+#[tokio::test(start_paused = true)]
 async fn disconnect_cancels_external_tools_before_stopping_session() {
     struct DropProbe(Option<tokio::sync::oneshot::Sender<()>>);
 
@@ -6250,7 +6248,7 @@ async fn disconnect_cancels_external_tools_before_stopping_session() {
     assert!(lifetime.is_cancelled());
 }
 
-#[tokio::test]
+#[tokio::test(start_paused = true)]
 async fn external_tool_broadcast_for_unknown_tool_is_not_responded_to() {
     // Phase H multi-client safety: a handler that doesn't claim the
     // requested tool name must not send an RPC response — another client
@@ -6385,7 +6383,7 @@ async fn set_tools_rejects_acknowledgment_after_event_loop_retirement() {
     assert!(retained.upgrade().is_none());
 }
 
-#[tokio::test]
+#[tokio::test(start_paused = true)]
 async fn set_tools_rejects_queued_and_late_admission_after_retirement() {
     let (session, mut server) = create_session_pair().await;
     let session = Arc::new(session);
@@ -6433,7 +6431,7 @@ async fn set_tools_rejects_queued_and_late_admission_after_retirement() {
     assert_no_request(&mut server).await;
 }
 
-#[tokio::test]
+#[tokio::test(start_paused = true)]
 async fn set_tools_replaces_the_definitions_and_handlers_together() {
     let (session, mut server) = create_session_pair_with_config(|cfg| {
         cfg.with_tools(vec![label_tool("old", "old handler")])
@@ -6583,7 +6581,7 @@ async fn set_tools_lets_a_running_call_finish_on_its_original_handler() {
     );
 }
 
-#[tokio::test]
+#[tokio::test(start_paused = true)]
 async fn set_tools_leaves_the_handlers_unchanged_when_the_runtime_rejects_it() {
     let (session, mut server) = create_session_pair_with_config(|cfg| {
         cfg.with_tools(vec![label_tool("old", "old handler")])
@@ -6627,7 +6625,7 @@ async fn set_tools_leaves_the_handlers_unchanged_when_the_runtime_rejects_it() {
     );
 }
 
-#[tokio::test]
+#[tokio::test(start_paused = true)]
 async fn set_tools_completes_the_replacement_when_the_caller_stops_waiting() {
     let (session, mut server) = create_session_pair_with_config(|cfg| {
         cfg.with_tools(vec![label_tool("old", "old handler")])
@@ -6864,7 +6862,7 @@ async fn set_tools_rejects_duplicate_handlers_without_contacting_the_runtime() {
     );
 }
 
-#[tokio::test]
+#[tokio::test(start_paused = true)]
 async fn set_tools_applies_concurrent_replacements_in_order() {
     let (session, mut server) = create_session_pair().await;
     let session = Arc::new(session);
@@ -6907,7 +6905,7 @@ async fn set_tools_applies_concurrent_replacements_in_order() {
     );
 }
 
-#[tokio::test]
+#[tokio::test(start_paused = true)]
 async fn set_tools_sends_nothing_when_dropped_while_queued() {
     let (session, mut server) = create_session_pair().await;
     let session = Arc::new(session);
@@ -6947,7 +6945,7 @@ async fn set_tools_sends_nothing_when_dropped_while_queued() {
     );
 }
 
-#[tokio::test]
+#[tokio::test(start_paused = true)]
 async fn set_tools_replaces_the_tools_of_a_resumed_session() {
     use github_copilot_sdk::types::ResumeSessionConfig;
 
@@ -6989,7 +6987,7 @@ async fn set_tools_replaces_the_tools_of_a_resumed_session() {
     assert_no_request(&mut server).await;
 }
 
-#[tokio::test]
+#[tokio::test(start_paused = true)]
 async fn permission_broadcast_with_resolved_by_hook_is_not_responded_to() {
     // Phase H: when the runtime marks a permission request as already
     // resolved by a hook, the client must not respond again.
@@ -7017,7 +7015,7 @@ async fn permission_broadcast_with_resolved_by_hook_is_not_responded_to() {
     );
 }
 
-#[tokio::test]
+#[tokio::test(start_paused = true)]
 async fn permission_broadcast_with_no_claiming_handler_is_not_responded_to() {
     // Phase H: a handler that doesn't claim permission dispatch must not
     // respond — the SDK lets other connected clients handle the request.
@@ -7041,7 +7039,7 @@ async fn permission_broadcast_with_no_claiming_handler_is_not_responded_to() {
     );
 }
 
-#[tokio::test]
+#[tokio::test(start_paused = true)]
 async fn elicitation_broadcast_with_no_claiming_handler_is_not_responded_to() {
     // Phase H: same gating for elicitation. The default handler doesn't
     // claim elicitation, so broadcasts are silently dropped.
@@ -7433,16 +7431,13 @@ async fn session_canvas_closed_removes_open_canvas_snapshot() {
         )
         .await;
 
-    // Give the event loop time to process; the snapshot must stay unchanged.
+    // Snapshot updates precede event publication, including no-op closes.
     timeout(Duration::from_secs(1), events.recv())
         .await
         .expect("idempotent close processed")
         .expect("idempotent canvas closed event");
-    for _ in 0..10 {
-        tokio::time::sleep(Duration::from_millis(20)).await;
-        open = session.open_canvases();
-        assert_eq!(open.len(), 1);
-    }
+    open = session.open_canvases();
+    assert_eq!(open.len(), 1);
     assert_eq!(open[0].instance_id, "logs-1");
 
     // A closed event with an empty instance_id is ignored and leaves the snapshot intact.
@@ -7460,11 +7455,8 @@ async fn session_canvas_closed_removes_open_canvas_snapshot() {
         .await
         .expect("invalid close processed")
         .expect("invalid canvas closed event");
-    for _ in 0..10 {
-        tokio::time::sleep(Duration::from_millis(20)).await;
-        open = session.open_canvases();
-        assert_eq!(open.len(), 1);
-    }
+    open = session.open_canvases();
+    assert_eq!(open.len(), 1);
     assert_eq!(open[0].instance_id, "logs-1");
 }
 
@@ -8517,7 +8509,7 @@ use github_copilot_sdk::session_fs::{
     SessionFsSqliteQueryType, SessionFsSqliteTransactionError, SessionFsSqliteTransactionStatement,
 };
 
-#[tokio::test]
+#[tokio::test(start_paused = true)]
 async fn binary_capability_rejects_text_only_provider_on_create_and_resume() {
     for resume in [false, true] {
         let (client_write, mut server_read) = duplex(8192);
@@ -9650,7 +9642,7 @@ async fn validate_session_fs_config_rejects_empty_initial_cwd() {
     );
 }
 
-#[tokio::test]
+#[tokio::test(start_paused = true)]
 async fn create_session_errors_when_provider_required_but_missing() {
     for resume in [false, true] {
         let (client_write, mut server_read) = duplex(8192);

@@ -2293,7 +2293,7 @@ pub struct SessionConfig {
     /// even if it never runs a turn. Local sessions only: cloud creation rejects
     /// it.
     pub name: Option<String>,
-    /// Model to use (e.g. `"gpt-4"`, `"claude-sonnet-4"`).
+    /// Model to use (e.g. `"gpt-5.4"`, `"claude-sonnet-4"`).
     pub model: Option<String>,
     /// Exact model IDs this session may use. When unset, the host imposes no
     /// model restriction. The runtime validates configured IDs, rejects an
@@ -3985,7 +3985,7 @@ impl SessionConfig {
 pub struct ResumeSessionConfig {
     /// ID of the session to resume.
     pub session_id: SessionId,
-    /// Model to use for this session (e.g. `"gpt-4"`, `"claude-sonnet-4"`).
+    /// Model to use for this session (e.g. `"gpt-5.4"`, `"claude-sonnet-4"`).
     /// Can change the model when resuming.
     pub model: Option<String>,
     /// Exact model IDs the resumed session may use. When unset, the host

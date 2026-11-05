@@ -5,6 +5,7 @@
         <RootNamespace>GitHub.Copilot</RootNamespace>
         <GenerateDocumentationFile>true</GenerateDocumentationFile>
         <Version>0.0.0-dev</Version>
+        <PackageId Condition="'$(PackageId)' == ''">GitHub.Copilot.SDK</PackageId>
         <Description>SDK for programmatic control of GitHub Copilot CLI</Description>
         <Authors>GitHub</Authors>
         <Company>GitHub</Company>
@@ -80,16 +81,17 @@
             </_VersionPropsContent>
         </PropertyGroup>
         <WriteLinesToFile File="$(MSBuildThisFileDirectory)build\GitHub.Copilot.SDK.props" Lines="$(_VersionPropsContent)" Overwrite="true" WriteOnlyWhenDifferent="true" />
-        <!-- Explicitly add props file to package content after generation -->
+        <!-- Explicitly add props file to package content after generation.
+             NuGet imports build/<PackageId>.props, so the packed name follows the package id. -->
         <ItemGroup>
-            <None Include="build\GitHub.Copilot.SDK.props" Pack="true" PackagePath="build\" />
+            <None Include="build\GitHub.Copilot.SDK.props" Pack="true" PackagePath="build\$(PackageId).props" />
         </ItemGroup>
     </Target>
 
     <!-- Include .targets file in package (props is added dynamically by _GenerateVersionProps) -->
     <!-- Also import the .targets for local dev (same logic consumers get) -->
     <ItemGroup>
-        <None Include="build\GitHub.Copilot.SDK.targets" Pack="true" PackagePath="build\" CopyToOutputDirectory="Never" />
+        <None Include="build\GitHub.Copilot.SDK.targets" Pack="true" PackagePath="build\$(PackageId).targets" CopyToOutputDirectory="Never" />
     </ItemGroup>
     <Import Project="build\GitHub.Copilot.SDK.targets" />
 

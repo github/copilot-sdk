@@ -1,11 +1,6 @@
-# Microsoft Copilot SDK
+# GitHub Copilot CLI SDKs
 
-> [!IMPORTANT]
-> **GitHub Copilot SDK is becoming Microsoft Copilot SDK**, the programmable interface for the Microsoft Copilot harness, the shared agent foundation used across Microsoft and GitHub products.
->
-> The SDK repository will move to the Microsoft organization as part of a phased transition. Existing package names, namespaces, and some documentation may continue to reference GitHub Copilot SDK during the transition. **No immediate changes are required for existing users.** [Learn more about the transition](https://aka.ms/copilot-harness/announce).
-> 
-> Support for the Copilot SDK remains the same. For more information: [SUPPORT.md](SUPPORT.md)
+![GitHub Copilot SDK](./assets/RepoHeader_01.png)
 
 [![NPM Downloads](https://img.shields.io/npm/dm/%40github%2Fcopilot-sdk?label=npm)](https://www.npmjs.com/package/@github/copilot-sdk)
 [![PyPI - Downloads](https://img.shields.io/pypi/dm/github-copilot-sdk?label=PyPI)](https://pypi.org/project/github-copilot-sdk/)
@@ -42,7 +37,8 @@ Quick steps:
 1. **(Optional) Install the Copilot CLI**
 
 For Node.js, Python, and .NET SDKs, the Copilot CLI is bundled automatically and no separate installation is required.
-For Go, Java, and Rust, [install the CLI manually](https://github.com/features/copilot/cli) or ensure `copilot` is available in your PATH. Go and Rust also expose application-level CLI bundling features.
+The Rust SDK bundles the CLI by default through its `bundled-cli` feature.
+For Go, embed the CLI with the [bundler tool](./go/README.md#distributing-your-application-with-an-embedded-github-copilot-cli); for Java, add the `com.github:copilot-sdk-java-runtime` dependency with your platform's classifier. Alternatively, [install the CLI manually](https://github.com/features/copilot/cli) and give the SDK its path with `COPILOT_CLI_PATH` or the client's CLI path option. The SDKs do not look up `copilot` on your PATH.
 
 2. **Install your preferred SDK** using the commands above.
 
@@ -50,7 +46,7 @@ For Go, Java, and Rust, [install the CLI manually](https://github.com/features/c
 
 ## Architecture
 
-All SDKs communicate with the Copilot CLI server via JSON-RPC:
+All SDKs drive the Copilot agent runtime over JSON-RPC. By default the runtime is hosted by the Copilot CLI running as a child process in server mode:
 
 ```
 Your Application
@@ -61,6 +57,18 @@ Your Application
 ```
 
 The SDK manages the CLI process lifecycle automatically. You can also connect to an external CLI server—see the [Getting Started Guide](./docs/getting-started.md#connecting-to-an-external-cli-server) for details on running the CLI in server mode.
+
+Every SDK also offers an experimental in-process transport. It loads the native Copilot runtime into your application through a C ABI and carries the same JSON-RPC messages over an in-memory connection, so no CLI process is started:
+
+```
+Your Application
+       ↓
+  SDK Client
+       ↓ JSON-RPC (in memory, C ABI)
+  Native Copilot runtime
+```
+
+See [Run the Copilot runtime in process](./docs/setup/in-process-runtime.md) for the connection option in each language and its requirements.
 
 ### Portable elicitation schemas
 
@@ -119,7 +127,9 @@ See the **[Authentication documentation](./docs/auth/README.md)** for details on
 
 No — for Node.js, Python, and .NET SDKs, the Copilot CLI is bundled automatically as a dependency. You do not need to install it separately.
 
-For Go, Java, and Rust SDKs, the CLI is **not** bundled by default. Install the CLI manually or ensure `copilot` is available in your PATH. Go and Rust also expose application-level CLI bundling features.
+The Rust SDK bundles the CLI by default through its `bundled-cli` feature.
+
+For Go and Java SDKs, the CLI is **not** bundled by default. Go embeds it with its bundler tool, and Java uses the `com.github:copilot-sdk-java-runtime` dependency with your platform's classifier. Otherwise, install the CLI manually and give the SDK its path with `COPILOT_CLI_PATH` or the client's CLI path option. The SDKs do not look up `copilot` on your PATH.
 
 Advanced: You can override the CLI binary or connect to an external server. See the individual SDK README for language-specific options.
 

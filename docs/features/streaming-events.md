@@ -1,6 +1,6 @@
 # Streaming session events
 
-Every action the Copilot agent takes—thinking, writing code, running tools—is emitted as a **session event** you can subscribe to. This guide is a field-level reference for each event type so you know exactly what data to expect without reading the SDK source.
+Every action the Copilot agent takes—thinking, writing code, running tools—is emitted as a **session event** you can subscribe to. This guide is a field-level reference for the event types applications most often handle, so you know exactly what data to expect without reading the SDK source. It does not cover every event type: the session event types each SDK generates (for example, the `SessionEvent` union in Node.js) list every event the runtime can emit.
 
 ## Overview
 
@@ -131,7 +131,7 @@ func main() {
 	client := copilot.NewClient(nil)
 
 	session, _ := client.CreateSession(ctx, &copilot.SessionConfig{
-		Model:     "gpt-5.4",
+		Model:     "auto",
 		Streaming: copilot.Bool(true),
 		OnPermissionRequest: func(req copilot.PermissionRequest, inv copilot.PermissionInvocation) (rpc.PermissionDecision, error) {
 			return &rpc.PermissionDecisionApproveOnce{}, nil
@@ -160,26 +160,6 @@ session.On(func(event copilot.SessionEvent) {
 
 <details>
 <summary><strong>.NET</strong></summary>
-
-<!-- docs-validate: hidden -->
-```csharp
-using GitHub.Copilot;
-
-public static class StreamingEventsExample
-{
-    public static async Task Example(CopilotSession session)
-    {
-        session.On<SessionEvent>(evt =>
-        {
-            if (evt is AssistantMessageDeltaEvent delta)
-            {
-                Console.Write(delta.Data.DeltaContent);
-            }
-        });
-    }
-}
-```
-<!-- /docs-validate: hidden -->
 
 ```csharp
 session.On<SessionEvent>(evt =>
@@ -482,7 +462,7 @@ Ephemeral. Token usage and cost information for an individual API call.
 
 | Data Field | Type | Required | Description |
 |------------|------|----------|-------------|
-| `model` | `string` | ✅ | Model identifier (e.g., `"gpt-5.4"`) |
+| `model` | `string` | ✅ | Model identifier (e.g., `"claude-sonnet-5"`) |
 | `inputTokens` | `number` | | Total input tokens for this call, including `cacheReadTokens` and `cacheWriteTokens` |
 | `outputTokens` | `number` | | Output tokens produced |
 | `reasoningTokens` | `number` | | Output tokens used for reasoning/chain-of-thought (subset of `outputTokens`) |
@@ -611,6 +591,7 @@ Ephemeral. The agent has finished all processing and is ready for the next messa
 | Data Field | Type | Required | Description |
 |------------|------|----------|-------------|
 | `aborted` | `boolean` | | True when the preceding turn was cancelled via abort signal |
+| `mode` | `"interactive" \| "plan" \| "autopilot"` | | Session mode the agent was in when it went idle; absent when the mode is unknown |
 
 ### `session.error`
 
@@ -727,7 +708,7 @@ The agent needs permission to perform an action (run a command, write a file, et
 
 | Data Field | Type | Required | Description |
 |------------|------|----------|-------------|
-| `requestId` | `string` | ✅ | Use this to respond via `session.respondToPermission()` |
+| `requestId` | `string` | ✅ | Pass this as the `requestId` of the `session.permissions.handlePendingPermissionRequest` RPC to respond |
 | `permissionRequest` | `PermissionRequest` | ✅ | Details of the permission being requested |
 
 The `permissionRequest` is a discriminated union on `kind`:
@@ -763,7 +744,7 @@ Ephemeral. The agent is asking the user a question.
 
 | Data Field | Type | Required | Description |
 |------------|------|----------|-------------|
-| `requestId` | `string` | ✅ | Use this to respond via `session.respondToUserInput()` |
+| `requestId` | `string` | ✅ | Pass this as the `requestId` of the `session.ui.handlePendingUserInput` RPC to respond |
 | `question` | `string` | ✅ | The question to present to the user |
 | `choices` | `string[]` | | Predefined choices for the user |
 | `allowFreeform` | `boolean` | | Whether free-form text input is allowed |
@@ -782,7 +763,7 @@ Ephemeral. The agent needs input from the user, either as structured form fields
 
 | Data Field | Type | Required | Description |
 |------------|------|----------|-------------|
-| `requestId` | `string` | ✅ | Use this to respond via `session.respondToElicitation()` |
+| `requestId` | `string` | ✅ | Pass this as the `requestId` of the `session.ui.handlePendingElicitation` RPC to respond |
 | `message` | `string` | ✅ | Description of what information is needed |
 | `mode` | `"form" \| "url"` | | Elicitation mode: structured form or browser URL |
 | `requestedSchema` | `{ type: "object", properties, required? }` | | JSON Schema describing the form fields (form mode only) |
@@ -906,7 +887,7 @@ The agent wants to invoke an external tool (one provided by the SDK consumer).
 
 | Data Field | Type | Required | Description |
 |------------|------|----------|-------------|
-| `requestId` | `string` | ✅ | Use this to respond via `session.respondToExternalTool()` |
+| `requestId` | `string` | ✅ | Pass this as the `requestId` of the `session.tools.handlePendingToolCall` RPC to respond |
 | `sessionId` | `string` | ✅ | Session this request belongs to |
 | `toolCallId` | `string` | ✅ | Tool call ID for this invocation |
 | `toolName` | `string` | ✅ | Name of the external tool |
@@ -926,7 +907,7 @@ Ephemeral. The agent has created a plan and wants to exit plan mode.
 
 | Data Field | Type | Required | Description |
 |------------|------|----------|-------------|
-| `requestId` | `string` | ✅ | Use this to respond via `session.respondToExitPlanMode()` |
+| `requestId` | `string` | ✅ | Pass this as the `requestId` of the `session.ui.handlePendingExitPlanMode` RPC to respond |
 | `summary` | `string` | ✅ | Summary of the plan |
 | `planContent` | `string` | ✅ | Full plan file content |
 | `actions` | `("exit_only" \| "interactive" \| "autopilot" \| "autopilot_fleet")[]` | ✅ | Available user actions |
@@ -947,11 +928,11 @@ Ephemeral. An exit plan mode request was resolved.
 
 ### `command.queued`
 
-Ephemeral. A slash command was queued for execution.
+Ephemeral. `scheduled: true` requires checking scheduling eligibility before execution.
 
 | Data Field | Type | Required | Description |
 |------------|------|----------|-------------|
-| `requestId` | `string` | ✅ | Use this to respond via `session.respondToQueuedCommand()` |
+| `requestId` | `string` | ✅ | Pass this as the `requestId` of the `session.commands.respondToQueuedCommand` RPC to respond |
 | `command` | `string` | ✅ | The slash command text (e.g., `/help`, `/clear`) |
 
 ### `command.completed`
@@ -1010,9 +991,9 @@ assistant.turn_end            → Turn complete
 session.idle                  → Ready for next message (ephemeral)
 ```
 
-## All event types at a glance
+## Documented event types at a glance
 
-This table lists key `data` payload fields. Common envelope fields are documented above.
+This table lists every event type documented on this page with its key `data` payload fields. Common envelope fields are documented above.
 
 | Event Type | Ephemeral | Category | Key Data Fields |
 |------------|-----------|----------|-----------------|
@@ -1031,7 +1012,7 @@ This table lists key `data` payload fields. Common envelope fields are documente
 | `tool.shell_output` | ✅ | Tool | `toolCallId`, `text`, `stream?`, `sequence` |
 | `tool.execution_progress` | ✅ | Tool | `toolCallId`, `progressMessage` |
 | `tool.execution_complete` | | Tool | `toolCallId`, `success`, `result?`, `error?` |
-| `session.idle` | ✅ | Session | `aborted?` |
+| `session.idle` | ✅ | Session | `aborted?`, `mode?` |
 | `session.error` | | Session | `errorType`, `message`, `statusCode?` |
 | `session.compaction_start` | | Session | *(empty)* |
 | `session.compaction_complete` | | Session | `success`, `preCompactionTokens?`, `summaryContent?` |
@@ -1059,7 +1040,7 @@ This table lists key `data` payload fields. Common envelope fields are documente
 | `system.message` | | System | `content`, `role` |
 | `external_tool.requested` | | External Tool | `requestId`, `toolName`, `arguments?` |
 | `external_tool.completed` | | External Tool | `requestId` |
-| `command.queued` | ✅ | Command | `requestId`, `command` |
+| `command.queued` | ✅ | Command | `requestId`, `command`, `scheduled?` |
 | `command.completed` | ✅ | Command | `requestId` |
 | `session_limits_exhausted.requested` | ✅ | Session | `requestId`, `maxAiCredits`, `usedAiCredits` |
 | `session_limits_exhausted.completed` | ✅ | Session | `requestId`, `response.action` |

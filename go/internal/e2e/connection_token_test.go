@@ -10,6 +10,7 @@ import (
 )
 
 func TestConnectionToken(t *testing.T) {
+	t.Parallel()
 	t.Run("explicit token round-trips successfully", func(t *testing.T) {
 		ctx := testharness.NewTestContext(t)
 		client := ctx.NewClient(func(opts *copilot.ClientOptions) {

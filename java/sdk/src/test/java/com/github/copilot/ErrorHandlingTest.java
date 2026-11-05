@@ -4,6 +4,8 @@
 
 package com.github.copilot;
 
+import org.junit.jupiter.api.Tag;
+
 import static org.junit.jupiter.api.Assertions.*;
 
 import java.util.ArrayList;
@@ -24,7 +26,6 @@ import com.github.copilot.generated.SessionErrorEvent;
 import com.github.copilot.generated.SessionIdleEvent;
 import com.github.copilot.rpc.MessageOptions;
 import com.github.copilot.rpc.PermissionHandler;
-import com.github.copilot.rpc.SessionConfig;
 import com.github.copilot.rpc.ToolDefinition;
 
 import java.util.Map;
@@ -36,6 +37,7 @@ import java.util.Map;
  * including tool errors, permission handler errors, and session errors.
  * </p>
  */
+@Tag("e2e")
 public class ErrorHandlingTest {
 
     private static final Logger LOG = Logger.getLogger(ErrorHandlingTest.class.getName());
@@ -74,7 +76,7 @@ public class ErrorHandlingTest {
                 });
 
         try (CopilotClient client = ctx.createClient()) {
-            CopilotSession session = client.createSession(new SessionConfig().setTools(List.of(errorTool))
+            CopilotSession session = client.createSession(ctx.newSessionConfig().setTools(List.of(errorTool))
                     .setOnPermissionRequest(PermissionHandler.APPROVE_ALL)).get();
 
             session.on(event -> {
@@ -120,7 +122,7 @@ public class ErrorHandlingTest {
                 });
 
         try (CopilotClient client = ctx.createClient()) {
-            CopilotSession session = client.createSession(new SessionConfig().setTools(List.of(failTool))
+            CopilotSession session = client.createSession(ctx.newSessionConfig().setTools(List.of(failTool))
                     .setOnPermissionRequest(PermissionHandler.APPROVE_ALL)).get();
 
             AssistantMessageEvent response = session
@@ -146,7 +148,7 @@ public class ErrorHandlingTest {
 
         var errorEvents = new ArrayList<SessionErrorEvent>();
 
-        var config = new SessionConfig().setOnPermissionRequest((request, invocation) -> {
+        var config = ctx.newSessionConfig().setOnPermissionRequest((request, invocation) -> {
             throw new RuntimeException("Permission handler crashed");
         });
 
@@ -189,7 +191,7 @@ public class ErrorHandlingTest {
         ctx.configureForTest("permissions", "should_handle_permission_handler_errors_gracefully");
 
         var permissionRequests = new AtomicInteger();
-        var config = new SessionConfig().setOnPermissionRequest((request, invocation) -> {
+        var config = ctx.newSessionConfig().setOnPermissionRequest((request, invocation) -> {
             permissionRequests.incrementAndGet();
             throw new RuntimeException("Test error message");
         });
@@ -220,7 +222,7 @@ public class ErrorHandlingTest {
                 });
 
         try (CopilotClient client = ctx.createClient()) {
-            CopilotSession session = client.createSession(new SessionConfig().setTools(List.of(errorTool))
+            CopilotSession session = client.createSession(ctx.newSessionConfig().setTools(List.of(errorTool))
                     .setOnPermissionRequest(PermissionHandler.APPROVE_ALL)).get();
 
             // First request that will cause tool error

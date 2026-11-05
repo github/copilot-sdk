@@ -126,12 +126,14 @@ the backup is written on the next append rather than during resume.
 
 After `Client::start` succeeds, inspect its startup cost without parsing logs:
 
-```rust,ignore
+```rust,no_run
+# fn example(client: &github_copilot_sdk::Client) {
 let timings = client.startup_timings().expect("started by Client::start");
 println!(
     "startup={}ms transport={}ms handshake={}ms",
     timings.total_ms, timings.transport_setup_ms, timings.handshake_ms
 );
+# }
 ```
 
 Transport-specific phases are optional. For example, `port_wait_ms` is present
@@ -186,10 +188,14 @@ Both are `None` when the runtime doesn't report them, such as for sessions persi
 `last_client_name` existed. `SessionMetadata` is not `#[non_exhaustive]`, so code that builds
 it with a struct literal or destructures every field must add the two fields.
 
-```rust,ignore
+```rust,no_run
+# use github_copilot_sdk::{Client, SessionId};
+# async fn example(client: &Client, session_id: SessionId) -> Result<(), github_copilot_sdk::Error> {
 if let Some(metadata) = client.get_session_metadata(&session_id).await? {
     let ran_elsewhere = metadata.last_client_name.as_deref() != Some("my-host");
 }
+# Ok(())
+# }
 ```
 
 #### AHP listeners (experimental)
@@ -387,7 +393,8 @@ host remains a distinct participant on the same runtime and session.
 Hosts that own legacy extension process assets can supply a typed, asynchronous
 launch resolver:
 
-```rust,ignore
+```rust,no_run
+# async fn example() -> github_copilot_sdk::Result<()> {
 use std::collections::HashMap;
 
 use async_trait::async_trait;
@@ -421,6 +428,9 @@ impl ExtensionLaunchProvider for AppExtensionLaunchProvider {
 let client = Client::start(
     ClientOptions::new().with_extension_launch_provider(AppExtensionLaunchProvider),
 ).await?;
+# let _ = client;
+# Ok(())
+# }
 ```
 
 `Client::start` registers the provider before returning, and reverse requests
@@ -799,37 +809,25 @@ behaviour; existing handwritten builder calls remain compatible.
 
 #### Generated type-name migration
 
-Resolving a named object through a schema wrapper now uses the canonical schema
-name. Where that resolution directly records the earlier containing-property
-name, a generated `pub type` alias retains it. Aliases point directly to an emitted
-type; conflicting names or targets fail generation rather than selecting one.
-Nested helper names are not reconstructed by comparing old and new type graphs.
-
-The affected request/result surfaces are experimental. Earlier nested helpers
-did not consistently repeat their owning type's experimental annotation. The
-complete naming disposition is:
+Some generated names now resolve to their canonical schema type. The
+installation confirmation review keeps its earlier names as generated
+`pub type` aliases; the subagent-settings request field does not:
 
 | Earlier generated name | Canonical name | Disposition |
 | --- | --- | --- |
 | `InstallationConfirmationRequestReview` | `InstallationReview` | Direct alias; typed review migration below |
-| `MetadataContextAttributionResultContextAttribution` | `SessionContextAttribution` | Direct alias |
-| `MetadataContextInfoResultContextInfo` | `SessionContextInfo` | Direct alias |
-| `SendMessagesRequestResponseFormat` | `ResponseFormat` | Direct alias |
-| `SendRequestResponseFormat` | `ResponseFormat` | Direct alias |
-| `SessionMetadataSnapshotWorkspace` | `WorkspaceSummary` | Direct alias |
+| `InstallationConfirmationRequestReviewResource` | `InstallationReviewResource` | Direct alias |
 | `UpdateSubagentSettingsRequestSubagents` | `SubagentSettingsConfig` | No alias |
-| `SessionMetadataSnapshotResultWorkspace` | `WorkspaceSummary` | Direct alias |
-| `SessionMetadataContextInfoResultContextInfo` | `SessionContextInfo` | Direct alias |
-| `SessionMetadataGetContextAttributionResultContextAttribution` | `SessionContextAttribution` | Direct alias |
-| `MetadataContextAttributionResultContextAttributionCategories` | `SessionContextAttributionCategories` | Import the canonical nested helper |
-| `MetadataContextAttributionResultContextAttributionCompactions` | `SessionContextAttributionCompactions` | Import the canonical nested helper |
-| `MetadataContextAttributionResultContextAttributionEntriesItem` | `SessionContextAttributionEntriesItem` | Import the canonical nested helper |
-| `SessionMetadataGetContextAttributionResultContextAttributionCategories` | `SessionContextAttributionCategories` | Import the canonical nested helper |
-| `SessionMetadataGetContextAttributionResultContextAttributionCompactions` | `SessionContextAttributionCompactions` | Import the canonical nested helper |
-| `SessionMetadataGetContextAttributionResultContextAttributionEntriesItem` | `SessionContextAttributionEntriesItem` | Import the canonical nested helper |
-| `InstallationConfirmationRequestReviewResource` | `InstallationReviewResource` | Import the canonical nested enum |
-| `SendMessagesRequestResponseFormatType` | `ResponseFormatType` | Import the canonical nested enum |
-| `SendRequestResponseFormatType` | `ResponseFormatType` | Import the canonical nested enum |
+
+The affected request/result surfaces are experimental. Other generated types
+that repeat a canonical schema shape keep their released names as distinct
+types, not aliases: `SendRequestResponseFormat` and
+`SendMessagesRequestResponseFormat` are separate from `ResponseFormat`,
+`SessionMetadataSnapshotWorkspace` and `SessionMetadataSnapshotResultWorkspace`
+from `WorkspaceSummary`, and the `ContextInfo` and `ContextAttribution` metadata
+result types from `SessionContextInfo` and `SessionContextAttribution`. Their
+nested helpers keep their own names too. Code that names them compiles
+unchanged, but a value of the canonical type does not convert to them.
 
 Retaining a name does not restore an incorrect earlier field representation.
 In particular, `InstallationReview` is now the required typed review union, not
@@ -1154,7 +1152,13 @@ Transforms customize system message sections during session creation. The SDK in
 
 `last_instructions` includes configured subagent-model guidance when the `task` tool is available. Removing or replacing this section in customize mode also removes that guidance; a `SystemMessageTransform` handling this section receives its complete content, including the guidance, and any replacement it returns is authoritative. Append, prepend, and preserve retain their usual section semantics. These overrides change prompt prose only, not configured subagent models, tool availability, or runtime dispatch policy. `runtime_instructions` is a separate section: removing it does not remove `last_instructions`.
 
-```rust,ignore
+```rust,no_run
+# use std::sync::Arc;
+# use github_copilot_sdk::{Client, SessionConfig};
+# use github_copilot_sdk::handler::ApproveAllHandler;
+# async fn example(client: Client) -> Result<(), github_copilot_sdk::Error> {
+# let config = SessionConfig::default();
+# let handler = Arc::new(ApproveAllHandler);
 use github_copilot_sdk::transforms::*;
 use async_trait::async_trait;
 
@@ -1183,6 +1187,9 @@ let session = client
             .with_system_message_transform(Arc::new(MyTransform)),
     )
     .await?;
+# let _ = session;
+# Ok(())
+# }
 ```
 
 ### Tool Registration
@@ -1195,7 +1202,10 @@ derive expands to code that names the `schemars` crate, so your own
 `Cargo.toml` needs `schemars = "1"` as a direct dependency next to the feature
 (`cargo add schemars@1`).
 
-```rust,ignore
+```rust,no_run
+# #[cfg(feature = "derive")]
+# mod example {
+# async fn example(client: github_copilot_sdk::Client) -> Result<(), github_copilot_sdk::Error> {
 use std::sync::Arc;
 use github_copilot_sdk::handler::ApproveAllHandler;
 use github_copilot_sdk::tool::{schema_for, JsonSchema, ToolHandler};
@@ -1230,6 +1240,10 @@ let config = SessionConfig::default()
     .with_permission_handler(Arc::new(ApproveAllHandler))
     .with_tools(vec![tool]);
 let session = client.create_session(config).await?;
+# let _ = session;
+# Ok(())
+# }
+# }
 ```
 
 Tools are named types (not closures) — visible in stack traces and navigable via "go to definition". The SDK registers each tool's handler under its `Tool::name` and surfaces the same `Tool` definitions to the CLI automatically.
@@ -1238,7 +1252,13 @@ Tools without an attached handler (`Tool::with_handler` never called) are declar
 
 For trivial tools that don't need a named type, the `define_tool` helper function (available with the `derive` feature) collapses the definition to a single expression and returns a fully-formed `Tool` with handler attached:
 
-```rust,ignore
+```rust,no_run
+# #[cfg(feature = "derive")]
+# mod example {
+# use std::sync::Arc;
+# use github_copilot_sdk::SessionConfig;
+# use github_copilot_sdk::handler::ApproveAllHandler;
+# fn example() {
 use github_copilot_sdk::tool::{define_tool, JsonSchema};
 use github_copilot_sdk::ToolResult;
 use serde::Deserialize;
@@ -1257,6 +1277,9 @@ let tool = define_tool(
 let config = SessionConfig::default()
     .with_permission_handler(Arc::new(ApproveAllHandler))
     .with_tools(vec![tool]);
+# let _ = config;
+# }
+# }
 ```
 
 The closure receives the full [`ToolInvocation`](crate::types::ToolInvocation) alongside the deserialized parameters, so handlers that need `inv.session_id` or `inv.tool_call_id` for telemetry, streaming updates, or scoped lookups can use them directly. Use `_inv` when you don't need the metadata.
@@ -1752,22 +1775,32 @@ let raw: String = id.into_inner();       // unwrap when needed
 
 ### Error Handling
 
-The SDK uses a typed error enum:
+Fallible calls return `github_copilot_sdk::Error`. Match on `err.kind()`, a
+`#[non_exhaustive]` `ErrorKind`; `err.message()` holds the error text:
 
-```rust,ignore
-pub enum Error {
-    Protocol(ProtocolError),       // JSON-RPC framing, CLI startup, version mismatch
-    Rpc { code: i32, message: String }, // CLI returned an error response
-    Session(SessionError),         // Session not found, agent error, timeout, conflicts
-    Io(std::io::Error),            // Transport I/O error
-    Json(serde_json::Error),       // Serialization error
-    BinaryNotFound { name, hint }, // CLI binary not found
+```rust,no_run
+# use github_copilot_sdk::{Client, ClientOptions, Error};
+# async fn example(err: Error, client: &mut Client, options: ClientOptions) -> Result<(), Error> {
+use github_copilot_sdk::ErrorKind;
+
+match err.kind() {
+    ErrorKind::Protocol(kind) => eprintln!("{kind}"), // JSON-RPC framing, CLI startup, version mismatch
+    ErrorKind::Rpc { code } => eprintln!("{code}: {:?}", err.message()), // CLI returned an error response
+    ErrorKind::Session(kind) => eprintln!("{kind}"), // Session not found, agent error, timeout, conflicts
+    ErrorKind::Io => eprintln!("{err}"),              // Transport I/O error
+    ErrorKind::Json => eprintln!("{err}"),            // Serialization error
+    ErrorKind::BinaryNotFound { name, hint } => eprintln!("{name}: {hint:?}"), // CLI binary not found
+    ErrorKind::InvalidConfig => eprintln!("{err}"),   // Invalid combination of options
+    ErrorKind::GitHubTokenProvider => eprintln!("{err}"), // Session token provider failed
+    _ => eprintln!("{err}"),
 }
 
 // Check if the transport is broken (caller should discard the client)
 if err.is_transport_failure() {
-    client = Client::start(options).await?;
+    *client = Client::start(options).await?;
 }
+# Ok(())
+# }
 ```
 
 JSON-RPC failures retain structured `error.data` separately from their primary
@@ -1775,7 +1808,8 @@ code and message. Only applicable `session.create`/`session.resume` errors attac
 `PolicyHelperFailure`. Activation callers instead read
 `client.rpc().managed_settings().resolve_with_params(...).await?.resolved.policy_helper_failure`.
 
-```rust,ignore
+```rust,no_run
+# fn example(err: github_copilot_sdk::Error) -> Result<(), serde_json::Error> {
 use github_copilot_sdk::session_events::PolicyHelperFailure;
 
 if let Some(value) = err
@@ -1785,6 +1819,8 @@ if let Some(value) = err
     let failure: PolicyHelperFailure = serde_json::from_value(value.clone())?;
     eprintln!("{}", failure.message);
 }
+# Ok(())
+# }
 ```
 
 ## Differences From Other SDKs
@@ -1807,7 +1843,17 @@ ergonomics the dynamically-typed SDKs don't.
   `SessionHooks`,
   `SystemMessageTransform`).
 
-```rust,ignore
+```rust,no_run
+# use github_copilot_sdk::{Client, ClientOptions, SessionConfig};
+# use github_copilot_sdk::handler::ApproveAllHandler;
+# struct MyProvider;
+# impl MyProvider {
+#     fn new() -> Self {
+#         MyProvider
+#     }
+# }
+# impl github_copilot_sdk::session_fs::SessionFsProvider for MyProvider {}
+# async fn example() -> Result<(), github_copilot_sdk::Error> {
 use std::sync::Arc;
 use github_copilot_sdk::session_fs::{SessionFsConfig, SessionFsConventions};
 
@@ -1826,6 +1872,9 @@ let session = client
             .with_session_fs_provider(Arc::new(MyProvider::new())),
     )
     .await?;
+# let _ = session;
+# Ok(())
+# }
 ```
 
 See [`examples/session_fs.rs`](examples/session_fs.rs) for a complete
@@ -2058,7 +2107,7 @@ resolution requires `COPILOT_CLI_PATH` to identify the supplied package.
 `COPILOT_SKIP_CLI_DOWNLOAD=1` remains available as an explicit build-time
 override for managed child-process consumers. It works regardless of the
 `bundled-cli` feature state; runtime resolution falls through to
-`Error::BinaryNotFound` unless an applicable explicit source resolves.
+`ErrorKind::BinaryNotFound` unless an applicable explicit source resolves.
 
 ### Resolution priority
 

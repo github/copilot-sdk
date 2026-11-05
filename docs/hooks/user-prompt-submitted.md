@@ -36,12 +36,16 @@ type UserPromptSubmittedHandler = (
 <!-- docs-validate: hidden -->
 ```python
 from copilot.session import UserPromptSubmittedHookInput, UserPromptSubmittedHookOutput
+from copilot.session import UserPromptSubmittedHandler as SdkUserPromptSubmittedHandler
 from typing import Callable, Awaitable
 
 UserPromptSubmittedHandler = Callable[
     [UserPromptSubmittedHookInput, dict[str, str]],
     Awaitable[UserPromptSubmittedHookOutput | None]
 ]
+
+def check(handler: UserPromptSubmittedHandler) -> SdkUserPromptSubmittedHandler:
+    return handler
 ```
 <!-- /docs-validate: hidden -->
 ```python
@@ -67,6 +71,8 @@ type UserPromptSubmittedHandler func(
     invocation copilot.HookInvocation,
 ) (*copilot.UserPromptSubmittedHookOutput, error)
 
+var _ = copilot.UserPromptSubmittedHandler(UserPromptSubmittedHandler(nil))
+
 func main() {}
 ```
 <!-- /docs-validate: hidden -->
@@ -89,6 +95,12 @@ using GitHub.Copilot;
 public delegate Task<UserPromptSubmittedHookOutput?> UserPromptSubmittedHandler(
     UserPromptSubmittedHookInput input,
     HookInvocation invocation);
+
+static class UserPromptSubmittedHandlerCheck
+{
+    static SessionHooks Check(UserPromptSubmittedHandler handler) =>
+        new() { OnUserPromptSubmitted = handler.Invoke };
+}
 ```
 <!-- /docs-validate: hidden -->
 ```csharp
@@ -110,6 +122,9 @@ import java.util.concurrent.CompletableFuture;
 public class UserPromptSubmittedSignature {
     UserPromptSubmittedHandler handler = (UserPromptSubmittedHookInput input, HookInvocation invocation) ->
         CompletableFuture.completedFuture(null);
+    CompletableFuture<UserPromptSubmittedHookOutput> handle(UserPromptSubmittedHookInput input, HookInvocation invocation) {
+        return handler.handle(input, invocation);
+    }
     public static void main(String[] args) {}
 }
 ```
@@ -247,30 +262,6 @@ session, _ := client.CreateSession(context.Background(), &copilot.SessionConfig{
 <details>
 <summary><strong>.NET</strong></summary>
 
-<!-- docs-validate: hidden -->
-```csharp
-using GitHub.Copilot;
-
-public static class UserPromptSubmittedExample
-{
-    public static async Task Main()
-    {
-        await using var client = new CopilotClient();
-        var session = await client.CreateSessionAsync(new SessionConfig
-        {
-            Hooks = new SessionHooks
-            {
-                OnUserPromptSubmitted = (input, invocation) =>
-                {
-                    Console.WriteLine($"[{invocation.SessionId}] User: {input.Prompt}");
-                    return Task.FromResult<UserPromptSubmittedHookOutput?>(null);
-                },
-            },
-        });
-    }
-}
-```
-<!-- /docs-validate: hidden -->
 ```csharp
 var session = await client.CreateSessionAsync(new SessionConfig
 {

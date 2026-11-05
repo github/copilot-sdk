@@ -111,7 +111,7 @@ func finishPendingCleanup() {
 }
 
 // WaitForCleanup waits for all deferred connection cleanup to finish.
-// In-process test harnesses use this before changing process-global state.
+// In-process test harnesses use this before releasing host-owned fixtures.
 func WaitForCleanup(timeout time.Duration) bool {
 	pendingCleanup.Lock()
 	idle := pendingCleanup.idle
@@ -228,7 +228,7 @@ func ProtectChildProcessWait() func() {
 }
 
 // Create resolves the native library and prepares the host. environment and
-// args contain SDK-managed runtime options.
+// args contain the effective per-host environment and SDK-managed runtime options.
 func Create(runtimeEntrypoint, cliEntrypoint string, environment map[string]string, args []string) (*Host, error) {
 	libraryPath, err := ResolveLibraryPath(runtimeEntrypoint)
 	if err != nil {
@@ -345,7 +345,7 @@ func (h *Host) buildArgv() []byte {
 }
 
 func (h *Host) buildEnv() []byte {
-	if len(h.environment) == 0 {
+	if h.environment == nil {
 		return nil
 	}
 	b, _ := json.Marshal(h.environment)

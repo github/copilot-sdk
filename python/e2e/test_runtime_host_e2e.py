@@ -125,6 +125,7 @@ class Application:
 
         return AhpHostOptions(
             authentication=AhpHostAuthentication("github"),
+            workspace=self.work_dir,
             local_server=HostLocalServerOptions(),
             allow_creating_new_sessions=True,
             create_session=self.create,

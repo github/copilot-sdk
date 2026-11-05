@@ -196,6 +196,13 @@ impl<'a> ClientRpcSession<'a> {
             client: self.client,
         }
     }
+
+    /// `session.canvasSource.*` sub-namespace.
+    pub fn canvas_source(&self) -> ClientRpcSessionCanvasSource<'a> {
+        ClientRpcSessionCanvasSource {
+            client: self.client,
+        }
+    }
 }
 
 /// `session.cafeMetrics.*` RPCs.
@@ -249,6 +256,38 @@ impl<'a> ClientRpcSessionCafeMetrics<'a> {
         let _value = self
             .client
             .call(rpc_methods::SESSION_CAFEMETRICS_DETACH, Some(wire_params))
+            .await?;
+        Ok(())
+    }
+}
+
+/// `session.canvasSource.*` RPCs.
+#[derive(Clone, Copy)]
+pub struct ClientRpcSessionCanvasSource<'a> {
+    pub(crate) client: &'a Client,
+}
+
+impl<'a> ClientRpcSessionCanvasSource<'a> {
+    /// Closes a canvas through its original session source. Requires the privately admitted in-process CLI host.
+    ///
+    /// Wire method: `session.canvasSource.close`.
+    ///
+    /// # Parameters
+    ///
+    /// * `params` - Closes a canvas through its original owned or attached session namespace.
+    ///
+    /// <div class="warning">
+    ///
+    /// **Experimental.** This API is part of an experimental wire-protocol surface
+    /// and may change or be removed in future SDK or CLI releases. Pin both the
+    /// SDK and CLI versions if your code depends on it.
+    ///
+    /// </div>
+    pub async fn close(&self, params: CanvasSourceCloseRequest) -> Result<(), Error> {
+        let wire_params = serde_json::to_value(params)?;
+        let _value = self
+            .client
+            .call(rpc_methods::SESSION_CANVASSOURCE_CLOSE, Some(wire_params))
             .await?;
         Ok(())
     }

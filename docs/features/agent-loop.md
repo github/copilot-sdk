@@ -140,13 +140,15 @@ session.on("session.task_complete", (event) => {
 
 In **autopilot mode** (headless/autonomous operation), the CLI actively tracks whether the model has called `task_complete`. If the tool-use loop ends without it, the CLI injects a synthetic user message nudging the model:
 
-> *"You have not yet marked the task as complete using the task_complete tool. If you were planning, stop planning and start implementing. You aren't done until you have fully completed the task."*
+> *"You have not yet marked the task as complete using the task_complete tool. If you were planning changes the user asked for, stop planning and start implementing. You aren't done until you have fully completed the task."*
 
 This effectively restarts the tool-use loop—the model sees the nudge as a new user message and continues working. The nudge also instructs the model **not** to call `task_complete` prematurely:
 
 * Don't call it if you have open questions—make decisions and keep working
 * Don't call it if you hit an error—try to resolve it
 * Don't call it if there are remaining steps—complete them first
+
+The one exception is a request that only asked for a review, analysis or recommendation: once that has been delivered, the nudge tells the model to call `task_complete` rather than start a follow-up it offered.
 
 This creates a **two-level completion mechanism** in autopilot:
 1. The model calls `task_complete` with a summary → CLI emits `session.task_complete` → done
@@ -184,6 +186,6 @@ const turns = (await session.getEvents()).filter((event) => event.type === "assi
 
 ## Further reading
 
-* [Streaming Events Reference](./streaming-events.md): Full field-level reference for every event type
+* [Streaming Events Reference](./streaming-events.md): Field-level reference for the event types applications most often handle
 * [Session Persistence](./session-persistence.md): How sessions are saved and resumed
 * [Hooks](./hooks.md): Intercepting events in the loop (permissions, tools)

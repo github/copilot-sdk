@@ -2,7 +2,7 @@
 //!
 //! Provides the [`ToolHandler`](crate::tool::ToolHandler) trait for
 //! implementing tools as named types. Attach a handler to a
-//! [`Tool`](crate::types::Tool) via
+//! [tool definition](crate::types::Tool) via
 //! [`Tool::with_handler`](crate::types::Tool::with_handler), then install
 //! the resulting tools on a session via
 //! [`SessionConfig::with_tools`](crate::types::SessionConfig::with_tools).
@@ -208,14 +208,14 @@ pub fn convert_mcp_call_tool_result(value: &serde_json::Value) -> Option<ToolRes
 ///
 /// Implement this trait when you want to bind a Rust function to a tool
 /// name and have the SDK dispatch matching `external_tool.requested`
-/// broadcasts to it. Attach the impl to a [`Tool`](crate::types::Tool)
+/// broadcasts to it. Attach the impl to a [tool definition](crate::types::Tool)
 /// via [`Tool::with_handler`](crate::types::Tool::with_handler).
 ///
 /// Named handler types (e.g. `struct MyTool;`) are visible in stack
 /// traces and navigable via "go to definition", which is preferable to
 /// closure-based alternatives for non-trivial tools. For trivial tools,
 /// the `define_tool` helper function (available with the `derive`
-/// feature) wraps a free `async fn` or closure into a [`Tool`](crate::types::Tool) with
+/// feature) wraps a free `async fn` or closure into a [tool definition](crate::types::Tool) with
 /// the handler already attached.
 ///
 /// # Example

@@ -1,23 +1,34 @@
 """CopilotSession unit tests."""
 
 import asyncio
+import io
+import json
+from collections.abc import Callable
 from dataclasses import FrozenInstanceError
 from datetime import UTC, datetime
+from typing import Any
 from unittest.mock import AsyncMock, Mock
 from uuid import uuid4
 
 import pytest
 
 from _session_test_helpers import get_next_event_of_type, wait_for_event
-from copilot import AgentMessageSource, MessageSource
-from copilot._jsonrpc import JsonRpcError, ProcessExitedError
-from copilot.session import Attachment, CopilotSession
+from copilot import AgentMessageSource, CopilotClient, MessageSource, RuntimeConnection, define_tool
+from copilot._jsonrpc import JsonRpcClient, JsonRpcError, ProcessExitedError
+from copilot.session import (
+    Attachment,
+    CommandDefinition,
+    CopilotSession,
+    ElicitationContext,
+    ElicitationResult,
+)
 from copilot.session_events import (
     AssistantMessageData,
     CapabilitiesChangedData,
     CapabilitiesChangedUI,
     ExternalToolCompletedData,
     ExternalToolRequestedData,
+    PermissionRequestRead,
     SessionAutopilotStoppedData,
     SessionErrorData,
     SessionEvent,
@@ -1151,6 +1162,104 @@ async def test_external_tool_completed_cancels_blocked_handler():
     client.request.assert_not_awaited()
 
 
+async def _answer_tool_call(tool_result: ToolResult) -> list[dict]:
+    """Answer one external tool call over a real JSON-RPC client; return what was sent."""
+
+    class StdinProcess:
+        def __init__(self):
+            self.stdin = io.BytesIO()
+            self.stdout = None
+            self.stderr = None
+
+    process = StdinProcess()
+    client = JsonRpcClient(process)
+    client._loop = asyncio.get_running_loop()
+    send_message = client._send_message
+
+    async def send_and_acknowledge(message, **kwargs):
+        await send_message(message, **kwargs)
+        client._handle_message({"jsonrpc": "2.0", "id": message["id"], "result": {"success": True}})
+
+    client._send_message = send_and_acknowledge
+    session = CopilotSession("session-1", client)
+    session._register_tools([Tool("record_note", "Records a note", lambda _: tool_result)])
+
+    session._dispatch_event(_external_tool_request("record_note", "request-1"))
+    pending = session._pending_external_tools.get("request-1")
+    assert pending is not None
+    await asyncio.wait_for(pending, timeout=1)
+
+    frames = []
+    raw = process.stdin.getvalue()
+    while raw:
+        header, _, raw = raw.partition(b"\r\n\r\n")
+        length = int(header.split(b":")[1])
+        frames.append(json.loads(raw[:length]))
+        raw = raw[length:]
+    return [frame["params"] for frame in frames]
+
+
+@pytest.mark.asyncio
+async def test_tool_result_with_encodable_telemetry_is_sent():
+    tool_result = ToolResult(text_result_for_llm="ok", tool_telemetry={"metrics": {"ms": 5}})
+
+    assert await _answer_tool_call(tool_result) == [
+        {
+            "sessionId": "session-1",
+            "requestId": "request-1",
+            "result": {
+                "textResultForLlm": "ok",
+                "resultType": "success",
+                "toolTelemetry": {"metrics": {"ms": 5}},
+            },
+        }
+    ]
+
+
+def _circular_telemetry() -> dict:
+    telemetry: dict = {}
+    telemetry["self"] = telemetry
+    return telemetry
+
+
+@pytest.mark.parametrize(
+    ("telemetry", "message"),
+    [
+        pytest.param(_circular_telemetry(), "Circular reference detected", id="circular"),
+        pytest.param({"tags": {"a"}}, "Object of type set is not JSON serializable", id="set"),
+    ],
+)
+@pytest.mark.asyncio
+async def test_tool_result_with_unencodable_telemetry_is_answered_with_error(telemetry, message):
+    tool_result = ToolResult(text_result_for_llm="ok", tool_telemetry=telemetry)
+
+    assert await _answer_tool_call(tool_result) == [
+        {
+            "sessionId": "session-1",
+            "requestId": "request-1",
+            "error": f"failed to serialize tool telemetry: {message}",
+        }
+    ]
+
+
+@pytest.mark.parametrize("value", [float("nan"), float("inf"), float("-inf")])
+@pytest.mark.asyncio
+async def test_tool_result_with_nonfinite_telemetry_is_answered_with_error(value):
+    tool_result = ToolResult(text_result_for_llm="ok", tool_telemetry={"metric": value})
+
+    answers = await _answer_tool_call(tool_result)
+
+    assert len(answers) == 1
+    assert answers[0]["error"].startswith(
+        "failed to serialize tool telemetry: Out of range float values are not JSON compliant"
+    )
+    assert answers[0] == {
+        "sessionId": "session-1",
+        "requestId": "request-1",
+        "error": answers[0]["error"],
+    }
+
+
 @pytest.mark.asyncio
 async def test_tool_invocation_names_the_sub_agent_and_request_behind_the_call():
     client = Mock()
@@ -1251,3 +1360,306 @@ def test_capabilities_changed_without_ui_leaves_capabilities_unchanged():
     _capabilities_changed(session, CapabilitiesChangedUI(canvases=True))
 
     assert session.capabilities["ui"].get("elicitation") is True
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("async_handler", [False, True], ids=["sync", "async"])
+async def test_elicitation_handler_self_cancellation_sends_cancel(async_handler: bool):
+    client = Mock(request=AsyncMock(return_value={"success": True}))
+    session = CopilotSession("session-1", client)
+
+    def cancel_handler(context: ElicitationContext) -> ElicitationResult:
+        task = asyncio.current_task()
+        assert task is not None
+        task.cancel()
+        raise asyncio.CancelledError("dialog closed")
+
+    async def cancel_async_handler(context: ElicitationContext) -> ElicitationResult:
+        return cancel_handler(context)
+
+    session._register_elicitation_handler(cancel_async_handler if async_handler else cancel_handler)
+
+    await asyncio.create_task(
+        session._handle_elicitation_request(
+            {"session_id": session.session_id, "message": "Pick a color"}, "request-1"
+        )
+    )
+
+    client.request.assert_awaited_once_with(
+        "session.ui.handlePendingElicitation",
+        {
+            "sessionId": "session-1",
+            "requestId": "request-1",
+            "result": {"action": "cancel"},
+        },
+    )
+
+
+@pytest.mark.asyncio
+async def test_elicitation_dispatch_cancellation_cancels_handler_without_answer():
+    client = Mock(request=AsyncMock())
+    session = CopilotSession("session-1", client)
+    started = asyncio.Event()
+    stopped = asyncio.Event()
+
+    async def handler(context: ElicitationContext) -> ElicitationResult:
+        started.set()
+        try:
+            await asyncio.Event().wait()
+            return {"action": "accept"}
+        finally:
+            stopped.set()
+
+    session._register_elicitation_handler(handler)
+    dispatch = asyncio.create_task(
+        session._handle_elicitation_request(
+            {"session_id": session.session_id, "message": "Pick a color"}, "request-1"
+        )
+    )
+    try:
+        await asyncio.wait_for(started.wait(), timeout=10)
+        dispatch.cancel()
+        with pytest.raises(asyncio.CancelledError):
+            await dispatch
+        assert stopped.is_set()
+        client.request.assert_not_awaited()
+    finally:
+        dispatch.cancel()
+        await asyncio.gather(dispatch, return_exceptions=True)
+
+
+CANCELLED_HANDLER_SHAPES = [
+    pytest.param(False, id="awaits-a-cancelled-future"),
+    pytest.param(True, id="cancels-its-own-task"),
+]
+
+
+def _cancelled_handler(cancel_own_task: bool) -> Callable[..., Any]:
+    """A handler that fails with CancelledError without its dispatch being cancelled."""
+    if cancel_own_task:
+
+        def cancel_own_task_handler(*_args: Any) -> Any:
+            task = asyncio.current_task()
+            assert task is not None
+            task.cancel()
+            raise asyncio.CancelledError()
+
+        return cancel_own_task_handler
+
+    async def await_cancelled_future_handler(*_args: Any) -> Any:
+        shared = asyncio.get_running_loop().create_future()
+        shared.cancel()  # cancelled by its owner, e.g. a shared upstream fetch
+        await shared
+
+    return await_cancelled_future_handler
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("cancel_own_task", CANCELLED_HANDLER_SHAPES)
+async def test_cancelled_tool_handler_answers_the_call_with_an_error(cancel_own_task: bool):
+    client = Mock(request=AsyncMock(return_value={"success": True}))
+    session = CopilotSession("session-1", client)
+    session._register_tools([Tool("fetch_data", "Fetches", _cancelled_handler(cancel_own_task))])
+
+    session._dispatch_event(_external_tool_request("fetch_data"))
+
+    assert await _wait_for_tool_result(session, client, "request-1") == {
+        "sessionId": "session-1",
+        "requestId": "request-1",
+        "error": "CancelledError",
+    }
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("cancel_own_task", CANCELLED_HANDLER_SHAPES)
+async def test_cancelled_command_handler_answers_the_command_with_an_error(cancel_own_task: bool):
+    client = Mock(request=AsyncMock(return_value={"success": True}))
+    session = CopilotSession("session-1", client)
+    session._register_commands(
+        [CommandDefinition(name="deploy", handler=_cancelled_handler(cancel_own_task))]
+    )
+
+    await asyncio.create_task(
+        session._execute_command_and_respond("command-1", "deploy", "/deploy prod", "prod")
+    )
+
+    client.request.assert_awaited_once_with(
+        "session.commands.handlePendingCommand",
+        {"sessionId": "session-1", "requestId": "command-1", "error": "CancelledError"},
+    )
+
+
+@pytest.mark.asyncio
+async def test_cancelling_a_command_dispatch_cancels_the_handler_without_an_answer():
+    client = Mock(request=AsyncMock())
+    session = CopilotSession("session-1", client)
+    started = asyncio.Event()
+    stopped = asyncio.Event()
+
+    async def handler(_context: Any) -> None:
+        started.set()
+        try:
+            await asyncio.Event().wait()
+        finally:
+            stopped.set()
+
+    session._register_commands([CommandDefinition(name="deploy", handler=handler)])
+    dispatch = asyncio.create_task(
+        session._execute_command_and_respond("command-1", "deploy", "/deploy prod", "prod")
+    )
+    try:
+        await asyncio.wait_for(started.wait(), timeout=10)
+        dispatch.cancel()
+        with pytest.raises(asyncio.CancelledError):
+            await dispatch
+        assert stopped.is_set()
+        client.request.assert_not_awaited()
+    finally:
+        dispatch.cancel()
+        await asyncio.gather(dispatch, return_exceptions=True)
+
+
+@pytest.mark.asyncio
+async def test_decorated_tool_with_empty_exception_answers_with_nonempty_error():
+    client = Mock(request=AsyncMock(return_value={"success": True}))
+    session = CopilotSession("session-1", client)
+
+    @define_tool("fetch_data")
+    def fetch_data() -> str:
+        raise ValueError()
+
+    session._register_tools([fetch_data])
+    session._dispatch_event(_external_tool_request("fetch_data"))
+
+    assert await _wait_for_tool_result(session, client, "request-1") == {
+        "sessionId": "session-1",
+        "requestId": "request-1",
+        "error": "ValueError",
+    }
+
+
+async def _dispatch_permission_or_mcp_auth(session, kind, handler):
+    if kind == "permission":
+        await session._execute_permission_and_respond(
+            "request-1", PermissionRequestRead(intention="Read", path="/file.txt"), handler
+        )
+    else:
+        await session._execute_mcp_auth_and_respond(
+            {
+                "requestId": "request-1",
+                "serverName": "test-server",
+                "serverUrl": "https://example.com",
+                "reason": "initial",
+                "runtimeRefreshSupported": False,
+            },
+            handler,
+        )
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("kind", ["permission", "mcp-auth"])
+@pytest.mark.parametrize("cancel_own_task", CANCELLED_HANDLER_SHAPES)
+async def test_cancelled_permission_or_mcp_auth_handler_answers(kind, cancel_own_task):
+    client = Mock(request=AsyncMock(return_value={"success": True}))
+    session = CopilotSession("session-1", client)
+
+    await asyncio.create_task(
+        _dispatch_permission_or_mcp_auth(session, kind, _cancelled_handler(cancel_own_task))
+    )
+
+    client.request.assert_awaited_once_with(
+        "session.permissions.handlePendingPermissionRequest"
+        if kind == "permission"
+        else "session.mcp.oauth.handlePendingRequest",
+        {
+            "sessionId": "session-1",
+            "requestId": "request-1",
+            "result": {"kind": "user-not-available" if kind == "permission" else "cancelled"},
+        },
+    )
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("kind", ["permission", "mcp-auth"])
+async def test_cancelling_permission_or_mcp_auth_dispatch_cancels_handler_without_answer(kind):
+    client = Mock(request=AsyncMock())
+    session = CopilotSession("session-1", client)
+    started = asyncio.Event()
+    stopped = asyncio.Event()
+
+    async def handler(*_args):
+        started.set()
+        try:
+            await asyncio.Event().wait()
+        finally:
+            stopped.set()
+
+    dispatch = asyncio.create_task(_dispatch_permission_or_mcp_auth(session, kind, handler))
+    try:
+        await asyncio.wait_for(started.wait(), timeout=1)
+        dispatch.cancel()
+        with pytest.raises(asyncio.CancelledError):
+            await dispatch
+        assert stopped.is_set()
+        client.request.assert_not_awaited()
+    finally:
+        dispatch.cancel()
+        await asyncio.gather(dispatch, return_exceptions=True)
+
+
+@pytest.mark.asyncio
+async def test_tool_can_force_stop_its_client_without_interrupting_cleanup(monkeypatch, tmp_path):
+    monkeypatch.setattr(
+        CopilotClient, "_resolve_inprocess_runtime", lambda self: str(tmp_path / "runtime.so")
+    )
+    client = CopilotClient(connection=RuntimeConnection.for_inprocess())
+    rpc_client = Mock(request=AsyncMock(), stop=AsyncMock())
+    client._client = rpc_client
+    host = Mock()
+    client._ffi_host = host
+    session = CopilotSession("session-1", rpc_client)
+    client._register_session(session)
+    unrelated_started = asyncio.Event()
+    unrelated_stopped = asyncio.Event()
+    handler_finished = asyncio.Event()
+
+    async def unrelated(_invocation):
+        unrelated_started.set()
+        try:
+            await asyncio.Event().wait()
+        finally:
+            unrelated_stopped.set()
+
+    async def shutdown(_invocation):
+        await client.force_stop()
+        handler_finished.set()
+        return ToolResult(text_result_for_llm="stopped")
+
+    session._register_tools([Tool("unrelated", "", unrelated), Tool("shutdown", "", shutdown)])
+    session._dispatch_event(_external_tool_request("unrelated", "unrelated-request"))
+    unrelated_dispatch = session._pending_external_tools["unrelated-request"]
+    shutdown_dispatch = None
+    try:
+        await asyncio.wait_for(unrelated_started.wait(), timeout=1)
+        session._dispatch_event(_external_tool_request("shutdown", "shutdown-request"))
+        shutdown_dispatch = session._pending_external_tools["shutdown-request"]
+        await asyncio.wait_for(shutdown_dispatch, timeout=1)
+        with pytest.raises(asyncio.CancelledError):
+            await unrelated_dispatch
+
+        assert handler_finished.is_set()
+        assert unrelated_stopped.is_set()
+        host.dispose.assert_called_once()
+        rpc_client.stop.assert_awaited_once()
+        rpc_client.request.assert_not_awaited()
+        assert client._ffi_host is None
+        assert client._client is None
+        assert client._state == "disconnected"
+    finally:
+        pending = [unrelated_dispatch]
+        if shutdown_dispatch is not None:
+            pending.append(shutdown_dispatch)
+        for task in pending:
+            task.cancel()
+        await asyncio.gather(*pending, return_exceptions=True)
+        await client.force_stop()

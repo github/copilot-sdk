@@ -3356,6 +3356,10 @@ internal sealed class HostReadyRequest
 [Experimental(global::GitHub.Copilot.Diagnostics.Experimental)]
 public sealed class DiscoveredHook
 {
+    /// <summary>File URI of the document defining this action on the selected runtime host, not the command or script it executes. Inline hooks point to their containing settings document or plugin manifest. Omitted for sources without a backing file, such as registry policy.</summary>
+    [JsonPropertyName("definitionFileUri")]
+    public string? DefinitionFileUri { get; set; }
+
     /// <summary>Durable content hash used by hook enablement. Identical actions may intentionally share this key. Omitted when changing the user's disabled-hooks setting cannot change the action's current server-discovered state, including managed-policy hooks, session-start prompt actions, actions suppressed by disable-all settings, and projectless plugin actions that require project-directory expansion.</summary>
     [JsonPropertyName("disableKey")]
     public string? DisableKey { get; set; }
@@ -3375,6 +3379,10 @@ public sealed class DiscoveredHook
     /// <summary>Configuration tier that contributed this hook action.</summary>
     [JsonPropertyName("origin")]
     public HookOrigin Origin { get; set; }
+
+    /// <summary>Opaque identity of the plugin owning this action. Matches plugins.list().plugins[].id and MCP effectiveSource.plugin.id on the same runtime host. Compare the complete value without parsing it. Omitted for non-plugin hooks.</summary>
+    [JsonPropertyName("pluginId")]
+    public string? PluginId { get; set; }
 
     /// <summary>Input project path for which this server-side action was resolved. Set on every row returned for project-scoped discovery, including repeated user and policy actions.</summary>
     [JsonPropertyName("projectPath")]
@@ -7730,6 +7738,10 @@ internal sealed class McpInstallationOperationRequest
 [Experimental(global::GitHub.Copilot.Diagnostics.Experimental)]
 public sealed class DiscoveredExtensionPlugin
 {
+    /// <summary>Opaque identity of the owning plugin. Matches plugins.list().plugins[].id on the same runtime host. Compare the complete value without parsing it. May be absent on older runtimes.</summary>
+    [JsonPropertyName("id")]
+    public string? Id { get; set; }
+
     /// <summary>Installed plugin name.</summary>
     [JsonPropertyName("name")]
     public string Name { get; set; } = string.Empty;
@@ -7835,6 +7847,10 @@ public sealed class InstructionSource
     /// <summary>Where this source lives — used for UI grouping.</summary>
     [JsonPropertyName("location")]
     public InstructionSourceLocation Location { get; set; }
+
+    /// <summary>Opaque identity of the plugin owning this instruction source. Matches plugins.list().plugins[].id on the same runtime host. Compare the complete value without parsing it. Omitted for non-plugin sources.</summary>
+    [JsonPropertyName("pluginId")]
+    public string? PluginId { get; set; }
 
     /// <summary>The project path this source was discovered from. Only set by sessionless discovery for repository, working-directory, and project-scoped plugin sources, where it disambiguates sources across multiple workspace roots. The session-scoped getSources leaves it unset.</summary>
     [JsonPropertyName("projectPath")]
@@ -8994,6 +9010,10 @@ public sealed class ServerSkill
     [JsonPropertyName("path")]
     public string? Path { get; set; }
 
+    /// <summary>Opaque identity of the plugin owning this skill. Matches plugins.list().plugins[].id on the same runtime host. Compare the complete value without parsing it. Omitted for non-plugin skills.</summary>
+    [JsonPropertyName("pluginId")]
+    public string? PluginId { get; set; }
+
     /// <summary>The project path this skill belongs to (only for project/inherited skills).</summary>
     [JsonPropertyName("projectPath")]
     public string? ProjectPath { get; set; }
@@ -9835,6 +9855,10 @@ public sealed class InstalledPluginInfo
     [JsonPropertyName("iconUrl")]
     public string? IconUrl { get; set; }
 
+    /// <summary>Opaque plugin identity in this runtime's inventory. Matches MCP effectiveSource.plugin.id for the same plugin. Stable across enablement changes, updates and restarts while the installation source is unchanged; not a cross-host identifier or a mutation argument. Compare the complete value without parsing it. May be absent on older runtimes.</summary>
+    [JsonPropertyName("id")]
+    public string? Id { get; set; }
+
     /// <summary>Whether the managed desired plugin currently has an installed or live record. Set to false for a managed desired entry retained in the listing after installation or reconciliation failed.</summary>
     [JsonPropertyName("installed")]
     public bool? Installed { get; set; }
@@ -9858,6 +9882,10 @@ public sealed class InstalledPluginInfo
     /// <summary>Plugin name.</summary>
     [JsonPropertyName("name")]
     public string Name { get; set; } = string.Empty;
+
+    /// <summary>Absolute local directory containing this plugin's installed content, including disabled installations. Absent when the runtime has no resolved content directory. This is the plugin root, not its marketplace directory; clients must not forward it back as an additional plugin.</summary>
+    [JsonPropertyName("rootPath")]
+    public string? RootPath { get; set; }
 
     /// <summary>Runtime-reported plugin provenance. Currently set to "builtin" only for plugins registered through the trusted host built-in boundary; absent for installed, marketplace, direct, and live plugins.</summary>
     [JsonPropertyName("source")]
@@ -10008,7 +10036,7 @@ public sealed class PluginUpdateAllResult
 [Experimental(global::GitHub.Copilot.Diagnostics.Experimental)]
 internal sealed class PluginsEnableRequest
 {
-    /// <summary>Plugin names or "plugin@marketplace" specs to enable. Unknown names are ignored. Non-marketplace direct installs are always enabled and cannot be toggled via this API.</summary>
+    /// <summary>Plugin names, "plugin@marketplace" specs, or opaque directSourceId values from inventory to enable. Use directSourceId to distinguish same-named direct installations. Unknown targets and session-only plugin-directory mounts are ignored. Direct-install decisions persist on the installation record; active sessions must reload plugins to load newly enabled contributions.</summary>
     [JsonPropertyName("names")]
     public IList<string> Names { get => field ??= []; set; }
 
@@ -10021,7 +10049,7 @@ internal sealed class PluginsEnableRequest
 [Experimental(global::GitHub.Copilot.Diagnostics.Experimental)]
 internal sealed class PluginsDisableRequest
 {
-    /// <summary>Plugin names or "plugin@marketplace" specs to disable. Unknown names are ignored. Non-marketplace direct installs cannot be disabled via this API; uninstall them instead. Plugin-owned MCP servers are stopped in active sessions immediately; other plugin contributions remain available until each session reloads plugins.</summary>
+    /// <summary>Plugin names, "plugin@marketplace" specs, or opaque directSourceId values from inventory to disable. Use directSourceId to distinguish same-named direct installations. Unknown targets and session-only plugin-directory mounts are ignored. Direct-install decisions persist on the installation record. Plugin-owned MCP servers are stopped in active sessions immediately; other plugin contributions remain available until each session reloads plugins.</summary>
     [JsonPropertyName("names")]
     public IList<string> Names { get => field ??= []; set; }
 
@@ -12399,6 +12427,10 @@ public sealed class AgentInfo
     /// <summary>Absolute local file path of the agent definition. Only set for file-based agents loaded from disk; remote agents do not have a path.</summary>
     [JsonPropertyName("path")]
     public string? Path { get; set; }
+
+    /// <summary>Opaque identity of the plugin owning this agent. Matches plugins.list().plugins[].id on the same runtime host. Compare the complete value without parsing it. Omitted for non-plugin agents.</summary>
+    [JsonPropertyName("pluginId")]
+    public string? PluginId { get; set; }
 
     /// <summary>Authored base prompt for the agent. Runtime prompt assembly may add dynamic context at invocation time. Omitted from `session.agent.list` unless `includePrompt` is true.</summary>
     [JsonPropertyName("prompt")]
@@ -19819,7 +19851,7 @@ internal sealed class AccountsSetRequest
     public string SessionId { get; set; } = string.Empty;
 }
 
-/// <summary>One step in an interactive login flow. The consumer acts on the step and calls advance to proceed. Browser-open is encoded as two distinct steps by design: `open-url` is CONSUMER-driven (the provider surfaces the authorize URL and the consumer opens it — github.com/GHEC web), while `needs-interaction` is PROVIDER-driven (the provider opens the browser or broker UI itself and does not surface a URL — Entra).</summary>
+/// <summary>One step in an interactive login flow. The consumer acts on the step and calls advance to proceed. Browser-open is encoded as two distinct steps by design: `open-url` is CONSUMER-driven (the provider surfaces the authorize URL and the consumer opens it — github.com/GHEC web), while `needs-interaction` is PROVIDER-driven (the provider opens the browser or broker UI itself and does not surface a URL — Entra). A device-code flow surfaces its one-time code as `device-code`; the consumer shows the code, may open the verification URI, and calls advance, which resolves once the user has authorized the device.</summary>
 /// <remarks>Polymorphic base type discriminated by <c>kind</c>.</remarks>
 [Experimental(global::GitHub.Copilot.Diagnostics.Experimental)]
 [JsonPolymorphic(
@@ -19831,6 +19863,7 @@ internal sealed class AccountsSetRequest
 [JsonDerivedType(typeof(AuthLoginStepNeedsInteraction), "needs-interaction")]
 [JsonDerivedType(typeof(AuthLoginStepCompleted), "completed")]
 [JsonDerivedType(typeof(AuthLoginStepError), "error")]
+[JsonDerivedType(typeof(AuthLoginStepDeviceCode), "device-code")]
 public partial class AuthLoginStep
 {
     /// <summary>The type discriminator.</summary>
@@ -19953,6 +19986,33 @@ public partial class AuthLoginStepError : AuthLoginStep
     public required string Message { get; set; }
 }
 
+/// <summary>The <c>device-code</c> variant of <see cref="AuthLoginStep"/>.</summary>
+[Experimental(global::GitHub.Copilot.Diagnostics.Experimental)]
+public partial class AuthLoginStepDeviceCode : AuthLoginStep
+{
+    /// <inheritdoc />
+    [JsonIgnore]
+    public override string Kind => "device-code";
+
+    /// <summary>Seconds until the one-time code expires, measured from when this step was produced. Consumers can show a countdown or pick their own timeout instead of blocking until the provider rejects the code.</summary>
+    [JsonPropertyName("expiresIn")]
+    public required long ExpiresIn { get; set; }
+
+    /// <summary>Minimum seconds between authorization polls required by the provider. The runtime performs the polling itself for the duration of the single `advance` call, so this is informational (for example to drive a progress indicator); repeating `advance` is rejected as already advancing.</summary>
+    [JsonPropertyName("interval")]
+    public required long Interval { get; set; }
+
+    /// <summary>One-time code the user enters at the verification URI.</summary>
+    [JsonPropertyName("userCode")]
+    public required string UserCode { get; set; }
+
+    /// <summary>Page where the user enters the one-time code (consumer-driven browser-open).</summary>
+    [Url]
+    [StringSyntax(StringSyntaxAttribute.Uri)]
+    [JsonPropertyName("verificationUri")]
+    public required string VerificationUri { get; set; }
+}
+
 /// <summary>A started login flow: its opaque id and first step.</summary>
 [Experimental(global::GitHub.Copilot.Diagnostics.Experimental)]
 public sealed class AuthLoginBegun
@@ -19978,6 +20038,10 @@ public sealed class AuthLoginBeginRequest
     [JsonPropertyName("kind")]
     public required LoginProviderKind Kind { get; set; }
 
+    /// <summary>How to authorize: `web` (default) or `device-code`. Device code is offered for `githubDotCom` and `proxima`; `proxima` still asks for its host through `input-required` first.</summary>
+    [JsonPropertyName("method")]
+    public AuthLoginMethod? Method { get; set; }
+
     /// <summary>Neutral identity-selection intent. Omitted is equivalent to default.</summary>
     [JsonPropertyName("mode")]
     public AuthLoginMode? Mode { get; set; }
@@ -19994,6 +20058,10 @@ internal sealed class AuthLoginBeginRequestWithSession
     /// <summary>The provider kind to sign in with.</summary>
     [JsonPropertyName("kind")]
     public LoginProviderKind Kind { get; set; }
+
+    /// <summary>How to authorize: `web` (default) or `device-code`. Device code is offered for `githubDotCom` and `proxima`; `proxima` still asks for its host through `input-required` first.</summary>
+    [JsonPropertyName("method")]
+    public AuthLoginMethod? Method { get; set; }
 
     /// <summary>Neutral identity-selection intent. Omitted is equivalent to default.</summary>
     [JsonPropertyName("mode")]
@@ -20444,6 +20512,23 @@ internal sealed class CanvasProviderUnregisterRequest
     /// <summary>Connection identifier to unregister.</summary>
     [JsonPropertyName("connectionId")]
     public string ConnectionId { get; set; } = string.Empty;
+
+    /// <summary>Target session identifier.</summary>
+    [JsonPropertyName("sessionId")]
+    public string SessionId { get; set; } = string.Empty;
+}
+
+/// <summary>Closes a canvas through its original owned or attached session namespace.</summary>
+[Experimental(global::GitHub.Copilot.Diagnostics.Experimental)]
+internal sealed class CanvasSourceCloseRequest
+{
+    /// <summary>Exact authenticated local attachment identifier. Omit for the SDK connection's owned session.</summary>
+    [JsonPropertyName("attachId")]
+    public long? AttachId { get; set; }
+
+    /// <summary>Open canvas instance identifier.</summary>
+    [JsonPropertyName("instanceId")]
+    public string InstanceId { get; set; } = string.Empty;
 
     /// <summary>Target session identifier.</summary>
     [JsonPropertyName("sessionId")]
@@ -24576,6 +24661,10 @@ public sealed class Skill
     [JsonPropertyName("path")]
     public string? Path { get; set; }
 
+    /// <summary>Opaque identity of the plugin owning this skill. Matches plugins.list().plugins[].id on the same runtime host. Compare the complete value without parsing it. Omitted for non-plugin skills.</summary>
+    [JsonPropertyName("pluginId")]
+    public string? PluginId { get; set; }
+
     /// <summary>Name of the plugin that provides the skill, when source is 'plugin'.</summary>
     [JsonPropertyName("pluginName")]
     public string? PluginName { get; set; }
@@ -27418,6 +27507,10 @@ public sealed class Plugin
     [JsonPropertyName("enabled")]
     public bool Enabled { get; set; }
 
+    /// <summary>Opaque plugin identity in this runtime's inventory. Matches global inventory id and MCP effectiveSource.plugin.id for the same plugin. Stable across enablement changes, updates and restarts while the source is unchanged. Session-only plugin identities are scoped to their session; not a cross-host identifier or a mutation argument. Compare the complete value without parsing it. May be absent on older runtimes.</summary>
+    [JsonPropertyName("id")]
+    public string? Id { get; set; }
+
     /// <summary>Whether this managed desired plugin has an installed or live record.</summary>
     [JsonPropertyName("installed")]
     public bool? Installed { get; set; }
@@ -27441,6 +27534,10 @@ public sealed class Plugin
     /// <summary>Plugin name.</summary>
     [JsonPropertyName("name")]
     public string Name { get; set; } = string.Empty;
+
+    /// <summary>Absolute local directory containing this plugin's resolved content, including disabled installations. Absent when no content directory is resolved. This is the plugin root, not its marketplace directory; clients must not forward it back as an additional plugin.</summary>
+    [JsonPropertyName("rootPath")]
+    public string? RootPath { get; set; }
 
     /// <summary>Runtime plugin provenance, such as "builtin".</summary>
     [JsonPropertyName("source")]
@@ -27516,7 +27613,7 @@ internal sealed class PluginsUpdateRequestWithSession
 [Experimental(global::GitHub.Copilot.Diagnostics.Experimental)]
 internal sealed class SessionPluginsEnableRequest
 {
-    /// <summary>Plugin names or "plugin@marketplace" specs to enable. Unknown names are ignored. Non-marketplace direct installs are always enabled and cannot be toggled via this API.</summary>
+    /// <summary>Plugin names, "plugin@marketplace" specs, or opaque directSourceId values from inventory to enable. Use directSourceId to distinguish same-named direct installations. This persists user-level enablement, not a session-only override. Unknown targets and session-only plugin-directory mounts are ignored; active sessions must reload plugins to load newly enabled contributions.</summary>
     [JsonPropertyName("names")]
     public IList<string> Names { get => field ??= []; set; }
 
@@ -27529,7 +27626,7 @@ internal sealed class SessionPluginsEnableRequest
 [Experimental(global::GitHub.Copilot.Diagnostics.Experimental)]
 internal sealed class SessionPluginsDisableRequest
 {
-    /// <summary>Plugin names or "plugin@marketplace" specs to disable. Unknown names are ignored. Non-marketplace direct installs cannot be disabled via this API; uninstall them instead. Plugin-owned MCP servers are stopped in active sessions immediately; other plugin contributions remain available until each session reloads plugins.</summary>
+    /// <summary>Plugin names, "plugin@marketplace" specs, or opaque directSourceId values from inventory to disable. Use directSourceId to distinguish same-named direct installations. This persists user-level enablement, not a session-only override. Unknown targets and session-only plugin-directory mounts are ignored. Plugin-owned MCP servers are stopped in active sessions immediately; other plugin contributions remain available until each session reloads plugins.</summary>
     [JsonPropertyName("names")]
     public IList<string> Names { get => field ??= []; set; }
 
@@ -30994,7 +31091,7 @@ public sealed class PermissionsConfigureParams
     [JsonPropertyName("authenticatedAuthority")]
     public AuthenticatedAuthorityUpdate? AuthenticatedAuthority { get; set; }
 
-    /// <summary>Declares whether this connection's registered permission handler applies non-human host policy to the tools this connection registered. When true, unattended Assisted Autopilot sends permission requests for those tools to the handler before runtime Assisted Approval or unattended fallback can settle them. All other requests, including shell commands, file access, URLs, and tools registered by other connections or extensions, keep runtime settlement. Managed policy and other runtime enforcement still take precedence. Only the session's owning non-extension connection may set this field. The declaration ends when that connection detaches or the session is resumed, so hosts must reapply it after resume. Omit to leave unchanged; false clears it. Without a declaration, registered handlers are not consulted during unattended Assisted Autopilot. Remote sessions are not supported.</summary>
+    /// <summary>Declares whether this connection's registered permission handler applies non-human host policy to the tools and canvases this connection registered. When true, unattended Assisted Autopilot sends permission requests for those tools, and `open_canvas` and `invoke_canvas_action` requests whose target canvas this connection registered, to the handler before runtime Assisted Approval or unattended fallback can settle them. All other requests, including shell commands, file access, URLs, and tools or canvases registered by other connections or extensions, keep runtime settlement. Managed policy and other runtime enforcement still take precedence. Only the session's owning non-extension connection may set this field. The declaration ends when that connection detaches or the session is resumed, so hosts must reapply it after resume. Omit to leave unchanged; false clears it. Without a declaration, registered handlers are not consulted during unattended Assisted Autopilot. Remote sessions are not supported.</summary>
     [JsonPropertyName("hostPolicyPermissionHandler")]
     public bool? HostPolicyPermissionHandler { get; set; }
 
@@ -31039,7 +31136,7 @@ internal sealed class PermissionsConfigureParamsWithSession
     [JsonPropertyName("authenticatedAuthority")]
     public AuthenticatedAuthorityUpdate? AuthenticatedAuthority { get; set; }
 
-    /// <summary>Declares whether this connection's registered permission handler applies non-human host policy to the tools this connection registered. When true, unattended Assisted Autopilot sends permission requests for those tools to the handler before runtime Assisted Approval or unattended fallback can settle them. All other requests, including shell commands, file access, URLs, and tools registered by other connections or extensions, keep runtime settlement. Managed policy and other runtime enforcement still take precedence. Only the session's owning non-extension connection may set this field. The declaration ends when that connection detaches or the session is resumed, so hosts must reapply it after resume. Omit to leave unchanged; false clears it. Without a declaration, registered handlers are not consulted during unattended Assisted Autopilot. Remote sessions are not supported.</summary>
+    /// <summary>Declares whether this connection's registered permission handler applies non-human host policy to the tools and canvases this connection registered. When true, unattended Assisted Autopilot sends permission requests for those tools, and `open_canvas` and `invoke_canvas_action` requests whose target canvas this connection registered, to the handler before runtime Assisted Approval or unattended fallback can settle them. All other requests, including shell commands, file access, URLs, and tools or canvases registered by other connections or extensions, keep runtime settlement. Managed policy and other runtime enforcement still take precedence. Only the session's owning non-extension connection may set this field. The declaration ends when that connection detaches or the session is resumed, so hosts must reapply it after resume. Omit to leave unchanged; false clears it. Without a declaration, registered handlers are not consulted during unattended Assisted Autopilot. Remote sessions are not supported.</summary>
     [JsonPropertyName("hostPolicyPermissionHandler")]
     public bool? HostPolicyPermissionHandler { get; set; }
 
@@ -33698,6 +33795,45 @@ public sealed class HistoryCancelBackgroundCompactionResult
 [Experimental(global::GitHub.Copilot.Diagnostics.Experimental)]
 internal sealed class SessionHistoryCancelBackgroundCompactionRequest
 {
+    /// <summary>Target session identifier.</summary>
+    [JsonPropertyName("sessionId")]
+    public string SessionId { get; set; } = string.Empty;
+}
+
+/// <summary>Compaction settings for this session. Each call replaces the previous settings: an omitted field returns to its default. Settings live in memory until the session ends; re-apply them after resuming a session in a new process.</summary>
+[Experimental(global::GitHub.Copilot.Diagnostics.Experimental)]
+internal sealed class HistorySetCompactionConfigRequest
+{
+    /// <summary>
+    /// Model that summarizes this session's conversation when it compacts,
+    /// instead of the session's own model. Applies only when both are Copilot
+    /// models the session may use; for a BYOK or provider session, or a model
+    /// the session's catalog or allowed-model policy rejects, compaction
+    /// summarizes on the session's model. Takes precedence over any runtime
+    /// experiment that picks a compaction model. Blank values are ignored.
+    /// </summary>
+    [JsonPropertyName("model")]
+    public string? Model { get; set; }
+
+    /// <summary>
+    /// Summarization instruction sent as the final user message of a
+    /// compaction request, replacing the built-in prompt entirely; the caller
+    /// owns the summary's format. `/compact` focus instructions and a note that
+    /// tools are unavailable are appended to it. Blank values are ignored.
+    /// </summary>
+    [JsonPropertyName("prompt")]
+    public string? Prompt { get; set; }
+
+    /// <summary>
+    /// Reasoning effort for compaction requests: one of `none`, `minimal`,
+    /// `low`, `medium`, `high`, `xhigh` or `max`. Applies when the model that
+    /// summarizes supports it; otherwise the request keeps its usual effort.
+    /// Takes precedence over any runtime experiment that adjusts compaction
+    /// reasoning effort. Any other value is rejected.
+    /// </summary>
+    [JsonPropertyName("reasoningEffort")]
+    public string? ReasoningEffort { get; set; }
+
     /// <summary>Target session identifier.</summary>
     [JsonPropertyName("sessionId")]
     public string SessionId { get; set; } = string.Empty;
@@ -48585,7 +48721,7 @@ public readonly struct LoginProviderKind : IEquatable<LoginProviderKind>
     /// <summary>Gets the value associated with this <see cref="LoginProviderKind"/>.</summary>
     public string Value => _value ?? string.Empty;
 
-    /// <summary>OAuth github.com sign-in via the browser (web loopback + PKCE).</summary>
+    /// <summary>OAuth github.com sign-in, in the browser (web loopback + PKCE) or by device code — see the login method.</summary>
     public static LoginProviderKind GitHubDotCom { get; } = new("githubDotCom");
 
     /// <summary>A GitHub Enterprise Cloud account — a GitHub account on a non-github.com host, e.g. *.ghe.com; the host is supplied interactively through the neutral input-required step.</summary>
@@ -48695,6 +48831,69 @@ public readonly struct AuthLoginResultStatus : IEquatable<AuthLoginResultStatus>
         public override void Write(Utf8JsonWriter writer, AuthLoginResultStatus value, JsonSerializerOptions options)
         {
             GeneratedStringEnumJson.WriteValue(writer, value.Value, typeof(AuthLoginResultStatus));
+        }
+    }
+}
+
+
+/// <summary>How an interactive GitHub login is authorized.</summary>
+[Experimental(global::GitHub.Copilot.Diagnostics.Experimental)]
+[JsonConverter(typeof(Converter))]
+[DebuggerDisplay("{Value,nq}")]
+public readonly struct AuthLoginMethod : IEquatable<AuthLoginMethod>
+{
+    private readonly string? _value;
+
+    /// <summary>Initializes a new instance of the <see cref="AuthLoginMethod"/> struct.</summary>
+    /// <param name="value">The value to associate with this <see cref="AuthLoginMethod"/>.</param>
+    [JsonConstructor]
+    public AuthLoginMethod(string value)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(value);
+        _value = value;
+    }
+
+    /// <summary>Gets the value associated with this <see cref="AuthLoginMethod"/>.</summary>
+    public string Value => _value ?? string.Empty;
+
+    /// <summary>Browser authorization with a loopback callback; the flow surfaces an `open-url` step.</summary>
+    public static AuthLoginMethod Web { get; } = new("web");
+
+    /// <summary>OAuth device authorization; the flow surfaces a `device-code` step with a one-time code, for terminals whose browser cannot reach a loopback callback.</summary>
+    public static AuthLoginMethod DeviceCode { get; } = new("device-code");
+
+    /// <summary>Returns a value indicating whether two <see cref="AuthLoginMethod"/> instances are equivalent.</summary>
+    public static bool operator ==(AuthLoginMethod left, AuthLoginMethod right) => left.Equals(right);
+
+    /// <summary>Returns a value indicating whether two <see cref="AuthLoginMethod"/> instances are not equivalent.</summary>
+    public static bool operator !=(AuthLoginMethod left, AuthLoginMethod right) => !(left == right);
+
+    /// <inheritdoc />
+    public override bool Equals(object? obj) => obj is AuthLoginMethod other && Equals(other);
+
+    /// <inheritdoc />
+    public bool Equals(AuthLoginMethod other) => string.Equals(Value, other.Value, StringComparison.OrdinalIgnoreCase);
+
+    /// <inheritdoc />
+    public override int GetHashCode() => StringComparer.OrdinalIgnoreCase.GetHashCode(Value);
+
+    /// <inheritdoc />
+    public override string ToString() => Value;
+
+    /// <summary>Provides a <see cref="JsonConverter{AuthLoginMethod}"/> for serializing <see cref="AuthLoginMethod"/> instances.</summary>
+    [EditorBrowsable(EditorBrowsableState.Never)]
+    public sealed class Converter : JsonConverter<AuthLoginMethod>
+    {
+        /// <inheritdoc />
+        public override AuthLoginMethod Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
+        {
+            return new(GeneratedStringEnumJson.ReadValue(ref reader, typeToConvert));
+        }
+
+        /// <inheritdoc />
+        public override void Write(Utf8JsonWriter writer, AuthLoginMethod value, JsonSerializerOptions options)
+        {
+            GeneratedStringEnumJson.WriteValue(writer, value.Value, typeof(AuthLoginMethod));
         }
     }
 }
@@ -59280,7 +59479,7 @@ public sealed class ServerPluginsApi
     }
 
     /// <summary>Enables installed plugins for new sessions.</summary>
-    /// <param name="names">Plugin names or "plugin@marketplace" specs to enable. Unknown names are ignored. Non-marketplace direct installs are always enabled and cannot be toggled via this API.</param>
+    /// <param name="names">Plugin names, "plugin@marketplace" specs, or opaque directSourceId values from inventory to enable. Use directSourceId to distinguish same-named direct installations. Unknown targets and session-only plugin-directory mounts are ignored. Direct-install decisions persist on the installation record; active sessions must reload plugins to load newly enabled contributions.</param>
     /// <param name="workingDirectory">Working directory whose repository `enabledPlugins` overlay decides whether this mutation is repository-controlled. Hosts that serve sessions across several repositories (the SDK server) should pass the session's directory; otherwise the guard is evaluated against the server process's own working directory, which may belong to a different repository. Defaults to the server's current working directory.</param>
     /// <param name="cancellationToken">The <see cref="CancellationToken"/> to monitor for cancellation requests. The default is <see cref="CancellationToken.None"/>.</param>
     public async Task EnableAsync(IList<string> names, string? workingDirectory = null, CancellationToken cancellationToken = default)
@@ -59292,7 +59491,7 @@ public sealed class ServerPluginsApi
     }
 
     /// <summary>Disables installed plugins for new sessions.</summary>
-    /// <param name="names">Plugin names or "plugin@marketplace" specs to disable. Unknown names are ignored. Non-marketplace direct installs cannot be disabled via this API; uninstall them instead. Plugin-owned MCP servers are stopped in active sessions immediately; other plugin contributions remain available until each session reloads plugins.</param>
+    /// <param name="names">Plugin names, "plugin@marketplace" specs, or opaque directSourceId values from inventory to disable. Use directSourceId to distinguish same-named direct installations. Unknown targets and session-only plugin-directory mounts are ignored. Direct-install decisions persist on the installation record. Plugin-owned MCP servers are stopped in active sessions immediately; other plugin contributions remain available until each session reloads plugins.</param>
     /// <param name="workingDirectory">Working directory whose repository `enabledPlugins` overlay decides whether this mutation is repository-controlled. Hosts that serve sessions across several repositories (the SDK server) should pass the session's directory; otherwise the guard is evaluated against the server process's own working directory, which may belong to a different repository. Defaults to the server's current working directory.</param>
     /// <param name="cancellationToken">The <see cref="CancellationToken"/> to monitor for cancellation requests. The default is <see cref="CancellationToken.None"/>.</param>
     public async Task DisableAsync(IList<string> names, string? workingDirectory = null, CancellationToken cancellationToken = default)
@@ -61042,6 +61241,12 @@ public sealed class SessionRpc
         Interlocked.CompareExchange(ref field, new(_session), null) ??
         field;
 
+    /// <summary>CanvasSource APIs.</summary>
+    internal CanvasSourceApi CanvasSource =>
+        field ??
+        Interlocked.CompareExchange(ref field, new(_session), null) ??
+        field;
+
     /// <summary>Workflow APIs.</summary>
     public WorkflowApi Workflow =>
         field ??
@@ -61901,7 +62106,7 @@ public sealed class AccountsLoginApi
         _session = session;
     }
 
-    /// <summary>Begin an interactive login flow for a provider kind (dispatch is kind-only) and return its opaque flow id and first step.</summary>
+    /// <summary>Begin an interactive login flow for a provider kind, optionally selecting how to authorize (`method`: `web` by default, or `device-code`), and return its opaque flow id and first step.</summary>
     /// <param name="kind">The provider kind to sign in with.</param>
     /// <param name="cancellationToken">The <see cref="CancellationToken"/> to monitor for cancellation requests. The default is <see cref="CancellationToken.None"/>.</param>
     /// <returns>A started login flow: its opaque id and first step.</returns>
@@ -61913,7 +62118,7 @@ public sealed class AccountsLoginApi
         return await CopilotClient.InvokeRpcAsync<AuthLoginBegun>(_session.Rpc, "session.accounts.login.begin", [request], cancellationToken);
     }
 
-    /// <summary>Begin an interactive login flow for a provider kind (dispatch is kind-only) and return its opaque flow id and first step.</summary>
+    /// <summary>Begin an interactive login flow for a provider kind, optionally selecting how to authorize (`method`: `web` by default, or `device-code`), and return its opaque flow id and first step.</summary>
     /// <param name="request">Begin an interactive login flow for a provider kind, optionally reusing a cached base identity or explicitly requesting provider account selection.</param>
     /// <param name="cancellationToken">The <see cref="CancellationToken"/> to monitor for cancellation requests. The default is <see cref="CancellationToken.None"/>.</param>
     /// <returns>A started login flow: its opaque id and first step.</returns>
@@ -61921,7 +62126,7 @@ public sealed class AccountsLoginApi
     {
         ArgumentNullException.ThrowIfNull(request);
         _session.ThrowIfDisposed();
-        var wireRequest = new AuthLoginBeginRequestWithSession { SessionId = _session.SessionId, Kind = request.Kind, Mode = request.Mode, AccountId = request.AccountId };
+        var wireRequest = new AuthLoginBeginRequestWithSession { SessionId = _session.SessionId, Kind = request.Kind, Method = request.Method, Mode = request.Mode, AccountId = request.AccountId };
         return await CopilotClient.InvokeRpcAsync<AuthLoginBegun>(_session.Rpc, "session.accounts.login.begin", [wireRequest], cancellationToken);
     }
 
@@ -61929,7 +62134,7 @@ public sealed class AccountsLoginApi
     /// <param name="flowId">Opaque flow id from begin.</param>
     /// <param name="input">Neutral input fulfilling a preceding input-required step (e.g. a GHEC host); ignored otherwise.</param>
     /// <param name="cancellationToken">The <see cref="CancellationToken"/> to monitor for cancellation requests. The default is <see cref="CancellationToken.None"/>.</param>
-    /// <returns>One step in an interactive login flow. The consumer acts on the step and calls advance to proceed. Browser-open is encoded as two distinct steps by design: `open-url` is CONSUMER-driven (the provider surfaces the authorize URL and the consumer opens it — github.com/GHEC web), while `needs-interaction` is PROVIDER-driven (the provider opens the browser or broker UI itself and does not surface a URL — Entra).</returns>
+    /// <returns>One step in an interactive login flow. The consumer acts on the step and calls advance to proceed. Browser-open is encoded as two distinct steps by design: `open-url` is CONSUMER-driven (the provider surfaces the authorize URL and the consumer opens it — github.com/GHEC web), while `needs-interaction` is PROVIDER-driven (the provider opens the browser or broker UI itself and does not surface a URL — Entra). A device-code flow surfaces its one-time code as `device-code`; the consumer shows the code, may open the verification URI, and calls advance, which resolves once the user has authorized the device.</returns>
     public async Task<AuthLoginStep> AdvanceAsync(string flowId, string? input = null, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(flowId);
@@ -62118,6 +62323,31 @@ internal sealed class CanvasProviderApi
 
         var request = new CanvasProviderUnregisterRequest { SessionId = _session.SessionId, ConnectionId = connectionId };
         await CopilotClient.InvokeRpcAsync(_session.Rpc, "session.canvas.provider.unregister", [request], cancellationToken);
+    }
+}
+
+/// <summary>Provides session-scoped CanvasSource APIs.</summary>
+[Experimental(global::GitHub.Copilot.Diagnostics.Experimental)]
+internal sealed class CanvasSourceApi
+{
+    private readonly CopilotSession _session;
+
+    internal CanvasSourceApi(CopilotSession session)
+    {
+        _session = session;
+    }
+
+    /// <summary>Closes a canvas through its original session source. Requires the privately admitted in-process CLI host.</summary>
+    /// <param name="instanceId">Open canvas instance identifier.</param>
+    /// <param name="attachId">Exact authenticated local attachment identifier. Omit for the SDK connection's owned session.</param>
+    /// <param name="cancellationToken">The <see cref="CancellationToken"/> to monitor for cancellation requests. The default is <see cref="CancellationToken.None"/>.</param>
+    internal async Task CloseAsync(string instanceId, long? attachId = null, CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(instanceId);
+        _session.ThrowIfDisposed();
+
+        var request = new CanvasSourceCloseRequest { SessionId = _session.SessionId, InstanceId = instanceId, AttachId = attachId };
+        await CopilotClient.InvokeRpcAsync(_session.Rpc, "session.canvasSource.close", [request], cancellationToken);
     }
 }
 
@@ -64614,7 +64844,7 @@ public sealed class PluginsApi
     }
 
     /// <summary>Enables installed plugins when permitted by the live session's retained managed policy.</summary>
-    /// <param name="names">Plugin names or "plugin@marketplace" specs to enable. Unknown names are ignored. Non-marketplace direct installs are always enabled and cannot be toggled via this API.</param>
+    /// <param name="names">Plugin names, "plugin@marketplace" specs, or opaque directSourceId values from inventory to enable. Use directSourceId to distinguish same-named direct installations. This persists user-level enablement, not a session-only override. Unknown targets and session-only plugin-directory mounts are ignored; active sessions must reload plugins to load newly enabled contributions.</param>
     /// <param name="cancellationToken">The <see cref="CancellationToken"/> to monitor for cancellation requests. The default is <see cref="CancellationToken.None"/>.</param>
     public async Task EnableAsync(IList<string> names, CancellationToken cancellationToken = default)
     {
@@ -64626,7 +64856,7 @@ public sealed class PluginsApi
     }
 
     /// <summary>Disables installed plugins when permitted by the live session's retained managed policy.</summary>
-    /// <param name="names">Plugin names or "plugin@marketplace" specs to disable. Unknown names are ignored. Non-marketplace direct installs cannot be disabled via this API; uninstall them instead. Plugin-owned MCP servers are stopped in active sessions immediately; other plugin contributions remain available until each session reloads plugins.</param>
+    /// <param name="names">Plugin names, "plugin@marketplace" specs, or opaque directSourceId values from inventory to disable. Use directSourceId to distinguish same-named direct installations. This persists user-level enablement, not a session-only override. Unknown targets and session-only plugin-directory mounts are ignored. Plugin-owned MCP servers are stopped in active sessions immediately; other plugin contributions remain available until each session reloads plugins.</param>
     /// <param name="cancellationToken">The <see cref="CancellationToken"/> to monitor for cancellation requests. The default is <see cref="CancellationToken.None"/>.</param>
     public async Task DisableAsync(IList<string> names, CancellationToken cancellationToken = default)
     {
@@ -66284,6 +66514,37 @@ public sealed class HistoryApi
 
         var request = new SessionHistoryCancelBackgroundCompactionRequest { SessionId = _session.SessionId };
         return await CopilotClient.InvokeRpcAsync<HistoryCancelBackgroundCompactionResult>(_session.Rpc, "session.history.cancelBackgroundCompaction", [request], cancellationToken);
+    }
+
+    /// <summary>Replaces this local session's compaction settings: the model, prompt and reasoning effort its automatic and manual compactions use. Each call replaces all three: an omitted field returns to its default. Settings are held in memory only, so re-apply them after resuming the session in a new process. A change applies to compactions that start afterwards, except that automatic compactions keep the model the running turn already chose for them until that turn ends; a compaction already in progress may still pick up a new reasoning effort. Rejects on a remote session.</summary>
+    /// <param name="model">
+    /// Model that summarizes this session's conversation when it compacts,
+    /// instead of the session's own model. Applies only when both are Copilot
+    /// models the session may use; for a BYOK or provider session, or a model
+    /// the session's catalog or allowed-model policy rejects, compaction
+    /// summarizes on the session's model. Takes precedence over any runtime
+    /// experiment that picks a compaction model. Blank values are ignored.
+    /// </param>
+    /// <param name="prompt">
+    /// Summarization instruction sent as the final user message of a
+    /// compaction request, replacing the built-in prompt entirely; the caller
+    /// owns the summary's format. `/compact` focus instructions and a note that
+    /// tools are unavailable are appended to it. Blank values are ignored.
+    /// </param>
+    /// <param name="reasoningEffort">
+    /// Reasoning effort for compaction requests: one of `none`, `minimal`,
+    /// `low`, `medium`, `high`, `xhigh` or `max`. Applies when the model that
+    /// summarizes supports it; otherwise the request keeps its usual effort.
+    /// Takes precedence over any runtime experiment that adjusts compaction
+    /// reasoning effort. Any other value is rejected.
+    /// </param>
+    /// <param name="cancellationToken">The <see cref="CancellationToken"/> to monitor for cancellation requests. The default is <see cref="CancellationToken.None"/>.</param>
+    public async Task SetCompactionConfigAsync(string? model = null, string? prompt = null, string? reasoningEffort = null, CancellationToken cancellationToken = default)
+    {
+        _session.ThrowIfDisposed();
+
+        var request = new HistorySetCompactionConfigRequest { SessionId = _session.SessionId, Model = model, Prompt = prompt, ReasoningEffort = reasoningEffort };
+        await CopilotClient.InvokeRpcAsync(_session.Rpc, "session.history.setCompactionConfig", [request], cancellationToken);
     }
 
     /// <summary>Aborts any in-progress manual compaction on a local session.</summary>
@@ -68215,6 +68476,7 @@ internal static class ClientGlobalApiRegistration
 [JsonSerializable(typeof(CanvasProviderRegisterRequest))]
 [JsonSerializable(typeof(CanvasProviderUnregisterRequest))]
 [JsonSerializable(typeof(CanvasSessionContext))]
+[JsonSerializable(typeof(CanvasSourceCloseRequest))]
 [JsonSerializable(typeof(CapiSessionOptions))]
 [JsonSerializable(typeof(CardDigest))]
 [JsonSerializable(typeof(CatalogAgentPluginCandidateProvenance))]
@@ -68459,6 +68721,7 @@ internal static class ClientGlobalApiRegistration
 [JsonSerializable(typeof(HistoryRewindPoint))]
 [JsonSerializable(typeof(HistoryRewindRequest))]
 [JsonSerializable(typeof(HistoryRewindResult))]
+[JsonSerializable(typeof(HistorySetCompactionConfigRequest))]
 [JsonSerializable(typeof(HistorySkippedFileRestore))]
 [JsonSerializable(typeof(HistorySummarizeForHandoffResult))]
 [JsonSerializable(typeof(HistoryTruncateRequest))]

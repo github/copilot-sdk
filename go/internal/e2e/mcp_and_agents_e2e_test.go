@@ -11,6 +11,7 @@ import (
 )
 
 func TestMCPServersE2E(t *testing.T) {
+	t.Parallel()
 	ctx := testharness.NewTestContext(t)
 	client := ctx.NewClient()
 	t.Cleanup(func() { client.ForceStop() })
@@ -176,6 +177,7 @@ func TestMCPServersE2E(t *testing.T) {
 }
 
 func TestCustomAgentsE2E(t *testing.T) {
+	t.Parallel()
 	ctx := testharness.NewTestContext(t)
 	client := ctx.NewClient()
 	t.Cleanup(func() { client.ForceStop() })
@@ -374,6 +376,7 @@ func TestCustomAgentsE2E(t *testing.T) {
 }
 
 func TestCombinedConfigurationE2E(t *testing.T) {
+	t.Parallel()
 	ctx := testharness.NewTestContext(t)
 	client := ctx.NewClient()
 	t.Cleanup(func() { client.ForceStop() })

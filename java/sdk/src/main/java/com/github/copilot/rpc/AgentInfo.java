@@ -34,6 +34,31 @@ public class AgentInfo {
     @JsonProperty("hooks")
     private Map<String, List<Map<String, Object>>> hooks;
 
+    @JsonProperty("pluginId")
+    private String pluginId;
+
+    /**
+     * Gets the opaque identity of the owning plugin, matching plugin inventory on
+     * the same runtime host.
+     *
+     * @return the plugin identity, or {@code null} for a non-plugin agent
+     */
+    public String getPluginId() {
+        return pluginId;
+    }
+
+    /**
+     * Sets the opaque identity of the owning plugin.
+     *
+     * @param pluginId
+     *            the complete plugin identity, without parsing or normalization
+     * @return this instance for chaining
+     */
+    public AgentInfo setPluginId(String pluginId) {
+        this.pluginId = pluginId;
+        return this;
+    }
+
     /**
      * Gets declarative hook actions executed only while this agent is active.
      *

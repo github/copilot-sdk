@@ -383,10 +383,58 @@ public enum CopilotClientMode
 }
 
 /// <summary>
+/// Unsupported SDK test infrastructure configuration. Supplied values override
+/// the owned runtime's startup environment without changing the host environment.
+/// Null preserves the inherited value; an empty string clears an override.
+/// </summary>
+[EditorBrowsable(EditorBrowsableState.Never)]
+public sealed class InternalTestOptions
+{
+    /// <summary>Replay endpoint for Copilot API requests.</summary>
+    public string? CopilotApiUrl { get; init; }
+    /// <summary>Replay endpoint for GitHub API requests, including startup authentication.</summary>
+    public string? GitHubApiUrl { get; init; }
+    /// <summary>HTTP/HTTPS interception proxy for the runtime and its subprocesses.</summary>
+    public string? ProxyUrl { get; init; }
+    /// <summary>Comma-separated destinations that bypass the interception proxy.</summary>
+    public string? NoProxy { get; init; }
+    /// <summary>PEM CA-bundle path trusted by the runtime and its subprocesses.</summary>
+    public string? CaCertificatePath { get; init; }
+
+    internal IEnumerable<KeyValuePair<string, string>> ToEnvironment()
+    {
+        foreach (var (key, value) in new Dictionary<string, string?>
+        {
+            ["COPILOT_API_URL"] = CopilotApiUrl,
+            ["COPILOT_DEBUG_GITHUB_API_URL"] = GitHubApiUrl,
+            ["HTTP_PROXY"] = ProxyUrl,
+            ["HTTPS_PROXY"] = ProxyUrl,
+            ["http_proxy"] = ProxyUrl,
+            ["https_proxy"] = ProxyUrl,
+            ["NO_PROXY"] = NoProxy,
+            ["no_proxy"] = NoProxy,
+            ["NODE_EXTRA_CA_CERTS"] = CaCertificatePath,
+            ["SSL_CERT_FILE"] = CaCertificatePath,
+            ["REQUESTS_CA_BUNDLE"] = CaCertificatePath,
+            ["CURL_CA_BUNDLE"] = CaCertificatePath,
+            ["GIT_SSL_CAINFO"] = CaCertificatePath,
+        })
+        {
+            if (value is not null) yield return new(key, value);
+        }
+    }
+}
+
+/// <summary>
 /// Configuration options for creating a <see cref="CopilotClient"/> instance.
 /// </summary>
 public sealed class CopilotClientOptions
 {
+    /// <summary>
+    /// Unsupported SDK test infrastructure configuration for runtimes owned by this client.
+    /// </summary>
+    [EditorBrowsable(EditorBrowsableState.Never)]
+    public InternalTestOptions? InternalTestOptions { get; set; }
     /// <summary>
     /// Initializes a new instance of the <see cref="CopilotClientOptions"/> class.
     /// </summary>
@@ -401,6 +449,7 @@ public sealed class CopilotClientOptions
         if (other is null) return;
 
         Connection = other.Connection;
+        InternalTestOptions = other.InternalTestOptions;
         WorkingDirectory = other.WorkingDirectory;
         BaseDirectory = other.BaseDirectory;
         BuiltinPluginDirectories = other.BuiltinPluginDirectories is null ? null : [.. other.BuiltinPluginDirectories];
@@ -445,12 +494,14 @@ public sealed class CopilotClientOptions
 
     /// <summary>
     /// Working directory for the runtime process.
+    /// Not supported in-process; use <see cref="SessionConfigBase.WorkingDirectory"/> instead.
     /// </summary>
     public string? WorkingDirectory { get; set; }
 
     /// <summary>
     /// Base directory for Copilot data (session state, config, etc.).
-    /// Sets the <c>COPILOT_HOME</c> environment variable on the spawned runtime.
+    /// Sets the <c>COPILOT_HOME</c> environment variable for the runtime host.
+    /// In-process hosts also keep their runtime cache in its <c>cache</c> subdirectory.
     /// When <see langword="null"/>, the runtime defaults to <c>~/.copilot</c>.
     /// Ignored when connecting to an existing runtime via
     /// <see cref="RuntimeConnection.ForUri(string, string?)"/>.
@@ -475,12 +526,11 @@ public sealed class CopilotClientOptions
     public CopilotLogLevel? LogLevel { get; set; }
 
     /// <summary>
-    /// Gets or sets environment variables passed to the runtime process.
+    /// Gets or sets runtime environment values, replacing the inherited environment for child processes.
     /// </summary>
     /// <remarks>
-    /// Not supported with the in-process transport (<see cref="RuntimeConnection.ForInProcess"/>),
-    /// which runs the runtime in the host process; setting this option there throws an
-    /// <see cref="ArgumentException"/>. For child-process transports, prefer
+    /// Unsupported with <see cref="RuntimeConnection.ForInProcess"/>; use typed client/session options.
+    /// For child-process transports, prefer
     /// <see cref="ChildProcessRuntimeConnection.Environment"/>; setting both throws.
     /// </remarks>
     public IReadOnlyDictionary<string, string>? Environment { get; set; }

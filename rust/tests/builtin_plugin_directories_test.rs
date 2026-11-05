@@ -123,6 +123,7 @@ async fn configured_directories_call_rpc_once_before_start_completes() {
 async fn relative_directory_is_rejected() {
     let options = ClientOptions::new()
         .with_program(CliProgram::Path(std::env::current_exe().unwrap()))
+        .with_transport(Transport::Stdio)
         .with_builtin_plugin_directories(["plugins/core"]);
 
     let error = match Client::start(options).await {

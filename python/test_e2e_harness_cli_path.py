@@ -2,11 +2,43 @@
 
 from __future__ import annotations
 
+from typing import get_type_hints
+from unittest.mock import AsyncMock
+
 import pytest
 
 from copilot import CopilotClient, RuntimeConnection
-from e2e import conftest
+from copilot.client import CloudSessionOptions
 from e2e.testharness import context
+
+
+def test_fixture_client_preserves_session_option_annotations_for_ahp():
+    assert get_type_hints(context._TestClient.create_session) == get_type_hints(
+        CopilotClient.create_session
+    )
+
+
+async def test_session_cwd_defaults_do_not_override_cloud_or_explicit_directories(monkeypatch):
+    create_session = AsyncMock()
+    monkeypatch.setattr(CopilotClient, "create_session", create_session)
+    client = context._TestClient(
+        "/fixture", connection=RuntimeConnection.for_stdio(path="unused-runtime")
+    )
+    await client.create_session()
+    create_session.assert_awaited_once_with(working_directory="/fixture")
+    create_session.reset_mock()
+    await client.create_session(working_directory="/explicit")
+    create_session.assert_awaited_once_with(working_directory="/explicit")
+    create_session.reset_mock()
+    cloud = CloudSessionOptions()
+    await client.create_session(cloud=cloud)
+    create_session.assert_awaited_once_with(cloud=cloud)
+    create_session.reset_mock()
+    subprocess_client = context._TestClient(
+        None, connection=RuntimeConnection.for_stdio(path="unused-runtime")
+    )
+    await subprocess_client.create_session()
+    create_session.assert_awaited_once_with()
 
 
 class TestGetCliPathForTests:
@@ -53,21 +85,25 @@ class TestGetCliPathForTests:
             context.get_cli_path_for_tests()
 
 
-def test_inprocess_environment_reuses_prepared_runtime(tmp_path, monkeypatch):
+def test_inprocess_environment_reuses_prepared_runtime_without_mutating_host(tmp_path, monkeypatch):
     cli = tmp_path / "copilot-runtime"
     cli.write_text("runtime\n")
 
     test_context = context.E2ETestContext()
     test_context.cli_path = str(cli)
+    test_context.home_dir = str(tmp_path / "home")
     test_context.work_dir = str(tmp_path)
-    monkeypatch.setattr(test_context, "get_env", lambda: {"HTTPS_PROXY": "https://proxy"})
     monkeypatch.delenv("COPILOT_CLI_PATH", raising=False)
+    monkeypatch.setenv("COPILOT_HMAC_KEY", "ambient-hmac")
+    original_cwd = context.os.getcwd()
 
-    try:
-        test_context._apply_inprocess_environment()
-        assert context.os.environ["COPILOT_CLI_PATH"] == str(cli)
-    finally:
-        test_context._restore_inprocess_environment()
+    environment = test_context.get_env()
+    assert environment["COPILOT_CLI_PATH"] == str(cli)
+    assert environment["COPILOT_HOME"] == test_context.home_dir
+    assert environment["COPILOT_HMAC_KEY"] == ""
+    assert "COPILOT_CLI_PATH" not in context.os.environ
+    assert context.os.environ["COPILOT_HMAC_KEY"] == "ambient-hmac"
+    assert context.os.getcwd() == original_cwd
 
 
 @pytest.mark.parametrize("skip_download", ["1", "true", "yes"])
@@ -83,14 +119,12 @@ def test_inprocess_collection_preserves_offline_runtime_override(
     monkeypatch.setenv("COPILOT_HMAC_KEY", "secret")
     monkeypatch.setenv("CAPI_HMAC_KEY", "secret")
 
-    conftest._neutralize_inprocess_environment()
-
     assert context.get_cli_path_for_tests() == str(cli.resolve())
     client = CopilotClient(connection=RuntimeConnection.for_inprocess())
     assert client._inprocess_runtime_path == str(runtime)
     assert client._cli_path_source == "environment"
-    assert "COPILOT_HMAC_KEY" not in context.os.environ
-    assert "CAPI_HMAC_KEY" not in context.os.environ
+    assert context.os.environ["COPILOT_HMAC_KEY"] == "secret"
+    assert context.os.environ["CAPI_HMAC_KEY"] == "secret"
 
 
 def test_inprocess_collection_rejects_incomplete_offline_runtime(tmp_path, monkeypatch):
@@ -99,18 +133,17 @@ def test_inprocess_collection_rejects_incomplete_offline_runtime(tmp_path, monke
     monkeypatch.setenv("COPILOT_CLI_PATH", str(cli))
     monkeypatch.setenv("COPILOT_SKIP_CLI_DOWNLOAD", "1")
 
-    conftest._neutralize_inprocess_environment()
-
     with pytest.raises(RuntimeError, match="In-process runtime library not found next to"):
         CopilotClient(connection=RuntimeConnection.for_inprocess())
 
 
-def test_inprocess_collection_keeps_public_runtime_selection_behavior(tmp_path, monkeypatch):
+def test_inprocess_runtime_selection_uses_process_environment(tmp_path, monkeypatch):
     cli = tmp_path / "copilot-runtime"
     cli.write_text("runtime\n")
+    runtime = tmp_path / "runtime.node"
+    runtime.write_text("native runtime\n")
     monkeypatch.setenv("COPILOT_CLI_PATH", str(cli))
-    monkeypatch.delenv("COPILOT_SKIP_CLI_DOWNLOAD", raising=False)
 
-    conftest._neutralize_inprocess_environment()
-
-    assert "COPILOT_CLI_PATH" not in context.os.environ
+    client = CopilotClient(connection=RuntimeConnection.for_inprocess())
+    assert client._inprocess_runtime_path == str(runtime)
+    assert context.os.environ["COPILOT_CLI_PATH"] == str(cli)

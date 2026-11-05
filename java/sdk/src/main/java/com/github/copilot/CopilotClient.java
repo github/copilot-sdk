@@ -12,6 +12,7 @@ import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CompletableFuture;
@@ -195,6 +196,10 @@ public final class CopilotClient implements AutoCloseable {
         }
 
         // Validate auth options with external server
+        if (this.options.getCliUrl() != null && !this.options.getCliUrl().isEmpty()
+                && this.options.getInternalTestOptions() != null) {
+            throw new IllegalArgumentException("InternalTestOptions requires a runtime owned by this client");
+        }
         if (this.options.getCliUrl() != null && !this.options.getCliUrl().isEmpty()
                 && (this.options.getGitHubToken() != null || this.options.getUseLoggedInUser().isPresent())) {
             throw new IllegalArgumentException(
@@ -412,22 +417,18 @@ public final class CopilotClient implements AutoCloseable {
     }
 
     /**
-     * Rejects per-process options that the in-process transport cannot honor. These
-     * options are lowered onto a child process, but the in-process runtime runs
-     * inside the shared host process, whose single environment and working
-     * directory cannot carry per-client values.
+     * Rejects process-wide options not implemented by the in-process transport.
      */
     private static void validateEnvironmentOptions(CopilotClientOptions options, RuntimeConnection connection) {
         if (!(connection instanceof InProcessRuntimeConnection)) {
             return;
         }
 
-        rejectInProcessOption("Environment", options.getEnvironment() != null && !options.getEnvironment().isEmpty(),
-                "set the variables on the host process environment instead");
+        rejectInProcessOption("Environment", options.getEnvironment() != null,
+                "use typed client/session options or a child-process transport");
         rejectInProcessOption("Telemetry", options.getTelemetry() != null,
-                "configure telemetry through the host process environment instead");
-        rejectInProcessOption("Cwd", options.getCwd() != null,
-                "set the process working directory before creating the client instead");
+                "configure telemetry through the host process environment or use a child-process transport");
+        rejectInProcessOption("Cwd", options.getCwd() != null, "set SessionConfig.workingDirectory instead");
         rejectInProcessOption("CliArgs", options.getCliArgs() != null && options.getCliArgs().length > 0,
                 "use the typed client options instead");
     }
@@ -435,8 +436,7 @@ public final class CopilotClient implements AutoCloseable {
     private static void rejectInProcessOption(String optionName, boolean present, String remedy) {
         if (present) {
             throw new IllegalArgumentException("CopilotClientOptions." + optionName
-                    + " is not supported with RuntimeConnection.forInProcess(): the in-process runtime shares the host"
-                    + " process, so per-client values cannot be honored; " + remedy + ".");
+                    + " is not supported with RuntimeConnection.forInProcess(); " + remedy + ".");
         }
     }
 
@@ -651,7 +651,7 @@ public final class CopilotClient implements AutoCloseable {
             });
             connectedRpc.setCloseHandler(() -> {
                 ahpHosts.disconnect(connection.serverRpc().host);
-                sessions.values().forEach(session -> {
+                sessions.values().stream().filter(session -> session.usesConnection(connectedRpc)).forEach(session -> {
                     session.cancelPendingExternalTools();
                     session.clearSkillProvider();
                 });
@@ -864,31 +864,43 @@ public final class CopilotClient implements AutoCloseable {
      */
     public CompletableFuture<Void> stop() {
         ahpHosts.disconnect();
+        CompletableFuture<Connection> stoppedConnection = connectionFuture;
         var closeFutures = new ArrayList<CompletableFuture<Void>>();
+        var activeSessions = new ArrayList<>(sessions.values());
 
-        for (CopilotSession session : new ArrayList<>(sessions.values())) {
-            Runnable closeTask = () -> {
-                try {
-                    session.close();
-                } catch (Exception e) {
-                    LOG.log(Level.WARNING, "Error closing session " + session.getSessionId(), e);
-                }
-            };
-            CompletableFuture<Void> future;
-            try {
-                future = CompletableFuture.runAsync(closeTask, executor);
-            } catch (RejectedExecutionException e) {
-                LOG.log(Level.WARNING, "Executor rejected session close task; closing inline", e);
-                closeTask.run();
-                future = CompletableFuture.completedFuture(null);
-            }
-            closeFutures.add(future);
+        for (CopilotSession session : activeSessions) {
+            // Every deadline starts here and no thread waits on it, so the detaches
+            // share one bound however few threads the executor has.
+            closeFutures.add(session.closeAsync().orTimeout(CopilotSession.DETACH_TIMEOUT_SECONDS, TimeUnit.SECONDS)
+                    .exceptionally(error -> {
+                        LOG.log(Level.WARNING, "Error closing session " + session.getSessionId(), error);
+                        return null;
+                    }));
         }
-        sessions.clear();
-        gitHubTokenProviders.clear();
 
-        return CompletableFuture.allOf(closeFutures.toArray(new CompletableFuture[0]))
-                .thenCompose(v -> cleanupConnection(true));
+        // Detach replies complete on the connection reader; clean up off it.
+        var shutdown = CompletableFuture.allOf(closeFutures.toArray(new CompletableFuture[0]))
+                .thenComposeAsync(v -> cleanupConnection(true), SHUTDOWN_DISPATCHER).whenComplete((ignored, error) -> {
+                    // A resume that the closed transport failed restores the session it
+                    // displaced, which the snapshot never held; retire everything on the
+                    // stopped connection, and nothing on a newer one.
+                    var retiring = new LinkedHashSet<>(activeSessions);
+                    JsonRpcClient stoppedRpc = stoppedConnection == null
+                            ? null
+                            : stoppedConnection
+                                    .handle((connection, startupError) -> connection == null ? null : connection.rpc())
+                                    .getNow(null);
+                    if (stoppedRpc != null) {
+                        sessions.values().stream().filter(session -> session.usesConnection(stoppedRpc))
+                                .forEach(retiring::add);
+                    }
+                    retiring.forEach(session -> {
+                        session.forceStopLocally();
+                        sessions.remove(session.getSessionId(), session);
+                    });
+                });
+        // A caller may cancel or time out its view, but not mandatory retirement.
+        return shutdown.thenApply(ignored -> null);
     }
 
     /**
@@ -1110,7 +1122,7 @@ public final class CopilotClient implements AutoCloseable {
                 request.setEnableGitHubTelemetryForwarding(true);
             }
 
-            // Empty mode: validate availableTools and set toolFilterPrecedence
+            // Empty mode: validate availableTools and set isolation defaults
             if (options.getMode() == CopilotClientMode.EMPTY) {
                 if (config.getAvailableTools() == null) {
                     if (registeredIdHolder[0] != null) {
@@ -1121,7 +1133,6 @@ public final class CopilotClient implements AutoCloseable {
                                     + "availableTools. Empty mode requires every session to explicitly opt into "
                                     + "the tools it wants — e.g. setAvailableTools(new ToolSet().addBuiltIn(BuiltInTools.ISOLATED)).");
                 }
-                request.setToolFilterPrecedence("excluded");
                 if (request.getSkipEmbeddingRetrieval() == null) {
                     request.setSkipEmbeddingRetrieval(true);
                 }
@@ -1311,9 +1322,8 @@ public final class CopilotClient implements AutoCloseable {
                 request.setEnableGitHubTelemetryForwarding(true);
             }
 
-            // Empty mode: set toolFilterPrecedence and isolation defaults for resume path
+            // Empty mode: set isolation defaults for resume path
             if (options.getMode() == CopilotClientMode.EMPTY) {
-                request.setToolFilterPrecedence("excluded");
                 if (request.getSkipEmbeddingRetrieval() == null) {
                     request.setSkipEmbeddingRetrieval(true);
                 }

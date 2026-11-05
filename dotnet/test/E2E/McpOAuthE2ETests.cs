@@ -207,6 +207,7 @@ public class McpOAuthE2ETests(E2ETestFixture fixture, ITestOutputHelper output) 
         await using var session = await CreateSessionAsync(new SessionConfig
         {
             EnableMcpApps = true,
+            FeatureFlags = new Dictionary<string, bool> { ["MCP_APPS"] = true },
             OnMcpAuthRequest = request =>
             {
                 observedReasons.Add(request.Reason);

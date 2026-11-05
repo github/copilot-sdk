@@ -7795,6 +7795,11 @@ public sealed partial class CommandQueuedData
     /// <summary>Unique identifier for this request; used to respond via session.respondToQueuedCommand().</summary>
     [JsonPropertyName("requestId")]
     public required string RequestId { get; set; }
+
+    /// <summary>Whether a schedule dispatched this command. Consumers must reject commands marked as not schedulable before executing a scheduled request. Absent for ordinary queued commands.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("scheduled")]
+    public bool? Scheduled { get; set; }
 }
 
 /// <summary>Registered command dispatch request routed to the owning client.</summary>
@@ -16191,6 +16196,18 @@ public readonly struct IndexedSearchDisabledReason : IEquatable<IndexedSearchDis
 
     /// <summary>The workspace is not available on the runtime's local filesystem.</summary>
     public static IndexedSearchDisabledReason WorkspaceNotLocal { get; } = new("workspace_not_local");
+
+    /// <summary>Another process holds the machine-wide indexed-search server slot.</summary>
+    public static IndexedSearchDisabledReason ServerLimit { get; } = new("server_limit");
+
+    /// <summary>The workspace is a filesystem or network-share root.</summary>
+    public static IndexedSearchDisabledReason FilesystemRoot { get; } = new("filesystem_root");
+
+    /// <summary>The workspace is the user's home directory.</summary>
+    public static IndexedSearchDisabledReason HomeDirectory { get; } = new("home_directory");
+
+    /// <summary>The user's home directory could not be determined.</summary>
+    public static IndexedSearchDisabledReason HomeDirectoryDetectionFailed { get; } = new("home_directory_detection_failed");
 
     /// <summary>Returns a value indicating whether two <see cref="IndexedSearchDisabledReason"/> instances are equivalent.</summary>
     public static bool operator ==(IndexedSearchDisabledReason left, IndexedSearchDisabledReason right) => left.Equals(right);

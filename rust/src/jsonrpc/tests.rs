@@ -449,7 +449,9 @@ async fn notification_receivers_share_one_parsed_notification() {
 #[tokio::test]
 async fn a_frame_body_is_reserved_as_it_arrives_not_as_declared() {
     let (client_write, _server_read) = tokio::io::duplex(4096);
-    let (mut server_write, client_read) = tokio::io::duplex(4096);
+    // Completing this write requires the read loop to consume body bytes after
+    // parsing the header, rather than merely buffering the whole partial frame.
+    let (mut server_write, client_read) = tokio::io::duplex(1);
     let (notification_tx, _) = broadcast::channel(16);
     let (request_tx, _request_rx) = mpsc::unbounded_channel();
     let client = JsonRpcClient::new(client_write, client_read, notification_tx, request_tx);
@@ -461,7 +463,6 @@ async fn a_frame_body_is_reserved_as_it_arrives_not_as_declared() {
         .write_all(b"Content-Length: 1125899906842624\r\n\r\n{\"jsonrpc\":\"2.0\"")
         .await
         .unwrap();
-    tokio::time::sleep(std::time::Duration::from_millis(100)).await;
     assert!(
         !closed.is_cancelled(),
         "the connection ended while the peer was still sending the frame"

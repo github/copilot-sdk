@@ -16,29 +16,25 @@ Tools are defined exactly as they are for creating a session, and a tool without
 <!-- docs-validate: strict -->
 <!-- docs-validate: hidden -->
 ```typescript
-import { CopilotClient, approveAll, defineTool } from "@github/copilot-sdk";
-import { z } from "zod";
+import type { CopilotSession } from "@github/copilot-sdk";
 
 declare function findIssues(query: string): Promise<string>;
+declare const session: CopilotSession;
 
-async function main() {
-    const client = new CopilotClient();
-    const session = await client.createSession({ onPermissionRequest: approveAll });
+import { defineTool } from "@github/copilot-sdk";
+import { z } from "zod";
 
-    const searchIssues = defineTool("search_issues", {
-        description: "Search the issues shown on the current page",
-        parameters: z.object({ query: z.string().describe("Search text") }),
-        handler: async ({ query }) => findIssues(query),
-    });
+const searchIssues = defineTool("search_issues", {
+    description: "Search the issues shown on the current page",
+    parameters: z.object({ query: z.string().describe("Search text") }),
+    handler: async ({ query }) => findIssues(query),
+});
 
-    // Supply only the tools the current page provides.
-    await session.setTools([searchIssues]);
+// Supply only the tools the current page provides.
+await session.setTools([searchIssues]);
 
-    // Remove all of this client's tools.
-    await session.setTools([]);
-}
-
-main();
+// Remove all of this client's tools.
+await session.setTools([]);
 ```
 <!-- /docs-validate: hidden -->
 

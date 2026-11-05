@@ -134,6 +134,26 @@ func TestDisposeRetainsOutboundTargetUntilConnectionCloseSucceeds(t *testing.T) 
 	}
 }
 
+func TestBuildEnvPreservesExplicitEmptyEnvironment(t *testing.T) {
+	t.Parallel()
+	for _, tc := range []struct {
+		name string
+		env  map[string]string
+		want string
+	}{
+		{name: "ambient", want: ""},
+		{name: "empty", env: map[string]string{}, want: "{}"},
+		{name: "configured", env: map[string]string{"TOKEN": "host-token"}, want: `{"TOKEN":"host-token"}`},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			host := &Host{environment: tc.env}
+			if got := string(host.buildEnv()); got != tc.want {
+				t.Fatalf("Native environment JSON = %q, want %q", got, tc.want)
+			}
+		})
+	}
+}
+
 func TestBuildArgvWithoutEntrypointContainsOnlyManagedOptions(t *testing.T) {
 	host := &Host{
 		args: []string{"--log-level", "debug", "--remote"},

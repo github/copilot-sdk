@@ -9,6 +9,7 @@ import (
 )
 
 func TestClientE2E(t *testing.T) {
+	t.Parallel()
 	cliPath := testharness.CLIPath()
 	if cliPath == "" {
 		t.Fatal("CLI not found. Run 'npm install' in the nodejs directory first.")
@@ -171,16 +172,16 @@ func TestClientE2E(t *testing.T) {
 			{"default", "", "", "https://github.com"},
 		} {
 			t.Run(testCase.name, func(t *testing.T) {
-				if testharness.RunInIsolatedProcess(t) {
-					return
-				}
 				ctx := testharness.NewTestContext(t)
 				ctx.ConfigureWithoutSnapshot(t)
 				client := ctx.NewClient(func(options *copilot.ClientOptions) {
+					// This exercises process-environment precedence, not embedded configuration.
 					options.Env = append(options.Env,
 						"COPILOT_GH_HOST="+testCase.copilotHost,
 						"GH_HOST="+testCase.ghHost,
 					)
+					options.Connection = copilot.StdioConnection{Path: ctx.CLIPath, Env: options.Env}
+					options.Env = nil
 				})
 				t.Cleanup(func() { client.ForceStop() })
 

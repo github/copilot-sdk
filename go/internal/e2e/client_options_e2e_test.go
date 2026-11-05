@@ -18,10 +18,8 @@ import (
 // Go's ClientOptions is a plain struct with no setter validation; equivalent behavior is covered
 // in package-level unit tests.
 func TestClientOptionsE2E(t *testing.T) {
+	t.Parallel()
 	t.Run("should listen on configured TCP port", func(t *testing.T) {
-		if testharness.RunInIsolatedProcess(t) {
-			return
-		}
 		ctx := testharness.NewTestContext(t)
 		port := getAvailableTCPPort(t)
 
@@ -48,9 +46,6 @@ func TestClientOptionsE2E(t *testing.T) {
 	})
 
 	t.Run("should use client cwd for default workingdirectory", func(t *testing.T) {
-		if testharness.RunInIsolatedProcess(t) {
-			return
-		}
 		ctx := testharness.NewTestContext(t)
 		ctx.ConfigureForTest(t)
 
@@ -67,9 +62,14 @@ func TestClientOptionsE2E(t *testing.T) {
 		})
 		t.Cleanup(func() { client.ForceStop() })
 
-		session, err := client.CreateSession(t.Context(), &copilot.SessionConfig{
+		config := &copilot.SessionConfig{
 			OnPermissionRequest: copilot.PermissionHandler.ApproveAll,
-		})
+		}
+		if testharness.IsInProcessTransport() {
+			config.WorkingDirectory = clientCwd
+		}
+		// Exercise the raw SDK default on stdio, not the fixture's session default.
+		session, err := client.Client.CreateSession(t.Context(), config)
 		if err != nil {
 			t.Fatalf("CreateSession failed: %v", err)
 		}
@@ -91,9 +91,6 @@ func TestClientOptionsE2E(t *testing.T) {
 	})
 
 	t.Run("should propagate process options to spawned cli", func(t *testing.T) {
-		if testharness.RunInIsolatedProcess(t) {
-			return
-		}
 		// Mirrors: Should_Propagate_Process_Options_To_Spawned_Cli
 		// Spawns a fake stdio CLI (a Node.js script) so we can assert that the
 		// SDK passes the right argv / env / cwd / RPC params through to the
@@ -243,9 +240,6 @@ func TestClientOptionsE2E(t *testing.T) {
 	})
 
 	t.Run("should register and invoke extension launch provider during startup", func(t *testing.T) {
-		if testharness.RunInIsolatedProcess(t) {
-			return
-		}
 		ctx := testharness.NewTestContext(t)
 		cliPath := filepath.Join(ctx.WorkDir, "fake-cli-extension-provider-"+randomHex(t)+".js")
 		capturePath := filepath.Join(ctx.WorkDir, "fake-cli-extension-provider-"+randomHex(t)+".json")
@@ -311,9 +305,6 @@ func TestClientOptionsE2E(t *testing.T) {
 	})
 
 	t.Run("should send empty-mode custom agent locality defaults in initial requests", func(t *testing.T) {
-		if testharness.RunInIsolatedProcess(t) {
-			return
-		}
 		ctx := testharness.NewTestContext(t)
 		cliPath := filepath.Join(ctx.WorkDir, "fake-cli-empty-"+randomHex(t)+".js")
 		capturePath := filepath.Join(ctx.WorkDir, "fake-cli-empty-capture-"+randomHex(t)+".json")
@@ -382,9 +373,6 @@ func TestClientOptionsE2E(t *testing.T) {
 	})
 
 	t.Run("should forward advanced session creation options to the CLI", func(t *testing.T) {
-		if testharness.RunInIsolatedProcess(t) {
-			return
-		}
 		ctx := testharness.NewTestContext(t)
 		cliPath := filepath.Join(ctx.WorkDir, "fake-cli-"+randomHex(t)+".js")
 		capturePath := filepath.Join(ctx.WorkDir, "fake-cli-capture-"+randomHex(t)+".json")
@@ -536,9 +524,6 @@ func TestClientOptionsE2E(t *testing.T) {
 	})
 
 	t.Run("should forward singular provider configuration on session creation", func(t *testing.T) {
-		if testharness.RunInIsolatedProcess(t) {
-			return
-		}
 		ctx := testharness.NewTestContext(t)
 		cliPath := filepath.Join(ctx.WorkDir, "fake-cli-"+randomHex(t)+".js")
 		capturePath := filepath.Join(ctx.WorkDir, "fake-cli-capture-"+randomHex(t)+".json")
@@ -600,9 +585,6 @@ func TestClientOptionsE2E(t *testing.T) {
 	})
 
 	t.Run("should forward advanced session resume options to the CLI", func(t *testing.T) {
-		if testharness.RunInIsolatedProcess(t) {
-			return
-		}
 		ctx := testharness.NewTestContext(t)
 		cliPath := filepath.Join(ctx.WorkDir, "fake-cli-"+randomHex(t)+".js")
 		capturePath := filepath.Join(ctx.WorkDir, "fake-cli-capture-"+randomHex(t)+".json")
@@ -712,6 +694,7 @@ func TestClientOptionsE2E(t *testing.T) {
 // ---------------------------------------------------------------------------
 
 func TestClientOptionsUnit(t *testing.T) {
+	t.Parallel()
 	t.Run("should accept GitHubToken option", func(t *testing.T) {
 		// Mirrors: Should_Accept_GitHubToken_Option
 		opts := copilot.ClientOptions{GitHubToken: "gho_test_token"}

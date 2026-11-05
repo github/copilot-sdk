@@ -64,11 +64,15 @@ The Copilot SDK communicates with the CLI via JSON-RPC protocol. Features must b
 | Remote HTTP/SSE | `mcpServers` config | Connect to services |
 | **Hooks** | | |
 | Pre-tool use | `onPreToolUse` | Permission, modify args |
+| Pre-MCP tool call | `onPreMcpToolCall` | Attach or remove MCP request metadata |
 | Post-tool use (success) | `onPostToolUse` | Modify results |
 | Post-tool use (failure) | `onPostToolUseFailure` | Observe failed tool calls, inject retry guidance |
 | User prompt | `onUserPromptSubmitted` | Modify prompts |
+| User prompt transformed | `onUserPromptTransformed` | Inspect or replace model-facing content |
 | Session start/end | `onSessionStart`, `onSessionEnd` | Lifecycle with source/reason |
 | Error handling | `onErrorOccurred` | Custom handling |
+| Agent stop | `onAgentStop` | Validate completion or request another turn |
+| Sub-agent lifecycle | `onSubagentStart`, `onSubagentStop` | Prepend context to a sub-agent's prompt, request another turn or replace its response |
 | **Events** | | |
 | All session events | `on()` | 40+ event types |
 | Streaming | `streaming: true` | Delta events |
@@ -89,6 +93,7 @@ The Copilot SDK communicates with the CLI via JSON-RPC protocol. Features must b
 | Agent management | `session.rpc.agent.*` | List, select, deselect, get current agent |
 | Fleet mode | `session.rpc.fleet.start()` | Parallel sub-agent execution; see [Fleet mode](../features/fleet-mode.md) |
 | Manual compaction | `session.rpc.history.compact()` | Trigger compaction on demand |
+| Compaction settings | `session.rpc.history.setCompactionConfig()` | Override the compaction model, prompt and reasoning effort for a live session; `{}` restores defaults; re-apply after resume |
 | Context clearing | `session.rpc.history.clearContext()` | Replace conversation context from a terminal tool |
 | History truncation | `session.rpc.history.truncate()` | Remove events from a point onward |
 | Session forking | `client.rpc.sessions.fork()` | Fork a session at a point in history |

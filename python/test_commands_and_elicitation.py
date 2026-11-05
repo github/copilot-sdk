@@ -638,6 +638,91 @@ class TestOnElicitationContext:
             await client.force_stop()
 
     @pytest.mark.asyncio
+    async def test_sends_cancel_when_elicitation_handler_raises_cancelled_error(self):
+        """A CancelledError raised by the handler itself is a handler failure."""
+        client = CopilotClient(connection=RuntimeConnection.for_stdio(path=CLI_PATH))
+        await client.start()
+
+        try:
+
+            async def gave_up_handler(
+                context: ElicitationContext,
+            ) -> ElicitationResult:
+                raise asyncio.CancelledError("dialog closed")
+
+            session = await client.create_session(
+                on_permission_request=PermissionHandler.approve_all,
+                on_elicitation_request=gave_up_handler,
+            )
+
+            rpc_calls: list[tuple] = []
+            original_request = client._client.request
+
+            async def mock_request(method, params, **kwargs):
+                if method == "session.ui.handlePendingElicitation":
+                    rpc_calls.append((method, params))
+                    return {"success": True}
+                return await original_request(method, params)
+
+            client._client.request = mock_request
+
+            await session._handle_elicitation_request(
+                {"session_id": session.session_id, "message": "Pick a color"}, "req-456"
+            )
+
+            assert len(rpc_calls) == 1
+            assert rpc_calls[0][1]["requestId"] == "req-456"
+            assert rpc_calls[0][1]["result"]["action"] == "cancel"
+        finally:
+            await client.force_stop()
+
+    @pytest.mark.asyncio
+    async def test_cancelling_elicitation_dispatch_propagates_without_answer(self):
+        """Cancelling the dispatch task itself is not reported as a handler failure."""
+        client = CopilotClient(connection=RuntimeConnection.for_stdio(path=CLI_PATH))
+        await client.start()
+
+        try:
+            handler_started = asyncio.Event()
+
+            async def waiting_handler(
+                context: ElicitationContext,
+            ) -> ElicitationResult:
+                handler_started.set()
+                await asyncio.Event().wait()
+                return {"action": "accept"}
+
+            session = await client.create_session(
+                on_permission_request=PermissionHandler.approve_all,
+                on_elicitation_request=waiting_handler,
+            )
+
+            rpc_calls: list[tuple] = []
+            original_request = client._client.request
+
+            async def mock_request(method, params, **kwargs):
+                if method == "session.ui.handlePendingElicitation":
+                    rpc_calls.append((method, params))
+                    return {"success": True}
+                return await original_request(method, params)
+
+            client._client.request = mock_request
+
+            dispatch = asyncio.ensure_future(
+                session._handle_elicitation_request(
+                    {"session_id": session.session_id, "message": "Pick a color"}, "req-789"
+                )
+            )
+            await asyncio.wait_for(handler_started.wait(), timeout=10)
+            dispatch.cancel()
+
+            with pytest.raises(asyncio.CancelledError):
+                await dispatch
+            assert rpc_calls == []
+        finally:
+            await client.force_stop()
+
+    @pytest.mark.asyncio
     async def test_dispatches_elicitation_requested_event_to_handler(self):
         """Verifies that an elicitation.requested event dispatches to the handler."""
         client = CopilotClient(connection=RuntimeConnection.for_stdio(path=CLI_PATH))

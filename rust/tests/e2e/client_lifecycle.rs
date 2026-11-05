@@ -1,6 +1,6 @@
-#[cfg(windows)]
-use github_copilot_sdk::CliProgram;
 use github_copilot_sdk::SessionLifecycleEventType;
+#[cfg(windows)]
+use github_copilot_sdk::{CliProgram, Transport};
 use serde_json::json;
 
 use super::support::{wait_for_lifecycle_event, with_e2e_context};
@@ -149,7 +149,7 @@ async fn abrupt_host_termination_still_kills_cli_via_job_object() {
         "abrupt_host_termination_still_kills_cli_via_job_object",
         |ctx| {
             Box::pin(async move {
-                let options = ctx.client_options();
+                let options = ctx.client_options_with_transport(Transport::Stdio);
                 let program = match &options.program {
                     CliProgram::Path(path) => path
                         .to_str()

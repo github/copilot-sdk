@@ -556,11 +556,9 @@ finally:
 - Set `COPILOT_CLI_PATH` only when using an externally provisioned compatible
   runtime package. In-process connections do not accept per-connection paths
   or raw process arguments.
-- Because the runtime shares this single host process, per-client options that
-  lower to environment variables or a working directory **cannot** be honored and
-  are rejected: `env`, `telemetry`, and `working_directory` all raise `ValueError`
-  with `for_inprocess()`. Set the corresponding values on the host process
-  environment / working directory before creating the client instead.
+- Client-level `env`, `telemetry`, and `working_directory` raise `ValueError`
+  with `for_inprocess()`; use supported typed options and set working directories
+  on individual sessions.
 - Set `COPILOT_SDK_DEFAULT_CONNECTION=inprocess` to select the in-process
   transport by default when no explicit `connection` is supplied.
 

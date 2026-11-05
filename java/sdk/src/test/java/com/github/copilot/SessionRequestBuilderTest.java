@@ -55,6 +55,37 @@ import com.github.copilot.rpc.UserInputResponse;
 public class SessionRequestBuilderTest {
 
     @Test
+    void toolFilterPrecedenceIsExcludedInAllModes() throws Exception {
+        var mapper = JsonRpcClient.getObjectMapper();
+        for (var mode : new CopilotClientMode[]{CopilotClientMode.COPILOT_CLI, CopilotClientMode.EMPTY}) {
+            // Create path
+            var createConfig = new SessionConfig().setWorkingDirectory("/tmp");
+            var createReq = SessionRequestBuilder.buildCreateRequest(createConfig, "s1", mode);
+            var createJson = mapper.readTree(mapper.writeValueAsBytes(createReq));
+            assertEquals("excluded", createJson.path("toolFilterPrecedence").asText(),
+                    "create request in " + mode + " must set toolFilterPrecedence=excluded");
+
+            // Resume path
+            var resumeConfig = new ResumeSessionConfig();
+            var resumeReq = SessionRequestBuilder.buildResumeRequest("s1", resumeConfig, mode);
+            var resumeJson = mapper.readTree(mapper.writeValueAsBytes(resumeReq));
+            assertEquals("excluded", resumeJson.path("toolFilterPrecedence").asText(),
+                    "resume request in " + mode + " must set toolFilterPrecedence=excluded");
+
+            // Null config path (early return)
+            var createNullReq = SessionRequestBuilder.buildCreateRequest(null, "s1", mode);
+            var createNullJson = mapper.readTree(mapper.writeValueAsBytes(createNullReq));
+            assertEquals("excluded", createNullJson.path("toolFilterPrecedence").asText(),
+                    "create request with null config in " + mode + " must set toolFilterPrecedence=excluded");
+
+            var resumeNullReq = SessionRequestBuilder.buildResumeRequest("s1", null, mode);
+            var resumeNullJson = mapper.readTree(mapper.writeValueAsBytes(resumeNullReq));
+            assertEquals("excluded", resumeNullJson.path("toolFilterPrecedence").asText(),
+                    "resume request with null config in " + mode + " must set toolFilterPrecedence=excluded");
+        }
+    }
+
+    @Test
     void transcriptRecoveryOverridesAndResponseInAllModes() throws Exception {
         var mapper = JsonRpcClient.getObjectMapper();
         for (var mode : new CopilotClientMode[]{CopilotClientMode.COPILOT_CLI, CopilotClientMode.EMPTY}) {

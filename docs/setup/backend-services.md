@@ -64,9 +64,9 @@ Run the CLI as a background server:
 # Start with a specific port
 copilot --headless --port 4321
 
-# Or let it pick a random port (prints the URL)
+# Or let it pick a random port (prints the port)
 copilot --headless
-# Output: Listening on http://localhost:52431
+# Output: CLI server listening on port 52431
 ```
 
 By default the headless server only accepts connections from loopback (`127.0.0.1`). To accept connections from other hosts—for example from another machine on your network—bind to a non-loopback address with `--host`:
@@ -134,7 +134,7 @@ const client = new CopilotClient({
 
 const session = await client.createSession({
     sessionId: `user-${userId}-${Date.now()}`,
-    model: "gpt-5.4",
+    model: "auto",
     availableTools: ["custom:*"],
     gitHubToken: user.githubToken,
 });
@@ -161,7 +161,7 @@ client = CopilotClient(
 )
 await client.start()
 
-session = await client.create_session(on_permission_request=PermissionHandler.approve_all, model="gpt-5.4", session_id=f"user-{user_id}-{int(time.time())}")
+session = await client.create_session(on_permission_request=PermissionHandler.approve_all, model="auto", session_id=f"user-{user_id}-{int(time.time())}")
 
 response = await session.send_and_wait(message)
 ```
@@ -195,7 +195,7 @@ func main() {
 
 	session, _ := client.CreateSession(ctx, &copilot.SessionConfig{
 		SessionID: fmt.Sprintf("user-%s-%d", userID, time.Now().Unix()),
-		Model:     "gpt-5.4",
+		Model:     "auto",
 	})
 
 	response, _ := session.SendAndWait(ctx, copilot.MessageOptions{Prompt: message})
@@ -213,7 +213,7 @@ defer client.Stop()
 
 session, _ := client.CreateSession(ctx, &copilot.SessionConfig{
     SessionID: fmt.Sprintf("user-%s-%d", userID, time.Now().Unix()),
-    Model:     "gpt-5.4",
+    Model:     "auto",
 })
 
 response, _ := session.SendAndWait(ctx, copilot.MessageOptions{Prompt: message})
@@ -239,7 +239,7 @@ var client = new CopilotClient(new CopilotClientOptions
 await using var session = await client.CreateSessionAsync(new SessionConfig
 {
     SessionId = $"user-{userId}-{DateTimeOffset.UtcNow.ToUnixTimeSeconds()}",
-    Model = "gpt-5.4",
+    Model = "auto",
 });
 
 var response = await session.SendAndWaitAsync(
@@ -256,7 +256,7 @@ var client = new CopilotClient(new CopilotClientOptions
 await using var session = await client.CreateSessionAsync(new SessionConfig
 {
     SessionId = $"user-{userId}-{DateTimeOffset.UtcNow.ToUnixTimeSeconds()}",
-    Model = "gpt-5.4",
+    Model = "auto",
 });
 
 var response = await session.SendAndWaitAsync(
@@ -284,7 +284,7 @@ try {
 
     var session = client.createSession(new SessionConfig()
         .setSessionId(String.format("user-%s-%d", userId, System.currentTimeMillis() / 1000))
-        .setModel("gpt-5.4")
+        .setModel("auto")
         .setOnPermissionRequest(PermissionHandler.APPROVE_ALL)
     ).get();
 
@@ -336,7 +336,7 @@ const client = new CopilotClient({
 app.post("/chat", authMiddleware, async (req, res) => {
     const session = await client.createSession({
         sessionId: `user-${req.user.id}-chat`,
-        model: "gpt-5.4",
+        model: "auto",
         availableTools: ["custom:*"],
         gitHubToken: req.user.githubToken,
     });
@@ -422,7 +422,7 @@ app.post("/api/chat", authMiddleware, async (req, res) => {
         } catch {
             session = await client.createSession({
                 sessionId,
-                model: "gpt-5.4",
+                model: "auto",
                 availableTools: ["custom:*"],
                 gitHubToken: req.user.githubToken,
             });
@@ -464,7 +464,7 @@ const client = new CopilotClient({
 async function processJob(job: Job) {
     const session = await client.createSession({
         sessionId: `job-${job.id}`,
-        model: "gpt-5.4",
+        model: "auto",
     });
 
     const response = await session.sendAndWait({

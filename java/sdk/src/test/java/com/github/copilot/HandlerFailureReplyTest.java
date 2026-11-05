@@ -27,6 +27,7 @@ import com.github.copilot.rpc.CommandDefinition;
 import com.github.copilot.rpc.CommandHandler;
 import com.github.copilot.rpc.ToolDefinition;
 import com.github.copilot.rpc.ToolHandler;
+import com.github.copilot.rpc.ToolResultObject;
 
 /**
  * Verifies the error text sent back to the runtime when a slash-command or tool
@@ -119,6 +120,26 @@ class HandlerFailureReplyTest {
         assertEquals("java.lang.IllegalStateException: ", toolError("failed-empty-message"));
         assertEquals("java.lang.IllegalStateException: ", toolError("async-empty-message"));
         assertEquals("java.lang.IllegalStateException: ", toolError("throws-empty-message"));
+    }
+
+    @Test
+    void toolResultThatCannotBeEncodedRepliesWithError() throws Exception {
+        ToolHandler encodableTelemetry = invocation -> CompletableFuture
+                .completedFuture(new ToolResultObject("success", "ok", null, null, null, Map.of("label", "note")));
+        ToolHandler unencodableTelemetry = invocation -> CompletableFuture.completedFuture(
+                new ToolResultObject("success", "ok", null, null, null, Map.of("handle", new Object())));
+        ToolHandler unencodableResult = invocation -> CompletableFuture.completedFuture(Map.of("handle", new Object()));
+        session.registerTools(List.of(tool("encodable-telemetry", encodableTelemetry),
+                tool("unencodable-telemetry", unencodableTelemetry), tool("unencodable-result", unencodableResult)));
+
+        assertNull(toolError("encodable-telemetry"));
+        String telemetryError = toolError("unencodable-telemetry");
+        assertTrue(
+                telemetryError.startsWith(
+                        "failed to serialize tool telemetry: No serializer found for class java.lang.Object"),
+                telemetryError);
+        String resultError = toolError("unencodable-result");
+        assertTrue(resultError.startsWith("No serializer found for class java.lang.Object"), resultError);
     }
 
     private String commandError(String name) throws Exception {

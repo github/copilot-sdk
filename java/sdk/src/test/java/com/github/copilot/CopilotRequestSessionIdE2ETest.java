@@ -4,6 +4,8 @@
 
 package com.github.copilot;
 
+import org.junit.jupiter.api.Tag;
+
 import static com.github.copilot.CopilotRequestTestSupport.SYNTHETIC_TEXT;
 import static com.github.copilot.CopilotRequestTestSupport.assistantText;
 import static com.github.copilot.CopilotRequestTestSupport.newLlmClient;
@@ -27,13 +29,13 @@ import com.github.copilot.generated.AssistantMessageEvent;
 import com.github.copilot.rpc.MessageOptions;
 import com.github.copilot.rpc.PermissionHandler;
 import com.github.copilot.rpc.ProviderConfig;
-import com.github.copilot.rpc.SessionConfig;
 
 /**
  * Verifies that the triggering session id is threaded into every inference
  * request context, for both CAPI and BYOK sessions, and that per-session ids
  * differ.
  */
+@Tag("e2e")
 public class CopilotRequestSessionIdE2ETest {
 
     private static E2ETestContext ctx;
@@ -58,7 +60,7 @@ public class CopilotRequestSessionIdE2ETest {
         try (CopilotClient client = newLlmClient(ctx, handler)) {
             // CAPI session.
             CopilotSession capiSession = client
-                    .createSession(new SessionConfig().setOnPermissionRequest(PermissionHandler.APPROVE_ALL)).get();
+                    .createSession(ctx.newSessionConfig().setOnPermissionRequest(PermissionHandler.APPROVE_ALL)).get();
             String capiSessionId = capiSession.getSessionId();
 
             AssistantMessageEvent capiResult = capiSession.sendAndWait(new MessageOptions().setPrompt("Say OK."))
@@ -80,7 +82,7 @@ public class CopilotRequestSessionIdE2ETest {
                     .setBaseUrl("https://byok.invalid/v1").setApiKey("byok-secret").setModelId("claude-sonnet-5")
                     .setWireModel("claude-sonnet-5");
             CopilotSession byokSession = client
-                    .createSession(new SessionConfig().setOnPermissionRequest(PermissionHandler.APPROVE_ALL)
+                    .createSession(ctx.newSessionConfig().setOnPermissionRequest(PermissionHandler.APPROVE_ALL)
                             .setModel("claude-sonnet-5").setProvider(provider))
                     .get();
             String byokSessionId = byokSession.getSessionId();

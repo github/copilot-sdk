@@ -486,7 +486,7 @@ const TOOL_SEARCH_TOOL_NAME = "tool_search_tool";
  *
  * @example
  * ```typescript
- * const session = await client.createSession({ model: "gpt-4" });
+ * const session = await client.createSession({ model: "gpt-5.4" });
  *
  * // Subscribe to events
  * session.on((event) => {
@@ -1722,6 +1722,16 @@ export class CopilotSession {
             } else if (typeof rawResult === "string") {
                 result = rawResult;
             } else if (isToolResultObject(rawResult)) {
+                // Telemetry that cannot be encoded as JSON would stop the result from
+                // being sent at all, leaving the call unanswered, so answer it with the error.
+                try {
+                    JSON.stringify(rawResult.toolTelemetry);
+                } catch (error) {
+                    const message = error instanceof Error ? error.message : String(error);
+                    throw new Error(`failed to serialize tool telemetry: ${message}`);
+                }
+                // Handlers can return extra fields that must also be JSON-serializable.
+                JSON.stringify(rawResult);
                 result = rawResult;
             } else {
                 result = JSON.stringify(rawResult);

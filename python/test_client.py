@@ -45,6 +45,7 @@ from copilot.client import (
     ModelInfo,
     ModelLimits,
     ModelSupports,
+    _InternalTestOptions,
 )
 from copilot.generated.rpc import AutoTier as AutoTierEnum
 from copilot.generated.rpc import (
@@ -69,6 +70,86 @@ from copilot.session_events import (
 from copilot.session_fs_provider import SessionFsProvider, create_session_fs_adapter
 from copilot.tools import Tool
 from e2e.testharness import CLI_PATH
+
+
+@pytest.mark.parametrize("env", [{}, {"FOO": "bar"}])
+def test_inprocess_rejects_env(env, monkeypatch):
+    monkeypatch.setattr("copilot._cli_download.ensure_runtime_wrapper", lambda: CLI_PATH)
+    with pytest.raises(
+        ValueError, match="env is not supported with RuntimeConnection.for_inprocess"
+    ):
+        CopilotClient(connection=RuntimeConnection.for_inprocess(), env=env)
+
+
+def test_inprocess_working_directory_rejection_recommends_session_config(monkeypatch):
+    monkeypatch.setattr("copilot._cli_download.ensure_runtime_wrapper", lambda: CLI_PATH)
+    with pytest.raises(
+        ValueError,
+        match="working_directory is not supported.*Set working_directory on individual sessions",
+    ):
+        CopilotClient(connection=RuntimeConnection.for_inprocess(), working_directory="/tmp")
+
+
+@pytest.mark.parametrize("transport", ["stdio", "inprocess"])
+async def test_internal_test_options_override_only_owned_runtime(monkeypatch, tmp_path, transport):
+    (tmp_path / "copilot-runtime").touch()
+    original = os.environ.copy()
+    inherited = {"HTTP_PROXY": "inherited", "UNRELATED": "preserved"}
+    options = _InternalTestOptions(
+        copilot_api_url="http://replay",
+        github_api_url="http://github-replay",
+        proxy_url="http://interception",
+        no_proxy="",
+        ca_certificate_path="/test/ca.pem",
+    )
+    monkeypatch.setattr(
+        "copilot._cli_download.ensure_runtime_wrapper",
+        lambda: str(tmp_path / "copilot-runtime"),
+    )
+    if transport == "inprocess":
+        captured = Mock(return_value=Mock())
+        monkeypatch.setattr(client_module.FfiRuntimeHost, "create", captured)
+        client = CopilotClient(connection=RuntimeConnection.for_inprocess(), _test_options=options)
+        await client._start_inprocess_ffi()
+        environment = captured.call_args.kwargs["environment"]
+    else:
+        captured = Mock(return_value=Mock())
+        monkeypatch.setattr(client_module.subprocess, "Popen", captured)
+        client = CopilotClient(
+            connection=RuntimeConnection.for_stdio(path=str(tmp_path / "copilot-runtime")),
+            env=inherited,
+            _test_options=options,
+        )
+        await client._start_cli_server()
+        environment = captured.call_args.kwargs["env"]
+    assert (
+        environment.items()
+        >= {
+            "COPILOT_API_URL": "http://replay",
+            "COPILOT_DEBUG_GITHUB_API_URL": "http://github-replay",
+            "HTTP_PROXY": "http://interception",
+            "HTTPS_PROXY": "http://interception",
+            "NO_PROXY": "",
+            "NODE_EXTRA_CA_CERTS": "/test/ca.pem",
+            "SSL_CERT_FILE": "/test/ca.pem",
+            "REQUESTS_CA_BUNDLE": "/test/ca.pem",
+            "CURL_CA_BUNDLE": "/test/ca.pem",
+            "GIT_SSL_CAINFO": "/test/ca.pem",
+        }.items()
+    )
+    if transport != "inprocess":
+        assert environment["UNRELATED"] == "preserved"
+    assert inherited == {"HTTP_PROXY": "inherited", "UNRELATED": "preserved"}
+    assert os.environ == original
+    assert _InternalTestOptions()._to_environment() == {}
+
+
+def test_internal_test_options_reject_external_runtime():
+    with pytest.raises(ValueError, match="requires a runtime owned by this client"):
+        CopilotClient(
+            connection=RuntimeConnection.for_uri("localhost:8080"),
+            _test_options=_InternalTestOptions(),
+        )
 
 
 def test_high_level_configs_omit_legacy_remote_control():
@@ -198,6 +279,55 @@ async def test_inprocess_forwards_integration_id_to_native_host(
     assert (
         "--cli-login-sync-integration-id=microsoft/vscode" in create_host.call_args.kwargs["args"]
     )
+
+
+@pytest.mark.parametrize("platform", ["linux", "win32"])
+async def test_inprocess_scopes_environment_with_platform_casing(monkeypatch, tmp_path, platform):
+    monkeypatch.setattr(client_module.sys, "platform", platform)
+    monkeypatch.setattr(
+        os,
+        "environ",
+        {
+            **os.environ,
+            "OLDPWD": "bad\udcff",
+            "BAD\udcff": "value",
+            "UTF8_ENV": "caf\u00e9",
+            "TMPDIR": "bad\udcff",
+        },
+    )
+    monkeypatch.setattr(
+        "copilot._cli_download.ensure_runtime_wrapper",
+        lambda: str(tmp_path / "copilot-runtime"),
+    )
+    host = Mock()
+    create_host = Mock(return_value=host)
+    monkeypatch.setattr(client_module.FfiRuntimeHost, "create", create_host)
+    original = os.environ.copy()
+    client = CopilotClient(
+        connection=RuntimeConnection.for_inprocess(),
+        base_directory="typed-home",
+        github_token="typed-token",
+        _test_options=_InternalTestOptions(proxy_url="http://proxy"),
+    )
+
+    await client._start_inprocess_ffi()
+
+    environment = create_host.call_args.kwargs["environment"]
+    assert environment["COPILOT_HOME"] == "typed-home"
+    assert environment["COPILOT_SDK_AUTH_TOKEN"] == "typed-token"
+    assert environment["COPILOT_CACHE_HOME"] == os.path.join("typed-home", "cache")
+    assert environment["HTTP_PROXY"] == "http://proxy"
+    assert "OLDPWD" not in environment
+    assert "BAD\udcff" not in environment
+    assert environment["UTF8_ENV"] == "caf\u00e9"
+    assert environment["TMPDIR"] == "\ufffd"
+    if platform == "win32":
+        assert "copilot_home" not in environment
+        assert "copilot_sdk_auth_token" not in environment
+        assert "http_proxy" not in environment
+    else:
+        assert environment["http_proxy"] == "http://proxy"
+    assert os.environ == original
 
 
 def test_explicit_child_process_path_does_not_require_runtime_bundle(tmp_path):

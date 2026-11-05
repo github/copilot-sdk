@@ -31,6 +31,8 @@ public record Plugin(
     @JsonProperty("enabled") Boolean enabled,
     /** Opaque stable identity for a direct plugin source. */
     @JsonProperty("directSourceId") String directSourceId,
+    /** Absolute local directory containing this plugin's resolved content, including disabled installations. Absent when no content directory is resolved. This is the plugin root, not its marketplace directory; clients must not forward it back as an additional plugin. */
+    @JsonProperty("rootPath") String rootPath,
     /** Absolute marketplace directory for a live plugin. */
     @JsonProperty("installedFrom") String installedFrom,
     /** Runtime plugin provenance, such as "builtin". */
@@ -40,6 +42,37 @@ public record Plugin(
     /** Enabled state required by enterprise managed settings. */
     @JsonProperty("managedDesiredEnabled") Boolean managedDesiredEnabled,
     /** Whether this managed desired plugin has an installed or live record. */
-    @JsonProperty("installed") Boolean installed
+    @JsonProperty("installed") Boolean installed,
+    /** Opaque plugin identity in this runtime's inventory. Matches global inventory id and MCP effectiveSource.plugin.id for the same plugin. Stable across enablement changes, updates and restarts while the source is unchanged. Session-only plugin identities are scoped to their session; not a cross-host identifier or a mutation argument. Compare the complete value without parsing it. May be absent on older runtimes. */
+    @JsonProperty("id") String id
 ) {
+
+    /**
+     * Creates a record without plugin ownership or content-root metadata.
+     *
+     * @param name Plugin name
+     * @param marketplace Marketplace the plugin came from
+     * @param version Installed version
+     * @param enabled Whether the plugin is currently enabled
+     * @param directSourceId Opaque stable identity for a direct plugin source.
+     * @param installedFrom Absolute marketplace directory for a live plugin.
+     * @param source Runtime plugin provenance, such as "builtin".
+     * @param managed Whether enterprise managed settings control this plugin.
+     * @param managedDesiredEnabled Enabled state required by enterprise managed settings.
+     * @param installed Whether this managed desired plugin has an installed or live record.
+     */
+    public Plugin(
+        String name,
+        String marketplace,
+        String version,
+        Boolean enabled,
+        String directSourceId,
+        String installedFrom,
+        String source,
+        Boolean managed,
+        Boolean managedDesiredEnabled,
+        Boolean installed
+    ) {
+        this(name, marketplace, version, enabled, directSourceId, null, installedFrom, source, managed, managedDesiredEnabled, installed, null);
+    }
 }

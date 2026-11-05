@@ -19,7 +19,6 @@ import org.junit.jupiter.api.Test;
 import com.github.copilot.generated.AssistantMessageEvent;
 import com.github.copilot.rpc.MessageOptions;
 import com.github.copilot.rpc.PermissionHandler;
-import com.github.copilot.rpc.SessionConfig;
 import com.github.copilot.rpc.ToolDefinition;
 import com.github.copilot.rpc.ToolSet;
 
@@ -86,7 +85,7 @@ class LowLevelToolDefinitionIT {
 
         try (CopilotClient client = ctx.createClient()) {
             CopilotSession session = client
-                    .createSession(new SessionConfig().setOnPermissionRequest(PermissionHandler.APPROVE_ALL)
+                    .createSession(ctx.newSessionConfig().setOnPermissionRequest(PermissionHandler.APPROVE_ALL)
                             .setAvailableTools(new ToolSet().addCustom("*").addBuiltIn("web_fetch"))
                             .setTools(List.of(setPhaseTool, searchTool, grepOverrideTool)))
                     .get(30, TimeUnit.SECONDS);

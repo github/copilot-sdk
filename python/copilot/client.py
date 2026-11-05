@@ -748,12 +748,9 @@ class RuntimeConnection:
         runtime's native shared library into this process and drives JSON-RPC
         over its C ABI.
 
-        Because the runtime loads into this single shared process, per-client
-        options that lower to environment variables or a working directory
-        cannot be honored: :attr:`CopilotClientOptions.env`,
-        :attr:`CopilotClientOptions.telemetry`, and
-        :attr:`CopilotClientOptions.working_directory` are rejected with this
-        transport. Set those on the host process before creating the client.
+        Typed authentication and ``base_directory`` are scoped to this host.
+        Client-level ``env``, ``telemetry`` and ``working_directory`` are
+        unsupported; set working directories on individual sessions.
         Set ``COPILOT_CLI_PATH`` only when using an externally provisioned
         compatible runtime package.
 
@@ -1001,6 +998,42 @@ class _HooksAdapter:
 
 
 @dataclass
+class _InternalTestOptions:
+    """SDK test infrastructure only; unsupported and subject to change.
+
+    Supplied values override the owned runtime's startup environment, never
+    the host process environment. None preserves the inherited value.
+    """
+
+    copilot_api_url: str | None = None
+    github_api_url: str | None = None
+    proxy_url: str | None = None
+    no_proxy: str | None = None
+    ca_certificate_path: str | None = None
+
+    def _to_environment(self) -> dict[str, str]:
+        return {
+            key: value
+            for key, value in {
+                "COPILOT_API_URL": self.copilot_api_url,
+                "COPILOT_DEBUG_GITHUB_API_URL": self.github_api_url,
+                "HTTP_PROXY": self.proxy_url,
+                "HTTPS_PROXY": self.proxy_url,
+                "http_proxy": self.proxy_url,
+                "https_proxy": self.proxy_url,
+                "NO_PROXY": self.no_proxy,
+                "no_proxy": self.no_proxy,
+                "NODE_EXTRA_CA_CERTS": self.ca_certificate_path,
+                "SSL_CERT_FILE": self.ca_certificate_path,
+                "REQUESTS_CA_BUNDLE": self.ca_certificate_path,
+                "CURL_CA_BUNDLE": self.ca_certificate_path,
+                "GIT_SSL_CAINFO": self.ca_certificate_path,
+            }.items()
+            if value is not None
+        }
+
+
+@dataclass
 class _CopilotClientOptions:
     """Internal configuration carrier used by :class:`CopilotClient`.
 
@@ -1009,6 +1042,7 @@ class _CopilotClientOptions:
     """
 
     entra: EntraAuthConfig | None = None
+    internal_test_options: _InternalTestOptions | None = None
     connection: RuntimeConnection | None = None
     working_directory: str | None = None
     log_level: LogLevel = "info"
@@ -1725,19 +1759,16 @@ def _validate_environment_options(
 ) -> None:
     """Validate env/telemetry/working-directory options against the transport.
 
-    Per-client environment is only representable for child-process transports
-    (each client owns its own OS process). The in-process (FFI) transport loads
-    the native runtime into the shared host process, whose single environment
-    block and process-global working directory cannot carry per-client values,
-    so options that lower to them are rejected there (fail loud, not silent).
+    In-process hosts cannot accept arbitrary process-wide configuration.
     """
+    if isinstance(connection, UriRuntimeConnection) and options.internal_test_options is not None:
+        raise ValueError("_test_options requires a runtime owned by this client")
     if isinstance(connection, InProcessRuntimeConnection):
         if options.env is not None:
             raise ValueError(
-                "env is not supported with RuntimeConnection.for_inprocess(): the "
-                "in-process transport loads the native runtime into the shared host "
-                "process, whose single environment block cannot carry per-client "
-                "values. Set the variables on the host process environment instead."
+                "env is not supported with RuntimeConnection.for_inprocess(): environment "
+                "variables belong to the shared host process. Use typed client/session "
+                "options or a child-process transport."
             )
         if options.telemetry is not None:
             raise ValueError(
@@ -1751,9 +1782,8 @@ def _validate_environment_options(
             raise ValueError(
                 "working_directory is not supported with RuntimeConnection.for_inprocess(): "
                 "the native runtime shares the host process working directory, so a "
-                "per-client working directory cannot be honored in-process. Use a "
-                "child-process "
-                "transport, or set the process working directory before creating the client."
+                "per-client working directory cannot be honored in-process. Set working_directory "
+                "on individual sessions instead, or use a child-process transport."
             )
         return
 
@@ -1788,7 +1818,7 @@ class CopilotClient:
         >>> # Create a session and send a message
         >>> session = await client.create_session(
         ...     on_permission_request=PermissionHandler.approve_all,
-        ...     model="gpt-4",
+        ...     model="gpt-5.4",
         ... )
         >>> session.on(lambda event: print(event.type))
         >>> await session.send("Hello!")
@@ -1807,6 +1837,7 @@ class CopilotClient:
         self,
         *,
         entra: EntraAuthConfig | None = None,
+        _test_options: _InternalTestOptions | None = None,
         connection: RuntimeConnection | None = None,
         working_directory: str | None = None,
         log_level: LogLevel = "info",
@@ -1857,7 +1888,8 @@ class CopilotClient:
             base_directory: Base directory for Copilot data (session state,
                 config, etc.). Sets the ``COPILOT_HOME`` environment variable on
                 the spawned runtime. When ``None``, the runtime defaults to
-                ``~/.copilot``.
+                ``~/.copilot``. In-process hosts also keep their runtime cache
+                in this directory's ``cache`` subdirectory.
             builtin_plugin_directories: Absolute paths to trusted plugin
                 directories bundled by the host. When non-empty, the complete
                 set is registered during startup before sessions can be created.
@@ -1919,6 +1951,7 @@ class CopilotClient:
         """
         options = _CopilotClientOptions(
             entra=entra,
+            internal_test_options=_test_options,
             connection=connection,
             working_directory=working_directory,
             log_level=log_level,
@@ -1974,8 +2007,9 @@ class CopilotClient:
         self._ffi_host: FfiRuntimeHost | None = None
         self._inprocess_runtime_path: str | None = None
         self._inprocess_cli_entrypoint: str | None = None
+        effective_env = options.env if options.env is not None else os.environ
         self._cli_login_sync_integration_id = (
-            os.environ.get("GITHUB_COPILOT_INTEGRATION_ID", "").strip() or None
+            effective_env.get("GITHUB_COPILOT_INTEGRATION_ID", "").strip() or None
         )
 
         if isinstance(connection, UriRuntimeConnection):
@@ -2775,7 +2809,7 @@ class CopilotClient:
             on_permission_request: Optional handler for permission requests. When
                 omitted, permission requests are surfaced as events and left pending
                 for the consumer to resolve via the pending permission RPC.
-            model: The model to use for the session (e.g. ``"gpt-4"``).
+            model: The model to use for the session (e.g. ``"gpt-5.4"``).
             session_id: Optional session ID. If not provided, a UUID is generated.
             name: Names the session at creation, as ``session.name.set`` would, and
                 is validated the same way: non-empty, no leading or trailing whitespace,
@@ -3020,7 +3054,7 @@ class CopilotClient:
             >>> # Session with model and streaming
             >>> session = await client.create_session(
             ...     on_permission_request=PermissionHandler.approve_all,
-            ...     model="gpt-4",
+            ...     model="gpt-5.4",
             ...     streaming=True,
             ... )
         """
@@ -5140,6 +5174,8 @@ class CopilotClient:
             env = dict(os.environ)
         else:
             env = dict(opts.env)
+        if opts.internal_test_options is not None:
+            env.update(opts.internal_test_options._to_environment())
         # Set auth token in environment if provided
         if opts.github_token:
             env["COPILOT_SDK_AUTH_TOKEN"] = opts.github_token
@@ -5283,11 +5319,41 @@ class CopilotClient:
         if self._cli_login_sync_integration_id is not None:
             args.append(f"--cli-login-sync-integration-id={self._cli_login_sync_integration_id}")
 
-        environment: dict[str, str] = {}
+        environment = {}
+        for key, value in os.environ.items():
+            try:
+                key.encode("utf-8")
+            except UnicodeEncodeError:
+                continue
+            if sys.platform == "win32":
+                key = key.upper()
+            try:
+                value.encode("utf-8")
+            except UnicodeEncodeError:
+                # Match the native startup snapshot's explicit-setting precedence.
+                if key not in {
+                    "http_proxy",
+                    "HTTP_PROXY",
+                    "https_proxy",
+                    "HTTPS_PROXY",
+                    "COPILOT_PROXY_KERBEROS_SPN",
+                    "TMPDIR",
+                }:
+                    continue
+                value = "\ufffd"
+            environment[key] = value
+        if opts.internal_test_options is not None:
+            environment.update(
+                {
+                    key.upper() if sys.platform == "win32" else key: value
+                    for key, value in opts.internal_test_options._to_environment().items()
+                }
+            )
         if opts.github_token:
             environment["COPILOT_SDK_AUTH_TOKEN"] = opts.github_token
         if opts.base_directory:
             environment["COPILOT_HOME"] = opts.base_directory
+            environment["COPILOT_CACHE_HOME"] = str(Path(opts.base_directory) / "cache")
         if opts.mode == "empty":
             environment["COPILOT_DISABLE_KEYTAR"] = "1"
 

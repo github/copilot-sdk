@@ -4,7 +4,7 @@ This guide walks you through the SDK's session persistence capabilities—how to
 
 ## How sessions work
 
-When you create a session, the Copilot CLI maintains conversation history, tool state, and planning context. By default, this state lives in memory and disappears when the session ends. With persistence enabled, you can resume sessions across restarts, container migrations, or even different client instances.
+When you create a session, the Copilot CLI maintains conversation history, tool state, and planning context. The runtime saves this state to disk once the session handles its first message, so you can resume sessions across restarts, container migrations, or even different client instances.
 
 ```mermaid
 flowchart LR
@@ -21,7 +21,7 @@ flowchart LR
 
 ## Quick start: creating a resumable session
 
-The key to resumable sessions is providing your own `session_id`. Without one, the SDK generates a random ID and the session can't be resumed later.
+Every session that has handled a message is resumable by its ID. Without your own `session_id`, one is generated for you (read it from `session.sessionId` in TypeScript), so you must store it yourself. Providing your own ID lets you derive it from your application's data instead.
 
 ### TypeScript
 
@@ -859,7 +859,7 @@ await withSessionLock("user-123-task-456", async () => {
 
 | Feature | How to Use |
 |---------|------------|
-| **Create resumable session** | Provide your own `sessionId` |
+| **Create resumable session** | Create a session and send a message; provide your own `sessionId` to choose the ID |
 | **Resume session** | `client.resumeSession(sessionId, config)` |
 | **BYOK resume** | Re-provide `provider` config |
 | **List sessions** | `client.listSessions(filter?)` |

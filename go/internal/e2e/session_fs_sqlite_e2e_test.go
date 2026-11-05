@@ -49,6 +49,7 @@ func (p *inMemorySqliteProvider) recordedCalls() []sqliteCall {
 }
 
 func TestInMemorySqliteProviderConcurrentCalls(t *testing.T) {
+	t.Parallel()
 	provider := newInMemorySqliteProvider("concurrent-sqlite")
 	start := make(chan struct{})
 	var workers sync.WaitGroup
@@ -311,6 +312,7 @@ func (p *inMemorySqliteProvider) SqliteExists() (bool, error) {
 }
 
 func TestSessionFSSqliteE2E(t *testing.T) {
+	t.Parallel()
 	ctx := testharness.NewTestContext(t)
 	sessionStatePath := createSessionStatePath(t)
 	sessionFSConfig := &copilot.SessionFSConfig{

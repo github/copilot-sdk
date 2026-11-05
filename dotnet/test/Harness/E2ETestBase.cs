@@ -69,7 +69,6 @@ public abstract class E2ETestBase : IClassFixture<E2ETestFixture>, IAsyncLifetim
 
     public async Task InitializeAsync()
     {
-        Ctx.PrepareForTest();
         await Ctx.CleanupAfterTestAsync();
         await Ctx.ConfigureForTestAsync(_snapshotCategory, _testName, _replayOnly);
     }

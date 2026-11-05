@@ -532,7 +532,7 @@ async fn should_enable_citations_for_anthropic_file_attachments_on_create() {
         Box::pin(async move {
             ctx.set_default_copilot_user();
             let handler = RecordingHandler::default();
-            let client = ctx.start_llm_client(handler.clone(), &[]).await;
+            let client = ctx.start_llm_client(handler.clone()).await;
             let session = client
                 .create_session(
                     SessionConfig::default()

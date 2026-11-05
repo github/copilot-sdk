@@ -32,20 +32,25 @@ runtime.
 
 Stable releases are available from Maven Central. Preview versions use Maven `-SNAPSHOT` coordinates and the repository shown in [Snapshot builds](#snapshot-builds).
 
+The SDK starts the Copilot runtime from a separate JAR for each platform, which `copilot-sdk-java` does not pull in.
+Add `com.github:copilot-sdk-java-runtime` at the same version as the SDK, with the classifier for the platform the application runs on: `linux-x64`, `linux-arm64`, `linuxmusl-x64`, `linuxmusl-arm64`, `darwin-x64`, `darwin-arm64`, `win32-x64` or `win32-arm64`.
+In Gradle that is `implementation 'com.github:copilot-sdk-java-runtime:<version>:<classifier>'`; the Maven form is shown under [Additional dependency](#additional-dependency).
+Without it, `CopilotClient.start()` fails with a `FileNotFoundException` unless `cliPath` or `COPILOT_CLI_PATH` names a Copilot CLI to launch instead.
+
 ### Maven
 
 ```xml
 <dependency>
     <groupId>com.github</groupId>
     <artifactId>copilot-sdk-java</artifactId>
-    <version>1.0.15</version>
+    <version>1.0.28</version>
 </dependency>
 ```
 
 ### Gradle
 
 ```groovy
-implementation 'com.github:copilot-sdk-java:1.0.15'
+implementation 'com.github:copilot-sdk-java:1.0.28'
 ```
 
 ### Snapshot builds
@@ -67,7 +72,7 @@ Java previews are published three times per weekday, at 10:00, 13:00, and 15:00 
 <dependency>
     <groupId>com.github</groupId>
     <artifactId>copilot-sdk-java</artifactId>
-    <version>1.0.15-SNAPSHOT</version>
+    <version>1.0.29-SNAPSHOT</version>
 </dependency>
 ```
 
@@ -86,7 +91,7 @@ repositories {
 Then add the snapshot dependency:
 
 ```groovy
-implementation 'com.github:copilot-sdk-java:1.0.15-SNAPSHOT'
+implementation 'com.github:copilot-sdk-java:1.0.29-SNAPSHOT'
 ```
 
 ## In-process mode (experimental)
@@ -101,7 +106,7 @@ Add both the SDK and the platform-specific native runtime to your project:
 
 ```xml
 <dependencies>
-    <!-- Pure-Java SDK (~1.5 MB) -->
+    <!-- Pure-Java SDK -->
     <dependency>
         <groupId>com.github</groupId>
         <artifactId>copilot-sdk-java</artifactId>
@@ -415,6 +420,10 @@ references it.
 ```java
 import com.github.copilot.SkillProvider;
 import com.github.copilot.SkillProviderDescriptor;
+import com.github.copilot.rpc.PermissionHandler;
+import com.github.copilot.rpc.SessionConfig;
+import java.util.List;
+import java.util.concurrent.CompletableFuture;
 
 SkillProvider provider = new SkillProvider() {
     @Override
@@ -627,6 +636,8 @@ Or run it directly from the repository:
 jbang https://github.com/github/copilot-sdk/blob/main/java/sdk/jbang-example.java
 ```
 
+The example depends only on `copilot-sdk-java`, not on the platform runtime JAR, so set `COPILOT_CLI_PATH` to a Copilot CLI before running it.
+
 ## Annotation-based tools and `ToolInvocation` context
 
 When you define tools with `@CopilotTool`, parameters of type `ToolInvocation` are injected as runtime context and are not exposed in the tool schema.
@@ -690,6 +701,8 @@ ToolDefinition search = ToolDefinition
 `Param.of(type, name, description)` creates a required parameter. For optional parameters with defaults:
 
 ```java
+import com.github.copilot.tool.Param;
+
 Param<Integer> limit = Param.of(Integer.class, "limit", "Max results", false, "10");
 ```
 
@@ -697,8 +710,34 @@ Param<Integer> limit = Param.of(Integer.class, "limit", "Max results", false, "1
 
 Use `fromAsync` for asynchronous tool handlers:
 
+<!-- docs-validate: hidden -->
 ```java
 import java.util.concurrent.CompletableFuture;
+import com.github.copilot.rpc.ToolDefinition;
+import com.github.copilot.tool.Param;
+
+public class AsyncToolHandlerExample {
+    // The reader's own remote call.
+    static String fetchRemote(String url) {
+        return url;
+    }
+
+    static ToolDefinition fetchDataTool() {
+        ToolDefinition fetchData = ToolDefinition.fromAsync(
+            "fetch_data",
+            "Fetches data from remote source",
+            Param.of(String.class, "url", "Data source URL"),
+            url -> CompletableFuture.supplyAsync(() -> fetchRemote(url))
+        );
+        return fetchData;
+    }
+}
+```
+<!-- /docs-validate: hidden -->
+```java
+import java.util.concurrent.CompletableFuture;
+import com.github.copilot.rpc.ToolDefinition;
+import com.github.copilot.tool.Param;
 
 ToolDefinition fetchData = ToolDefinition.fromAsync(
     "fetch_data",
@@ -713,6 +752,9 @@ ToolDefinition fetchData = ToolDefinition.fromAsync(
 Inline tools can access `ToolInvocation` runtime context using `fromWithToolInvocation`:
 
 ```java
+import com.github.copilot.rpc.ToolDefinition;
+import com.github.copilot.tool.Param;
+
 ToolDefinition reportPhase = ToolDefinition.fromWithToolInvocation(
     "report_phase",
     "Reports the current phase with invocation context",
@@ -762,6 +804,10 @@ schema if references are needed.
 registered by this Java client without recreating the session:
 
 ```java
+import java.util.List;
+import com.github.copilot.rpc.ToolDefinition;
+import com.github.copilot.tool.Param;
+
 session.setTools(List.of(
     ToolDefinition.from("lookup_fruit", "Looks up fruit by code",
         Param.of(Integer.class, "code", "Fruit code"),
@@ -817,6 +863,9 @@ Change the Auto routing preference without changing the selected model. The runt
 Watch for the outcome through the `session.model_change` event on success or the ephemeral `session.auto_tier_switch_failed` event on failure. A failed activation leaves the incumbent effective tier unchanged. Read the authoritative committed, pending, and activating preferences at any time through the session's `model.getCurrent` RPC method.
 
 ```java
+import com.github.copilot.generated.rpc.ModelSwitchAutoTierStatus;
+import com.github.copilot.rpc.AutoTier;
+
 var result = session.setAutoTier(AutoTier.INTELLIGENCE).get();
 if (result.status() == ModelSwitchAutoTierStatus.PENDING) {
     // Accepted, but not yet in effect.

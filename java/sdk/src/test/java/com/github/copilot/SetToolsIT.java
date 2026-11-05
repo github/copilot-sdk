@@ -22,7 +22,6 @@ import com.github.copilot.generated.AssistantMessageEvent;
 import com.github.copilot.rpc.MessageOptions;
 import com.github.copilot.rpc.PermissionHandler;
 import com.github.copilot.rpc.ResumeSessionConfig;
-import com.github.copilot.rpc.SessionConfig;
 import com.github.copilot.rpc.ToolDefinition;
 
 @AllowCopilotExperimental
@@ -56,7 +55,7 @@ class SetToolsIT {
 
         try (CopilotClient client = ctx.createClient()) {
             CopilotSession session = client.createSession(
-                    new SessionConfig().setTools(List.of(lookupFruit("apple", originalLookups), retiredLookup()))
+                    ctx.newSessionConfig().setTools(List.of(lookupFruit("apple", originalLookups), retiredLookup()))
                             .setOnPermissionRequest(PermissionHandler.APPROVE_ALL))
                     .get(30, TimeUnit.SECONDS);
             try {
@@ -100,7 +99,7 @@ class SetToolsIT {
         try (CopilotClient client = ctx.createClient()) {
             var createdLookups = new CopyOnWriteArrayList<Integer>();
             CopilotSession created = client
-                    .createSession(new SessionConfig().setTools(List.of(lookupFruit("apple", createdLookups)))
+                    .createSession(ctx.newSessionConfig().setTools(List.of(lookupFruit("apple", createdLookups)))
                             .setOnPermissionRequest(PermissionHandler.APPROVE_ALL))
                     .get(30, TimeUnit.SECONDS);
             String sessionId = created.getSessionId();
@@ -147,7 +146,7 @@ class SetToolsIT {
 
         try (CopilotClient client = ctx.createClient()) {
             CopilotSession session = client
-                    .createSession(new SessionConfig().setTools(List.of(lookupFruit("apple", originalLookups)))
+                    .createSession(ctx.newSessionConfig().setTools(List.of(lookupFruit("apple", originalLookups)))
                             .setOnPermissionRequest(PermissionHandler.APPROVE_ALL))
                     .get(30, TimeUnit.SECONDS);
             try {

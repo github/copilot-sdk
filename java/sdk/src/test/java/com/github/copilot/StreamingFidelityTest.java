@@ -23,7 +23,6 @@ import com.github.copilot.generated.AssistantMessageEvent;
 import com.github.copilot.rpc.MessageOptions;
 import com.github.copilot.rpc.PermissionHandler;
 import com.github.copilot.rpc.ResumeSessionConfig;
-import com.github.copilot.rpc.SessionConfig;
 
 /**
  * E2E tests for streaming fidelity — verifying that delta events are produced
@@ -33,6 +32,7 @@ import com.github.copilot.rpc.SessionConfig;
  * Snapshots are stored in {@code test/snapshots/streaming_fidelity/}.
  * </p>
  */
+@Tag("e2e")
 public class StreamingFidelityTest {
 
     private static E2ETestContext ctx;
@@ -62,7 +62,8 @@ public class StreamingFidelityTest {
 
         try (CopilotClient client = ctx.createClient()) {
             CopilotSession session = client.createSession(
-                    new SessionConfig().setOnPermissionRequest(PermissionHandler.APPROVE_ALL).setStreaming(true)).get();
+                    ctx.newSessionConfig().setOnPermissionRequest(PermissionHandler.APPROVE_ALL).setStreaming(true))
+                    .get();
 
             List<SessionEvent> events = new CopyOnWriteArrayList<>();
             session.on(events::add);
@@ -108,7 +109,7 @@ public class StreamingFidelityTest {
 
         try (CopilotClient client = ctx.createClient()) {
             CopilotSession session = client.createSession(
-                    new SessionConfig().setOnPermissionRequest(PermissionHandler.APPROVE_ALL).setStreaming(false))
+                    ctx.newSessionConfig().setOnPermissionRequest(PermissionHandler.APPROVE_ALL).setStreaming(false))
                     .get();
 
             List<SessionEvent> events = new CopyOnWriteArrayList<>();
@@ -147,7 +148,7 @@ public class StreamingFidelityTest {
         try (CopilotClient client = ctx.createClient()) {
             // Create a non-streaming session and send an initial message
             CopilotSession session = client.createSession(
-                    new SessionConfig().setOnPermissionRequest(PermissionHandler.APPROVE_ALL).setStreaming(false))
+                    ctx.newSessionConfig().setOnPermissionRequest(PermissionHandler.APPROVE_ALL).setStreaming(false))
                     .get();
             session.sendAndWait(new MessageOptions().setPrompt("What is 3 + 6?")).get(60, TimeUnit.SECONDS);
             String sessionId = session.getSessionId();
@@ -202,7 +203,8 @@ public class StreamingFidelityTest {
         try (CopilotClient client = ctx.createClient()) {
             // Create a streaming session and send an initial message
             CopilotSession session = client.createSession(
-                    new SessionConfig().setOnPermissionRequest(PermissionHandler.APPROVE_ALL).setStreaming(true)).get();
+                    ctx.newSessionConfig().setOnPermissionRequest(PermissionHandler.APPROVE_ALL).setStreaming(true))
+                    .get();
             session.sendAndWait(new MessageOptions().setPrompt("What is 3 + 6?")).get(60, TimeUnit.SECONDS);
             String sessionId = session.getSessionId();
             session.close();
@@ -255,7 +257,7 @@ public class StreamingFidelityTest {
 
             try (CopilotClient client = isolatedContext.createClient()) {
                 CopilotSession session = client
-                        .createSession(new SessionConfig().setOnPermissionRequest(PermissionHandler.APPROVE_ALL)
+                        .createSession(ctx.newSessionConfig().setOnPermissionRequest(PermissionHandler.APPROVE_ALL)
                                 .setModel("gpt-5.4").setStreaming(true).setReasoningEffort("high"))
                         .get();
 

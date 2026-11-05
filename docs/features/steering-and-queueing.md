@@ -70,7 +70,7 @@ const client = new CopilotClient();
 await client.start();
 
 const session = await client.createSession({
-    model: "gpt-5.4",
+    model: "auto",
     onPermissionRequest: async () => ({ kind: "approve-once" }),
 });
 
@@ -101,7 +101,7 @@ async def main():
 
     session = await client.create_session(
         on_permission_request=lambda req, inv: PermissionDecisionApproveOnce(),
-        model="gpt-5.4",
+        model="auto",
     )
 
     # Start a long-running task
@@ -142,7 +142,7 @@ func main() {
     defer client.Stop()
 
     session, err := client.CreateSession(ctx, &copilot.SessionConfig{
-        Model: "gpt-5.4",
+        Model: "auto",
         OnPermissionRequest: func(req copilot.PermissionRequest, inv copilot.PermissionInvocation) (rpc.PermissionDecision, error) {
             return &rpc.PermissionDecisionApproveOnce{}, nil
         },
@@ -182,7 +182,7 @@ using GitHub.Copilot.Rpc;
 await using var client = new CopilotClient();
 await using var session = await client.CreateSessionAsync(new SessionConfig
 {
-    Model = "gpt-5.4",
+    Model = "auto",
     OnPermissionRequest = (req, inv) =>
         Task.FromResult(PermissionDecision.ApproveOnce()),
 });
@@ -215,7 +215,7 @@ try (var client = new CopilotClient()) {
 
     var session = client.createSession(
         new SessionConfig()
-            .setModel("gpt-5.4")
+            .setModel("auto")
             .setOnPermissionRequest(PermissionHandler.APPROVE_ALL)
     ).get();
 
@@ -259,7 +259,7 @@ const client = new CopilotClient();
 await client.start();
 
 const session = await client.createSession({
-    model: "gpt-5.4",
+    model: "auto",
     onPermissionRequest: async () => ({ kind: "approve-once" }),
 });
 
@@ -295,7 +295,7 @@ async def main():
 
     session = await client.create_session(
         on_permission_request=lambda req, inv: PermissionDecisionApproveOnce(),
-        model="gpt-5.4",
+        model="auto",
     )
 
     # Send an initial task
@@ -337,7 +337,7 @@ func main() {
 	client.Start(ctx)
 
 	session, _ := client.CreateSession(ctx, &copilot.SessionConfig{
-		Model: "gpt-5.4",
+		Model: "auto",
 		OnPermissionRequest: func(req copilot.PermissionRequest, inv copilot.PermissionInvocation) (rpc.PermissionDecision, error) {
 			return &rpc.PermissionDecisionApproveOnce{}, nil
 		},
@@ -385,44 +385,6 @@ session.Send(ctx, copilot.MessageOptions{
 <details>
 <summary><strong>.NET</strong></summary>
 
-<!-- docs-validate: hidden -->
-```csharp
-using GitHub.Copilot;
-using GitHub.Copilot.Rpc;
-
-public static class QueueingExample
-{
-    public static async Task Main()
-    {
-        await using var client = new CopilotClient();
-        await using var session = await client.CreateSessionAsync(new SessionConfig
-        {
-            Model = "gpt-5.4",
-            OnPermissionRequest = (req, inv) =>
-                Task.FromResult(PermissionDecision.ApproveOnce()),
-        });
-
-        await session.SendAsync(new MessageOptions
-        {
-            Prompt = "Set up the project structure"
-        });
-
-        await session.SendAsync(new MessageOptions
-        {
-            Prompt = "Add unit tests for the auth module",
-            Mode = "enqueue"
-        });
-
-        await session.SendAsync(new MessageOptions
-        {
-            Prompt = "Update the README with setup instructions",
-            Mode = "enqueue"
-        });
-    }
-}
-```
-<!-- /docs-validate: hidden -->
-
 ```csharp
 // Send an initial task
 await session.SendAsync(new MessageOptions
@@ -460,7 +422,7 @@ try (var client = new CopilotClient()) {
 
     var session = client.createSession(
         new SessionConfig()
-            .setModel("gpt-5.4")
+            .setModel("auto")
             .setOnPermissionRequest(PermissionHandler.APPROVE_ALL)
     ).get();
 
@@ -502,7 +464,7 @@ You can use both patterns together in a single session. Steering affects the cur
 <!-- docs-validate: strict -->
 ```typescript
 const session = await client.createSession({
-    model: "gpt-5.4",
+    model: "auto",
     onPermissionRequest: async () => ({ kind: "approve-once" }),
 });
 
@@ -535,7 +497,7 @@ client = CopilotClient()
 
 session = await client.create_session(
     on_permission_request=lambda req, inv: PermissionDecisionApproveOnce(),
-    model="gpt-5.4",
+    model="auto",
 )
 
 # Start a task

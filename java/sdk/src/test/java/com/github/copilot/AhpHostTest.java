@@ -15,6 +15,9 @@ import com.github.copilot.rpc.CopilotClientOptions;
 import com.github.copilot.rpc.PermissionHandler;
 import com.github.copilot.rpc.SessionConfig;
 import java.io.IOException;
+import java.net.BindException;
+import java.net.InetAddress;
+import java.net.InetSocketAddress;
 import java.net.ServerSocket;
 import java.util.HashMap;
 import java.util.Arrays;
@@ -35,6 +38,15 @@ import org.junit.jupiter.params.provider.ValueSource;
 
 @AllowCopilotExperimental
 class AhpHostTest {
+    @Test
+    void fakeRuntimeReservesItsClientAddress() throws Exception {
+        try (var server = new FakeRuntime(); var competing = new ServerSocket()) {
+            competing.setReuseAddress(true);
+            assertThrows(BindException.class,
+                    () -> competing.bind(new InetSocketAddress("127.0.0.1", server.listener.getLocalPort())));
+        }
+    }
+
     @Test
     void rejectsMissingInvalidAndIncompatibleAdmissionBeforeConnecting() throws Exception {
         for (var mode : com.github.copilot.rpc.CopilotClientMode.values()) {
@@ -568,7 +580,7 @@ class AhpHostTest {
     }
 
     private static final class FakeRuntime implements AutoCloseable {
-        final ServerSocket listener = new ServerSocket(0);
+        final ServerSocket listener = new ServerSocket(0, 1, InetAddress.getByName("127.0.0.1"));
         final CompletableFuture<JsonRpcClient> connected = new CompletableFuture<>();
         final CopyOnWriteArrayList<JsonNode> sessionRequests = new CopyOnWriteArrayList<>();
         final CopyOnWriteArrayList<JsonNode> unpublicationRequests = new CopyOnWriteArrayList<>();

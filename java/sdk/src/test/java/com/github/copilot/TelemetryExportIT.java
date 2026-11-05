@@ -23,7 +23,6 @@ import com.github.copilot.rpc.CopilotClientOptions;
 import com.github.copilot.rpc.MessageOptions;
 import com.github.copilot.rpc.PermissionHandler;
 import com.github.copilot.rpc.RuntimeConnection;
-import com.github.copilot.rpc.SessionConfig;
 import com.github.copilot.rpc.TelemetryConfig;
 
 class TelemetryExportIT {
@@ -44,7 +43,7 @@ class TelemetryExportIT {
             String sessionId;
             try (CopilotClient client = ctx.createClient(options)) {
                 CopilotSession session = client
-                        .createSession(new SessionConfig().setOnPermissionRequest(PermissionHandler.APPROVE_ALL))
+                        .createSession(ctx.newSessionConfig().setOnPermissionRequest(PermissionHandler.APPROVE_ALL))
                         .get(30, TimeUnit.SECONDS);
                 try {
                     sessionId = session.getSessionId();

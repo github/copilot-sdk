@@ -10,6 +10,7 @@ import (
 )
 
 func TestStreamingFidelityE2E(t *testing.T) {
+	t.Parallel()
 	ctx := testharness.NewTestContext(t)
 	client := ctx.NewClient()
 	t.Cleanup(func() { client.ForceStop() })

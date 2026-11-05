@@ -7,7 +7,7 @@ A Go SDK for programmatic access to the GitHub Copilot CLI.
 To use the SDK, you'll need:
 
 - Go 1.26.0 or later
-- GitHub Copilot CLI installed and in `PATH` (or set `COPILOT_CLI_PATH`)
+- The Copilot CLI, embedded with the [bundler tool](#distributing-your-application-with-an-embedded-github-copilot-cli) or located through `COPILOT_CLI_PATH` or an explicit connection path. The SDK does not look up `copilot` on `PATH`.
 
 ## Installation
 
@@ -446,8 +446,8 @@ Resolution and requirements:
 
 The in-process transport rejects options that cannot be honored by a runtime hosted in your shared process (each panics at `NewClient`):
 
-- `Env` — the host process has a single environment block. Set variables on the host process environment instead.
-- `WorkingDirectory` — the runtime shares the host process's working directory. Change the process working directory before creating the client.
+- `Env` — set variables in the host process environment instead.
+- `WorkingDirectory` — the runtime shares the host process's working directory. Set `SessionConfig.WorkingDirectory` instead.
 - `Telemetry` — per-client telemetry is lowered to native-runtime environment variables. Use a child-process transport for per-client telemetry.
 
 Implemented with pure-Go FFI (via [purego](https://github.com/ebitengine/purego)), so `CGO_ENABLED=0` and cross-compilation are preserved; no C toolchain is required.
@@ -475,34 +475,6 @@ Implemented with pure-Go FFI (via [purego](https://github.com/ebitengine/purego)
 - `OnEventType(eventType SessionLifecycleEventType, handler SessionLifecycleHandler) func()` - Subscribe to specific lifecycle event type
 
 **Session Lifecycle Events:**
-
-<!-- docs-validate: hidden -->
-<!--
-```go
-package main
-
-import (
-	"fmt"
-
-	copilot "github.com/github/copilot-sdk/go"
-)
-
-func main() {
-	client := copilot.NewClient(nil)
-
-	unsubscribe := client.On(func(event copilot.SessionLifecycleEvent) {
-		fmt.Printf("Session %s: %s\n", event.SessionID, event.Type)
-	})
-	defer unsubscribe()
-
-	unsubscribeForeground := client.OnEventType(copilot.SessionLifecycleForeground, func(event copilot.SessionLifecycleEvent) {
-		fmt.Printf("Session %s is now in foreground\n", event.SessionID)
-	})
-	defer unsubscribeForeground()
-}
-```
--->
-<!-- /docs-validate: hidden -->
 
 ```go
 // Subscribe to all lifecycle events
@@ -537,7 +509,7 @@ Event types: `SessionLifecycleCreated`, `SessionLifecycleDeleted`, `SessionLifec
 - `KerberosAuth` (\*KerberosAuthConfig): Supplies Kerberos credentials from the SDK host. `Start` installs the `kerberosAuth.acquire` handler and registers the callback with its `Mode` and optional `Scope` (`KerberosAuthScopeConnection` by default, or `KerberosAuthScopeRuntime`) before sessions can be created. See [Kerberos authentication callback](#kerberos-authentication-callback).
 - `InstallationConfirmationHandler` (InstallationConfirmationHandler): Experimental connection-global human review for `installations.confirm`. Receives the typed request, a per-request cancellation context and a separate connection-closed signal, then returns an explicit decision. Does not enable installation capabilities.
 - `LogLevel` (string): Log level. When empty (default), the runtime uses its own default level (the SDK does not pass `--log-level`).
-- `Env` ([]string): Environment variables for the runtime process (default: inherits from current process)
+- `Env` ([]string): Environment variables for a child runtime process (default: inherits from current process). Rejected in-process.
 
   For the native standalone runtime, include
   `"COPILOT_TELEMETRY_DISABLED=true"` in `Env` before startup to disable
@@ -668,36 +640,6 @@ context, not as a substitute for agent provenance. Use `copilot.MessageSourceUse
 for explicit user provenance, or leave it empty to omit `source` from the request
 and preserve the runtime's default behavior.
 
-<!-- docs-validate: hidden -->
-<!--
-```go
-package main
-
-import (
-	"context"
-
-	copilot "github.com/github/copilot-sdk/go"
-)
-
-func main() {
-	ctx := context.Background()
-	client := copilot.NewClient(nil)
-	session, err := client.CreateSession(ctx, &copilot.SessionConfig{})
-	if err != nil {
-		return
-	}
-
-	_, err = session.Send(ctx, copilot.MessageOptions{
-		Prompt: "Review complete. The build passed.",
-		Source: copilot.MessageSourceAgent("reviewer"),
-		Mode:   "enqueue",
-	})
-	_ = err
-}
-```
--->
-<!-- /docs-validate: hidden -->
-
 ```go
 _, err := session.Send(ctx, copilot.MessageOptions{
     Prompt: "Review complete. The build passed.",
@@ -727,32 +669,6 @@ supply its reply.
 
 Control the system prompt using `SystemMessage` in session config:
 
-<!-- docs-validate: hidden -->
-<!--
-```go
-package main
-
-import (
-	"context"
-
-	copilot "github.com/github/copilot-sdk/go"
-)
-
-func main() {
-	ctx := context.Background()
-	client := copilot.NewClient(nil)
-
-	session, err := client.CreateSession(ctx, &copilot.SessionConfig{
-		SystemMessage: &copilot.SystemMessageConfig{
-			Content: "Always check for security vulnerabilities before suggesting changes.",
-		},
-	})
-	_, _ = session, err
-}
-```
--->
-<!-- /docs-validate: hidden -->
-
 ```go
 session, err := client.CreateSession(ctx, &copilot.SessionConfig{
     SystemMessage: &copilot.SystemMessageConfig{
@@ -766,42 +682,6 @@ The SDK auto-injects environment context, tool instructions, and security guardr
 #### Customize Mode
 
 Use `Mode: "customize"` to selectively override individual sections of the prompt while preserving the rest:
-
-<!-- docs-validate: hidden -->
-<!--
-```go
-package main
-
-import (
-	"context"
-
-	copilot "github.com/github/copilot-sdk/go"
-)
-
-func main() {
-	ctx := context.Background()
-	client := copilot.NewClient(nil)
-
-	session, err := client.CreateSession(ctx, &copilot.SessionConfig{
-		SystemMessage: &copilot.SystemMessageConfig{
-			Mode: "customize",
-			Sections: map[string]copilot.SectionOverride{
-				// Replace the tone/style section
-				copilot.SectionTone: {Action: "replace", Content: "Respond in a warm, professional tone. Be thorough in explanations."},
-				// Remove coding-specific rules
-				copilot.SectionCodeChangeRules: {Action: "remove"},
-				// Append to existing guidelines
-				copilot.SectionGuidelines: {Action: "append", Content: "\n* Always cite data sources"},
-			},
-			// Additional instructions appended after all sections
-			Content: "Focus on financial analysis and reporting.",
-		},
-	})
-	_, _ = session, err
-}
-```
--->
-<!-- /docs-validate: hidden -->
 
 ```go
 session, err := client.CreateSession(ctx, &copilot.SessionConfig{
@@ -836,39 +716,6 @@ Each section override supports five static actions:
 - **`preserve`** — No-op that opts an individually-addressable section out of a group-level `remove`
 
 A sixth operation, `transform`, computes the new content from the current content. Set the `Transform` callback on a `SectionOverride` instead of `Action`; it takes precedence over `Action` and `Content`. The SDK calls it with the section's current content and uses the string it returns. Transform callbacks apply in `customize` mode only. If the callback returns an error, the section keeps its current content.
-
-<!-- docs-validate: hidden -->
-<!--
-```go
-package main
-
-import (
-	"context"
-
-	copilot "github.com/github/copilot-sdk/go"
-)
-
-func main() {
-	ctx := context.Background()
-	client := copilot.NewClient(nil)
-
-	session, err := client.CreateSession(ctx, &copilot.SessionConfig{
-		SystemMessage: &copilot.SystemMessageConfig{
-			Mode: "customize",
-			Sections: map[string]copilot.SectionOverride{
-				copilot.SectionGuidelines: {
-					Transform: func(current string) (string, error) {
-						return current + "\n* Always cite data sources", nil
-					},
-				},
-			},
-		},
-	})
-	_, _ = session, err
-}
-```
--->
-<!-- /docs-validate: hidden -->
 
 ```go
 session, err := client.CreateSession(ctx, &copilot.SessionConfig{
@@ -2083,23 +1930,6 @@ When `OnElicitationRequest` is provided, the SDK automatically:
 ### stdio (Default)
 
 Communicates with CLI via stdin/stdout pipes. Recommended for most use cases.
-
-<!-- docs-validate: hidden -->
-<!--
-```go
-package main
-
-import (
-	copilot "github.com/github/copilot-sdk/go"
-)
-
-func main() {
-	client := copilot.NewClient(nil) // Uses stdio by default
-	_ = client
-}
-```
--->
-<!-- /docs-validate: hidden -->
 
 ```go
 client := copilot.NewClient(nil) // Uses stdio by default

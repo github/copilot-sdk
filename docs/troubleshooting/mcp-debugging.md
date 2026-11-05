@@ -26,19 +26,22 @@ Before diving deep, verify these basics:
 
 Add environment variables to your MCP server config:
 
+<!-- docs-validate: strict -->
 ```typescript
-mcpServers: {
-  "my-server": {
-    type: "local",
-    command: "/path/to/server",
-    args: [],
-    env: {
-      MCP_DEBUG: "1",
-      DEBUG: "*",
-      NODE_DEBUG: "mcp",  // For Node.js MCP servers
+const session = await client.createSession({
+  mcpServers: {
+    "my-server": {
+      type: "local",
+      command: "/path/to/server",
+      args: [],
+      env: {
+        MCP_DEBUG: "1",
+        DEBUG: "*",
+        NODE_DEBUG: "mcp",  // For Node.js MCP servers
+      },
     },
   },
-}
+});
 ```
 
 ## Testing MCP servers independently
@@ -116,7 +119,7 @@ Usage:
 | Wrong command path | Use absolute path: `/usr/local/bin/server` |
 | Missing executable permission | Run `chmod +x /path/to/server` |
 | Missing dependencies | Check with `ldd` (Linux) or run manually |
-| Working directory issues | Set `cwd` in config |
+| Working directory issues | Set `workingDirectory` in config |
 
 **Debug by running manually:**
 ```bash
@@ -342,27 +345,16 @@ xattr -d com.apple.quarantine /path/to/mcp-server
 #### Homebrew paths
 
 <!-- docs-validate: strict -->
-<!-- docs-validate: hidden -->
-```typescript
-import { MCPStdioServerConfig } from "@github/copilot-sdk";
-
-const mcpServers: Record<string, MCPStdioServerConfig> = {
-  "my-server": {
-    command: "/opt/homebrew/bin/node",
-    args: ["/path/to/server.js"],
-    tools: ["*"],
-  },
-};
-```
-<!-- /docs-validate: hidden -->
 ```typescript
 // GUI apps may not have /opt/homebrew in PATH
-mcpServers: {
-  "my-server": {
-    command: "/opt/homebrew/bin/node",  // Full path
-    args: ["/path/to/server.js"],
+const session = await client.createSession({
+  mcpServers: {
+    "my-server": {
+      command: "/opt/homebrew/bin/node",  // Full path
+      args: ["/path/to/server.js"],
+    },
   },
-}
+});
 ```
 
 ### Linux
@@ -408,13 +400,17 @@ tee -a "$LOG" | "$ACTUAL_SERVER" "$@" 2>> "$LOG" | tee -a "$LOG"
 ```
 
 Use it:
+
+<!-- docs-validate: strict -->
 ```typescript
-mcpServers: {
-  "debug-server": {
-    command: "/path/to/mcp-debug-wrapper.sh",
-    args: ["/actual/server/path", "arg1", "arg2"],
+const session = await client.createSession({
+  mcpServers: {
+    "debug-server": {
+      command: "/path/to/mcp-debug-wrapper.sh",
+      args: ["/actual/server/path", "arg1", "arg2"],
+    },
   },
-}
+});
 ```
 
 ### Inspect with MCP inspector

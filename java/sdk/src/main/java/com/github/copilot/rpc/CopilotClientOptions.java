@@ -47,6 +47,28 @@ import com.github.copilot.generated.rpc.EntraAuthConfig;
  */
 @JsonInclude(JsonInclude.Include.NON_NULL)
 public class CopilotClientOptions {
+    private InternalTestOptions internalTestOptions;
+
+    /**
+     * @return unsupported SDK test infrastructure configuration
+     * @hidden
+     */
+    @CopilotExperimental
+    public InternalTestOptions getInternalTestOptions() {
+        return internalTestOptions;
+    }
+
+    /**
+     * @param value
+     *            test configuration for runtimes owned by this client
+     * @return this options instance
+     * @hidden
+     */
+    @CopilotExperimental
+    public CopilotClientOptions setInternalTestOptions(InternalTestOptions value) {
+        internalTestOptions = value;
+        return this;
+    }
 
     @Deprecated
     private boolean autoRestart;
@@ -384,10 +406,11 @@ public class CopilotClientOptions {
      * Sets the {@code COPILOT_HOME} environment variable on the spawned CLI
      * process. When {@code null}, the {@code COPILOT_HOME} env var is not set on
      * the spawned process, so the CLI falls back to its default
-     * ({@code ~/.copilot}).
+     * ({@code ~/.copilot}). In-process hosts also keep their runtime cache in its
+     * {@code cache} subdirectory.
      * <p>
-     * This option is only used when the SDK spawns the CLI process; it is ignored
-     * when connecting to an external server via {@link #setCliUrl(String)}.
+     * This option applies to runtimes owned by this client; it is ignored when
+     * connecting to an external server via {@link #setCliUrl(String)}.
      *
      * @param copilotHome
      *            the Copilot home directory path, or {@code null} to use the CLI
@@ -421,7 +444,7 @@ public class CopilotClientOptions {
     }
 
     /**
-     * Gets the environment variables for the CLI process.
+     * Gets the environment variables for the CLI child process.
      * <p>
      * Returns a shallow copy of the internal map, or {@code null} if no environment
      * has been set.
@@ -433,11 +456,12 @@ public class CopilotClientOptions {
     }
 
     /**
-     * Sets environment variables to pass to the CLI process.
+     * Sets environment variables for the CLI child process.
      * <p>
-     * When set, these environment variables replace the inherited environment. A
+     * For child processes, these variables replace the inherited environment. A
      * shallow copy of the provided map is stored. If {@code null} or empty, the
-     * existing environment is cleared.
+     * existing environment is cleared. Unsupported with an in-process runtime; use
+     * typed client/session options instead.
      *
      * @param environment
      *            the environment variables map, or {@code null}/empty to clear
@@ -992,6 +1016,7 @@ public class CopilotClientOptions {
         copy.connection = this.connection;
         copy.clientInfo = this.clientInfo;
         copy.entra = this.entra;
+        copy.internalTestOptions = this.internalTestOptions;
         copy.copilotHome = this.copilotHome;
         copy.cwd = this.cwd;
         copy.environment = this.environment != null ? new java.util.HashMap<>(this.environment) : null;

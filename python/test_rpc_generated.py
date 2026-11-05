@@ -19,16 +19,22 @@ from copilot.generated.rpc import (
     register_client_global_api_handlers,
 )
 from copilot.rpc import (
+    AgentInfo,
     AuthReadValue,
     BuiltinToolInputSchemaType,
     CatalogInvalidRequestError,
     CommandsApi,
     CommandsInvokeRequest,
     CommandsRespondToQueuedCommandRequest,
+    DiscoveredExtensionPlugin,
+    DiscoveredHook,
     HostDisposeRequest,
     HostEmptyResult,
+    InstalledPluginInfo,
+    InstructionSource,
     LocalSessionMetadataValue,
     MCPServerConfigHTTP,
+    Plugin,
     QueuedCommandHandled,
     QueuedCommandNotHandled,
     QuotaWarningProjection,
@@ -37,15 +43,144 @@ from copilot.rpc import (
     RemoteSessionMetadataValue,
     SandboxConfig,
     ServerRpc,
+    ServerSkill,
     SessionList,
     SessionModelList,
     SessionRpc,
+    Skill,
     SlashCommandAgentPromptResult,
     SlashCommandTextResult,
     TaskAgentInfo,
     UIElicitationSchemaType,
     UpdateSubagentSettingsRequest,
 )
+
+
+@pytest.mark.parametrize(
+    "model,legacy_fields,payload,metadata",
+    [
+        (
+            AgentInfo,
+            "description display_name id name disable_model_invocation hooks mcp_servers model "
+            "model_policy models path prompt reasoning_effort skills source tools user_invocable",
+            {
+                "description": "Description",
+                "displayName": "Agent",
+                "id": "agent-id",
+                "name": "agent",
+                "prompt": "Prompt",
+                "reasoningEffort": "high",
+                "skills": ["skill"],
+                "userInvocable": True,
+            },
+            {"pluginId": "builtin:tools"},
+        ),
+        (
+            DiscoveredExtensionPlugin,
+            "name",
+            {"name": "tools"},
+            {"id": "builtin:tools"},
+        ),
+        (
+            DiscoveredHook,
+            "enabled hook_type id origin disable_key project_path source",
+            {
+                "enabled": True,
+                "hookType": "preToolUse",
+                "id": "hook",
+                "origin": "plugin",
+                "disableKey": "disable-hook",
+                "projectPath": "/project",
+                "source": "tools",
+            },
+            {"pluginId": "builtin:tools", "definitionFileUri": "file:///hooks.json"},
+        ),
+        (
+            InstalledPluginInfo,
+            "enabled marketplace name description direct_source_id icon_url installed "
+            "installed_from managed managed_desired_enabled source verified_source version",
+            {
+                "enabled": True,
+                "marketplace": "catalog",
+                "name": "tools",
+                "installed": True,
+                "installedFrom": "/catalog",
+                "source": "source",
+                "version": "1.0",
+            },
+            {"id": "mp:catalog::tools", "rootPath": "/plugins/tools"},
+        ),
+        (
+            InstructionSource,
+            "content id label location source_path type apply_to default_disabled description "
+            "project_path",
+            {
+                "content": "Content",
+                "id": "instruction",
+                "label": "Instructions",
+                "location": "plugin",
+                "sourcePath": "/instructions.md",
+                "type": "plugin",
+                "projectPath": "/project",
+            },
+            {"pluginId": "builtin:tools"},
+        ),
+        (
+            Plugin,
+            "enabled marketplace name direct_source_id installed installed_from managed "
+            "managed_desired_enabled source version",
+            {
+                "enabled": True,
+                "marketplace": "catalog",
+                "name": "tools",
+                "installed": True,
+                "installedFrom": "/catalog",
+                "source": "source",
+                "version": "1.0",
+            },
+            {"id": "mp:catalog::tools", "rootPath": "/plugins/tools"},
+        ),
+        (
+            ServerSkill,
+            "description enabled name source user_invocable argument_hint command_name path "
+            "project_path",
+            {
+                "description": "Description",
+                "enabled": True,
+                "name": "skill",
+                "source": "plugin",
+                "userInvocable": True,
+                "path": "/SKILL.md",
+                "projectPath": "/project",
+            },
+            {"pluginId": "builtin:tools"},
+        ),
+        (
+            Skill,
+            "description enabled name source user_invocable argument_hint command_name "
+            "declared_name mcp_origin path plugin_name",
+            {
+                "description": "Description",
+                "enabled": True,
+                "name": "skill",
+                "source": "plugin",
+                "userInvocable": True,
+                "path": "/SKILL.md",
+                "pluginName": "tools",
+            },
+            {"pluginId": "builtin:tools"},
+        ),
+    ],
+)
+def test_customization_metadata_preserves_positional_constructors(
+    model, legacy_fields, payload, metadata
+):
+    restored = model.from_dict(payload)
+    legacy = model(*(getattr(restored, name) for name in legacy_fields.split()))
+    assert legacy.to_dict() == payload
+    assert model.from_dict(legacy.to_dict()) == legacy
+    extended = payload | metadata
+    assert model.from_dict(extended).to_dict() == extended
 
 
 def test_catalog_product_validation_refusal_preserves_typed_field():

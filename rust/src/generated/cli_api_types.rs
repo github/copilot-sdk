@@ -19,6 +19,8 @@ pub mod rpc_methods {
     pub const CAFEMETRICS_RECORDRESUMERESULT: &str = "cafeMetrics.recordResumeResult";
     /// `cafeMetrics.shutdown`
     pub const CAFEMETRICS_SHUTDOWN: &str = "cafeMetrics.shutdown";
+    /// `session.canvasSource.close`
+    pub const SESSION_CANVASSOURCE_CLOSE: &str = "session.canvasSource.close";
     /// `session.cafeMetrics.attach`
     pub const SESSION_CAFEMETRICS_ATTACH: &str = "session.cafeMetrics.attach";
     /// `session.cafeMetrics.detach`
@@ -162,6 +164,26 @@ pub struct CafeMetricsShutdownRequest {
     /// Send at most one batch without stopping recording. Omission means disposal.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub flush_only: Option<bool>,
+}
+
+/// Closes a canvas through its original owned or attached session namespace.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct CanvasSourceCloseRequest {
+    /// Target session identifier
+    pub session_id: SessionId,
+    /// Open canvas instance identifier
+    pub instance_id: String,
+    /// Exact authenticated local attachment identifier. Omit for the SDK connection's owned session.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub attach_id: Option<i64>,
 }
 
 /// Identifies the target session.

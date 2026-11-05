@@ -8722,6 +8722,9 @@ pub struct CommandQueuedData {
     pub command: String,
     /// Unique identifier for this request; used to respond via session.respondToQueuedCommand()
     pub request_id: RequestId,
+    /// Whether a schedule dispatched this command. Consumers must reject commands marked as not schedulable before executing a scheduled request. Absent for ordinary queued commands.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub scheduled: Option<bool>,
 }
 
 /// Session event "command.execute". Registered command dispatch request routed to the owning client
@@ -10028,6 +10031,18 @@ pub enum IndexedSearchDisabledReason {
     /// The workspace is not available on the runtime's local filesystem.
     #[serde(rename = "workspace_not_local")]
     WorkspaceNotLocal,
+    /// Another process holds the machine-wide indexed-search server slot.
+    #[serde(rename = "server_limit")]
+    ServerLimit,
+    /// The workspace is a filesystem or network-share root.
+    #[serde(rename = "filesystem_root")]
+    FilesystemRoot,
+    /// The workspace is the user's home directory.
+    #[serde(rename = "home_directory")]
+    HomeDirectory,
+    /// The user's home directory could not be determined.
+    #[serde(rename = "home_directory_detection_failed")]
+    HomeDirectoryDetectionFailed,
     /// Unknown variant for forward compatibility.
     #[default]
     #[serde(other)]

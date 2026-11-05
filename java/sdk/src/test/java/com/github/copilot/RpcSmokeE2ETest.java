@@ -4,6 +4,8 @@
 
 package com.github.copilot;
 
+import org.junit.jupiter.api.Tag;
+
 import static org.junit.jupiter.api.Assertions.*;
 
 import java.util.concurrent.TimeUnit;
@@ -14,6 +16,7 @@ import org.junit.jupiter.api.Test;
 
 import com.github.copilot.generated.rpc.PingParams;
 
+@Tag("e2e")
 class RpcSmokeE2ETest {
 
     private static E2ETestContext ctx;

@@ -100,11 +100,9 @@ func (URIConnection) runtimeConnection() {}
 // runtime library (a Rust cdylib) and driving JSON-RPC over the library's C ABI,
 // instead of spawning a runtime child process.
 //
-// Because the runtime is loaded into the calling process, per-client
-// environment, working directory, and telemetry cannot be represented and are
-// rejected by [NewClient] (see [ClientOptions]). Set those via the host process
-// environment instead, or use a child-process transport ([StdioConnection] /
-// [TCPConnection]).
+// Client-level Env, working directory and telemetry are rejected by [NewClient];
+// use typed client options, [SessionConfig.WorkingDirectory]
+// or a child-process transport ([StdioConnection] / [TCPConnection]).
 //
 // Experimental: the in-process transport is experimental and its API and
 // behavior may change in a future release. Build the application with the
@@ -124,18 +122,58 @@ type InProcessConnection struct {
 
 func (InProcessConnection) runtimeConnection() {}
 
+// InternalTestOptions is reserved for SDK test infrastructure, not production use.
+// Non-nil values override owned-runtime startup configuration without changing
+// the host process environment. A pointer to an empty string clears an override.
+type InternalTestOptions struct {
+	CopilotAPIURL     *string
+	GitHubAPIURL      *string
+	ProxyURL          *string
+	NoProxy           *string
+	CACertificatePath *string
+}
+
+func (options *InternalTestOptions) environment() map[string]string {
+	result := make(map[string]string)
+	if options == nil {
+		return result
+	}
+	for key, value := range map[string]*string{
+		"COPILOT_API_URL":              options.CopilotAPIURL,
+		"COPILOT_DEBUG_GITHUB_API_URL": options.GitHubAPIURL,
+		"HTTP_PROXY":                   options.ProxyURL, "HTTPS_PROXY": options.ProxyURL,
+		"http_proxy": options.ProxyURL, "https_proxy": options.ProxyURL,
+		"NO_PROXY": options.NoProxy, "no_proxy": options.NoProxy,
+		"NODE_EXTRA_CA_CERTS": options.CACertificatePath,
+		"SSL_CERT_FILE":       options.CACertificatePath,
+		"REQUESTS_CA_BUNDLE":  options.CACertificatePath,
+		"CURL_CA_BUNDLE":      options.CACertificatePath,
+		"GIT_SSL_CAINFO":      options.CACertificatePath,
+	} {
+		if value != nil {
+			result[key] = *value
+		}
+	}
+	return result
+}
+
 // ClientOptions configures the [Client].
 type ClientOptions struct {
+	// InternalTestOptions is unsupported SDK test infrastructure configuration.
+	// Only applies to runtimes owned by this client.
+	InternalTestOptions *InternalTestOptions
 	// Connection describes how to connect to the Copilot runtime. When nil,
 	// COPILOT_SDK_DEFAULT_CONNECTION may select "inprocess" or "stdio";
 	// when unset, defaults to an empty [StdioConnection].
 	Connection RuntimeConnection
 	// WorkingDirectory is the working directory for the runtime process.
 	// If empty, inherits the current process's working directory.
+	// Rejected with [InProcessConnection]; use [SessionConfig.WorkingDirectory].
 	WorkingDirectory string
 	// BaseDirectory is the base directory for Copilot data (session state,
 	// config, etc.). Sets the COPILOT_HOME environment variable on the
 	// spawned runtime. When empty, the runtime defaults to ~/.copilot.
+	// In-process hosts also keep their runtime cache in its "cache" subdirectory.
 	// This does not affect where the Go SDK extracts the embedded CLI
 	// binary; use embeddedcli.Config.Dir to control that install/cache
 	// location.
@@ -168,9 +206,8 @@ type ClientOptions struct {
 	//
 	// For child-process transports ([StdioConnection] / [TCPConnection]) the
 	// per-connection Env, when set, takes precedence over this field; setting
-	// both is rejected. Env is not supported with [InProcessConnection] (the
-	// runtime shares this process's single environment block) and is rejected
-	// by [NewClient].
+	// both is rejected. Env is rejected with [InProcessConnection]; use typed
+	// client/session options instead.
 	Env []string
 	// GitHubToken is the GitHub token to use for authentication.
 	// When provided, the token is passed to the runtime via environment

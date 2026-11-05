@@ -2807,6 +2807,8 @@ type CommandQueuedData struct {
 	Command string `json:"command"`
 	// Unique identifier for this request; used to respond via session.respondToQueuedCommand()
 	RequestID string `json:"requestId"`
+	// Whether a schedule dispatched this command. Consumers must reject commands marked as not schedulable before executing a scheduled request. Absent for ordinary queued commands.
+	Scheduled *bool `json:"scheduled,omitempty"`
 }
 
 func (*CommandQueuedData) sessionEventData()      {}

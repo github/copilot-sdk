@@ -127,6 +127,7 @@ func userMessageText(body map[string]any) []string {
 }
 
 func TestUserMessageText(t *testing.T) {
+	t.Parallel()
 	for _, tc := range []struct {
 		body string
 		want []string
@@ -181,11 +182,11 @@ func assertSubagentRequestMetadata(t *testing.T, records []subagentRequestRecord
 }
 
 func TestSubagentHooksE2E(t *testing.T) {
+	t.Parallel()
 	testharness.SkipIfInProcess(t, "an LLM inference provider is process-global in-process")
 	ctx := testharness.NewTestContext(t)
 	transport := newRecordingForwardingTransport(t, ctx.ProxyURL)
 	client := ctx.NewClient(func(o *copilot.ClientOptions) {
-		o.Env = append(o.Env, "COPILOT_EXP_COPILOT_CLI_SESSION_BASED_SUBAGENTS=true")
 		o.RequestHandler = &copilot.CopilotRequestHandler{Transport: transport}
 	})
 	t.Cleanup(func() { client.ForceStop() })

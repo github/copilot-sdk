@@ -152,7 +152,7 @@ export type AuthEnumerateQuery =
  */
 /** @experimental */
 export type LoginProviderKind =
-  /** OAuth github.com sign-in via the browser (web loopback + PKCE). */
+  /** OAuth github.com sign-in, in the browser (web loopback + PKCE) or by device code — see the login method. */
   | "githubDotCom"
   /** A GitHub Enterprise Cloud account — a GitHub account on a non-github.com host, e.g. *.ghe.com; the host is supplied interactively through the neutral input-required step. */
   | "proxima"
@@ -476,6 +476,18 @@ export type AuthEnumerateValue =
       kind: "loginAccounts";
     };
 /**
+ * How an interactive GitHub login is authorized.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "AuthLoginMethod".
+ */
+/** @experimental */
+export type AuthLoginMethod =
+  /** Browser authorization with a loopback callback; the flow surfaces an `open-url` step. */
+  | "web"
+  /** OAuth device authorization; the flow surfaces a `device-code` step with a one-time code, for terminals whose browser cannot reach a loopback callback. */
+  | "device-code";
+/**
  * How an interactive provider login should choose its base identity.
  *
  * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
@@ -488,7 +500,7 @@ export type AuthLoginMode =
   /** Explicitly ask the provider to present its account-selection UI instead of serving from a retained identity. */
   | "selectAccount";
 /**
- * One step in an interactive login flow. The consumer acts on the step and calls advance to proceed. Browser-open is encoded as two distinct steps by design: `open-url` is CONSUMER-driven (the provider surfaces the authorize URL and the consumer opens it — github.com/GHEC web), while `needs-interaction` is PROVIDER-driven (the provider opens the browser or broker UI itself and does not surface a URL — Entra).
+ * One step in an interactive login flow. The consumer acts on the step and calls advance to proceed. Browser-open is encoded as two distinct steps by design: `open-url` is CONSUMER-driven (the provider surfaces the authorize URL and the consumer opens it — github.com/GHEC web), while `needs-interaction` is PROVIDER-driven (the provider opens the browser or broker UI itself and does not surface a URL — Entra). A device-code flow surfaces its one-time code as `device-code`; the consumer shows the code, may open the verification URI, and calls advance, which resolves once the user has authorized the device.
  *
  * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
  * via the `definition` "AuthLoginStep".
@@ -546,6 +558,28 @@ export type AuthLoginStep =
        * Login flow step variant discriminator.
        */
       kind: "error";
+    }
+  | {
+      /**
+       * One-time code the user enters at the verification URI.
+       */
+      userCode: string;
+      /**
+       * Page where the user enters the one-time code (consumer-driven browser-open).
+       */
+      verificationUri: string;
+      /**
+       * Seconds until the one-time code expires, measured from when this step was produced. Consumers can show a countdown or pick their own timeout instead of blocking until the provider rejects the code.
+       */
+      expiresIn: number;
+      /**
+       * Minimum seconds between authorization polls required by the provider. The runtime performs the polling itself for the duration of the single `advance` call, so this is informational (for example to drive a progress indicator); repeating `advance` is rejected as already advancing.
+       */
+      interval: number;
+      /**
+       * Login flow step variant discriminator.
+       */
+      kind: "device-code";
     };
 /**
  * Disposition of a login attempt, including pending user decisions.
@@ -9470,6 +9504,10 @@ export interface AgentGetCurrentResult {
 /** @experimental */
 export interface AgentInfo {
   /**
+   * Opaque identity of the plugin owning this agent. Matches plugins.list().plugins[].id on the same runtime host. Compare the complete value without parsing it. Omitted for non-plugin agents.
+   */
+  pluginId?: string;
+  /**
    * Name of the agent. Use `id` as the stable selection identifier.
    */
   name: string;
@@ -10374,6 +10412,10 @@ export interface AuthLoginBeginRequest {
    * The provider kind to sign in with.
    */
   kind: LoginProviderKind;
+  /**
+   * How to authorize: `web` (default) or `device-code`. Device code is offered for `githubDotCom` and `proxima`; `proxima` still asks for its host through `input-required` first.
+   */
+  method?: AuthLoginMethod;
   /**
    * Neutral identity-selection intent. Omitted is equivalent to default.
    */
@@ -11802,6 +11844,23 @@ export interface CanvasProviderUnregisterRequest {
    * Connection identifier to unregister
    */
   connectionId: string;
+}
+/**
+ * Closes a canvas through its original owned or attached session namespace.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "CanvasSourceCloseRequest".
+ */
+/** @experimental */
+export interface CanvasSourceCloseRequest {
+  /**
+   * Open canvas instance identifier
+   */
+  instanceId: string;
+  /**
+   * Exact authenticated local attachment identifier. Omit for the SDK connection's owned session.
+   */
+  attachId?: number | null;
 }
 /**
  * Options scoped to the built-in CAPI (Copilot API) provider.
@@ -15951,6 +16010,10 @@ export interface DiscoveredExtension {
 /** @experimental */
 export interface DiscoveredExtensionPlugin {
   /**
+   * Opaque identity of the owning plugin. Matches plugins.list().plugins[].id on the same runtime host. Compare the complete value without parsing it. May be absent on older runtimes.
+   */
+  id?: string;
+  /**
    * Installed plugin name
    */
   name: string;
@@ -16034,6 +16097,14 @@ export interface DiscoveredHook {
    * Durable content hash used by hook enablement. Identical actions may intentionally share this key. Omitted when changing the user's disabled-hooks setting cannot change the action's current server-discovered state, including managed-policy hooks, session-start prompt actions, actions suppressed by disable-all settings, and projectless plugin actions that require project-directory expansion.
    */
   disableKey?: string;
+  /**
+   * File URI of the document defining this action on the selected runtime host, not the command or script it executes. Inline hooks point to their containing settings document or plugin manifest. Omitted for sources without a backing file, such as registry policy.
+   */
+  definitionFileUri?: string;
+  /**
+   * Opaque identity of the plugin owning this action. Matches plugins.list().plugins[].id and MCP effectiveSource.plugin.id on the same runtime host. Compare the complete value without parsing it. Omitted for non-plugin hooks.
+   */
+  pluginId?: string;
 }
 /**
  * MCP server discovered by `mcp.discover`, with config source, optional plugin source, transport type, and enabled state.
@@ -19217,6 +19288,39 @@ export interface HistorySkippedFileRestore {
   reason: HistoryFileRestoreSkipReason;
 }
 /**
+ * Compaction settings for this session. Each call replaces the previous settings: an omitted field returns to its default. Settings live in memory until the session ends; re-apply them after resuming a session in a new process.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "HistorySetCompactionConfigRequest".
+ */
+/** @experimental */
+export interface HistorySetCompactionConfigRequest {
+  /**
+   * Model that summarizes this session's conversation when it compacts,
+   * instead of the session's own model. Applies only when both are Copilot
+   * models the session may use; for a BYOK or provider session, or a model
+   * the session's catalog or allowed-model policy rejects, compaction
+   * summarizes on the session's model. Takes precedence over any runtime
+   * experiment that picks a compaction model. Blank values are ignored.
+   */
+  model?: string;
+  /**
+   * Summarization instruction sent as the final user message of a
+   * compaction request, replacing the built-in prompt entirely; the caller
+   * owns the summary's format. `/compact` focus instructions and a note that
+   * tools are unavailable are appended to it. Blank values are ignored.
+   */
+  prompt?: string;
+  /**
+   * Reasoning effort for compaction requests: one of `none`, `minimal`,
+   * `low`, `medium`, `high`, `xhigh` or `max`. Applies when the model that
+   * summarizes supports it; otherwise the request keeps its usual effort.
+   * Takes precedence over any runtime experiment that adjusts compaction
+   * reasoning effort. Any other value is rejected.
+   */
+  reasoningEffort?: string;
+}
+/**
  * Markdown summary of the conversation context (empty when not available).
  *
  * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
@@ -20492,6 +20596,10 @@ export interface InstalledPluginInfo {
    */
   enabled: boolean;
   /**
+   * Absolute local directory containing this plugin's installed content, including disabled installations. Absent when the runtime has no resolved content directory. This is the plugin root, not its marketplace directory; clients must not forward it back as an additional plugin.
+   */
+  rootPath?: string;
+  /**
    * Absolute path of the marketplace directory a live plugin was resolved from. Present only on live, never-persisted records — a plugin belonging to a directory/local marketplace, which is loaded from its real directory on every pass instead of a copy under the installed-plugins cache. Its presence is what marks a listed plugin as live: such a plugin is always present on disk, so `enabled` is its only meaningful state and it is never "not installed".
    */
   installedFrom?: string;
@@ -20523,6 +20631,10 @@ export interface InstalledPluginInfo {
    * HTTPS URL of the plugin's icon on raw.githubusercontent.com, retained from the catalogue entry it was installed from. Untrusted external content: load it without credentials. Present only for a direct install pinned to one GitHub commit whose catalogue entry had an icon.
    */
   iconUrl?: string;
+  /**
+   * Opaque plugin identity in this runtime's inventory. Matches MCP effectiveSource.plugin.id for the same plugin. Stable across enablement changes, updates and restarts while the installation source is unchanged; not a cross-host identifier or a mutation argument. Compare the complete value without parsing it. May be absent on older runtimes.
+   */
+  id?: string;
 }
 /**
  * The GitHub repository and commit an installed plugin is pinned to.
@@ -20680,6 +20792,10 @@ export interface InstructionsGetSourcesResult {
  */
 /** @experimental */
 export interface InstructionSource {
+  /**
+   * Opaque identity of the plugin owning this instruction source. Matches plugins.list().plugins[].id on the same runtime host. Compare the complete value without parsing it. Omitted for non-plugin sources.
+   */
+  pluginId?: string;
   /**
    * Unique identifier for this source (used for toggling)
    */
@@ -29014,7 +29130,7 @@ export interface PermissionsConfigureParams {
    */
   authenticatedAuthority?: AuthenticatedAuthorityUpdate;
   /**
-   * Declares whether this connection's registered permission handler applies non-human host policy to the tools this connection registered. When true, unattended Assisted Autopilot sends permission requests for those tools to the handler before runtime Assisted Approval or unattended fallback can settle them. All other requests, including shell commands, file access, URLs, and tools registered by other connections or extensions, keep runtime settlement. Managed policy and other runtime enforcement still take precedence. Only the session's owning non-extension connection may set this field. The declaration ends when that connection detaches or the session is resumed, so hosts must reapply it after resume. Omit to leave unchanged; false clears it. Without a declaration, registered handlers are not consulted during unattended Assisted Autopilot. Remote sessions are not supported.
+   * Declares whether this connection's registered permission handler applies non-human host policy to the tools and canvases this connection registered. When true, unattended Assisted Autopilot sends permission requests for those tools, and `open_canvas` and `invoke_canvas_action` requests whose target canvas this connection registered, to the handler before runtime Assisted Approval or unattended fallback can settle them. All other requests, including shell commands, file access, URLs, and tools or canvases registered by other connections or extensions, keep runtime settlement. Managed policy and other runtime enforcement still take precedence. Only the session's owning non-extension connection may set this field. The declaration ends when that connection detaches or the session is resumed, so hosts must reapply it after resume. Omit to leave unchanged; false clears it. Without a declaration, registered handlers are not consulted during unattended Assisted Autopilot. Remote sessions are not supported.
    */
   hostPolicyPermissionHandler?: boolean;
 }
@@ -29580,6 +29696,10 @@ export interface Plugin {
    */
   directSourceId?: string;
   /**
+   * Absolute local directory containing this plugin's resolved content, including disabled installations. Absent when no content directory is resolved. This is the plugin root, not its marketplace directory; clients must not forward it back as an additional plugin.
+   */
+  rootPath?: string;
+  /**
    * Absolute marketplace directory for a live plugin.
    */
   installedFrom?: string;
@@ -29599,6 +29719,10 @@ export interface Plugin {
    * Whether this managed desired plugin has an installed or live record.
    */
   installed?: boolean;
+  /**
+   * Opaque plugin identity in this runtime's inventory. Matches global inventory id and MCP effectiveSource.plugin.id for the same plugin. Stable across enablement changes, updates and restarts while the source is unchanged. Session-only plugin identities are scoped to their session; not a cross-host identifier or a mutation argument. Compare the complete value without parsing it. May be absent on older runtimes.
+   */
+  id?: string;
 }
 /**
  * Applies exactly one retained verified Agent Plugin installation plan.
@@ -29762,7 +29886,7 @@ export interface PluginsBuiltinSetRequest {
 /** @experimental */
 export interface PluginsDisableRequest {
   /**
-   * Plugin names or "plugin@marketplace" specs to disable. Unknown names are ignored. Non-marketplace direct installs cannot be disabled via this API; uninstall them instead. Plugin-owned MCP servers are stopped in active sessions immediately; other plugin contributions remain available until each session reloads plugins.
+   * Plugin names, "plugin@marketplace" specs, or opaque directSourceId values from inventory to disable. Use directSourceId to distinguish same-named direct installations. Unknown targets and session-only plugin-directory mounts are ignored. Direct-install decisions persist on the installation record. Plugin-owned MCP servers are stopped in active sessions immediately; other plugin contributions remain available until each session reloads plugins.
    */
   names: string[];
   /**
@@ -29779,7 +29903,7 @@ export interface PluginsDisableRequest {
 /** @experimental */
 export interface PluginsEnableRequest {
   /**
-   * Plugin names or "plugin@marketplace" specs to enable. Unknown names are ignored. Non-marketplace direct installs are always enabled and cannot be toggled via this API.
+   * Plugin names, "plugin@marketplace" specs, or opaque directSourceId values from inventory to enable. Use directSourceId to distinguish same-named direct installations. Unknown targets and session-only plugin-directory mounts are ignored. Direct-install decisions persist on the installation record; active sessions must reload plugins to load newly enabled contributions.
    */
   names: string[];
   /**
@@ -33284,6 +33408,10 @@ export interface ServerInstructionSourceList {
 /** @experimental */
 export interface ServerSkill {
   /**
+   * Opaque identity of the plugin owning this skill. Matches plugins.list().plugins[].id on the same runtime host. Compare the complete value without parsing it. Omitted for non-plugin skills.
+   */
+  pluginId?: string;
+  /**
    * Unique identifier for the skill
    */
   name: string;
@@ -35644,7 +35772,7 @@ export interface SessionsOpenProgress {
 /** @experimental */
 export interface SessionPluginsDisableRequest {
   /**
-   * Plugin names or "plugin@marketplace" specs to disable. Unknown names are ignored. Non-marketplace direct installs cannot be disabled via this API; uninstall them instead. Plugin-owned MCP servers are stopped in active sessions immediately; other plugin contributions remain available until each session reloads plugins.
+   * Plugin names, "plugin@marketplace" specs, or opaque directSourceId values from inventory to disable. Use directSourceId to distinguish same-named direct installations. This persists user-level enablement, not a session-only override. Unknown targets and session-only plugin-directory mounts are ignored. Plugin-owned MCP servers are stopped in active sessions immediately; other plugin contributions remain available until each session reloads plugins.
    */
   names: string[];
 }
@@ -35657,7 +35785,7 @@ export interface SessionPluginsDisableRequest {
 /** @experimental */
 export interface SessionPluginsEnableRequest {
   /**
-   * Plugin names or "plugin@marketplace" specs to enable. Unknown names are ignored. Non-marketplace direct installs are always enabled and cannot be toggled via this API.
+   * Plugin names, "plugin@marketplace" specs, or opaque directSourceId values from inventory to enable. Use directSourceId to distinguish same-named direct installations. This persists user-level enablement, not a session-only override. Unknown targets and session-only plugin-directory mounts are ignored; active sessions must reload plugins to load newly enabled contributions.
    */
   names: string[];
 }
@@ -37439,6 +37567,10 @@ export interface ShutdownRequest {
  */
 /** @experimental */
 export interface Skill {
+  /**
+   * Opaque identity of the plugin owning this skill. Matches plugins.list().plugins[].id on the same runtime host. Compare the complete value without parsing it. Omitted for non-plugin skills.
+   */
+  pluginId?: string;
   /**
    * Unique identifier for the skill
    */
@@ -46882,7 +47014,7 @@ export function createSessionRpc(connection: MessageConnection, sessionId: strin
             /** @experimental */
             login: {
                 /**
-                 * Begin an interactive login flow for a provider kind (dispatch is kind-only) and return its opaque flow id and first step.
+                 * Begin an interactive login flow for a provider kind, optionally selecting how to authorize (`method`: `web` by default, or `device-code`), and return its opaque flow id and first step.
                  *
                  * @param params Begin an interactive login flow for a provider kind, optionally reusing a cached base identity or explicitly requesting provider account selection.
                  *
@@ -46895,7 +47027,7 @@ export function createSessionRpc(connection: MessageConnection, sessionId: strin
                  *
                  * @param params Advance an in-flight login flow, optionally fulfilling an input-required step.
                  *
-                 * @returns One step in an interactive login flow. The consumer acts on the step and calls advance to proceed. Browser-open is encoded as two distinct steps by design: `open-url` is CONSUMER-driven (the provider surfaces the authorize URL and the consumer opens it — github.com/GHEC web), while `needs-interaction` is PROVIDER-driven (the provider opens the browser or broker UI itself and does not surface a URL — Entra).
+                 * @returns One step in an interactive login flow. The consumer acts on the step and calls advance to proceed. Browser-open is encoded as two distinct steps by design: `open-url` is CONSUMER-driven (the provider surfaces the authorize URL and the consumer opens it — github.com/GHEC web), while `needs-interaction` is PROVIDER-driven (the provider opens the browser or broker UI itself and does not surface a URL — Entra). A device-code flow surfaces its one-time code as `device-code`; the consumer shows the code, may open the verification URI, and calls advance, which resolves once the user has authorized the device.
                  */
                 advance: async (params: AuthLoginAdvanceRequest): Promise<AuthLoginStep> =>
                     connection.sendRequest("session.accounts.login.advance", { ...params, sessionId }),
@@ -48997,6 +49129,13 @@ export function createSessionRpc(connection: MessageConnection, sessionId: strin
             cancelBackgroundCompaction: async (): Promise<HistoryCancelBackgroundCompactionResult> =>
                 connection.sendRequest("session.history.cancelBackgroundCompaction", { sessionId }),
             /**
+             * Replaces this local session's compaction settings: the model, prompt and reasoning effort its automatic and manual compactions use. Each call replaces all three: an omitted field returns to its default. Settings are held in memory only, so re-apply them after resuming the session in a new process. A change applies to compactions that start afterwards, except that automatic compactions keep the model the running turn already chose for them until that turn ends; a compaction already in progress may still pick up a new reasoning effort. Rejects on a remote session.
+             *
+             * @param params Compaction settings for this session. Each call replaces the previous settings: an omitted field returns to its default. Settings live in memory until the session ends; re-apply them after resuming a session in a new process.
+             */
+            setCompactionConfig: async (params: HistorySetCompactionConfigRequest): Promise<void> =>
+                connection.sendRequest("session.history.setCompactionConfig", { ...params, sessionId }),
+            /**
              * Aborts any in-progress manual compaction on a local session.
              *
              * @returns Indicates whether an in-progress manual compaction was aborted.
@@ -49380,6 +49519,16 @@ export function createInternalSessionRpc(connection: MessageConnection, sessionI
                 unregister: async (params: CanvasProviderUnregisterRequest): Promise<void> =>
                     connection.sendRequest("session.canvas.provider.unregister", { ...params, sessionId }),
             },
+        },
+        /** @experimental */
+        canvasSource: {
+            /**
+             * Closes a canvas through its original session source. Requires the privately admitted in-process CLI host.
+             *
+             * @param params Closes a canvas through its original owned or attached session namespace.
+             */
+            close: async (params: CanvasSourceCloseRequest): Promise<void> =>
+                connection.sendRequest("session.canvasSource.close", { ...params, sessionId }),
         },
         /** @experimental */
         workflow: {

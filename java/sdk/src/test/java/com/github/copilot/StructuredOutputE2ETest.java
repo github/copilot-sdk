@@ -4,6 +4,8 @@
 
 package com.github.copilot;
 
+import org.junit.jupiter.api.Tag;
+
 import static org.junit.jupiter.api.Assertions.*;
 
 import java.util.List;
@@ -31,6 +33,7 @@ import com.github.copilot.rpc.SessionConfig;
 import com.github.copilot.rpc.SessionHooks;
 import com.github.copilot.rpc.ToolDefinition;
 
+@Tag("e2e")
 class StructuredOutputE2ETest {
     @CopilotResponse
     public record Inventory(int count, String color) {
@@ -62,7 +65,7 @@ class StructuredOutputE2ETest {
     }
 
     private SessionConfig config() {
-        return new SessionConfig().setModel("gpt-4.1").setAvailableTools(List.of("custom:*"))
+        return ctx.newSessionConfig().setModel("gpt-4.1").setAvailableTools(List.of("custom:*"))
                 .setOnPermissionRequest(PermissionHandler.APPROVE_ALL).setProvider(
                         new ProviderConfig().setType("openai").setWireApi("completions").setBaseUrl(ctx.getProxyUrl())
                                 .setModelId("gpt-4.1").setWireModel("gpt-4.1").setApiKey("fake-token-for-e2e-tests")

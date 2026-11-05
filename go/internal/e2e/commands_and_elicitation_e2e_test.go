@@ -12,6 +12,7 @@ import (
 )
 
 func TestCommandsE2E(t *testing.T) {
+	t.Parallel()
 	ctx := testharness.NewTestContext(t)
 	client1 := ctx.NewClient(func(opts *copilot.ClientOptions) {
 		opts.Connection = copilot.TCPConnection{Path: opts.Connection.(copilot.StdioConnection).Path, ConnectionToken: sharedTCPToken}
@@ -337,6 +338,7 @@ func firstKnownBuiltinCommand(commands []rpc.SlashCommandInfo) string {
 }
 
 func TestUIElicitationE2E(t *testing.T) {
+	t.Parallel()
 	ctx := testharness.NewTestContext(t)
 	client := ctx.NewClient()
 	t.Cleanup(func() { client.ForceStop() })
@@ -384,6 +386,7 @@ func TestUIElicitationE2E(t *testing.T) {
 }
 
 func TestUIElicitationCallbackE2E(t *testing.T) {
+	t.Parallel()
 	ctx := testharness.NewTestContext(t)
 	client := ctx.NewClient()
 	t.Cleanup(func() { client.ForceStop() })
@@ -661,6 +664,7 @@ func schemaHasProperty(schema *copilot.ElicitationSchema, name string) bool {
 }
 
 func TestUIElicitationMultiClientE2E(t *testing.T) {
+	t.Parallel()
 	ctx := testharness.NewTestContext(t)
 	client1 := ctx.NewClient(func(opts *copilot.ClientOptions) {
 		opts.Connection = copilot.TCPConnection{Path: opts.Connection.(copilot.StdioConnection).Path, ConnectionToken: sharedTCPToken}

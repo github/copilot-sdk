@@ -152,15 +152,20 @@ Hooks intercept and modify behavior at key lifecycle points. Register them in th
 
 ### Available Hooks
 
-| Hook                    | Fires When                               | Can Modify                                  |
-| ----------------------- | ---------------------------------------- | ------------------------------------------- |
-| `onUserPromptSubmitted` | User sends a message                     | The prompt text, add context                |
-| `onPreToolUse`          | Before a tool executes                   | Tool args, permission decision, add context |
-| `onPostToolUse`         | After a tool executes successfully       | Tool result, add context                    |
-| `onPostToolUseFailure`  | After a tool execution returns a failure | Add hidden guidance to the model            |
-| `onSessionStart`        | Session starts or resumes                | Add context                                 |
-| `onSessionEnd`          | Session ends                             | Cleanup actions, summary                    |
-| `onErrorOccurred`       | An error occurs                          | Error handling strategy (retry/skip/abort)  |
+| Hook                      | Fires When                                   | Can Modify                                  |
+| ------------------------- | -------------------------------------------- | ------------------------------------------- |
+| `onUserPromptSubmitted`   | User sends a message                         | The prompt text, add context                |
+| `onUserPromptTransformed` | Runtime has transformed the submitted prompt | The transformed prompt                      |
+| `onPreToolUse`            | Before a tool executes                       | Tool args, permission decision, add context |
+| `onPreMcpToolCall`        | Before an MCP tool call is sent              | The request's `_meta`                       |
+| `onPostToolUse`           | After a tool executes successfully           | Tool result, add context                    |
+| `onPostToolUseFailure`    | After a tool execution returns a failure     | Add hidden guidance to the model            |
+| `onSessionStart`          | Session starts or resumes                    | Add context                                 |
+| `onSessionEnd`            | Session ends                                 | Cleanup actions, summary                    |
+| `onErrorOccurred`         | An error occurs                              | Error handling strategy (retry/skip/abort)  |
+| `onAgentStop`             | Top-level agent naturally stops              | Block the stop and request another turn     |
+| `onSubagentStart`         | Before a sub-agent's first turn              | Add context to its prompt                   |
+| `onSubagentStop`          | After a sub-agent completes a turn           | Request another turn, replace its response  |
 
 All hook inputs include `timestamp` (`Date`) and `workingDirectory`.
 

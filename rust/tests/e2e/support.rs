@@ -1,4 +1,4 @@
-use std::ffi::{OsStr, OsString};
+use std::ffi::OsString;
 use std::future::Future;
 use std::io::{BufRead, BufReader, Read, Write};
 use std::net::{TcpStream, ToSocketAddrs};
@@ -165,7 +165,6 @@ pub async fn with_shared_e2e_context<F>(
         let context = E2eContext::new(group.category, snapshot_name)
             .await
             .unwrap_or_else(|err| panic!("create shared E2E context: {err}"));
-        let _env_guard = InProcessEnvGuard::activate(&context);
         let options = (group.client_options)(&context);
         let mut startup = SHARED_E2E_RUNTIME.spawn(async move {
             let client = Client::start(options).await?;
@@ -188,12 +187,6 @@ pub async fn with_shared_e2e_context<F>(
         *state = Some(SharedE2eState { context, client });
     }
 
-    let _env_guard = InProcessEnvGuard::activate(
-        &state
-            .as_ref()
-            .expect("shared E2E state initialized")
-            .context,
-    );
     let (result, cleanup_result) = {
         let state = state.as_mut().expect("shared E2E state initialized");
         let result = match tokio::time::timeout(
@@ -311,13 +304,6 @@ where
         .await
         .unwrap_or_else(|err| panic!("create E2E context: {err}"));
 
-    // In-process hosting: the runtime loads into this test process and its worker
-    // inherits the ambient environment (per-client env is not honored in-process, see
-    // https://github.com/github/copilot-sdk/issues/1934), so mirror this context's env
-    // onto the process for the duration of the test and restore on drop. Safe because
-    // E2E_CONCURRENCY is 1 in-process, serializing the whole critical section.
-    let _env_guard = InProcessEnvGuard::activate(&ctx);
-
     let timed_out = tokio::time::timeout(default_test_timeout(), test(&mut ctx))
         .await
         .is_err();
@@ -372,10 +358,6 @@ where
     let mut ctx = E2eContext::new_no_snapshot()
         .await
         .unwrap_or_else(|err| panic!("create E2E context: {err}"));
-
-    // See `with_e2e_context` for why the in-process transport mirrors env onto the
-    // process (restored on drop).
-    let _env_guard = InProcessEnvGuard::activate(&ctx);
 
     let timed_out = tokio::time::timeout(default_test_timeout(), test(&mut ctx))
         .await
@@ -512,7 +494,28 @@ impl E2eContext {
                 .iter()
                 .map(|(key, value)| (OsString::from(*key), OsString::from(*value))),
         );
-        let options = client_options_for_cli(&self.cli_path, self.work_dir.path(), env);
+        self.client_options_with_environment(Transport::Default, env)
+    }
+
+    pub fn client_options_with_transport(&self, transport: Transport) -> ClientOptions {
+        self.client_options_with_environment(transport, self.environment())
+    }
+
+    fn client_options_with_environment(
+        &self,
+        transport: Transport,
+        environment: Vec<(OsString, OsString)>,
+    ) -> ClientOptions {
+        let inprocess = matches!(transport, Transport::InProcess)
+            || (matches!(transport, Transport::Default) && is_inprocess_default());
+        let mut options =
+            client_options_for_cli(&self.cli_path, self.work_dir.path(), environment, inprocess)
+                .with_base_directory(self.home_dir())
+                .with_transport(transport);
+        self.configure_internal_test_options(&mut options);
+        if matches!(options.transport, Transport::External { .. }) {
+            options.internal_test_options = None;
+        }
         if self.diagnostics {
             options.with_log_level(github_copilot_sdk::LogLevel::Debug)
         } else {
@@ -520,16 +523,12 @@ impl E2eContext {
         }
     }
 
-    pub fn client_options_with_transport(&self, transport: Transport) -> ClientOptions {
-        self.client_options().with_transport(transport)
-    }
-
     pub fn client_options_with_github_token(&self, token: &str) -> ClientOptions {
         self.client_options().with_github_token(token)
     }
 
     pub async fn start_client(&self) -> Client {
-        Client::start(self.client_options())
+        Client::start(self.client_options_with_github_token(DEFAULT_TEST_TOKEN))
             .await
             .expect("start E2E client")
     }
@@ -538,26 +537,25 @@ impl E2eContext {
     /// FFI ([`Transport::InProcess`]).
     #[cfg_attr(not(feature = "in-process"), allow(dead_code))]
     pub async fn start_inprocess_client(&self) -> Client {
-        let options = ClientOptions::new().with_transport(Transport::InProcess);
+        let mut options = ClientOptions::new()
+            .with_transport(Transport::InProcess)
+            .with_base_directory(self.home_dir())
+            .with_github_token(DEFAULT_TEST_TOKEN)
+            .with_use_logged_in_user(false);
+        self.configure_internal_test_options(&mut options);
         Client::start(options)
             .await
             .expect("start in-process FFI E2E client")
     }
 
-    /// Start a client wired to a Copilot request handler, appending `extra_env`
-    /// to the spawned runtime's environment (used to flip the WebSocket ExP
-    /// flag for the WS transport tests).
-    pub async fn start_llm_client<H>(&self, handler: H, extra_env: &[(&str, &str)]) -> Client
+    /// Start a client wired to a Copilot request handler.
+    pub async fn start_llm_client<H>(&self, handler: H) -> Client
     where
         H: CopilotRequestHandler,
     {
-        let mut env = self.environment();
-        env.extend(
-            extra_env
-                .iter()
-                .map(|(key, value)| (OsString::from(*key), OsString::from(*value))),
-        );
-        let options = client_options_for_cli(&self.cli_path, self.work_dir.path(), env)
+        let options = self
+            .client_options()
+            .with_github_token(DEFAULT_TEST_TOKEN)
             .with_request_handler(handler);
         Client::start(options).await.expect("start E2E LLM client")
     }
@@ -574,6 +572,7 @@ impl E2eContext {
 
     pub fn approve_all_session_config(&self) -> SessionConfig {
         SessionConfig::default()
+            .with_working_directory(self.work_dir())
             .with_permission_handler(std::sync::Arc::new(ApproveAllHandler))
             .with_github_token(DEFAULT_TEST_TOKEN)
     }
@@ -668,7 +667,37 @@ impl E2eContext {
             })
     }
 
-    fn environment(&self) -> Vec<(OsString, OsString)> {
+    fn configure_internal_test_options(&self, options: &mut ClientOptions) {
+        options.internal_test_options = Some(github_copilot_sdk::InternalTestOptions {
+            copilot_api_url: Some(self.proxy_url().to_owned()),
+            github_api_url: Some(self.proxy_url().to_owned()),
+            proxy_url: Some(self.proxy().connect_proxy_url.clone()),
+            no_proxy: Some("127.0.0.1,localhost,::1".to_owned()),
+            ca_certificate_path: Some(self.proxy().ca_file_path.clone()),
+        });
+        options.env.retain(|(key, _)| {
+            !matches!(
+                key.to_str(),
+                Some(
+                    "COPILOT_API_URL"
+                        | "COPILOT_DEBUG_GITHUB_API_URL"
+                        | "HTTP_PROXY"
+                        | "HTTPS_PROXY"
+                        | "http_proxy"
+                        | "https_proxy"
+                        | "NO_PROXY"
+                        | "no_proxy"
+                        | "NODE_EXTRA_CA_CERTS"
+                        | "SSL_CERT_FILE"
+                        | "REQUESTS_CA_BUNDLE"
+                        | "CURL_CA_BUNDLE"
+                        | "GIT_SSL_CAINFO"
+                )
+            )
+        });
+    }
+
+    pub(super) fn environment(&self) -> Vec<(OsString, OsString)> {
         let mut env = self.proxy().proxy_env();
         env.extend([
             ("COPILOT_API_URL".into(), self.proxy_url().into()),
@@ -715,6 +744,19 @@ impl E2eContext {
             ("COPILOT_HMAC_KEY".into(), "".into()),
             ("CAPI_HMAC_KEY".into(), "".into()),
         ]);
+        if is_inprocess_default() {
+            env.extend([
+                ("COPILOT_ALLOW_GET_PROVIDER_ENDPOINT".into(), "true".into()),
+                (
+                    "COPILOT_EXP_COPILOT_CLI_WEBSOCKET_RESPONSES".into(),
+                    "true".into(),
+                ),
+                (
+                    "COPILOT_EXP_COPILOT_CLI_SESSION_BASED_SUBAGENTS".into(),
+                    "true".into(),
+                ),
+            ]);
+        }
         env
     }
 
@@ -1126,12 +1168,6 @@ fn default_test_timeout() -> Duration {
 }
 
 fn e2e_concurrency() -> usize {
-    // The in-process transport mirrors per-test environment onto the shared process
-    // environment (see `InProcessEnvGuard`), which is only coherent when one test runs
-    // at a time. Force serial execution in-process; otherwise honor RUST_E2E_CONCURRENCY.
-    if is_inprocess_default() {
-        return 1;
-    }
     std::env::var("RUST_E2E_CONCURRENCY")
         .ok()
         .and_then(|value| value.parse::<usize>().ok())
@@ -1157,122 +1193,6 @@ pub fn skip_inprocess(reason: &str) -> bool {
         true
     } else {
         false
-    }
-}
-
-/// Mirrors an [`E2eContext`]'s environment onto the real process environment for the
-/// in-process transport, whose worker inherits this process's ambient environment
-/// rather than a per-client env block. Restores the previous values on drop. Only the
-/// in-process transport needs this; for stdio/tcp the environment is handed to the
-/// spawned child directly. Auth flows via GH_TOKEN/GITHUB_TOKEN and HMAC is disabled so
-/// host-side auth resolution picks the token the replay snapshots expect.
-struct InProcessEnvGuard {
-    saved: Vec<(OsString, Option<OsString>)>,
-    previous_cwd: PathBuf,
-}
-
-pub struct InProcessHostGuard {
-    saved: [(OsString, Option<OsString>); 2],
-}
-
-pub fn set_inprocess_host_for_test(
-    copilot_host: &str,
-    gh_host: &str,
-) -> Option<InProcessHostGuard> {
-    if !is_inprocess_default() {
-        return None;
-    }
-    let saved = [
-        (
-            "COPILOT_GH_HOST".into(),
-            std::env::var_os("COPILOT_GH_HOST"),
-        ),
-        ("GH_HOST".into(), std::env::var_os("GH_HOST")),
-    ];
-    // SAFETY: in-process E2E tests hold the suite's single concurrency permit.
-    unsafe {
-        std::env::set_var("COPILOT_GH_HOST", copilot_host);
-        std::env::set_var("GH_HOST", gh_host);
-    }
-    Some(InProcessHostGuard { saved })
-}
-
-impl Drop for InProcessHostGuard {
-    fn drop(&mut self) {
-        for (key, previous) in &self.saved {
-            // SAFETY: this guard is dropped before releasing the in-process permit.
-            match previous {
-                Some(value) => unsafe { std::env::set_var(key, value) },
-                None => unsafe { std::env::remove_var(key) },
-            }
-        }
-    }
-}
-
-impl InProcessEnvGuard {
-    /// Returns `Some` guard (having applied the env) when in-process, else `None`.
-    fn activate(ctx: &E2eContext) -> Option<Self> {
-        if !is_inprocess_default() {
-            return None;
-        }
-        let mut pairs: Vec<(OsString, OsString)> = ctx.environment();
-        pairs.retain(|(key, _)| {
-            key.as_os_str() != OsStr::new("COPILOT_HMAC_KEY")
-                && key.as_os_str() != OsStr::new("CAPI_HMAC_KEY")
-        });
-        pairs.push(("COPILOT_SDK_AUTH_TOKEN".into(), "".into()));
-        pairs.push((
-            "COPILOT_CLI_PATH".into(),
-            std::env::var_os("COPILOT_CLI_PATH")
-                .unwrap_or_else(|| ctx.cli_path.clone().into_os_string()),
-        ));
-        // Some tests opt into gated runtime APIs via per-client `options.env`, which the
-        // in-process transport does not pass to the shared native runtime (see issue #1934).
-        // These are process-global runtime gates (not per-client behavior), so applying
-        // them to the host process for the serial in-process suite is equivalent and
-        // inert for tests that don't exercise the gated API.
-        pairs.push(("COPILOT_ALLOW_GET_PROVIDER_ENDPOINT".into(), "true".into()));
-        pairs.push((
-            "COPILOT_EXP_COPILOT_CLI_WEBSOCKET_RESPONSES".into(),
-            "true".into(),
-        ));
-        pairs.push((
-            "COPILOT_EXP_COPILOT_CLI_SESSION_BASED_SUBAGENTS".into(),
-            "true".into(),
-        ));
-
-        let mut saved: Vec<(OsString, Option<OsString>)> = Vec::new();
-        for (key, value) in &pairs {
-            saved.push((key.clone(), std::env::var_os(key)));
-            // SAFETY: the E2E suite runs serially in-process (concurrency 1), so no
-            // other thread races these process-wide env mutations.
-            unsafe { std::env::set_var(key, value) };
-        }
-        for key in ["COPILOT_HMAC_KEY", "CAPI_HMAC_KEY"] {
-            let key = OsString::from(key);
-            saved.push((key.clone(), std::env::var_os(&key)));
-            // SAFETY: as above, the in-process suite is serialized.
-            unsafe { std::env::remove_var(key) };
-        }
-        let previous_cwd = std::env::current_dir().expect("read in-process test cwd");
-        std::env::set_current_dir(ctx.work_dir()).expect("set in-process test cwd");
-        Some(Self {
-            saved,
-            previous_cwd,
-        })
-    }
-}
-
-impl Drop for InProcessEnvGuard {
-    fn drop(&mut self) {
-        std::env::set_current_dir(&self.previous_cwd).expect("restore in-process test cwd");
-        for (key, previous) in self.saved.iter().rev() {
-            // SAFETY: as in `activate` — serial execution in-process.
-            match previous {
-                Some(value) => unsafe { std::env::set_var(key, value) },
-                None => unsafe { std::env::remove_var(key) },
-            }
-        }
     }
 }
 
@@ -1356,9 +1276,10 @@ fn client_options_for_cli(
     cli_path: &Path,
     cwd: &Path,
     env: Vec<(OsString, OsString)>,
+    inprocess: bool,
 ) -> ClientOptions {
-    if is_inprocess_default() {
-        return ClientOptions::new();
+    if inprocess {
+        return ClientOptions::new().with_use_logged_in_user(false);
     }
     let options = ClientOptions::new()
         .with_cwd(cwd)

@@ -257,6 +257,31 @@ public class ElicitationE2ETests(E2ETestFixture fixture, ITestOutputHelper outpu
     }
 
     [Fact]
+    public async Task ElicitationAsync_Returns_Cancel_When_Handler_Is_Canceled()
+    {
+        // The handler's own cancellation, such as an HttpClient timeout, is a handler failure:
+        // the SDK must still answer, or the pending elicitation never completes.
+        var session = await CreateSessionAsync(new SessionConfig
+        {
+            OnElicitationRequest = _ => Task.FromCanceled<ElicitationResult>(new CancellationToken(canceled: true)),
+        });
+
+        var result = await session.Ui.ElicitAsync(new ElicitationParams
+        {
+            Message = "Name?",
+            RequestedSchema = new ElicitationSchema
+            {
+                Properties = new Dictionary<string, object>
+                {
+                    ["name"] = new Dictionary<string, object> { ["type"] = "string" },
+                },
+            },
+        }).WaitAsync(TimeSpan.FromSeconds(30));
+
+        Assert.Equal(UIElicitationResponseAction.Cancel, result.Action);
+    }
+
+    [Fact]
     public void SessionCapabilities_Types_Are_Properly_Structured()
     {
         var capabilities = new SessionCapabilities

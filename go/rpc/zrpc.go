@@ -391,6 +391,10 @@ type AgentInfo struct {
 	// Absolute local file path of the agent definition. Only set for file-based agents loaded
 	// from disk; remote agents do not have a path.
 	Path *string `json:"path,omitempty"`
+	// Opaque identity of the plugin owning this agent. Matches plugins.list().plugins[].id on
+	// the same runtime host. Compare the complete value without parsing it. Omitted for
+	// non-plugin agents.
+	PluginID *string `json:"pluginId,omitempty"`
 	// Authored base prompt for the agent. Runtime prompt assembly may add dynamic context at
 	// invocation time. Omitted from `session.agent.list` unless `includePrompt` is true.
 	Prompt *string `json:"prompt,omitempty"`
@@ -1674,6 +1678,24 @@ type AuthLoginAdvanceRequest struct {
 
 // Begin an interactive login flow for a provider kind, optionally reusing a cached base
 // identity or explicitly requesting provider account selection.
+// Experimental: AuthLoginBeginOptions is part of an experimental API and may change or be
+// removed.
+type AuthLoginBeginOptions struct {
+	// Opaque cached base identity id returned by accounts.enumerate loginAccounts. Valid only
+	// with default mode; consumers must not parse it.
+	AccountID *string `json:"accountId,omitempty"`
+	// The provider kind to sign in with.
+	Kind LoginProviderKind `json:"kind"`
+	// How to authorize: `web` (default) or `device-code`. Device code is offered for
+	// `githubDotCom` and `proxima`; `proxima` still asks for its host through `input-required`
+	// first.
+	Method *AuthLoginMethod `json:"method,omitempty"`
+	// Neutral identity-selection intent. Omitted is equivalent to default.
+	Mode *AuthLoginMode `json:"mode,omitempty"`
+}
+
+// Begin an interactive login flow for a provider kind, optionally reusing a cached base
+// identity or explicitly requesting provider account selection.
 // Experimental: AuthLoginBeginRequest is part of an experimental API and may change or be
 // removed.
 type AuthLoginBeginRequest struct {
@@ -1736,7 +1758,10 @@ type AuthLoginResultDto struct {
 // proceed. Browser-open is encoded as two distinct steps by design: `open-url` is
 // CONSUMER-driven (the provider surfaces the authorize URL and the consumer opens it —
 // github.com/GHEC web), while `needs-interaction` is PROVIDER-driven (the provider opens
-// the browser or broker UI itself and does not surface a URL — Entra).
+// the browser or broker UI itself and does not surface a URL — Entra). A device-code flow
+// surfaces its one-time code as `device-code`; the consumer shows the code, may open the
+// verification URI, and calls advance, which resolves once the user has authorized the
+// device.
 // Experimental: AuthLoginStep is part of an experimental API and may change or be removed.
 type AuthLoginStep interface {
 	authLoginStep()
@@ -1770,6 +1795,27 @@ type AuthLoginStepCompleted struct {
 func (AuthLoginStepCompleted) authLoginStep() {}
 func (AuthLoginStepCompleted) Kind() AuthLoginStepKind {
 	return AuthLoginStepKindCompleted
+}
+
+type AuthLoginStepDeviceCode struct {
+	// Seconds until the one-time code expires, measured from when this step was produced.
+	// Consumers can show a countdown or pick their own timeout instead of blocking until the
+	// provider rejects the code.
+	ExpiresIn int64 `json:"expiresIn"`
+	// Minimum seconds between authorization polls required by the provider. The runtime
+	// performs the polling itself for the duration of the single `advance` call, so this is
+	// informational (for example to drive a progress indicator); repeating `advance` is
+	// rejected as already advancing.
+	Interval int64 `json:"interval"`
+	// One-time code the user enters at the verification URI.
+	UserCode string `json:"userCode"`
+	// Page where the user enters the one-time code (consumer-driven browser-open).
+	VerificationURI string `json:"verificationUri"`
+}
+
+func (AuthLoginStepDeviceCode) authLoginStep() {}
+func (AuthLoginStepDeviceCode) Kind() AuthLoginStepKind {
+	return AuthLoginStepKindDeviceCode
 }
 
 type AuthLoginStepError struct {
@@ -2921,6 +2967,17 @@ type CanvasProviderUnregisterRequest struct {
 type CanvasSessionContext struct {
 	// Active session working directory, when known.
 	WorkingDirectory *string `json:"workingDirectory,omitempty"`
+}
+
+// Closes a canvas through its original owned or attached session namespace.
+// Experimental: CanvasSourceCloseRequest is part of an experimental API and may change or
+// be removed.
+type CanvasSourceCloseRequest struct {
+	// Exact authenticated local attachment identifier. Omit for the SDK connection's owned
+	// session.
+	AttachID *int64 `json:"attachId,omitempty"`
+	// Open canvas instance identifier
+	InstanceID string `json:"instanceId"`
 }
 
 // Options scoped to the built-in CAPI (Copilot API) provider.
@@ -6174,6 +6231,10 @@ type DiscoveredExtension struct {
 // Experimental: DiscoveredExtensionPlugin is part of an experimental API and may change or
 // be removed.
 type DiscoveredExtensionPlugin struct {
+	// Opaque identity of the owning plugin. Matches plugins.list().plugins[].id on the same
+	// runtime host. Compare the complete value without parsing it. May be absent on older
+	// runtimes.
+	ID *string `json:"id,omitempty"`
 	// Installed plugin name
 	Name string `json:"name"`
 }
@@ -6209,6 +6270,10 @@ type DiscoveredExtensionsEnableRequest struct {
 // configuration.
 // Experimental: DiscoveredHook is part of an experimental API and may change or be removed.
 type DiscoveredHook struct {
+	// File URI of the document defining this action on the selected runtime host, not the
+	// command or script it executes. Inline hooks point to their containing settings document
+	// or plugin manifest. Omitted for sources without a backing file, such as registry policy.
+	DefinitionFileURI *string `json:"definitionFileUri,omitempty"`
 	// Durable content hash used by hook enablement. Identical actions may intentionally share
 	// this key. Omitted when changing the user's disabled-hooks setting cannot change the
 	// action's current server-discovered state, including managed-policy hooks, session-start
@@ -6228,6 +6293,10 @@ type DiscoveredHook struct {
 	ID string `json:"id"`
 	// Configuration tier that contributed this hook action.
 	Origin HookOrigin `json:"origin"`
+	// Opaque identity of the plugin owning this action. Matches plugins.list().plugins[].id and
+	// MCP effectiveSource.plugin.id on the same runtime host. Compare the complete value
+	// without parsing it. Omitted for non-plugin hooks.
+	PluginID *string `json:"pluginId,omitempty"`
 	// Input project path for which this server-side action was resolved. Set on every row
 	// returned for project-scoped discovery, including repeated user and policy actions.
 	ProjectPath *string `json:"projectPath,omitempty"`
@@ -8645,6 +8714,32 @@ type HistoryRewindResult struct {
 	SkippedFiles []HistorySkippedFileRestore `json:"skippedFiles"`
 }
 
+// Compaction settings for this session. Each call replaces the previous settings: an
+// omitted field returns to its default. Settings live in memory until the session ends;
+// re-apply them after resuming a session in a new process.
+// Experimental: HistorySetCompactionConfigRequest is part of an experimental API and may
+// change or be removed.
+type HistorySetCompactionConfigRequest struct {
+	// Model that summarizes this session's conversation when it compacts,
+	// instead of the session's own model. Applies only when both are Copilot
+	// models the session may use; for a BYOK or provider session, or a model
+	// the session's catalog or allowed-model policy rejects, compaction
+	// summarizes on the session's model. Takes precedence over any runtime
+	// experiment that picks a compaction model. Blank values are ignored.
+	Model *string `json:"model,omitempty"`
+	// Summarization instruction sent as the final user message of a
+	// compaction request, replacing the built-in prompt entirely; the caller
+	// owns the summary's format. `/compact` focus instructions and a note that
+	// tools are unavailable are appended to it. Blank values are ignored.
+	Prompt *string `json:"prompt,omitempty"`
+	// Reasoning effort for compaction requests: one of `none`, `minimal`,
+	// `low`, `medium`, `high`, `xhigh` or `max`. Applies when the model that
+	// summarizes supports it; otherwise the request keeps its usual effort.
+	// Takes precedence over any runtime experiment that adjusts compaction
+	// reasoning effort. Any other value is rejected.
+	ReasoningEffort *string `json:"reasoningEffort,omitempty"`
+}
+
 // A captured file that rewind intentionally left unchanged.
 // Experimental: HistorySkippedFileRestore is part of an experimental API and may change or
 // be removed.
@@ -9578,6 +9673,11 @@ type InstalledPluginInfo struct {
 	// Present only for a direct install pinned to one GitHub commit whose catalogue entry had
 	// an icon.
 	IconURL *string `json:"iconUrl,omitempty"`
+	// Opaque plugin identity in this runtime's inventory. Matches MCP effectiveSource.plugin.id
+	// for the same plugin. Stable across enablement changes, updates and restarts while the
+	// installation source is unchanged; not a cross-host identifier or a mutation argument.
+	// Compare the complete value without parsing it. May be absent on older runtimes.
+	ID *string `json:"id,omitempty"`
 	// Whether the managed desired plugin currently has an installed or live record. Set to
 	// false for a managed desired entry retained in the listing after installation or
 	// reconciliation failed.
@@ -9599,6 +9699,11 @@ type InstalledPluginInfo struct {
 	Marketplace string `json:"marketplace"`
 	// Plugin name
 	Name string `json:"name"`
+	// Absolute local directory containing this plugin's installed content, including disabled
+	// installations. Absent when the runtime has no resolved content directory. This is the
+	// plugin root, not its marketplace directory; clients must not forward it back as an
+	// additional plugin.
+	RootPath *string `json:"rootPath,omitempty"`
 	// Runtime-reported plugin provenance. Currently set to "builtin" only for plugins
 	// registered through the trusted host built-in boundary; absent for installed, marketplace,
 	// direct, and live plugins.
@@ -9806,6 +9911,10 @@ type InstructionSource struct {
 	Label string `json:"label"`
 	// Where this source lives — used for UI grouping
 	Location InstructionSourceLocation `json:"location"`
+	// Opaque identity of the plugin owning this instruction source. Matches
+	// plugins.list().plugins[].id on the same runtime host. Compare the complete value without
+	// parsing it. Omitted for non-plugin sources.
+	PluginID *string `json:"pluginId,omitempty"`
 	// The project path this source was discovered from. Only set by sessionless discovery for
 	// repository, working-directory, and project-scoped plugin sources, where it disambiguates
 	// sources across multiple workspace roots. The session-scoped getSources leaves it unset.
@@ -16907,16 +17016,17 @@ type PermissionsConfigureParams struct {
 	// after resume.
 	AuthenticatedAuthority *AuthenticatedAuthorityUpdate `json:"authenticatedAuthority,omitempty"`
 	// Declares whether this connection's registered permission handler applies non-human host
-	// policy to the tools this connection registered. When true, unattended Assisted Autopilot
-	// sends permission requests for those tools to the handler before runtime Assisted Approval
-	// or unattended fallback can settle them. All other requests, including shell commands,
-	// file access, URLs, and tools registered by other connections or extensions, keep runtime
-	// settlement. Managed policy and other runtime enforcement still take precedence. Only the
-	// session's owning non-extension connection may set this field. The declaration ends when
-	// that connection detaches or the session is resumed, so hosts must reapply it after
-	// resume. Omit to leave unchanged; false clears it. Without a declaration, registered
-	// handlers are not consulted during unattended Assisted Autopilot. Remote sessions are not
-	// supported.
+	// policy to the tools and canvases this connection registered. When true, unattended
+	// Assisted Autopilot sends permission requests for those tools, and `open_canvas` and
+	// `invoke_canvas_action` requests whose target canvas this connection registered, to the
+	// handler before runtime Assisted Approval or unattended fallback can settle them. All
+	// other requests, including shell commands, file access, URLs, and tools or canvases
+	// registered by other connections or extensions, keep runtime settlement. Managed policy
+	// and other runtime enforcement still take precedence. Only the session's owning
+	// non-extension connection may set this field. The declaration ends when that connection
+	// detaches or the session is resumed, so hosts must reapply it after resume. Omit to leave
+	// unchanged; false clears it. Without a declaration, registered handlers are not consulted
+	// during unattended Assisted Autopilot. Remote sessions are not supported.
 	HostPolicyPermissionHandler *bool `json:"hostPolicyPermissionHandler,omitempty"`
 	// If specified, replaces the session's path-permission policy. The runtime constructs the
 	// appropriate PathManager based on these inputs (rooted at the session's working
@@ -17467,6 +17577,12 @@ type Plugin struct {
 	DirectSourceID *string `json:"directSourceId,omitempty"`
 	// Whether the plugin is currently enabled
 	Enabled bool `json:"enabled"`
+	// Opaque plugin identity in this runtime's inventory. Matches global inventory id and MCP
+	// effectiveSource.plugin.id for the same plugin. Stable across enablement changes, updates
+	// and restarts while the source is unchanged. Session-only plugin identities are scoped to
+	// their session; not a cross-host identifier or a mutation argument. Compare the complete
+	// value without parsing it. May be absent on older runtimes.
+	ID *string `json:"id,omitempty"`
 	// Whether this managed desired plugin has an installed or live record.
 	Installed *bool `json:"installed,omitempty"`
 	// Absolute marketplace directory for a live plugin.
@@ -17479,6 +17595,10 @@ type Plugin struct {
 	Marketplace string `json:"marketplace"`
 	// Plugin name
 	Name string `json:"name"`
+	// Absolute local directory containing this plugin's resolved content, including disabled
+	// installations. Absent when no content directory is resolved. This is the plugin root, not
+	// its marketplace directory; clients must not forward it back as an additional plugin.
+	RootPath *string `json:"rootPath,omitempty"`
 	// Runtime plugin provenance, such as "builtin".
 	Source *string `json:"source,omitempty"`
 	// Installed version
@@ -17893,10 +18013,12 @@ type PluginsBuiltinSetResult struct {
 // Experimental: PluginsDisableRequest is part of an experimental API and may change or be
 // removed.
 type PluginsDisableRequest struct {
-	// Plugin names or "plugin@marketplace" specs to disable. Unknown names are ignored.
-	// Non-marketplace direct installs cannot be disabled via this API; uninstall them instead.
-	// Plugin-owned MCP servers are stopped in active sessions immediately; other plugin
-	// contributions remain available until each session reloads plugins.
+	// Plugin names, "plugin@marketplace" specs, or opaque directSourceId values from inventory
+	// to disable. Use directSourceId to distinguish same-named direct installations. Unknown
+	// targets and session-only plugin-directory mounts are ignored. Direct-install decisions
+	// persist on the installation record. Plugin-owned MCP servers are stopped in active
+	// sessions immediately; other plugin contributions remain available until each session
+	// reloads plugins.
 	Names []string `json:"names"`
 	// Working directory whose repository `enabledPlugins` overlay decides whether this mutation
 	// is repository-controlled. Hosts that serve sessions across several repositories (the SDK
@@ -17916,8 +18038,11 @@ type PluginsDisableResult struct {
 // Experimental: PluginsEnableRequest is part of an experimental API and may change or be
 // removed.
 type PluginsEnableRequest struct {
-	// Plugin names or "plugin@marketplace" specs to enable. Unknown names are ignored.
-	// Non-marketplace direct installs are always enabled and cannot be toggled via this API.
+	// Plugin names, "plugin@marketplace" specs, or opaque directSourceId values from inventory
+	// to enable. Use directSourceId to distinguish same-named direct installations. Unknown
+	// targets and session-only plugin-directory mounts are ignored. Direct-install decisions
+	// persist on the installation record; active sessions must reload plugins to load newly
+	// enabled contributions.
 	Names []string `json:"names"`
 	// Working directory whose repository `enabledPlugins` overlay decides whether this mutation
 	// is repository-controlled. Hosts that serve sessions across several repositories (the SDK
@@ -20892,6 +21017,10 @@ type ServerSkill struct {
 	Name string `json:"name"`
 	// Absolute path to the skill file
 	Path *string `json:"path,omitempty"`
+	// Opaque identity of the plugin owning this skill. Matches plugins.list().plugins[].id on
+	// the same runtime host. Compare the complete value without parsing it. Omitted for
+	// non-plugin skills.
+	PluginID *string `json:"pluginId,omitempty"`
 	// The project path this skill belongs to (only for project/inherited skills)
 	ProjectPath *string `json:"projectPath,omitempty"`
 	// Source location type (e.g., project, personal-copilot, plugin, builtin)
@@ -21046,6 +21175,11 @@ type SessionCanvasProviderRegisterResult struct {
 // Experimental: SessionCanvasProviderUnregisterResult is part of an experimental API and
 // may change or be removed.
 type SessionCanvasProviderUnregisterResult struct {
+}
+
+// Experimental: SessionCanvasSourceCloseResult is part of an experimental API and may
+// change or be removed.
+type SessionCanvasSourceCloseResult struct {
 }
 
 // Experimental: SessionCommandsListRequest is part of an experimental API and may change or
@@ -21708,6 +21842,11 @@ type SessionHistoryCompactRequest struct {
 	// `session.compaction_start` / `session.compaction_complete` events. When absent, the
 	// compaction is persisted without trigger attribution (initiator unknown).
 	Trigger *SessionHistoryCompactRequestTrigger `json:"trigger,omitempty"`
+}
+
+// Experimental: SessionHistorySetCompactionConfigResult is part of an experimental API and
+// may change or be removed.
+type SessionHistorySetCompactionConfigResult struct {
 }
 
 // Installed plugin record for a session, with marketplace, version, install time, enabled
@@ -22974,10 +23113,12 @@ type SessionPlanUpdateResult struct {
 // Experimental: SessionPluginsDisableRequest is part of an experimental API and may change
 // or be removed.
 type SessionPluginsDisableRequest struct {
-	// Plugin names or "plugin@marketplace" specs to disable. Unknown names are ignored.
-	// Non-marketplace direct installs cannot be disabled via this API; uninstall them instead.
-	// Plugin-owned MCP servers are stopped in active sessions immediately; other plugin
-	// contributions remain available until each session reloads plugins.
+	// Plugin names, "plugin@marketplace" specs, or opaque directSourceId values from inventory
+	// to disable. Use directSourceId to distinguish same-named direct installations. This
+	// persists user-level enablement, not a session-only override. Unknown targets and
+	// session-only plugin-directory mounts are ignored. Plugin-owned MCP servers are stopped in
+	// active sessions immediately; other plugin contributions remain available until each
+	// session reloads plugins.
 	Names []string `json:"names"`
 }
 
@@ -22990,8 +23131,11 @@ type SessionPluginsDisableResult struct {
 // Experimental: SessionPluginsEnableRequest is part of an experimental API and may change
 // or be removed.
 type SessionPluginsEnableRequest struct {
-	// Plugin names or "plugin@marketplace" specs to enable. Unknown names are ignored.
-	// Non-marketplace direct installs are always enabled and cannot be toggled via this API.
+	// Plugin names, "plugin@marketplace" specs, or opaque directSourceId values from inventory
+	// to enable. Use directSourceId to distinguish same-named direct installations. This
+	// persists user-level enablement, not a session-only override. Unknown targets and
+	// session-only plugin-directory mounts are ignored; active sessions must reload plugins to
+	// load newly enabled contributions.
 	Names []string `json:"names"`
 }
 
@@ -24674,6 +24818,10 @@ type Skill struct {
 	Name string `json:"name"`
 	// Absolute path to the skill file
 	Path *string `json:"path,omitempty"`
+	// Opaque identity of the plugin owning this skill. Matches plugins.list().plugins[].id on
+	// the same runtime host. Compare the complete value without parsing it. Omitted for
+	// non-plugin skills.
+	PluginID *string `json:"pluginId,omitempty"`
 	// Name of the plugin that provides the skill, when source is 'plugin'
 	PluginName *string `json:"pluginName,omitempty"`
 	// Source location type (e.g., project, personal-copilot, plugin, builtin)
@@ -29844,6 +29992,18 @@ const (
 	AuthInfoTypeUser            AuthInfoType = "user"
 )
 
+// How an interactive GitHub login is authorized.
+// Experimental: AuthLoginMethod is part of an experimental API and may change or be removed.
+type AuthLoginMethod string
+
+const (
+	// OAuth device authorization; the flow surfaces a `device-code` step with a one-time code,
+	// for terminals whose browser cannot reach a loopback callback.
+	AuthLoginMethodDeviceCode AuthLoginMethod = "device-code"
+	// Browser authorization with a loopback callback; the flow surfaces an `open-url` step.
+	AuthLoginMethodWeb AuthLoginMethod = "web"
+)
+
 // How an interactive provider login should choose its base identity.
 // Experimental: AuthLoginMode is part of an experimental API and may change or be removed.
 type AuthLoginMode string
@@ -29881,6 +30041,7 @@ type AuthLoginStepKind string
 const (
 	AuthLoginStepKindAwaiting         AuthLoginStepKind = "awaiting"
 	AuthLoginStepKindCompleted        AuthLoginStepKind = "completed"
+	AuthLoginStepKindDeviceCode       AuthLoginStepKind = "device-code"
 	AuthLoginStepKindError            AuthLoginStepKind = "error"
 	AuthLoginStepKindInputRequired    AuthLoginStepKind = "input-required"
 	AuthLoginStepKindNeedsInteraction AuthLoginStepKind = "needs-interaction"
@@ -32229,7 +32390,8 @@ type LoginProviderKind string
 const (
 	// Microsoft Entra sign-in that derives a GitHub (EMU) credential.
 	LoginProviderKindEntra LoginProviderKind = "entra"
-	// OAuth github.com sign-in via the browser (web loopback + PKCE).
+	// OAuth github.com sign-in, in the browser (web loopback + PKCE) or by device code — see
+	// the login method.
 	LoginProviderKindGitHubDotCom LoginProviderKind = "githubDotCom"
 	// A GitHub Enterprise Cloud account — a GitHub account on a non-github.com host, e.g.
 	// *.ghe.com; the host is supplied interactively through the neutral input-required step.
@@ -43626,7 +43788,10 @@ type AccountsLoginAPI sessionAPI
 // advance to proceed. Browser-open is encoded as two distinct steps by design: `open-url`
 // is CONSUMER-driven (the provider surfaces the authorize URL and the consumer opens it —
 // github.com/GHEC web), while `needs-interaction` is PROVIDER-driven (the provider opens
-// the browser or broker UI itself and does not surface a URL — Entra).
+// the browser or broker UI itself and does not surface a URL — Entra). A device-code flow
+// surfaces its one-time code as `device-code`; the consumer shows the code, may open the
+// verification URI, and calls advance, which resolves once the user has authorized the
+// device.
 func (a *AccountsLoginAPI) Advance(ctx context.Context, params *AuthLoginAdvanceRequest) (AuthLoginStep, error) {
 	req := map[string]any{"sessionId": a.sessionID}
 	if params != nil {
@@ -43646,8 +43811,9 @@ func (a *AccountsLoginAPI) Advance(ctx context.Context, params *AuthLoginAdvance
 	return result, nil
 }
 
-// Begin an interactive login flow for a provider kind (dispatch is kind-only) and return
-// its opaque flow id and first step.
+// Begin an interactive login flow for a provider kind, optionally selecting how to
+// authorize (`method`: `web` by default, or `device-code`), and return its opaque flow id
+// and first step.
 //
 // RPC method: session.accounts.login.begin.
 //
@@ -43655,13 +43821,38 @@ func (a *AccountsLoginAPI) Advance(ctx context.Context, params *AuthLoginAdvance
 // cached base identity or explicitly requesting provider account selection.
 //
 // Returns: A started login flow: its opaque id and first step.
+// Use BeginWithOptions to set additional optional inputs.
 func (a *AccountsLoginAPI) Begin(ctx context.Context, params *AuthLoginBeginRequest) (*AuthLoginBegun, error) {
+	var options *AuthLoginBeginOptions
+	if params != nil {
+		options = &AuthLoginBeginOptions{}
+		options.AccountID = params.AccountID
+		options.Kind = params.Kind
+		options.Mode = params.Mode
+	}
+	return a.BeginWithOptions(ctx, options)
+}
+
+// BeginWithOptions begin an interactive login flow for a provider kind, optionally
+// selecting how to authorize (`method`: `web` by default, or `device-code`), and return its
+// opaque flow id and first step.
+//
+// RPC method: session.accounts.login.begin.
+//
+// Parameters: Begin an interactive login flow for a provider kind, optionally reusing a
+// cached base identity or explicitly requesting provider account selection.
+//
+// Returns: A started login flow: its opaque id and first step.
+func (a *AccountsLoginAPI) BeginWithOptions(ctx context.Context, params *AuthLoginBeginOptions) (*AuthLoginBegun, error) {
 	req := map[string]any{"sessionId": a.sessionID}
 	if params != nil {
 		if params.AccountID != nil {
 			req["accountId"] = *params.AccountID
 		}
 		req["kind"] = params.Kind
+		if params.Method != nil {
+			req["method"] = *params.Method
+		}
 		if params.Mode != nil {
 			req["mode"] = *params.Mode
 		}
@@ -45189,6 +45380,43 @@ func (a *HistoryAPI) Rewind(ctx context.Context, params *HistoryRewindRequest) (
 		return nil, err
 	}
 	var result HistoryRewindResult
+	if err := json.Unmarshal(raw, &result); err != nil {
+		return nil, err
+	}
+	return &result, nil
+}
+
+// SetCompactionConfig replaces this local session's compaction settings: the model, prompt
+// and reasoning effort its automatic and manual compactions use. Each call replaces all
+// three: an omitted field returns to its default. Settings are held in memory only, so
+// re-apply them after resuming the session in a new process. A change applies to
+// compactions that start afterwards, except that automatic compactions keep the model the
+// running turn already chose for them until that turn ends; a compaction already in
+// progress may still pick up a new reasoning effort. Rejects on a remote session.
+//
+// RPC method: session.history.setCompactionConfig.
+//
+// Parameters: Compaction settings for this session. Each call replaces the previous
+// settings: an omitted field returns to its default. Settings live in memory until the
+// session ends; re-apply them after resuming a session in a new process.
+func (a *HistoryAPI) SetCompactionConfig(ctx context.Context, params *HistorySetCompactionConfigRequest) (*SessionHistorySetCompactionConfigResult, error) {
+	req := map[string]any{"sessionId": a.sessionID}
+	if params != nil {
+		if params.Model != nil {
+			req["model"] = *params.Model
+		}
+		if params.Prompt != nil {
+			req["prompt"] = *params.Prompt
+		}
+		if params.ReasoningEffort != nil {
+			req["reasoningEffort"] = *params.ReasoningEffort
+		}
+	}
+	raw, err := a.client.Request(ctx, "session.history.setCompactionConfig", req)
+	if err != nil {
+		return nil, err
+	}
+	var result SessionHistorySetCompactionConfigResult
 	if err := json.Unmarshal(raw, &result); err != nil {
 		return nil, err
 	}
@@ -51926,6 +52154,37 @@ func (s *InternalCanvasAPI) Provider() *InternalCanvasProviderAPI {
 	return (*InternalCanvasProviderAPI)(s)
 }
 
+// Experimental: InternalCanvasSourceAPI contains experimental APIs that may change or be
+// removed.
+type InternalCanvasSourceAPI internalSessionAPI
+
+// Closes a canvas through its original session source. Requires the privately admitted
+// in-process CLI host.
+//
+// RPC method: session.canvasSource.close.
+//
+// Parameters: Closes a canvas through its original owned or attached session namespace.
+// Internal: Close is part of the SDK's internal handshake/plumbing; external callers should
+// not use it.
+func (a *InternalCanvasSourceAPI) Close(ctx context.Context, params *CanvasSourceCloseRequest) (*SessionCanvasSourceCloseResult, error) {
+	req := map[string]any{"sessionId": a.sessionID}
+	if params != nil {
+		if params.AttachID != nil {
+			req["attachId"] = *params.AttachID
+		}
+		req["instanceId"] = params.InstanceID
+	}
+	raw, err := a.client.Request(ctx, "session.canvasSource.close", req)
+	if err != nil {
+		return nil, err
+	}
+	var result SessionCanvasSourceCloseResult
+	if err := json.Unmarshal(raw, &result); err != nil {
+		return nil, err
+	}
+	return &result, nil
+}
+
 // Experimental: InternalCommandsAPI contains experimental APIs that may change or be
 // removed.
 type InternalCommandsAPI internalSessionAPI
@@ -53173,21 +53432,22 @@ type InternalSessionRPC struct {
 	// Reuse a single struct instead of allocating one for each service on the heap.
 	common internalSessionAPI
 
-	Autopilot   *InternalAutopilotAPI
-	CafeMetrics *InternalCafeMetricsAPI
-	Canvas      *InternalCanvasAPI
-	Commands    *InternalCommandsAPI
-	Connectors  *InternalConnectorsAPI
-	Diagnostics *InternalDiagnosticsAPI
-	GitHubAuth  *InternalGitHubAuthAPI
-	MCP         *InternalMCPAPI
-	Model       *InternalModelAPI
-	Queue       *InternalQueueAPI
-	Schedule    *InternalScheduleAPI
-	Settings    *InternalSettingsAPI
-	UI          *InternalUIAPI
-	Usage       *InternalUsageAPI
-	Workflow    *InternalWorkflowAPI
+	Autopilot    *InternalAutopilotAPI
+	CafeMetrics  *InternalCafeMetricsAPI
+	Canvas       *InternalCanvasAPI
+	CanvasSource *InternalCanvasSourceAPI
+	Commands     *InternalCommandsAPI
+	Connectors   *InternalConnectorsAPI
+	Diagnostics  *InternalDiagnosticsAPI
+	GitHubAuth   *InternalGitHubAuthAPI
+	MCP          *InternalMCPAPI
+	Model        *InternalModelAPI
+	Queue        *InternalQueueAPI
+	Schedule     *InternalScheduleAPI
+	Settings     *InternalSettingsAPI
+	UI           *InternalUIAPI
+	Usage        *InternalUsageAPI
+	Workflow     *InternalWorkflowAPI
 }
 
 // SendAndWait submits one message through normal admission and waits for its request-owned
@@ -53297,6 +53557,7 @@ func NewInternalSessionRPC(client *jsonrpc2.Client, sessionID string) *InternalS
 	r.Autopilot = (*InternalAutopilotAPI)(&r.common)
 	r.CafeMetrics = (*InternalCafeMetricsAPI)(&r.common)
 	r.Canvas = (*InternalCanvasAPI)(&r.common)
+	r.CanvasSource = (*InternalCanvasSourceAPI)(&r.common)
 	r.Commands = (*InternalCommandsAPI)(&r.common)
 	r.Connectors = (*InternalConnectorsAPI)(&r.common)
 	r.Diagnostics = (*InternalDiagnosticsAPI)(&r.common)

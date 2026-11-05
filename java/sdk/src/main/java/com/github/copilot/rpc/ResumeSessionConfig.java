@@ -311,7 +311,8 @@ public class ResumeSessionConfig {
      * Sets the list of tool names that are allowed in this session.
      * <p>
      * When specified, only tools in this list will be available to the assistant.
-     * Takes precedence over excluded tools.
+     * If a tool appears in both this list and the excluded list, the exclusion
+     * wins.
      *
      * @param availableTools
      *            the list of allowed tool names
@@ -334,8 +335,8 @@ public class ResumeSessionConfig {
     /**
      * Sets the list of tool names to exclude from this session.
      * <p>
-     * Tools in this list will not be available to the assistant. Ignored if
-     * available tools is specified.
+     * Tools in this list will not be available to the assistant. Exclusions take
+     * precedence over available tools.
      *
      * @param excludedTools
      *            the list of tool names to exclude

@@ -22,18 +22,15 @@ import (
 // caller ever receives the failed session to Disconnect() it. This test fails
 // without the fix and passes with it.
 func TestSessionEventLoopLeakE2E(t *testing.T) {
+	// The leak assertion samples the process-wide goroutine count.
 	ctx := testharness.NewTestContext(t)
 
 	t.Run("CreateSession failure does not leak the event loop goroutine", func(t *testing.T) {
 		ctx.ConfigureForTest(t)
 
-		// Redirect the CLI's GitHub API calls at the replaying proxy so an
-		// invalid per-session token makes the real CLI reject session.create
-		// with a genuine RPC error (401 Unauthorized), exercising the same
-		// failure path a real user would hit — not a mocked transport.
-		client := ctx.NewClient(func(opts *copilot.ClientOptions) {
-			opts.Env = append(opts.Env, "COPILOT_DEBUG_GITHUB_API_URL="+ctx.ProxyURL)
-		})
+		// The harness routes GitHub API calls to the replay proxy; an invalid
+		// token must produce a real session.create RPC failure.
+		client := ctx.NewClient()
 		t.Cleanup(func() { client.ForceStop() })
 
 		createFailing := func() {

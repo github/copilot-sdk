@@ -4,6 +4,8 @@
 
 package com.github.copilot;
 
+import org.junit.jupiter.api.Tag;
+
 import static com.github.copilot.CopilotRequestTestSupport.SYNTHETIC_TEXT;
 import static com.github.copilot.CopilotRequestTestSupport.newLlmClient;
 import static com.github.copilot.CopilotRequestTestSupport.setupCapiAuth;
@@ -30,11 +32,11 @@ import com.github.copilot.rpc.MessageOptions;
 import com.github.copilot.rpc.PermissionHandler;
 import com.github.copilot.rpc.ProviderConfig;
 import com.github.copilot.rpc.ResumeSessionConfig;
-import com.github.copilot.rpc.SessionConfig;
 
 /**
  * E2E tests for session configuration features.
  */
+@Tag("e2e")
 public class SessionConfigE2ETest {
 
     private static final ObjectMapper MAPPER = new ObjectMapper();
@@ -67,9 +69,11 @@ public class SessionConfigE2ETest {
         Files.writeString(instructionFilesDir.resolve("extra.instructions.md"), "Always include " + sentinel + ".");
 
         try (CopilotClient client = ctx.createClient()) {
-            CopilotSession session = client.createSession(new SessionConfig().setWorkingDirectory(projectDir.toString())
-                    .setInstructionDirectories(List.of(instructionDir.toString()))
-                    .setOnPermissionRequest(PermissionHandler.APPROVE_ALL)).get();
+            CopilotSession session = client
+                    .createSession(ctx.newSessionConfig().setWorkingDirectory(projectDir.toString())
+                            .setInstructionDirectories(List.of(instructionDir.toString()))
+                            .setOnPermissionRequest(PermissionHandler.APPROVE_ALL))
+                    .get();
 
             session.sendAndWait(new MessageOptions().setPrompt("What is 1+1?")).get(60, TimeUnit.SECONDS);
 
@@ -97,7 +101,7 @@ public class SessionConfigE2ETest {
 
         try (CopilotClient client = ctx.createClient()) {
             // Create a session first
-            CopilotSession session1 = client.createSession(new SessionConfig()
+            CopilotSession session1 = client.createSession(ctx.newSessionConfig()
                     .setWorkingDirectory(projectDir.toString()).setOnPermissionRequest(PermissionHandler.APPROVE_ALL))
                     .get();
 
@@ -125,7 +129,7 @@ public class SessionConfigE2ETest {
 
         try (CopilotClient client = ctx.createClient()) {
             CopilotSession session = client
-                    .createSession(new SessionConfig().setModel("claude-sonnet-5")
+                    .createSession(ctx.newSessionConfig().setModel("claude-sonnet-5")
                             .setProvider(new ProviderConfig().setType("openai").setBaseUrl(ctx.getProxyUrl())
                                     .setApiKey("test-provider-key").setWireModel("test-wire-model")
                                     .setMaxOutputTokens(1024))
@@ -147,7 +151,7 @@ public class SessionConfigE2ETest {
         ctx.configureForTest("session_config", "should_use_provider_model_id_as_wire_model");
 
         try (CopilotClient client = ctx.createClient()) {
-            CopilotSession session = client.createSession(new SessionConfig()
+            CopilotSession session = client.createSession(ctx.newSessionConfig()
                     .setProvider(new ProviderConfig().setType("openai").setBaseUrl(ctx.getProxyUrl())
                             .setApiKey("test-provider-key").setModelId("claude-sonnet-5"))
                     .setOnPermissionRequest(PermissionHandler.APPROVE_ALL)).get();
@@ -168,7 +172,7 @@ public class SessionConfigE2ETest {
 
         try (CopilotClient client = ctx.createClient()) {
             CopilotSession session = client
-                    .createSession(new SessionConfig().setSessionLimits(new SessionLimitsConfig(30.0))
+                    .createSession(ctx.newSessionConfig().setSessionLimits(new SessionLimitsConfig(30.0))
                             .setOnPermissionRequest(PermissionHandler.APPROVE_ALL))
                     .get();
 
@@ -189,7 +193,7 @@ public class SessionConfigE2ETest {
 
         try (CopilotClient client = ctx.createClient()) {
             CopilotSession session1 = client
-                    .createSession(new SessionConfig().setOnPermissionRequest(PermissionHandler.APPROVE_ALL)).get();
+                    .createSession(ctx.newSessionConfig().setOnPermissionRequest(PermissionHandler.APPROVE_ALL)).get();
             CopilotSession session2 = client.resumeSession(session1.getSessionId(),
                     new ResumeSessionConfig().setSessionLimits(new SessionLimitsConfig(30.0))
                             .setOnPermissionRequest(PermissionHandler.APPROVE_ALL))
@@ -216,7 +220,7 @@ public class SessionConfigE2ETest {
 
         try (CopilotClient client = ctx.createClient()) {
             CopilotSession baselineSession = client
-                    .createSession(new SessionConfig().setOnPermissionRequest(PermissionHandler.APPROVE_ALL)).get();
+                    .createSession(ctx.newSessionConfig().setOnPermissionRequest(PermissionHandler.APPROVE_ALL)).get();
             try {
                 Map<String, Object> baselineExchange = sendAndGetNextExchange(baselineSession, prompt);
                 assertTrue(getTaskAgentTypes(baselineExchange).contains(excludedAgent));
@@ -225,7 +229,7 @@ public class SessionConfigE2ETest {
             }
 
             CopilotSession excludedSession = client
-                    .createSession(new SessionConfig().setExcludedBuiltInAgents(List.of(excludedAgent))
+                    .createSession(ctx.newSessionConfig().setExcludedBuiltInAgents(List.of(excludedAgent))
                             .setOnPermissionRequest(PermissionHandler.APPROVE_ALL))
                     .get();
 
@@ -248,7 +252,7 @@ public class SessionConfigE2ETest {
 
         try (CopilotClient client = ctx.createClient()) {
             CopilotSession session1 = client
-                    .createSession(new SessionConfig().setOnPermissionRequest(PermissionHandler.APPROVE_ALL)).get();
+                    .createSession(ctx.newSessionConfig().setOnPermissionRequest(PermissionHandler.APPROVE_ALL)).get();
             CopilotSession session2 = client.resumeSession(session1.getSessionId(),
                     new ResumeSessionConfig().setExcludedBuiltInAgents(List.of(excludedAgent))
                             .setOnPermissionRequest(PermissionHandler.APPROVE_ALL))
@@ -272,7 +276,7 @@ public class SessionConfigE2ETest {
         var handler = new CopilotRequestTestSupport.RecordingRequestHandler(SYNTHETIC_TEXT);
 
         try (CopilotClient client = newLlmClient(ctx, handler)) {
-            CopilotSession session = client.createSession(new SessionConfig().setModel("claude-sonnet-5")
+            CopilotSession session = client.createSession(ctx.newSessionConfig().setModel("claude-sonnet-5")
                     .setEnableCitations(true).setProvider(createAnthropicProvider())
                     .setOnPermissionRequest(PermissionHandler.APPROVE_ALL)).get();
 
@@ -294,7 +298,7 @@ public class SessionConfigE2ETest {
 
         try (CopilotClient client = newLlmClient(ctx, handler)) {
             CopilotSession session1 = client
-                    .createSession(new SessionConfig().setOnPermissionRequest(PermissionHandler.APPROVE_ALL)).get();
+                    .createSession(ctx.newSessionConfig().setOnPermissionRequest(PermissionHandler.APPROVE_ALL)).get();
             CopilotSession session2 = client.resumeSession(session1.getSessionId(),
                     new ResumeSessionConfig().setModel("claude-sonnet-5").setEnableCitations(true)
                             .setProvider(createAnthropicProvider())

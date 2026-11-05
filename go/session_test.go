@@ -7,6 +7,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"math"
 	"reflect"
 	"strconv"
 	"strings"
@@ -261,6 +262,127 @@ func TestToolResultWithEmptyTextIsSentAsEmptyText(t *testing.T) {
 			server.respond(t, completion.ID, map[string]any{})
 		})
 	}
+}
+
+func TestToolResultWithUnencodableTelemetryIsAnsweredWithError(t *testing.T) {
+	type noArgs struct{}
+	tests := []struct {
+		name    string
+		tool    Tool
+		wantErr string
+	}{
+		{
+			name: "NaN telemetry value",
+			tool: Tool{Name: "record_note", Handler: func(ToolInvocation) (ToolResult, error) {
+				return ToolResult{TextResultForLLM: "ok", ToolTelemetry: map[string]any{"ratio": math.NaN()}}, nil
+			}},
+			wantErr: "failed to serialize tool telemetry: json: unsupported value: NaN",
+		},
+		{
+			name: "channel telemetry value",
+			tool: Tool{Name: "record_note", Handler: func(ToolInvocation) (ToolResult, error) {
+				return ToolResult{TextResultForLLM: "ok", ToolTelemetry: map[string]any{"updates": make(chan int)}}, nil
+			}},
+			wantErr: "failed to serialize tool telemetry: json: unsupported type: chan int",
+		},
+		{
+			name: "DefineTool handler returning a ToolResult",
+			tool: DefineTool("record_note", "Records a note", func(noArgs, ToolInvocation) (any, error) {
+				return ToolResult{TextResultForLLM: "ok", ToolTelemetry: map[string]any{"ratio": math.Inf(1)}}, nil
+			}),
+			wantErr: "failed to serialize tool telemetry: json: unsupported value: +Inf",
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			session, server := newSetToolsTestSession(t)
+			session.registerTools([]Tool{tt.tool})
+			session.startExternalTool(&ExternalToolRequestedData{
+				RequestID:  "request-1",
+				SessionID:  "session-1",
+				ToolCallID: "tool-call-1",
+				ToolName:   "record_note",
+				Arguments:  map[string]any{},
+			}, "")
+
+			completion := server.expectRequest(t, "session.tools.handlePendingToolCall")
+			if result, ok := completion.Params["result"]; ok {
+				t.Errorf("result = %#v, want none", result)
+			}
+			if completion.Params["error"] != tt.wantErr {
+				t.Errorf("error = %#v, want %q", completion.Params["error"], tt.wantErr)
+			}
+			server.respond(t, completion.ID, map[string]any{})
+		})
+	}
+}
+
+func TestToolResultTelemetryIsEncodedOnce(t *testing.T) {
+	session, server := newSetToolsTestSession(t)
+	marker := &countingTelemetry{}
+	session.registerTools([]Tool{{Name: "record_note", Handler: func(ToolInvocation) (ToolResult, error) {
+		return ToolResult{TextResultForLLM: "ok", ToolTelemetry: map[string]any{"count": marker}}, nil
+	}}})
+	session.startExternalTool(&ExternalToolRequestedData{
+		RequestID:  "request-1",
+		SessionID:  "session-1",
+		ToolCallID: "tool-call-1",
+		ToolName:   "record_note",
+		Arguments:  map[string]any{},
+	}, "")
+
+	completion := server.expectRequest(t, "session.tools.handlePendingToolCall")
+	if err, ok := completion.Params["error"]; ok {
+		t.Fatalf("error = %#v, want a result", err)
+	}
+	result, _ := completion.Params["result"].(map[string]any)
+	telemetry, _ := result["toolTelemetry"].(map[string]any)
+	if telemetry["count"] != float64(1) {
+		t.Errorf("toolTelemetry = %#v, want the value from the first encoding", result["toolTelemetry"])
+	}
+	if marker.calls != 1 {
+		t.Errorf("telemetry value encoded %d times, want 1", marker.calls)
+	}
+	server.respond(t, completion.ID, map[string]any{})
+}
+
+func TestToolResultTelemetryIsEncodedInKeyOrder(t *testing.T) {
+	keys := []string{"a", "b", "c", "d", "e", "f", "g", "h"}
+	for run := 0; run < 20; run++ {
+		counter := new(int)
+		telemetry := map[string]any{}
+		for _, key := range keys {
+			telemetry[key] = sequencedTelemetry{counter}
+		}
+		encoded, err := encodeToolTelemetry(telemetry)
+		if err != nil {
+			t.Fatal(err)
+		}
+		for i, key := range keys {
+			if got, want := string(encoded[key].(json.RawMessage)), fmt.Sprint(i+1); got != want {
+				t.Fatalf("run %d: telemetry %q = %s, want %s (encoded in key order)", run, key, got, want)
+			}
+		}
+	}
+}
+
+// sequencedTelemetry encodes as the number of values its counter has encoded so far.
+type sequencedTelemetry struct{ counter *int }
+
+func (s sequencedTelemetry) MarshalJSON() ([]byte, error) {
+	*s.counter++
+	return []byte(fmt.Sprint(*s.counter)), nil
+}
+
+// countingTelemetry encodes successfully the first time and fails afterwards.
+type countingTelemetry struct{ calls int }
+
+func (c *countingTelemetry) MarshalJSON() ([]byte, error) {
+	c.calls++
+	if c.calls > 1 {
+		return nil, errors.New("encoded more than once")
+	}
+	return []byte("1"), nil
 }
 
 func TestDispatchEventReturnsAfterEventProcessingStops(t *testing.T) {

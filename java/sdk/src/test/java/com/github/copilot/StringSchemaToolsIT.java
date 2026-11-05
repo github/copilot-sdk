@@ -16,7 +16,6 @@ import org.junit.jupiter.api.Test;
 
 import com.github.copilot.rpc.MessageOptions;
 import com.github.copilot.rpc.PermissionHandler;
-import com.github.copilot.rpc.SessionConfig;
 import com.github.copilot.rpc.ToolDefinition;
 
 class StringSchemaToolsIT {
@@ -30,7 +29,7 @@ class StringSchemaToolsIT {
                 return CompletableFuture.completedFuture("HOST_PATCH_HANDLED");
             }).overridesBuiltInTool(true);
             try (CopilotClient client = ctx.createClient();
-                    CopilotSession session = client.createSession(new SessionConfig()
+                    CopilotSession session = client.createSession(ctx.newSessionConfig()
                             .setOnPermissionRequest(PermissionHandler.APPROVE_ALL).setTools(List.of(tool)))
                             .get(30, TimeUnit.SECONDS)) {
                 var response = session

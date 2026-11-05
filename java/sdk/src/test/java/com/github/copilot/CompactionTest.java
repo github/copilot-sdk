@@ -4,6 +4,8 @@
 
 package com.github.copilot;
 
+import org.junit.jupiter.api.Tag;
+
 import static org.junit.jupiter.api.Assertions.*;
 
 import java.util.ArrayList;
@@ -23,7 +25,6 @@ import com.github.copilot.generated.SessionCompactionStartEvent;
 import com.github.copilot.rpc.InfiniteSessionConfig;
 import com.github.copilot.rpc.MessageOptions;
 import com.github.copilot.rpc.PermissionHandler;
-import com.github.copilot.rpc.SessionConfig;
 
 /**
  * Tests for compaction and infinite sessions functionality.
@@ -34,6 +35,7 @@ import com.github.copilot.rpc.SessionConfig;
  * test/snapshots/compaction/.
  * </p>
  */
+@Tag("e2e")
 public class CompactionTest {
 
     private static E2ETestContext ctx;
@@ -76,7 +78,7 @@ public class CompactionTest {
                 // Block at 1% to ensure compaction runs
                 .setBufferExhaustionThreshold(0.01);
 
-        var config = new SessionConfig().setInfiniteSessions(infiniteConfig)
+        var config = ctx.newSessionConfig().setInfiniteSessions(infiniteConfig)
                 .setOnPermissionRequest(PermissionHandler.APPROVE_ALL);
 
         var events = new ArrayList<SessionEvent>();
@@ -151,7 +153,7 @@ public class CompactionTest {
 
         var infiniteConfig = new InfiniteSessionConfig().setEnabled(false);
 
-        var config = new SessionConfig().setInfiniteSessions(infiniteConfig)
+        var config = ctx.newSessionConfig().setInfiniteSessions(infiniteConfig)
                 .setOnPermissionRequest(PermissionHandler.APPROVE_ALL);
 
         var compactionEvents = new ArrayList<SessionEvent>();

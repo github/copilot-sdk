@@ -97,8 +97,8 @@ same-checkout compilation from this directory, use:
 cargo check --no-default-features --features local-runtime
 ```
 
-Run it with `COPILOT_SKIP_CLI_DOWNLOAD` unset. Tests that start the runtime must
-also set `COPILOT_CLI_PATH` to the prepared same-checkout wrapper.
+Run with `COPILOT_SKIP_CLI_DOWNLOAD` unset. Direct runtime tests need prepared
+`COPILOT_CLI_PATH`; in-process MCP Apps E2Es also need startup `COPILOT_MCP_APPS=true`.
 
 Keep unit tests in external test-only modules: `foo.rs` declares
 `#[cfg(test)] mod tests;`, and its tests live in `foo/tests.rs`. Crate roots

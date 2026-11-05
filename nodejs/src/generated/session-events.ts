@@ -408,7 +408,15 @@ export type IndexedSearchDisabledReason =
   /** The Windows cloud-sync safety check failed. */
   | "cloud_sync_detection_failed"
   /** The workspace is not available on the runtime's local filesystem. */
-  | "workspace_not_local";
+  | "workspace_not_local"
+  /** Another process holds the machine-wide indexed-search server slot. */
+  | "server_limit"
+  /** The workspace is a filesystem or network-share root. */
+  | "filesystem_root"
+  /** The workspace is the user's home directory. */
+  | "home_directory"
+  /** The user's home directory could not be determined. */
+  | "home_directory_detection_failed";
 /**
  * Result of an indexed-search startup attempt.
  */
@@ -15141,6 +15149,10 @@ export interface CommandQueuedData {
    * Unique identifier for this request; used to respond via session.respondToQueuedCommand()
    */
   requestId: string;
+  /**
+   * Whether a schedule dispatched this command. Consumers must reject commands marked as not schedulable before executing a scheduled request. Absent for ordinary queued commands.
+   */
+  scheduled?: boolean;
 }
 /**
  * Session event "command.execute". Registered command dispatch request routed to the owning client

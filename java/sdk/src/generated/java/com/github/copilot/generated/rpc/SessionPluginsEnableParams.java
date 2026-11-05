@@ -27,7 +27,7 @@ import javax.annotation.processing.Generated;
 public record SessionPluginsEnableParams(
     /** Target session identifier */
     @JsonProperty("sessionId") String sessionId,
-    /** Plugin names or "plugin@marketplace" specs to enable. Unknown names are ignored. Non-marketplace direct installs are always enabled and cannot be toggled via this API. */
+    /** Plugin names, "plugin@marketplace" specs, or opaque directSourceId values from inventory to enable. Use directSourceId to distinguish same-named direct installations. This persists user-level enablement, not a session-only override. Unknown targets and session-only plugin-directory mounts are ignored; active sessions must reload plugins to load newly enabled contributions. */
     @JsonProperty("names") List<String> names
 ) {
 }

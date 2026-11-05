@@ -160,6 +160,7 @@ func float64Ref(value float64) *float64 {
 }
 
 func TestSessionConfigE2E(t *testing.T) {
+	t.Parallel()
 	ctx := testharness.NewTestContext(t)
 	client := ctx.NewClient()
 	t.Cleanup(func() { client.ForceStop() })
@@ -291,6 +292,7 @@ func TestSessionConfigE2E(t *testing.T) {
 }
 
 func TestSessionConfigNewOptionsE2E(t *testing.T) {
+	t.Parallel()
 	ctx := testharness.NewTestContext(t)
 	client := ctx.NewClient()
 	t.Cleanup(func() { client.ForceStop() })
@@ -408,6 +410,7 @@ func TestSessionConfigNewOptionsE2E(t *testing.T) {
 }
 
 func TestSessionConfigNewOptionsCopilotRequestE2E(t *testing.T) {
+	t.Parallel()
 	testharness.SkipIfInProcess(t, "an LLM inference provider is process-global in-process")
 	t.Run("should enable citations for Anthropic file attachments on create", func(t *testing.T) {
 		ctx := testharness.NewTestContext(t)
@@ -519,6 +522,7 @@ func TestSessionConfigNewOptionsCopilotRequestE2E(t *testing.T) {
 //	Should_Apply_SystemMessage_On_Session_Resume
 //	Should_Apply_AvailableTools_On_Session_Resume
 func TestSessionConfigExtrasE2E(t *testing.T) {
+	t.Parallel()
 	const providerHeaderName = "x-copilot-sdk-provider-header"
 	const clientName = "go-public-surface-client"
 

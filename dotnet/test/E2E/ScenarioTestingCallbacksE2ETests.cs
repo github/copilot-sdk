@@ -396,12 +396,7 @@ public class ScenarioTestingCallbacksE2ETests(E2ETestFixture fixture, ITestOutpu
 
     private CopilotClient CreateAuthenticatedClient()
     {
-        var environment = new Dictionary<string, string>(Ctx.GetEnvironment())
-        {
-            ["COPILOT_DEBUG_GITHUB_API_URL"] = Ctx.ProxyUrl,
-        };
-
-        return Ctx.CreateClient(environment: environment);
+        return Ctx.CreateClient();
     }
 
     private Task ConfigureAuthenticatedUserAsync() =>

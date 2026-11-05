@@ -10,6 +10,7 @@ import java.lang.reflect.RecordComponent;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CompletableFuture;
@@ -607,13 +608,14 @@ class RpcWrappersTest {
 
     @ParameterizedTest
     @ValueSource(strings = {"list", "getCurrent", "select"})
-    void copilotSession_agent_methods_deserialize_scoped_hooks(String method) throws Exception {
+    void copilotSession_agent_methods_deserialize_scoped_hooks_and_plugin_ownership(String method) throws Exception {
         var mapper = JsonRpcClient.getObjectMapper();
         var agentJson = mapper.readTree("""
                 {
                   "name": "hook-agent",
                   "displayName": "Hook Agent",
                   "description": "Agent with scoped hooks",
+                  "pluginId": "mp:catalog::tools",
                   "hooks": {
                     "preToolUse": [{"type":"command","bash":"echo scoped-hook","timeoutSec":10}],
                     "sessionStart": [{"type":"command","bash":"echo started"}]
@@ -647,6 +649,7 @@ class RpcWrappersTest {
                 var agents = future.get(3, TimeUnit.SECONDS);
                 assertEquals(1, agents.size());
                 assertEquals("hook-agent", agents.get(0).getName());
+                assertEquals("mp:catalog::tools", agents.get(0).getPluginId());
                 assertNotNull(agents.get(0).getHooks());
                 assertEquals(agentJson.get("hooks"), mapper.valueToTree(agents.get(0).getHooks()));
             } finally {
@@ -837,6 +840,44 @@ class RpcWrappersTest {
         assertEquals("sess-meta", node.get("sessionId").asText());
         assertEquals(42, node.get("arguments").get("value").asInt());
         assertEquals(false, node.get("_meta").get("com.example/context").get("enabled").asBoolean());
+    }
+
+    @Test
+    void sessionRpc_mcp_apps_callTool_keeps_null_map_entries() {
+        var stub = new StubCaller();
+        var session = new SessionRpc(stub, "sess-null-map");
+        var nested = new LinkedHashMap<String, Object>();
+        nested.put("inner", null);
+        nested.put("x", 2);
+        var arguments = new LinkedHashMap<String, Object>();
+        arguments.put("keep", 1);
+        arguments.put("explicitNull", null);
+        arguments.put("nested", nested);
+        var meta = new LinkedHashMap<String, Object>();
+        meta.put("k", null);
+
+        session.mcp.apps
+                .callTool(new com.github.copilot.generated.rpc.SessionMcpAppsCallToolRequest("server", "tool", "server")
+                        .setArguments(arguments).setMeta(meta));
+        session.mcp.apps.callTool(new com.github.copilot.generated.rpc.SessionMcpAppsCallToolParams(null, "server",
+                "tool", arguments, null));
+
+        assertEquals(2, stub.calls.size());
+        for (var call : stub.calls) {
+            var node = (com.fasterxml.jackson.databind.node.ObjectNode) call.params();
+            var args = node.get("arguments");
+            assertEquals(1, args.get("keep").asInt());
+            assertTrue(args.has("explicitNull"), "a null map entry must be sent, got: " + node);
+            assertTrue(args.get("explicitNull").isNull());
+            assertTrue(args.get("nested").has("inner"), "a nested null map entry must be sent, got: " + node);
+            assertTrue(args.get("nested").get("inner").isNull());
+        }
+        var requestNode = (com.fasterxml.jackson.databind.node.ObjectNode) stub.calls.get(0).params();
+        assertTrue(requestNode.get("_meta").has("k"), "a null _meta entry must be sent, got: " + requestNode);
+        assertTrue(requestNode.get("_meta").get("k").isNull());
+        // Unset properties are still omitted.
+        var recordNode = (com.fasterxml.jackson.databind.node.ObjectNode) stub.calls.get(1).params();
+        assertFalse(recordNode.has("originServerName"), "an unset property must be omitted, got: " + recordNode);
     }
 
     @Test

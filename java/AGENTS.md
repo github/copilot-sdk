@@ -39,6 +39,22 @@ duplicating them in these contributor instructions.
   Spotless/Eclipse formatting. Checkstyle defines the Javadoc checks and
   exclusions in `sdk/config/checkstyle/checkstyle.xml`.
 
+## Cross-SDK behavioral parity
+
+When implementing or syncing SDK behavior, compare Java's serialized requests
+and defaults with the corresponding reference SDK implementation, not just its
+API fields. Distinguish shared SDK policy from mode-specific defaults; require
+an explicit reason for each intentional difference.
+
+For session-request changes, cover create and resume, `COPILOT_CLI` and `EMPTY`,
+and applicable null/omitted-config paths. Set mode-independent defaults before
+early returns. Keep public Javadoc consistent with the resulting behavior.
+
+Test the claimed invariant directly: assert serialized request fields or
+observable runtime state. A prompt asking the model not to use a tool, followed
+by no invocation, does not prove that the tool was excluded. Regression tests
+must fail when the behavior change is reverted.
+
 ## Build, format, and test
 
 Prefer the checked-in Maven wrapper (`./mvnw`, or `.\mvnw.cmd` on Windows).

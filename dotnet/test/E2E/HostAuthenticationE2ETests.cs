@@ -34,7 +34,12 @@ public sealed class HostAuthenticationE2ETests : E2ETestBase
         var environment = Ctx.GetEnvironment();
         foreach (var key in new[] { "GH_TOKEN", "GITHUB_TOKEN", "COPILOT_GITHUB_TOKEN", "COPILOT_HMAC_KEY", "CAPI_HMAC_KEY" })
             environment[key] = "";
-        return Ctx.CreateClient(new() { UseLoggedInUser = false }, autoInjectGitHubToken: false, environment: environment);
+        // These cases prove auth without ambient credentials, which are process-wide.
+        return Ctx.CreateClient(new()
+        {
+            Connection = RuntimeConnection.ForStdio(),
+            UseLoggedInUser = false,
+        }, autoInjectGitHubToken: false, environment: environment);
     }
 
     private static AhpHostAuthentication.Custom Custom(
@@ -77,6 +82,7 @@ public sealed class HostAuthenticationE2ETests : E2ETestBase
         await using (var host = await owner.StartAhpHostAsync(new()
         {
             Authentication = policy,
+            Workspace = Ctx.WorkDir,
             LocalServer = new() { Token = "independent-listener-secret" },
             AllowCreatingNewSessions = true,
             CreateSession = async request =>
@@ -110,6 +116,7 @@ public sealed class HostAuthenticationE2ETests : E2ETestBase
         await using (var host = await replacement.StartAhpHostAsync(new()
         {
             Authentication = policy,
+            Workspace = Ctx.WorkDir,
             LocalServer = new(),
             ResumeSession = async request =>
             {

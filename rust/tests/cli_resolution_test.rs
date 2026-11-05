@@ -15,12 +15,12 @@ use std::path::PathBuf;
     all(not(feature = "bundled-cli"), has_extracted_cli)
 ))]
 use github_copilot_sdk::ErrorKind;
+#[cfg(all(feature = "bundled-cli", has_bundled_cli))]
+use github_copilot_sdk::SessionConfig;
 use github_copilot_sdk::{
-    CliProgram, Client, ClientOptions, HAS_BUNDLED_CLI, install_bundled_cli,
+    CliProgram, Client, ClientOptions, HAS_BUNDLED_CLI, Transport, install_bundled_cli,
     install_bundled_runtime,
 };
-#[cfg(all(feature = "bundled-cli", has_bundled_cli))]
-use github_copilot_sdk::{SessionConfig, Transport};
 use serial_test::serial;
 
 #[cfg(all(not(feature = "bundled-cli"), has_extracted_cli))]
@@ -62,7 +62,9 @@ async fn env_override_resolves_to_pointed_file() {
         "COPILOT_CLI_PATH",
         path.to_str().expect("utf-8 tempfile path"),
     );
-    let opts = ClientOptions::default().with_program(CliProgram::Resolve);
+    let opts = ClientOptions::default()
+        .with_program(CliProgram::Resolve)
+        .with_transport(Transport::Stdio);
 
     // `Client::start` reads the env var via resolve.rs. We don't want to
     // actually launch a subprocess against our empty temp file, so go
@@ -99,7 +101,9 @@ async fn env_override_resolves_to_pointed_file() {
 #[serial(copilot_cli_path)]
 async fn stale_env_override_falls_through() {
     set_env("COPILOT_CLI_PATH", "/definitely/does/not/exist/copilot");
-    let opts = ClientOptions::default().with_program(CliProgram::Resolve);
+    let opts = ClientOptions::default()
+        .with_program(CliProgram::Resolve)
+        .with_transport(Transport::Stdio);
     let result = Client::start(opts).await;
     unset_env("COPILOT_CLI_PATH");
 
@@ -164,7 +168,9 @@ async fn unbundled_resolver_finds_extracted_binary() {
     unset_env("COPILOT_CLI_PATH");
     unset_env("COPILOT_CLI_EXTRACT_DIR");
 
-    let opts = ClientOptions::default().with_program(CliProgram::Resolve);
+    let opts = ClientOptions::default()
+        .with_program(CliProgram::Resolve)
+        .with_transport(Transport::Stdio);
     let result = Client::start(opts).await;
     if let Err(e) = result {
         assert!(
@@ -197,7 +203,9 @@ async fn extract_dir_runtime_override_is_honored() {
         tmp.path().to_str().expect("utf-8 tempdir path"),
     );
 
-    let opts = ClientOptions::default().with_program(CliProgram::Resolve);
+    let opts = ClientOptions::default()
+        .with_program(CliProgram::Resolve)
+        .with_transport(Transport::Stdio);
     let result = Client::start(opts).await;
 
     unset_env("COPILOT_CLI_EXTRACT_DIR");

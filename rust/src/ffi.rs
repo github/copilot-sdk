@@ -654,9 +654,39 @@ fn build_env_json(environment: &[(String, String)]) -> Option<Vec<u8>> {
     if environment.is_empty() {
         return None;
     }
-    let map: serde_json::Map<String, serde_json::Value> = environment
-        .iter()
-        .map(|(k, v)| (k.clone(), serde_json::Value::String(v.clone())))
+    let map: serde_json::Map<String, serde_json::Value> = std::env::vars_os()
+        .filter_map(|(key, value)| {
+            let key = key.into_string().ok()?;
+            let value = match value.into_string() {
+                Ok(value) => value,
+                Err(_) => {
+                    let name = if cfg!(windows) {
+                        key.to_uppercase()
+                    } else {
+                        key.clone()
+                    };
+                    if !matches!(
+                        name.as_str(),
+                        "http_proxy"
+                            | "HTTP_PROXY"
+                            | "https_proxy"
+                            | "HTTPS_PROXY"
+                            | "COPILOT_PROXY_KERBEROS_SPN"
+                            | "TMPDIR"
+                    ) {
+                        return None;
+                    }
+                    // Match native startup capture without falling back to another setting.
+                    "\u{FFFD}".into()
+                }
+            };
+            Some((key, value))
+        })
+        .chain(environment.iter().cloned())
+        .map(|(k, v)| {
+            let key = if cfg!(windows) { k.to_uppercase() } else { k };
+            (key, serde_json::Value::String(v))
+        })
         .collect();
     Some(serde_json::to_vec(&map).expect("env serializes"))
 }

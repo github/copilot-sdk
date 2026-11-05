@@ -10,18 +10,6 @@ The SDK has built-in support for configuring OpenTelemetry on the CLI process an
 <summary><strong>Node.js / TypeScript</strong></summary>
 
 <!-- docs-validate: strict -->
-<!-- docs-validate: hidden -->
-```typescript
-import { CopilotClient as SdkClient } from "@github/copilot-sdk";
-
-new SdkClient({
-  telemetry: {
-    otlpEndpoint: "http://localhost:4318",
-  },
-});
-```
-<!-- /docs-validate: hidden -->
-
 ```typescript
 import { CopilotClient } from "@github/copilot-sdk";
 

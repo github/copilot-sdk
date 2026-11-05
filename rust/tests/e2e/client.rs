@@ -46,7 +46,7 @@ async fn should_start_ping_and_stop_tcp_client() {
             .await
             .expect("start TCP client");
             let timings = client.startup_timings().expect("startup timings");
-            assert_eq!(timings.program_resolve_ms.is_some(), is_inprocess_default());
+            assert!(timings.program_resolve_ms.is_none());
             assert!(timings.process_spawn_ms.is_some());
             assert!(timings.port_wait_ms.is_some());
             assert!(timings.total_ms >= timings.transport_setup_ms);
@@ -79,11 +79,6 @@ async fn should_get_status() {
 
 #[tokio::test]
 async fn should_get_authenticated_status() {
-    // TODO(cli-1.0.81-2): CLI 1.0.81-2 stopped honoring client-level GitHub tokens over the
-    // in-process (FFI) host, which resolves auth from the ambient environment instead.
-    if super::support::skip_inprocess("client-level GitHub tokens are not supported in-process") {
-        return;
-    }
     with_e2e_context("client", "should_get_authenticated_status", |ctx| {
         Box::pin(async move {
             ctx.set_default_copilot_user();
@@ -115,15 +110,15 @@ async fn should_use_configured_github_host_for_authentication() {
                 ("", "fallback.ghe.example", "https://fallback.ghe.example"),
                 ("", "", "https://github.com"),
             ] {
-                let _host_env = super::support::set_inprocess_host_for_test(copilot_host, gh_host);
-                let mut options =
-                    ctx.client_options_with_github_token(super::support::DEFAULT_TEST_TOKEN);
-                if !is_inprocess_default() {
-                    options.env.extend([
-                        ("COPILOT_GH_HOST".into(), copilot_host.into()),
-                        ("GH_HOST".into(), gh_host.into()),
-                    ]);
-                }
+                // This tests process-environment precedence, not embedded configuration.
+                let mut options = ctx
+                    .client_options_with_transport(Transport::Stdio)
+                    .with_env(ctx.environment())
+                    .with_github_token(super::support::DEFAULT_TEST_TOKEN);
+                options.env.extend([
+                    ("COPILOT_GH_HOST".into(), copilot_host.into()),
+                    ("GH_HOST".into(), gh_host.into()),
+                ]);
                 let client = Client::start(options).await.expect("start client");
                 let status = client.get_auth_status().await.expect("auth status");
 
@@ -139,11 +134,6 @@ async fn should_use_configured_github_host_for_authentication() {
 
 #[tokio::test]
 async fn should_list_models_when_authenticated() {
-    // TODO(cli-1.0.81-2): CLI 1.0.81-2 stopped honoring client-level GitHub tokens over the
-    // in-process (FFI) host, which resolves auth from the ambient environment instead.
-    if super::support::skip_inprocess("client-level GitHub tokens are not supported in-process") {
-        return;
-    }
     with_e2e_context("client", "should_list_models_when_authenticated", |ctx| {
         Box::pin(async move {
             ctx.set_default_copilot_user();

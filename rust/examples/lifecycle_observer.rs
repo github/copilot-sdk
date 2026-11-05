@@ -2,37 +2,41 @@
 //!
 //! Demonstrates the channel-based observer APIs:
 //!
-//! - [`Client::subscribe_lifecycle`] — `tokio::sync::broadcast::Receiver` of
-//!   every `session.lifecycle` notification (created / destroyed / errored /
+//! - [`Client::subscribe_lifecycle`] — a [`LifecycleSubscription`] of
+//!   every `session.lifecycle` notification (created / deleted / updated /
 //!   foreground / background). Filter by matching on `event.event_type` in
 //!   the consumer.
-//! - [`Session::subscribe`] — receiver for the per-session `session.event`
-//!   stream (assistant messages, tool calls, permission prompts, etc.).
+//! - [`Session::subscribe`] — an [`EventSubscription`] for the per-session
+//!   `session.event` stream (assistant messages, tool calls, permission
+//!   prompts, etc.).
 //!   Observe-only — the constructor handler still owns permission decisions.
-//! - [`Client::state`] — current connection state without polling.
 //! - [`Client::get_session_metadata`] — inspect a session without resuming
 //!   it.
 //! - [`Client::force_stop`] — synchronous shutdown for cleanup paths.
 //!
 //! Drop the receiver to unsubscribe — there is no separate cancel handle.
-//! Slow consumers receive `RecvError::Lagged(n)` and resync on the next
-//! event; they do not block the producer.
+//! A slow consumer gets [`RecvErrorKind::Lagged`] with the number of skipped
+//! events and keeps receiving on its next `recv`; it does not block the
+//! producer.
 //!
 //! ```sh
 //! cargo run -p github-copilot-sdk --example lifecycle_observer
 //! ```
 //!
 //! [`Client::subscribe_lifecycle`]: github_copilot_sdk::Client::subscribe_lifecycle
+//! [`LifecycleSubscription`]: github_copilot_sdk::LifecycleSubscription
 //! [`Session::subscribe`]: github_copilot_sdk::session::Session::subscribe
-//! [`Client::state`]: github_copilot_sdk::Client::state
+//! [`EventSubscription`]: github_copilot_sdk::EventSubscription
 //! [`Client::get_session_metadata`]: github_copilot_sdk::Client::get_session_metadata
 //! [`Client::force_stop`]: github_copilot_sdk::Client::force_stop
+//! [`RecvErrorKind::Lagged`]: github_copilot_sdk::subscription::RecvErrorKind::Lagged
 
 use std::sync::Arc;
 use std::sync::atomic::{AtomicUsize, Ordering};
 use std::time::Duration;
 
 use github_copilot_sdk::handler::ApproveAllHandler;
+use github_copilot_sdk::subscription::RecvErrorKind;
 use github_copilot_sdk::types::{MessageOptions, SessionConfig, SessionLifecycleEventType};
 use github_copilot_sdk::{Client, ClientOptions};
 
@@ -47,7 +51,13 @@ async fn main() -> Result<(), github_copilot_sdk::Error> {
     let deleted = Arc::new(AtomicUsize::new(0));
     let deleted_clone = Arc::clone(&deleted);
     let lifecycle_task = tokio::spawn(async move {
-        while let Ok(event) = lifecycle_rx.recv().await {
+        loop {
+            let event = match lifecycle_rx.recv().await {
+                Ok(event) => event,
+                // Fell behind: the skipped events are gone, keep receiving.
+                Err(error) if matches!(error.kind(), RecvErrorKind::Lagged(_)) => continue,
+                Err(_) => break,
+            };
             let summary = event
                 .metadata
                 .as_ref()
@@ -75,7 +85,12 @@ async fn main() -> Result<(), github_copilot_sdk::Error> {
     let session_events = Arc::new(AtomicUsize::new(0));
     let session_events_clone = Arc::clone(&session_events);
     let session_task = tokio::spawn(async move {
-        while let Ok(event) = session_rx.recv().await {
+        loop {
+            let event = match session_rx.recv().await {
+                Ok(event) => event,
+                Err(error) if matches!(error.kind(), RecvErrorKind::Lagged(_)) => continue,
+                Err(_) => break,
+            };
             session_events_clone.fetch_add(1, Ordering::Relaxed);
             println!("[session-event] {}", event.event_type);
         }

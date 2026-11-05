@@ -207,6 +207,7 @@ async fn should_route_file_operations_through_the_session_fs_provider() {
                 let session = client
                     .create_session(
                         ctx.approve_all_session_config()
+                            .with_working_directory("/")
                             .with_session_fs_provider(provider.clone()),
                     )
                     .await
@@ -276,6 +277,7 @@ async fn should_view_an_image_that_exists_only_in_the_binary_session_fs_provider
                 let session = client
                     .create_session(
                         ctx.approve_all_session_config()
+                            .with_working_directory("/")
                             .with_session_fs_provider(provider.clone()),
                     )
                     .await

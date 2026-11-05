@@ -5018,6 +5018,9 @@ pub struct DiscoveredExtensionsEnableRequest {
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct DiscoveredHook {
+    /// File URI of the document defining this action on the selected runtime host, not the command or script it executes. Inline hooks point to their containing settings document or plugin manifest. Omitted for sources without a backing file, such as registry policy.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub definition_file_uri: Option<String>,
     /// Durable content hash used by hook enablement. Identical actions may intentionally share this key. Omitted when changing the user's disabled-hooks setting cannot change the action's current server-discovered state, including managed-policy hooks, session-start prompt actions, actions suppressed by disable-all settings, and projectless plugin actions that require project-directory expansion.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub disable_key: Option<String>,
@@ -5029,6 +5032,9 @@ pub struct DiscoveredHook {
     pub id: String,
     /// Configuration tier that contributed this hook action.
     pub origin: HookOrigin,
+    /// Opaque identity of the plugin owning this action. Matches plugins.list().plugins[].id and MCP effectiveSource.plugin.id on the same runtime host. Compare the complete value without parsing it. Omitted for non-plugin hooks.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub plugin_id: Option<String>,
     /// Input project path for which this server-side action was resolved. Set on every row returned for project-scoped discovery, including repeated user and policy actions.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub project_path: Option<String>,
@@ -6235,6 +6241,40 @@ pub struct HistoryRewindResult {
     pub restored_files: Vec<String>,
     /// Captured files intentionally left unchanged. Always empty for conversation-only rewinds and for the unavailable outcomes (`session-busy`, `file-change-tracking-disabled`, `unsupported-remote-session`); only conversation-and-files outcomes that reached the file-restore stage populate it.
     pub skipped_files: Vec<HistorySkippedFileRestore>,
+}
+
+/// Compaction settings for this session. Each call replaces the previous settings: an omitted field returns to its default. Settings live in memory until the session ends; re-apply them after resuming a session in a new process.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct HistorySetCompactionConfigRequest {
+    /// Model that summarizes this session's conversation when it compacts,
+    /// instead of the session's own model. Applies only when both are Copilot
+    /// models the session may use; for a BYOK or provider session, or a model
+    /// the session's catalog or allowed-model policy rejects, compaction
+    /// summarizes on the session's model. Takes precedence over any runtime
+    /// experiment that picks a compaction model. Blank values are ignored.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub model: Option<String>,
+    /// Summarization instruction sent as the final user message of a
+    /// compaction request, replacing the built-in prompt entirely; the caller
+    /// owns the summary's format. `/compact` focus instructions and a note that
+    /// tools are unavailable are appended to it. Blank values are ignored.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub prompt: Option<String>,
+    /// Reasoning effort for compaction requests: one of `none`, `minimal`,
+    /// `low`, `medium`, `high`, `xhigh` or `max`. Applies when the model that
+    /// summarizes supports it; otherwise the request keeps its usual effort.
+    /// Takes precedence over any runtime experiment that adjusts compaction
+    /// reasoning effort. Any other value is rejected.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub reasoning_effort: Option<String>,
 }
 
 /// Markdown summary of the conversation context (empty when not available).

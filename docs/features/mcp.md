@@ -408,9 +408,9 @@ directories for different applications.
 |----------|------|----------|-------------|
 | `type` | `"local"` or `"stdio"` | No | Server type (defaults to local) |
 | `command` | `string` | Yes | Command to execute |
-| `args` | `string[]` | Yes | Command arguments |
+| `args` | `string[]` | No | Command arguments |
 | `env` | `object` | No | Environment variables |
-| `cwd` | `string` | No | Working directory |
+| `workingDirectory` | `string` | No | Working directory for the server process |
 | `tools` | `string[]` | No | Tools to enable (`["*"]` for all, `[]` for none) |
 | `timeout` | `number` | No | Timeout in milliseconds |
 

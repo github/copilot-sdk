@@ -10016,6 +10016,13 @@ impl<'a> SessionRpc<'a> {
         }
     }
 
+    /// `session.canvasSource.*` sub-namespace.
+    pub(crate) fn canvas_source(&self) -> SessionRpcCanvasSource<'a> {
+        SessionRpcCanvasSource {
+            session: self.session,
+        }
+    }
+
     /// `session.commands.*` sub-namespace.
     pub fn commands(&self) -> SessionRpcCommands<'a> {
         SessionRpcCommands {
@@ -10738,7 +10745,7 @@ pub struct SessionRpcAccountsLogin<'a> {
 }
 
 impl<'a> SessionRpcAccountsLogin<'a> {
-    /// Begin an interactive login flow for a provider kind (dispatch is kind-only) and return its opaque flow id and first step.
+    /// Begin an interactive login flow for a provider kind, optionally selecting how to authorize (`method`: `web` by default, or `device-code`), and return its opaque flow id and first step.
     ///
     /// Wire method: `session.accounts.login.begin`.
     ///
@@ -10768,7 +10775,7 @@ impl<'a> SessionRpcAccountsLogin<'a> {
         Ok(serde_json::from_value(_value)?)
     }
 
-    /// Begin an interactive login flow for a provider kind (dispatch is kind-only) and return its opaque flow id and first step.
+    /// Begin an interactive login flow for a provider kind, optionally selecting how to authorize (`method`: `web` by default, or `device-code`), and return its opaque flow id and first step.
     ///
     /// Wire method: `session.accounts.login.begin`.
     ///
@@ -10813,7 +10820,7 @@ impl<'a> SessionRpcAccountsLogin<'a> {
     ///
     /// # Returns
     ///
-    /// One step in an interactive login flow. The consumer acts on the step and calls advance to proceed. Browser-open is encoded as two distinct steps by design: `open-url` is CONSUMER-driven (the provider surfaces the authorize URL and the consumer opens it — github.com/GHEC web), while `needs-interaction` is PROVIDER-driven (the provider opens the browser or broker UI itself and does not surface a URL — Entra).
+    /// One step in an interactive login flow. The consumer acts on the step and calls advance to proceed. Browser-open is encoded as two distinct steps by design: `open-url` is CONSUMER-driven (the provider surfaces the authorize URL and the consumer opens it — github.com/GHEC web), while `needs-interaction` is PROVIDER-driven (the provider opens the browser or broker UI itself and does not surface a URL — Entra). A device-code flow surfaces its one-time code as `device-code`; the consumer shows the code, may open the verification URI, and calls advance, which resolves once the user has authorized the device.
     ///
     /// <div class="warning">
     ///
@@ -11448,6 +11455,40 @@ impl<'a> SessionRpcCanvasProvider<'a> {
                 rpc_methods::SESSION_CANVAS_PROVIDER_UNREGISTER,
                 Some(wire_params),
             )
+            .await?;
+        Ok(())
+    }
+}
+
+/// `session.canvasSource.*` RPCs.
+#[derive(Clone, Copy)]
+pub(crate) struct SessionRpcCanvasSource<'a> {
+    pub(crate) session: &'a Session,
+}
+
+impl<'a> SessionRpcCanvasSource<'a> {
+    /// Closes a canvas through its original session source. Requires the privately admitted in-process CLI host.
+    ///
+    /// Wire method: `session.canvasSource.close`.
+    ///
+    /// # Parameters
+    ///
+    /// * `params` - Closes a canvas through its original owned or attached session namespace.
+    ///
+    /// <div class="warning">
+    ///
+    /// **Experimental.** This API is part of an experimental wire-protocol surface
+    /// and may change or be removed in future SDK or CLI releases. Pin both the
+    /// SDK and CLI versions if your code depends on it.
+    ///
+    /// </div>
+    pub(crate) async fn close(&self, params: CanvasSourceCloseRequest) -> Result<(), Error> {
+        let mut wire_params = serde_json::to_value(params)?;
+        wire_params["sessionId"] = serde_json::Value::String(self.session.id().to_string());
+        let _value = self
+            .session
+            .client()
+            .call(rpc_methods::SESSION_CANVASSOURCE_CLOSE, Some(wire_params))
             .await?;
         Ok(())
     }
@@ -13429,6 +13470,38 @@ impl<'a> SessionRpcHistory<'a> {
             )
             .await?;
         Ok(serde_json::from_value(_value)?)
+    }
+
+    /// Replaces this local session's compaction settings: the model, prompt and reasoning effort its automatic and manual compactions use. Each call replaces all three: an omitted field returns to its default. Settings are held in memory only, so re-apply them after resuming the session in a new process. A change applies to compactions that start afterwards, except that automatic compactions keep the model the running turn already chose for them until that turn ends; a compaction already in progress may still pick up a new reasoning effort. Rejects on a remote session.
+    ///
+    /// Wire method: `session.history.setCompactionConfig`.
+    ///
+    /// # Parameters
+    ///
+    /// * `params` - Compaction settings for this session. Each call replaces the previous settings: an omitted field returns to its default. Settings live in memory until the session ends; re-apply them after resuming a session in a new process.
+    ///
+    /// <div class="warning">
+    ///
+    /// **Experimental.** This API is part of an experimental wire-protocol surface
+    /// and may change or be removed in future SDK or CLI releases. Pin both the
+    /// SDK and CLI versions if your code depends on it.
+    ///
+    /// </div>
+    pub async fn set_compaction_config(
+        &self,
+        params: HistorySetCompactionConfigRequest,
+    ) -> Result<(), Error> {
+        let mut wire_params = serde_json::to_value(params)?;
+        wire_params["sessionId"] = serde_json::Value::String(self.session.id().to_string());
+        let _value = self
+            .session
+            .client()
+            .call(
+                rpc_methods::SESSION_HISTORY_SETCOMPACTIONCONFIG,
+                Some(wire_params),
+            )
+            .await?;
+        Ok(())
     }
 
     /// Aborts any in-progress manual compaction on a local session.

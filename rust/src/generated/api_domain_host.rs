@@ -664,6 +664,8 @@ pub struct AuthLoginBeginOptions {
     #[serde(flatten)]
     legacy: AuthLoginBeginRequest,
     #[serde(skip_serializing_if = "Option::is_none")]
+    method: Option<AuthLoginMethod>,
+    #[serde(skip_serializing_if = "Option::is_none")]
     mode: Option<AuthLoginMode>,
     #[serde(skip_serializing_if = "Option::is_none")]
     account_id: Option<String>,
@@ -674,9 +676,16 @@ impl AuthLoginBeginOptions {
     pub fn new(kind: LoginProviderKind) -> Self {
         Self {
             legacy: AuthLoginBeginRequest { kind },
+            method: None,
             mode: None,
             account_id: None,
         }
+    }
+
+    /// How to authorize: `web` (default) or `device-code`. Device code is offered for `githubDotCom` and `proxima`; `proxima` still asks for its host through `input-required` first.
+    pub fn method(mut self, value: AuthLoginMethod) -> Self {
+        self.method = Some(value);
+        self
     }
 
     /// Neutral identity-selection intent. Omitted is equivalent to default.
@@ -3384,6 +3393,28 @@ pub enum AuthEnumerateValue {
     Accounts(AuthEnumerateValueAccounts),
     Providers(AuthEnumerateValueProviders),
     LoginAccounts(AuthEnumerateValueLoginAccounts),
+}
+
+/// How an interactive GitHub login is authorized.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub enum AuthLoginMethod {
+    /// Browser authorization with a loopback callback; the flow surfaces an `open-url` step.
+    #[serde(rename = "web")]
+    Web,
+    /// OAuth device authorization; the flow surfaces a `device-code` step with a one-time code, for terminals whose browser cannot reach a loopback callback.
+    #[serde(rename = "device-code")]
+    DeviceCode,
+    /// Unknown variant for forward compatibility.
+    #[default]
+    #[serde(other)]
+    Unknown,
 }
 
 /// How an interactive provider login should choose its base identity.

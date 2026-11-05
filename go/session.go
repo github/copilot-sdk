@@ -7,6 +7,7 @@ import (
 	"errors"
 	"fmt"
 	"log"
+	"slices"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -38,7 +39,7 @@ type sessionHandler struct {
 // Example usage:
 //
 //	session, err := client.CreateSession(copilot.SessionConfig{
-//	    Model: "gpt-4",
+//	    Model: "gpt-5.4",
 //	})
 //	if err != nil {
 //	    log.Fatal(err)
@@ -2254,6 +2255,30 @@ func (s *Session) claimExternalTool(requestID string, pending *pendingExternalTo
 	return true
 }
 
+// encodeToolTelemetry encodes each telemetry value once, so the request carries
+// exactly the bytes that were checked. An empty map is returned unchanged to
+// keep the field omitted.
+func encodeToolTelemetry(telemetry map[string]any) (map[string]any, error) {
+	if len(telemetry) == 0 {
+		return telemetry, nil
+	}
+	// Sorted key order is the order encoding/json encodes a map in.
+	keys := make([]string, 0, len(telemetry))
+	for key := range telemetry {
+		keys = append(keys, key)
+	}
+	slices.Sort(keys)
+	encoded := make(map[string]any, len(telemetry))
+	for _, key := range keys {
+		data, err := json.Marshal(telemetry[key])
+		if err != nil {
+			return nil, err
+		}
+		encoded[key] = json.RawMessage(data)
+	}
+	return encoded, nil
+}
+
 // executeToolAndRespond executes a tool handler and sends the result back via RPC.
 func (s *Session) executeToolAndRespond(requestID, toolName, toolCallID, agentID string, arguments any, handler ToolHandler, pending *pendingExternalTool) {
 	ctx := pending.ctx
@@ -2315,6 +2340,20 @@ func (s *Session) executeToolAndRespond(requestID, toolName, toolCallID, agentID
 		return
 	}
 
+	// Telemetry that cannot be encoded as JSON would stop the result from being
+	// sent at all, leaving the call unanswered, so answer it with the error.
+	// Each value is encoded once here and the encoded bytes are sent, so a
+	// json.Marshaler that is not repeatable cannot succeed now and fail later.
+	telemetry, err := encodeToolTelemetry(result.ToolTelemetry)
+	if err != nil {
+		errMsg := fmt.Sprintf("failed to serialize tool telemetry: %v", err)
+		s.RPC.Tools.HandlePendingToolCall(ctx, &rpc.HandlePendingToolCallRequest{
+			RequestID: requestID,
+			Error:     &errMsg,
+		})
+		return
+	}
+
 	// Default ResultType to "success" when unset, or "failure" when there's an error.
 	effectiveResultType := result.ResultType
 	if effectiveResultType == "" {
@@ -2327,7 +2366,7 @@ func (s *Session) executeToolAndRespond(requestID, toolName, toolCallID, agentID
 
 	rpcResult := &rpc.ExternalToolTextResultForLlm{
 		TextResultForLlm: result.TextResultForLLM,
-		ToolTelemetry:    result.ToolTelemetry,
+		ToolTelemetry:    telemetry,
 		ResultType:       &effectiveResultType,
 		ToolReferences:   result.ToolReferences,
 	}

@@ -9,6 +9,7 @@ using System.Net.Http;
 using System.Net.Http.Headers;
 using System.Reflection;
 using System.Text.Json;
+using GitHub.Copilot.Rpc;
 using GitHub.Copilot.Test.E2E;
 using GitHub.Copilot.Test.Harness;
 using Xunit;
@@ -17,6 +18,82 @@ namespace GitHub.Copilot.Test.Unit;
 
 public class E2ETestFixtureTests
 {
+    [Theory]
+    [InlineData("default", true)]
+    [InlineData("stdio", true)]
+    [InlineData("tcp", true)]
+    [InlineData("inprocess", true)]
+    [InlineData("uri", false)]
+    public void Extension_Launch_Provider_Respects_Runtime_Ownership_And_Caller_Provider(string transport, bool expected)
+    {
+        var options = new CopilotClientOptions { Connection = ConnectionFor(transport) };
+
+        E2ETestContext.ConfigureExtensionLaunchProvider(options, true, Path.Join("cli", "copilot-sdk"));
+
+        Assert.Equal(expected, options.ExtensionLaunchProvider is not null);
+        var provider = new CallerExtensionLaunchProvider();
+        options.ExtensionLaunchProvider = provider;
+
+        E2ETestContext.ConfigureExtensionLaunchProvider(options, true, Path.Join("cli", "copilot-sdk"));
+
+        Assert.Same(provider, options.ExtensionLaunchProvider);
+    }
+
+    private static RuntimeConnection? ConnectionFor(string transport) => transport switch
+    {
+        "default" => null,
+        "stdio" => RuntimeConnection.ForStdio(),
+        "tcp" => RuntimeConnection.ForTcp(),
+        "inprocess" => RuntimeConnection.ForInProcess(),
+        "uri" => RuntimeConnection.ForUri("localhost:12345"),
+        _ => throw new ArgumentException("Unknown transport.", nameof(transport)),
+    };
+
+    private sealed class CallerExtensionLaunchProvider : IExtensionLaunchProviderHandler
+    {
+        public Task<ExtensionLaunchProviderResolveResult> ResolveAsync(
+            ExtensionLaunchProviderResolveRequest request,
+            CancellationToken cancellationToken = default) =>
+            throw new InvalidOperationException("Provider resolution is not part of client configuration.");
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task Clients_Keep_Environment_And_Working_Directory_Scoped_To_Their_Context(bool inProcess)
+    {
+        var ambientDirectory = Directory.GetCurrentDirectory();
+        var ambientApiUrl = Environment.GetEnvironmentVariable("COPILOT_API_URL");
+        var ambientHome = Environment.GetEnvironmentVariable("COPILOT_HOME");
+        await using var first = await E2ETestContext.CreateAsync();
+        await using var second = await E2ETestContext.CreateAsync();
+        using var firstClient = first.CreateClient(new CopilotClientOptions
+        {
+            Connection = inProcess ? RuntimeConnection.ForInProcess() : RuntimeConnection.ForStdio(),
+        });
+        using var secondClient = second.CreateClient(new CopilotClientOptions
+        {
+            Connection = inProcess ? RuntimeConnection.ForInProcess() : RuntimeConnection.ForStdio(),
+        });
+
+        Assert.NotEqual(first.HomeDir, second.HomeDir);
+        Assert.NotEqual(first.WorkDir, second.WorkDir);
+        Assert.NotEqual(first.ProxyUrl, second.ProxyUrl);
+        Assert.Equal(ambientDirectory, Directory.GetCurrentDirectory());
+        Assert.Equal(ambientApiUrl, Environment.GetEnvironmentVariable("COPILOT_API_URL"));
+        Assert.Equal(ambientHome, Environment.GetEnvironmentVariable("COPILOT_HOME"));
+    }
+
+    [Fact]
+    public async Task InProcess_Clients_Reject_Explicit_Fixture_Environment()
+    {
+        await using var context = await E2ETestContext.CreateAsync();
+        var error = Assert.Throws<ArgumentException>(() => context.CreateClient(
+            new CopilotClientOptions { Connection = RuntimeConnection.ForInProcess() },
+            environment: new Dictionary<string, string> { ["EXPLICIT_FIXTURE_ENV"] = "value" }));
+        Assert.Contains("Environment", error.Message);
+    }
+
     [Fact]
     public async Task Default_Telemetry_Endpoint_Uses_The_Owned_Proxy()
     {

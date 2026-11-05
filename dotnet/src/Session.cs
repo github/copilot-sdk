@@ -41,7 +41,7 @@ namespace GitHub.Copilot;
 /// </remarks>
 /// <example>
 /// <code>
-/// await using var session = await client.CreateSessionAsync(new() { OnPermissionRequest = PermissionHandler.ApproveAll, Model = "gpt-4" });
+/// await using var session = await client.CreateSessionAsync(new() { OnPermissionRequest = PermissionHandler.ApproveAll, Model = "gpt-5.4" });
 ///
 /// // Subscribe to events
 /// using var subscription = session.On&lt;SessionEvent&gt;(evt =&gt;
@@ -1484,6 +1484,23 @@ public sealed partial class CopilotSession : IAsyncDisposable
                 toolName);
 
             var toolResultObject = ToolResultObject.ConvertFromInvocationResult(result, tool.JsonSerializerOptions);
+
+            // Telemetry that cannot be encoded as JSON would stop the result from being
+            // sent at all, leaving the call unanswered, so answer it with the error.
+            if (toolResultObject.ToolTelemetry is { } toolTelemetry)
+            {
+                try
+                {
+                    JsonSerializer.SerializeToElement(
+                        toolTelemetry,
+                        CopilotClient.SerializerOptionsForMessageFormatter.GetTypeInfo(typeof(IDictionary<string, object>)));
+                }
+                catch (Exception ex)
+                {
+                    throw new InvalidOperationException($"failed to serialize tool telemetry: {ex.Message}", ex);
+                }
+            }
+
             if (!TryClaimExternalTool(requestId, cancellationSource))
             {
                 return;
@@ -2098,10 +2115,12 @@ public sealed partial class CopilotSession : IAsyncDisposable
                 requestId,
                 commandName);
         }
-        catch (Exception error) when (error is not OperationCanceledException)
+        catch (Exception error)
         {
             // User handler can throw any exception — report the error back to the server
-            // so the pending command doesn't hang.
+            // so the pending command doesn't hang. The handler gets no SDK cancellation token,
+            // so its OperationCanceledException (for example an HttpClient timeout) is a handler
+            // failure like any other.
             var message = error.Message;
             try
             {
@@ -2151,9 +2170,11 @@ public sealed partial class CopilotSession : IAsyncDisposable
                 SessionId,
                 requestId);
         }
-        catch (Exception ex) when (ex is not OperationCanceledException)
+        catch (Exception)
         {
             // User handler can throw any exception — attempt to cancel so the request doesn't hang.
+            // The handler gets no SDK cancellation token, so its OperationCanceledException (for
+            // example an HttpClient timeout) is a handler failure like any other.
             try
             {
                 await Rpc.Ui.HandlePendingElicitationAsync(requestId, new UIElicitationResponse

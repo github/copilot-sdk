@@ -26,7 +26,6 @@ import com.github.copilot.rpc.CopilotClientOptions;
 import com.github.copilot.rpc.MessageOptions;
 import com.github.copilot.rpc.PermissionHandler;
 import com.github.copilot.rpc.ResumeSessionConfig;
-import com.github.copilot.rpc.SessionConfig;
 import com.github.copilot.rpc.SetModelOptions;
 
 /**
@@ -64,7 +63,7 @@ class AutoTierIT {
     private static CopilotSession createAutoSession(CopilotClient client) throws Exception {
         return client
                 .createSession(
-                        new SessionConfig().setModel(MODEL_ID).setOnPermissionRequest(PermissionHandler.APPROVE_ALL))
+                        ctx.newSessionConfig().setModel(MODEL_ID).setOnPermissionRequest(PermissionHandler.APPROVE_ALL))
                 .get(30, TimeUnit.SECONDS);
     }
 
@@ -146,12 +145,12 @@ class AutoTierIT {
         String tierlessSessionId;
         try (CopilotClient client = ctx.createClient()) {
             try (CopilotSession fastSession = client.createSession(
-                    new SessionConfig().setModel(MODEL_ID).setOnPermissionRequest(PermissionHandler.APPROVE_ALL)
+                    ctx.newSessionConfig().setModel(MODEL_ID).setOnPermissionRequest(PermissionHandler.APPROVE_ALL)
                             .setCapi(new CapiSessionOptions().setAutoTier(AutoTier.FAST)
                                     .setEnableWebSocketResponses(false)))
                     .get(30, TimeUnit.SECONDS);
                     CopilotSession tierlessSession = client
-                            .createSession(new SessionConfig().setModel(MODEL_ID)
+                            .createSession(ctx.newSessionConfig().setModel(MODEL_ID)
                                     .setOnPermissionRequest(PermissionHandler.APPROVE_ALL)
                                     .setCapi(new CapiSessionOptions().setEnableWebSocketResponses(false)))
                             .get(30, TimeUnit.SECONDS)) {
@@ -203,19 +202,18 @@ class AutoTierIT {
     void shouldCommitFastAutoTierAfterSuccessfulTurn() throws Exception {
         ctx.configureForTest("auto_tier", "should_commit_fast_auto_tier_after_successful_turn");
 
-        // Keep this invocation's detach trace outside the home removed by context
-        // teardown.
-        Path logDirectory = Files.createTempDirectory(Files.createDirectories(Path.of("target", "failsafe-reports")),
+        // Keep this invocation's home and detach trace outside the context's teardown.
+        Path copilotHome = Files.createTempDirectory(Files.createDirectories(Path.of("target", "failsafe-reports")),
                 "auto-tier-detach-").toAbsolutePath();
-        try (CopilotClient client = ctx.createClient(new CopilotClientOptions().setLogLevel("debug")
-                .setCliArgs(new String[]{"--log-dir", logDirectory.toString()}));
+        try (CopilotClient client = ctx
+                .createClient(new CopilotClientOptions().setLogLevel("debug").setCopilotHome(copilotHome.toString()));
                 CopilotSession session = client
-                        .createSession(new SessionConfig().setModel(MODEL_ID)
+                        .createSession(ctx.newSessionConfig().setModel(MODEL_ID)
                                 .setOnPermissionRequest(PermissionHandler.APPROVE_ALL).setCapi(new CapiSessionOptions()
                                         .setAutoTier(AutoTier.EFFICIENCY).setEnableWebSocketResponses(false)))
                         .get(30, TimeUnit.SECONDS)) {
             System.err.println(
-                    "AutoTierIT detach diagnostics: session=" + session.getSessionId() + " logs=" + logDirectory);
+                    "AutoTierIT detach diagnostics: session=" + session.getSessionId() + " home=" + copilotHome);
             var modelChangedFuture = new CompletableFuture<SessionModelChangeEvent>();
             try (var subscription = session.on(SessionModelChangeEvent.class, event -> {
                 if (event.getData().autoTier() == com.github.copilot.generated.AutoTier.FAST) {
@@ -256,7 +254,7 @@ class AutoTierIT {
         String sessionId;
         try (CopilotClient client = ctx.createClient()) {
             try (CopilotSession session = client
-                    .createSession(new SessionConfig().setModel(MODEL_ID)
+                    .createSession(ctx.newSessionConfig().setModel(MODEL_ID)
                             .setOnPermissionRequest(PermissionHandler.APPROVE_ALL).setCapi(new CapiSessionOptions()
                                     .setAutoTier(AutoTier.EFFICIENCY).setEnableWebSocketResponses(false)))
                     .get(30, TimeUnit.SECONDS)) {

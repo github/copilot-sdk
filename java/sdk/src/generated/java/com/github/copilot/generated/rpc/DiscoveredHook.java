@@ -34,6 +34,33 @@ public record DiscoveredHook(
     /** Whether this action is enabled under the server-side discovery settings. Concrete sessions may differ because they can add session-specific directories, plugins, or trust. False when its disable key is present in the user's disabled-hooks setting or disable-all settings suppress the action. */
     @JsonProperty("enabled") Boolean enabled,
     /** Durable content hash used by hook enablement. Identical actions may intentionally share this key. Omitted when changing the user's disabled-hooks setting cannot change the action's current server-discovered state, including managed-policy hooks, session-start prompt actions, actions suppressed by disable-all settings, and projectless plugin actions that require project-directory expansion. */
-    @JsonProperty("disableKey") String disableKey
+    @JsonProperty("disableKey") String disableKey,
+    /** File URI of the document defining this action on the selected runtime host, not the command or script it executes. Inline hooks point to their containing settings document or plugin manifest. Omitted for sources without a backing file, such as registry policy. */
+    @JsonProperty("definitionFileUri") String definitionFileUri,
+    /** Opaque identity of the plugin owning this action. Matches plugins.list().plugins[].id and MCP effectiveSource.plugin.id on the same runtime host. Compare the complete value without parsing it. Omitted for non-plugin hooks. */
+    @JsonProperty("pluginId") String pluginId
 ) {
+
+    /**
+     * Creates a record without plugin ownership or content-root metadata.
+     *
+     * @param id Deterministic identifier for this server-discovered action row. It remains stable while the project, origin, source, event, action content, and duplicate ordinal are unchanged. This is row identity, not the key persisted in disabledHooks.
+     * @param hookType Hook event that invokes this action.
+     * @param origin Configuration tier that contributed this hook action.
+     * @param source Human-readable source label, such as a hook file path, settings source, or plugin name.
+     * @param projectPath Input project path for which this server-side action was resolved. Set on every row returned for project-scoped discovery, including repeated user and policy actions.
+     * @param enabled Whether this action is enabled under the server-side discovery settings. Concrete sessions may differ because they can add session-specific directories, plugins, or trust. False when its disable key is present in the user's disabled-hooks setting or disable-all settings suppress the action.
+     * @param disableKey Durable content hash used by hook enablement. Identical actions may intentionally share this key. Omitted when changing the user's disabled-hooks setting cannot change the action's current server-discovered state, including managed-policy hooks, session-start prompt actions, actions suppressed by disable-all settings, and projectless plugin actions that require project-directory expansion.
+     */
+    public DiscoveredHook(
+        String id,
+        HookType hookType,
+        HookOrigin origin,
+        String source,
+        String projectPath,
+        Boolean enabled,
+        String disableKey
+    ) {
+        this(id, hookType, origin, source, projectPath, enabled, disableKey, null, null);
+    }
 }

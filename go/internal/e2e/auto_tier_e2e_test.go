@@ -17,6 +17,7 @@ import (
 // model and token pair. These tests observe that staged state through Model.GetCurrent,
 // so they assert what the runtime actually recorded rather than what the SDK serialized.
 func TestAutoTierE2E(t *testing.T) {
+	t.Parallel()
 	autoTier := func(tier copilot.AutoTier) *copilot.AutoTier { return &tier }
 
 	pendingTier := func(t *testing.T, session *copilot.Session) *rpc.AutoTier {
@@ -43,7 +44,7 @@ func TestAutoTierE2E(t *testing.T) {
 		}
 	}
 
-	newAutoClient := func(t *testing.T) (*testharness.TestContext, *copilot.Client) {
+	newAutoClient := func(t *testing.T) (*testharness.TestContext, *testharness.Client) {
 		t.Helper()
 		ctx := testharness.NewTestContext(t)
 		ctx.ConfigureForTest(t)
@@ -69,9 +70,6 @@ func TestAutoTierE2E(t *testing.T) {
 	}
 
 	t.Run("should stage and reset auto tier preference", func(t *testing.T) {
-		if testharness.RunInIsolatedProcess(t) {
-			return
-		}
 		session := newAutoSession(t)
 		assertNoPending(t, session)
 
@@ -129,9 +127,6 @@ func TestAutoTierE2E(t *testing.T) {
 	})
 
 	t.Run("should preserve auto tier when set model omits it", func(t *testing.T) {
-		if testharness.RunInIsolatedProcess(t) {
-			return
-		}
 		session := newAutoSession(t)
 
 		if _, err := session.SetAutoTier(t.Context(), autoTier(copilot.AutoTierBalance)); err != nil {
@@ -164,9 +159,6 @@ func TestAutoTierE2E(t *testing.T) {
 	})
 
 	t.Run("should restore and override fast auto tier on cold resume", func(t *testing.T) {
-		if testharness.RunInIsolatedProcess(t) {
-			return
-		}
 		ctx, client := newAutoClient(t)
 		fastSession, err := client.CreateSession(t.Context(), &copilot.SessionConfig{
 			Model:               "auto",
@@ -290,9 +282,6 @@ func TestAutoTierE2E(t *testing.T) {
 	})
 
 	t.Run("should commit fast auto tier after successful turn", func(t *testing.T) {
-		if testharness.RunInIsolatedProcess(t) {
-			return
-		}
 		_, client := newAutoClient(t)
 		session, err := client.CreateSession(t.Context(), &copilot.SessionConfig{
 			Model:               "auto",
@@ -364,9 +353,6 @@ func TestAutoTierE2E(t *testing.T) {
 	})
 
 	t.Run("should preserve effective tier when fast activation fails", func(t *testing.T) {
-		if testharness.RunInIsolatedProcess(t) {
-			return
-		}
 		ctx, client := newAutoClient(t)
 		session, err := client.CreateSession(t.Context(), &copilot.SessionConfig{
 			Model:               "auto",

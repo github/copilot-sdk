@@ -7,6 +7,9 @@ package com.github.copilot;
 import static org.junit.jupiter.api.Assertions.*;
 
 import java.io.OutputStream;
+import java.net.BindException;
+import java.net.InetAddress;
+import java.net.InetSocketAddress;
 import java.net.ServerSocket;
 import java.net.Socket;
 import java.nio.charset.StandardCharsets;
@@ -39,6 +42,15 @@ import com.github.copilot.rpc.SessionConfig;
 class McpAuthInterestRegistrationTest {
 
     private static final ObjectMapper MAPPER = new ObjectMapper();
+
+    @Test
+    void recordingRuntimeReservesItsClientAddress() throws Exception {
+        try (var server = new RecordingRuntime(); var competing = new ServerSocket()) {
+            competing.setReuseAddress(true);
+            assertThrows(BindException.class,
+                    () -> competing.bind(new InetSocketAddress("127.0.0.1", server.listener.getLocalPort())));
+        }
+    }
 
     @Test
     void legacyRecordsKeepOriginalComponentLists() {
@@ -354,7 +366,7 @@ class McpAuthInterestRegistrationTest {
         RecordingRuntime(boolean emitMcpAuthRequest, Boolean runtimeRefreshSupported) throws Exception {
             this.emitMcpAuthRequest = emitMcpAuthRequest;
             this.runtimeRefreshSupported = runtimeRefreshSupported;
-            listener = new ServerSocket(0);
+            listener = new ServerSocket(0, 1, InetAddress.getByName("127.0.0.1"));
             thread = new Thread(this::run, "mcp-auth-interest-test-runtime");
             thread.setDaemon(true);
             thread.start();

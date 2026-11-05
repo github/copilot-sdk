@@ -4,11 +4,11 @@
 
 package com.github.copilot;
 
+import org.junit.jupiter.api.Tag;
+
 import static org.junit.jupiter.api.Assertions.*;
 
-import java.util.HashMap;
 import java.util.List;
-import java.util.Map;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.TimeUnit;
 
@@ -22,12 +22,10 @@ import com.github.copilot.generated.ExitPlanModeRequestedEvent;
 import com.github.copilot.rpc.AgentMode;
 import com.github.copilot.rpc.AutoModeSwitchRequest;
 import com.github.copilot.rpc.AutoModeSwitchResponse;
-import com.github.copilot.rpc.CopilotClientOptions;
 import com.github.copilot.rpc.ExitPlanModeRequest;
 import com.github.copilot.rpc.ExitPlanModeResult;
 import com.github.copilot.rpc.MessageOptions;
 import com.github.copilot.rpc.PermissionHandler;
-import com.github.copilot.rpc.SessionConfig;
 
 /**
  * E2E tests for exit-plan-mode and auto-mode-switch handler APIs.
@@ -37,6 +35,7 @@ import com.github.copilot.rpc.SessionConfig;
  * dotnet SDK.
  * </p>
  */
+@Tag("e2e")
 public class ModeHandlersTest {
 
     private static final String TOKEN = "mode-handler-token";
@@ -56,10 +55,7 @@ public class ModeHandlersTest {
     }
 
     private CopilotClient createAuthenticatedClient() {
-        Map<String, String> env = new HashMap<>(ctx.getEnvironment());
-        env.put("COPILOT_DEBUG_GITHUB_API_URL", ctx.getProxyUrl());
-
-        return ctx.createClient(new CopilotClientOptions().setEnvironment(env));
+        return ctx.createClient();
     }
 
     private void configureAuthenticatedUser(String testName) throws Exception {
@@ -76,7 +72,7 @@ public class ModeHandlersTest {
         var handlerCalled = new CompletableFuture<ExitPlanModeRequest>();
 
         try (var client = createAuthenticatedClient()) {
-            var session = client.createSession(new SessionConfig().setGitHubToken(TOKEN)
+            var session = client.createSession(ctx.newSessionConfig().setGitHubToken(TOKEN)
                     .setOnPermissionRequest(PermissionHandler.APPROVE_ALL).setOnExitPlanMode((request, invocation) -> {
                         handlerCalled.complete(request);
                         return CompletableFuture.completedFuture(new ExitPlanModeResult().setApproved(true)
@@ -131,7 +127,7 @@ public class ModeHandlersTest {
 
         try (var client = createAuthenticatedClient()) {
             var session = client.createSession(
-                    new SessionConfig().setGitHubToken(TOKEN).setOnPermissionRequest(PermissionHandler.APPROVE_ALL)
+                    ctx.newSessionConfig().setGitHubToken(TOKEN).setOnPermissionRequest(PermissionHandler.APPROVE_ALL)
                             .setOnAutoModeSwitch((request, invocation) -> {
                                 handlerCalled.complete(request);
                                 return CompletableFuture.completedFuture(AutoModeSwitchResponse.YES);

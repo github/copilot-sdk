@@ -40,12 +40,16 @@ type SessionStartHandler = (
 <!-- docs-validate: hidden -->
 ```python
 from copilot.session import SessionStartHookInput, SessionStartHookOutput
+from copilot.session import SessionStartHandler as SdkSessionStartHandler
 from typing import Callable, Awaitable
 
 SessionStartHandler = Callable[
     [SessionStartHookInput, dict[str, str]],
     Awaitable[SessionStartHookOutput | None]
 ]
+
+def check(handler: SessionStartHandler) -> SdkSessionStartHandler:
+    return handler
 ```
 <!-- /docs-validate: hidden -->
 ```python
@@ -71,6 +75,8 @@ type SessionStartHandler func(
     invocation copilot.HookInvocation,
 ) (*copilot.SessionStartHookOutput, error)
 
+var _ = copilot.SessionStartHandler(SessionStartHandler(nil))
+
 func main() {}
 ```
 <!-- /docs-validate: hidden -->
@@ -93,6 +99,12 @@ using GitHub.Copilot;
 public delegate Task<SessionStartHookOutput?> SessionStartHandler(
     SessionStartHookInput input,
     HookInvocation invocation);
+
+static class SessionStartHandlerCheck
+{
+    static SessionHooks Check(SessionStartHandler handler) =>
+        new() { OnSessionStart = handler.Invoke };
+}
 ```
 <!-- /docs-validate: hidden -->
 ```csharp
@@ -114,6 +126,9 @@ import java.util.concurrent.CompletableFuture;
 public class SessionStartSignature {
     SessionStartHandler handler = (SessionStartHookInput input, HookInvocation invocation) ->
         CompletableFuture.completedFuture(null);
+    CompletableFuture<SessionStartHookOutput> handle(SessionStartHookInput input, HookInvocation invocation) {
+        return handler.handle(input, invocation);
+    }
     public static void main(String[] args) {}
 }
 ```
@@ -277,13 +292,17 @@ type SessionEndHandler = (
 
 <!-- docs-validate: hidden -->
 ```python
-from copilot.session import SessionEndHookInput
+from copilot.session import SessionEndHookInput, SessionEndHookOutput
+from copilot.session import SessionEndHandler as SdkSessionEndHandler
 from typing import Callable, Awaitable
 
 SessionEndHandler = Callable[
     [SessionEndHookInput, dict[str, str]],
-    Awaitable[None]
+    Awaitable[SessionEndHookOutput | None]
 ]
+
+def check(handler: SessionEndHandler) -> SdkSessionEndHandler:
+    return handler
 ```
 <!-- /docs-validate: hidden -->
 ```python
@@ -307,7 +326,9 @@ import copilot "github.com/github/copilot-sdk/go"
 type SessionEndHandler func(
     input copilot.SessionEndHookInput,
     invocation copilot.HookInvocation,
-) error
+) (*copilot.SessionEndHookOutput, error)
+
+var _ = copilot.SessionEndHandler(SessionEndHandler(nil))
 
 func main() {}
 ```
@@ -324,6 +345,21 @@ type SessionEndHandler func(
 <details>
 <summary><strong>.NET</strong></summary>
 
+<!-- docs-validate: hidden -->
+```csharp
+using GitHub.Copilot;
+
+public delegate Task<SessionEndHookOutput?> SessionEndHandler(
+    SessionEndHookInput input,
+    HookInvocation invocation);
+
+static class SessionEndHandlerCheck
+{
+    static SessionHooks Check(SessionEndHandler handler) =>
+        new() { OnSessionEnd = handler.Invoke };
+}
+```
+<!-- /docs-validate: hidden -->
 ```csharp
 public delegate Task<SessionEndHookOutput?> SessionEndHandler(
     SessionEndHookInput input,
@@ -343,6 +379,9 @@ import java.util.concurrent.CompletableFuture;
 public class SessionEndSignature {
     SessionEndHandler handler = (SessionEndHookInput input, HookInvocation invocation) ->
         CompletableFuture.completedFuture(null);
+    CompletableFuture<SessionEndHookOutput> handle(SessionEndHookInput input, HookInvocation invocation) {
+        return handler.handle(input, invocation);
+    }
     public static void main(String[] args) {}
 }
 ```
@@ -579,6 +618,8 @@ Return no output to let the agent stop. Return a block decision to enqueue anoth
   "reason": "Run the final validation and fix any failures."
 }
 ```
+
+The `reason` is the message that is enqueued: the agent receives it as its next prompt, so write it as an instruction to the agent. It must be non-empty. A block decision without a `reason`, or with an empty one, lets the agent stop.
 
 Use the active-stop member listed above to avoid repeatedly blocking an agent that has already continued because of this hook. The runtime also caps consecutive block decisions.
 

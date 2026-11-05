@@ -29,27 +29,6 @@ Pass client info when you create the client:
 <summary><strong>TypeScript</strong></summary>
 
 <!-- docs-validate: strict -->
-<!-- docs-validate: hidden -->
-```typescript
-import { CopilotClient } from "@github/copilot-sdk";
-
-async function main() {
-  const client = new CopilotClient({
-    clientInfo: {
-      applicationName: "vscode",
-      applicationVersion: "1.124.2",
-      integrationName: "copilot-chat",
-      integrationVersion: "0.54.0",
-    },
-  });
-
-  await client.start();
-}
-
-main();
-```
-<!-- /docs-validate: hidden -->
-
 ```typescript
 import { CopilotClient } from "@github/copilot-sdk";
 
@@ -100,19 +79,21 @@ import (
 	copilot "github.com/github/copilot-sdk/go"
 )
 
-func main() {
-	ctx := context.Background()
-	client := copilot.NewClient(&copilot.ClientOptions{
-		ClientInfo: &copilot.ClientInfo{
-			ApplicationName:    "vscode",
-			ApplicationVersion: "1.124.2",
-			IntegrationName:    "copilot-chat",
-			IntegrationVersion: "0.54.0",
-		},
-	})
-	if err := client.Start(ctx); err != nil {
-		return
-	}
+func main() {}
+
+func start(ctx context.Context) error {
+client := copilot.NewClient(&copilot.ClientOptions{
+    ClientInfo: &copilot.ClientInfo{
+        ApplicationName:    "vscode",
+        ApplicationVersion: "1.124.2",
+        IntegrationName:    "copilot-chat",
+        IntegrationVersion: "0.54.0",
+    },
+})
+if err := client.Start(ctx); err != nil {
+    return err
+}
+	return nil
 }
 ```
 <!-- /docs-validate: hidden -->
@@ -158,28 +139,6 @@ await client.StartAsync();
 <details>
 <summary><strong>Java</strong></summary>
 
-<!-- docs-validate: hidden -->
-```java
-import com.github.copilot.CopilotClient;
-import com.github.copilot.rpc.ClientInfo;
-import com.github.copilot.rpc.CopilotClientOptions;
-
-public class ClientInfoExample {
-    public static void main(String[] args) throws Exception {
-        var options = new CopilotClientOptions()
-            .setClientInfo(new ClientInfo()
-                .setApplicationName("vscode")
-                .setApplicationVersion("1.124.2")
-                .setIntegrationName("copilot-chat")
-                .setIntegrationVersion("0.54.0"));
-
-        var client = new CopilotClient(options);
-        client.start().get();
-    }
-}
-```
-<!-- /docs-validate: hidden -->
-
 ```java
 var options = new CopilotClientOptions()
     .setClientInfo(new ClientInfo()
@@ -196,27 +155,6 @@ client.start().get();
 
 <details>
 <summary><strong>Rust</strong></summary>
-
-<!-- docs-validate: hidden -->
-```rust
-use github_copilot_sdk::{Client, ClientInfo, ClientOptions};
-
-#[tokio::main]
-async fn main() -> Result<(), Box<dyn std::error::Error>> {
-    let _client = Client::start(
-        ClientOptions::new().with_client_info(
-            ClientInfo::new()
-                .with_application_name("vscode")
-                .with_application_version("1.124.2")
-                .with_integration_name("copilot-chat")
-                .with_integration_version("0.54.0"),
-        ),
-    )
-    .await?;
-    Ok(())
-}
-```
-<!-- /docs-validate: hidden -->
 
 ```rust
 use github_copilot_sdk::{Client, ClientInfo, ClientOptions};

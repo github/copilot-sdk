@@ -95,7 +95,7 @@ tools: [
             // Return value: string or ToolResultObject
             //   string → treated as success
             //   { textResultForLlm, resultType } → structured result
-            //     resultType: "success" | "failure" | "rejected" | "denied"
+            //     resultType: "success" | "failure" | "rejected" | "denied" | "timeout"
             return `Result: ${args.arg1}`;
         },
     },
@@ -105,7 +105,7 @@ tools: [
 **Constraints:**
 
 - Tool names must be unique across ALL loaded extensions. Collisions cause the second extension to fail to load.
-- Handler must return a string or `{ textResultForLlm: string, resultType?: string }`.
+- Handler must return a string or `{ textResultForLlm: string, resultType: "success" | "failure" | "rejected" | "denied" | "timeout" }`. `resultType` is required: an object without a recognized `resultType` is not a structured result, and the model receives it serialized as JSON text.
 - Handler receives `(args, invocation)` — the second argument has `sessionId`, `toolCallId`, `toolName`.
 - Use `session.log()` to surface messages to the user. Don't use `console.log()` (stdout is reserved for JSON-RPC).
 
@@ -116,12 +116,15 @@ tools: [
 ```js
 hooks: {
     onUserPromptSubmitted: async (input, invocation) => { ... },
+    onUserPromptTransformed: async (input, invocation) => { ... },
     onPreToolUse: async (input, invocation) => { ... },
+    onPreMcpToolCall: async (input, invocation) => { ... },
     onPostToolUse: async (input, invocation) => { ... },
     onPostToolUseFailure: async (input, invocation) => { ... },
     onSessionStart: async (input, invocation) => { ... },
     onSessionEnd: async (input, invocation) => { ... },
     onErrorOccurred: async (input, invocation) => { ... },
+    onAgentStop: async (input, invocation) => { ... },
     onSubagentStart: async (input, invocation) => { ... },
     onSubagentStop: async (input, invocation) => { ... },
 }
@@ -143,6 +146,20 @@ All handlers may return `void`/`undefined` (no-op) or an output object.
 | `decision` | `"block"` | Refuses the prompt: no model turn runs and no user message is recorded |
 | `reason` | `string` | Why the prompt was blocked, carried by the ephemeral `session.warning` (`warningType: "policy_blocked"`) |
 
+### onUserPromptTransformed
+
+Fires after the runtime adds generated context to the submitted prompt, before
+the result is stored in session history or sent to the model. `prompt` is the
+prompt after `onUserPromptSubmitted`; `transformedPrompt` also carries the
+runtime-generated context.
+
+**Input:** `{ prompt: string, transformedPrompt: string, timestamp, workingDirectory }`
+
+**Output (all fields optional):**
+| Field | Type | Effect |
+|-------|------|--------|
+| `modifiedTransformedPrompt` | `string` | Replaces the content stored in session history and sent to the model |
+
 ### onPreToolUse
 
 **Input:** `{ toolName: string, toolArgs: unknown, timestamp, workingDirectory }`
@@ -154,6 +171,19 @@ All handlers may return `void`/`undefined` (no-op) or an output object.
 | `permissionDecisionReason` | `string` | Shown to user if denied |
 | `modifiedArgs` | `unknown` | Replaces the tool arguments |
 | `additionalContext` | `string` | Injected into the conversation |
+
+### onPreMcpToolCall
+
+Fires before a tool call is sent to an MCP server. It controls only the `_meta`
+object sent with the request; to allow, deny or change the call itself, use
+`onPreToolUse`.
+
+**Input:** `{ toolCallId?: string, serverName: string, toolName: string, arguments: unknown, _meta?: Record<string, unknown>, timestamp, workingDirectory }`
+
+**Output (all fields optional):**
+| Field | Type | Effect |
+|-------|------|--------|
+| `metaToUse` | `Record<string, unknown> \| null` | An object becomes the request's `_meta`; `null` omits it; leaving it out keeps the current `_meta` |
 
 ### onPostToolUse
 
@@ -217,6 +247,23 @@ fire it.
 | `errorHandling` | `"retry" \| "skip" \| "abort"` | How to handle the error |
 | `retryCount` | `number` | Max retries (when errorHandling is "retry") |
 | `userNotification` | `string` | Message shown to the user |
+
+### onAgentStop
+
+Fires when the top-level agent reaches a natural terminal stop: it went idle
+without pending work and was not aborted. Sub-agents fire `onSubagentStop`
+instead.
+
+**Input:** `{ stopReason?: string, transcriptPath?: string, stopHookActive?: boolean, timestamp, workingDirectory }`
+
+`stopHookActive` is `true` when this stop follows an earlier `"block"` from this
+hook; check it to avoid blocking indefinitely. The runtime also caps
+consecutive blocks.
+
+**Output (optional):**
+| Field | Type | Effect |
+|-------|------|--------|
+| `decision` and `reason` | `"block"` and `string` | Keep the agent running; `reason` is enqueued as its next user message |
 
 ### onSubagentStart
 

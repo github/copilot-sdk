@@ -16,7 +16,6 @@ import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CopyOnWriteArraySet;
 import java.util.concurrent.Executor;
-import java.util.concurrent.Executors;
 import java.util.concurrent.RejectedExecutionException;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.ScheduledFuture;
@@ -175,6 +174,18 @@ public final class CopilotSession implements AutoCloseable {
 
     private static final Logger LOG = Logger.getLogger(CopilotSession.class.getName());
     private static final ObjectMapper MAPPER = JsonRpcClient.getObjectMapper();
+
+    /**
+     * Seconds {@link #close()} waits for its detach; client stop waits this long
+     * for every session's detach together.
+     */
+    static final int DETACH_TIMEOUT_SECONDS = 5;
+    // Neither application continuations nor inline executors may block shutdown.
+    private static final Executor CLEANUP_DISPATCHER = task -> {
+        var thread = new Thread(task, "copilot-session-cleanup");
+        thread.setDaemon(true);
+        thread.start();
+    };
     private final java.util.Set<CompletableFuture<?>> structuredWaits = ConcurrentHashMap.newKeySet();
     private final Map<CompletableFuture<AssistantMessageEvent>, Runnable> plainWaits = new ConcurrentHashMap<>();
 
@@ -272,7 +283,7 @@ public final class CopilotSession implements AutoCloseable {
             state.set(CANCELLED);
             CompletableFuture<?> activeFuture = future.get();
             if (activeFuture != null) {
-                activeFuture.cancel(true);
+                CLEANUP_DISPATCHER.execute(() -> activeFuture.cancel(true));
             }
         }
     }
@@ -325,6 +336,10 @@ public final class CopilotSession implements AutoCloseable {
      */
     void setExecutor(Executor executor) {
         this.executor = executor;
+    }
+
+    boolean usesConnection(JsonRpcClient connection) {
+        return rpc == connection;
     }
 
     void setGitHubTokenProviderRegistration(GitHubTokenProviderRegistry.Registration registration) {
@@ -1643,6 +1658,33 @@ public final class CopilotSession implements AutoCloseable {
     }
 
     /**
+     * Converts a tool handler's return value into the result sent to the runtime.
+     * Throws instead when the value or the result's telemetry cannot be encoded as
+     * JSON, which would otherwise stop the result from being sent and leave the
+     * call unanswered, so that the call is answered with the error.
+     */
+    private static ToolResultObject toToolResult(Object result) {
+        if (result instanceof ToolResultObject toolResult) {
+            if (toolResult.toolTelemetry() != null) {
+                try {
+                    MAPPER.writeValueAsString(toolResult.toolTelemetry());
+                } catch (com.fasterxml.jackson.core.JsonProcessingException e) {
+                    throw new IllegalArgumentException("failed to serialize tool telemetry: " + e.getMessage(), e);
+                }
+            }
+            return toolResult;
+        }
+        if (result instanceof String s) {
+            return ToolResultObject.success(s);
+        }
+        try {
+            return ToolResultObject.success(MAPPER.writeValueAsString(result));
+        } catch (com.fasterxml.jackson.core.JsonProcessingException e) {
+            throw new java.util.concurrent.CompletionException(e);
+        }
+    }
+
+    /**
      * Executes a tool handler and sends the result back via
      * {@code session.tools.handlePendingToolCall}.
      */
@@ -1686,17 +1728,11 @@ public final class CopilotSession implements AutoCloseable {
                 CompletableFuture<Object> toolFuture = tool.handler().invoke(invocation);
                 pending.attach(toolFuture);
                 toolFuture.thenAccept(result -> {
+                    ToolResultObject toolResult = toToolResult(result);
                     if (!pendingExternalTools.remove(requestId, pending)) {
                         return;
                     }
                     try {
-                        ToolResultObject toolResult;
-                        if (result instanceof ToolResultObject tr) {
-                            toolResult = tr;
-                        } else {
-                            toolResult = ToolResultObject
-                                    .success(result instanceof String s ? s : MAPPER.writeValueAsString(result));
-                        }
                         getRpc().tools.handlePendingToolCall(
                                 new SessionToolsHandlePendingToolCallParams(sessionId, requestId, toolResult, null));
                     } catch (Exception e) {
@@ -1751,8 +1787,8 @@ public final class CopilotSession implements AutoCloseable {
 
     /**
      * Builds a {@link SessionUiHandlePendingElicitationParams} carrying a
-     * {@code cancel} action, used when an elicitation handler throws or the handler
-     * future completes exceptionally.
+     * {@code cancel} action, used when an elicitation handler throws, the handler
+     * future completes exceptionally, or its result cannot be sent.
      */
     private SessionUiHandlePendingElicitationParams buildElicitationCancelParams(String requestId) {
         var cancelResult = new UIElicitationResponse(UIElicitationResponseAction.CANCEL, null, null);
@@ -1978,7 +2014,8 @@ public final class CopilotSession implements AutoCloseable {
 
     /**
      * Dispatches an elicitation request to the registered handler and responds via
-     * {@code session.ui.handlePendingElicitation}. Auto-cancels on handler errors.
+     * {@code session.ui.handlePendingElicitation}. Cancels the request when the
+     * handler fails or its result cannot be sent, such as a {@code null} result.
      */
     private void handleElicitationRequestAsync(ElicitationContext context, String requestId) {
         ElicitationHandler handler = elicitationHandler.get();
@@ -1987,21 +2024,26 @@ public final class CopilotSession implements AutoCloseable {
         }
         Runnable task = () -> {
             try {
-                handler.handle(context).thenAccept(result -> {
-                    try {
-                        String actionStr = result.getAction() != null
-                                ? result.getAction().getValue()
-                                : ElicitationResultAction.CANCEL.getValue();
-                        var parsedAction = UIElicitationResponseAction.fromValue(actionStr);
-                        var elicitationResult = new UIElicitationResponse(parsedAction, result.getContent(), null);
-                        getRpc().ui.handlePendingElicitation(
-                                new SessionUiHandlePendingElicitationParams(sessionId, requestId, elicitationResult));
-                    } catch (Exception e) {
-                        LOG.log(Level.WARNING, "Error sending elicitation result for requestId=" + requestId, e);
-                    }
+                handler.handle(context).thenCompose(result -> {
+                    String actionStr = result.getAction() != null
+                            ? result.getAction().getValue()
+                            : ElicitationResultAction.CANCEL.getValue();
+                    var parsedAction = UIElicitationResponseAction.fromValue(actionStr);
+                    var elicitationResult = new UIElicitationResponse(parsedAction, result.getContent(), null);
+                    return getRpc().ui.handlePendingElicitation(
+                            new SessionUiHandlePendingElicitationParams(sessionId, requestId, elicitationResult));
                 }).exceptionally(ex -> {
+                    LOG.log(Level.WARNING,
+                            "Error executing elicitation handler or sending result for requestId=" + requestId, ex);
                     try {
-                        getRpc().ui.handlePendingElicitation(buildElicitationCancelParams(requestId));
+                        getRpc().ui.handlePendingElicitation(buildElicitationCancelParams(requestId))
+                                .whenComplete((ignored, cancelEx) -> {
+                                    if (cancelEx != null) {
+                                        LOG.log(Level.WARNING,
+                                                "Error sending elicitation cancel for requestId=" + requestId,
+                                                cancelEx);
+                                    }
+                                });
                     } catch (Exception e) {
                         LOG.log(Level.WARNING, "Error sending elicitation cancel for requestId=" + requestId, e);
                     }
@@ -3227,17 +3269,9 @@ public final class CopilotSession implements AutoCloseable {
         RuntimeException detachFailure = null;
         CompletableFuture<SessionDetachResponse> detach = null;
         try {
-            detach = rpc.invoke("session.detach", Map.of("sessionId", sessionId), SessionDetachResponse.class);
+            detach = sendDetach();
             // A caller's wait can end before the detach RPC does.
-            SessionDetachResponse response = detach.whenComplete((ignored, error) -> {
-                if (!callbacksRetired) {
-                    retireCallbacks();
-                }
-            }).get(5, TimeUnit.SECONDS);
-            if (response == null || !response.success()) {
-                String detail = response != null && response.error() != null ? response.error() : "unknown error";
-                detachFailure = new IllegalStateException("Failed to detach session " + sessionId + ": " + detail);
-            }
+            detachFailure = detachRejection(detach.get(DETACH_TIMEOUT_SECONDS, TimeUnit.SECONDS));
         } catch (Exception e) {
             if (e instanceof InterruptedException) {
                 Thread.currentThread().interrupt();
@@ -3252,6 +3286,64 @@ public final class CopilotSession implements AutoCloseable {
         if (detachFailure != null) {
             throw detachFailure;
         }
+    }
+
+    /**
+     * Retires this session like {@link #close()} and sends its detach without
+     * waiting for it, so client stop can bound every session's detach together.
+     * Retirement and detach submission run on a cleanup thread: retirement waits
+     * for this session's monitor, which a legacy send holds while it writes, and
+     * inline or rejecting executors would otherwise send on the caller. Only the
+     * detach itself uses the session executor. The returned future fails when the
+     * detach does.
+     */
+    CompletableFuture<Void> closeAsync() {
+        var started = CompletableFuture.supplyAsync(() -> {
+            if (!retire(false)) {
+                return CompletableFuture.<Void>completedFuture(null);
+            }
+            try {
+                return CompletableFuture.supplyAsync(this::detachAsync, executor).thenCompose(detach -> detach);
+            } catch (RejectedExecutionException e) {
+                LOG.log(Level.WARNING, "Executor rejected session detach task; detaching on cleanup thread", e);
+                return detachAsync();
+            }
+        }, CLEANUP_DISPATCHER);
+        return started.thenCompose(detach -> detach);
+    }
+
+    private CompletableFuture<Void> detachAsync() {
+        CompletableFuture<SessionDetachResponse> detach;
+        try {
+            detach = sendDetach();
+        } catch (RuntimeException e) {
+            retireCallbacks();
+            return CompletableFuture
+                    .failedFuture(new IllegalStateException("Failed to detach session " + sessionId, e));
+        }
+        return detach.thenAccept(response -> {
+            RuntimeException failure = detachRejection(response);
+            if (failure != null) {
+                throw failure;
+            }
+        });
+    }
+
+    private CompletableFuture<SessionDetachResponse> sendDetach() {
+        return rpc.invoke("session.detach", Map.of("sessionId", sessionId), SessionDetachResponse.class)
+                .whenComplete((ignored, error) -> {
+                    if (!callbacksRetired) {
+                        retireCallbacks();
+                    }
+                });
+    }
+
+    private IllegalStateException detachRejection(SessionDetachResponse response) {
+        if (response != null && response.success()) {
+            return null;
+        }
+        String detail = response != null && response.error() != null ? response.error() : "unknown error";
+        return new IllegalStateException("Failed to detach session " + sessionId + ": " + detail);
     }
 
     /**
@@ -3285,20 +3377,7 @@ public final class CopilotSession implements AutoCloseable {
         clearSkillProvider();
         timeoutScheduler.shutdownNow();
         releaseGitHubTokenProviderRegistration();
-        if (!waitCompletions.isEmpty()) {
-            // Completion can run blocking user continuations; don't borrow a shared or user
-            // executor.
-            var completions = Executors.newCachedThreadPool(task -> {
-                var thread = new Thread(task, "copilot-session-retirement");
-                thread.setDaemon(true);
-                return thread;
-            });
-            try {
-                waitCompletions.forEach(completions::execute);
-            } finally {
-                completions.shutdown();
-            }
-        }
+        waitCompletions.forEach(CLEANUP_DISPATCHER::execute);
         return true;
     }
 

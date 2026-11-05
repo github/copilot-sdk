@@ -79,6 +79,7 @@ public sealed class RuntimeHostE2ETests(E2ETestFixture fixture, ITestOutputHelpe
         public AhpHostOptions Options() => new()
         {
             Authentication = new AhpHostAuthentication.GitHub(),
+            Workspace = context.WorkDir,
             LocalServer = new(),
             AllowCreatingNewSessions = true,
             CreateSession = async request =>

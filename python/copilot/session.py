@@ -286,6 +286,45 @@ def _consume_task_exception(task: asyncio.Task[Any]) -> None:
         task.exception()
 
 
+_handler_dispatches: dict[asyncio.Task[Any], asyncio.Task[Any]] = {}
+
+
+async def _run_handler(handler: Callable[..., Any], *args: Any) -> Any:
+    """Call a user handler, awaiting its result, in a task of its own.
+
+    A handler that cancels its own task then fails like any other handler instead
+    of looking like a cancellation of the dispatch that called it, while cancelling
+    the dispatch still cancels the handler.
+    """
+
+    dispatch = asyncio.current_task()
+
+    async def invoke() -> Any:
+        handler_task = asyncio.current_task()
+        if handler_task is not None and dispatch is not None:
+            _handler_dispatches[handler_task] = dispatch
+        try:
+            result = handler(*args)
+            if inspect.isawaitable(result):
+                result = await result
+            return result
+        finally:
+            if handler_task is not None:
+                _handler_dispatches.pop(handler_task, None)
+
+    return await asyncio.create_task(invoke())
+
+
+def _is_dispatch_cancellation(error: BaseException) -> bool:
+    """Whether ``error`` cancels the running dispatch task rather than reports a handler failure.
+
+    A CancelledError raised by a handler itself, for example from awaiting a future
+    that its owner cancelled, is a handler failure that still needs an answer.
+    """
+    task = asyncio.current_task()
+    return isinstance(error, asyncio.CancelledError) and task is not None and task.cancelling() > 0
+
+
 class SessionFsCapabilities(TypedDict, total=False):
     sqlite: bool
     binary: bool
@@ -2061,8 +2100,10 @@ class CopilotSession:
         pending_external_tools = list(self._pending_external_tools.values())
         self._pending_external_tools.clear()
         current_task = asyncio.current_task()
+        # A handler shutting down its client must not cancel its own awaiting dispatch.
+        dispatch = _handler_dispatches.get(current_task) if current_task is not None else None
         for task in pending_external_tools:
-            if task is not current_task:
+            if task is not current_task and task is not dispatch:
                 task.cancel()
 
     def _mark_disconnected(self) -> None:
@@ -3115,9 +3156,7 @@ class CopilotSession:
 
             with trace_context(traceparent, tracestate):
                 handler_start = time.perf_counter()
-                result = handler(invocation)
-                if inspect.isawaitable(result):
-                    result = await result
+                result = await _run_handler(handler, invocation)
                 log_timing(
                     logger,
                     logging.DEBUG,
@@ -3165,6 +3204,12 @@ class CopilotSession:
                     tool_name=tool_name,
                 )
             else:
+                # Telemetry that cannot be encoded as JSON would stop the result from
+                # being sent at all, leaving the call unanswered, so answer it with the error.
+                try:
+                    json.dumps(tool_result.tool_telemetry, allow_nan=False)
+                except Exception as exc:
+                    raise ValueError(f"failed to serialize tool telemetry: {exc}") from exc
                 if not self._claim_external_tool(request_id):
                     return
                 rpc_start = time.perf_counter()
@@ -3184,14 +3229,19 @@ class CopilotSession:
                     tool_call_id=tool_call_id,
                     tool_name=tool_name,
                 )
-        except Exception as exc:
+        except (Exception, asyncio.CancelledError) as exc:
+            # Cancelling this task (another client answered the call, or the session
+            # closed) propagates without an answer; any other failure answers the call.
+            if _is_dispatch_cancellation(exc):
+                raise
             if not self._claim_external_tool(request_id):
                 return
             try:
                 await self.rpc.tools.handle_pending_tool_call(
                     HandlePendingToolCallRequest(
                         request_id=request_id,
-                        error=str(exc),
+                        # An empty error reads as no error, so the call would count as a success.
+                        error=str(exc) or type(exc).__name__,
                     )
                 )
             except (JsonRpcError, ProcessExitedError, OSError):
@@ -3227,9 +3277,7 @@ class CopilotSession:
                 invocation["prompt_request"] = prompt_request
             if assisted_approval_assessment is not None:
                 invocation["assisted_approval_assessment"] = assisted_approval_assessment
-            result = handler(permission_request, invocation)
-            if inspect.isawaitable(result):
-                result = await result
+            result = await _run_handler(handler, permission_request, invocation)
             log_timing(
                 logger,
                 logging.DEBUG,
@@ -3263,7 +3311,9 @@ class CopilotSession:
                 session_id=self.session_id,
                 request_id=request_id,
             )
-        except Exception:
+        except (Exception, asyncio.CancelledError) as exc:
+            if _is_dispatch_cancellation(exc):
+                raise
             logger.exception(
                 "Permission handler or response delivery failed",
                 extra={"session_id": self.session_id, "request_id": request_id},
@@ -3287,11 +3337,10 @@ class CopilotSession:
         request_id = request["requestId"]
         try:
             handler_start = time.perf_counter()
-            maybe_result = handler(request, {"sessionId": self.session_id})
-            if inspect.isawaitable(maybe_result):
-                result = cast(McpAuthHandlerResult, await maybe_result)
-            else:
-                result = maybe_result
+            result = cast(
+                McpAuthHandlerResult,
+                await _run_handler(handler, request, {"sessionId": self.session_id}),
+            )
             log_timing(
                 logger,
                 logging.DEBUG,
@@ -3326,7 +3375,9 @@ class CopilotSession:
                     result=rpc_result,
                 )
             )
-        except Exception:
+        except (Exception, asyncio.CancelledError) as exc:
+            if _is_dispatch_cancellation(exc):
+                raise
             try:
                 await self.rpc.mcp.oauth.handle_pending_request(
                     MCPOauthHandlePendingRequest(
@@ -3368,9 +3419,7 @@ class CopilotSession:
                 args=args,
             )
             handler_start = time.perf_counter()
-            result = handler(ctx)
-            if inspect.isawaitable(result):
-                await result
+            await _run_handler(handler, ctx)
             log_timing(
                 logger,
                 logging.DEBUG,
@@ -3393,8 +3442,10 @@ class CopilotSession:
                 request_id=request_id,
                 command_name=command_name,
             )
-        except Exception as exc:
-            message = str(exc)
+        except (Exception, asyncio.CancelledError) as exc:
+            if _is_dispatch_cancellation(exc):
+                raise
+            message = str(exc) or type(exc).__name__
             try:
                 await self.rpc.commands.handle_pending_command(
                     CommandsHandlePendingCommandRequest(
@@ -3419,11 +3470,10 @@ class CopilotSession:
             handler = self._elicitation_handler
         if not handler:
             return
+
         try:
             handler_start = time.perf_counter()
-            result = handler(context)
-            if inspect.isawaitable(result):
-                result = await result
+            result = cast(ElicitationResult, await _run_handler(handler, context))
             log_timing(
                 logger,
                 logging.DEBUG,
@@ -3432,7 +3482,6 @@ class CopilotSession:
                 session_id=self.session_id,
                 request_id=request_id,
             )
-            result = cast(ElicitationResult, result)
             action_val = result.get("action", "cancel")
             rpc_result = UIElicitationResponse(
                 action=UIElicitationResponseAction(action_val),
@@ -3453,7 +3502,9 @@ class CopilotSession:
                 session_id=self.session_id,
                 request_id=request_id,
             )
-        except Exception:
+        except (Exception, asyncio.CancelledError) as error:
+            if _is_dispatch_cancellation(error):
+                raise
             # Handler failed — attempt to cancel so the request doesn't hang
             try:
                 await self.rpc.ui.handle_pending_elicitation(

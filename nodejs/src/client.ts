@@ -13,9 +13,9 @@
 
 import { spawn, type ChildProcess } from "node:child_process";
 import { randomUUID } from "node:crypto";
-import { existsSync } from "node:fs";
+import { accessSync, constants, existsSync, statSync } from "node:fs";
 import { isIPv6, Socket } from "node:net";
-import { dirname, isAbsolute, join, resolve } from "node:path";
+import { dirname, isAbsolute, join, resolve, win32 } from "node:path";
 import {
     type CancellationToken,
     type ContentTypeEncoder,
@@ -497,6 +497,17 @@ function getBundledRuntimePath(): Promise<string> {
 }
 
 /**
+ * The bundled runtime's path in a form `spawn` can start. Windows cannot start an
+ * executable named by an ordinary path of MAX_PATH or more characters, which a nested
+ * `node_modules` tree reaches easily, while the extended-length (`\\?\`) spelling of
+ * the same file has no such limit.
+ */
+async function getSpawnableBundledRuntimePath(): Promise<string> {
+    const runtimePath = await getBundledRuntimePath();
+    return process.platform === "win32" ? win32.toNamespacedPath(runtimePath) : runtimePath;
+}
+
+/**
  * Main client for interacting with the Copilot CLI.
  *
  * The CopilotClient manages the connection to the Copilot CLI server and provides
@@ -514,7 +525,7 @@ function getBundledRuntimePath(): Promise<string> {
  * const client = new CopilotClient({ connection: RuntimeConnection.forUri("localhost:3000") });
  *
  * // Create a session
- * const session = await client.createSession({ onPermissionRequest: approveAll, model: "gpt-4" });
+ * const session = await client.createSession({ onPermissionRequest: approveAll, model: "gpt-5.4" });
  *
  * // Send messages and handle responses
  * session.on((event) => {
@@ -619,6 +630,7 @@ export class CopilotClient {
     /** Resolved environment passed to the spawned runtime. */
     private resolvedEnv: Record<string, string | undefined>;
     private options: {
+        internalTestOptions?: CopilotClientOptions["internalTestOptions"];
         entra?: CopilotClientOptions["entra"];
         workingDirectory: string;
         logLevel?: string;
@@ -769,6 +781,12 @@ export class CopilotClient {
             CopilotClient.resolveDefaultConnection();
 
         if (
+            (conn.kind === "uri" || conn.kind === "parent-process") &&
+            options.internalTestOptions !== undefined
+        ) {
+            throw new Error("internalTestOptions requires a runtime owned by this client");
+        }
+        if (
             conn.kind === "uri" &&
             (options.gitHubToken !== undefined || options.useLoggedInUser !== undefined)
         ) {
@@ -776,19 +794,17 @@ export class CopilotClient {
                 "gitHubToken and useLoggedInUser cannot be used with RuntimeConnection.forUri (external server manages its own auth)"
             );
         }
+        if (conn.kind === "inprocess" && options.env !== undefined) {
+            throw new Error(
+                "env is not supported with RuntimeConnection.forInProcess(): environment variables " +
+                    "belong to the shared host process. Use typed client/session options or a child-process transport."
+            );
+        }
         if (conn.kind === "inprocess" && options.workingDirectory !== undefined) {
             throw new Error(
                 "workingDirectory is not supported with RuntimeConnection.forInProcess(): the in-process " +
                     "transport hosts the runtime in this process, so honoring it would require mutating the " +
-                    "shared process-global cwd. Change the host process's working directory before " +
-                    "constructing the client instead."
-            );
-        }
-        if (conn.kind === "inprocess" && options.env !== undefined) {
-            throw new Error(
-                "env is not supported with RuntimeConnection.forInProcess(): the in-process transport loads " +
-                    "the native runtime into the shared host process, whose single environment block cannot " +
-                    "carry per-client values. Set the variables on the host process environment instead."
+                    "shared process-global cwd. Set SessionConfig.workingDirectory instead."
             );
         }
         if (conn.kind === "inprocess" && options.telemetry !== undefined) {
@@ -881,6 +897,7 @@ export class CopilotClient {
         this.connectionExtraArgs = [...connArgs];
 
         this.options = {
+            internalTestOptions: options.internalTestOptions,
             entra: options.entra
                 ? { ...options.entra, tokenProvider: options.entra.tokenProvider }
                 : undefined,
@@ -1648,7 +1665,7 @@ export class CopilotClient {
      * // Session with model and tools
      * const session = await client.createSession({
      *   onPermissionRequest: approveAll,
-     *   model: "gpt-4",
+     *   model: "gpt-5.4",
      *   tools: [{
      *     name: "get_weather",
      *     description: "Get weather for a location",
@@ -3274,15 +3291,44 @@ export class CopilotClient {
     }
 
     /**
-     * Builds the environment for the spawned runtime child process (stdio/TCP): applies
-     * the auth token, connection token, `COPILOT_HOME`, keychain setting, and telemetry
-     * variables on top of the effective env. Not used by the in-process (FFI) transport,
-     * whose worker inherits the host process's ambient environment
-     * (see {@link CopilotClient.startInProcessFfi}).
+     * Builds runtime configuration for child processes and the per-host FFI snapshot.
+     * Typed auth, home, keychain, and telemetry options override the effective env.
      */
     private buildRuntimeEnv(): Record<string, string | undefined> {
-        const env: Record<string, string | undefined> = { ...this.resolvedEnv };
+        const env: Record<string, string | undefined> =
+            process.platform === "win32"
+                ? Object.fromEntries(
+                      Object.entries(this.resolvedEnv).map(([key, value]) => [
+                          key.toUpperCase(),
+                          value,
+                      ])
+                  )
+                : { ...this.resolvedEnv };
         delete env.NODE_DEBUG;
+
+        const test = this.options.internalTestOptions;
+        if (test) {
+            const overrides = {
+                COPILOT_API_URL: test.copilotApiUrl,
+                COPILOT_DEBUG_GITHUB_API_URL: test.githubApiUrl,
+                HTTP_PROXY: test.proxyUrl,
+                HTTPS_PROXY: test.proxyUrl,
+                http_proxy: test.proxyUrl,
+                https_proxy: test.proxyUrl,
+                NO_PROXY: test.noProxy,
+                no_proxy: test.noProxy,
+                NODE_EXTRA_CA_CERTS: test.caCertificatePath,
+                SSL_CERT_FILE: test.caCertificatePath,
+                REQUESTS_CA_BUNDLE: test.caCertificatePath,
+                CURL_CA_BUNDLE: test.caCertificatePath,
+                GIT_SSL_CAINFO: test.caCertificatePath,
+            };
+            for (const [key, value] of Object.entries(overrides)) {
+                if (value !== undefined) {
+                    env[process.platform === "win32" ? key.toUpperCase() : key] = value;
+                }
+            }
+        }
 
         if (this.options.gitHubToken) {
             env.COPILOT_SDK_AUTH_TOKEN = this.options.gitHubToken;
@@ -3292,6 +3338,9 @@ export class CopilotClient {
         }
         if (this.options.baseDirectory) {
             env.COPILOT_HOME = this.options.baseDirectory;
+            if (this.connectionConfig.kind === "inprocess") {
+                env.COPILOT_CACHE_HOME = join(this.options.baseDirectory, "cache");
+            }
         }
         // In empty mode, disable the system keychain. Keytar reads from a
         // process-wide store that's shared across sessions, which is unsafe
@@ -3325,7 +3374,9 @@ export class CopilotClient {
      * Start the CLI server process
      */
     private async startCLIServer(): Promise<void> {
-        this.resolvedCliPath ??= await getBundledRuntimePath();
+        // Only the SDK's own bundled path is rewritten: an explicit path keeps the
+        // meaning its caller gave it.
+        this.resolvedCliPath ??= await getSpawnableBundledRuntimePath();
         return new Promise((resolve, reject) => {
             // Clear stderr buffer for fresh capture
             this.stderrBuffer = "";
@@ -3382,6 +3433,32 @@ export class CopilotClient {
             if (!existsSync(this.resolvedCliPath)) {
                 throw new Error(
                     `Copilot CLI not found at ${this.resolvedCliPath}. Set COPILOT_CLI_PATH to use a custom installation.`
+                );
+            }
+
+            // Verify the working directory too: Node reports a spawn into an unusable
+            // directory as the executable failing (spawn <cli> ENOENT or EACCES), and in
+            // stdio mode only after this promise has resolved, so the caller would
+            // see an unrelated write error instead.
+            const workingDirectory = this.options.workingDirectory;
+            let workingDirectoryProblem: string | undefined;
+            try {
+                workingDirectoryProblem = statSync(workingDirectory).isDirectory()
+                    ? undefined
+                    : "does not exist or is not a directory";
+                if (!workingDirectoryProblem) {
+                    accessSync(workingDirectory, constants.X_OK);
+                }
+            } catch (error) {
+                const code = (error as NodeJS.ErrnoException).code;
+                workingDirectoryProblem =
+                    code === "ENOENT" || code === "ENOTDIR"
+                        ? "does not exist or is not a directory"
+                        : `cannot be entered: ${error instanceof Error ? error.message : String(error)}`;
+            }
+            if (workingDirectoryProblem) {
+                throw new Error(
+                    `Working directory ${workingDirectory} ${workingDirectoryProblem}.`
                 );
             }
 
@@ -3560,16 +3637,7 @@ export class CopilotClient {
         // The transpiled output is per-file (not bundled), so this resolves the
         // sibling module at runtime in both the ESM and CJS builds.
         const { FfiRuntimeHost } = await import("./ffiRuntimeHost.js");
-        const environment: Record<string, string> = {};
-        if (this.options.gitHubToken) {
-            environment.COPILOT_SDK_AUTH_TOKEN = this.options.gitHubToken;
-        }
-        if (this.options.baseDirectory) {
-            environment.COPILOT_HOME = this.options.baseDirectory;
-        }
-        if (this.options.mode === "empty") {
-            environment.COPILOT_DISABLE_KEYTAR = "1";
-        }
+        const environment = this.buildRuntimeEnv();
 
         const args: string[] = [];
         if (this.options.logLevel) {

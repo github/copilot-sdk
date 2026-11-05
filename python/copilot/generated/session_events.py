@@ -5382,21 +5382,26 @@ class CommandQueuedData:
     "Queued slash command dispatch request for client execution"
     command: str
     request_id: str
+    scheduled: bool | None = None
 
     @staticmethod
     def from_dict(obj: Any) -> "CommandQueuedData":
         assert isinstance(obj, dict)
         command = from_str(obj.get("command"))
         request_id = from_str(obj.get("requestId"))
+        scheduled = from_union([from_none, from_bool], obj.get("scheduled"))
         return CommandQueuedData(
             command=command,
             request_id=request_id,
+            scheduled=scheduled,
         )
 
     def to_dict(self) -> dict:
         result: dict = {}
         result["command"] = from_str(self.command)
         result["requestId"] = from_str(self.request_id)
+        if self.scheduled is not None:
+            result["scheduled"] = from_union([from_none, from_bool], self.scheduled)
         return result
 
 
@@ -16594,6 +16599,14 @@ class IndexedSearchDisabledReason(Enum):
     CLOUD_SYNC_DETECTION_FAILED = "cloud_sync_detection_failed"
     # The workspace is not available on the runtime's local filesystem.
     WORKSPACE_NOT_LOCAL = "workspace_not_local"
+    # Another process holds the machine-wide indexed-search server slot.
+    SERVER_LIMIT = "server_limit"
+    # The workspace is a filesystem or network-share root.
+    FILESYSTEM_ROOT = "filesystem_root"
+    # The workspace is the user's home directory.
+    HOME_DIRECTORY = "home_directory"
+    # The user's home directory could not be determined.
+    HOME_DIRECTORY_DETECTION_FAILED = "home_directory_detection_failed"
 
 
 class IndexedSearchErrorType(Enum):

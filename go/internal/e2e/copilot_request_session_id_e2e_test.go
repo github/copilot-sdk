@@ -90,6 +90,7 @@ func assertAgentMetadata(t *testing.T, r interceptedRequest) {
 }
 
 func TestCopilotRequestSessionID(t *testing.T) {
+	t.Parallel()
 	testharness.SkipIfInProcess(t, "an LLM inference provider is process-global in-process")
 	ctx := testharness.NewTestContext(t)
 	transport := &recordingTransport{}

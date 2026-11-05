@@ -162,7 +162,7 @@ async fn callback_token_is_applied_as_authorization_header() {
         Box::pin(async move {
             ctx.set_default_copilot_user();
             let handler = Arc::new(CapturingRequestHandler::default());
-            let client = ctx.start_llm_client(handler.clone(), &[]).await;
+            let client = ctx.start_llm_client(handler.clone()).await;
             handler.reset();
 
             let calls = Arc::new(AtomicUsize::new(0));
@@ -221,7 +221,7 @@ async fn reacquires_a_fresh_token_for_each_request() {
         Box::pin(async move {
             ctx.set_default_copilot_user();
             let handler = Arc::new(CapturingRequestHandler::default());
-            let client = ctx.start_llm_client(handler.clone(), &[]).await;
+            let client = ctx.start_llm_client(handler.clone()).await;
             handler.reset();
 
             let calls = Arc::new(AtomicUsize::new(0));
@@ -294,7 +294,7 @@ async fn dispatches_token_acquisition_per_provider() {
         Box::pin(async move {
             ctx.set_default_copilot_user();
             let handler = Arc::new(CapturingRequestHandler::default());
-            let client = ctx.start_llm_client(handler.clone(), &[]).await;
+            let client = ctx.start_llm_client(handler.clone()).await;
             handler.reset();
 
             let acquired_for = Arc::new(std::sync::Mutex::new(Vec::new()));

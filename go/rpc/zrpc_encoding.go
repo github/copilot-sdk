@@ -1050,6 +1050,12 @@ func unmarshalAuthLoginStep(data []byte) (AuthLoginStep, error) {
 			return nil, err
 		}
 		return &d, nil
+	case AuthLoginStepKindDeviceCode:
+		var d AuthLoginStepDeviceCode
+		if err := json.Unmarshal(data, &d); err != nil {
+			return nil, err
+		}
+		return &d, nil
 	case AuthLoginStepKindError:
 		var d AuthLoginStepError
 		if err := json.Unmarshal(data, &d); err != nil {
@@ -1103,6 +1109,17 @@ func (r AuthLoginStepAwaiting) MarshalJSON() ([]byte, error) {
 
 func (r AuthLoginStepCompleted) MarshalJSON() ([]byte, error) {
 	type alias AuthLoginStepCompleted
+	return json.Marshal(struct {
+		Kind AuthLoginStepKind `json:"kind"`
+		alias
+	}{
+		Kind:  r.Kind(),
+		alias: alias(r),
+	})
+}
+
+func (r AuthLoginStepDeviceCode) MarshalJSON() ([]byte, error) {
+	type alias AuthLoginStepDeviceCode
 	return json.Marshal(struct {
 		Kind AuthLoginStepKind `json:"kind"`
 		alias

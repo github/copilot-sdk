@@ -28,6 +28,7 @@ import org.junit.jupiter.params.provider.ValueSource;
 import com.github.copilot.ffi.NativeRuntimeLoader;
 import com.github.copilot.rpc.CopilotClientMode;
 import com.github.copilot.rpc.CopilotClientOptions;
+import com.github.copilot.rpc.InternalTestOptions;
 import com.github.copilot.rpc.TelemetryConfig;
 
 /**
@@ -36,6 +37,31 @@ import com.github.copilot.rpc.TelemetryConfig;
  * by JaCoCo.
  */
 class CliServerManagerTest {
+
+    @Test
+    void internalTestOptionsOverrideOwnedRuntimeEnvironment() {
+        var inherited = Map.of("HTTP_PROXY", "inherited", "UNRELATED", "preserved");
+        var options = new CopilotClientOptions().setEnvironment(inherited)
+                .setInternalTestOptions(new InternalTestOptions().setCopilotApiUrl("http://replay")
+                        .setGitHubApiUrl("http://github-replay").setProxyUrl("http://interception").setNoProxy("")
+                        .setCaCertificatePath("/test/ca.pem"));
+        var process = new ProcessBuilder("unused");
+        new CliServerManager(options.clone()).configureProcessEnvironment(process);
+        assertEquals("http://replay", process.environment().get("COPILOT_API_URL"));
+        assertEquals("http://github-replay", process.environment().get("COPILOT_DEBUG_GITHUB_API_URL"));
+        for (String key : List.of("HTTP_PROXY", "HTTPS_PROXY", "http_proxy", "https_proxy")) {
+            assertEquals("http://interception", process.environment().get(key), key);
+        }
+        assertEquals("", process.environment().get("NO_PROXY"));
+        for (String key : List.of("NODE_EXTRA_CA_CERTS", "SSL_CERT_FILE", "REQUESTS_CA_BUNDLE", "CURL_CA_BUNDLE",
+                "GIT_SSL_CAINFO")) {
+            assertEquals("/test/ca.pem", process.environment().get(key), key);
+        }
+        assertEquals("preserved", process.environment().get("UNRELATED"));
+        assertEquals("inherited", inherited.get("HTTP_PROXY"));
+        assertThrows(IllegalArgumentException.class, () -> new CopilotClient(new CopilotClientOptions()
+                .setCliUrl("localhost:8080").setInternalTestOptions(new InternalTestOptions())));
+    }
 
     @TempDir
     Path tempDir;

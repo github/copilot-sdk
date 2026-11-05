@@ -10,7 +10,7 @@ use github_copilot_sdk::handler::{
 use github_copilot_sdk::rpc::ModelSetAllowedModelsRequest;
 use github_copilot_sdk::session_events::{
     SessionErrorData, SessionEventType, SessionInfoData, SessionModelChangeData, SessionResumeData,
-    SessionStartData, SessionWarningData, UserMessageData,
+    SessionStartData, SessionWarningData, UserMessageAgentMode, UserMessageData,
 };
 use github_copilot_sdk::tool::ToolHandler;
 use github_copilot_sdk::types::LogLevel as SessionLogLevel;
@@ -1739,7 +1739,7 @@ async fn should_send_with_mode_property() {
                         Some(json!({
                             "sessionId": session.id().as_str(),
                             "prompt": "Say mode ok.",
-                            "mode": "plan",
+                            "agentMode": "plan",
                         })),
                     )
                     .await
@@ -1761,10 +1761,7 @@ async fn should_send_with_mode_property() {
                     .typed_data::<UserMessageData>()
                     .expect("user.message data");
                 assert_eq!(data.content, "Say mode ok.");
-                assert!(
-                    data.agent_mode.is_none(),
-                    "runtime should accept but not echo per-message mode"
-                );
+                assert_eq!(data.agent_mode, Some(UserMessageAgentMode::Plan));
 
                 session.disconnect().await.expect("disconnect session");
                 client.stop().await.expect("stop client");

@@ -4,6 +4,8 @@
 
 package com.github.copilot;
 
+import org.junit.jupiter.api.Tag;
+
 import static org.junit.jupiter.api.Assertions.*;
 
 import java.util.HashMap;
@@ -16,7 +18,6 @@ import org.junit.jupiter.api.Test;
 import com.github.copilot.generated.rpc.SessionGitHubAuthGetStatusResult;
 import com.github.copilot.rpc.CopilotClientOptions;
 import com.github.copilot.rpc.PermissionHandler;
-import com.github.copilot.rpc.SessionConfig;
 
 /**
  * Tests for per-session GitHub authentication.
@@ -27,6 +28,7 @@ import com.github.copilot.rpc.SessionConfig;
  * isolated from each other.
  * </p>
  */
+@Tag("e2e")
 public class PerSessionAuthTest {
 
     private static E2ETestContext ctx;
@@ -48,9 +50,7 @@ public class PerSessionAuthTest {
      * that per-session auth token resolution (fetchCopilotUser) is intercepted.
      */
     private CopilotClient createAuthTestClient() {
-        Map<String, String> env = new HashMap<>(ctx.getEnvironment());
-        env.put("COPILOT_DEBUG_GITHUB_API_URL", ctx.getProxyUrl());
-        return ctx.createClient(new CopilotClientOptions().setEnvironment(env));
+        return ctx.createClient();
     }
 
     private void setupCopilotUsers() throws Exception {
@@ -69,7 +69,7 @@ public class PerSessionAuthTest {
         setupCopilotUsers();
 
         try (CopilotClient client = createAuthTestClient()) {
-            CopilotSession session = client.createSession(new SessionConfig().setGitHubToken("token-alice")
+            CopilotSession session = client.createSession(ctx.newSessionConfig().setGitHubToken("token-alice")
                     .setOnPermissionRequest(PermissionHandler.APPROVE_ALL)).get();
 
             try {
@@ -88,9 +88,9 @@ public class PerSessionAuthTest {
         setupCopilotUsers();
 
         try (CopilotClient client = createAuthTestClient()) {
-            CopilotSession sessionA = client.createSession(new SessionConfig().setGitHubToken("token-alice")
+            CopilotSession sessionA = client.createSession(ctx.newSessionConfig().setGitHubToken("token-alice")
                     .setOnPermissionRequest(PermissionHandler.APPROVE_ALL)).get();
-            CopilotSession sessionB = client.createSession(new SessionConfig().setGitHubToken("token-bob")
+            CopilotSession sessionB = client.createSession(ctx.newSessionConfig().setGitHubToken("token-bob")
                     .setOnPermissionRequest(PermissionHandler.APPROVE_ALL)).get();
 
             try {
@@ -128,7 +128,7 @@ public class PerSessionAuthTest {
 
         try (CopilotClient client = new CopilotClient(options)) {
             CopilotSession session = client
-                    .createSession(new SessionConfig().setOnPermissionRequest(PermissionHandler.APPROVE_ALL)).get();
+                    .createSession(ctx.newSessionConfig().setOnPermissionRequest(PermissionHandler.APPROVE_ALL)).get();
 
             try {
                 SessionGitHubAuthGetStatusResult authStatus = session.getRpc().gitHubAuth.getStatus().get();
@@ -147,7 +147,7 @@ public class PerSessionAuthTest {
 
         try (CopilotClient client = createAuthTestClient()) {
             Exception ex = assertThrows(Exception.class, () -> {
-                CopilotSession session = client.createSession(new SessionConfig().setGitHubToken("invalid-token")
+                CopilotSession session = client.createSession(ctx.newSessionConfig().setGitHubToken("invalid-token")
                         .setOnPermissionRequest(PermissionHandler.APPROVE_ALL)).get();
                 session.close();
             });

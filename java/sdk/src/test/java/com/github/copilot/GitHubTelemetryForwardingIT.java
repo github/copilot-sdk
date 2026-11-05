@@ -17,7 +17,6 @@ import org.junit.jupiter.api.Test;
 import com.github.copilot.generated.rpc.GitHubTelemetryNotification;
 import com.github.copilot.rpc.CopilotClientOptions;
 import com.github.copilot.rpc.PermissionHandler;
-import com.github.copilot.rpc.SessionConfig;
 
 /**
  * Failsafe integration test that verifies the live CLI forwards GitHub
@@ -40,7 +39,7 @@ class GitHubTelemetryForwardingIT {
 
             try (CopilotClient client = ctx.createClient(options);
                     CopilotSession session = client
-                            .createSession(new SessionConfig().setOnPermissionRequest(PermissionHandler.APPROVE_ALL))
+                            .createSession(ctx.newSessionConfig().setOnPermissionRequest(PermissionHandler.APPROVE_ALL))
                             .get(30, TimeUnit.SECONDS)) {
 
                 GitHubTelemetryNotification notification = firstNotification.get(30, TimeUnit.SECONDS);

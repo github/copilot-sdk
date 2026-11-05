@@ -13,7 +13,7 @@
 //
 //	session, err := client.CreateSession(&copilot.SessionConfig{
 //	    OnPermissionRequest: copilot.PermissionHandler.ApproveAll,
-//	    Model: "gpt-4",
+//	    Model: "gpt-5.4",
 //	})
 //	if err != nil {
 //	    log.Fatal(err)
@@ -42,12 +42,15 @@ import (
 	"os/exec"
 	"path/filepath"
 	"regexp"
+	"runtime"
 	"runtime/debug"
 	"strconv"
 	"strings"
 	"sync"
 	"sync/atomic"
+	"syscall"
 	"time"
+	"unicode/utf8"
 
 	"github.com/google/uuid"
 
@@ -107,19 +110,16 @@ func validateSessionFSConfig(config *SessionFSConfig) error {
 // per-client environment, working directory, and telemetry. It panics (fails
 // loud) on a misconfiguration, matching the other SDKs.
 //
-// The in-process transport loads the native runtime into this process, whose
-// single environment block and process-global working directory cannot carry
-// per-client values, and whose telemetry lowers to shared process-global env
-// vars — so options that depend on them are rejected there. Child-process
-// transports each own their OS process, so per-connection env is allowed, but
-// setting it in both the client-level option and the connection is rejected.
+// In-process hosts share the process environment, working directory and
+// telemetry configuration. Child-process transports accept environment at
+// either the client or connection level, not both.
 func validateEnvironmentOptions(connection RuntimeConnection, opts *ClientOptions) {
 	if _, ok := connection.(InProcessConnection); ok {
 		if opts.Env != nil {
-			panic("Env is not supported with InProcessConnection: the in-process transport loads the native runtime into the shared host process, whose single environment block cannot carry per-client values. Set the variables on the host process environment instead.")
+			panic("Env is not supported with InProcessConnection: environment variables belong to the shared host process. Use typed client/session options or a child-process transport.")
 		}
 		if opts.WorkingDirectory != "" {
-			panic("WorkingDirectory is not supported with InProcessConnection: the native runtime shares the host process working directory. Use a child-process transport, or set the process working directory before creating the client.")
+			panic("WorkingDirectory is not supported with InProcessConnection: the native runtime shares the host process working directory. Set SessionConfig.WorkingDirectory instead.")
 		}
 		if opts.Telemetry != nil {
 			panic("Telemetry is not supported with InProcessConnection: telemetry configuration is lowered to environment variables read by native runtime code running in the shared host process, so per-client telemetry cannot be honored in-process. Configure telemetry via the host process environment, or use a child-process transport.")
@@ -305,16 +305,15 @@ func NewClient(options *ClientOptions) *Client {
 		panic(fmt.Sprintf("unknown RuntimeConnection type: %T", connection))
 	}
 
-	// Validate transport-specific option constraints (fail loud). The in-process
-	// transport loads the runtime into this process, whose single environment
-	// block, process-global working directory, and shared telemetry state cannot
-	// carry per-client values. Child-process transports may set env via either
-	// the client-level option or the connection, but not both.
+	// Validate transport-specific option constraints before resolving defaults.
 	validateEnvironmentOptions(connection, &opts)
 
 	// Validate auth options when connecting to an external runtime.
 	if client.isExternalServer && (opts.GitHubToken != "" || opts.UseLoggedInUser != nil) {
 		panic("GitHubToken and UseLoggedInUser cannot be used with URIConnection (external runtime manages its own auth)")
+	}
+	if client.isExternalServer && opts.InternalTestOptions != nil {
+		panic("InternalTestOptions requires a runtime owned by this client")
 	}
 
 	// For child-process transports, a connection-level env takes precedence over
@@ -330,6 +329,7 @@ func NewClient(options *ClientOptions) *Client {
 	if opts.Env == nil {
 		opts.Env = os.Environ()
 	}
+	opts.Env = append([]string{}, opts.Env...)
 
 	// Check the effective environment for a child-process runtime override.
 	if client.cliPath == "" && !client.useInProcess {
@@ -952,7 +952,7 @@ func (c *Client) ensureConnected(ctx context.Context) (*jsonrpc2.Client, error) 
 //	// Session with model and tools
 //	session, err := client.CreateSession(context.Background(), &copilot.SessionConfig{
 //	    OnPermissionRequest: copilot.PermissionHandler.ApproveAll,
-//	    Model: "gpt-4",
+//	    Model: "gpt-5.4",
 //	    Tools: []copilot.Tool{
 //	        {
 //	            Name:        "get_weather",
@@ -2391,6 +2391,19 @@ type connectHandshakeRequest struct {
 // process produces a large amount of diagnostic output.
 const stderrBufferSize = 64 * 1024
 
+// startFailure wraps a failed process start. Whether Go names a missing
+// working directory itself (chdir <dir>) depends on the platform, and a working
+// directory that is a file only fails with the program path, so the directory
+// is named here whenever it is missing or not a directory.
+func (c *Client) startFailure(err error) error {
+	if dir := c.process.Dir; dir != "" {
+		if info, statErr := os.Stat(dir); errors.Is(statErr, os.ErrNotExist) || errors.Is(statErr, syscall.ENOTDIR) || (statErr == nil && !info.IsDir()) {
+			return fmt.Errorf("failed to start CLI server: working directory %s does not exist or is not a directory: %w", dir, err)
+		}
+	}
+	return fmt.Errorf("failed to start CLI server: %w", err)
+}
+
 // startCLIServer starts the CLI server process.
 //
 // This spawns the CLI server as a subprocess using the configured transport
@@ -2463,6 +2476,9 @@ func (c *Client) startCLIServer(ctx context.Context) error {
 	}
 
 	c.process.Env = append([]string{}, c.options.Env...)
+	for key, value := range c.options.InternalTestOptions.environment() {
+		c.process.Env = setEnvValue(c.process.Env, key, value)
+	}
 	if c.options.GitHubToken != "" {
 		c.process.Env = setEnvValue(c.process.Env, "COPILOT_SDK_AUTH_TOKEN", c.options.GitHubToken)
 	}
@@ -2528,7 +2544,7 @@ func (c *Client) startCLIServer(ctx context.Context) error {
 		c.process.Stderr = truncbuffer.NewTruncBuffer(stderrBufferSize)
 
 		if err := c.process.Start(); err != nil {
-			return fmt.Errorf("failed to start CLI server: %w", err)
+			return c.startFailure(err)
 		}
 
 		c.processStdin = stdin
@@ -2554,7 +2570,7 @@ func (c *Client) startCLIServer(ctx context.Context) error {
 		c.process.Stderr = truncbuffer.NewTruncBuffer(stderrBufferSize)
 
 		if err := c.process.Start(); err != nil {
-			return fmt.Errorf("failed to start CLI server: %w", err)
+			return c.startFailure(err)
 		}
 
 		c.monitorProcess()
@@ -2686,15 +2702,41 @@ func (c *Client) inProcessHostConfig(cliLoginSyncIntegrationID string) inProcess
 		args = append(args, "--cli-login-sync-integration-id="+cliLoginSyncIntegrationID)
 	}
 
-	environment := make(map[string]string)
+	environment := make(map[string]string, len(c.options.Env))
+	for _, entry := range c.options.Env {
+		key, value, ok := strings.Cut(entry, "=")
+		if !ok || key == "" || !utf8.ValidString(key) {
+			continue
+		}
+		if runtime.GOOS == "windows" {
+			key = strings.ToUpper(key)
+		}
+		if !utf8.ValidString(value) {
+			switch key {
+			case "http_proxy", "HTTP_PROXY", "https_proxy", "HTTPS_PROXY", "COPILOT_PROXY_KERBEROS_SPN", "TMPDIR":
+				// Preserve explicit-setting precedence, as native capture does.
+				value = "\uFFFD"
+			default:
+				continue
+			}
+		}
+		environment[key] = value
+	}
 	if c.options.GitHubToken != "" {
 		environment["COPILOT_SDK_AUTH_TOKEN"] = c.options.GitHubToken
 	}
 	if c.options.BaseDirectory != "" {
 		environment["COPILOT_HOME"] = c.options.BaseDirectory
+		environment["COPILOT_CACHE_HOME"] = filepath.Join(c.options.BaseDirectory, "cache")
 	}
 	if c.options.Mode == ModeEmpty {
 		environment["COPILOT_DISABLE_KEYTAR"] = "1"
+	}
+	for key, value := range c.options.InternalTestOptions.environment() {
+		if runtime.GOOS == "windows" {
+			key = strings.ToUpper(key)
+		}
+		environment[key] = value
 	}
 
 	return inProcessHostConfig{

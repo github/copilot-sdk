@@ -13,6 +13,12 @@ BYOK allows you to use the Copilot SDK with your own API keys from model provide
 | Microsoft Foundry Local | `"openai"` | Run AI models locally on your device via OpenAI-compatible API |
 | Other OpenAI-compatible | `"openai"` | vLLM, LiteLLM, etc. |
 
+## Model identity and editing tools
+
+For named providers, the session's `model` is a provider-qualified selection ID (`provider/id`). Set `models[].modelId` to the canonical model ID when `models[].id` includes a group or deployment alias. The runtime uses the canonical identity to select model-specific editing and search tools; `gpt-6.1-sol` uses `apply_patch`, rather than the generic `create`/`edit` pair. Other models retain their own runtime-defined tool policies.
+
+Selection, behavior, and inference identities are separate: `models[].id` identifies the entry within the provider, `models[].modelId` selects model behavior (defaulting to `id`), and `models[].wireModel` controls the inference request's model (also defaulting to `id`). Choosing an editing policy does not change the provider endpoint or wire model, and does not bypass permission checks or explicit tool filters.
+
 ## Quick start: Microsoft Foundry
 
 Microsoft Foundry is a common BYOK deployment target for enterprises. Here's a complete example:

@@ -439,6 +439,9 @@ final class CliServerManager {
             pb.environment().putAll(options.getEnvironment());
         }
         pb.environment().remove("NODE_DEBUG");
+        if (options.getInternalTestOptions() != null) {
+            pb.environment().putAll(options.getInternalTestOptions().toEnvironment());
+        }
         if (options.getMode() != CopilotClientMode.EMPTY) {
             pb.environment().put("COPILOT_RUNTIME_PROCESS_FILE_LOGGING", "1");
         }

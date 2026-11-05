@@ -144,25 +144,6 @@ resumed, err := client.ResumeSession(ctx, session.SessionID, &copilot.ResumeSess
 <details>
 <summary><strong>.NET</strong></summary>
 
-<!-- docs-validate: hidden -->
-```csharp
-await using var client = new CopilotClient();
-
-#pragma warning disable GHCP001 // Citations are experimental.
-var session = await client.CreateSessionAsync(new SessionConfig
-{
-    OnPermissionRequest = PermissionHandler.ApproveAll,
-    EnableCitations = true,
-});
-
-var resumed = await client.ResumeSessionAsync(session.SessionId, new ResumeSessionConfig
-{
-    OnPermissionRequest = PermissionHandler.ApproveAll,
-    EnableCitations = true,
-});
-```
-<!-- /docs-validate: hidden -->
-
 ```csharp
 #pragma warning disable GHCP001 // Citations are experimental.
 var session = await client.CreateSessionAsync(new SessionConfig
@@ -227,8 +208,6 @@ CopilotSession resumed = client
 </details>
 <details>
 <summary><strong>Rust</strong></summary>
-
-<!-- docs-validate: skip -->
 
 ```rust
 let session = client
@@ -453,40 +432,6 @@ session.On(func(event copilot.SessionEvent) {
 <details>
 <summary><strong>.NET</strong></summary>
 
-<!-- docs-validate: hidden -->
-```csharp
-using GitHub.Copilot;
-
-#pragma warning disable GHCP001 // Citations are experimental.
-public static class CitationsExample
-{
-    public static void Subscribe(CopilotSession session)
-    {
-        session.On<SessionEvent>(evt =>
-        {
-            if (evt is not AssistantMessageEvent message || message.Data.Citations is null)
-            {
-                return;
-            }
-
-            var sources = message.Data.Citations.Sources.ToDictionary(source => source.Id);
-
-            foreach (var span in message.Data.Citations.Spans)
-            {
-                var quoted = message.Data.Content[(int)span.StartIndex..(int)span.EndIndex];
-                foreach (var reference in span.References)
-                {
-                    var source = sources[reference.SourceId];
-                    var label = source.Title ?? source.Url ?? source.Path ?? source.Id;
-                    Console.WriteLine($"\"{quoted}\" — {label}");
-                }
-            }
-        });
-    }
-}
-```
-<!-- /docs-validate: hidden -->
-
 ```csharp
 #pragma warning disable GHCP001 // Citations are experimental.
 session.On<SessionEvent>(evt =>
@@ -593,8 +538,6 @@ session.on(AssistantMessageEvent.class, event -> {
 </details>
 <details>
 <summary><strong>Rust</strong></summary>
-
-<!-- docs-validate: skip -->
 
 ```rust
 use github_copilot_sdk::session_events::AssistantMessageData;

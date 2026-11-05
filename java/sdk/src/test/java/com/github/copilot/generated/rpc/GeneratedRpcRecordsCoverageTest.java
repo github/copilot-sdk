@@ -34,6 +34,77 @@ import com.github.copilot.generated.SessionManagedSettingsResolvedEvent.SessionM
  */
 class GeneratedRpcRecordsCoverageTest {
 
+    static Stream<Arguments> customizationLegacyConstructors() {
+        return Stream.of(
+                Arguments.of(
+                        new AgentInfo("agent", "Agent", "Description", "/agent.md", "agent-id", null, true, false,
+                                List.of("view"), "model", null, null, null, null, null, "Prompt", null),
+                        """
+                                {"name":"agent","displayName":"Agent","description":"Description","path":"/agent.md",
+                                 "id":"agent-id","userInvocable":true,"disableModelInvocation":false,
+                                 "tools":["view"],"model":"model","prompt":"Prompt"}
+                                """, "{\"pluginId\":\"builtin:tools\"}"),
+                Arguments.of(new DiscoveredExtensionPlugin("tools"), "{\"name\":\"tools\"}",
+                        "{\"id\":\"builtin:tools\"}"),
+                Arguments.of(
+                        new DiscoveredHook("hook", HookType.PRETOOLUSE, HookOrigin.PLUGIN, "tools", "/project", true,
+                                "disable-hook"),
+                        """
+                                {"id":"hook","hookType":"preToolUse","origin":"plugin","source":"tools",
+                                 "projectPath":"/project","enabled":true,"disableKey":"disable-hook"}
+                                """, "{\"pluginId\":\"builtin:tools\",\"definitionFileUri\":\"file:///hooks.json\"}"),
+                Arguments.of(new InstalledPluginInfo("tools", "catalog", null, "1.0", true, "/catalog", "source", false,
+                        null, true, "Description", null, "https://example.com/icon"), """
+                                {"name":"tools","marketplace":"catalog","version":"1.0","enabled":true,
+                                 "installedFrom":"/catalog","source":"source","managed":false,"installed":true,
+                                 "description":"Description","iconUrl":"https://example.com/icon"}
+                                """, "{\"id\":\"mp:catalog::tools\",\"rootPath\":\"/plugins/tools\"}"),
+                Arguments.of(
+                        new InstructionSource("instruction", "Instructions", "/instructions.md", "Content",
+                                InstructionSourceType.PLUGIN, InstructionSourceLocation.PLUGIN, List.of("*.ts"),
+                                "Description", false, "/project"),
+                        """
+                                {"id":"instruction","label":"Instructions","sourcePath":"/instructions.md","content":"Content",
+                                 "type":"plugin","location":"plugin","applyTo":["*.ts"],"description":"Description",
+                                 "defaultDisabled":false,"projectPath":"/project"}
+                                """,
+                        "{\"pluginId\":\"builtin:tools\"}"),
+                Arguments.of(new Plugin("tools", "catalog", "1.0", true, null, "/catalog", "source", false, null, true),
+                        """
+                                {"name":"tools","marketplace":"catalog","version":"1.0","enabled":true,
+                                 "installedFrom":"/catalog","source":"source","managed":false,"installed":true}
+                                """, "{\"id\":\"mp:catalog::tools\",\"rootPath\":\"/plugins/tools\"}"),
+                Arguments.of(
+                        new ServerSkill("skill", "command", "Description", SkillSource.PLUGIN, true, true, "/SKILL.md",
+                                "/project", "argument"),
+                        """
+                                {"name":"skill","commandName":"command","description":"Description","source":"plugin",
+                                 "userInvocable":true,"enabled":true,"path":"/SKILL.md","projectPath":"/project",
+                                 "argumentHint":"argument"}
+                                """, "{\"pluginId\":\"builtin:tools\"}"),
+                Arguments.of(
+                        new Skill("skill", "declared", "command", "Description", SkillSource.PLUGIN, null, true, true,
+                                "/SKILL.md", "tools", "argument"),
+                        """
+                                {"name":"skill","declaredName":"declared","commandName":"command","description":"Description",
+                                 "source":"plugin","userInvocable":true,"enabled":true,"path":"/SKILL.md",
+                                 "pluginName":"tools","argumentHint":"argument"}
+                                """,
+                        "{\"pluginId\":\"builtin:tools\"}"));
+    }
+
+    @ParameterizedTest
+    @MethodSource("customizationLegacyConstructors")
+    void customization_records_preserve_legacy_constructors_and_round_trip_metadata(Object legacy, String expectedJson,
+            String metadataJson) throws Exception {
+        var mapper = new ObjectMapper();
+        var expected = (com.fasterxml.jackson.databind.node.ObjectNode) mapper.readTree(expectedJson);
+        assertEquals(expected, mapper.valueToTree(legacy));
+        assertEquals(legacy, mapper.treeToValue(expected, legacy.getClass()));
+        expected.setAll((com.fasterxml.jackson.databind.node.ObjectNode) mapper.readTree(metadataJson));
+        assertEquals(expected, mapper.valueToTree(mapper.treeToValue(expected, legacy.getClass())));
+    }
+
     @Test
     void ignoredScriptSafetyAccessorsAreDeprecated() throws Exception {
         for (var recordType : List.of(SessionOpenOptions.class, SessionOptionsUpdateParams.class)) {
@@ -800,8 +871,8 @@ class GeneratedRpcRecordsCoverageTest {
 
     @Test
     void sessionAgentListResult_with_items() {
-        var item = new AgentInfo("name1", "Name One", "Desc 1", "/path/to/agent1", null, null, null, null, null, null,
-                null, null, null, null, null, null, null);
+        var item = new AgentInfo(null, "name1", "Name One", "Desc 1", "/path/to/agent1", null, null, null, null, null,
+                null, null, null, null, null, null, null, null);
         var result = new SessionAgentListResult(List.of(item));
         assertEquals(1, result.agents().size());
         assertEquals("name1", result.agents().get(0).name());
@@ -812,8 +883,8 @@ class GeneratedRpcRecordsCoverageTest {
 
     @Test
     void sessionAgentGetCurrentResult_nested() {
-        var agent = new AgentInfo("agent-1", "Agent One", "Does things", null, null, null, null, null, null, null, null,
-                null, null, null, null, null, null);
+        var agent = new AgentInfo(null, "agent-1", "Agent One", "Does things", null, null, null, null, null, null, null,
+                null, null, null, null, null, null, null);
         var result = new SessionAgentGetCurrentResult(agent);
         assertEquals("agent-1", result.agent().name());
         assertEquals("Agent One", result.agent().displayName());
@@ -829,8 +900,8 @@ class GeneratedRpcRecordsCoverageTest {
 
     @Test
     void sessionAgentReloadResult_with_items() {
-        var item = new AgentInfo("a", "A", "Desc", "/path/to/a", null, null, null, null, null, null, null, null, null,
-                null, null, null, null);
+        var item = new AgentInfo(null, "a", "A", "Desc", "/path/to/a", null, null, null, null, null, null, null, null,
+                null, null, null, null, null);
         var result = new SessionAgentReloadResult(List.of(item));
         assertEquals(1, result.agents().size());
         assertEquals("a", result.agents().get(0).name());
@@ -840,12 +911,13 @@ class GeneratedRpcRecordsCoverageTest {
     void sessionAgentSelectResult_nested() throws Exception {
         Map<String, List<Object>> hooks = Map.of("Stop",
                 List.of(Map.of("type", "command", "command", "echo scoped-stop")));
-        var agent = new AgentInfo("selected", "Selected", "The selected agent", "/path/to/selected", null, null, null,
-                null, null, null, null, null, null, null, null, null, hooks);
+        var agent = new AgentInfo("mp:catalog::tools", "selected", "Selected", "The selected agent",
+                "/path/to/selected", null, null, null, null, null, null, null, null, null, null, null, null, hooks);
         var result = new SessionAgentSelectResult(agent);
         assertEquals("selected", result.agent().name());
         var mapper = new ObjectMapper();
         var json = mapper.writeValueAsString(result);
+        assertEquals("mp:catalog::tools", mapper.readTree(json).get("agent").get("pluginId").asText());
         assertEquals("echo scoped-stop",
                 mapper.readTree(json).get("agent").get("hooks").get("Stop").get(0).get("command").asText());
         assertEquals(hooks, mapper.readValue(json, SessionAgentSelectResult.class).agent().hooks());
@@ -1031,8 +1103,8 @@ class GeneratedRpcRecordsCoverageTest {
 
     @Test
     void sessionPluginsListResult_nested() {
-        var plugin = new Plugin("my-plugin", "marketplace-x", "1.2.3", true, null, "/marketplaces/marketplace-x", null,
-                true, true, true);
+        var plugin = new Plugin("my-plugin", "marketplace-x", "1.2.3", true, null, "/plugins/my-plugin",
+                "/marketplaces/marketplace-x", null, true, true, true, "opaque-plugin");
         var result = new SessionPluginsListResult(List.of(plugin));
         assertEquals(1, result.plugins().size());
         assertEquals("my-plugin", result.plugins().get(0).name());
@@ -1040,11 +1112,13 @@ class GeneratedRpcRecordsCoverageTest {
         assertEquals("1.2.3", result.plugins().get(0).version());
         assertTrue(result.plugins().get(0).enabled());
         assertNull(result.plugins().get(0).directSourceId());
+        assertEquals("/plugins/my-plugin", result.plugins().get(0).rootPath());
         assertEquals("/marketplaces/marketplace-x", result.plugins().get(0).installedFrom());
         assertNull(result.plugins().get(0).source());
         assertTrue(result.plugins().get(0).managed());
         assertTrue(result.plugins().get(0).managedDesiredEnabled());
         assertTrue(result.plugins().get(0).installed());
+        assertEquals("opaque-plugin", result.plugins().get(0).id());
     }
 
     @Test
@@ -1062,7 +1136,7 @@ class GeneratedRpcRecordsCoverageTest {
 
     @Test
     void sessionSkillsListResult_nested() {
-        var item = new Skill("deploy", null, "deploy", "Deploy the app", SkillSource.PROJECT, null, true, true,
+        var item = new Skill(null, "deploy", null, "deploy", "Deploy the app", SkillSource.PROJECT, null, true, true,
                 "/skills/deploy.md", null, null);
         var result = new SessionSkillsListResult(List.of(item));
         assertEquals(1, result.skills().size());
@@ -1077,8 +1151,8 @@ class GeneratedRpcRecordsCoverageTest {
     @Test
     void sessionSkillsListResult_mcp_identity() throws Exception {
         var origin = new McpSkillOrigin("deployment", "skills://deployment/SKILL.md");
-        var item = new Skill("mcp1:qualified", "deploy", "mcp1:qualified", "Deploy the app", SkillSource.MCP, origin,
-                true, true, null, null, null);
+        var item = new Skill(null, "mcp1:qualified", "deploy", "mcp1:qualified", "Deploy the app", SkillSource.MCP,
+                origin, true, true, null, null, null);
         var mapper = new ObjectMapper();
         var result = new SessionSkillsListResult(List.of(item));
         var json = mapper.valueToTree(result);

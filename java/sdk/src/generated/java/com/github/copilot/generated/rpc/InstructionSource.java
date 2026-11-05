@@ -22,6 +22,8 @@ import javax.annotation.processing.Generated;
 @JsonInclude(JsonInclude.Include.NON_NULL)
 @JsonIgnoreProperties(ignoreUnknown = true)
 public record InstructionSource(
+    /** Opaque identity of the plugin owning this instruction source. Matches plugins.list().plugins[].id on the same runtime host. Compare the complete value without parsing it. Omitted for non-plugin sources. */
+    @JsonProperty("pluginId") String pluginId,
     /** Unique identifier for this source (used for toggling) */
     @JsonProperty("id") String id,
     /** Human-readable label */
@@ -43,4 +45,33 @@ public record InstructionSource(
     /** The project path this source was discovered from. Only set by sessionless discovery for repository, working-directory, and project-scoped plugin sources, where it disambiguates sources across multiple workspace roots. The session-scoped getSources leaves it unset. */
     @JsonProperty("projectPath") String projectPath
 ) {
+
+    /**
+     * Creates a record without plugin ownership or content-root metadata.
+     *
+     * @param id Unique identifier for this source (used for toggling)
+     * @param label Human-readable label
+     * @param sourcePath File path relative to repo or absolute for home
+     * @param content Raw content of the instruction file
+     * @param type Category of instruction source — used for merge logic
+     * @param location Where this source lives — used for UI grouping
+     * @param applyTo Glob pattern(s) from frontmatter — when set, this instruction applies only to matching files
+     * @param description Short description (body after frontmatter) for use in instruction tables
+     * @param defaultDisabled When true, this source starts disabled and must be toggled on by the user
+     * @param projectPath The project path this source was discovered from. Only set by sessionless discovery for repository, working-directory, and project-scoped plugin sources, where it disambiguates sources across multiple workspace roots. The session-scoped getSources leaves it unset.
+     */
+    public InstructionSource(
+        String id,
+        String label,
+        String sourcePath,
+        String content,
+        InstructionSourceType type,
+        InstructionSourceLocation location,
+        List<String> applyTo,
+        String description,
+        Boolean defaultDisabled,
+        String projectPath
+    ) {
+        this(null, id, label, sourcePath, content, type, location, applyTo, description, defaultDisabled, projectPath);
+    }
 }

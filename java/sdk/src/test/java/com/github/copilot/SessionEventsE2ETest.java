@@ -4,6 +4,8 @@
 
 package com.github.copilot;
 
+import org.junit.jupiter.api.Tag;
+
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
@@ -32,7 +34,6 @@ import com.github.copilot.generated.ToolExecutionStartEvent;
 import com.github.copilot.generated.UserMessageEvent;
 import com.github.copilot.rpc.MessageOptions;
 import com.github.copilot.rpc.PermissionHandler;
-import com.github.copilot.rpc.SessionConfig;
 
 /**
  * E2E tests for session events to verify event lifecycle.
@@ -41,6 +42,7 @@ import com.github.copilot.rpc.SessionConfig;
  * typical interaction flows with the Copilot CLI.
  * </p>
  */
+@Tag("e2e")
 public class SessionEventsE2ETest {
 
     private static E2ETestContext ctx;
@@ -71,7 +73,7 @@ public class SessionEventsE2ETest {
 
         try (CopilotClient client = ctx.createClient()) {
             CopilotSession session = client
-                    .createSession(new SessionConfig().setOnPermissionRequest(PermissionHandler.APPROVE_ALL)).get();
+                    .createSession(ctx.newSessionConfig().setOnPermissionRequest(PermissionHandler.APPROVE_ALL)).get();
 
             session.on(event -> allEvents.add(event));
 
@@ -113,7 +115,7 @@ public class SessionEventsE2ETest {
 
         try (CopilotClient client = ctx.createClient()) {
             CopilotSession session = client
-                    .createSession(new SessionConfig().setOnPermissionRequest(PermissionHandler.APPROVE_ALL)).get();
+                    .createSession(ctx.newSessionConfig().setOnPermissionRequest(PermissionHandler.APPROVE_ALL)).get();
 
             session.on(UserMessageEvent.class, userMessages::add);
 
@@ -140,7 +142,7 @@ public class SessionEventsE2ETest {
 
         try (CopilotClient client = ctx.createClient()) {
             CopilotSession session = client
-                    .createSession(new SessionConfig().setOnPermissionRequest(PermissionHandler.APPROVE_ALL)).get();
+                    .createSession(ctx.newSessionConfig().setOnPermissionRequest(PermissionHandler.APPROVE_ALL)).get();
 
             session.on(ToolExecutionStartEvent.class, toolStarts::add);
             session.on(ToolExecutionCompleteEvent.class, toolCompletes::add);
@@ -179,7 +181,7 @@ public class SessionEventsE2ETest {
 
         try (CopilotClient client = ctx.createClient()) {
             CopilotSession session = client
-                    .createSession(new SessionConfig().setOnPermissionRequest(PermissionHandler.APPROVE_ALL)).get();
+                    .createSession(ctx.newSessionConfig().setOnPermissionRequest(PermissionHandler.APPROVE_ALL)).get();
 
             session.on(AssistantUsageEvent.class, usageEvents::add);
 
@@ -213,7 +215,7 @@ public class SessionEventsE2ETest {
 
         try (CopilotClient client = ctx.createClient()) {
             CopilotSession session = client
-                    .createSession(new SessionConfig().setOnPermissionRequest(PermissionHandler.APPROVE_ALL)).get();
+                    .createSession(ctx.newSessionConfig().setOnPermissionRequest(PermissionHandler.APPROVE_ALL)).get();
 
             try (var subscription = session.on(event -> {
                 allEvents.add(event);
@@ -278,7 +280,7 @@ public class SessionEventsE2ETest {
 
         try (CopilotClient client = ctx.createClient()) {
             CopilotSession session = client
-                    .createSession(new SessionConfig().setOnPermissionRequest(PermissionHandler.APPROVE_ALL)).get();
+                    .createSession(ctx.newSessionConfig().setOnPermissionRequest(PermissionHandler.APPROVE_ALL)).get();
 
             session.on(event -> {
                 eventTypes.add(event.getType());

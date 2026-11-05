@@ -21,6 +21,7 @@ import (
 // mode-agnostic — these tests verify the SDK's translation reaches the
 // runtime by inspecting captured chat-completion requests via the proxy.
 func TestModeEmptyE2E(t *testing.T) {
+	t.Parallel()
 	ctx := testharness.NewTestContext(t)
 	client := ctx.NewClient(func(o *copilot.ClientOptions) {
 		o.Mode = copilot.ModeEmpty

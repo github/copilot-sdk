@@ -4,6 +4,8 @@
 
 package com.github.copilot;
 
+import org.junit.jupiter.api.Tag;
+
 import static org.junit.jupiter.api.Assertions.*;
 
 import java.util.concurrent.CompletableFuture;
@@ -17,8 +19,8 @@ import com.github.copilot.generated.SessionTodosChangedEvent;
 import com.github.copilot.generated.rpc.PlanSqlTodoDependency;
 import com.github.copilot.rpc.MessageOptions;
 import com.github.copilot.rpc.PermissionHandler;
-import com.github.copilot.rpc.SessionConfig;
 
+@Tag("e2e")
 public class SessionTodosChangedTest {
 
     private static E2ETestContext ctx;
@@ -41,7 +43,7 @@ public class SessionTodosChangedTest {
 
         try (CopilotClient client = ctx.createClient()) {
             CopilotSession session = client
-                    .createSession(new SessionConfig().setOnPermissionRequest(PermissionHandler.APPROVE_ALL)).get();
+                    .createSession(ctx.newSessionConfig().setOnPermissionRequest(PermissionHandler.APPROVE_ALL)).get();
 
             CompletableFuture<SessionTodosChangedEvent> todosChanged = new CompletableFuture<>();
             session.on(event -> {

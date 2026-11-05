@@ -4,6 +4,8 @@
 
 package com.github.copilot;
 
+import org.junit.jupiter.api.Tag;
+
 import static org.junit.jupiter.api.Assertions.*;
 
 import java.nio.file.Files;
@@ -31,9 +33,9 @@ import com.github.copilot.rpc.CloudSessionOptions;
 import com.github.copilot.rpc.MessageOptions;
 import com.github.copilot.rpc.PermissionHandler;
 import com.github.copilot.rpc.ResumeSessionConfig;
-import com.github.copilot.rpc.SessionConfig;
 
 @AllowCopilotExperimental
+@Tag("e2e")
 class SkillProviderTest {
 
     private static E2ETestContext ctx;
@@ -59,7 +61,7 @@ class SkillProviderTest {
                         "# Provider lookup\n\nThe verification word is TANGERINE_QUARTZ_19. Reply with it.\n")));
 
         try (CopilotClient client = ctx.createClient()) {
-            CopilotSession session = client.createSession(new SessionConfig()
+            CopilotSession session = client.createSession(ctx.newSessionConfig()
                     .setOnPermissionRequest(PermissionHandler.APPROVE_ALL).setSkillProvider(provider))
                     .get(30, TimeUnit.SECONDS);
 
@@ -101,7 +103,7 @@ class SkillProviderTest {
 
         try (CopilotClient client = ctx.createClient()) {
             CopilotSession session = client
-                    .createSession(new SessionConfig().setOnPermissionRequest(PermissionHandler.APPROVE_ALL)
+                    .createSession(ctx.newSessionConfig().setOnPermissionRequest(PermissionHandler.APPROVE_ALL)
                             .setSkillDirectories(List.of(skillsDir.toString())).setSkillProvider(provider))
                     .get(30, TimeUnit.SECONDS);
 
@@ -140,7 +142,7 @@ class SkillProviderTest {
                 "The rebind verification word is BRONZE_BETA_22.\n")));
 
         try (CopilotClient client = ctx.createClient()) {
-            CopilotSession first = client.createSession(new SessionConfig()
+            CopilotSession first = client.createSession(ctx.newSessionConfig()
                     .setOnPermissionRequest(PermissionHandler.APPROVE_ALL).setSkillProvider(original))
                     .get(30, TimeUnit.SECONDS);
             String sessionId = first.getSessionId();
@@ -187,7 +189,7 @@ class SkillProviderTest {
         List<SessionEvent> events = new CopyOnWriteArrayList<>();
 
         try (CopilotClient client = ctx.createClient()) {
-            CopilotSession session = client.createSession(new SessionConfig()
+            CopilotSession session = client.createSession(ctx.newSessionConfig()
                     .setOnPermissionRequest(PermissionHandler.APPROVE_ALL).setSkillProvider(provider))
                     .get(30, TimeUnit.SECONDS);
             session.on(events::add);
@@ -219,7 +221,7 @@ class SkillProviderTest {
         List<SessionEvent> events = new CopyOnWriteArrayList<>();
 
         try (CopilotClient client = ctx.createClient()) {
-            CopilotSession session = client.createSession(new SessionConfig()
+            CopilotSession session = client.createSession(ctx.newSessionConfig()
                     .setOnPermissionRequest(PermissionHandler.APPROVE_ALL).setSkillProvider(provider))
                     .get(30, TimeUnit.SECONDS);
             session.on(events::add);
@@ -252,7 +254,7 @@ class SkillProviderTest {
 
         try (CopilotClient client = ctx.createClient()) {
             CopilotSession session = client
-                    .createSession(new SessionConfig().setOnPermissionRequest(PermissionHandler.APPROVE_ALL)
+                    .createSession(ctx.newSessionConfig().setOnPermissionRequest(PermissionHandler.APPROVE_ALL)
                             .setEnableSkills(false).setSkillProvider(provider))
                     .get(30, TimeUnit.SECONDS);
 
@@ -276,7 +278,7 @@ class SkillProviderTest {
                 List.of(skill("unbound-lookup", "Reports the unbound lookup word.", "Unbound.\n")));
 
         try (CopilotClient client = ctx.createClient()) {
-            CopilotSession first = client.createSession(new SessionConfig()
+            CopilotSession first = client.createSession(ctx.newSessionConfig()
                     .setOnPermissionRequest(PermissionHandler.APPROVE_ALL).setSkillProvider(provider))
                     .get(30, TimeUnit.SECONDS);
             List<Skill> before = first.getRpc().skills.list().get(30, TimeUnit.SECONDS).skills();
@@ -320,7 +322,7 @@ class SkillProviderTest {
         };
 
         try (CopilotClient client = ctx.createClient()) {
-            CopilotSession session = client.createSession(new SessionConfig()
+            CopilotSession session = client.createSession(ctx.newSessionConfig()
                     .setOnPermissionRequest(PermissionHandler.APPROVE_ALL).setSkillProvider(provider))
                     .get(30, TimeUnit.SECONDS);
 
@@ -341,7 +343,7 @@ class SkillProviderTest {
         var provider = new TestSkillProvider(List.of(skill("cloud-lookup", "Never listed.", "Never read.\n")));
 
         try (CopilotClient client = ctx.createClient()) {
-            var config = new SessionConfig().setOnPermissionRequest(PermissionHandler.APPROVE_ALL)
+            var config = ctx.newSessionConfig().setOnPermissionRequest(PermissionHandler.APPROVE_ALL)
                     .setCloud(new CloudSessionOptions()).setSkillProvider(provider);
 
             ExecutionException error = assertThrows(ExecutionException.class,

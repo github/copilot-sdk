@@ -225,7 +225,6 @@ Observation does not restore execution eligibility. Starting, resuming, pausing,
 ```ts
 const runs = await session.workflow.listRuns();
 const runsPage = await session.workflow.listRuns({
-    afterSeq,
     beforeSeq,
     limit,
 });
@@ -233,15 +232,15 @@ const detail = await session.workflow.getRunDetail(runId);
 const progressPage = await session.workflow.getRunProgress(runId, {
     phaseId,
     afterSeq,
-    beforeSeq,
     limit,
 });
 ```
 
 - `listRuns()` returns only the runs array from the newest default page of this session's durable workflow runs. This overload preserves the original convenience API.
-- `listRuns({ afterSeq, beforeSeq, limit })` returns the full page. Its `oldestSeq`, `newestSeq`, `hasMoreNewer`, and `omittedOlder` fields let callers continue paging without raw RPC calls.
+- `listRuns({ afterSeq, limit })` or `listRuns({ beforeSeq, limit })` returns the full page. Its `oldestSeq`, `newestSeq`, `hasMoreNewer`, and `omittedOlder` fields let callers continue paging without raw RPC calls.
 - `getRunDetail(runId)` returns phases, prompt-safe agent summaries, and the latest progress page. Each current-runtime agent summary includes `consumedNanoAiu`, the known spend from that direct agent and its descendants. Older runtimes omit the field, and historical agents without attributable charge rows also omit it when the run contains unattributed spend.
 - `getRunProgress(runId, options?)` pages progress forward, backward, by phase, or from the latest tail.
+- Both paging calls take at most one cursor: `afterSeq` pages forward and `beforeSeq` pages backward, each exclusive of the given sequence number. A request with both fails with JSON-RPC `-32602` and `data.code: "workflow_runs_invalid_cursor"` from `listRuns`, or `"workflow_progress_invalid_cursor"` from `getRunProgress`.
 
 `getRun(runId)` reads the latest run envelope. `pause(runId)` pauses a running attempt and returns its `paused` envelope. `cancel(runId)` cancels a run and returns its terminal envelope.
 

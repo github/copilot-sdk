@@ -326,7 +326,7 @@ def define_tool(
                         "Detailed information is not available."
                     ),
                     result_type="failure",
-                    error=str(exc),
+                    error=str(exc) or type(exc).__name__,
                     tool_telemetry={},
                     _from_exception=True,
                 )

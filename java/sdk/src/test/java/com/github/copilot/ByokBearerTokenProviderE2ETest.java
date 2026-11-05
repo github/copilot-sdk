@@ -4,6 +4,8 @@
 
 package com.github.copilot;
 
+import org.junit.jupiter.api.Tag;
+
 import static com.github.copilot.CopilotRequestTestSupport.buildNonInferenceResponse;
 import static com.github.copilot.CopilotRequestTestSupport.newLlmClient;
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -39,7 +41,6 @@ import com.github.copilot.rpc.MessageOptions;
 import com.github.copilot.rpc.NamedProviderConfig;
 import com.github.copilot.rpc.PermissionHandler;
 import com.github.copilot.rpc.ProviderModelConfig;
-import com.github.copilot.rpc.SessionConfig;
 
 /**
  * End-to-end coverage for the experimental BYOK bearer-token-provider surface
@@ -49,6 +50,7 @@ import com.github.copilot.rpc.SessionConfig;
  * session-scoped {@code providerToken.getToken} RPC before each outbound model
  * request.
  */
+@Tag("e2e")
 public class ByokBearerTokenProviderE2ETest {
 
     private static final String PRIMARY_HOST = "byok-endpoint.invalid";
@@ -167,7 +169,7 @@ public class ByokBearerTokenProviderE2ETest {
             String prompt) throws Exception {
         try (CopilotClient client = newLlmClient(ctx, handler)) {
             CopilotSession session = client
-                    .createSession(new SessionConfig().setOnPermissionRequest(PermissionHandler.APPROVE_ALL)
+                    .createSession(ctx.newSessionConfig().setOnPermissionRequest(PermissionHandler.APPROVE_ALL)
                             .setModel(selectionId).setProviders(providers).setModels(models))
                     .get(60, TimeUnit.SECONDS);
             try {

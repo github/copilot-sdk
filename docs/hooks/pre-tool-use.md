@@ -36,12 +36,16 @@ type PreToolUseHandler = (
 <!-- docs-validate: hidden -->
 ```python
 from copilot.session import PreToolUseHookInput, PreToolUseHookOutput
+from copilot.session import PreToolUseHandler as SdkPreToolUseHandler
 from typing import Callable, Awaitable
 
 PreToolUseHandler = Callable[
     [PreToolUseHookInput, dict[str, str]],
     Awaitable[PreToolUseHookOutput | None]
 ]
+
+def check(handler: PreToolUseHandler) -> SdkPreToolUseHandler:
+    return handler
 ```
 <!-- /docs-validate: hidden -->
 ```python
@@ -67,6 +71,8 @@ type PreToolUseHandler func(
     invocation copilot.HookInvocation,
 ) (*copilot.PreToolUseHookOutput, error)
 
+var _ = copilot.PreToolUseHandler(PreToolUseHandler(nil))
+
 func main() {}
 ```
 <!-- /docs-validate: hidden -->
@@ -89,6 +95,12 @@ using GitHub.Copilot;
 public delegate Task<PreToolUseHookOutput?> PreToolUseHandler(
     PreToolUseHookInput input,
     HookInvocation invocation);
+
+static class PreToolUseHandlerCheck
+{
+    static SessionHooks Check(PreToolUseHandler handler) =>
+        new() { OnPreToolUse = handler.Invoke };
+}
 ```
 <!-- /docs-validate: hidden -->
 ```csharp
@@ -110,6 +122,9 @@ import java.util.concurrent.CompletableFuture;
 public class PreToolUseSignature {
     PreToolUseHandler handler = (PreToolUseHookInput input, HookInvocation invocation) ->
         CompletableFuture.completedFuture(PreToolUseHookOutput.allow());
+    CompletableFuture<PreToolUseHookOutput> handle(PreToolUseHookInput input, HookInvocation invocation) {
+        return handler.handle(input, invocation);
+    }
     public static void main(String[] args) {}
 }
 ```
@@ -271,33 +286,6 @@ session, _ := client.CreateSession(context.Background(), &copilot.SessionConfig{
 <details>
 <summary><strong>.NET</strong></summary>
 
-<!-- docs-validate: hidden -->
-```csharp
-using GitHub.Copilot;
-
-public static class PreToolUseExample
-{
-    public static async Task Main()
-    {
-        await using var client = new CopilotClient();
-        var session = await client.CreateSessionAsync(new SessionConfig
-        {
-            Hooks = new SessionHooks
-            {
-                OnPreToolUse = (input, invocation) =>
-                {
-                    Console.WriteLine($"[{invocation.SessionId}] Calling {input.ToolName}");
-                    Console.WriteLine($"  Args: {input.ToolArgs}");
-                    return Task.FromResult<PreToolUseHookOutput?>(
-                        new PreToolUseHookOutput { PermissionDecision = "allow" }
-                    );
-                },
-            },
-        });
-    }
-}
-```
-<!-- /docs-validate: hidden -->
 ```csharp
 var session = await client.CreateSessionAsync(new SessionConfig
 {

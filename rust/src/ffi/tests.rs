@@ -93,6 +93,31 @@ fn environment_is_omitted_when_empty() {
 }
 
 #[test]
+fn environment_key_casing_preserves_later_overrides_on_windows() {
+    let env: serde_json::Value = serde_json::from_slice(
+        &build_env_json(&[
+            ("COPILOT_HOME".into(), "original-home".into()),
+            ("copilot_home".into(), "alias-home".into()),
+            ("COPILOT_HOME".into(), "typed-home".into()),
+            ("HTTP_PROXY".into(), "http://proxy".into()),
+            ("http_proxy".into(), "http://proxy".into()),
+        ])
+        .unwrap(),
+    )
+    .unwrap();
+
+    assert_eq!(env["COPILOT_HOME"], "typed-home");
+    assert_eq!(env["HTTP_PROXY"], "http://proxy");
+    if cfg!(windows) {
+        assert!(env.get("copilot_home").is_none());
+        assert!(env.get("http_proxy").is_none());
+    } else {
+        assert_eq!(env["copilot_home"], "alias-home");
+        assert_eq!(env["http_proxy"], "http://proxy");
+    }
+}
+
+#[test]
 fn environment_serializes_worker_overrides() {
     let env: serde_json::Value = serde_json::from_slice(
         &build_env_json(&[
@@ -103,13 +128,91 @@ fn environment_serializes_worker_overrides() {
     )
     .unwrap();
 
-    assert_eq!(
-        env,
-        serde_json::json!({
-            "COPILOT_HOME": "state",
-            "COPILOT_DISABLE_KEYTAR": "1",
-        })
-    );
+    assert_eq!(env["COPILOT_HOME"], "state");
+    assert_eq!(env["COPILOT_DISABLE_KEYTAR"], "1");
+    for (name, value) in std::env::vars_os() {
+        let (Ok(name), Ok(value)) = (name.into_string(), value.into_string()) else {
+            continue;
+        };
+        let name = if cfg!(windows) {
+            name.to_uppercase()
+        } else {
+            name
+        };
+        if matches!(name.as_str(), "COPILOT_HOME" | "COPILOT_DISABLE_KEYTAR") {
+            continue;
+        }
+        assert!(
+            env.get(&name) == Some(&serde_json::Value::String(value)),
+            "startup environment must preserve inherited variable {name}"
+        );
+    }
+}
+
+#[cfg(any(unix, windows))]
+#[test]
+fn environment_preserves_non_unicode_explicit_settings() {
+    const CHILD: &str = "COPILOT_FFI_ENVIRONMENT_TEST_KEY";
+    if let Ok(key) = std::env::var(CHILD) {
+        let environment: serde_json::Value = serde_json::from_slice(
+            &build_env_json(&[("COPILOT_HOME".into(), "typed-home".into())]).unwrap(),
+        )
+        .unwrap();
+        let normalized = if cfg!(windows) {
+            key.to_uppercase()
+        } else {
+            key.clone()
+        };
+        assert_eq!(environment[&normalized], "\u{FFFD}");
+        assert_eq!(environment["COPILOT_HOME"], "typed-home");
+        assert!(environment.get("UNRELATED_NON_UNICODE").is_none());
+        if !cfg!(windows) && key == "https_proxy" {
+            assert_eq!(environment["HTTPS_PROXY"], "http://fallback.invalid:8080");
+        }
+        let overridden: serde_json::Value =
+            serde_json::from_slice(&build_env_json(&[(key, "typed-setting".into())]).unwrap())
+                .unwrap();
+        assert_eq!(overridden[&normalized], "typed-setting");
+        return;
+    }
+
+    #[cfg(unix)]
+    let non_unicode = {
+        use std::os::unix::ffi::OsStringExt;
+        std::ffi::OsString::from_vec(vec![0xFF])
+    };
+    #[cfg(windows)]
+    let non_unicode = {
+        use std::os::windows::ffi::OsStringExt;
+        std::ffi::OsString::from_wide(&[0xD800])
+    };
+    let current = std::thread::current();
+    for key in [
+        "http_proxy",
+        "HTTP_PROXY",
+        "https_proxy",
+        "HTTPS_PROXY",
+        "COPILOT_PROXY_KERBEROS_SPN",
+        "TMPDIR",
+    ] {
+        let output = std::process::Command::new(
+            std::env::current_exe().expect("resolve current test executable"),
+        )
+        .args(["--exact", current.name().expect("test name"), "--nocapture"])
+        .env_clear()
+        .env(CHILD, key)
+        .env("HTTPS_PROXY", "http://fallback.invalid:8080")
+        .env("UNRELATED_NON_UNICODE", &non_unicode)
+        .env(key, &non_unicode)
+        .output()
+        .expect("run isolated environment snapshot");
+        assert!(
+            output.status.success() && String::from_utf8_lossy(&output.stdout).contains("1 passed"),
+            "{key}: {}{}",
+            String::from_utf8_lossy(&output.stdout),
+            String::from_utf8_lossy(&output.stderr)
+        );
+    }
 }
 
 #[test]

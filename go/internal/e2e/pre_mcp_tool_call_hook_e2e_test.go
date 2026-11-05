@@ -11,6 +11,7 @@ import (
 )
 
 func TestPreMCPToolCallHookE2E(t *testing.T) {
+	t.Parallel()
 	testHarnessDir := testharness.RepoPath("test", "harness")
 	metaEchoServer := filepath.Join(testHarnessDir, "test-mcp-meta-echo-server.mjs")
 
@@ -26,9 +27,6 @@ func TestPreMCPToolCallHookE2E(t *testing.T) {
 	}
 
 	t.Run("should set meta via preMcpToolCall hook", func(t *testing.T) {
-		if testharness.RunInIsolatedProcess(t) {
-			return
-		}
 		ctx := testharness.NewTestContext(t)
 		ctx.ConfigureForTest(t)
 		client := ctx.NewClient()
@@ -95,9 +93,6 @@ func TestPreMCPToolCallHookE2E(t *testing.T) {
 	})
 
 	t.Run("should replace meta via preMcpToolCall hook", func(t *testing.T) {
-		if testharness.RunInIsolatedProcess(t) {
-			return
-		}
 		ctx := testharness.NewTestContext(t)
 		ctx.ConfigureForTest(t)
 		client := ctx.NewClient()
@@ -157,9 +152,6 @@ func TestPreMCPToolCallHookE2E(t *testing.T) {
 	})
 
 	t.Run("should remove meta via preMcpToolCall hook", func(t *testing.T) {
-		if testharness.RunInIsolatedProcess(t) {
-			return
-		}
 		ctx := testharness.NewTestContext(t)
 		ctx.ConfigureForTest(t)
 		client := ctx.NewClient()

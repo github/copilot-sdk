@@ -4,6 +4,8 @@
 
 package com.github.copilot;
 
+import org.junit.jupiter.api.Tag;
+
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
@@ -16,7 +18,6 @@ import org.junit.jupiter.api.Test;
 import com.github.copilot.generated.AssistantMessageEvent;
 import com.github.copilot.rpc.MessageOptions;
 import com.github.copilot.rpc.PermissionHandler;
-import com.github.copilot.rpc.SessionConfig;
 
 /**
  * Tests for closed-session guard functionality in CopilotSession.
@@ -27,6 +28,7 @@ import com.github.copilot.rpc.SessionConfig;
  * idempotent.
  * </p>
  */
+@Tag("e2e")
 public class ClosedSessionGuardTest {
 
     private static E2ETestContext ctx;
@@ -53,7 +55,7 @@ public class ClosedSessionGuardTest {
 
         try (CopilotClient client = ctx.createClient()) {
             CopilotSession session = client
-                    .createSession(new SessionConfig().setOnPermissionRequest(PermissionHandler.APPROVE_ALL)).get();
+                    .createSession(ctx.newSessionConfig().setOnPermissionRequest(PermissionHandler.APPROVE_ALL)).get();
             session.close();
 
             IllegalStateException thrown = assertThrows(IllegalStateException.class, () -> {
@@ -73,7 +75,7 @@ public class ClosedSessionGuardTest {
 
         try (CopilotClient client = ctx.createClient()) {
             CopilotSession session = client
-                    .createSession(new SessionConfig().setOnPermissionRequest(PermissionHandler.APPROVE_ALL)).get();
+                    .createSession(ctx.newSessionConfig().setOnPermissionRequest(PermissionHandler.APPROVE_ALL)).get();
             session.close();
 
             IllegalStateException thrown = assertThrows(IllegalStateException.class, () -> {
@@ -93,7 +95,7 @@ public class ClosedSessionGuardTest {
 
         try (CopilotClient client = ctx.createClient()) {
             CopilotSession session = client
-                    .createSession(new SessionConfig().setOnPermissionRequest(PermissionHandler.APPROVE_ALL)).get();
+                    .createSession(ctx.newSessionConfig().setOnPermissionRequest(PermissionHandler.APPROVE_ALL)).get();
             session.close();
 
             IllegalStateException thrown = assertThrows(IllegalStateException.class, () -> {
@@ -113,7 +115,7 @@ public class ClosedSessionGuardTest {
 
         try (CopilotClient client = ctx.createClient()) {
             CopilotSession session = client
-                    .createSession(new SessionConfig().setOnPermissionRequest(PermissionHandler.APPROVE_ALL)).get();
+                    .createSession(ctx.newSessionConfig().setOnPermissionRequest(PermissionHandler.APPROVE_ALL)).get();
             session.close();
 
             IllegalStateException thrown = assertThrows(IllegalStateException.class, () -> {
@@ -133,7 +135,7 @@ public class ClosedSessionGuardTest {
 
         try (CopilotClient client = ctx.createClient()) {
             CopilotSession session = client
-                    .createSession(new SessionConfig().setOnPermissionRequest(PermissionHandler.APPROVE_ALL)).get();
+                    .createSession(ctx.newSessionConfig().setOnPermissionRequest(PermissionHandler.APPROVE_ALL)).get();
             session.close();
 
             IllegalStateException thrown = assertThrows(IllegalStateException.class, () -> {
@@ -153,7 +155,7 @@ public class ClosedSessionGuardTest {
 
         try (CopilotClient client = ctx.createClient()) {
             CopilotSession session = client
-                    .createSession(new SessionConfig().setOnPermissionRequest(PermissionHandler.APPROVE_ALL)).get();
+                    .createSession(ctx.newSessionConfig().setOnPermissionRequest(PermissionHandler.APPROVE_ALL)).get();
             session.close();
 
             IllegalStateException thrown = assertThrows(IllegalStateException.class, () -> {
@@ -175,7 +177,7 @@ public class ClosedSessionGuardTest {
 
         try (CopilotClient client = ctx.createClient()) {
             CopilotSession session = client
-                    .createSession(new SessionConfig().setOnPermissionRequest(PermissionHandler.APPROVE_ALL)).get();
+                    .createSession(ctx.newSessionConfig().setOnPermissionRequest(PermissionHandler.APPROVE_ALL)).get();
             session.close();
 
             IllegalStateException thrown = assertThrows(IllegalStateException.class, () -> {
@@ -197,7 +199,7 @@ public class ClosedSessionGuardTest {
 
         try (CopilotClient client = ctx.createClient()) {
             CopilotSession session = client
-                    .createSession(new SessionConfig().setOnPermissionRequest(PermissionHandler.APPROVE_ALL)).get();
+                    .createSession(ctx.newSessionConfig().setOnPermissionRequest(PermissionHandler.APPROVE_ALL)).get();
             session.close();
 
             IllegalStateException thrown = assertThrows(IllegalStateException.class, () -> {
@@ -217,7 +219,7 @@ public class ClosedSessionGuardTest {
 
         try (CopilotClient client = ctx.createClient()) {
             CopilotSession session = client
-                    .createSession(new SessionConfig().setOnPermissionRequest(PermissionHandler.APPROVE_ALL)).get();
+                    .createSession(ctx.newSessionConfig().setOnPermissionRequest(PermissionHandler.APPROVE_ALL)).get();
             session.close();
 
             IllegalStateException thrown = assertThrows(IllegalStateException.class, () -> {
@@ -237,7 +239,7 @@ public class ClosedSessionGuardTest {
 
         try (CopilotClient client = ctx.createClient()) {
             CopilotSession session = client
-                    .createSession(new SessionConfig().setOnPermissionRequest(PermissionHandler.APPROVE_ALL)).get();
+                    .createSession(ctx.newSessionConfig().setOnPermissionRequest(PermissionHandler.APPROVE_ALL)).get();
             session.close();
 
             IllegalStateException thrown = assertThrows(IllegalStateException.class, () -> {
@@ -259,7 +261,7 @@ public class ClosedSessionGuardTest {
 
         try (CopilotClient client = ctx.createClient()) {
             CopilotSession session = client
-                    .createSession(new SessionConfig().setOnPermissionRequest(PermissionHandler.APPROVE_ALL)).get();
+                    .createSession(ctx.newSessionConfig().setOnPermissionRequest(PermissionHandler.APPROVE_ALL)).get();
             session.close();
 
             IllegalStateException thrown = assertThrows(IllegalStateException.class, () -> {
@@ -279,7 +281,7 @@ public class ClosedSessionGuardTest {
 
         try (CopilotClient client = ctx.createClient()) {
             CopilotSession session = client
-                    .createSession(new SessionConfig().setOnPermissionRequest(PermissionHandler.APPROVE_ALL)).get();
+                    .createSession(ctx.newSessionConfig().setOnPermissionRequest(PermissionHandler.APPROVE_ALL)).get();
             String sessionIdBeforeClose = session.getSessionId();
             session.close();
 
@@ -298,7 +300,7 @@ public class ClosedSessionGuardTest {
 
         try (CopilotClient client = ctx.createClient()) {
             CopilotSession session = client
-                    .createSession(new SessionConfig().setOnPermissionRequest(PermissionHandler.APPROVE_ALL)).get();
+                    .createSession(ctx.newSessionConfig().setOnPermissionRequest(PermissionHandler.APPROVE_ALL)).get();
             String pathBeforeClose = session.getWorkspacePath();
             session.close();
 
@@ -316,7 +318,7 @@ public class ClosedSessionGuardTest {
 
         try (CopilotClient client = ctx.createClient()) {
             CopilotSession session = client
-                    .createSession(new SessionConfig().setOnPermissionRequest(PermissionHandler.APPROVE_ALL)).get();
+                    .createSession(ctx.newSessionConfig().setOnPermissionRequest(PermissionHandler.APPROVE_ALL)).get();
 
             // First close should succeed
             assertDoesNotThrow(() -> session.close());
@@ -338,7 +340,7 @@ public class ClosedSessionGuardTest {
 
         try (CopilotClient client = ctx.createClient()) {
             CopilotSession session = client
-                    .createSession(new SessionConfig().setOnPermissionRequest(PermissionHandler.APPROVE_ALL)).get();
+                    .createSession(ctx.newSessionConfig().setOnPermissionRequest(PermissionHandler.APPROVE_ALL)).get();
 
             try (session) {
                 // Manual close within try-with-resources
@@ -363,7 +365,7 @@ public class ClosedSessionGuardTest {
 
         try (CopilotClient client = ctx.createClient()) {
             CopilotSession session = client
-                    .createSession(new SessionConfig().setOnPermissionRequest(PermissionHandler.APPROVE_ALL)).get();
+                    .createSession(ctx.newSessionConfig().setOnPermissionRequest(PermissionHandler.APPROVE_ALL)).get();
             session.close();
 
             assertThrows(IllegalStateException.class, () -> {

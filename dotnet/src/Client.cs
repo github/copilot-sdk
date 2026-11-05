@@ -40,7 +40,7 @@ namespace GitHub.Copilot;
 /// await using var client = new CopilotClient();
 ///
 /// // Create a session
-/// await using var session = await client.CreateSessionAsync(new() { OnPermissionRequest = PermissionHandler.ApproveAll, Model = "gpt-4" });
+/// await using var session = await client.CreateSessionAsync(new() { OnPermissionRequest = PermissionHandler.ApproveAll, Model = "gpt-5.4" });
 ///
 /// // Handle events
 /// using var subscription = session.On&lt;SessionEvent&gt;(evt =>
@@ -222,27 +222,24 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
     }
 
     /// <summary>
-    /// Validates environment-variable options against the resolved transport.
-    /// Per-client environment is only representable for child-process transports
-    /// (each client owns its own OS process). The in-process (FFI) transport
-    /// loads the native runtime into the shared host process, whose single
-    /// environment block cannot carry per-client values, so environment and
-    /// telemetry options that lower to environment variables are rejected there.
+    /// Rejects process-wide settings not supported by in-process hosts and
+    /// conflicting environment dictionaries for child-process transports.
     /// </summary>
     private static void ValidateEnvironmentOptions(CopilotClientOptions options, RuntimeConnection connection)
     {
+        if (connection is UriRuntimeConnection && options.InternalTestOptions is not null)
+        {
+            throw new ArgumentException("InternalTestOptions requires a runtime owned by this client", nameof(options));
+        }
         if (connection is InProcessRuntimeConnection)
         {
             if (options.Environment is not null)
             {
                 throw new ArgumentException(
-                    $"{nameof(CopilotClientOptions)}.{nameof(CopilotClientOptions.Environment)} is not supported with " +
-                    $"{nameof(RuntimeConnection)}.{nameof(RuntimeConnection.ForInProcess)}(): the in-process transport " +
-                    "loads the native runtime into the shared host process, whose single environment block cannot carry " +
-                    "per-client values. Set the variables on the host process environment instead.",
-                    nameof(options));
+                    "CopilotClientOptions.Environment is not supported with RuntimeConnection.ForInProcess(): " +
+                    "environment variables belong to the shared host process. Use typed client/session options " +
+                    "or a child-process transport.", nameof(options));
             }
-
             if (options.Telemetry is not null)
             {
                 throw new ArgumentException(
@@ -260,8 +257,8 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
                     $"{nameof(CopilotClientOptions)}.{nameof(CopilotClientOptions.WorkingDirectory)} is not supported with " +
                     $"{nameof(RuntimeConnection)}.{nameof(RuntimeConnection.ForInProcess)}(): the in-process transport hosts " +
                     "the native runtime in the shared host process and spawns the worker without a working-directory " +
-                    "parameter, so a per-client working directory cannot be honored in-process. Use a child-process " +
-                    "transport, or set the process working directory before creating the client.",
+                    "parameter, so a per-client working directory cannot be honored in-process. Set " +
+                    "SessionConfig.WorkingDirectory instead, or use a child-process transport.",
                     nameof(options));
             }
 
@@ -393,22 +390,9 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
             {
                 if (_connection is InProcessRuntimeConnection)
                 {
-                    var ffiEnvironment = new Dictionary<string, string>();
-                    if (!string.IsNullOrEmpty(_options.GitHubToken))
-                    {
-                        ffiEnvironment["COPILOT_SDK_AUTH_TOKEN"] = _options.GitHubToken!;
-                    }
-                    if (!string.IsNullOrEmpty(_options.BaseDirectory))
-                    {
-                        ffiEnvironment["COPILOT_HOME"] = _options.BaseDirectory!;
-                    }
-                    if (_options.Mode == CopilotClientMode.Empty)
-                    {
-                        ffiEnvironment["COPILOT_DISABLE_KEYTAR"] = "1";
-                    }
-
+                    var ffiEnvironment = BuildInProcessRuntimeEnvironment(_options);
                     var ffiArgs = BuildInProcessRuntimeArguments(_options);
-                    var explicitCliPath = System.Environment.GetEnvironmentVariable("COPILOT_CLI_PATH");
+                    ffiEnvironment.TryGetValue("COPILOT_CLI_PATH", out var explicitCliPath);
                     if (string.IsNullOrEmpty(explicitCliPath))
                     {
                         explicitCliPath = null;
@@ -1215,7 +1199,7 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
     /// var session = await client.CreateSessionAsync(new()
     /// {
     ///     OnPermissionRequest = PermissionHandler.ApproveAll,
-    ///     Model = "gpt-4",
+    ///     Model = "gpt-5.4",
     ///     Tools = [AIFunctionFactory.Create(MyToolMethod)]
     /// });
     /// </code>
@@ -2516,6 +2500,13 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
         }
 
         startInfo.Environment.Remove("NODE_DEBUG");
+        if (options.InternalTestOptions is { } testOptions)
+        {
+            foreach (var (key, value) in testOptions.ToEnvironment())
+            {
+                startInfo.Environment[key] = value;
+            }
+        }
 
         // Set auth token in environment if provided
         if (!string.IsNullOrEmpty(options.GitHubToken))
@@ -2633,6 +2624,41 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
         return GetBundledNativePath(OperatingSystem.IsWindows() ? "copilot.exe" : "copilot", out searchedPath);
     }
 
+    private static Dictionary<string, string> BuildInProcessRuntimeEnvironment(CopilotClientOptions options)
+    {
+        var environment = new Dictionary<string, string>(
+            OperatingSystem.IsWindows() ? StringComparer.OrdinalIgnoreCase : StringComparer.Ordinal);
+        var source = System.Environment.GetEnvironmentVariables().Cast<System.Collections.DictionaryEntry>()
+            .Select(entry => new KeyValuePair<string, string>((string)entry.Key, (string)entry.Value!));
+        // Assignment collapses Windows aliases before typed options take precedence.
+        foreach (var (name, value) in source)
+        {
+            environment[name] = value;
+        }
+        environment.Remove("NODE_DEBUG");
+        if (options.InternalTestOptions is { } testOptions)
+        {
+            foreach (var (key, value) in testOptions.ToEnvironment())
+            {
+                environment[key] = value;
+            }
+        }
+        if (!string.IsNullOrEmpty(options.GitHubToken))
+        {
+            environment["COPILOT_SDK_AUTH_TOKEN"] = options.GitHubToken!;
+        }
+        if (!string.IsNullOrEmpty(options.BaseDirectory))
+        {
+            environment["COPILOT_HOME"] = options.BaseDirectory!;
+            environment["COPILOT_CACHE_HOME"] = Path.Combine(options.BaseDirectory!, "cache");
+        }
+        if (options.Mode == CopilotClientMode.Empty)
+        {
+            environment["COPILOT_DISABLE_KEYTAR"] = "1";
+        }
+        return environment;
+    }
+
     private static List<string> BuildInProcessRuntimeArguments(CopilotClientOptions options)
     {
         var args = new List<string>();
@@ -2654,8 +2680,7 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
             args.AddRange(["--session-idle-timeout", options.SessionIdleTimeoutSeconds.Value.ToString(CultureInfo.InvariantCulture)]);
         }
 
-        var cliLoginSyncIntegrationId =
-            System.Environment.GetEnvironmentVariable("GITHUB_COPILOT_INTEGRATION_ID")?.Trim();
+        var cliLoginSyncIntegrationId = System.Environment.GetEnvironmentVariable("GITHUB_COPILOT_INTEGRATION_ID")?.Trim();
         if (!string.IsNullOrEmpty(cliLoginSyncIntegrationId))
         {
             args.Add($"--cli-login-sync-integration-id={cliLoginSyncIntegrationId}");

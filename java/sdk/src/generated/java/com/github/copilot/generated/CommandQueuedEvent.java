@@ -37,7 +37,9 @@ public final class CommandQueuedEvent extends SessionEvent {
         /** Unique identifier for this request; used to respond via session.respondToQueuedCommand() */
         @JsonProperty("requestId") String requestId,
         /** The slash command text to be executed (e.g., /help, /clear) */
-        @JsonProperty("command") String command
+        @JsonProperty("command") String command,
+        /** Whether a schedule dispatched this command. Consumers must reject commands marked as not schedulable before executing a scheduled request. Absent for ordinary queued commands. */
+        @JsonProperty("scheduled") Boolean scheduled
     ) {
     }
 }

@@ -63,6 +63,16 @@
         <maven.deploy.skip>false</maven.deploy.skip>
         <!-- JNA version — pin deliberately; a JNA upgrade must rerun the callback spike. -->
         <jna.version>5.19.1</jna.version>
+        <!-- Class fixtures own their proxies; methods within one fixture stay serial. -->
+        <e2e.parallelism>4</e2e.parallelism>
+        <e2e.configurationParameters>
+            junit.jupiter.execution.parallel.enabled=true
+            junit.jupiter.execution.parallel.mode.default=same_thread
+            junit.jupiter.execution.parallel.mode.classes.default=concurrent
+            junit.jupiter.execution.parallel.config.strategy=fixed
+            junit.jupiter.execution.parallel.config.fixed.parallelism=${e2e.parallelism}
+            junit.jupiter.execution.parallel.config.fixed.max-pool-size=${e2e.parallelism}
+        </e2e.configurationParameters>
     </properties>
 
     <dependencies>
@@ -264,6 +274,9 @@
                 </executions>
                 <configuration>
                     <forkNode implementation="org.apache.maven.plugin.surefire.extensions.SurefireForkNodeFactory" />
+                    <properties>
+                        <configurationParameters>${e2e.configurationParameters}</configurationParameters>
+                    </properties>
                     <systemPropertyVariables>
                         <project.build.directory>${project.build.directory}</project.build.directory>
                         <project.build.finalName>${project.build.finalName}</project.build.finalName>
@@ -276,6 +289,8 @@
                     -->
                     <environmentVariables>
                         <COPILOT_CLI_PATH>${copilot.cli.path}</COPILOT_CLI_PATH>
+                        <!-- Host admission is separate from typed session feature flags. -->
+                        <COPILOT_MCP_APPS>true</COPILOT_MCP_APPS>
                     </environmentVariables>
                 </configuration>
             </plugin>
@@ -300,6 +315,7 @@
                     -->
                     <environmentVariables>
                         <COPILOT_CLI_PATH>${copilot.cli.path}</COPILOT_CLI_PATH>
+                        <COPILOT_MCP_APPS>true</COPILOT_MCP_APPS>
                     </environmentVariables>
                 </configuration>
                 <executions>
@@ -327,7 +343,21 @@
                     <execution>
                         <id>default-test</id>
                         <configuration>
-                            <excludedGroups>isolated-resume</excludedGroups>
+                            <excludedGroups>isolated-resume | e2e</excludedGroups>
+                        </configuration>
+                    </execution>
+                    <!-- Keep unit tests with global mocks outside the parallel E2E run. -->
+                    <execution>
+                        <id>e2e-tests</id>
+                        <phase>test</phase>
+                        <goals>
+                            <goal>test</goal>
+                        </goals>
+                        <configuration>
+                            <groups>e2e &amp; !isolated-resume</groups>
+                            <properties>
+                                <configurationParameters>${e2e.configurationParameters}</configurationParameters>
+                            </properties>
                         </configuration>
                     </execution>
                 </executions>
@@ -603,10 +633,9 @@ did not produce the multi-release output. Re-build on JDK 25+ and verify the
             Runs the E2E suite over the in-process (FFI) transport instead of
             the default child-process transport. COPILOT_SDK_DEFAULT_CONNECTION
             makes CopilotClient host the runtime in-process (see
-            CopilotClient.resolveDefaultConnection). forkCount=1 and
-            parallel=none are required because InProcessEnvGuard and the FFI
-            host mutate process-global state (the native process environment
-            block and JNA callback registration).
+            CopilotClient.resolveDefaultConnection). Keep one JVM so concurrent
+            class fixtures exercise independent runtime hosts in the same process.
+            E2E class parallelism is shared with the default subprocess run.
         -->
         <profile>
             <id>inprocess</id>
@@ -639,7 +668,6 @@ did not produce the multi-release output. Re-build on JDK 25+ and verify the
                         <configuration>
                             <skipTests>false</skipTests>
                             <forkCount>1</forkCount>
-                            <parallel>none</parallel>
                             <environmentVariables>
                                 <COPILOT_CLI_PATH>${copilot.inprocess.cli.path}</COPILOT_CLI_PATH>
                                 <COPILOT_SDK_DEFAULT_CONNECTION>inprocess</COPILOT_SDK_DEFAULT_CONNECTION>
@@ -651,7 +679,6 @@ did not produce the multi-release output. Re-build on JDK 25+ and verify the
                         <artifactId>maven-failsafe-plugin</artifactId>
                         <configuration>
                             <forkCount>1</forkCount>
-                            <parallel>none</parallel>
                             <environmentVariables>
                                 <COPILOT_CLI_PATH>${copilot.inprocess.cli.path}</COPILOT_CLI_PATH>
                                 <COPILOT_SDK_DEFAULT_CONNECTION>inprocess</COPILOT_SDK_DEFAULT_CONNECTION>

@@ -18,11 +18,10 @@ const (
 )
 
 func TestModeHandlersE2E(t *testing.T) {
+	t.Parallel()
 	ctx := testharness.NewTestContext(t)
 
-	client := ctx.NewClient(func(opts *copilot.ClientOptions) {
-		opts.Env = append(opts.Env, "COPILOT_DEBUG_GITHUB_API_URL="+ctx.ProxyURL)
-	})
+	client := ctx.NewClient()
 	t.Cleanup(func() { client.ForceStop() })
 
 	if err := ctx.SetCopilotUserByToken(modeHandlerToken, map[string]interface{}{

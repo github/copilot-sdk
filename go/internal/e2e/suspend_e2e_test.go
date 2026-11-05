@@ -15,6 +15,7 @@ import (
 const suspendTimeout = 60 * time.Second
 
 func TestSuspendE2E(t *testing.T) {
+	t.Parallel()
 	ctx := testharness.NewTestContext(t)
 
 	t.Run("should suspend idle session without throwing", func(t *testing.T) {

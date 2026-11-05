@@ -24,7 +24,7 @@ import { CopilotClient } from "@github/copilot-sdk";
 
 const client = new CopilotClient();
 const session = await client.createSession({
-    model: "gpt-5.4",
+    model: "auto",
     skillDirectories: [
         "./skills/code-review",
         "./skills/documentation",
@@ -51,7 +51,7 @@ async def main():
 
     session = await client.create_session(
         on_permission_request=lambda req, inv: PermissionDecisionApproveOnce(),
-        model="gpt-5.4",
+        model="auto",
         skill_directories=[
             "./skills/code-review",
             "./skills/documentation",
@@ -88,7 +88,7 @@ func main() {
     defer client.Stop()
 
     session, err := client.CreateSession(ctx, &copilot.SessionConfig{
-        Model: "gpt-5.4",
+        Model: "auto",
         SkillDirectories: []string{
             "./skills/code-review",
             "./skills/documentation",
@@ -123,7 +123,7 @@ using GitHub.Copilot.Rpc;
 await using var client = new CopilotClient();
 await using var session = await client.CreateSessionAsync(new SessionConfig
 {
-    Model = "gpt-5.4",
+    Model = "auto",
     SkillDirectories = new List<string>
     {
         "./skills/code-review",
@@ -155,7 +155,7 @@ try (var client = new CopilotClient()) {
 
     var session = client.createSession(
         new SessionConfig()
-            .setModel("gpt-5.4")
+            .setModel("auto")
             .setSkillDirectories(List.of(
                 "./skills/code-review",
                 "./skills/documentation"
@@ -246,29 +246,6 @@ session, _ := client.CreateSession(context.Background(), &copilot.SessionConfig{
 
 <details>
 <summary><strong>.NET</strong></summary>
-
-<!-- docs-validate: hidden -->
-```csharp
-using GitHub.Copilot;
-using GitHub.Copilot.Rpc;
-
-public static class SkillsExample
-{
-    public static async Task Main()
-    {
-        await using var client = new CopilotClient();
-
-        var session = await client.CreateSessionAsync(new SessionConfig
-        {
-            SkillDirectories = new List<string> { "./skills" },
-            DisabledSkills = new List<string> { "experimental-feature", "deprecated-tool" },
-            OnPermissionRequest = (req, inv) =>
-                Task.FromResult(PermissionDecision.ApproveOnce()),
-        });
-    }
-}
-```
-<!-- /docs-validate: hidden -->
 
 ```csharp
 var session = await client.CreateSessionAsync(new SessionConfig
@@ -575,7 +552,6 @@ The Java skill provider API is `@CopilotExperimental`, so the consuming class or
 <details>
 <summary><strong>Rust</strong></summary>
 
-<!-- docs-validate: skip -->
 ```rust
 use std::sync::Arc;
 

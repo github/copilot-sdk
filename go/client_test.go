@@ -16,6 +16,7 @@ import (
 	"path/filepath"
 	"reflect"
 	"regexp"
+	"runtime"
 	"strconv"
 	"strings"
 	"sync"
@@ -2501,6 +2502,37 @@ func TestClient_ProcessFileLoggingEnvironment(t *testing.T) {
 	}
 }
 
+func TestClient_StartFailureNamesAWorkingDirectoryThatIsAFile(t *testing.T) {
+	file := filepath.Join(t.TempDir(), "file")
+	if err := os.WriteFile(file, nil, 0o600); err != nil {
+		t.Fatal(err)
+	}
+	missingParent := t.TempDir()
+	for _, tc := range []struct {
+		name string
+		dir  string
+		want string
+	}{
+		{name: "file", dir: file, want: "working directory " + file + " does not exist or is not a directory"},
+		{name: "below a file", dir: filepath.Join(file, "child"), want: "working directory " + filepath.Join(file, "child") + " does not exist or is not a directory"},
+		{name: "missing", dir: filepath.Join(missingParent, "missing"), want: "working directory " + filepath.Join(missingParent, "missing") + " does not exist or is not a directory"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			for _, connection := range []RuntimeConnection{StdioConnection{Path: os.Args[0]}, TCPConnection{Path: os.Args[0]}} {
+				client := NewClient(&ClientOptions{
+					Connection:       connection,
+					BaseDirectory:    t.TempDir(),
+					WorkingDirectory: tc.dir,
+				})
+				err := client.startCLIServer(context.Background())
+				if err == nil || !strings.Contains(err.Error(), "failed to start CLI server") || !strings.Contains(err.Error(), tc.want) {
+					t.Fatalf("%T: expected an error containing %q, got %v", connection, tc.want, err)
+				}
+			}
+		})
+	}
+}
+
 func TestClient_TelemetryCaptureOverridesEnvironment(t *testing.T) {
 	for _, capture := range []bool{false, true} {
 		t.Run(strconv.FormatBool(capture), func(t *testing.T) {
@@ -2529,7 +2561,74 @@ func TestClient_TelemetryCaptureOverridesEnvironment(t *testing.T) {
 	}
 }
 
+func TestClient_InternalTestOptions(t *testing.T) {
+	api, github, proxy, noProxy, ca := "http://replay", "http://github-replay", "http://interception", "", "/test/ca.pem"
+	inherited := []string{"HTTP_PROXY=inherited", "UNRELATED=preserved"}
+	opts := &InternalTestOptions{
+		CopilotAPIURL: &api, GitHubAPIURL: &github, ProxyURL: &proxy, NoProxy: &noProxy, CACertificatePath: &ca,
+	}
+	for _, transport := range []string{"stdio", "inprocess"} {
+		t.Run(transport, func(t *testing.T) {
+			client := NewClient(&ClientOptions{
+				Connection:       StdioConnection{Path: os.Args[0]},
+				WorkingDirectory: filepath.Join(t.TempDir(), "missing"),
+				Env:              inherited, InternalTestOptions: opts,
+			})
+			var environment map[string]string
+			if transport == "stdio" {
+				if err := client.startCLIServer(context.Background()); err == nil {
+					t.Fatal("expected process start to fail in missing working directory")
+				}
+				environment = make(map[string]string)
+				for _, entry := range client.process.Env {
+					key, value, _ := strings.Cut(entry, "=")
+					environment[key] = value
+				}
+			} else {
+				environment = client.inProcessHostConfig("").Environment
+			}
+			for key, value := range map[string]string{
+				"COPILOT_API_URL": api, "COPILOT_DEBUG_GITHUB_API_URL": github,
+				"HTTP_PROXY": proxy, "HTTPS_PROXY": proxy,
+				"NO_PROXY":            noProxy,
+				"NODE_EXTRA_CA_CERTS": ca, "SSL_CERT_FILE": ca, "REQUESTS_CA_BUNDLE": ca,
+				"CURL_CA_BUNDLE": ca, "GIT_SSL_CAINFO": ca,
+			} {
+				if runtime.GOOS == "windows" {
+					key = strings.ToUpper(key)
+				}
+				if environment[key] != value {
+					t.Errorf("%s = %q, want %q", key, environment[key], value)
+				}
+			}
+			if environment["UNRELATED"] != "preserved" || inherited[0] != "HTTP_PROXY=inherited" {
+				t.Fatal("test options changed inherited configuration")
+			}
+		})
+	}
+	t.Run("external runtime rejected", func(t *testing.T) {
+		defer func() {
+			if got := recover(); got != "InternalTestOptions requires a runtime owned by this client" {
+				t.Fatalf("unexpected panic: %v", got)
+			}
+		}()
+		NewClient(&ClientOptions{Connection: URIConnection{URL: "8080"}, InternalTestOptions: opts})
+	})
+}
+
 func TestClient_InProcessConnection(t *testing.T) {
+	for _, env := range [][]string{{}, {"FOO=bar"}} {
+		t.Run(fmt.Sprintf("rejects Env %v", env), func(t *testing.T) {
+			defer func() {
+				got := recover()
+				if got == nil || !strings.Contains(fmt.Sprint(got), "Env is not supported with InProcessConnection") {
+					t.Fatalf("Expected in-process Env rejection, got %v", got)
+				}
+			}()
+			NewClient(&ClientOptions{Connection: InProcessConnection{}, Env: env})
+		})
+	}
+
 	t.Run("requires build tag", func(t *testing.T) {
 		if inProcessAvailable {
 			t.Skip("in-process transport is enabled")
@@ -2566,16 +2665,21 @@ func TestClient_InProcessConnection(t *testing.T) {
 		}
 	})
 
-	t.Run("panics when Env is set", func(t *testing.T) {
-		defer func() {
-			if r := recover(); r == nil {
-				t.Error("Expected panic when Env is set with InProcessConnection")
-			}
-		}()
-		NewClient(&ClientOptions{
-			Connection: InProcessConnection{},
-			Env:        []string{"FOO=bar"},
-		})
+	t.Run("snapshots inherited environment without changing the process", func(t *testing.T) {
+		t.Setenv("SDK_ENV_SNAPSHOT", "first")
+		first := NewClient(&ClientOptions{Connection: InProcessConnection{}})
+		t.Setenv("SDK_ENV_SNAPSHOT", "second")
+		second := NewClient(&ClientOptions{Connection: InProcessConnection{}})
+		before := os.Environ()
+		if got := first.inProcessHostConfig("").Environment["SDK_ENV_SNAPSHOT"]; got != "first" {
+			t.Fatalf("First host inherited value = %q; want first", got)
+		}
+		if got := second.inProcessHostConfig("").Environment["SDK_ENV_SNAPSHOT"]; got != "second" {
+			t.Fatalf("Second host inherited value = %q; want second", got)
+		}
+		if !reflect.DeepEqual(os.Environ(), before) {
+			t.Fatal("Creating native host configurations changed the process environment")
+		}
 	})
 
 	t.Run("panics when WorkingDirectory is set", func(t *testing.T) {
@@ -2603,6 +2707,7 @@ func TestClient_InProcessConnection(t *testing.T) {
 	})
 
 	t.Run("forwards typed runtime options", func(t *testing.T) {
+		apiURL, proxyURL := "http://127.0.0.1:1234", "http://typed-proxy"
 		client := NewClient(&ClientOptions{
 			Connection:                InProcessConnection{},
 			GitHubToken:               "test-token",
@@ -2611,6 +2716,10 @@ func TestClient_InProcessConnection(t *testing.T) {
 			LogLevel:                  "debug",
 			SessionIdleTimeoutSeconds: 30,
 			Mode:                      ModeEmpty,
+			InternalTestOptions: &InternalTestOptions{
+				CopilotAPIURL: &apiURL,
+				ProxyURL:      &proxyURL,
+			},
 		})
 
 		config := client.inProcessHostConfig("")
@@ -2626,10 +2735,20 @@ func TestClient_InProcessConnection(t *testing.T) {
 		expectedEnvironment := map[string]string{
 			"COPILOT_SDK_AUTH_TOKEN": "test-token",
 			"COPILOT_HOME":           "/copilot-home",
+			"COPILOT_CACHE_HOME":     filepath.Join("/copilot-home", "cache"),
 			"COPILOT_DISABLE_KEYTAR": "1",
+			"COPILOT_API_URL":        "http://127.0.0.1:1234",
+			"HTTP_PROXY":             proxyURL,
+			"HTTPS_PROXY":            proxyURL,
 		}
-		if !reflect.DeepEqual(config.Environment, expectedEnvironment) {
-			t.Fatalf("Expected managed environment %v, got %v", expectedEnvironment, config.Environment)
+		if runtime.GOOS != "windows" {
+			expectedEnvironment["http_proxy"] = proxyURL
+			expectedEnvironment["https_proxy"] = proxyURL
+		}
+		for key, want := range expectedEnvironment {
+			if got := config.Environment[key]; got != want {
+				t.Fatalf("Managed environment %s = %q; want %q", key, got, want)
+			}
 		}
 	})
 
@@ -2659,6 +2778,58 @@ func TestClient_InProcessConnection(t *testing.T) {
 			t.Fatalf("Expected CLI login sync arguments %v, got %v", expectedArgs, config.Args)
 		}
 	})
+}
+
+func TestClient_InProcessEnvironmentEncoding(t *testing.T) {
+	t.Parallel()
+
+	inherited := []string{
+		"HOME=/home/\xff",
+		"INVALID_\xff_KEY=ignored",
+		"SDK_UNCHANGED=/home/\u00e9",
+		"EMPTY=",
+	}
+	expected := map[string]string{
+		"SDK_UNCHANGED": "/home/\u00e9",
+		"EMPTY":         "",
+	}
+	for _, key := range []string{
+		"http_proxy", "HTTP_PROXY", "https_proxy", "HTTPS_PROXY",
+		"COPILOT_PROXY_KERBEROS_SPN", "TMPDIR",
+	} {
+		inherited = append(inherited, key+"=before\xffafter\xfe")
+		if runtime.GOOS == "windows" {
+			key = strings.ToUpper(key)
+		}
+		expected[key] = "\uFFFD"
+	}
+	client := &Client{options: ClientOptions{Env: inherited}}
+	encoded, err := json.Marshal(client.inProcessHostConfig("").Environment)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var environment map[string]string
+	if err := json.Unmarshal(encoded, &environment); err != nil {
+		t.Fatal(err)
+	}
+	if !reflect.DeepEqual(environment, expected) {
+		t.Fatalf("serialized inherited environment = %q; want %q", environment, expected)
+	}
+
+	proxyURL := "http://typed-proxy"
+	client.options.BaseDirectory = "typed-home"
+	client.options.InternalTestOptions = &InternalTestOptions{ProxyURL: &proxyURL}
+	expected["COPILOT_HOME"] = "typed-home"
+	expected["COPILOT_CACHE_HOME"] = filepath.Join("typed-home", "cache")
+	for _, key := range []string{"http_proxy", "HTTP_PROXY", "https_proxy", "HTTPS_PROXY"} {
+		if runtime.GOOS == "windows" {
+			key = strings.ToUpper(key)
+		}
+		expected[key] = proxyURL
+	}
+	if got := client.inProcessHostConfig("").Environment; !reflect.DeepEqual(got, expected) {
+		t.Fatalf("typed startup environment = %q; want %q", got, expected)
+	}
 }
 
 func TestClient_DefaultConnection(t *testing.T) {

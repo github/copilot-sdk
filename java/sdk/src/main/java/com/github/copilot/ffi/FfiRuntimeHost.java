@@ -15,6 +15,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
+import java.util.TreeMap;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ExecutionException;
@@ -371,7 +372,14 @@ public final class FfiRuntimeHost implements AutoCloseable {
     }
 
     private static byte[] buildEnvJson(CopilotClientOptions options) {
-        Map<String, String> env = new LinkedHashMap<>();
+        Map<String, String> env = "win32".equals(PlatformDetector.detectOs())
+                ? new TreeMap<>(String.CASE_INSENSITIVE_ORDER)
+                : new LinkedHashMap<>();
+        env.putAll(System.getenv());
+        env.remove("NODE_DEBUG");
+        if (options.getInternalTestOptions() != null) {
+            env.putAll(options.getInternalTestOptions().toEnvironment());
+        }
 
         String token = options.getGitHubToken();
         if (token != null && !token.isEmpty()) {
@@ -380,14 +388,12 @@ public final class FfiRuntimeHost implements AutoCloseable {
         String copilotHome = options.getCopilotHome();
         if (copilotHome != null && !copilotHome.isEmpty()) {
             env.put("COPILOT_HOME", copilotHome);
+            env.put("COPILOT_CACHE_HOME", java.nio.file.Path.of(copilotHome, "cache").toString());
         }
         if (options.getMode() == CopilotClientMode.EMPTY) {
             env.put("COPILOT_DISABLE_KEYTAR", "1");
         }
 
-        if (env.isEmpty()) {
-            return null;
-        }
         return jsonBytes(env);
     }
 

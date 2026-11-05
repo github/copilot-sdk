@@ -51,7 +51,7 @@ import { CopilotClient } from "@github/copilot-sdk";
 
 const client = new CopilotClient();
 
-const session = await client.createSession({ model: "gpt-5.4" });
+const session = await client.createSession({ model: "auto" });
 const response = await session.sendAndWait({ prompt: "Hello!" });
 console.log(response?.data.content);
 
@@ -71,7 +71,7 @@ from copilot.session_events import AssistantMessageData
 client = CopilotClient()
 await client.start()
 
-session = await client.create_session(on_permission_request=PermissionHandler.approve_all, model="gpt-5.4")
+session = await client.create_session(on_permission_request=PermissionHandler.approve_all, model="auto")
 response = await session.send_and_wait("Hello!")
 if response and isinstance(response.data, AssistantMessageData):
     print(response.data.content)
@@ -85,7 +85,7 @@ await client.stop()
 <summary><strong>Go</strong></summary>
 
 > [!NOTE]
-> Unlike Node.js, Python, and .NET, the Go SDK does not include a CLI as an automatic dependency. With no explicit path, `NewClient(nil)` uses an embedded CLI when available, then falls back to `copilot` on `PATH`. To embed a CLI, run the [bundler tool](../../go/README.md#distributing-your-application-with-an-embedded-github-copilot-cli) at build time. You can also set `COPILOT_CLI_PATH` or point a `Connection` at an existing binary. See [Local CLI Setup](./local-cli.md) for details.
+> Unlike Node.js, Python, and .NET, the Go SDK does not include a CLI as an automatic dependency. With no explicit path, `NewClient(nil)` uses `COPILOT_CLI_PATH` when it is set, then the embedded CLI. It does not look up `copilot` on `PATH`, so starting the client fails when neither is available. To embed a CLI, run the [bundler tool](../../go/README.md#distributing-your-application-with-an-embedded-github-copilot-cli) at build time. You can also set `COPILOT_CLI_PATH` or point a `Connection` at an existing binary. See [Local CLI Setup](./local-cli.md) for details.
 
 <!-- docs-validate: hidden -->
 ```go
@@ -107,7 +107,7 @@ func main() {
 	}
 	defer client.Stop()
 
-	session, _ := client.CreateSession(ctx, &copilot.SessionConfig{Model: "gpt-5.4"})
+	session, _ := client.CreateSession(ctx, &copilot.SessionConfig{Model: "auto"})
 	response, _ := session.SendAndWait(ctx, copilot.MessageOptions{Prompt: "Hello!"})
 	if d, ok := response.Data.(*copilot.AssistantMessageData); ok {
 		fmt.Println(d.Content)
@@ -123,7 +123,7 @@ if err := client.Start(ctx); err != nil {
 }
 defer client.Stop()
 
-session, _ := client.CreateSession(ctx, &copilot.SessionConfig{Model: "gpt-5.4"})
+session, _ := client.CreateSession(ctx, &copilot.SessionConfig{Model: "auto"})
 response, _ := session.SendAndWait(ctx, copilot.MessageOptions{Prompt: "Hello!"})
 if d, ok := response.Data.(*copilot.AssistantMessageData); ok {
     fmt.Println(d.Content)
@@ -138,7 +138,7 @@ if d, ok := response.Data.(*copilot.AssistantMessageData); ok {
 ```csharp
 await using var client = new CopilotClient();
 await using var session = await client.CreateSessionAsync(
-    new SessionConfig { Model = "gpt-5.4" });
+    new SessionConfig { Model = "auto" });
 
 var response = await session.SendAndWaitAsync(
     new MessageOptions { Prompt = "Hello!" });
@@ -151,7 +151,7 @@ Console.WriteLine(response?.Data.Content);
 <summary><strong>Java</strong></summary>
 
 > [!NOTE]
-> The Java SDK does not bundle or embed the Copilot CLI. Install the CLI separately and either make `copilot` available on your `PATH` or set its location with `setCliPath(...)` (or connect to a running CLI server with `setCliUrl(...)`).
+> The Java SDK artifact does not include the Copilot CLI. By default, the client starts the CLI from the platform runtime JAR: add the `com.github:copilot-sdk-java-runtime` dependency with your platform's classifier, such as `linux-x64`. Alternatively, install the CLI separately and set its location with `setCliPath(...)` or `COPILOT_CLI_PATH` (or connect to a running CLI server with `setCliUrl(...)`). The client does not look up `copilot` on your `PATH`.
 
 ```java
 import com.github.copilot.CopilotClient;
@@ -164,7 +164,7 @@ var client = new CopilotClient(new CopilotClientOptions()
 client.start().get();
 
 var session = client.createSession(new SessionConfig()
-    .setModel("gpt-5.4")
+    .setModel("auto")
     .setOnPermissionRequest(PermissionHandler.APPROVE_ALL)
 ).get();
 
@@ -247,7 +247,7 @@ const client = new CopilotClient();
 const sessionId = `project-${projectName}`;
 const session = await client.createSession({
     sessionId,
-    model: "gpt-5.4",
+    model: "auto",
 });
 
 // User closes app...

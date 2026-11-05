@@ -385,9 +385,7 @@ public partial class StructuredOutputE2ETests(E2ETestFixture fixture, ITestOutpu
     [Fact]
     public async Task Rejects_Unsupported_Or_Oversized_Schemas_Before_Admission()
     {
-        var environment = Ctx.GetEnvironment();
-        environment["COPILOT_CLI_ENABLED_FEATURE_FLAGS"] = "HYDRAFUSION,HYDRAFUSION_ROLLOUT";
-        await using var client = Ctx.CreateClient(environment: environment);
+        await using var client = Ctx.CreateClient();
         foreach (var model in new[] { "gpt-4.1", "hydrafusion" })
         {
             var config = StructuredSessionConfig();

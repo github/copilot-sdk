@@ -4,6 +4,8 @@
 
 package com.github.copilot;
 
+import org.junit.jupiter.api.Tag;
+
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -20,9 +22,9 @@ import org.junit.jupiter.api.Test;
 
 import com.github.copilot.rpc.MessageOptions;
 import com.github.copilot.rpc.PermissionHandler;
-import com.github.copilot.rpc.SessionConfig;
 import com.github.copilot.rpc.ToolDefinition;
 
+@Tag("e2e")
 public class ExternalToolCancellationE2ETest {
 
     private static E2ETestContext ctx;
@@ -52,7 +54,7 @@ public class ExternalToolCancellationE2ETest {
                 });
 
         try (CopilotClient client = ctx.createClient()) {
-            CopilotSession session = client.createSession(new SessionConfig()
+            CopilotSession session = client.createSession(ctx.newSessionConfig()
                     .setOnPermissionRequest(PermissionHandler.APPROVE_ALL).setTools(List.of(slowTool)))
                     .get(60, TimeUnit.SECONDS);
             try {

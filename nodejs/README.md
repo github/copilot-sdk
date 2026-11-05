@@ -255,7 +255,7 @@ new CopilotClient(options?: CopilotClientOptions)
     - `RuntimeConnection.forStdio({ path?, args?, env? })` (default) — spawn the runtime and communicate over its stdin/stdout.
     - `RuntimeConnection.forTcp({ port?, connectionToken?, path?, args?, env? })` — spawn the runtime as a TCP server.
     - `RuntimeConnection.forUri(url, { connectionToken? })` — connect to an already-running runtime (mutually exclusive with `gitHubToken`/`useLoggedInUser`). There is no top-level `cliUrl` shortcut; use this factory for URL-based connections.
-    - `RuntimeConnection.forInProcess()` — host the runtime in-process over its native C ABI (FFI). **Experimental.** Because the runtime shares this process, `env`, `telemetry`, and `workingDirectory` are rejected with this transport; set them on the host process instead.
+    - `RuntimeConnection.forInProcess()` — host the runtime in-process over its native C ABI (FFI). **Experimental.** Client-level `env`, `telemetry`, and `workingDirectory` are rejected; use supported typed options and configure working directories per session.
     - The child-process transports (`forStdio`/`forTcp`) also accept a per-connection `env`. Set it there or via the top-level `env` option — not both (setting both throws).
     - Managed child-process connections materialize the bundled `copilot-runtime` and adjacent `runtime.node`, then launch the wrapper by default. An explicit connection `path` or `COPILOT_CLI_PATH` overrides the bundled runtime.
 - `mode?: "empty" | "copilot-cli"` - Defaulting strategy. Use `"empty"` for multi-user server mode; defaults to `"copilot-cli"`.
@@ -390,6 +390,20 @@ Create a new conversation session.
 - `hooks?: SessionHooks` - Hook handlers for session lifecycle events. See [Session Hooks](#session-hooks) section.
 - `skillProvider?: SkillProvider` - **Experimental.** Serves skills from host storage instead of skill directories. Not persisted; pass it again on resume. See [Skill providers](#skill-providers-experimental).
 
+<!-- docs-validate: strict -->
+<!-- docs-validate: hidden -->
+```typescript
+declare function acquireTokenForHost(host: string): Promise<string>;
+
+const session = await client.createSession({
+    gitHubTokenProvider: async ({ host }) => ({
+        kind: "token",
+        accessToken: await acquireTokenForHost(host),
+        expiresIn: 8 * 60 * 60,
+    }),
+});
+```
+<!-- /docs-validate: hidden -->
 ```typescript
 const session = await client.createSession({
     gitHubTokenProvider: async ({ host }) => ({
@@ -464,6 +478,7 @@ Request the TUI to switch to displaying the specified session. Only available in
 
 Subscribe to a specific session lifecycle event type. Returns an unsubscribe function.
 
+<!-- docs-validate: strict -->
 ```typescript
 const unsubscribe = client.onLifecycle("session.foreground", (event) => {
     console.log(`Session ${event.sessionId} is now in foreground`);
@@ -474,6 +489,7 @@ const unsubscribe = client.onLifecycle("session.foreground", (event) => {
 
 Subscribe to all session lifecycle events. Returns an unsubscribe function.
 
+<!-- docs-validate: strict -->
 ```typescript
 const unsubscribe = client.onLifecycle((event) => {
     console.log(`${event.type}: ${event.sessionId}`);
@@ -521,12 +537,32 @@ Returns the message ID.
 
 Use `source: "system"` for automated messages from your application:
 
+<!-- docs-validate: strict -->
+<!-- docs-validate: hidden -->
+```typescript
+import type { CopilotSession } from "@github/copilot-sdk";
+
+declare const session: CopilotSession;
+
+await session.send({ prompt: "Context updated", source: "system" });
+```
+<!-- /docs-validate: hidden -->
 ```typescript
 await session.send({ prompt: "Context updated", source: "system" });
 ```
 
 For a message from another agent, use its trusted sender ID:
 
+<!-- docs-validate: strict -->
+<!-- docs-validate: hidden -->
+```typescript
+import type { CopilotSession } from "@github/copilot-sdk";
+
+declare const session: CopilotSession;
+
+await session.send({ prompt: "Review complete", source: "agent-reviewer-id" });
+```
+<!-- /docs-validate: hidden -->
 ```typescript
 await session.send({ prompt: "Review complete", source: "agent-reviewer-id" });
 ```
@@ -559,6 +595,23 @@ Pass a raw JSON Schema or a Zod schema as `responseSchema` to `send` or
 `sendAndWait`. As with custom tool parameters, the SDK converts Zod schemas to
 JSON Schema before sending them:
 
+<!-- docs-validate: strict -->
+<!-- docs-validate: hidden -->
+```typescript
+import type { CopilotSession } from "@github/copilot-sdk";
+
+declare const session: CopilotSession;
+
+import { z } from "zod";
+
+const answerSchema = z.object({ answer: z.number().int() });
+const message = await session.sendAndWait({
+    prompt: "What is 19 + 23?",
+    responseSchema: answerSchema,
+});
+console.log(message?.data.content); // JSON text
+```
+<!-- /docs-validate: hidden -->
 ```typescript
 import { z } from "zod";
 
@@ -572,6 +625,20 @@ console.log(message?.data.content); // JSON text
 
 For a typed result, pass the Zod schema as the **second argument** instead:
 
+<!-- docs-validate: strict -->
+<!-- docs-validate: hidden -->
+```typescript
+import type { CopilotSession } from "@github/copilot-sdk";
+
+declare const session: CopilotSession;
+import { z } from "zod";
+
+const answerSchema = z.object({ answer: z.number().int() });
+
+const answer = await session.sendAndWait("What is 19 + 23?", answerSchema);
+console.log(answer.answer); // number; TResult is inferred from answerSchema
+```
+<!-- /docs-validate: hidden -->
 ```typescript
 const answer = await session.sendAndWait("What is 19 + 23?", answerSchema);
 console.log(answer.answer); // number; TResult is inferred from answerSchema
@@ -644,6 +711,28 @@ native `output_config.format` endpoint.
 
 Subscribe to a specific event type. The handler receives properly typed events.
 
+<!-- docs-validate: strict -->
+<!-- docs-validate: hidden -->
+```typescript
+import type { CopilotSession } from "@github/copilot-sdk";
+
+declare const session: CopilotSession;
+
+// Listen for specific event types with full type inference
+session.on("assistant.message", (event) => {
+    console.log(event.data.content); // TypeScript knows about event.data.content
+});
+
+session.on("session.idle", () => {
+    console.log("Session is idle");
+});
+
+// Listen to streaming events
+session.on("assistant.message_delta", (event) => {
+    process.stdout.write(event.data.deltaContent);
+});
+```
+<!-- /docs-validate: hidden -->
 ```typescript
 // Listen for specific event types with full type inference
 session.on("assistant.message", (event) => {
@@ -664,6 +753,22 @@ session.on("assistant.message_delta", (event) => {
 
 Subscribe to all session events. Returns an unsubscribe function.
 
+<!-- docs-validate: strict -->
+<!-- docs-validate: hidden -->
+```typescript
+import type { CopilotSession } from "@github/copilot-sdk";
+
+declare const session: CopilotSession;
+
+const unsubscribe = session.on((event) => {
+    // Handle any event type
+    console.log(event.type, event);
+});
+
+// Later...
+unsubscribe();
+```
+<!-- /docs-validate: hidden -->
 ```typescript
 const unsubscribe = session.on((event) => {
     // Handle any event type
@@ -691,6 +796,19 @@ The runtime does not apply the preference immediately. It records the request an
 
 Watch for the outcome through the `session.model_change` event on success or the ephemeral `session.auto_tier_switch_failed` event on failure. A failed activation leaves the incumbent effective tier unchanged. Read the authoritative state at any time with `session.rpc.model.getCurrent()`.
 
+<!-- docs-validate: strict -->
+<!-- docs-validate: hidden -->
+```typescript
+import type { CopilotSession } from "@github/copilot-sdk";
+
+declare const session: CopilotSession;
+
+const result = await session.setAutoTier("intelligence");
+if (result.status === "pending") {
+    // Accepted, but not yet in effect.
+}
+```
+<!-- /docs-validate: hidden -->
 ```typescript
 const result = await session.setAutoTier("intelligence");
 if (result.status === "pending") {
@@ -704,6 +822,23 @@ See [Auto tier persistence](../docs/features/session-persistence.md#auto-tier-pe
 
 Read the current model's reasoning-summary presentation policy without changing session state. Call `session.rpc.model.list()` first to load the model catalog; otherwise the result may have `ready: false`. The request and result types are exported from `@github/copilot-sdk`.
 
+<!-- docs-validate: strict -->
+<!-- docs-validate: hidden -->
+```typescript
+import type { CopilotSession } from "@github/copilot-sdk";
+
+declare const session: CopilotSession;
+
+import type {
+    ModelGetReasoningSummariesRequest,
+    ModelGetReasoningSummariesResult,
+} from "@github/copilot-sdk";
+
+const presentation: ModelGetReasoningSummariesRequest = { summariesVisible: false };
+const policy: ModelGetReasoningSummariesResult =
+    await session.rpc.model.getReasoningSummaries(presentation);
+```
+<!-- /docs-validate: hidden -->
 ```typescript
 import type {
     ModelGetReasoningSummariesRequest,
@@ -723,6 +858,26 @@ Replace the tools this client supplies to the session, together with the handler
 
 Once the runtime accepts the replacement, every tool call this session dispatches uses the new handlers; calls already running finish on their original handlers. If the runtime rejects it, the promise rejects and the previous tools and handlers stay in place. Concurrent calls are applied one at a time, in call order.
 
+<!-- docs-validate: strict -->
+<!-- docs-validate: hidden -->
+```typescript
+import type { CopilotSession } from "@github/copilot-sdk";
+
+declare const session: CopilotSession;
+import { defineTool } from "@github/copilot-sdk";
+import { z } from "zod";
+
+declare function searchIssues(query: string): Promise<string>;
+
+await session.setTools([
+    defineTool("search_issues", {
+        description: "Search the issues shown on the current page",
+        parameters: z.object({ query: z.string() }),
+        handler: async ({ query }) => searchIssues(query),
+    }),
+]);
+```
+<!-- /docs-validate: hidden -->
 ```typescript
 await session.setTools([
     defineTool("search_issues", {
@@ -751,6 +906,18 @@ Disconnect the session and free resources. Session data on disk is preserved for
 
 Host capabilities reported when the session was created or resumed. Use this to check feature support before calling capability-gated APIs.
 
+<!-- docs-validate: strict -->
+<!-- docs-validate: hidden -->
+```typescript
+import type { CopilotSession } from "@github/copilot-sdk";
+
+declare const session: CopilotSession;
+
+if (session.capabilities.ui?.elicitation) {
+    const ok = await session.ui.confirm("Deploy?");
+}
+```
+<!-- /docs-validate: hidden -->
 ```typescript
 if (session.capabilities.ui?.elicitation) {
     const ok = await session.ui.confirm("Deploy?");
@@ -1396,7 +1563,7 @@ console.log(session.workspacePath);
 // => ~/.copilot/session-state/{sessionId}/
 
 // Custom thresholds
-const session = await client.createSession({
+const tuned = await client.createSession({
     model: "gpt-5",
     infiniteSessions: {
         enabled: true,
@@ -1406,7 +1573,7 @@ const session = await client.createSession({
 });
 
 // Disable infinite sessions
-const session = await client.createSession({
+const disabled = await client.createSession({
     model: "gpt-5",
     infiniteSessions: { enabled: false },
 });
@@ -1444,13 +1611,13 @@ const disabled = await client.createSession({
 <!-- /docs-validate: hidden -->
 ```typescript
 // Enable memory for a session
-const session = await client.createSession({
+const enabled = await client.createSession({
     model: "gpt-5",
     memory: { enabled: true },
 });
 
 // Disable memory for a session
-const session = await client.createSession({
+const disabled = await client.createSession({
     model: "gpt-5",
     memory: { enabled: false },
 });

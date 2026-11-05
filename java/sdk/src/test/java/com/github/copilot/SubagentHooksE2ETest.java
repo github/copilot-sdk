@@ -4,6 +4,8 @@
 
 package com.github.copilot;
 
+import org.junit.jupiter.api.Tag;
+
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotEquals;
@@ -37,13 +39,13 @@ import com.github.copilot.rpc.MessageOptions;
 import com.github.copilot.rpc.PermissionHandler;
 import com.github.copilot.rpc.PostToolUseHookOutput;
 import com.github.copilot.rpc.PreToolUseHookOutput;
-import com.github.copilot.rpc.SessionConfig;
 import com.github.copilot.rpc.SessionHooks;
 import com.github.copilot.rpc.SubagentStartHookInput;
 import com.github.copilot.rpc.SubagentStartHookOutput;
 import com.github.copilot.rpc.SubagentStopHookInput;
 import com.github.copilot.rpc.SubagentStopHookOutput;
 
+@Tag("e2e")
 public class SubagentHooksE2ETest {
 
     private static final String SNAPSHOT_NAME = "should_apply_subagent_lifecycle_hook_outputs";
@@ -75,7 +77,7 @@ public class SubagentHooksE2ETest {
 
             try (CopilotClient client = ctx
                     .createClient(new CopilotClientOptions().setEnvironment(env).setRequestHandler(requestHandler))) {
-                CopilotSession session = client.createSession(new SessionConfig().setSessionId(parentSessionId)
+                CopilotSession session = client.createSession(ctx.newSessionConfig().setSessionId(parentSessionId)
                         .setModel(REPLAY_MODEL).setOnPermissionRequest(PermissionHandler.APPROVE_ALL)
                         .setHooks(new SessionHooks().setOnPreToolUse((input, invocation) -> {
                             hookLog.add(new HookEntry("pre", input.getToolName(), input.getSessionId()));

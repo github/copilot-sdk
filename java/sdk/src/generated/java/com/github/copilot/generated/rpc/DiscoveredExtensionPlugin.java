@@ -21,7 +21,20 @@ import javax.annotation.processing.Generated;
 @JsonInclude(JsonInclude.Include.NON_NULL)
 @JsonIgnoreProperties(ignoreUnknown = true)
 public record DiscoveredExtensionPlugin(
+    /** Opaque identity of the owning plugin. Matches plugins.list().plugins[].id on the same runtime host. Compare the complete value without parsing it. May be absent on older runtimes. */
+    @JsonProperty("id") String id,
     /** Installed plugin name */
     @JsonProperty("name") String name
 ) {
+
+    /**
+     * Creates a record without plugin ownership or content-root metadata.
+     *
+     * @param name Installed plugin name
+     */
+    public DiscoveredExtensionPlugin(
+        String name
+    ) {
+        this(null, name);
+    }
 }

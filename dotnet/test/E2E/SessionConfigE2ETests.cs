@@ -345,7 +345,7 @@ public class SessionConfigE2ETests(E2ETestFixture fixture, ITestOutputHelper out
         var sessionId = session1.SessionId;
         await SuspendAndUntrackSessionForResumeAsync(session1);
 
-        var session2 = await ResumeSessionAsync(sessionId, new ResumeSessionConfig
+        await using var session2 = await ResumeSessionAsync(sessionId, new ResumeSessionConfig
         {
             WorkingDirectory = subDir,
         });
@@ -357,7 +357,13 @@ public class SessionConfigE2ETests(E2ETestFixture fixture, ITestOutputHelper out
 
         Assert.Contains("resume working directory", message?.Data.Content ?? string.Empty);
 
-        await session2.DisposeAsync();
+        await SuspendAndUntrackSessionForResumeAsync(session2);
+        var omittedWorkingDirectory = new ResumeSessionConfig();
+        await using var session3 = await ResumeSessionAsync(sessionId, omittedWorkingDirectory);
+
+        Assert.Null(omittedWorkingDirectory.WorkingDirectory);
+        var resumeEvent = (await session3.GetEventsAsync()).OfType<SessionResumeEvent>().Last();
+        Assert.Equal(subDir, resumeEvent.Data.Context?.Cwd);
     }
 
     [Fact]
