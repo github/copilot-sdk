@@ -2721,6 +2721,8 @@ type ResumeSessionConfig struct {
 	// This takes effect only when ClientOptions.SessionFS is configured.
 	CreateSessionFSProvider func(session *Session) SessionFSProvider
 	// Commands registers slash-commands for this session. See SessionConfig.Commands.
+	// An empty non-nil slice replaces the commands previously registered for this
+	// session with none; nil leaves them unchanged.
 	Commands []CommandDefinition
 	// OnElicitationRequest is a handler for elicitation requests from the server.
 	// See SessionConfig.OnElicitationRequest.
@@ -3327,7 +3329,7 @@ type createSessionRequest struct {
 	ToolSearch                         *ToolSearchConfig                      `json:"toolSearch,omitempty"`
 	ImageGeneration                    *ImageGenerationConfig                 `json:"imageGeneration,omitempty"`
 	Memory                             *MemoryConfiguration                   `json:"memory,omitempty"`
-	Commands                           []wireCommand                          `json:"commands,omitempty"`
+	Commands                           []wireCommand                          `json:"commands,omitzero"`
 	RequestElicitation                 *bool                                  `json:"requestElicitation,omitempty"`
 	RequestMCPApps                     *bool                                  `json:"requestMcpApps,omitempty"`
 	GitHubMCPToolConfig                *GitHubMCPToolConfig                   `json:"githubMcpToolConfig,omitempty"`
@@ -3440,7 +3442,7 @@ type resumeSessionRequest struct {
 	ToolSearch                         *ToolSearchConfig                      `json:"toolSearch,omitempty"`
 	ImageGeneration                    *ImageGenerationConfig                 `json:"imageGeneration,omitempty"`
 	Memory                             *MemoryConfiguration                   `json:"memory,omitempty"`
-	Commands                           []wireCommand                          `json:"commands,omitempty"`
+	Commands                           []wireCommand                          `json:"commands,omitzero"`
 	RequestElicitation                 *bool                                  `json:"requestElicitation,omitempty"`
 	RequestMCPApps                     *bool                                  `json:"requestMcpApps,omitempty"`
 	GitHubMCPToolConfig                *GitHubMCPToolConfig                   `json:"githubMcpToolConfig,omitempty"`

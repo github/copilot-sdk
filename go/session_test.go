@@ -317,6 +317,59 @@ func TestToolResultWithUnencodableTelemetryIsAnsweredWithError(t *testing.T) {
 	}
 }
 
+func TestToolHandlerErrorWithEmptyMessageIsAnsweredWithError(t *testing.T) {
+	type noArgs struct{}
+	tests := []struct {
+		name    string
+		tool    Tool
+		wantErr string
+	}{
+		{
+			name: "error with an empty message",
+			tool: Tool{Name: "record_note", Handler: func(ToolInvocation) (ToolResult, error) {
+				return ToolResult{}, errors.New("")
+			}},
+			wantErr: "*errors.errorString",
+		},
+		{
+			name: "DefineTool handler returning an error with an empty message",
+			tool: DefineTool("record_note", "Records a note", func(noArgs, ToolInvocation) (any, error) {
+				return nil, errors.New("")
+			}),
+			wantErr: "*errors.errorString",
+		},
+		{
+			name: "error with a message",
+			tool: Tool{Name: "record_note", Handler: func(ToolInvocation) (ToolResult, error) {
+				return ToolResult{}, errors.New("disk full")
+			}},
+			wantErr: "disk full",
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			session, server := newSetToolsTestSession(t)
+			session.registerTools([]Tool{tt.tool})
+			session.startExternalTool(&ExternalToolRequestedData{
+				RequestID:  "request-1",
+				SessionID:  "session-1",
+				ToolCallID: "tool-call-1",
+				ToolName:   "record_note",
+				Arguments:  map[string]any{},
+			}, "")
+
+			completion := server.expectRequest(t, "session.tools.handlePendingToolCall")
+			if result, ok := completion.Params["result"]; ok {
+				t.Errorf("result = %#v, want none", result)
+			}
+			if completion.Params["error"] != tt.wantErr {
+				t.Errorf("error = %#v, want %q", completion.Params["error"], tt.wantErr)
+			}
+			server.respond(t, completion.ID, map[string]any{})
+		})
+	}
+}
+
 func TestToolResultTelemetryIsEncodedOnce(t *testing.T) {
 	session, server := newSetToolsTestSession(t)
 	marker := &countingTelemetry{}

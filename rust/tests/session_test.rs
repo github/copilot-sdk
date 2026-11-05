@@ -6026,6 +6026,58 @@ async fn external_tool_handler_error_is_reported_on_error_param() {
 }
 
 #[tokio::test]
+async fn external_tool_handler_error_with_empty_message_reports_its_kind() {
+    struct EmptyErrorTool(fn() -> github_copilot_sdk::Error);
+    #[async_trait]
+    impl tool::ToolHandler for EmptyErrorTool {
+        async fn call(
+            &self,
+            _invocation: ToolInvocation,
+        ) -> Result<ToolResult, github_copilot_sdk::Error> {
+            Err((self.0)())
+        }
+    }
+
+    let (_session, mut server) = create_session_pair_with_config(|cfg| {
+        cfg.with_tools(vec![
+            Tool::new("empty_source")
+                .with_description("Fails with an empty source error")
+                .with_parameters(serde_json::json!({"type": "object"}))
+                .with_handler(Arc::new(EmptyErrorTool(|| {
+                    github_copilot_sdk::Error::from(std::io::Error::other(""))
+                }))),
+            Tool::new("empty_message")
+                .with_description("Fails with an empty message")
+                .with_parameters(serde_json::json!({"type": "object"}))
+                .with_handler(Arc::new(EmptyErrorTool(|| {
+                    github_copilot_sdk::Error::with_message(ErrorKind::InvalidConfig, "")
+                }))),
+        ])
+    })
+    .await;
+
+    // An empty `error` reads as no error, so the call would count as a success.
+    for (request_id, tool_name, expected) in [
+        ("req-empty-source", "empty_source", ErrorKind::Io),
+        (
+            "req-empty-message",
+            "empty_message",
+            ErrorKind::InvalidConfig,
+        ),
+    ] {
+        request_external_tool(&mut server, request_id, tool_name).await;
+        let reply = timeout(TIMEOUT, server.read_request()).await.unwrap();
+        assert_eq!(reply["method"], "session.tools.handlePendingToolCall");
+        assert_eq!(reply["params"]["requestId"], request_id);
+        assert_eq!(reply["params"]["error"], expected.to_string());
+        assert!(
+            reply["params"].get("result").is_none(),
+            "a handler error must not be sent as a result: {reply}"
+        );
+    }
+}
+
+#[tokio::test]
 async fn external_tool_completed_cancels_blocked_handler() {
     struct DropProbe(Option<tokio::sync::oneshot::Sender<()>>);
 

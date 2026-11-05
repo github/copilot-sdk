@@ -80,7 +80,7 @@ use its published/bundled acquisition semantics:
 cargo check --all-features
 cargo test --features test-support
 cargo clippy --all-targets --all-features -- -D warnings
-cargo +nightly-2026-04-14 fmt --all -- --config-path .rustfmt.nightly.toml --check
+cargo fmt --all -- --config-path .rustfmt.toml --check
 ```
 
 For changes to the CLI's SDK consumer path, run the repository's Bazel tests

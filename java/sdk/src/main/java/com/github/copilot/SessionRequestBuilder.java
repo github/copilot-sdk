@@ -239,7 +239,7 @@ final class SessionRequestBuilder {
         }
         request.setModelCapabilities(config.getModelCapabilities());
 
-        if (config.getCommands() != null && !config.getCommands().isEmpty()) {
+        if (config.getCommands() != null) {
             var wireCommands = config.getCommands().stream()
                     .map(c -> new CommandWireDefinition(c.getName(), c.getDescription()))
                     .collect(java.util.stream.Collectors.toList());
@@ -397,7 +397,7 @@ final class SessionRequestBuilder {
         request.setInfiniteSessions(config.getInfiniteSessions());
         request.setModelCapabilities(config.getModelCapabilities());
 
-        if (config.getCommands() != null && !config.getCommands().isEmpty()) {
+        if (config.getCommands() != null) {
             var wireCommands = config.getCommands().stream()
                     .map(c -> new CommandWireDefinition(c.getName(), c.getDescription()))
                     .collect(java.util.stream.Collectors.toList());

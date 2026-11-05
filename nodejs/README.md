@@ -47,6 +47,7 @@ By default the callback authenticates only requests made for sessions this clien
 `startAhpHost()` requires `authentication`: `github`, or direct-only `none` / `custom`
 (`requireIdentity` and a validator returning `{identity,expiresAt}` or `null`):
 
+<!-- docs-validate: strict -->
 ```typescript
 import { CopilotClient } from "@github/copilot-sdk";
 
@@ -117,6 +118,7 @@ by the SDK. Published sessions remain discoverable after hosting stops.
 
 Supply `createSession` to materialize fresh AHP sessions in your application:
 
+<!-- docs-validate: strict -->
 ```typescript
 import { approveAll, CopilotClient, defineTool } from "@github/copilot-sdk";
 

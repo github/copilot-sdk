@@ -1538,8 +1538,10 @@ public sealed partial class CopilotSession : IAsyncDisposable
 
             try
             {
+                // An empty error reads as no error, so the call would count as a success.
+                var error = string.IsNullOrEmpty(ex.Message) ? ex.GetType().Name : ex.Message;
                 await Rpc.Tools.HandlePendingToolCallAsync(
-                    requestId, result: null, error: ex.Message, cancellationSource.Token);
+                    requestId, result: null, error: error, cancellationSource.Token);
             }
             catch (OperationCanceledException)
             {
@@ -2162,7 +2164,7 @@ public sealed partial class CopilotSession : IAsyncDisposable
                 Action = result.Action,
                 Content = result.Content?.ToDictionary(
                     kvp => kvp.Key,
-                    kvp => CopilotClient.ToJsonElementForWire(kvp.Value)!.Value)
+                    kvp => SerializeElicitationValue(kvp.Value))
             });
             LoggingHelpers.LogTiming(_logger, LogLevel.Debug, null,
                 "CopilotSession.HandleElicitationRequestAsync response sent successfully. Elapsed={Elapsed}, SessionId={SessionId}, RequestId={RequestId}",
@@ -2547,17 +2549,17 @@ public sealed partial class CopilotSession : IAsyncDisposable
         output is null ? null : JsonSerializer.SerializeToElement(output, SessionJsonContext.Default.PreMcpToolCallHookOutput);
 
     /// <summary>
-    /// Serializer options for hook outputs with an <c>object?</c> payload
-    /// (<see cref="PreToolUseHookOutput.ModifiedArgs"/>, <see cref="PostToolUseHookOutput.ModifiedResult"/>),
-    /// which can hold caller-defined types, such as anonymous objects, that no source-generated
-    /// context describes. As for structured output and custom tools, those types are serialized
-    /// with reflection when the application enables it.
+    /// Serializer options for <c>object</c> payloads a handler returns: hook outputs
+    /// (<see cref="PreToolUseHookOutput.ModifiedArgs"/>, <see cref="PostToolUseHookOutput.ModifiedResult"/>)
+    /// and elicitation answers (<see cref="ElicitationResult.Content"/>). These can hold caller-defined
+    /// types, such as anonymous objects, that no source-generated context describes. As for structured
+    /// output and custom tools, those types are serialized with reflection when the application enables it.
     /// </summary>
-    private static readonly JsonSerializerOptions s_hookPayloadSerializerOptions = CreateHookPayloadSerializerOptions();
+    private static readonly JsonSerializerOptions s_callerPayloadSerializerOptions = CreateCallerPayloadSerializerOptions();
 
     [UnconditionalSuppressMessage("AOT", "IL3050", Justification = "The reflection resolver is only added when JsonSerializer.IsReflectionEnabledByDefault is enabled.")]
     [UnconditionalSuppressMessage("Trimming", "IL2026", Justification = "The reflection resolver is only added when JsonSerializer.IsReflectionEnabledByDefault is enabled.")]
-    private static JsonSerializerOptions CreateHookPayloadSerializerOptions()
+    private static JsonSerializerOptions CreateCallerPayloadSerializerOptions()
     {
         var options = new JsonSerializerOptions(CopilotClient.SerializerOptionsForMessageFormatter);
         if (JsonSerializer.IsReflectionEnabledByDefault)
@@ -2569,7 +2571,11 @@ public sealed partial class CopilotSession : IAsyncDisposable
     }
 
     private static JsonElement? SerializeHookOutputWithPayload<T>(T? output) where T : class =>
-        output is null ? null : JsonSerializer.SerializeToElement(output, s_hookPayloadSerializerOptions.GetTypeInfo(typeof(T)));
+        output is null ? null : JsonSerializer.SerializeToElement(output, s_callerPayloadSerializerOptions.GetTypeInfo(typeof(T)));
+
+    private static JsonElement SerializeElicitationValue(object value) => value is JsonElement element
+        ? element
+        : JsonSerializer.SerializeToElement(value, s_callerPayloadSerializerOptions.GetTypeInfo(value.GetType()));
 
     /// <summary>
     /// Registers transform callbacks for system message sections.
@@ -3023,13 +3029,16 @@ public sealed partial class CopilotSession : IAsyncDisposable
     [JsonSerializable(typeof(AgentStopHookOutput))]
     [JsonSerializable(typeof(AutoModeSwitchRequest))]
     [JsonSerializable(typeof(AutoModeSwitchResponse))]
+    [JsonSerializable(typeof(decimal))]
     [JsonSerializable(typeof(Dictionary<string, SystemMessageTransformSection>))]
     [JsonSerializable(typeof(ErrorOccurredHookInput))]
     [JsonSerializable(typeof(ErrorOccurredHookOutput))]
     [JsonSerializable(typeof(ExitPlanModeRequest))]
     [JsonSerializable(typeof(ExitPlanModeResult))]
+    [JsonSerializable(typeof(float))]
     [JsonSerializable(typeof(GetMessagesRequest))]
     [JsonSerializable(typeof(GetMessagesResponse))]
+    [JsonSerializable(typeof(List<string>))]
     [JsonSerializable(typeof(PostToolUseFailureHookInput))]
     [JsonSerializable(typeof(PostToolUseFailureHookOutput))]
     [JsonSerializable(typeof(PostToolUseHookInput))]

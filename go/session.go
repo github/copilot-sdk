@@ -2333,6 +2333,10 @@ func (s *Session) executeToolAndRespond(requestID, toolName, toolCallID, agentID
 	}
 	if err != nil {
 		errMsg := err.Error()
+		if errMsg == "" {
+			// An empty error reads as no error, so the call would count as a success.
+			errMsg = fmt.Sprintf("%T", err)
+		}
 		s.RPC.Tools.HandlePendingToolCall(ctx, &rpc.HandlePendingToolCallRequest{
 			RequestID: requestID,
 			Error:     &errMsg,

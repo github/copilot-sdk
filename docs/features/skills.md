@@ -260,7 +260,26 @@ var session = await client.CreateSessionAsync(new SessionConfig
 <details>
 <summary><strong>Java</strong></summary>
 
-<!-- docs-validate: skip -->
+<!-- docs-validate: hidden -->
+```java
+import com.github.copilot.*;
+import com.github.copilot.rpc.*;
+import java.util.List;
+
+public class SkillDirectoriesExample {
+    public static void main(String[] args) throws Exception {
+        try (var client = new CopilotClient()) {
+            var session = client.createSession(
+                new SessionConfig()
+                    .setSkillDirectories(List.of("./skills"))
+                    .setDisabledSkills(List.of("experimental-feature", "deprecated-tool"))
+                    .setOnPermissionRequest(PermissionHandler.APPROVE_ALL)
+            ).get();
+        }
+    }
+}
+```
+<!-- /docs-validate: hidden -->
 ```java
 import com.github.copilot.rpc.*;
 import java.util.List;

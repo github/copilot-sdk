@@ -1744,7 +1744,11 @@ export class CopilotSession {
             if (!this._claimExternalTool(requestId, controller)) {
                 return;
             }
-            const message = error instanceof Error ? error.message : String(error);
+            let message = error instanceof Error ? error.message : String(error);
+            if (!message) {
+                // An empty error reads as no error, so the call would count as a success.
+                message = (error instanceof Error && error.name) || "Error";
+            }
             try {
                 await this.rpc.tools.handlePendingToolCall({ requestId, error: message });
             } catch (rpcError) {

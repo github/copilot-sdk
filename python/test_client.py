@@ -144,6 +144,37 @@ async def test_internal_test_options_override_only_owned_runtime(monkeypatch, tm
     assert _InternalTestOptions()._to_environment() == {}
 
 
+@pytest.mark.parametrize("transport", ["stdio", "tcp"])
+@pytest.mark.parametrize("source", ["downloaded", "explicit", "environment"])
+async def test_only_the_downloaded_runtime_is_started_as_the_executable(
+    monkeypatch, tmp_path, transport, source
+):
+    # Windows will not start a program named only on the command line once its path
+    # reaches MAX_PATH; Popen's executable becomes CreateProcess's application name.
+    runtime = tmp_path / "copilot-runtime"
+    runtime.touch()
+    monkeypatch.delenv("COPILOT_CLI_PATH", raising=False)
+    monkeypatch.setattr("copilot._cli_download.ensure_runtime_wrapper", lambda: str(runtime))
+    if source == "environment":
+        monkeypatch.setenv("COPILOT_CLI_PATH", str(runtime))
+    path = str(runtime) if source == "explicit" else None
+    connection = (
+        RuntimeConnection.for_stdio(path=path)
+        if transport == "stdio"
+        else RuntimeConnection.for_tcp(path=path)
+    )
+    popen = Mock(side_effect=OSError("spawn stopped"))
+    monkeypatch.setattr(client_module.subprocess, "Popen", popen)
+    client = CopilotClient(connection=connection)
+
+    with pytest.raises(OSError, match="spawn stopped"):
+        await client._start_cli_server()
+
+    assert popen.call_args.args[0][0] == str(runtime)
+    expected = str(runtime) if source == "downloaded" else None
+    assert popen.call_args.kwargs.get("executable") == expected
+
+
 def test_internal_test_options_reject_external_runtime():
     with pytest.raises(ValueError, match="requires a runtime owned by this client"):
         CopilotClient(
@@ -2742,6 +2773,52 @@ class TestCreateSessionConfig:
             )
             assert "tools" not in captured["session.create"]
             assert "tools" not in captured["session.resume"]
+        finally:
+            await client.force_stop()
+
+    @pytest.mark.asyncio
+    async def test_create_and_resume_session_forward_explicit_empty_commands(self):
+        client = CopilotClient(connection=RuntimeConnection.for_stdio(path=CLI_PATH))
+        await client.start()
+        try:
+            captured = {}
+
+            async def mock_request(method, params, **kwargs):
+                captured[method] = params
+                if method in ("session.create", "session.resume"):
+                    result = {"sessionId": params.get("sessionId") or "session-1"}
+                    callback = kwargs.get("on_response_inline")
+                    if callback is not None:
+                        callback(result)
+                    return result
+                return {}
+
+            client._client.request = mock_request
+
+            # An explicitly empty list must reach the runtime: on resume it replaces
+            # the session's slash commands with none, which omitting the key cannot
+            # express.
+            session = await client.create_session(
+                on_permission_request=PermissionHandler.approve_all,
+                commands=[],
+            )
+            await client.resume_session(
+                session.session_id,
+                on_permission_request=PermissionHandler.approve_all,
+                commands=[],
+            )
+            assert captured["session.create"]["commands"] == []
+            assert captured["session.resume"]["commands"] == []
+
+            omitted_session = await client.create_session(
+                on_permission_request=PermissionHandler.approve_all,
+            )
+            await client.resume_session(
+                omitted_session.session_id,
+                on_permission_request=PermissionHandler.approve_all,
+            )
+            assert "commands" not in captured["session.create"]
+            assert "commands" not in captured["session.resume"]
         finally:
             await client.force_stop()
 

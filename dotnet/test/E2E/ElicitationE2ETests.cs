@@ -3,6 +3,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 using GitHub.Copilot.Rpc;
+using System.Text.Json;
 using Xunit;
 using Xunit.Abstractions;
 
@@ -279,6 +280,51 @@ public class ElicitationE2ETests(E2ETestFixture fixture, ITestOutputHelper outpu
         }).WaitAsync(TimeSpan.FromSeconds(30));
 
         Assert.Equal(UIElicitationResponseAction.Cancel, result.Action);
+    }
+
+    [Fact]
+    public async Task ElicitationAsync_Returns_Collection_And_Numeric_Content_From_Handler()
+    {
+        var session = await CreateSessionAsync(new SessionConfig
+        {
+            OnElicitationRequest = _ => Task.FromResult(new ElicitationResult
+            {
+                Action = UIElicitationResponseAction.Accept,
+                Content = new Dictionary<string, object>
+                {
+                    ["tags"] = new List<string> { "a", "b" },
+                    ["ratio"] = 2.5f,
+                    ["price"] = 9.99m,
+                },
+            }),
+        });
+
+        var result = await session.Ui.ElicitAsync(new ElicitationParams
+        {
+            Message = "Details?",
+            RequestedSchema = new ElicitationSchema
+            {
+                Properties = new Dictionary<string, object>
+                {
+                    ["tags"] = new Dictionary<string, object>
+                    {
+                        ["type"] = "array",
+                        ["items"] = new Dictionary<string, object> { ["type"] = "string" },
+                    },
+                    ["ratio"] = new Dictionary<string, object> { ["type"] = "number" },
+                    ["price"] = new Dictionary<string, object> { ["type"] = "number" },
+                },
+            },
+        }).WaitAsync(TimeSpan.FromSeconds(30));
+
+        Assert.Equal(UIElicitationResponseAction.Accept, result.Action);
+        var tags = Assert.IsType<JsonElement>(result.Content!["tags"]);
+        Assert.Collection(
+            tags.EnumerateArray(),
+            tag => Assert.Equal("a", tag.GetString()),
+            tag => Assert.Equal("b", tag.GetString()));
+        Assert.Equal(2.5, Assert.IsType<JsonElement>(result.Content["ratio"]).GetDouble());
+        Assert.Equal(9.99m, Assert.IsType<JsonElement>(result.Content["price"]).GetDecimal());
     }
 
     [Fact]

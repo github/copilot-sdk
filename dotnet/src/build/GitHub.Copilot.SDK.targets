@@ -164,6 +164,9 @@
     <Error Condition="!Exists('$(_CopilotRuntimeNodePath)')" Text="Copilot runtime wrapper at '$(_CopilotCliBinaryPath)' is missing its adjacent runtime.node at '$(_CopilotRuntimeNodePath)'." />
     <WriteLinesToFile File="$(_CopilotRuntimeBundleCompleteMarker)" Lines="$(CopilotCliVersion)" Overwrite="true"
                       Condition="'$(_CopilotRuntimeBundleMissing)' == 'true'" />
+    <!-- The extracted bundle and its completion marker are the cache; an incomplete
+         cache is removed and downloaded again, so the archive is never read after this. -->
+    <Delete Files="$(_CopilotArchivePath)" />
   </Target>
 
   <!-- Copy the compatibility CLI entrypoint to output and register it for transitive

@@ -1142,7 +1142,7 @@ func (c *Client) createSession(ctx context.Context, config *SessionConfig, runti
 	req.InteractiveUser = config.InteractiveUser
 	req.ManagedSettings = config.ManagedSettings
 
-	if len(config.Commands) > 0 {
+	if config.Commands != nil {
 		cmds := make([]wireCommand, 0, len(config.Commands))
 		for _, cmd := range config.Commands {
 			cmds = append(cmds, wireCommand{Name: cmd.Name, Description: cmd.Description})
@@ -1653,7 +1653,7 @@ func (c *Client) resumeSession(ctx context.Context, sessionID string, config *Re
 		req.RequestPermission = Bool(true)
 	}
 
-	if len(config.Commands) > 0 {
+	if config.Commands != nil {
 		cmds := make([]wireCommand, 0, len(config.Commands))
 		for _, cmd := range config.Commands {
 			cmds = append(cmds, wireCommand{Name: cmd.Name, Description: cmd.Description})

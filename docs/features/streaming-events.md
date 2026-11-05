@@ -176,7 +176,24 @@ session.On<SessionEvent>(evt =>
 <details>
 <summary><strong>Java</strong></summary>
 
-<!-- docs-validate: skip -->
+<!-- docs-validate: hidden -->
+```java
+import com.github.copilot.*;
+import com.github.copilot.generated.*;
+
+public class SubscribingToEventsExample {
+    static void subscribe(CopilotSession session) {
+        // All events
+        session.on(event -> System.out.println(event.getType()));
+
+        // Specific event type — data is narrowed to the matching class
+        session.on(AssistantMessageDeltaEvent.class, event ->
+            System.out.print(event.getData().deltaContent())
+        );
+    }
+}
+```
+<!-- /docs-validate: hidden -->
 ```java
 // All events
 session.on(event -> System.out.println(event.getType()));

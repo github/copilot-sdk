@@ -19,6 +19,19 @@ namespace GitHub.Copilot.Test.Unit;
 public class SerializationTests
 {
     [Fact]
+    public void ToJsonElementForWire_Serializes_Collection_And_Numeric_Answers()
+    {
+        var tags = CopilotClient.ToJsonElementForWire(new List<string> { "a", "b" })!.Value;
+
+        Assert.Collection(
+            tags.EnumerateArray(),
+            tag => Assert.Equal("a", tag.GetString()),
+            tag => Assert.Equal("b", tag.GetString()));
+        Assert.Equal(2.5, CopilotClient.ToJsonElementForWire(2.5f)!.Value.GetDouble());
+        Assert.Equal(9.99m, CopilotClient.ToJsonElementForWire(9.99m)!.Value.GetDecimal());
+    }
+
+    [Fact]
     public void AuthenticatedAuthorityUpdate_SerializesNullGrant()
     {
         var options = GetSerializerOptions();

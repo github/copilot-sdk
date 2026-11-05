@@ -70,13 +70,11 @@ client := copilot.NewClient(&copilot.ClientOptions{
 <details>
 <summary><strong>.NET</strong></summary>
 
-<!-- docs-validate: skip -->
-
 ```csharp
 using GitHub.Copilot;
 using Microsoft.Extensions.Logging;
 
-// Using ILogger
+// Using ILogger (AddConsole comes from the Microsoft.Extensions.Logging.Console package)
 var loggerFactory = LoggerFactory.Create(builder =>
 {
     builder.SetMinimumLevel(LogLevel.Debug);
@@ -186,7 +184,6 @@ var client = new CopilotClient(new CopilotClientOptions
 <details>
 <summary><strong>Java</strong></summary>
 
-<!-- docs-validate: skip -->
 ```java
 import com.github.copilot.CopilotClient;
 import com.github.copilot.rpc.CopilotClientOptions;

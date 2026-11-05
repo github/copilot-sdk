@@ -39,33 +39,52 @@ public class AsyncTestSignalTests
     {
         var signal = new AsyncTestSignal();
         var ready = false;
-        var checkedAgain = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
-        var checks = 0;
+        using var cancellation = new CancellationTokenSource();
         var gate = new object();
-        bool Condition()
+        Task WaitForReadyAsync(TaskCompletionSource checkedAgain)
         {
-            lock (gate)
+            var checks = 0;
+            return signal.WaitForAsync(() =>
             {
-                if (++checks >= 3)
+                lock (gate)
                 {
-                    checkedAgain.TrySetResult();
+                    if (++checks == 2)
+                    {
+                        checkedAgain.TrySetResult();
+                    }
+                    return ready;
                 }
-                return ready;
-            }
+            }, Timeout.InfiniteTimeSpan, cancellationToken: cancellation.Token);
         }
 
-        var first = signal.WaitForAsync(Condition, TimeSpan.FromSeconds(1));
-        var second = signal.WaitForAsync(Condition, TimeSpan.FromSeconds(1));
-        signal.Pulse();
-        await checkedAgain.Task.WaitAsync(TimeSpan.FromSeconds(1));
-        Assert.False(first.IsCompleted);
-        Assert.False(second.IsCompleted);
-        lock (gate)
+        var firstCheckedAgain = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var secondCheckedAgain = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var first = WaitForReadyAsync(firstCheckedAgain);
+        var second = WaitForReadyAsync(secondCheckedAgain);
+        try
         {
-            ready = true;
+            signal.Pulse();
+            await Task.WhenAll(firstCheckedAgain.Task, secondCheckedAgain.Task).WaitAsync(TimeSpan.FromSeconds(1));
+            Assert.False(first.IsCompleted);
+            Assert.False(second.IsCompleted);
+            lock (gate)
+            {
+                ready = true;
+            }
+            signal.Pulse();
+            await Task.WhenAll(first, second).WaitAsync(TimeSpan.FromSeconds(1));
         }
-        signal.Pulse();
-        await Task.WhenAll(first, second);
+        finally
+        {
+            cancellation.Cancel();
+            try
+            {
+                await Task.WhenAll(first, second);
+            }
+            catch (OperationCanceledException) when (cancellation.IsCancellationRequested)
+            {
+            }
+        }
     }
 
     [Fact]

@@ -131,6 +131,7 @@ hooks: {
 ```
 
 All hook inputs include `sessionId`, `timestamp` (`Date`) and `workingDirectory`.
+Tool hooks also receive `toolCallId` when the runtime supplies one; correlate a call's hooks with `(input.sessionId, input.toolCallId)`.
 All handlers receive `invocation: { sessionId: string }` as the second argument.
 All handlers may return `void`/`undefined` (no-op) or an output object.
 
@@ -162,7 +163,7 @@ runtime-generated context.
 
 ### onPreToolUse
 
-**Input:** `{ toolName: string, toolArgs: unknown, timestamp, workingDirectory }`
+**Input:** `{ toolCallId?: string, toolName: string, toolArgs: unknown, timestamp, workingDirectory }`
 
 **Output (all fields optional):**
 | Field | Type | Effect |
@@ -187,7 +188,7 @@ object sent with the request; to allow, deny or change the call itself, use
 
 ### onPostToolUse
 
-**Input:** `{ toolName: string, toolArgs: unknown, toolResult: ToolResultObject, timestamp, workingDirectory }`
+**Input:** `{ toolCallId?: string, toolName: string, toolArgs: unknown, toolResult: ToolResultObject, timestamp, workingDirectory }`
 
 Fires only when the tool returned a successful result. To observe non-success
 outcomes, register `onPostToolUseFailure` as well.
@@ -200,7 +201,7 @@ outcomes, register `onPostToolUseFailure` as well.
 
 ### onPostToolUseFailure
 
-**Input:** `{ toolName: string, toolArgs: unknown, error: string, timestamp, workingDirectory }`
+**Input:** `{ toolCallId?: string, toolName: string, toolArgs: unknown, error: string, timestamp, workingDirectory }`
 
 Fires after a tool execution whose result was `"failure"`. `onPostToolUse`
 does **not** fire for these outcomes, so register this handler to observe or

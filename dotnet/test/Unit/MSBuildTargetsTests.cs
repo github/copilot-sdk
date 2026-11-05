@@ -148,11 +148,34 @@ public class MSBuildTargetsTests
         Assert.Equal(1, server.RequestPaths.Count(path => path == checksumsPath));
         Assert.Equal(1, server.RequestPaths.Count(path => path == assetPath));
         Assert.False(File.Exists(sandbox.ExpectedRuntimeAsset("SHA256SUMS.txt")));
+        Assert.False(File.Exists(sandbox.ExpectedCacheAsset("copilot.tgz")));
 
         var secondBuild = await sandbox.BuildAsync(properties);
 
         Assert.True(secondBuild.Succeeded, secondBuild.FailureMessage());
         Assert.Equal(2, server.RequestPaths.Count);
+        Assert.Equal("runtime", File.ReadAllText(sandbox.ExpectedRuntimeAsset("runtime.node")));
+    }
+
+    [Fact]
+    public async Task CompleteCache_WithLeftoverArchive_RemovesArchiveWithoutDownloading()
+    {
+        using var sandbox = MSBuildSandbox.Create();
+        sandbox.WriteRuntimeCacheAsset("prebuilds", GetReleasePlatform(), RuntimeWrapperName, "cached-runtime-wrapper");
+        sandbox.WriteRuntimeCacheAsset("prebuilds", GetReleasePlatform(), "runtime.node", "runtime");
+        sandbox.WriteRuntimeCacheAsset(".copilot-runtime-complete", "0.0.0-test");
+        sandbox.WriteRuntimeCacheAsset("copilot.tgz", "archive kept by an earlier build");
+        using var server = new ReleaseServer(new Dictionary<string, byte[]>());
+
+        var result = await sandbox.BuildAsync(new Dictionary<string, string>
+        {
+            ["CopilotCliReleaseBaseUrl"] = server.BaseUrl,
+        });
+
+        Assert.True(result.Succeeded, result.FailureMessage());
+        Assert.Empty(server.RequestPaths);
+        Assert.False(File.Exists(sandbox.ExpectedCacheAsset("copilot.tgz")));
+        Assert.Equal("cached-runtime-wrapper", File.ReadAllText(sandbox.ExpectedOutputBinary()));
     }
 
     [Theory]

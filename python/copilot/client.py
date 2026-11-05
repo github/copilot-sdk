@@ -3150,7 +3150,7 @@ class CopilotClient:
         payload["requestAutoModeSwitch"] = bool(on_auto_mode_switch_request)
 
         # Serialize commands (name + description only) into payload
-        if commands:
+        if commands is not None:
             payload["commands"] = [
                 {"name": cmd.name, "description": cmd.description or ""} for cmd in commands
             ]
@@ -4127,7 +4127,7 @@ class CopilotClient:
         payload["requestAutoModeSwitch"] = bool(on_auto_mode_switch_request)
 
         # Serialize commands (name + description only) into payload
-        if commands:
+        if commands is not None:
             payload["commands"] = [
                 {"name": cmd.name, "description": cmd.description or ""} for cmd in commands
             ]
@@ -5153,6 +5153,13 @@ class CopilotClient:
             args = ["node", cli_path] + args
         else:
             args = [cli_path] + args
+        # Windows refuses to start a program named only by the command line once its
+        # path reaches MAX_PATH, even with long paths enabled. Naming it as the
+        # executable passes it as CreateProcess's application name, which has no such
+        # limit. Only the runtime this SDK provisioned is started this way.
+        executable = (
+            cli_path if self._cli_path_source == "downloaded" and args[0] == cli_path else None
+        )
         logger.info(
             "CopilotClient._start_cli_server starting Copilot CLI",
             extra={
@@ -5226,6 +5233,7 @@ class CopilotClient:
             # Use regular Popen with pipes (buffering=0 for unbuffered)
             self._process = subprocess.Popen(
                 args,
+                executable=executable,
                 stdin=subprocess.PIPE,
                 stdout=subprocess.PIPE,
                 stderr=subprocess.PIPE,
@@ -5240,6 +5248,7 @@ class CopilotClient:
                 args.extend(["--port", str(tcp_port)])
             self._process = subprocess.Popen(
                 args,
+                executable=executable,
                 stdin=subprocess.DEVNULL,
                 stdout=subprocess.PIPE,
                 stderr=subprocess.PIPE,

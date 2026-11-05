@@ -3764,11 +3764,19 @@ async fn handle_notification(
                             "requestId": request_id,
                             "result": serde_json::to_value(result).unwrap_or(Value::Null),
                         }),
-                        Err(e) => serde_json::json!({
-                            "sessionId": sid,
-                            "requestId": request_id,
-                            "error": e.to_string(),
-                        }),
+                        Err(e) => {
+                            let mut error = e.to_string();
+                            if error.is_empty() {
+                                // An empty error reads as no error, so the call would
+                                // count as a success.
+                                error = e.kind().to_string();
+                            }
+                            serde_json::json!({
+                                "sessionId": sid,
+                                "requestId": request_id,
+                                "error": error,
+                            })
+                        }
                     };
                     let rpc_start = Instant::now();
                     let _ = client

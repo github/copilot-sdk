@@ -11,6 +11,7 @@ import java.util.concurrent.CompletableFuture;
 
 import org.junit.jupiter.api.Test;
 
+import com.fasterxml.jackson.databind.JsonNode;
 import com.github.copilot.rpc.CommandContext;
 import com.github.copilot.rpc.CommandDefinition;
 import com.github.copilot.rpc.CommandHandler;
@@ -119,6 +120,36 @@ class CommandsTest {
         var request = SessionRequestBuilder.buildCreateRequest(config);
 
         assertNull(request.getCommands());
+    }
+
+    @Test
+    void buildCreateAndResumeRequestsSendExplicitlyEmptyCommandsList() throws Exception {
+        // An explicitly empty list must reach the runtime: on resume it replaces the
+        // session's slash commands with none, which omitting the key cannot express.
+        var mapper = JsonRpcClient.getObjectMapper();
+        var create = SessionRequestBuilder.buildCreateRequest(
+                new SessionConfig().setOnPermissionRequest(PermissionHandler.APPROVE_ALL).setCommands(List.of()));
+        var resume = SessionRequestBuilder.buildResumeRequest("session-1",
+                new ResumeSessionConfig().setOnPermissionRequest(PermissionHandler.APPROVE_ALL).setCommands(List.of()));
+
+        JsonNode createJson = mapper.valueToTree(create);
+        JsonNode resumeJson = mapper.valueToTree(resume);
+        for (JsonNode json : List.of(createJson, resumeJson)) {
+            assertTrue(json.has("commands"), "commands must be sent: " + json);
+            assertTrue(json.get("commands").isArray());
+            assertEquals(0, json.get("commands").size());
+        }
+    }
+
+    @Test
+    void buildResumeRequestWithNoCommandsOmitsCommands() {
+        var config = new ResumeSessionConfig().setOnPermissionRequest(PermissionHandler.APPROVE_ALL);
+
+        var request = SessionRequestBuilder.buildResumeRequest("session-1", config);
+
+        assertNull(request.getCommands());
+        JsonNode json = JsonRpcClient.getObjectMapper().valueToTree(request);
+        assertFalse(json.has("commands"));
     }
 
     @Test

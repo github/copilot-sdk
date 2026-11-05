@@ -206,7 +206,7 @@ Manual and automatic conversation compaction also emit a separate `chat {model}`
 
 For **Node.js**, provide an `onGetTraceContext` callback on the client options. This is only needed if your application already uses `@opentelemetry/api` and you want to link your spans with the CLI's spans. The SDK calls this callback before `session.create`, `session.resume`, and `session.send` RPCs:
 
-<!-- docs-validate: skip -->
+<!-- docs-validate: strict -->
 ```typescript
 import { CopilotClient } from "@github/copilot-sdk";
 import { propagation, context } from "@opentelemetry/api";
@@ -232,7 +232,43 @@ When the CLI invokes a tool handler, the `traceparent` and `tracestate` from the
 * **.NET**: Configure `AddSource("github.copilot")` to export `copilot.tool_handler` parents under CLI spans; without listeners, only context propagates.
 * **Node.js**: Since the SDK has no OpenTelemetry dependency, `traceparent` and `tracestate` are passed as raw strings on the `ToolInvocation` object. Restore the context manually if needed:
 
-<!-- docs-validate: skip -->
+<!-- docs-validate: strict -->
+<!-- docs-validate: hidden -->
+```typescript
+declare function doWork(args: unknown): Promise<string>;
+
+import { defineTool } from "@github/copilot-sdk";
+import { propagation, context, trace } from "@opentelemetry/api";
+
+const myTool = defineTool("my-tool", {
+  description: "Do work",
+  handler: async (args, invocation) => {
+    // Restore the CLI's trace context as the active context
+    const carrier = {
+      traceparent: invocation.traceparent,
+      tracestate: invocation.tracestate,
+    };
+    const parentCtx = propagation.extract(context.active(), carrier);
+
+    // Create a child span under the CLI's span
+    const tracer = trace.getTracer("my-app");
+    return context.with(parentCtx, () =>
+      tracer.startActiveSpan("my-tool", async (span) => {
+        try {
+          const result = await doWork(args);
+          return result;
+        } finally {
+          span.end();
+        }
+      })
+    );
+  },
+});
+
+// Tool handlers are registered when the session is created.
+const session = await client.createSession({ tools: [myTool] });
+```
+<!-- /docs-validate: hidden -->
 ```typescript
 import { defineTool } from "@github/copilot-sdk";
 import { propagation, context, trace } from "@opentelemetry/api";

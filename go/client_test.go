@@ -3560,6 +3560,76 @@ func TestClient_ForwardsToolsPresenceToSessionRequests(t *testing.T) {
 	}
 }
 
+func TestClient_ForwardsCommandsPresenceToSessionRequests(t *testing.T) {
+	noop := func(CommandContext) error { return nil }
+	tests := []struct {
+		name     string
+		commands []CommandDefinition
+		want     []any
+	}{
+		{"omitted", nil, nil},
+		// An explicitly empty slice must reach the runtime: on resume it replaces the
+		// session's slash commands with none, which omitting the key cannot express.
+		{"empty", []CommandDefinition{}, []any{}},
+		{"one command", []CommandDefinition{{Name: "deploy", Description: "Deploy", Handler: noop}}, []any{
+			map[string]any{"name": "deploy", "description": "Deploy"},
+		}},
+	}
+
+	assertCommands := func(t *testing.T, params json.RawMessage, want []any) {
+		t.Helper()
+		var m map[string]any
+		if err := json.Unmarshal(params, &m); err != nil {
+			t.Fatalf("Failed to unmarshal: %v", err)
+		}
+		got, ok := m["commands"]
+		if want == nil {
+			if ok {
+				t.Errorf("Expected commands to be omitted, got %v", got)
+			}
+			return
+		}
+		if !ok || !reflect.DeepEqual(got, want) {
+			t.Errorf("Expected commands %v, got %v (present=%v)", want, got, ok)
+		}
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			rpcClient, server, _ := newRuntimeShutdownRpcPair(t)
+			t.Cleanup(server.Stop)
+			client := &Client{
+				client:   rpcClient,
+				RPC:      rpc.NewServerRPC(rpcClient),
+				sessions: make(map[string]*Session),
+			}
+
+			createParams := make(chan json.RawMessage, 1)
+			server.SetRequestHandler("session.create", func(params json.RawMessage) (json.RawMessage, *jsonrpc2.Error) {
+				createParams <- append(json.RawMessage(nil), params...)
+				sessionID := sessionIDFromParams(t, params)
+				return []byte(`{"sessionId":"` + sessionID + `","workspacePath":"/workspace"}`), nil
+			})
+
+			if _, err := client.CreateSession(t.Context(), &SessionConfig{Model: "auto", Commands: tt.commands}); err != nil {
+				t.Fatalf("CreateSession failed: %v", err)
+			}
+			assertCommands(t, <-createParams, tt.want)
+
+			resumeParams := make(chan json.RawMessage, 1)
+			server.SetRequestHandler("session.resume", func(params json.RawMessage) (json.RawMessage, *jsonrpc2.Error) {
+				resumeParams <- append(json.RawMessage(nil), params...)
+				return []byte(`{"sessionId":"resumed-commands","workspacePath":"/workspace"}`), nil
+			})
+
+			if _, err := client.ResumeSessionWithOptions(t.Context(), "resumed-commands", &ResumeSessionConfig{Model: "auto", Commands: tt.commands}); err != nil {
+				t.Fatalf("ResumeSessionWithOptions failed: %v", err)
+			}
+			assertCommands(t, <-resumeParams, tt.want)
+		})
+	}
+}
+
 func TestSessionRequests_SandboxConfig(t *testing.T) {
 	for _, enabled := range []bool{true, false} {
 		sandboxConfig := &rpc.SandboxConfig{
@@ -4919,13 +4989,13 @@ func TestCreateSessionRequest_Commands(t *testing.T) {
 		}
 	})
 
-	t.Run("omits commands from JSON when empty", func(t *testing.T) {
+	t.Run("omits commands from JSON when nil", func(t *testing.T) {
 		req := createSessionRequest{}
 		data, _ := json.Marshal(req)
 		var m map[string]any
 		json.Unmarshal(data, &m)
 		if _, ok := m["commands"]; ok {
-			t.Error("Expected commands to be omitted when empty")
+			t.Error("Expected commands to be omitted when nil")
 		}
 	})
 }
@@ -5093,13 +5163,13 @@ func TestResumeSessionRequest_Commands(t *testing.T) {
 		}
 	})
 
-	t.Run("omits commands from JSON when empty", func(t *testing.T) {
+	t.Run("omits commands from JSON when nil", func(t *testing.T) {
 		req := resumeSessionRequest{SessionID: "s1"}
 		data, _ := json.Marshal(req)
 		var m map[string]any
 		json.Unmarshal(data, &m)
 		if _, ok := m["commands"]; ok {
-			t.Error("Expected commands to be omitted when empty")
+			t.Error("Expected commands to be omitted when nil")
 		}
 	})
 }

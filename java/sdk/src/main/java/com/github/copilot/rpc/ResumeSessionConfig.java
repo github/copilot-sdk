@@ -2081,6 +2081,9 @@ public class ResumeSessionConfig {
      * <p>
      * When the CLI has a TUI, each command appears as {@code /name} for the user to
      * invoke. The handler is called when the user executes the command.
+     * <p>
+     * An empty list replaces the commands previously registered for this session
+     * with none; {@code null} leaves them unchanged.
      *
      * @param commands
      *            the list of command definitions

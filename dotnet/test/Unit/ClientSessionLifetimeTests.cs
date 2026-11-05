@@ -1502,6 +1502,41 @@ public sealed partial class ClientSessionLifetimeTests
         Assert.False(request.Params.TryGetProperty("result", out _));
     }
 
+    [Theory]
+    [InlineData("", "InvalidOperationException")]
+    [InlineData("disk full", "disk full")]
+    public async Task ExternalTool_Handler_Exception_Is_Answered_With_NonEmpty_Error(string message, string expectedError)
+    {
+        await using var server = await FakeCopilotServer.StartAsync();
+        await using var client = new CopilotClient(new CopilotClientOptions { Connection = RuntimeConnection.ForUri(server.Url) });
+        await using var session = await client.CreateSessionAsync(new SessionConfig
+        {
+            Tools = [new ThrowingFunction(new InvalidOperationException(message))],
+        });
+
+        await server.SendSessionEventAsync(session.SessionId, "external_tool.requested", new()
+        {
+            ["requestId"] = "throwing-request",
+            ["sessionId"] = session.SessionId,
+            ["toolCallId"] = "throwing-call",
+            ["toolName"] = "record_note",
+            ["arguments"] = new Dictionary<string, object?>(),
+        });
+
+        var request = await WaitForRequestAsync(server, "session.tools.handlePendingToolCall");
+        Assert.Equal(expectedError, request.Params.GetProperty("error").GetString());
+        Assert.False(request.Params.TryGetProperty("result", out _));
+    }
+
+    /// <summary>Throws the given exception from every invocation.</summary>
+    private sealed class ThrowingFunction(Exception exception) : AIFunction
+    {
+        public override string Name => "record_note";
+
+        protected override ValueTask<object?> InvokeCoreAsync(AIFunctionArguments arguments, CancellationToken cancellationToken) =>
+            throw exception;
+    }
+
     [Fact]
     public async Task ExternalTool_Number_Arguments_Bind_To_Single_Function_Parameter()
     {
