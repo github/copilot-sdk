@@ -1,6 +1,11 @@
-# GitHub Copilot CLI SDKs
+# Microsoft Copilot SDK
 
-![GitHub Copilot SDK](./assets/RepoHeader_01.png)
+> [!IMPORTANT]
+> **GitHub Copilot SDK is becoming Microsoft Copilot SDK**, the programmable interface for the Microsoft Copilot harness, the shared agent foundation used across Microsoft and GitHub products.
+>
+> The SDK repository will move to the Microsoft organization as part of a phased transition. Existing package names, namespaces, and some documentation may continue to reference GitHub Copilot SDK during the transition. **No immediate changes are required for existing users.** [Learn more about the transition](https://aka.ms/copilot-harness/announce).
+> 
+> Support for the Copilot SDK remains the same. For more information: [SUPPORT.md](SUPPORT.md)
 
 [![NPM Downloads](https://img.shields.io/npm/dm/%40github%2Fcopilot-sdk?label=npm)](https://www.npmjs.com/package/@github/copilot-sdk)
 [![PyPI - Downloads](https://img.shields.io/pypi/dm/github-copilot-sdk?label=PyPI)](https://pypi.org/project/github-copilot-sdk/)
@@ -45,7 +50,7 @@ For Go, Java, and Rust, [install the CLI manually](https://github.com/features/c
 
 ## Architecture
 
-All SDKs drive the Copilot agent runtime over JSON-RPC. By default the runtime is hosted by the Copilot CLI running as a child process in server mode:
+All SDKs communicate with the Copilot CLI server via JSON-RPC:
 
 ```
 Your Application
@@ -56,18 +61,6 @@ Your Application
 ```
 
 The SDK manages the CLI process lifecycle automatically. You can also connect to an external CLI server—see the [Getting Started Guide](./docs/getting-started.md#connecting-to-an-external-cli-server) for details on running the CLI in server mode.
-
-Every SDK also offers an experimental in-process transport. It loads the native Copilot runtime into your application through a C ABI and carries the same JSON-RPC messages over an in-memory connection, so no CLI process is started:
-
-```
-Your Application
-       ↓
-  SDK Client
-       ↓ JSON-RPC (in memory, C ABI)
-  Native Copilot runtime
-```
-
-See [Run the Copilot runtime in process](./docs/setup/in-process-runtime.md) for the connection option in each language and its requirements.
 
 ### Portable elicitation schemas
 
