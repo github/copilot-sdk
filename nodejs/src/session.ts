@@ -1674,6 +1674,7 @@ export class CopilotSession {
             return;
         }
         this.pendingExternalTools.set(requestId, controller);
+        let resultDeliveryStarted = false;
 
         try {
             // The built-in tool-search tool receives a snapshot of the session's
@@ -1739,8 +1740,15 @@ export class CopilotSession {
             if (!this._claimExternalTool(requestId, controller)) {
                 return;
             }
+            resultDeliveryStarted = true;
             await this.rpc.tools.handlePendingToolCall({ requestId, result });
         } catch (error) {
+            if (resultDeliveryStarted) {
+                if (error instanceof ConnectionError || error instanceof ResponseError) {
+                    return;
+                }
+                throw error;
+            }
             if (!this._claimExternalTool(requestId, controller)) {
                 return;
             }
