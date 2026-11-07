@@ -5717,6 +5717,7 @@ async fn elicitation_requested_dispatches_to_handler_and_responds() {
             request: ElicitationRequest,
         ) -> ElicitationResult {
             assert_eq!(request.message, "Enter your name");
+            assert_eq!(request.tool_call_id.as_deref(), Some("tool-call-1"));
             ElicitationResult {
                 action: "accept".to_string(),
                 content: Some(serde_json::json!({ "name": "Alice" })),
@@ -5735,6 +5736,7 @@ async fn elicitation_requested_dispatches_to_handler_and_responds() {
             "elicitation.requested",
             serde_json::json!({
                 "requestId": "elicit-1",
+                "toolCallId": "tool-call-1",
                 "message": "Enter your name",
                 "requestedSchema": {
                     "type": "object",

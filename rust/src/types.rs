@@ -7154,6 +7154,9 @@ pub struct ElicitationRequest {
     /// The source that initiated the request (e.g. MCP server name).
     #[serde(skip_serializing_if = "Option::is_none")]
     pub elicitation_source: Option<String>,
+    /// Tool call ID used to correlate this request with the invocation that raised it.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub tool_call_id: Option<String>,
     /// URL to open in the user's browser (url mode only).
     #[serde(skip_serializing_if = "Option::is_none")]
     pub url: Option<String>,

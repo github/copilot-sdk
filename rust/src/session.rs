@@ -4397,6 +4397,7 @@ async fn handle_notification(
                     _ => crate::types::ElicitationMode::Unknown,
                 }),
                 elicitation_source: elicitation_data.elicitation_source,
+                tool_call_id: elicitation_data.tool_call_id,
                 url: elicitation_data.url,
             };
             let client = client.clone();
