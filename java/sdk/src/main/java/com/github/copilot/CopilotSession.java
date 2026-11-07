@@ -46,6 +46,7 @@ import com.github.copilot.generated.rpc.SessionModelSwitchAutoTierParams;
 import com.github.copilot.generated.rpc.SessionModelSwitchAutoTierResult;
 import com.github.copilot.generated.rpc.SessionModelSwitchToParams;
 import com.github.copilot.generated.rpc.SessionPermissionsHandlePendingPermissionRequestParams;
+import com.github.copilot.generated.rpc.SessionPermissionsSetModeResult;
 import com.github.copilot.generated.rpc.SessionRpc;
 import com.github.copilot.generated.rpc.SessionToolsHandlePendingToolCallParams;
 import com.github.copilot.generated.rpc.SessionToolsSetParams;
@@ -115,6 +116,7 @@ import com.github.copilot.rpc.SessionHooks;
 import com.github.copilot.rpc.SessionStartHookInput;
 import com.github.copilot.rpc.SessionUiApi;
 import com.github.copilot.rpc.SessionUiCapabilities;
+import com.github.copilot.rpc.StoredMemory;
 import com.github.copilot.rpc.SubagentStartHookInput;
 import com.github.copilot.rpc.SubagentStopHookInput;
 import com.github.copilot.rpc.ToolDefinition;
@@ -172,6 +174,7 @@ import com.github.copilot.rpc.UserPromptTransformedHookInput;
  */
 public final class CopilotSession implements AutoCloseable {
 
+    static final int CLEANUP_TIMEOUT_SECONDS = 5;
     private static final Logger LOG = Logger.getLogger(CopilotSession.class.getName());
     private static final ObjectMapper MAPPER = JsonRpcClient.getObjectMapper();
 
@@ -205,6 +208,7 @@ public final class CopilotSession implements AutoCloseable {
     private volatile String sessionId;
     private volatile String workspacePath;
     private volatile TranscriptRecoveryReport transcriptRecovery;
+    private volatile SessionPermissionsSetModeResult permissionModeResult;
     private volatile SessionCapabilities capabilities = new SessionCapabilities();
     private final Object openCanvasesLock = new Object();
     private final List<OpenCanvasInstance> openCanvases = new ArrayList<>();
@@ -216,9 +220,10 @@ public final class CopilotSession implements AutoCloseable {
     private final Object setToolsLock = new Object();
     private CompletableFuture<Void> setToolsTail = CompletableFuture.completedFuture(null);
     private final Map<String, PendingExternalTool> pendingExternalTools = new ConcurrentHashMap<>();
-    private boolean externalToolsClosed;
+    private volatile boolean externalToolsClosed;
     private final Map<String, CommandHandler> commandHandlers = new ConcurrentHashMap<>();
     private final Map<String, BearerTokenProvider> bearerTokenProviders = new ConcurrentHashMap<>();
+    private final Map<String, CopilotSession> resumeFallbacks = new ConcurrentHashMap<>();
     private final AtomicReference<PermissionHandler> permissionHandler = new AtomicReference<>();
     private volatile boolean managedSettingsEnabled;
     private final AtomicReference<McpAuthHandler> mcpAuthHandler = new AtomicReference<>();
@@ -228,6 +233,7 @@ public final class CopilotSession implements AutoCloseable {
     private final AtomicReference<AutoModeSwitchHandler> autoModeSwitchHandler = new AtomicReference<>();
     private final AtomicReference<SessionHooks> hooksHandler = new AtomicReference<>();
     private final AtomicReference<SkillProvider> skillProvider = new AtomicReference<>();
+    private final AtomicReference<java.util.function.Function<StoredMemory, CompletableFuture<Void>>> memoryStoreHandler = new AtomicReference<>();
     private volatile EventErrorHandler eventErrorHandler;
     private volatile EventErrorPolicy eventErrorPolicy = EventErrorPolicy.PROPAGATE_AND_LOG_ERRORS;
     private volatile Map<String, java.util.function.Function<String, CompletableFuture<String>>> transformCallbacks;
@@ -411,6 +417,22 @@ public final class CopilotSession implements AutoCloseable {
 
     void setTranscriptRecovery(TranscriptRecoveryReport transcriptRecovery) {
         this.transcriptRecovery = transcriptRecovery;
+    }
+
+    /**
+     * Gets the outcome of the permission mode requested when this session was
+     * created or resumed: whether it was applied, and the authoritative mode the
+     * session started in.
+     *
+     * @return the outcome, or {@code null} when no mode was requested
+     */
+    @CopilotExperimental
+    public SessionPermissionsSetModeResult getPermissionModeResult() {
+        return permissionModeResult;
+    }
+
+    void setPermissionModeResult(SessionPermissionsSetModeResult permissionModeResult) {
+        this.permissionModeResult = permissionModeResult;
     }
 
     /**
@@ -624,6 +646,7 @@ public final class CopilotSession implements AutoCloseable {
         request.setAgentMode(options.getAgentMode());
         request.setRequestHeaders(options.getRequestHeaders());
         request.setDisplayPrompt(options.getDisplayPrompt());
+        request.setClientTurnId(options.getClientTurnId());
         if (options.getResponseSchema() != null) {
             request.setResponseFormat(Map.of("type", "json_schema", "jsonSchema",
                     Map.of("name", "response", "strict", true, "schema", options.getResponseSchema())));
@@ -1606,12 +1629,16 @@ public final class CopilotSession implements AutoCloseable {
                 if (current != null) {
                     current.getElicitation().ifPresent(ui::setElicitation);
                     current.getMcpApps().ifPresent(ui::setMcpApps);
+                    current.getAutoModeRecovery().ifPresent(ui::setAutoModeRecovery);
                 }
                 if (changed.elicitation() != null) {
                     ui.setElicitation(changed.elicitation());
                 }
                 if (changed.mcpApps() != null) {
                     ui.setMcpApps(changed.mcpApps());
+                }
+                if (changed.autoModeRecovery() != null) {
+                    ui.setAutoModeRecovery(changed.autoModeRecovery());
                 }
                 capabilities = new SessionCapabilities().setUi(ui);
             }
@@ -1732,22 +1759,12 @@ public final class CopilotSession implements AutoCloseable {
                     if (!pendingExternalTools.remove(requestId, pending)) {
                         return;
                     }
-                    try {
-                        getRpc().tools.handlePendingToolCall(
-                                new SessionToolsHandlePendingToolCallParams(sessionId, requestId, toolResult, null));
-                    } catch (Exception e) {
-                        LOG.log(Level.WARNING, "Error sending tool result for requestId=" + requestId, e);
-                    }
+                    sendToolResponse(requestId, toolName, toolResult, null);
                 }).exceptionally(ex -> {
                     if (!pendingExternalTools.remove(requestId, pending)) {
                         return null;
                     }
-                    try {
-                        getRpc().tools.handlePendingToolCall(new SessionToolsHandlePendingToolCallParams(sessionId,
-                                requestId, null, handlerErrorMessage(ex)));
-                    } catch (Exception e) {
-                        LOG.log(Level.WARNING, "Error sending tool error for requestId=" + requestId, e);
-                    }
+                    sendToolResponse(requestId, toolName, null, handlerErrorMessage(ex));
                     return null;
                 }).whenComplete((result, error) -> pendingExternalTools.remove(requestId, pending));
             } catch (Exception e) {
@@ -1755,12 +1772,7 @@ public final class CopilotSession implements AutoCloseable {
                     return;
                 }
                 LOG.log(Level.WARNING, "Error executing tool for requestId=" + requestId, e);
-                try {
-                    getRpc().tools.handlePendingToolCall(new SessionToolsHandlePendingToolCallParams(sessionId,
-                            requestId, null, handlerErrorMessage(e)));
-                } catch (Exception sendEx) {
-                    LOG.log(Level.WARNING, "Error sending tool error for requestId=" + requestId, sendEx);
-                }
+                sendToolResponse(requestId, toolName, null, handlerErrorMessage(e));
             }
         };
         try {
@@ -1772,6 +1784,50 @@ public final class CopilotSession implements AutoCloseable {
         } catch (RejectedExecutionException e) {
             LOG.log(Level.WARNING, "Executor rejected tool task for requestId=" + requestId + "; running inline", e);
             task.run();
+        }
+    }
+
+    private void sendToolResponse(String requestId, String toolName, ToolResultObject result, String error) {
+        try {
+            getRpc().tools
+                    .handlePendingToolCall(
+                            new SessionToolsHandlePendingToolCallParams(sessionId, requestId, result, error))
+                    .whenComplete((ignored, sendError) -> {
+                        if (sendError != null) {
+                            // Keep the reply off the reader thread and independent of tool handlers
+                            // that may be waiting for this session on the application's executor.
+                            CLEANUP_DISPATCHER
+                                    .execute(() -> answerUndeliveredToolResult(requestId, toolName, sendError));
+                        }
+                    });
+        } catch (Exception e) {
+            answerUndeliveredToolResult(requestId, toolName, e);
+        }
+    }
+
+    /**
+     * Reports a tool result that never reached the runtime and answers the call
+     * with the failure instead, because the runtime is still waiting on it. The
+     * caller already owns the request.
+     */
+    private void answerUndeliveredToolResult(String requestId, String toolName, Throwable error) {
+        // Both flags are volatile: this can run where taking the session monitor
+        // could deadlock against the transport's close lock.
+        if (isTerminated || externalToolsClosed) {
+            return;
+        }
+        LOG.log(Level.SEVERE, "External tool result delivery failed. sessionId=" + sessionId + ", requestId="
+                + requestId + ", tool=" + toolName, error);
+        try {
+            getRpc().tools.handlePendingToolCall(
+                    new SessionToolsHandlePendingToolCallParams(sessionId, requestId, null, handlerErrorMessage(error)))
+                    .whenComplete((ignored, sendError) -> {
+                        if (sendError != null) {
+                            LOG.log(Level.WARNING, "Error sending tool error for requestId=" + requestId, sendError);
+                        }
+                    });
+        } catch (Exception e) {
+            LOG.log(Level.WARNING, "Error sending tool error for requestId=" + requestId, e);
         }
     }
 
@@ -1990,7 +2046,10 @@ public final class CopilotSession implements AutoCloseable {
                     }
                     return null;
                 });
-            } catch (Exception e) {
+            } catch (Throwable e) {
+                // A handler that throws an Error (an AssertionError, say) must still be
+                // answered: the runtime puts no deadline on a pending command.
+                CopilotRequestHandler.rethrowFatalError(e);
                 LOG.log(Level.WARNING, "Error executing command for requestId=" + requestId, e);
                 try {
                     getRpc().commands.handlePendingCommand(new SessionCommandsHandlePendingCommandParams(sessionId,
@@ -2049,7 +2108,10 @@ public final class CopilotSession implements AutoCloseable {
                     }
                     return null;
                 });
-            } catch (Exception e) {
+            } catch (Throwable e) {
+                // A handler that throws an Error (an AssertionError, say) still cancels the
+                // request, so the runtime does not wait on it; only a fatal error is rethrown.
+                CopilotRequestHandler.rethrowFatalError(e);
                 LOG.log(Level.WARNING, "Error executing elicitation handler for requestId=" + requestId, e);
                 try {
                     getRpc().ui.handlePendingElicitation(buildElicitationCancelParams(requestId));
@@ -2224,6 +2286,18 @@ public final class CopilotSession implements AutoCloseable {
 
     void clearSkillProvider() {
         skillProvider.set(null);
+    }
+
+    void registerMemoryStore(java.util.function.Function<StoredMemory, CompletableFuture<Void>> handler) {
+        memoryStoreHandler.set(handler);
+    }
+
+    java.util.function.Function<StoredMemory, CompletableFuture<Void>> getMemoryStoreHandler() {
+        return memoryStoreHandler.get();
+    }
+
+    void clearMemoryStoreHandler() {
+        memoryStoreHandler.set(null);
     }
 
     /**
@@ -2500,7 +2574,10 @@ public final class CopilotSession implements AutoCloseable {
                 LOG.log(Level.SEVERE, "User input handler threw an exception", ex);
                 throw new RuntimeException("User input handler error", ex);
             });
-        } catch (Exception e) {
+        } catch (Throwable e) {
+            // An Error the handler throws (an AssertionError, say) is answered too, so the
+            // runtime is not left waiting; only a fatal error is rethrown.
+            CopilotRequestHandler.rethrowFatalError(e);
             LOG.log(Level.SEVERE, "Failed to process user input request", e);
             return CompletableFuture.failedFuture(e);
         }
@@ -2527,7 +2604,9 @@ public final class CopilotSession implements AutoCloseable {
                 LOG.log(Level.SEVERE, "Exit plan mode handler threw an exception", ex);
                 throw new RuntimeException("Exit plan mode handler error", ex);
             });
-        } catch (Exception e) {
+        } catch (Throwable e) {
+            // An Error the handler throws is answered too; only a fatal error is rethrown.
+            CopilotRequestHandler.rethrowFatalError(e);
             LOG.log(Level.SEVERE, "Failed to process exit plan mode request", e);
             return CompletableFuture.failedFuture(e);
         }
@@ -2554,7 +2633,9 @@ public final class CopilotSession implements AutoCloseable {
                 LOG.log(Level.SEVERE, "Auto mode switch handler threw an exception", ex);
                 throw new RuntimeException("Auto mode switch handler error", ex);
             });
-        } catch (Exception e) {
+        } catch (Throwable e) {
+            // An Error the handler throws is answered too; only a fatal error is rethrown.
+            CopilotRequestHandler.rethrowFatalError(e);
             LOG.log(Level.SEVERE, "Failed to process auto mode switch request", e);
             return CompletableFuture.failedFuture(e);
         }
@@ -2613,10 +2694,11 @@ public final class CopilotSession implements AutoCloseable {
                         : null;
 
                 if (cb != null) {
-                    CompletableFuture<Void> f = cb.apply(content).exceptionally(ex -> content)
+                    CompletableFuture<Void> f = applyTransform(cb, content).exceptionally(ex -> content)
                             .thenAccept(transformed -> {
                                 synchronized (result) {
-                                    result.put(sectionId, Map.of("content", transformed != null ? transformed : ""));
+                                    result.put(sectionId,
+                                            Map.of("content", transformed != null ? transformed : content));
                                 }
                             });
                     futures.add(f);
@@ -2631,6 +2713,21 @@ public final class CopilotSession implements AutoCloseable {
             response.put("sections", result);
             return response;
         });
+    }
+
+    /**
+     * Calls a section transform callback. A callback that throws or returns no
+     * future keeps the section, as a failed future does, so the runtime always gets
+     * an answer.
+     */
+    private static CompletableFuture<String> applyTransform(
+            java.util.function.Function<String, CompletableFuture<String>> cb, String content) {
+        try {
+            CompletableFuture<String> transform = cb.apply(content);
+            return transform != null ? transform : CompletableFuture.completedFuture(content);
+        } catch (Exception ex) {
+            return CompletableFuture.failedFuture(ex);
+        }
     }
 
     /**
@@ -3353,6 +3450,25 @@ public final class CopilotSession implements AutoCloseable {
         retire(true);
     }
 
+    void recordResumeFallback(String id, CopilotSession previous) {
+        if (previous != null) {
+            resumeFallbacks.put(id, previous);
+        }
+    }
+
+    void commitResumeRegistration() {
+        resumeFallbacks.clear();
+    }
+
+    CopilotSession liveResumeOwner(String id) {
+        CopilotSession owner = this;
+        // Graceful close keeps callbacks live until detach is acknowledged.
+        while (owner != null && owner.callbacksRetired) {
+            owner = owner.resumeFallbacks.get(id);
+        }
+        return owner;
+    }
+
     private boolean retire(boolean force) {
         List<Runnable> waitCompletions = new ArrayList<>();
         synchronized (this) {
@@ -3396,6 +3512,7 @@ public final class CopilotSession implements AutoCloseable {
         autoModeSwitchHandler.set(null);
         hooksHandler.set(null);
         skillProvider.set(null);
+        memoryStoreHandler.set(null);
         eventErrorHandler = null;
         transformCallbacks = null;
     }

@@ -276,13 +276,14 @@ import (
 	"github.com/github/copilot-sdk/go/rpc"
 )
 
-func main() {
-	_ = rpc.SkillProviderDescriptor{
+var _ =
+	rpc.SkillProviderDescriptor{
 		Name:        "release-notes",
 		Description: "Writes release notes in the team's format.",
 		Directory:   copilot.String("/srv/skills/release-notes"),
 	}
-}
+
+func main() {}
 ```
 -->
 <!-- /docs-validate: hidden -->
@@ -342,9 +343,16 @@ instead of falling back to raw configuration writes. Generated presence and
 transport tests do not establish live OAuth, activation or cross-process
 recovery.
 
-## Kerberos authentication callback
+## Network callbacks (experimental)
 
-Set `ClientOptions.KerberosAuth` to a `KerberosAuthConfig{Mode, Callback}` when Kerberos tickets must be obtained by the SDK host, for example from Windows when the runtime runs in WSL. The runtime currently uses it for proxy authentication. The callback receives a `context.Context` and a `KerberosAuthAcquireRequest` whose `Spn` is a service principal in the platform-independent `service/host[@REALM]` form, and returns a fresh base64 SPNEGO token without the `Negotiate ` prefix, or `""` when credentials are unavailable. A returned error is reported to the runtime as a callback failure. The callback should validate the principal before issuing credentials.
+Set `ClientOptions.Network` to a `NetworkConfig` when the SDK host should take over parts of the runtime's networking, for example when the runtime runs in WSL or a container and should use VS Code's proxy settings and the host's Kerberos tickets. Registration happens during `Start` (including the auto-start in `CreateSession` and `ResumeSession`), before sessions can be created. Without this option, or for a callback you leave nil, the runtime handles that part itself.
+
+- `ResolveProxy(ctx, request)` decides the proxies for every request the runtime would otherwise route by ambient proxy settings: proxy environment variables, `NO_PROXY` and operating-system proxy settings are not consulted unless it returns `""`. The `NetworkResolveProxyRequest`'s `URL` is the request target as a PAC script sees it: without credentials or fragment, and for `https` and `wss` also without path and query. Return a PAC-style list such as `PROXY proxy.example:8080; HTTPS proxy.example:443; DIRECT` (the format of Electron's `session.resolveProxy`); return `"DIRECT"` for a direct connection, or `""` to let the runtime resolve the proxy itself, as if no callback were registered. Entry types the runtime doesn't support, such as SOCKS and QUIC, are skipped. If the callback returns an error, the request fails rather than connecting directly. Requests to loopback targets, and requests with an explicitly configured proxy, never consult it. The runtime caches answers, including `""`, for 5 seconds and waits at most 10 seconds for the callback.
+- `AuthenticateNegotiate(ctx, request)` supplies the Kerberos token for a proxy's Negotiate challenge instead of the runtime's native credential lookup. The `NetworkAuthenticateNegotiateRequest`'s `Spn` is a service principal in the platform-independent `service/host[@REALM]` form; validate it before issuing credentials. Return a fresh base64 SPNEGO token without the `Negotiate ` prefix, or `""` when credentials are unavailable, which fails the request. The runtime waits at most 30 seconds for the callback (less when the request's own deadline is sooner). Tokens are not cached and must not be logged or persisted. The callback supplies the initial SPNEGO token only; exchanges requiring continuation tokens are not supported. Proxies chosen by `ResolveProxy` are authenticated the same way.
+
+A returned error, or a panic, is reported to the runtime as a callback failure. Each callback's `ctx` is cancelled when the runtime stops waiting (it cancels the request, for example after its timeout, or the connection closes); the SDK then stops waiting for the callback and ignores any later result, so a lookup that can hang should abandon its work once the context is done. If that happens before the callback starts, the callback is not called at all.
+
+By default the callbacks serve only requests made for sessions this client creates or resumes. With `Scope: copilot.NetworkScopeRuntime` they also serve the runtime's shared background traffic, such as catalog refreshes and telemetry; only one connection at a time can hold that scope, so startup fails if another client holds it. The registration ends when the connection closes; a failed `Start`, including one whose context is cancelled, closes it.
 
 <!-- docs-validate: hidden -->
 <!--
@@ -357,15 +365,22 @@ import (
 	copilot "github.com/github/copilot-sdk/go"
 )
 
+func lookUpProxy(ctx context.Context, url string) (string, error) {
+	return "", nil
+}
+
 func acquireSPNEGOToken(ctx context.Context, spn string) (string, error) {
 	return "", nil
 }
 
 func main() {
 	client := copilot.NewClient(&copilot.ClientOptions{
-		KerberosAuth: &copilot.KerberosAuthConfig{
-			Mode: copilot.KerberosAuthModeFallback,
-			Callback: func(ctx context.Context, request copilot.KerberosAuthAcquireRequest) (string, error) {
+		Network: &copilot.NetworkConfig{
+			Scope: copilot.NetworkScopeRuntime,
+			ResolveProxy: func(ctx context.Context, request copilot.NetworkResolveProxyRequest) (string, error) {
+				return lookUpProxy(ctx, request.URL) // for example "PROXY proxy.example:8080; DIRECT"
+			},
+			AuthenticateNegotiate: func(ctx context.Context, request copilot.NetworkAuthenticateNegotiateRequest) (string, error) {
 				return acquireSPNEGOToken(ctx, request.Spn) // host-side credential lookup
 			},
 		},
@@ -378,19 +393,17 @@ func main() {
 
 ```go
 client := copilot.NewClient(&copilot.ClientOptions{
-    KerberosAuth: &copilot.KerberosAuthConfig{
-        Mode: copilot.KerberosAuthModeFallback,
-        Callback: func(ctx context.Context, request copilot.KerberosAuthAcquireRequest) (string, error) {
+    Network: &copilot.NetworkConfig{
+        Scope: copilot.NetworkScopeRuntime,
+        ResolveProxy: func(ctx context.Context, request copilot.NetworkResolveProxyRequest) (string, error) {
+            return lookUpProxy(ctx, request.URL) // for example "PROXY proxy.example:8080; DIRECT"
+        },
+        AuthenticateNegotiate: func(ctx context.Context, request copilot.NetworkAuthenticateNegotiateRequest) (string, error) {
             return acquireSPNEGOToken(ctx, request.Spn) // host-side credential lookup
         },
     },
 })
 ```
-
-With `KerberosAuthModeFallback`, native credential acquisition (including the first token) is tried first; only failure invokes the callback. With `KerberosAuthModeAlways`, native credential lookup is never attempted. Without this option, behavior is unchanged. Registration happens during `Start` (including the auto-start in `CreateSession` and `ResumeSession`), before sessions can be created. `NewClient` panics if `Mode` or `Callback` is missing.
-
-By default the callback authenticates only requests made for sessions this client creates or resumes. With the `runtime` scope it also authenticates the runtime's shared background traffic, such as catalog refreshes and telemetry; only one connection at a time can hold that scope, so startup fails if another client holds it. The registration ends when the connection closes; a failed `Start`, including one whose context is cancelled, closes it. In fallback mode, if the callback cannot supply a valid token, the native credential error is reported. In always mode, a disconnected, failing, or empty callback fails authentication. The runtime waits at most 30 seconds for the callback (less when the request's own deadline is sooner) and treats a timeout as a callback failure. When the runtime stops waiting or the connection closes, the callback's context is cancelled and any later result is ignored, so a lookup that can hang should abandon its work once the context is done. If that happens before the callback starts, the callback is not called at all. Tokens are not cached and must not be logged or persisted. The callback supplies the initial SPNEGO token only; exchanges requiring continuation tokens still need native negotiation.
-
 ## Distributing your application with an embedded GitHub Copilot CLI
 
 The SDK supports bundling, using Go's `embed` package, the Copilot CLI binary within your application's distribution.
@@ -506,7 +519,7 @@ Event types: `SessionLifecycleCreated`, `SessionLifecycleDeleted`, `SessionLifec
 - `WorkingDirectory` (string): Working directory for the runtime process (default: current process working directory)
 - `BaseDirectory` (string): Base directory for Copilot data (session state, config, etc.). Sets `COPILOT_HOME` on the spawned runtime. When empty, the runtime defaults to `~/.copilot`. Ignored with `URIConnection`. This does **not** affect where the Go SDK extracts the embedded CLI binary; use `embeddedcli.Config.Dir` for the extraction/cache location.
 - `ExtensionLaunchProvider` (ExtensionLaunchProvider): Experimental connection-level resolver for extension launch profiles. `Start` installs the reverse-RPC handler and registers the provider before sessions can be created.
-- `KerberosAuth` (\*KerberosAuthConfig): Supplies Kerberos credentials from the SDK host. `Start` installs the `kerberosAuth.acquire` handler and registers the callback with its `Mode` and optional `Scope` (`KerberosAuthScopeConnection` by default, or `KerberosAuthScopeRuntime`) before sessions can be created. See [Kerberos authentication callback](#kerberos-authentication-callback).
+- `Network` (\*NetworkConfig): **Experimental.** Network callbacks through which the SDK host resolves the runtime's proxies (`ResolveProxy`) and supplies Kerberos tokens for proxies' Negotiate challenges (`AuthenticateNegotiate`). `Start` installs the `network.resolveProxy` and `network.authenticateNegotiate` handlers for the configured callbacks and registers them with the optional `Scope` (`NetworkScopeConnection` by default, or `NetworkScopeRuntime`) before sessions can be created. See [Network callbacks](#network-callbacks-experimental).
 - `InstallationConfirmationHandler` (InstallationConfirmationHandler): Experimental connection-global human review for `installations.confirm`. Receives the typed request, a per-request cancellation context and a separate connection-closed signal, then returns an explicit decision. Does not enable installation capabilities.
 - `LogLevel` (string): Log level. When empty (default), the runtime uses its own default level (the SDK does not pass `--log-level`).
 - `Env` ([]string): Environment variables for a child runtime process (default: inherits from current process). Rejected in-process.
@@ -549,6 +562,7 @@ Event types: `SessionLifecycleCreated`, `SessionLifecycleDeleted`, `SessionLifec
 - `OnUserInputRequest` (UserInputHandler): Handler for legacy question-and-answer requests from the agent. Enables the legacy `ask_user` tool. See [User Input Requests](#user-input-requests) section.
 - `AskUserVariant` (AskUserVariant): Selects the model-facing shape of the `ask_user` tool. The zero value preserves legacy behavior; use `AskUserVariantElicitation` with `OnElicitationRequest`.
 - `InteractiveUser` (\*bool): Declares that a person types this session's messages, as in an editor chat panel. Enables the runtime's user-message analysis telemetry for user-authored messages; automated messages stay excluded. Nil or false keeps the SDK default of off. Ignored for cloud sessions.
+- `PermissionMode` (rpc.PermissionMode): Applies `manual`, `assisted`, or `allow-all` before the session's first turn, before `CreateSession` returns. Uses the same checks as `session.RPC.Permissions.SetMode`; `Session.PermissionModeResult()` reports whether it was applied and the authoritative mode. Not supported for cloud sessions.
 - `Hooks` (\*SessionHooks): Hook handlers for session lifecycle events. See [Session Hooks](#session-hooks) section.
 - `Commands` ([]CommandDefinition): Slash-commands registered for this session. See [Commands](#commands) section.
 - `OnElicitationRequest` (ElicitationHandler): Handler for elicitation requests from the server. See [Elicitation Requests](#elicitation-requests-serverclient) section.
@@ -565,6 +579,7 @@ Event types: `SessionLifecycleCreated`, `SessionLifecycleDeleted`, `SessionLifec
 - `OnElicitationRequest` (ElicitationHandler): Elicitation handler. See [Elicitation Requests](#elicitation-requests-serverclient) section.
 - `AskUserVariant` (AskUserVariant): Selects the model-facing shape of the `ask_user` tool on cold resume. Re-supply `AskUserVariantElicitation` with `OnElicitationRequest`; the zero value preserves legacy behavior.
 - `InteractiveUser` (\*bool): Re-supplies the interactive-user declaration on cold resume. It is ignored when resuming a session that is already active.
+- `PermissionMode` (rpc.PermissionMode): Applied before resumed pending work continues. If it is refused (for example by managed policy), continued work runs under the mode `session.PermissionModeResult()` reports. See `SessionConfig.PermissionMode`.
 - `GitHubTokenProvider` (GitHubTokenProvider): Replaces the session-scoped token provider when resuming. Cannot be combined with `GitHubToken`.
 
 <!-- docs-validate: hidden -->
@@ -1049,6 +1064,7 @@ func main() {
 editFile := copilot.DefineTool("edit_file", "Custom file editor with project-specific validation",
     func(params EditFileParams, inv copilot.ToolInvocation) (any, error) {
         // your logic
+        return nil, nil
     })
 editFile.OverridesBuiltInTool = true
 ```
@@ -1139,6 +1155,7 @@ func main() {
 lookupIssue := copilot.DefineTool("lookup_issue", "Fetch issue details",
     func(params LookupParams, inv copilot.ToolInvocation) (any, error) {
         // your logic
+        return nil, nil
     })
 lookupIssue.Defer = copilot.ToolDeferAuto
 ```

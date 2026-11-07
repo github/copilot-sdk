@@ -401,7 +401,6 @@ import (
 	"context"
 	"fmt"
 	copilot "github.com/github/copilot-sdk/go"
-	"github.com/github/copilot-sdk/go/rpc"
 )
 
 func main() {
@@ -421,9 +420,6 @@ func main() {
 				}
 				return &copilot.PreToolUseHookOutput{PermissionDecision: "allow"}, nil
 			},
-		},
-		OnPermissionRequest: func(req copilot.PermissionRequest, inv copilot.PermissionInvocation) (rpc.PermissionDecision, error) {
-			return &rpc.PermissionDecisionApproveOnce{}, nil
 		},
 	})
 	_ = session

@@ -206,12 +206,17 @@ name = "skill_provider_test"
 required-features = ["test-support"]
 
 [[test]]
-name = "kerberos_auth_test"
+name = "network_test"
 required-features = ["runtime"]
 
 [[test]]
 name = "session_management_test"
 required-features = ["test-support"]
+
+[[example]]
+name = "session_fs"
+test = true
+
 [build-dependencies]
 flate2 = "1"
 serde_json = "1"

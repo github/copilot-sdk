@@ -14,7 +14,7 @@ import com.github.copilot.CopilotExperimental;
 import javax.annotation.processing.Generated;
 
 /**
- * Update the session's reasoning effort without changing the selected model. Use `switchTo` instead when you also need to change the model. The runtime stores the effort on the session and applies it to subsequent turns.
+ * Update the session's reasoning effort without changing the selected model. Use `switchTo` instead when you also need to change the model. The runtime applies the effort to the next new model request, including tool continuations, without changing retries of an already-started request.
  *
  * @apiNote This method is experimental and may change in a future version.
  * @since 1.0.0

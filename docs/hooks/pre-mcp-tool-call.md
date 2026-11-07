@@ -17,7 +17,7 @@ The hook cannot allow, deny or change the call itself: to control whether a tool
 | `serverName` | string | Name of the MCP server being called |
 | `toolName` | string | Name of the MCP tool being called |
 | `arguments` | JSON value | Arguments for the MCP tool call |
-| `_meta` | object (optional) | The `_meta` object the request would carry, when there is one |
+| `_meta` | object (optional) | The `_meta` object the request would carry, when there is one. It includes the runtime's [tool call and turn IDs](#tool-call-and-turn-ids-in-_meta) when the call has them |
 
 The output has one optional field, `metaToUse`, and its three states are different:
 
@@ -28,6 +28,41 @@ The output has one optional field, `metaToUse`, and its three states are differe
 | `metaToUse` set to `null` | Send no hook-controlled `_meta` |
 
 If the hook throws, returns an invalid `metaToUse` or times out, the runtime logs it and the call goes ahead with the current `_meta`.
+
+## Tool call and turn IDs in `_meta`
+
+The runtime adds these keys to `params._meta` on each `tools/call` request it sends for a model tool call, so an MCP server can match the request to the session event log.
+Both keys are a stable contract: servers can rely on their names and meaning.
+
+| Key | Value | Present when |
+| --- | --- | --- |
+| `com.github.copilot/toolCallId` | The `toolCallId` of the call's `tool.execution_start` event | The call has a tool call ID |
+| `com.github.copilot/turnId` | The `clientTurnId` the client passed to `send` or `sendAndWait` for the turn the call belongs to | The turn was started by a send that set `clientTurnId` |
+
+`clientTurnId` is opaque to the runtime: it carries the value without parsing it, so a host can pass the turn ID it publishes in its own event log.
+The value applies to every model request and tool call the send drives:
+
+* A send takes effect when it starts a turn. A send without `clientTurnId` clears the value.
+  A slash command or model change that runs between turns leaves it unchanged.
+* A send that steers the running turn (`mode: "immediate"`) replaces the value when the turn consumes it, from the next model request onward.
+  A steering send without `clientTurnId` clears it.
+  This matches a host that opens a successor turn when a user steers.
+* Steering with a non-user `source` or an empty `displayPrompt` leaves the value unchanged.
+* If the turn ends before taking a steering send, the send starts its own turn with its own value.
+* Autopilot continuations keep the current value: that of the send that started the turn, or of the last steering send it consumed.
+* A sub-agent's calls carry the value of the turn that started the sub-agent, even after that turn ends or is steered while a background sub-agent keeps running.
+  An agent started with `session.tasks.startAgent` belongs to no turn and carries no turn ID.
+* Turns the runtime starts itself, such as a background task notification or a scheduled prompt, carry no turn ID.
+
+The `user.message` event for each message a send delivers echoes the send's value in `data.clientTurnId`, so a host can bind its turn from the event log instead of from the `messageId` that `send` returns.
+The echo appears when the message is consumed: when it starts a turn, drains from the queue, or is taken as steering. Each message carries its own send's value, and the field is absent when that send set no `clientTurnId`.
+Session events are persisted, so the echo survives a resume. The value the runtime stamps on `tools/call` is held in memory only and isn't restored when a session resumes; the next send sets it again.
+
+The runtime adds both keys before the hooks run, so every hook's input `_meta` contains them, even after an earlier hook replaced `_meta` or set it to `null`.
+A hook that sets a key keeps its own value. A hook can't remove a key: if `metaToUse` leaves it out or is `null`, the runtime adds it back.
+
+Requests without a model tool call, such as a tool call an MCP App's UI starts, carry neither key.
+Runtimes released before a key was added don't send it, and they reject a `send` that sets `clientTurnId`.
 
 ## Examples
 

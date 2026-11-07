@@ -21,6 +21,8 @@ import javax.annotation.processing.Generated;
 @JsonInclude(JsonInclude.Include.NON_NULL)
 @JsonIgnoreProperties(ignoreUnknown = true)
 public record Plugin(
+    /** Soft assignment from effective managed settings. This does not mark the plugin as hard-managed. */
+    @JsonProperty("assignment") ManagedPluginAssignment assignment,
     /** Plugin name */
     @JsonProperty("name") String name,
     /** Marketplace the plugin came from */
@@ -48,7 +50,7 @@ public record Plugin(
 ) {
 
     /**
-     * Creates a record without plugin ownership or content-root metadata.
+     * Creates a record with the components it had before later optional fields were added.
      *
      * @param name Plugin name
      * @param marketplace Marketplace the plugin came from
@@ -73,6 +75,6 @@ public record Plugin(
         Boolean managedDesiredEnabled,
         Boolean installed
     ) {
-        this(name, marketplace, version, enabled, directSourceId, null, installedFrom, source, managed, managedDesiredEnabled, installed, null);
+        this(null, name, marketplace, version, enabled, directSourceId, null, installedFrom, source, managed, managedDesiredEnabled, installed, null);
     }
 }

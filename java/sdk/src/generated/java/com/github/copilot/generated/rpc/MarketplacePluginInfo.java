@@ -24,6 +24,21 @@ public record MarketplacePluginInfo(
     /** Plugin name as listed in the marketplace catalog */
     @JsonProperty("name") String name,
     /** Short description from the marketplace catalog, when present */
-    @JsonProperty("description") String description
+    @JsonProperty("description") String description,
+    /** Soft assignment from effective managed settings for this marketplace entry. */
+    @JsonProperty("assignment") ManagedPluginAssignment assignment
 ) {
+
+    /**
+     * Creates a record with the components it had before later optional fields were added.
+     *
+     * @param name Plugin name as listed in the marketplace catalog
+     * @param description Short description from the marketplace catalog, when present
+     */
+    public MarketplacePluginInfo(
+        String name,
+        String description
+    ) {
+        this(name, description, null);
+    }
 }

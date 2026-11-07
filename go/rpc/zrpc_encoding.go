@@ -3548,6 +3548,314 @@ func (r *DebugCollectLogsRequest) UnmarshalJSON(data []byte) error {
 	return nil
 }
 
+func unmarshalDecisionAnswer(data []byte) (DecisionAnswer, error) {
+	if string(data) == "null" {
+		return nil, nil
+	}
+	type rawUnion struct {
+		Kind DecisionAnswerKind `json:"kind"`
+	}
+	var raw rawUnion
+	if err := json.Unmarshal(data, &raw); err != nil {
+		return nil, err
+	}
+
+	switch raw.Kind {
+	case DecisionAnswerKindBoolean:
+		var d DecisionAnswerBoolean
+		if err := json.Unmarshal(data, &d); err != nil {
+			return nil, err
+		}
+		return &d, nil
+	case DecisionAnswerKindChoice:
+		var d DecisionAnswerChoice
+		if err := json.Unmarshal(data, &d); err != nil {
+			return nil, err
+		}
+		return &d, nil
+	case DecisionAnswerKindRefused:
+		var d DecisionAnswerRefused
+		if err := json.Unmarshal(data, &d); err != nil {
+			return nil, err
+		}
+		return &d, nil
+	case DecisionAnswerKindScore:
+		var d DecisionAnswerScore
+		if err := json.Unmarshal(data, &d); err != nil {
+			return nil, err
+		}
+		return &d, nil
+	default:
+		return &RawDecisionAnswerData{Discriminator: raw.Kind, Raw: data}, nil
+	}
+}
+
+func (r RawDecisionAnswerData) MarshalJSON() ([]byte, error) {
+	if r.Raw != nil {
+		return r.Raw, nil
+	}
+	return json.Marshal(struct {
+		Kind DecisionAnswerKind `json:"kind"`
+	}{
+		Kind: r.Discriminator,
+	})
+}
+
+func (r DecisionAnswerBoolean) MarshalJSON() ([]byte, error) {
+	type alias DecisionAnswerBoolean
+	return json.Marshal(struct {
+		Kind DecisionAnswerKind `json:"kind"`
+		alias
+	}{
+		Kind:  r.Kind(),
+		alias: alias(r),
+	})
+}
+
+func (r DecisionAnswerChoice) MarshalJSON() ([]byte, error) {
+	type alias DecisionAnswerChoice
+	return json.Marshal(struct {
+		Kind DecisionAnswerKind `json:"kind"`
+		alias
+	}{
+		Kind:  r.Kind(),
+		alias: alias(r),
+	})
+}
+
+func (r DecisionAnswerRefused) MarshalJSON() ([]byte, error) {
+	type alias DecisionAnswerRefused
+	return json.Marshal(struct {
+		Kind DecisionAnswerKind `json:"kind"`
+		alias
+	}{
+		Kind:  r.Kind(),
+		alias: alias(r),
+	})
+}
+
+func (r DecisionAnswerScore) MarshalJSON() ([]byte, error) {
+	type alias DecisionAnswerScore
+	return json.Marshal(struct {
+		Kind DecisionAnswerKind `json:"kind"`
+		alias
+	}{
+		Kind:  r.Kind(),
+		alias: alias(r),
+	})
+}
+
+func unmarshalDecisionContext(data []byte) (DecisionContext, error) {
+	if string(data) == "null" {
+		return nil, nil
+	}
+	type rawUnion struct {
+		Kind DecisionContextKind `json:"kind"`
+	}
+	var raw rawUnion
+	if err := json.Unmarshal(data, &raw); err != nil {
+		return nil, err
+	}
+
+	switch raw.Kind {
+	case DecisionContextKindJSON:
+		var d DecisionContextJSON
+		if err := json.Unmarshal(data, &d); err != nil {
+			return nil, err
+		}
+		return &d, nil
+	case DecisionContextKindText:
+		var d DecisionContextText
+		if err := json.Unmarshal(data, &d); err != nil {
+			return nil, err
+		}
+		return &d, nil
+	default:
+		return &RawDecisionContextData{Discriminator: raw.Kind, Raw: data}, nil
+	}
+}
+
+func (r RawDecisionContextData) MarshalJSON() ([]byte, error) {
+	if r.Raw != nil {
+		return r.Raw, nil
+	}
+	return json.Marshal(struct {
+		Kind DecisionContextKind `json:"kind"`
+	}{
+		Kind: r.Discriminator,
+	})
+}
+
+func (r DecisionContextJSON) MarshalJSON() ([]byte, error) {
+	type alias DecisionContextJSON
+	return json.Marshal(struct {
+		Kind DecisionContextKind `json:"kind"`
+		alias
+	}{
+		Kind:  r.Kind(),
+		alias: alias(r),
+	})
+}
+
+func (r DecisionContextText) MarshalJSON() ([]byte, error) {
+	type alias DecisionContextText
+	return json.Marshal(struct {
+		Kind DecisionContextKind `json:"kind"`
+		alias
+	}{
+		Kind:  r.Kind(),
+		alias: alias(r),
+	})
+}
+
+func unmarshalDecisionQuestion(data []byte) (DecisionQuestion, error) {
+	if string(data) == "null" {
+		return nil, nil
+	}
+	type rawUnion struct {
+		Kind DecisionQuestionKind `json:"kind"`
+	}
+	var raw rawUnion
+	if err := json.Unmarshal(data, &raw); err != nil {
+		return nil, err
+	}
+
+	switch raw.Kind {
+	case DecisionQuestionKindBoolean:
+		var d DecisionQuestionBoolean
+		if err := json.Unmarshal(data, &d); err != nil {
+			return nil, err
+		}
+		return &d, nil
+	case DecisionQuestionKindChoice:
+		var d DecisionQuestionChoice
+		if err := json.Unmarshal(data, &d); err != nil {
+			return nil, err
+		}
+		return &d, nil
+	case DecisionQuestionKindScore:
+		var d DecisionQuestionScore
+		if err := json.Unmarshal(data, &d); err != nil {
+			return nil, err
+		}
+		return &d, nil
+	default:
+		return &RawDecisionQuestionData{Discriminator: raw.Kind, Raw: data}, nil
+	}
+}
+
+func (r RawDecisionQuestionData) MarshalJSON() ([]byte, error) {
+	if r.Raw != nil {
+		return r.Raw, nil
+	}
+	return json.Marshal(struct {
+		Kind DecisionQuestionKind `json:"kind"`
+	}{
+		Kind: r.Discriminator,
+	})
+}
+
+func (r DecisionQuestionBoolean) MarshalJSON() ([]byte, error) {
+	type alias DecisionQuestionBoolean
+	return json.Marshal(struct {
+		Kind DecisionQuestionKind `json:"kind"`
+		alias
+	}{
+		Kind:  r.Kind(),
+		alias: alias(r),
+	})
+}
+
+func (r DecisionQuestionChoice) MarshalJSON() ([]byte, error) {
+	type alias DecisionQuestionChoice
+	return json.Marshal(struct {
+		Kind DecisionQuestionKind `json:"kind"`
+		alias
+	}{
+		Kind:  r.Kind(),
+		alias: alias(r),
+	})
+}
+
+func (r DecisionQuestionScore) MarshalJSON() ([]byte, error) {
+	type alias DecisionQuestionScore
+	return json.Marshal(struct {
+		Kind DecisionQuestionKind `json:"kind"`
+		alias
+	}{
+		Kind:  r.Kind(),
+		alias: alias(r),
+	})
+}
+
+func (r *DecisionsAskRequest) UnmarshalJSON(data []byte) error {
+	type rawDecisionsAskRequest struct {
+		Context     json.RawMessage   `json:"context"`
+		GitHubToken *string           `json:"gitHubToken,omitempty"`
+		Model       *string           `json:"model,omitempty"`
+		Purpose     *string           `json:"purpose,omitempty"`
+		Questions   []json.RawMessage `json:"questions"`
+		SelectionID *string           `json:"selectionId,omitempty"`
+		TimeoutMs   *int32            `json:"timeoutMs,omitempty"`
+	}
+	var raw rawDecisionsAskRequest
+	if err := json.Unmarshal(data, &raw); err != nil {
+		return err
+	}
+	if raw.Context != nil {
+		value, err := unmarshalDecisionContext(raw.Context)
+		if err != nil {
+			return err
+		}
+		r.Context = value
+	}
+	r.GitHubToken = raw.GitHubToken
+	r.Model = raw.Model
+	r.Purpose = raw.Purpose
+	if raw.Questions != nil {
+		r.Questions = make([]DecisionQuestion, 0, len(raw.Questions))
+		for _, rawItem := range raw.Questions {
+			value, err := unmarshalDecisionQuestion(rawItem)
+			if err != nil {
+				return err
+			}
+			r.Questions = append(r.Questions, value)
+		}
+	}
+	r.SelectionID = raw.SelectionID
+	r.TimeoutMs = raw.TimeoutMs
+	return nil
+}
+
+func (r *DecisionsAskResult) UnmarshalJSON(data []byte) error {
+	type rawDecisionsAskResult struct {
+		Answers       []json.RawMessage `json:"answers"`
+		LatencyMs     int64             `json:"latencyMs"`
+		Model         string            `json:"model"`
+		UpstreamModel *string           `json:"upstreamModel,omitempty"`
+		Usage         *DecisionUsage    `json:"usage,omitempty"`
+	}
+	var raw rawDecisionsAskResult
+	if err := json.Unmarshal(data, &raw); err != nil {
+		return err
+	}
+	if raw.Answers != nil {
+		r.Answers = make([]DecisionAnswer, 0, len(raw.Answers))
+		for _, rawItem := range raw.Answers {
+			value, err := unmarshalDecisionAnswer(rawItem)
+			if err != nil {
+				return err
+			}
+			r.Answers = append(r.Answers, value)
+		}
+	}
+	r.LatencyMs = raw.LatencyMs
+	r.Model = raw.Model
+	r.UpstreamModel = raw.UpstreamModel
+	r.Usage = raw.Usage
+	return nil
+}
+
 func unmarshalEnqueueCommandResult(data []byte) (EnqueueCommandResult, error) {
 	if string(data) == "null" {
 		return nil, nil
@@ -6283,6 +6591,163 @@ func (r *MCPInstallPlan) UnmarshalJSON(data []byte) error {
 	return nil
 }
 
+func unmarshalMCPOauthFlowStore(data []byte) (MCPOauthFlowStore, error) {
+	if string(data) == "null" {
+		return nil, nil
+	}
+	type rawUnion struct {
+		Kind MCPOauthFlowStoreKind `json:"kind"`
+	}
+	var raw rawUnion
+	if err := json.Unmarshal(data, &raw); err != nil {
+		return nil, err
+	}
+
+	switch raw.Kind {
+	case MCPOauthFlowStoreKindCallback:
+		var d MCPOauthFlowStoreCallback
+		if err := json.Unmarshal(data, &d); err != nil {
+			return nil, err
+		}
+		return &d, nil
+	case MCPOauthFlowStoreKindMemory:
+		var d MCPOauthFlowStoreMemory
+		if err := json.Unmarshal(data, &d); err != nil {
+			return nil, err
+		}
+		return &d, nil
+	case MCPOauthFlowStoreKindPersistent:
+		var d MCPOauthFlowStorePersistent
+		if err := json.Unmarshal(data, &d); err != nil {
+			return nil, err
+		}
+		return &d, nil
+	case MCPOauthFlowStoreKindSession:
+		var d MCPOauthFlowStoreSession
+		if err := json.Unmarshal(data, &d); err != nil {
+			return nil, err
+		}
+		return &d, nil
+	default:
+		return &RawMCPOauthFlowStoreData{Discriminator: raw.Kind, Raw: data}, nil
+	}
+}
+
+func (r RawMCPOauthFlowStoreData) MarshalJSON() ([]byte, error) {
+	if r.Raw != nil {
+		return r.Raw, nil
+	}
+	return json.Marshal(struct {
+		Kind MCPOauthFlowStoreKind `json:"kind"`
+	}{
+		Kind: r.Discriminator,
+	})
+}
+
+func (r MCPOauthFlowStoreCallback) MarshalJSON() ([]byte, error) {
+	type alias MCPOauthFlowStoreCallback
+	return json.Marshal(struct {
+		Kind MCPOauthFlowStoreKind `json:"kind"`
+		alias
+	}{
+		Kind:  r.Kind(),
+		alias: alias(r),
+	})
+}
+
+func (r MCPOauthFlowStoreMemory) MarshalJSON() ([]byte, error) {
+	type alias MCPOauthFlowStoreMemory
+	return json.Marshal(struct {
+		Kind MCPOauthFlowStoreKind `json:"kind"`
+		alias
+	}{
+		Kind:  r.Kind(),
+		alias: alias(r),
+	})
+}
+
+func (r MCPOauthFlowStorePersistent) MarshalJSON() ([]byte, error) {
+	type alias MCPOauthFlowStorePersistent
+	return json.Marshal(struct {
+		Kind MCPOauthFlowStoreKind `json:"kind"`
+		alias
+	}{
+		Kind:  r.Kind(),
+		alias: alias(r),
+	})
+}
+
+func (r MCPOauthFlowStoreSession) MarshalJSON() ([]byte, error) {
+	type alias MCPOauthFlowStoreSession
+	return json.Marshal(struct {
+		Kind MCPOauthFlowStoreKind `json:"kind"`
+		alias
+	}{
+		Kind:  r.Kind(),
+		alias: alias(r),
+	})
+}
+
+func (r *MCPOauthAuthenticateRequest) UnmarshalJSON(data []byte) error {
+	type rawMCPOauthAuthenticateRequest struct {
+		AuthorizationTimeoutMs              *int64                          `json:"authorizationTimeoutMs,omitempty"`
+		Browserless                         *bool                           `json:"browserless,omitempty"`
+		CallbackSuccessMessage              *string                         `json:"callbackSuccessMessage,omitempty"`
+		ClientIDMetadataURL                 *string                         `json:"clientIdMetadataUrl,omitempty"`
+		ClientName                          *string                         `json:"clientName,omitempty"`
+		DeviceCodeOfferTimeoutMs            *int64                          `json:"deviceCodeOfferTimeoutMs,omitempty"`
+		DeviceCodePollIntervalMs            *int64                          `json:"deviceCodePollIntervalMs,omitempty"`
+		FlowID                              string                          `json:"flowId"`
+		ForceDeviceCode                     *bool                           `json:"forceDeviceCode,omitempty"`
+		ForceReauth                         *bool                           `json:"forceReauth,omitempty"`
+		IncludeExistingTokenScopes          *bool                           `json:"includeExistingTokenScopes,omitempty"`
+		PreservePendingFlowReplacementFlags *bool                           `json:"preservePendingFlowReplacementFlags,omitempty"`
+		RedirectPort                        *int64                          `json:"redirectPort,omitempty"`
+		ResourceMetadata                    *string                         `json:"resourceMetadata,omitempty"`
+		SandboxProxy                        *string                         `json:"sandboxProxy,omitempty"`
+		ServerURL                           string                          `json:"serverUrl"`
+		Sessionless                         *bool                           `json:"sessionless,omitempty"`
+		SkipBrowserOpen                     *bool                           `json:"skipBrowserOpen,omitempty"`
+		SkipCachedAccessToken               *bool                           `json:"skipCachedAccessToken,omitempty"`
+		StaticClientConfig                  *MCPOauthFlowStaticClientConfig `json:"staticClientConfig,omitempty"`
+		Store                               json.RawMessage                 `json:"store,omitempty"`
+		WwwAuthenticateParams               *MCPOauthWwwAuthenticateParams  `json:"wwwAuthenticateParams,omitempty"`
+	}
+	var raw rawMCPOauthAuthenticateRequest
+	if err := json.Unmarshal(data, &raw); err != nil {
+		return err
+	}
+	r.AuthorizationTimeoutMs = raw.AuthorizationTimeoutMs
+	r.Browserless = raw.Browserless
+	r.CallbackSuccessMessage = raw.CallbackSuccessMessage
+	r.ClientIDMetadataURL = raw.ClientIDMetadataURL
+	r.ClientName = raw.ClientName
+	r.DeviceCodeOfferTimeoutMs = raw.DeviceCodeOfferTimeoutMs
+	r.DeviceCodePollIntervalMs = raw.DeviceCodePollIntervalMs
+	r.FlowID = raw.FlowID
+	r.ForceDeviceCode = raw.ForceDeviceCode
+	r.ForceReauth = raw.ForceReauth
+	r.IncludeExistingTokenScopes = raw.IncludeExistingTokenScopes
+	r.PreservePendingFlowReplacementFlags = raw.PreservePendingFlowReplacementFlags
+	r.RedirectPort = raw.RedirectPort
+	r.ResourceMetadata = raw.ResourceMetadata
+	r.SandboxProxy = raw.SandboxProxy
+	r.ServerURL = raw.ServerURL
+	r.Sessionless = raw.Sessionless
+	r.SkipBrowserOpen = raw.SkipBrowserOpen
+	r.SkipCachedAccessToken = raw.SkipCachedAccessToken
+	r.StaticClientConfig = raw.StaticClientConfig
+	if raw.Store != nil {
+		value, err := unmarshalMCPOauthFlowStore(raw.Store)
+		if err != nil {
+			return err
+		}
+		r.Store = value
+	}
+	r.WwwAuthenticateParams = raw.WwwAuthenticateParams
+	return nil
+}
+
 func unmarshalMCPOauthPendingRequestResponse(data []byte) (MCPOauthPendingRequestResponse, error) {
 	if string(data) == "null" {
 		return nil, nil
@@ -6478,6 +6943,30 @@ func (r MCPOauthProbeResultNoAuthRequired) MarshalJSON() ([]byte, error) {
 		Status: r.Status(),
 		alias:  alias(r),
 	})
+}
+
+func (r *MCPOauthSaveStaticClientSecretRequest) UnmarshalJSON(data []byte) error {
+	type rawMCPOauthSaveStaticClientSecretRequest struct {
+		Secret      string          `json:"secret"`
+		Sessionless *bool           `json:"sessionless,omitempty"`
+		Store       json.RawMessage `json:"store,omitempty"`
+		StoreKey    string          `json:"storeKey"`
+	}
+	var raw rawMCPOauthSaveStaticClientSecretRequest
+	if err := json.Unmarshal(data, &raw); err != nil {
+		return err
+	}
+	r.Secret = raw.Secret
+	r.Sessionless = raw.Sessionless
+	if raw.Store != nil {
+		value, err := unmarshalMCPOauthFlowStore(raw.Store)
+		if err != nil {
+			return err
+		}
+		r.Store = value
+	}
+	r.StoreKey = raw.StoreKey
+	return nil
 }
 
 func matchesMCPServerConfigHTTP(data []byte) bool {
@@ -6678,6 +7167,136 @@ func (r *MCPOauthStaticClientConfigRequest) UnmarshalJSON(data []byte) error {
 		r.Config = value
 	}
 	return nil
+}
+
+func (r *MCPOauthStoredGrantRequest) UnmarshalJSON(data []byte) error {
+	type rawMCPOauthStoredGrantRequest struct {
+		Sessionless        *bool                           `json:"sessionless,omitempty"`
+		StaticClientConfig *MCPOauthFlowStaticClientConfig `json:"staticClientConfig,omitempty"`
+		Store              json.RawMessage                 `json:"store,omitempty"`
+		StoreKey           string                          `json:"storeKey"`
+	}
+	var raw rawMCPOauthStoredGrantRequest
+	if err := json.Unmarshal(data, &raw); err != nil {
+		return err
+	}
+	r.Sessionless = raw.Sessionless
+	r.StaticClientConfig = raw.StaticClientConfig
+	if raw.Store != nil {
+		value, err := unmarshalMCPOauthFlowStore(raw.Store)
+		if err != nil {
+			return err
+		}
+		r.Store = value
+	}
+	r.StoreKey = raw.StoreKey
+	return nil
+}
+
+func (r *MCPOauthStoreKeyRequest) UnmarshalJSON(data []byte) error {
+	type rawMCPOauthStoreKeyRequest struct {
+		ClientID            *string         `json:"clientId,omitempty"`
+		ClientIDMetadataURL *string         `json:"clientIdMetadataUrl,omitempty"`
+		ServerURL           string          `json:"serverUrl"`
+		Sessionless         *bool           `json:"sessionless,omitempty"`
+		Store               json.RawMessage `json:"store,omitempty"`
+	}
+	var raw rawMCPOauthStoreKeyRequest
+	if err := json.Unmarshal(data, &raw); err != nil {
+		return err
+	}
+	r.ClientID = raw.ClientID
+	r.ClientIDMetadataURL = raw.ClientIDMetadataURL
+	r.ServerURL = raw.ServerURL
+	r.Sessionless = raw.Sessionless
+	if raw.Store != nil {
+		value, err := unmarshalMCPOauthFlowStore(raw.Store)
+		if err != nil {
+			return err
+		}
+		r.Store = value
+	}
+	return nil
+}
+
+func unmarshalMCPOauthTestConnectionResult(data []byte) (MCPOauthTestConnectionResult, error) {
+	if string(data) == "null" {
+		return nil, nil
+	}
+	type rawUnion struct {
+		Status MCPOauthTestConnectionResultStatus `json:"status"`
+	}
+	var raw rawUnion
+	if err := json.Unmarshal(data, &raw); err != nil {
+		return nil, err
+	}
+
+	switch raw.Status {
+	case MCPOauthTestConnectionResultStatusConnected:
+		var d MCPOauthTestConnectionResultConnected
+		if err := json.Unmarshal(data, &d); err != nil {
+			return nil, err
+		}
+		return &d, nil
+	case MCPOauthTestConnectionResultStatusFailed:
+		var d MCPOauthTestConnectionResultFailed
+		if err := json.Unmarshal(data, &d); err != nil {
+			return nil, err
+		}
+		return &d, nil
+	case MCPOauthTestConnectionResultStatusNeedsAuth:
+		var d MCPOauthTestConnectionResultNeedsAuth
+		if err := json.Unmarshal(data, &d); err != nil {
+			return nil, err
+		}
+		return &d, nil
+	default:
+		return &RawMCPOauthTestConnectionResultData{Discriminator: raw.Status, Raw: data}, nil
+	}
+}
+
+func (r RawMCPOauthTestConnectionResultData) MarshalJSON() ([]byte, error) {
+	if r.Raw != nil {
+		return r.Raw, nil
+	}
+	return json.Marshal(struct {
+		Status MCPOauthTestConnectionResultStatus `json:"status"`
+	}{
+		Status: r.Discriminator,
+	})
+}
+
+func (r MCPOauthTestConnectionResultConnected) MarshalJSON() ([]byte, error) {
+	type alias MCPOauthTestConnectionResultConnected
+	return json.Marshal(struct {
+		Status MCPOauthTestConnectionResultStatus `json:"status"`
+		alias
+	}{
+		Status: r.Status(),
+		alias:  alias(r),
+	})
+}
+
+func (r MCPOauthTestConnectionResultFailed) MarshalJSON() ([]byte, error) {
+	type alias MCPOauthTestConnectionResultFailed
+	return json.Marshal(struct {
+		Status MCPOauthTestConnectionResultStatus `json:"status"`
+		alias
+	}{
+		Status: r.Status(),
+		alias:  alias(r),
+	})
+}
+
+func (r MCPOauthTestConnectionResultNeedsAuth) MarshalJSON() ([]byte, error) {
+	type alias MCPOauthTestConnectionResultNeedsAuth
+	return json.Marshal(struct {
+		Status MCPOauthTestConnectionResultStatus `json:"status"`
+		alias
+	}{
+		Status: r.Status(),
+		alias:  alias(r),
+	})
 }
 
 func unmarshalMCPPlanInstallSource(data []byte) (MCPPlanInstallSource, error) {
@@ -9415,6 +10034,7 @@ func (r *SendRequest) UnmarshalJSON(data []byte) error {
 		AgentMode      *SendAgentMode    `json:"agentMode,omitempty"`
 		Attachments    []json.RawMessage `json:"attachments,omitzero"`
 		Billable       *bool             `json:"billable,omitempty"`
+		ClientTurnID   *string           `json:"clientTurnId,omitempty"`
 		DisplayPrompt  *string           `json:"displayPrompt,omitempty"`
 		Mode           *SendMode         `json:"mode,omitempty"`
 		Prepend        *bool             `json:"prepend,omitempty"`
@@ -9443,6 +10063,7 @@ func (r *SendRequest) UnmarshalJSON(data []byte) error {
 		}
 	}
 	r.Billable = raw.Billable
+	r.ClientTurnID = raw.ClientTurnID
 	r.DisplayPrompt = raw.DisplayPrompt
 	r.Mode = raw.Mode
 	r.Prepend = raw.Prepend
@@ -9685,6 +10306,244 @@ func (r *SessionList) UnmarshalJSON(data []byte) error {
 	return nil
 }
 
+func (r *SessionMCPOauthAuthenticateRequest) UnmarshalJSON(data []byte) error {
+	type rawSessionMCPOauthAuthenticateRequest struct {
+		AuthorizationTimeoutMs              *int64                          `json:"authorizationTimeoutMs,omitempty"`
+		Browserless                         *bool                           `json:"browserless,omitempty"`
+		CallbackSuccessMessage              *string                         `json:"callbackSuccessMessage,omitempty"`
+		ClientIDMetadataURL                 *string                         `json:"clientIdMetadataUrl,omitempty"`
+		ClientName                          *string                         `json:"clientName,omitempty"`
+		DeviceCodeOfferTimeoutMs            *int64                          `json:"deviceCodeOfferTimeoutMs,omitempty"`
+		DeviceCodePollIntervalMs            *int64                          `json:"deviceCodePollIntervalMs,omitempty"`
+		FlowID                              string                          `json:"flowId"`
+		ForceDeviceCode                     *bool                           `json:"forceDeviceCode,omitempty"`
+		ForceReauth                         *bool                           `json:"forceReauth,omitempty"`
+		IncludeExistingTokenScopes          *bool                           `json:"includeExistingTokenScopes,omitempty"`
+		PreservePendingFlowReplacementFlags *bool                           `json:"preservePendingFlowReplacementFlags,omitempty"`
+		RedirectPort                        *int64                          `json:"redirectPort,omitempty"`
+		ResourceMetadata                    *string                         `json:"resourceMetadata,omitempty"`
+		SandboxProxy                        *string                         `json:"sandboxProxy,omitempty"`
+		ServerURL                           string                          `json:"serverUrl"`
+		Sessionless                         *bool                           `json:"sessionless,omitempty"`
+		SkipBrowserOpen                     *bool                           `json:"skipBrowserOpen,omitempty"`
+		SkipCachedAccessToken               *bool                           `json:"skipCachedAccessToken,omitempty"`
+		StaticClientConfig                  *MCPOauthFlowStaticClientConfig `json:"staticClientConfig,omitempty"`
+		Store                               json.RawMessage                 `json:"store,omitempty"`
+		WwwAuthenticateParams               *MCPOauthWwwAuthenticateParams  `json:"wwwAuthenticateParams,omitempty"`
+	}
+	var raw rawSessionMCPOauthAuthenticateRequest
+	if err := json.Unmarshal(data, &raw); err != nil {
+		return err
+	}
+	r.AuthorizationTimeoutMs = raw.AuthorizationTimeoutMs
+	r.Browserless = raw.Browserless
+	r.CallbackSuccessMessage = raw.CallbackSuccessMessage
+	r.ClientIDMetadataURL = raw.ClientIDMetadataURL
+	r.ClientName = raw.ClientName
+	r.DeviceCodeOfferTimeoutMs = raw.DeviceCodeOfferTimeoutMs
+	r.DeviceCodePollIntervalMs = raw.DeviceCodePollIntervalMs
+	r.FlowID = raw.FlowID
+	r.ForceDeviceCode = raw.ForceDeviceCode
+	r.ForceReauth = raw.ForceReauth
+	r.IncludeExistingTokenScopes = raw.IncludeExistingTokenScopes
+	r.PreservePendingFlowReplacementFlags = raw.PreservePendingFlowReplacementFlags
+	r.RedirectPort = raw.RedirectPort
+	r.ResourceMetadata = raw.ResourceMetadata
+	r.SandboxProxy = raw.SandboxProxy
+	r.ServerURL = raw.ServerURL
+	r.Sessionless = raw.Sessionless
+	r.SkipBrowserOpen = raw.SkipBrowserOpen
+	r.SkipCachedAccessToken = raw.SkipCachedAccessToken
+	r.StaticClientConfig = raw.StaticClientConfig
+	if raw.Store != nil {
+		value, err := unmarshalMCPOauthFlowStore(raw.Store)
+		if err != nil {
+			return err
+		}
+		r.Store = value
+	}
+	r.WwwAuthenticateParams = raw.WwwAuthenticateParams
+	return nil
+}
+
+func (r *SessionMCPOauthHasValidTokensRequest) UnmarshalJSON(data []byte) error {
+	type rawSessionMCPOauthHasValidTokensRequest struct {
+		Sessionless        *bool                           `json:"sessionless,omitempty"`
+		StaticClientConfig *MCPOauthFlowStaticClientConfig `json:"staticClientConfig,omitempty"`
+		Store              json.RawMessage                 `json:"store,omitempty"`
+		StoreKey           string                          `json:"storeKey"`
+	}
+	var raw rawSessionMCPOauthHasValidTokensRequest
+	if err := json.Unmarshal(data, &raw); err != nil {
+		return err
+	}
+	r.Sessionless = raw.Sessionless
+	r.StaticClientConfig = raw.StaticClientConfig
+	if raw.Store != nil {
+		value, err := unmarshalMCPOauthFlowStore(raw.Store)
+		if err != nil {
+			return err
+		}
+		r.Store = value
+	}
+	r.StoreKey = raw.StoreKey
+	return nil
+}
+
+func (r *SessionMCPOauthSaveStaticClientSecretRequest) UnmarshalJSON(data []byte) error {
+	type rawSessionMCPOauthSaveStaticClientSecretRequest struct {
+		Secret      string          `json:"secret"`
+		Sessionless *bool           `json:"sessionless,omitempty"`
+		Store       json.RawMessage `json:"store,omitempty"`
+		StoreKey    string          `json:"storeKey"`
+	}
+	var raw rawSessionMCPOauthSaveStaticClientSecretRequest
+	if err := json.Unmarshal(data, &raw); err != nil {
+		return err
+	}
+	r.Secret = raw.Secret
+	r.Sessionless = raw.Sessionless
+	if raw.Store != nil {
+		value, err := unmarshalMCPOauthFlowStore(raw.Store)
+		if err != nil {
+			return err
+		}
+		r.Store = value
+	}
+	r.StoreKey = raw.StoreKey
+	return nil
+}
+
+func (r *SessionMCPOauthStoreKeyRequest) UnmarshalJSON(data []byte) error {
+	type rawSessionMCPOauthStoreKeyRequest struct {
+		ClientID            *string         `json:"clientId,omitempty"`
+		ClientIDMetadataURL *string         `json:"clientIdMetadataUrl,omitempty"`
+		ServerURL           string          `json:"serverUrl"`
+		Sessionless         *bool           `json:"sessionless,omitempty"`
+		Store               json.RawMessage `json:"store,omitempty"`
+	}
+	var raw rawSessionMCPOauthStoreKeyRequest
+	if err := json.Unmarshal(data, &raw); err != nil {
+		return err
+	}
+	r.ClientID = raw.ClientID
+	r.ClientIDMetadataURL = raw.ClientIDMetadataURL
+	r.ServerURL = raw.ServerURL
+	r.Sessionless = raw.Sessionless
+	if raw.Store != nil {
+		value, err := unmarshalMCPOauthFlowStore(raw.Store)
+		if err != nil {
+			return err
+		}
+		r.Store = value
+	}
+	return nil
+}
+
+func unmarshalSessionMCPOauthTestConnectionResult(data []byte) (SessionMCPOauthTestConnectionResult, error) {
+	if string(data) == "null" {
+		return nil, nil
+	}
+	type rawUnion struct {
+		Status SessionMCPOauthTestConnectionResultStatus `json:"status"`
+	}
+	var raw rawUnion
+	if err := json.Unmarshal(data, &raw); err != nil {
+		return nil, err
+	}
+
+	switch raw.Status {
+	case SessionMCPOauthTestConnectionResultStatusConnected:
+		var d SessionMCPOauthTestConnectionResultConnected
+		if err := json.Unmarshal(data, &d); err != nil {
+			return nil, err
+		}
+		return &d, nil
+	case SessionMCPOauthTestConnectionResultStatusFailed:
+		var d SessionMCPOauthTestConnectionResultFailed
+		if err := json.Unmarshal(data, &d); err != nil {
+			return nil, err
+		}
+		return &d, nil
+	case SessionMCPOauthTestConnectionResultStatusNeedsAuth:
+		var d SessionMCPOauthTestConnectionResultNeedsAuth
+		if err := json.Unmarshal(data, &d); err != nil {
+			return nil, err
+		}
+		return &d, nil
+	default:
+		return &RawSessionMCPOauthTestConnectionResultData{Discriminator: raw.Status, Raw: data}, nil
+	}
+}
+
+func (r RawSessionMCPOauthTestConnectionResultData) MarshalJSON() ([]byte, error) {
+	if r.Raw != nil {
+		return r.Raw, nil
+	}
+	return json.Marshal(struct {
+		Status SessionMCPOauthTestConnectionResultStatus `json:"status"`
+	}{
+		Status: r.Discriminator,
+	})
+}
+
+func (r SessionMCPOauthTestConnectionResultConnected) MarshalJSON() ([]byte, error) {
+	type alias SessionMCPOauthTestConnectionResultConnected
+	return json.Marshal(struct {
+		Status SessionMCPOauthTestConnectionResultStatus `json:"status"`
+		alias
+	}{
+		Status: r.Status(),
+		alias:  alias(r),
+	})
+}
+
+func (r SessionMCPOauthTestConnectionResultFailed) MarshalJSON() ([]byte, error) {
+	type alias SessionMCPOauthTestConnectionResultFailed
+	return json.Marshal(struct {
+		Status SessionMCPOauthTestConnectionResultStatus `json:"status"`
+		alias
+	}{
+		Status: r.Status(),
+		alias:  alias(r),
+	})
+}
+
+func (r SessionMCPOauthTestConnectionResultNeedsAuth) MarshalJSON() ([]byte, error) {
+	type alias SessionMCPOauthTestConnectionResultNeedsAuth
+	return json.Marshal(struct {
+		Status SessionMCPOauthTestConnectionResultStatus `json:"status"`
+		alias
+	}{
+		Status: r.Status(),
+		alias:  alias(r),
+	})
+}
+
+func (r *SessionMCPOauthTryRefreshTokensRequest) UnmarshalJSON(data []byte) error {
+	type rawSessionMCPOauthTryRefreshTokensRequest struct {
+		Sessionless        *bool                           `json:"sessionless,omitempty"`
+		StaticClientConfig *MCPOauthFlowStaticClientConfig `json:"staticClientConfig,omitempty"`
+		Store              json.RawMessage                 `json:"store,omitempty"`
+		StoreKey           string                          `json:"storeKey"`
+	}
+	var raw rawSessionMCPOauthTryRefreshTokensRequest
+	if err := json.Unmarshal(data, &raw); err != nil {
+		return err
+	}
+	r.Sessionless = raw.Sessionless
+	r.StaticClientConfig = raw.StaticClientConfig
+	if raw.Store != nil {
+		value, err := unmarshalMCPOauthFlowStore(raw.Store)
+		if err != nil {
+			return err
+		}
+		r.Store = value
+	}
+	r.StoreKey = raw.StoreKey
+	return nil
+}
+
 func (r *SessionOpenOptions) UnmarshalJSON(data []byte) error {
 	type rawSessionOpenOptions struct {
 		AdditionalContentExclusionPolicies     []SessionOpenOptionsAdditionalContentExclusionPolicy `json:"additionalContentExclusionPolicies,omitzero"`
@@ -9692,6 +10551,7 @@ func (r *SessionOpenOptions) UnmarshalJSON(data []byte) error {
 		AgentContext                           *string                                              `json:"agentContext,omitempty"`
 		AgentDirectories                       []string                                             `json:"agentDirectories,omitzero"`
 		AllowAllMCPServerInstructions          *bool                                                `json:"allowAllMcpServerInstructions,omitempty"`
+		AllowMultipleToolCalls                 *bool                                                `json:"allowMultipleToolCalls,omitempty"`
 		AskUserDisabled                        *bool                                                `json:"askUserDisabled,omitempty"`
 		AuthClientIDMetadataURL                *string                                              `json:"authClientIdMetadataUrl,omitempty"`
 		AuthInfo                               json.RawMessage                                      `json:"authInfo,omitempty"`
@@ -9782,6 +10642,7 @@ func (r *SessionOpenOptions) UnmarshalJSON(data []byte) error {
 	r.AgentContext = raw.AgentContext
 	r.AgentDirectories = raw.AgentDirectories
 	r.AllowAllMCPServerInstructions = raw.AllowAllMCPServerInstructions
+	r.AllowMultipleToolCalls = raw.AllowMultipleToolCalls
 	r.AskUserDisabled = raw.AskUserDisabled
 	r.AuthClientIDMetadataURL = raw.AuthClientIDMetadataURL
 	if raw.AuthInfo != nil {

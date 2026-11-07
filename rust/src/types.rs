@@ -86,6 +86,8 @@ pub use crate::copilot_request_handler::{
 pub use crate::copilot_request_handler::{
     CopilotWebSocketForwarder, CopilotWebSocketForwarderBuilder, forward_http,
 };
+/// Outcome of an initial permission mode requested at create or resume.
+pub use crate::generated::api_types::PermissionsSetModeResult;
 pub use crate::generated::api_types::{
     AutopilotOptions, DiagnosticLogLevel, DiagnosticSourcesConfiguration, DiagnosticsConfiguration,
     McpDiagnosticSourceConfiguration, SessionManagementScope,
@@ -101,6 +103,8 @@ pub use crate::generated::session_events::AgentModelPolicy;
 /// [`AutoTier::Fast`] is an integrator-only latency preset, not a first-party
 /// GitHub Copilot product preference.
 pub use crate::generated::session_events::AutoTier;
+/// Permission mode requested for a session.
+pub use crate::generated::session_events::PermissionMode;
 use crate::generated::session_events::ReasoningSummary;
 /// Context window tier for models that support tiered context windows.
 pub use crate::generated::session_events::{ContextTier, SessionLimitsConfig};
@@ -110,6 +114,7 @@ use crate::handler::{
     PermissionHandler, UserInputHandler,
 };
 use crate::hooks::SessionHooks;
+use crate::memory_store::MemoryStore;
 use crate::provider_token::BearerTokenProvider;
 pub use crate::session_fs::{
     DirEntry, DirEntryKind, FileByteRange, FileInfo, FsError, SessionFsBinaryProvider,
@@ -931,8 +936,8 @@ pub struct DefaultAgentConfig {
 /// Configuration for large tool output handling.
 ///
 /// When a tool produces output exceeding [`max_size_bytes`](Self::max_size_bytes),
-/// the SDK writes the full output to a file in [`output_directory`](Self::output_directory)
-/// and returns a truncated preview to the model.
+/// the runtime writes the full output to a file in [`output_directory`](Self::output_directory)
+/// and returns the file path and a truncated preview to the model.
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 #[non_exhaustive]
@@ -941,7 +946,8 @@ pub struct LargeToolOutputConfig {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub enabled: Option<bool>,
     /// Maximum tool output size in bytes before it is redirected to a file.
-    /// Defaults to 50KB on the CLI.
+    /// Uses the runtime's configured threshold when unset
+    /// (20480 bytes by default on the CLI).
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub max_size_bytes: Option<u64>,
     /// Directory where large tool output files are written. Defaults to
@@ -2284,6 +2290,10 @@ pub enum WorkingDirectoryTrust {
 #[derive(Clone)]
 #[non_exhaustive]
 pub struct SessionConfig {
+    /// Whether the model may request multiple tool calls per response (default true).
+    /// False is a provider hint, not an execution guarantee: all returned calls
+    /// are handled and handlers may run concurrently. Re-supply on cold resume.
+    pub allow_multiple_tool_calls: Option<bool>,
     /// Custom session ID. When unset, the CLI generates one.
     pub session_id: Option<SessionId>,
     /// Name the session at creation, as `session.name.set` would, and validated
@@ -2560,6 +2570,11 @@ pub struct SessionConfig {
     pub model_capabilities: Option<crate::generated::api_types::ModelCapabilitiesOverride>,
     /// Per-session configuration for the runtime memory feature.
     pub memory: Option<MemoryConfiguration>,
+    /// **Experimental.** Stores memories in the app instead of the built-in
+    /// memory backends. Used only when [`memory`](Self::memory) is enabled.
+    ///
+    /// The store is runtime-only and is not serialized.
+    pub memory_store: Option<Arc<dyn MemoryStore>>,
     /// Override the default configuration directory location. When set,
     /// the session uses this directory for storing config and state.
     pub config_directory: Option<PathBuf>,
@@ -2636,6 +2651,15 @@ pub struct SessionConfig {
     /// cloud sessions. Set via
     /// [`with_interactive_user`](Self::with_interactive_user).
     pub interactive_user: Option<bool>,
+    /// Permission mode applied before the session's first turn, before
+    /// session creation returns. Uses the same checks as
+    /// `session.permissions.setMode`; a mode that managed policy or session
+    /// capabilities refuse leaves the current mode in place.
+    /// [`Session::permission_mode_result`](crate::session::Session::permission_mode_result)
+    /// reports whether it was applied and the authoritative mode. Not supported
+    /// for cloud sessions. Set via
+    /// [`with_permission_mode`](Self::with_permission_mode).
+    pub permission_mode: Option<PermissionMode>,
     /// Optional managed-settings layer injected at session bootstrap. Currently
     /// carries a [`permissions`](ManagedSettingsPermissions) object that composes
     /// restrictively with any server- or device-level managed settings. This
@@ -2670,6 +2694,10 @@ pub struct SessionConfig {
     /// Optional auto-mode-switch handler. When `None`,
     /// `requestAutoModeSwitch: false` goes on the wire.
     pub auto_mode_switch_handler: Option<Arc<dyn AutoModeSwitchHandler>>,
+    /// Opt in to runtime-owned recovery of an eligible active request using Auto.
+    /// Requires an auto-mode-switch handler and positive runtime acknowledgment.
+    /// Defaults to false; re-supply on resume. The handler must not resend or rewind.
+    pub auto_mode_recovery: bool,
     /// Session lifecycle hook handler (pre/post tool use, session
     /// start/end, etc.). When set, the SDK auto-enables the wire-level
     /// `hooks` flag. Use [`with_hooks`](Self::with_hooks) to install one.
@@ -2733,6 +2761,7 @@ impl std::fmt::Debug for SessionConfig {
             .field("allowed_models", &self.allowed_models)
             .field("client_name", &self.client_name)
             .field("reasoning_effort", &self.reasoning_effort)
+            .field("allow_multiple_tool_calls", &self.allow_multiple_tool_calls)
             .field("reasoning_summary", &self.reasoning_summary)
             .field("context_tier", &self.context_tier)
             .field("streaming", &self.streaming)
@@ -2823,6 +2852,7 @@ impl std::fmt::Debug for SessionConfig {
             .field("autopilot", &self.autopilot)
             .field("model_capabilities", &self.model_capabilities)
             .field("memory", &self.memory)
+            .field("memory_store", &self.memory_store.as_ref().map(|_| "<set>"))
             .field("config_directory", &self.config_directory)
             .field("working_directory", &self.working_directory)
             .field("additional_directories", &self.additional_directories)
@@ -2849,6 +2879,7 @@ impl std::fmt::Debug for SessionConfig {
                 &self.enforce_managed_model_defaults,
             )
             .field("interactive_user", &self.interactive_user)
+            .field("permission_mode", &self.permission_mode)
             .field("enable_experimental_mode", &self.enable_experimental_mode)
             .field("managed_settings", &self.managed_settings)
             .field(
@@ -2879,6 +2910,7 @@ impl std::fmt::Debug for SessionConfig {
                 "auto_mode_switch_handler",
                 &self.auto_mode_switch_handler.as_ref().map(|_| "<set>"),
             )
+            .field("auto_mode_recovery", &self.auto_mode_recovery)
             .field(
                 "hooks_handler",
                 &self.hooks_handler.as_ref().map(|_| "<set>"),
@@ -2901,6 +2933,7 @@ impl Default for SessionConfig {
     fn default() -> Self {
         Self {
             session_id: None,
+            allow_multiple_tool_calls: None,
             name: None,
             model: None,
             allowed_models: None,
@@ -2969,6 +3002,7 @@ impl Default for SessionConfig {
             autopilot: None,
             model_capabilities: None,
             memory: None,
+            memory_store: None,
             config_directory: None,
             working_directory: None,
             additional_directories: None,
@@ -2984,6 +3018,7 @@ impl Default for SessionConfig {
             excluded_managed_settings: None,
             enforce_managed_model_defaults: None,
             interactive_user: None,
+            permission_mode: None,
             managed_settings: None,
             session_fs_provider: None,
             permission_handler: None,
@@ -2992,6 +3027,7 @@ impl Default for SessionConfig {
             user_input_handler: None,
             exit_plan_mode_handler: None,
             auto_mode_switch_handler: None,
+            auto_mode_recovery: false,
             hooks_handler: None,
             permission_policy: None,
             system_message_transform: None,
@@ -3024,12 +3060,19 @@ pub(crate) struct SessionConfigRuntime {
     pub canvas_handler: Option<Arc<dyn CanvasHandler>>,
     pub session_fs_provider: Option<Arc<dyn SessionFsProvider>>,
     pub skill_provider: Option<Arc<dyn SkillProvider>>,
+    pub memory_store: Option<Arc<dyn MemoryStore>>,
     pub bearer_token_providers: HashMap<String, Arc<dyn BearerTokenProvider>>,
     pub github_token_provider: Option<Arc<dyn GitHubTokenProvider>>,
     pub commands: Option<Vec<CommandDefinition>>,
 }
 
 impl SessionConfig {
+    /// Set [`allow_multiple_tool_calls`](Self::allow_multiple_tool_calls).
+    pub fn with_allow_multiple_tool_calls(mut self, allowed: bool) -> Self {
+        self.allow_multiple_tool_calls = Some(allowed);
+        self
+    }
+
     /// Consume this config to produce the [`SessionCreateWire`] payload
     /// for `session.create` and a [`SessionConfigRuntime`] bundle holding
     /// the runtime-only fields (handlers, transforms, providers).
@@ -3045,6 +3088,12 @@ impl SessionConfig {
         mut self,
         session_id: Option<SessionId>,
     ) -> Result<(crate::wire::SessionCreateWire, SessionConfigRuntime), crate::Error> {
+        if self.auto_mode_recovery && self.auto_mode_switch_handler.is_none() {
+            return Err(crate::Error::with_message(
+                crate::ErrorKind::InvalidConfig,
+                "auto_mode_recovery requires auto_mode_switch_handler",
+            ));
+        }
         if self.github_token.is_some() && self.github_token_provider.is_some() {
             return Err(crate::Error::with_message(
                 crate::ErrorKind::InvalidConfig,
@@ -3059,6 +3108,7 @@ impl SessionConfig {
         let request_elicitation = self.elicitation_handler.is_some();
         let hooks_flag = self.hooks_handler.is_some();
         let has_skill_provider = self.skill_provider.is_some();
+        let has_memory_store = self.memory_store.is_some();
 
         let tool_handlers = take_tool_handlers(self.tools.as_deref_mut().unwrap_or_default())?;
 
@@ -3076,6 +3126,7 @@ impl SessionConfig {
             prepare_bearer_token_providers(&mut self.provider, &mut self.providers);
 
         let wire = crate::wire::SessionCreateWire {
+            allow_multiple_tool_calls: self.allow_multiple_tool_calls,
             session_id,
             name: self.name,
             model: self.model,
@@ -3116,10 +3167,12 @@ impl SessionConfig {
             enable_session_store: self.enable_session_store,
             enable_skills: self.enable_skills,
             has_skill_provider: has_skill_provider.then_some(true),
+            has_memory_store: has_memory_store.then_some(true),
             request_user_input,
             request_permission: permission_active,
             request_exit_plan_mode,
             request_auto_mode_switch,
+            request_auto_mode_recovery: self.auto_mode_recovery.then_some(true),
             request_elicitation,
             request_mcp_apps: self.enable_mcp_apps.unwrap_or(false),
             github_mcp_tool_config: self.github_mcp_tool_config,
@@ -3167,6 +3220,7 @@ impl SessionConfig {
             excluded_managed_settings: self.excluded_managed_settings,
             enforce_managed_model_defaults: self.enforce_managed_model_defaults,
             interactive_user: self.interactive_user,
+            permission_mode: self.permission_mode,
             is_experimental_mode: self.enable_experimental_mode,
             managed_settings: self.managed_settings,
         };
@@ -3185,6 +3239,7 @@ impl SessionConfig {
             canvas_handler,
             session_fs_provider: self.session_fs_provider,
             skill_provider: self.skill_provider,
+            memory_store: self.memory_store,
             bearer_token_providers,
             github_token_provider: self.github_token_provider,
             commands: self.commands,
@@ -3239,6 +3294,13 @@ impl SessionConfig {
         handler: Arc<dyn AutoModeSwitchHandler>,
     ) -> Self {
         self.auto_mode_switch_handler = Some(handler);
+        self
+    }
+
+    /// Enable retained-request recovery. Consent uses
+    /// [`AutoModeSwitchHandler::handle_auto_mode_recovery`] and has no runtime deadline.
+    pub fn with_auto_mode_recovery(mut self, enabled: bool) -> Self {
+        self.auto_mode_recovery = enabled;
         self
     }
 
@@ -3797,6 +3859,15 @@ impl SessionConfig {
         self
     }
 
+    /// Install an experimental [`MemoryStore`] for this session.
+    ///
+    /// Requires memory enabled with [`Self::with_memory`]; otherwise session setup
+    /// fails before any request is sent. Not supported for cloud sessions.
+    pub fn with_memory_store(mut self, store: Arc<dyn MemoryStore>) -> Self {
+        self.memory_store = Some(store);
+        self
+    }
+
     /// Configure the runtime memory feature for this session.
     pub fn with_memory(mut self, memory: MemoryConfiguration) -> Self {
         self.memory = Some(memory);
@@ -3965,6 +4036,12 @@ impl SessionConfig {
         self
     }
 
+    /// Set the permission mode applied before the session's first turn.
+    pub fn with_permission_mode(mut self, permission_mode: PermissionMode) -> Self {
+        self.permission_mode = Some(permission_mode);
+        self
+    }
+
     /// Inject a managed-settings layer (currently permission rules) at session
     /// bootstrap. This layer is startup-only and is not persisted, so it must be
     /// re-supplied on resume to remain in effect. Can be combined with
@@ -3983,6 +4060,10 @@ impl SessionConfig {
 #[derive(Clone)]
 #[non_exhaustive]
 pub struct ResumeSessionConfig {
+    /// Whether the model may request multiple tool calls per response (default true).
+    /// False is a provider hint, not an execution guarantee: all returned calls
+    /// are handled and handlers may run concurrently. Re-supply on cold resume.
+    pub allow_multiple_tool_calls: Option<bool>,
     /// ID of the session to resume.
     pub session_id: SessionId,
     /// Model to use for this session (e.g. `"gpt-5.4"`, `"claude-sonnet-4"`).
@@ -4199,6 +4280,11 @@ pub struct ResumeSessionConfig {
     pub model_capabilities: Option<crate::generated::api_types::ModelCapabilitiesOverride>,
     /// Per-session configuration for the runtime memory feature on resume.
     pub memory: Option<MemoryConfiguration>,
+    /// **Experimental.** Stores memories in the app instead of the built-in
+    /// memory backends. Used only when [`memory`](Self::memory) is enabled.
+    ///
+    /// The store is not persisted and must be re-supplied on each resume.
+    pub memory_store: Option<Arc<dyn MemoryStore>>,
     /// Override the default configuration directory location on resume.
     pub config_directory: Option<PathBuf>,
     /// Per-session working directory on resume.
@@ -4248,6 +4334,13 @@ pub struct ResumeSessionConfig {
     /// session is already active in the runtime. Set via
     /// [`with_interactive_user`](Self::with_interactive_user).
     pub interactive_user: Option<bool>,
+    /// Permission mode applied before resumed pending work continues and
+    /// before the resume returns. If it is refused (for example by managed
+    /// policy), continued work runs under the mode
+    /// [`Session::permission_mode_result`](crate::session::Session::permission_mode_result)
+    /// reports. See [`SessionConfig::permission_mode`]. Set via
+    /// [`with_permission_mode`](Self::with_permission_mode).
+    pub permission_mode: Option<PermissionMode>,
     /// Optional managed-settings layer injected on resume. See
     /// [`SessionConfig::managed_settings`]. This layer is not persisted, so it
     /// must be re-supplied on resume to remain in effect; omitting it clears the
@@ -4267,9 +4360,11 @@ pub struct ResumeSessionConfig {
     pub suppress_resume_event: Option<bool>,
     /// When `true`, instructs the runtime to continue any tool calls or
     /// permission requests that were pending when the previous connection
-    /// was dropped. Use this together with [`Client::force_stop`] to hand
-    /// off a session from one process to another without losing in-flight
-    /// work.
+    /// was dropped. To hand off a session from one process to another, end
+    /// the first client with [`Client::stop`] before resuming the session
+    /// elsewhere. [`Client::force_stop`] does not wait for the runtime to
+    /// save the session, so when it terminates a runtime the client started,
+    /// pending work can be lost.
     /// When omitted or `false` (the default), work still pending on resume
     /// is treated as interrupted; completed tool results already recorded by
     /// the runtime are preserved.
@@ -4279,6 +4374,7 @@ pub struct ResumeSessionConfig {
     /// does not re-emit restored permission requests or re-invoke permission handlers
     /// or already-dispatched external tool callbacks.
     ///
+    /// [`Client::stop`]: crate::Client::stop
     /// [`Client::force_stop`]: crate::Client::force_stop
     pub continue_pending_work: Option<bool>,
     /// Permit recovery of a damaged transcript on resume. Defaults to `true`
@@ -4301,6 +4397,8 @@ pub struct ResumeSessionConfig {
     /// Optional auto-mode-switch handler. See
     /// [`SessionConfig::auto_mode_switch_handler`].
     pub auto_mode_switch_handler: Option<Arc<dyn AutoModeSwitchHandler>>,
+    /// Re-enroll in retained-request recovery. See [`SessionConfig::auto_mode_recovery`].
+    pub auto_mode_recovery: bool,
     /// Session hook handler. See [`SessionConfig::hooks_handler`].
     pub hooks_handler: Option<Arc<dyn SessionHooks>>,
     /// Permission policy. See `SessionConfig::permission_policy`.
@@ -4332,6 +4430,7 @@ impl std::fmt::Debug for ResumeSessionConfig {
             .field("allowed_models", &self.allowed_models)
             .field("client_name", &self.client_name)
             .field("reasoning_effort", &self.reasoning_effort)
+            .field("allow_multiple_tool_calls", &self.allow_multiple_tool_calls)
             .field("reasoning_summary", &self.reasoning_summary)
             .field("context_tier", &self.context_tier)
             .field("streaming", &self.streaming)
@@ -4418,6 +4517,7 @@ impl std::fmt::Debug for ResumeSessionConfig {
             .field("autopilot", &self.autopilot)
             .field("model_capabilities", &self.model_capabilities)
             .field("memory", &self.memory)
+            .field("memory_store", &self.memory_store.as_ref().map(|_| "<set>"))
             .field("config_directory", &self.config_directory)
             .field("working_directory", &self.working_directory)
             .field("additional_directories", &self.additional_directories)
@@ -4443,6 +4543,7 @@ impl std::fmt::Debug for ResumeSessionConfig {
                 &self.enforce_managed_model_defaults,
             )
             .field("interactive_user", &self.interactive_user)
+            .field("permission_mode", &self.permission_mode)
             .field("enable_experimental_mode", &self.enable_experimental_mode)
             .field("managed_settings", &self.managed_settings)
             .field(
@@ -4469,6 +4570,7 @@ impl std::fmt::Debug for ResumeSessionConfig {
                 "auto_mode_switch_handler",
                 &self.auto_mode_switch_handler.as_ref().map(|_| "<set>"),
             )
+            .field("auto_mode_recovery", &self.auto_mode_recovery)
             .field(
                 "hooks_handler",
                 &self.hooks_handler.as_ref().map(|_| "<set>"),
@@ -4485,6 +4587,22 @@ impl std::fmt::Debug for ResumeSessionConfig {
 }
 
 impl ResumeSessionConfig {
+    pub(crate) fn validate_auto_mode_recovery(&self) -> Result<(), crate::Error> {
+        if self.auto_mode_recovery && self.auto_mode_switch_handler.is_none() {
+            return Err(crate::Error::with_message(
+                crate::ErrorKind::InvalidConfig,
+                "auto_mode_recovery requires auto_mode_switch_handler",
+            ));
+        }
+        Ok(())
+    }
+
+    /// Set [`allow_multiple_tool_calls`](Self::allow_multiple_tool_calls).
+    pub fn with_allow_multiple_tool_calls(mut self, allowed: bool) -> Self {
+        self.allow_multiple_tool_calls = Some(allowed);
+        self
+    }
+
     /// Consume this config to produce the [`SessionResumeWire`] payload
     /// for `session.resume` and a [`SessionConfigRuntime`] bundle holding
     /// the runtime-only fields (handlers, transforms, providers).
@@ -4495,6 +4613,7 @@ impl ResumeSessionConfig {
     pub(crate) fn into_wire(
         mut self,
     ) -> Result<(crate::wire::SessionResumeWire, SessionConfigRuntime), crate::Error> {
+        self.validate_auto_mode_recovery()?;
         if self.github_token.is_some() && self.github_token_provider.is_some() {
             return Err(crate::Error::with_message(
                 crate::ErrorKind::InvalidConfig,
@@ -4509,6 +4628,7 @@ impl ResumeSessionConfig {
         let request_elicitation = self.elicitation_handler.is_some();
         let hooks_flag = self.hooks_handler.is_some();
         let has_skill_provider = self.skill_provider.is_some();
+        let has_memory_store = self.memory_store.is_some();
 
         let tool_handlers = take_tool_handlers(self.tools.as_deref_mut().unwrap_or_default())?;
 
@@ -4526,6 +4646,7 @@ impl ResumeSessionConfig {
             prepare_bearer_token_providers(&mut self.provider, &mut self.providers);
 
         let wire = crate::wire::SessionResumeWire {
+            allow_multiple_tool_calls: self.allow_multiple_tool_calls,
             session_id: self.session_id,
             model: self.model,
             allowed_models: self.allowed_models,
@@ -4564,10 +4685,12 @@ impl ResumeSessionConfig {
             enable_session_store: self.enable_session_store,
             enable_skills: self.enable_skills,
             has_skill_provider: has_skill_provider.then_some(true),
+            has_memory_store: has_memory_store.then_some(true),
             request_user_input,
             request_permission: permission_active,
             request_exit_plan_mode,
             request_auto_mode_switch,
+            request_auto_mode_recovery: self.auto_mode_recovery.then_some(true),
             request_elicitation,
             request_mcp_apps: self.enable_mcp_apps.unwrap_or(false),
             github_mcp_tool_config: self.github_mcp_tool_config,
@@ -4614,6 +4737,7 @@ impl ResumeSessionConfig {
             excluded_managed_settings: self.excluded_managed_settings,
             enforce_managed_model_defaults: self.enforce_managed_model_defaults,
             interactive_user: self.interactive_user,
+            permission_mode: self.permission_mode,
             is_experimental_mode: self.enable_experimental_mode,
             managed_settings: self.managed_settings,
             suppress_resume_event: self.suppress_resume_event,
@@ -4635,6 +4759,7 @@ impl ResumeSessionConfig {
             canvas_handler,
             session_fs_provider: self.session_fs_provider,
             skill_provider: self.skill_provider,
+            memory_store: self.memory_store,
             bearer_token_providers,
             github_token_provider: self.github_token_provider,
             commands: self.commands,
@@ -4649,6 +4774,7 @@ impl ResumeSessionConfig {
     /// fields you need.
     pub fn new(session_id: SessionId) -> Self {
         Self {
+            allow_multiple_tool_calls: None,
             session_id,
             model: None,
             allowed_models: None,
@@ -4716,6 +4842,7 @@ impl ResumeSessionConfig {
             autopilot: None,
             model_capabilities: None,
             memory: None,
+            memory_store: None,
             config_directory: None,
             working_directory: None,
             additional_directories: None,
@@ -4730,6 +4857,7 @@ impl ResumeSessionConfig {
             excluded_managed_settings: None,
             enforce_managed_model_defaults: None,
             interactive_user: None,
+            permission_mode: None,
             managed_settings: None,
             session_fs_provider: None,
             suppress_resume_event: None,
@@ -4741,6 +4869,7 @@ impl ResumeSessionConfig {
             user_input_handler: None,
             exit_plan_mode_handler: None,
             auto_mode_switch_handler: None,
+            auto_mode_recovery: false,
             hooks_handler: None,
             permission_policy: None,
             system_message_transform: None,
@@ -4795,6 +4924,13 @@ impl ResumeSessionConfig {
         handler: Arc<dyn AutoModeSwitchHandler>,
     ) -> Self {
         self.auto_mode_switch_handler = Some(handler);
+        self
+    }
+
+    /// Re-enroll the resumed session in runtime-owned Auto recovery.
+    /// See [`SessionConfig::with_auto_mode_recovery`].
+    pub fn with_auto_mode_recovery(mut self, enabled: bool) -> Self {
+        self.auto_mode_recovery = enabled;
         self
     }
 
@@ -5318,6 +5454,15 @@ impl ResumeSessionConfig {
         self
     }
 
+    /// Install an experimental [`MemoryStore`] on resume; it is not persisted and must be re-supplied on each resume.
+    ///
+    /// Requires memory enabled with [`Self::with_memory`]; otherwise session setup
+    /// fails before any request is sent. Not supported for cloud sessions.
+    pub fn with_memory_store(mut self, store: Arc<dyn MemoryStore>) -> Self {
+        self.memory_store = Some(store);
+        self
+    }
+
     /// Configure the runtime memory feature for the resumed session.
     pub fn with_memory(mut self, memory: MemoryConfiguration) -> Self {
         self.memory = Some(memory);
@@ -5391,9 +5536,10 @@ impl ResumeSessionConfig {
 
     /// When `true`, instructs the runtime to continue any tool calls or
     /// permission requests that were pending when the previous connection
-    /// was dropped. Use this together with
-    /// [`Client::force_stop`](crate::Client::force_stop) to hand off a
-    /// session from one process to another without losing in-flight work.
+    /// was dropped. To hand off a session from one process to another, end
+    /// the first client with [`Client::stop`](crate::Client::stop), not
+    /// [`Client::force_stop`](crate::Client::force_stop), which can lose
+    /// pending work the runtime has not saved yet.
     /// When `false` (the default), pending work is treated as interrupted on
     /// resume; already-recorded tool results are preserved.
     ///
@@ -5495,6 +5641,12 @@ impl ResumeSessionConfig {
         self
     }
 
+    /// Set the permission mode applied before resumed work continues.
+    pub fn with_permission_mode(mut self, permission_mode: PermissionMode) -> Self {
+        self.permission_mode = Some(permission_mode);
+        self
+    }
+
     /// Inject a managed-settings layer (currently permission rules) on resume.
     /// See [`SessionConfig::with_managed_settings`]. Must be re-supplied on
     /// resume; omitting it clears the previously injected layer.
@@ -5584,6 +5736,9 @@ pub struct CreateSessionResult {
     /// Capabilities negotiated with the CLI for this session.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub capabilities: Option<SessionCapabilities>,
+    /// Outcome of the requested [`SessionConfig::permission_mode`].
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub permission_mode_result: Option<PermissionsSetModeResult>,
 }
 
 /// Details of transcript repair planned during resume.
@@ -5624,6 +5779,9 @@ pub(crate) struct ResumeSessionResult {
     /// Recovery performed in memory while loading the session.
     #[serde(default)]
     pub transcript_recovery: Option<TranscriptRecovery>,
+    /// Outcome of the requested [`ResumeSessionConfig::permission_mode`].
+    #[serde(default)]
+    pub permission_mode_result: Option<PermissionsSetModeResult>,
 }
 
 /// Severity level for [`Session::log`](crate::session::Session::log) messages.
@@ -6333,6 +6491,18 @@ pub struct MessageOptions {
     pub tracestate: Option<String>,
     /// If provided, this is shown in the timeline instead of `prompt`.
     pub display_prompt: Option<String>,
+    /// Opaque caller-chosen ID for the turn this message starts.
+    ///
+    /// The runtime copies it unchanged into
+    /// `_meta["com.github.copilot/turnId"]` on every MCP `tools/call` made
+    /// while serving that turn, including calls from sub-agents and Autopilot
+    /// continuations. When a running turn consumes the message as visible user
+    /// steering, the value (or its absence) replaces the turn's ID from the
+    /// next model call onward. The `user.message` event for the message
+    /// echoes it as `clientTurnId` and is persisted like other events; the
+    /// value stamped on MCP calls is held in memory only and is not restored
+    /// on resume.
+    pub client_turn_id: Option<String>,
 }
 
 impl MessageOptions {
@@ -6350,6 +6520,7 @@ impl MessageOptions {
             traceparent: None,
             tracestate: None,
             display_prompt: None,
+            client_turn_id: None,
         }
     }
 
@@ -6426,6 +6597,14 @@ impl MessageOptions {
     /// Set the display prompt shown in the timeline instead of `prompt`.
     pub fn with_display_prompt(mut self, display_prompt: impl Into<String>) -> Self {
         self.display_prompt = Some(display_prompt.into());
+        self
+    }
+
+    /// Set the opaque caller-chosen ID for the turn this message starts.
+    ///
+    /// See [`client_turn_id`](Self::client_turn_id).
+    pub fn with_client_turn_id(mut self, client_turn_id: impl Into<String>) -> Self {
+        self.client_turn_id = Some(client_turn_id.into());
         self
     }
 }
@@ -6531,6 +6710,39 @@ pub struct SessionEvent {
     pub data: Value,
 }
 
+/// UI capabilities from a `capabilities.changed` event, including Auto recovery.
+///
+/// The legacy [`crate::session_events::CapabilitiesChangedUI`] remains
+/// unchanged so existing complete struct literals and destructuring patterns
+/// continue to compile. Use
+/// [`SessionEvent::capabilities_changed_data_with_auto_mode_recovery`] to read
+/// the recovery capability from the event payload.
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct CapabilitiesChangedUIWithAutoModeRecovery {
+    /// Whether recovery-aware Auto switching is enabled for this session.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub auto_mode_recovery: Option<bool>,
+    /// Whether canvas rendering is supported.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub canvases: Option<bool>,
+    /// Whether elicitation is supported.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub elicitation: Option<bool>,
+    /// Whether MCP Apps UI passthrough is supported.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub mcp_apps: Option<bool>,
+}
+
+/// Capability changes from a `capabilities.changed` event, including Auto recovery.
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct CapabilitiesChangedDataWithAutoModeRecovery {
+    /// UI capability changes.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub ui: Option<CapabilitiesChangedUIWithAutoModeRecovery>,
+}
+
 /// An event-log record with optional journal replay metadata.
 ///
 /// Deserialize replay-view records into this wrapper to retain their checkpoint
@@ -6586,6 +6798,22 @@ impl SessionEvent {
     /// event types where you need strongly-typed field access.
     pub fn typed_data<T: serde::de::DeserializeOwned>(&self) -> Option<T> {
         serde_json::from_value(self.data.clone()).ok()
+    }
+
+    /// Read a `capabilities.changed` payload with the Auto recovery capability.
+    ///
+    /// The legacy [`crate::session_events::CapabilitiesChangedData`] and
+    /// [`crate::session_events::CapabilitiesChangedUI`] types retain their
+    /// existing construction shape. This accessor returns a separate
+    /// representation so the new wire field does not break their complete
+    /// struct literals or destructuring patterns.
+    pub fn capabilities_changed_data_with_auto_mode_recovery(
+        &self,
+    ) -> Option<CapabilitiesChangedDataWithAutoModeRecovery> {
+        if self.event_type != "capabilities.changed" {
+            return None;
+        }
+        self.typed_data()
     }
 
     /// `model_call` errors are transient — the CLI agent loop continues
@@ -6939,6 +7167,26 @@ pub struct ElicitationRequest {
     /// URL to open in the user's browser (url mode only).
     #[serde(skip_serializing_if = "Option::is_none")]
     pub url: Option<String>,
+}
+
+/// Context for an offer to recover the active request using Auto.
+#[non_exhaustive]
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct AutoModeRecoveryContext {
+    /// The one-use offer identifier, not a replay token.
+    pub request_id: String,
+    /// The original explicit model selection.
+    pub original_model: String,
+    /// Whether this offer permits remembering consent.
+    /// Currently true only for per-model rate limits.
+    pub allow_always: bool,
+    /// The retained interaction identifier, when available.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub interaction_id: Option<String>,
+    /// The original user-message identifier, when available.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub originating_message_id: Option<String>,
 }
 
 /// Session-level capabilities reported by the CLI after session creation.

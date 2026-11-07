@@ -26,6 +26,59 @@ use super::sdk_api_shared::*;
 use crate::generated::{lifecycle_diagnostics, session_events};
 use crate::types::{RequestId, SessionEvent, SessionId};
 
+/// Request limits for one decision model.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct DecisionModelLimits {
+    /// Token budget for the context plus any one question, when the model has one.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub context_plus_question_tokens: Option<i64>,
+    /// Maximum nesting depth of JSON context.
+    pub max_json_depth: i64,
+    /// Maximum levels per score question.
+    pub max_levels: i64,
+    /// Maximum options per choice question.
+    pub max_options: i64,
+    /// Maximum questions per request.
+    pub max_questions: i64,
+    /// Maximum size of the serialized request, in bytes.
+    pub max_request_bytes: i64,
+    /// Minimum levels per score question.
+    pub min_levels: i64,
+    /// Minimum options per choice question.
+    pub min_options: i64,
+}
+
+/// One callable decision model.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct DecisionModelInfo {
+    /// Model id to pass as `model` to `decisions.ask`.
+    pub id: String,
+    /// Whether `decisions.ask` uses this model when `model` is omitted.
+    pub is_default: bool,
+    /// Effective limits callers can rely on: the stricter of the backend's and the runtime's.
+    pub limits: DecisionModelLimits,
+    /// Display name.
+    pub name: String,
+    /// Whether the backend can refuse individual questions.
+    pub supports_refusals: bool,
+}
+
 /// Default-tier text and image token prices reported for an image model, in AI credits per billing batch. Missing rates remain absent; these are not per-image quotes or actual billed usage.
 ///
 /// <div class="warning">
@@ -224,6 +277,16 @@ pub struct ModelList {
     /// when CAPI returned Auto metadata; same shape and semantics as `SessionModelList.auto`.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub auto: Option<AutoTierMetadata>,
+    /// Decision models the resolved account can call with `decisions.ask`, separate from conversation models, with each model's effective limits. Absent when the `DECISIONS_API` feature flag is off or the runtime does not expose this catalog; empty when the account has none. These entries must not be selected as chat models.
+    ///
+    /// <div class="warning">
+    ///
+    /// **Experimental.** This type is part of an experimental wire-protocol surface
+    /// and may change or be removed in future SDK or CLI releases.
+    ///
+    /// </div>
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub decision_models: Option<Vec<DecisionModelInfo>>,
     /// The runtime's default image model, separate from conversation models, with its availability for the resolved account. The default is reported even when unavailable; clients choose whether to display it. These entries must not be selected as chat models. Absent on runtimes that do not expose this catalog.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub image_models: Option<Vec<ImageToolModel>>,
@@ -467,7 +530,7 @@ pub struct ModelSetReasoningEffortRequest {
     pub reasoning_effort: String,
 }
 
-/// Update the session's reasoning effort without changing the selected model. Use `switchTo` instead when you also need to change the model. The runtime stores the effort on the session and applies it to subsequent turns.
+/// Update the session's reasoning effort without changing the selected model. Use `switchTo` instead when you also need to change the model. The runtime applies the effort to the next new model request, including tool continuations, without changing retries of an already-started request.
 ///
 /// <div class="warning">
 ///
@@ -502,6 +565,47 @@ pub struct ModelsListRequest {
     /// When true, replaces the display names of preview and hidden models with `Hidden Model N`, and masks their promotion and data-retention text. Model ids are unchanged.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub streamer_mode: Option<bool>,
+}
+
+/// Options for a host's startup model admission check.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ModelStartupAdmissionRequest {
+    /// Claims the session's one-time enablement prompt only when its catalog is ready.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub claim_enablement: Option<bool>,
+}
+
+/// A cached startup model snapshot and an optional one-time enablement prompt. This check never resolves credentials or fetches a catalog.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ModelStartupAdmissionResult {
+    /// Whether the session already has a resolved Copilot catalog.
+    pub catalog_ready: bool,
+    /// Whether this call consumed the session's startup enablement claim.
+    pub claimed_enablement: bool,
+    /// The selected model to enable, only for the first successful prompt claim.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub model_to_enable: Option<String>,
+    /// Whether the cached selected model currently requires enablement.
+    pub requires_enablement: bool,
+    /// The selected model, when the session has one.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub selected_model: Option<String>,
 }
 
 /// An Auto preference request for the session. This updates Auto configuration only; it does not change the selected model to `auto`.
@@ -1034,6 +1138,16 @@ pub struct ModelsListResult {
     /// when CAPI returned Auto metadata; same shape and semantics as `SessionModelList.auto`.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub auto: Option<AutoTierMetadata>,
+    /// Decision models the resolved account can call with `decisions.ask`, separate from conversation models, with each model's effective limits. Absent when the `DECISIONS_API` feature flag is off or the runtime does not expose this catalog; empty when the account has none. These entries must not be selected as chat models.
+    ///
+    /// <div class="warning">
+    ///
+    /// **Experimental.** This type is part of an experimental wire-protocol surface
+    /// and may change or be removed in future SDK or CLI releases.
+    ///
+    /// </div>
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub decision_models: Option<Vec<DecisionModelInfo>>,
     /// The runtime's default image model, separate from conversation models, with its availability for the resolved account. The default is reported even when unavailable; clients choose whether to display it. These entries must not be selected as chat models. Absent on runtimes that do not expose this catalog.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub image_models: Option<Vec<ImageToolModel>>,

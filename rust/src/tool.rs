@@ -257,7 +257,10 @@ pub trait ToolHandler: Send + Sync + 'static {
     /// Returning `Err` fails the tool call without showing the error text to
     /// the model, which sees a generic failure message instead. To give the
     /// model specific failure text, return `Ok` with a failure result built by
-    /// [`ToolResultExpanded::new`] with `result_type` `"failure"`.
+    /// [`ToolResultExpanded::new`] with `result_type` `"failure"`. When panic
+    /// unwinding is enabled, a panic fails the tool call like an `Err`, with the
+    /// error `tool handler panicked`. With `panic = "abort"`, a panic terminates
+    /// the process instead.
     async fn call(&self, invocation: ToolInvocation) -> Result<ToolResult, Error>;
 }
 

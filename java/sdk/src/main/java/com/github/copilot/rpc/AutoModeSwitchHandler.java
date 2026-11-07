@@ -14,6 +14,13 @@ import java.util.concurrent.CompletableFuture;
  * {@link ResumeSessionConfig#setOnAutoModeSwitch(AutoModeSwitchHandler)}. When
  * provided, the server routes {@code autoModeSwitch.request} callbacks to this
  * handler.
+ * <p>
+ * Retained-request recovery additionally requires
+ * {@link SessionConfig#setAutoModeRecovery(boolean)} (or the resume
+ * equivalent). Inspect {@link AutoModeSwitchRequest#getAutoModeRecovery()} and
+ * present its reason and allowed choices. Return the user's decision without
+ * resending or rewinding. The example below registers only the legacy
+ * rate-limit handler.
  *
  * <h2>Example Usage</h2>
  *
@@ -38,7 +45,7 @@ public interface AutoModeSwitchHandler {
      *
      * @param request
      *            the auto-mode-switch request containing the error code and
-     *            retry-after seconds
+     *            retry-after seconds, plus optional active-request recovery context
      * @param invocation
      *            context information about the invocation
      * @return a future that resolves with the user's decision

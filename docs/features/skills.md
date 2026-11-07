@@ -216,19 +216,14 @@ package main
 import (
 	"context"
 	copilot "github.com/github/copilot-sdk/go"
-	"github.com/github/copilot-sdk/go/rpc"
 )
 
 func main() {
-	ctx := context.Background()
 	client := copilot.NewClient(nil)
 
-	session, _ := client.CreateSession(ctx, &copilot.SessionConfig{
+	session, _ := client.CreateSession(context.Background(), &copilot.SessionConfig{
 		SkillDirectories: []string{"./skills"},
 		DisabledSkills:   []string{"experimental-feature", "deprecated-tool"},
-		OnPermissionRequest: func(req copilot.PermissionRequest, inv copilot.PermissionInvocation) (rpc.PermissionDecision, error) {
-			return &rpc.PermissionDecisionApproveOnce{}, nil
-		},
 	})
 	_ = session
 }

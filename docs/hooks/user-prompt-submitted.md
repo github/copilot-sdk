@@ -66,10 +66,17 @@ package main
 
 import copilot "github.com/github/copilot-sdk/go"
 
+// Aliases let the signature below use the package's own type names.
+type (
+    UserPromptSubmittedHookInput  = copilot.UserPromptSubmittedHookInput
+    HookInvocation                = copilot.HookInvocation
+    UserPromptSubmittedHookOutput = copilot.UserPromptSubmittedHookOutput
+)
+
 type UserPromptSubmittedHandler func(
-    input copilot.UserPromptSubmittedHookInput,
-    invocation copilot.HookInvocation,
-) (*copilot.UserPromptSubmittedHookOutput, error)
+    input UserPromptSubmittedHookInput,
+    invocation HookInvocation,
+) (*UserPromptSubmittedHookOutput, error)
 
 var _ = copilot.UserPromptSubmittedHandler(UserPromptSubmittedHandler(nil))
 
@@ -120,11 +127,24 @@ import com.github.copilot.rpc.*;
 import java.util.concurrent.CompletableFuture;
 
 public class UserPromptSubmittedSignature {
-    UserPromptSubmittedHandler handler = (UserPromptSubmittedHookInput input, HookInvocation invocation) ->
-        CompletableFuture.completedFuture(null);
-    CompletableFuture<UserPromptSubmittedHookOutput> handle(UserPromptSubmittedHookInput input, HookInvocation invocation) {
-        return handler.handle(input, invocation);
+    static class Documented {
+        @FunctionalInterface
+        public interface UserPromptSubmittedHandler {
+            CompletableFuture<UserPromptSubmittedHookOutput> handle(
+                UserPromptSubmittedHookInput input,
+                HookInvocation invocation);
+        }
     }
+
+    // The documented interface and the SDK's accept each other's implementations.
+    static UserPromptSubmittedHandler toSdk(Documented.UserPromptSubmittedHandler documented) {
+        return documented::handle;
+    }
+
+    static Documented.UserPromptSubmittedHandler fromSdk(UserPromptSubmittedHandler sdk) {
+        return sdk::handle;
+    }
+
     public static void main(String[] args) {}
 }
 ```
@@ -234,7 +254,6 @@ import (
 func main() {
 	client := copilot.NewClient(nil)
 	session, _ := client.CreateSession(context.Background(), &copilot.SessionConfig{
-		OnPermissionRequest: copilot.PermissionHandler.ApproveAll,
 		Hooks: &copilot.SessionHooks{
 			OnUserPromptSubmitted: func(input copilot.UserPromptSubmittedHookInput, inv copilot.HookInvocation) (*copilot.UserPromptSubmittedHookOutput, error) {
 				fmt.Printf("[%s] User: %s\n", inv.SessionID, input.Prompt)

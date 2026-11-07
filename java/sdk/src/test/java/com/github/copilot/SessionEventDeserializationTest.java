@@ -2660,9 +2660,10 @@ public class SessionEventDeserializationTest {
 
         // Verify setData round-trip
         var newData = new CapabilitiesChangedEvent.CapabilitiesChangedEventData(
-                new CapabilitiesChangedUI(false, null, null));
+                new CapabilitiesChangedUI(false, null, null, null));
         castedEvent.setData(newData);
         assertFalse(castedEvent.getData().ui().elicitation());
+        assertNull(castedEvent.getData().ui().autoModeRecovery());
     }
 
     @Test

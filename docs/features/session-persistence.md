@@ -70,22 +70,22 @@ package main
 import (
 	"context"
 	copilot "github.com/github/copilot-sdk/go"
-	"github.com/github/copilot-sdk/go/rpc"
 )
 
 func main() {
 	ctx := context.Background()
 	client := copilot.NewClient(nil)
 
+	// Create a session with a meaningful ID
 	session, _ := client.CreateSession(ctx, &copilot.SessionConfig{
 		SessionID: "user-123-task-456",
 		Model:     "gpt-5.2-codex",
-		OnPermissionRequest: func(req copilot.PermissionRequest, inv copilot.PermissionInvocation) (rpc.PermissionDecision, error) {
-			return &rpc.PermissionDecisionApproveOnce{}, nil
-		},
 	})
 
+	// Do some work...
 	session.SendAndWait(ctx, copilot.MessageOptions{Prompt: "Analyze my codebase"})
+
+	// Session state is automatically persisted
 	_ = session
 }
 ```
@@ -671,6 +671,8 @@ await client.deleteSession("user-123-task-456");
 By default, sessions have **no idle timeout** and live indefinitely until explicitly disconnected or deleted. You can optionally configure a server-wide idle timeout via `CopilotClientOptions.sessionIdleTimeoutSeconds`:
 
 ```typescript
+import { CopilotClient } from "@github/copilot-sdk";
+
 const client = new CopilotClient({
   sessionIdleTimeoutSeconds: 30 * 60, // 30 minutes
 });
@@ -736,12 +738,14 @@ flowchart LR
 * ⚠️ Session ID validation before operations
 
 ```typescript
+import { CopilotClient, CopilotSession } from "@github/copilot-sdk";
+
 // Application-level access control for shared CLI
 async function resumeSessionWithAuth(
   client: CopilotClient,
   sessionId: string,
   currentUserId: string
-): Promise<Session> {
+): Promise<CopilotSession> {
   // Parse user from session ID
   const [sessionUserId] = sessionId.split("-");
   
@@ -826,7 +830,7 @@ The SDK doesn't provide built-in session locking. If multiple clients might acce
 
 ```typescript
 // Option 1: Application-level locking with Redis
-import Redis from "ioredis";
+import { Redis } from "ioredis";
 
 const redis = new Redis();
 
@@ -835,7 +839,7 @@ async function withSessionLock<T>(
   fn: () => Promise<T>
 ): Promise<T> {
   const lockKey = `session-lock:${sessionId}`;
-  const acquired = await redis.set(lockKey, "locked", "NX", "EX", 300);
+  const acquired = await redis.set(lockKey, "locked", "EX", 300, "NX");
   
   if (!acquired) {
     throw new Error("Session is in use by another client");

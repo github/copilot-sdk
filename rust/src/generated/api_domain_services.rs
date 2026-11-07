@@ -4960,6 +4960,334 @@ pub struct DebugCollectLogsResult {
     pub skipped_entries: Option<Vec<DebugCollectLogsSkippedEntry>>,
 }
 
+/// Answer to a boolean question.
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct DecisionAnswerBoolean {
+    /// Answered question kind discriminator.
+    pub kind: DecisionAnswerBooleanKind,
+    /// Name of the question this answers.
+    pub name: String,
+    /// Probability, from 0 to 1, that the answer is yes.
+    pub probability: f64,
+}
+
+/// Probability of one choice option.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct DecisionOptionProbability {
+    /// Probability from 0 to 1.
+    pub probability: f64,
+    /// Option value.
+    pub value: String,
+}
+
+/// Answer to a choice question.
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct DecisionAnswerChoice {
+    /// How peaked the distribution is: `(p_max - 1/n) / (1 - 1/n)`. Not a probability of being correct.
+    pub confidence: f64,
+    /// Answered question kind discriminator.
+    pub kind: DecisionAnswerChoiceKind,
+    /// Name of the question this answers.
+    pub name: String,
+    /// Probability of every option, in request order, summing to 1.
+    pub probabilities: Vec<DecisionOptionProbability>,
+    /// True when another option has exactly the same probability as `value`. Check this, not only `confidence`.
+    pub tied: bool,
+    /// Value of the most probable option. On a tie, the tied option listed first.
+    pub value: String,
+    /// The backend's own confidence, which may use a different formula. Diagnostic only.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub vendor_confidence: Option<f64>,
+}
+
+/// Probability of one score level.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct DecisionLevelProbability {
+    /// Level label.
+    pub label: String,
+    /// Probability from 0 to 1.
+    pub probability: f64,
+}
+
+/// Answer to a score question.
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct DecisionAnswerScore {
+    /// How peaked the distribution is: `(p_max - 1/n) / (1 - 1/n)`. Not a probability of being correct.
+    pub confidence: f64,
+    /// Answered question kind discriminator.
+    pub kind: DecisionAnswerScoreKind,
+    /// Label of the most probable level. On a tie, the lower level.
+    pub level: String,
+    /// Name of the question this answers.
+    pub name: String,
+    /// Probability of every level, from lowest to highest, summing to 1.
+    pub probabilities: Vec<DecisionLevelProbability>,
+    /// Expected level position: the sum of each level's zero-based position times its probability.
+    pub score: f64,
+    /// The backend's own confidence, which may use a different formula. Diagnostic only.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub vendor_confidence: Option<f64>,
+}
+
+/// The model declined to answer this question. Other answers in the request are unaffected.
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct DecisionAnswerRefused {
+    /// Answered question kind discriminator.
+    pub kind: DecisionAnswerRefusedKind,
+    /// Name of the question that was refused.
+    pub name: String,
+}
+
+/// Plain-text context.
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct DecisionContextText {
+    /// Context format discriminator.
+    pub kind: DecisionContextTextKind,
+    /// The text the questions are about.
+    pub text: String,
+}
+
+/// Structured context: a JSON object or an array of objects.
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct DecisionContextJson {
+    /// Context format discriminator.
+    pub kind: DecisionContextJsonKind,
+    /// A JSON object, or an array of JSON objects. Other JSON values are rejected with `invalidRequest`.
+    pub value: serde_json::Value,
+}
+
+/// One rule or limit a request broke.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct DecisionViolation {
+    /// The value the request had, when numeric.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub actual: Option<i64>,
+    /// The limit it broke, when numeric.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub limit: Option<i64>,
+    /// Where in the request, for example `questions[2].options`.
+    pub path: String,
+    /// Stable rule identifier, for example `minOptions` or `requestBytes`.
+    pub rule: String,
+}
+
+/// `data` of a JSON-RPC error returned by a `decisions.*` method.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct DecisionErrorData {
+    /// Error category to branch on.
+    pub kind: DecisionErrorKind,
+    /// How long to wait before retrying, for `rateLimited`.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub retry_after_ms: Option<i64>,
+    /// HTTP status the backend returned, when the error came from it.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub status_code: Option<i32>,
+    /// Every limit or rule the request broke, for `invalidRequest` and `tooLarge`.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub violations: Option<Vec<DecisionViolation>>,
+}
+
+/// One level of a score question's scale.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct DecisionLevel {
+    /// When this level applies.
+    pub description: String,
+    /// Short, unique name of the level, such as `Low`.
+    pub label: String,
+}
+
+/// One candidate answer to a choice question.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct DecisionOption {
+    /// When this option applies.
+    pub description: String,
+    /// Identifier returned when the model picks this option. Letters, digits and `._:/@-`, 1-64 characters. The model reads it, so it must not hold anything the caller would not put in the context.
+    pub value: String,
+}
+
+/// A yes/no question, answered with the probability that the answer is yes.
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct DecisionQuestionBoolean {
+    /// The yes/no question.
+    pub instructions: String,
+    /// Question kind discriminator.
+    pub kind: DecisionQuestionBooleanKind,
+    /// Caller-chosen name, unique within the request, that identifies this question's answer. Never sent to the model.
+    pub name: String,
+    /// Optional description of when the answer is no.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub when_false: Option<String>,
+    /// Optional description of when the answer is yes.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub when_true: Option<String>,
+}
+
+/// A pick-one question, answered with one of the supplied options. The model always picks one; ask a separate boolean question when none may fit.
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct DecisionQuestionChoice {
+    /// The question whose answer is one of `options`.
+    pub instructions: String,
+    /// Question kind discriminator.
+    pub kind: DecisionQuestionChoiceKind,
+    /// Caller-chosen name, unique within the request, that identifies this question's answer. Never sent to the model.
+    pub name: String,
+    /// Candidate answers. Values must be unique identifiers; the model reads both value and description.
+    pub options: Vec<DecisionOption>,
+}
+
+/// A rating question, answered on the supplied ordered scale.
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct DecisionQuestionScore {
+    /// The question whose answer is a rating on `levels`.
+    pub instructions: String,
+    /// Question kind discriminator.
+    pub kind: DecisionQuestionScoreKind,
+    /// Scale levels from lowest to highest. A level's zero-based position is its numeric value.
+    pub levels: Vec<DecisionLevel>,
+    /// Caller-chosen name, unique within the request, that identifies this question's answer. Never sent to the model.
+    pub name: String,
+}
+
+/// One request to a decision model: shared context plus the questions to answer about it.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct DecisionsAskRequest {
+    /// Shared context every question sees. The runtime never truncates it; an oversized request fails with `tooLarge`.
+    pub context: DecisionContext,
+    /// GitHub token to ask as. When provided, it is used instead of the current account or `selectionId`.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub git_hub_token: Option<String>,
+    /// Decision model id from `models.list` `decisionModels`. When omitted, the runtime uses its default decision model for the account.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub model: Option<String>,
+    /// Static identifier of the calling feature, used only for telemetry and never sent to the model, for example `vscode.chat.route`. Unrecognized values are reported as `other`.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub purpose: Option<String>,
+    /// Questions to answer about the context. Names must be unique; answers come back in the same order.
+    pub questions: Vec<DecisionQuestion>,
+    /// Opaque account identifier returned by `account.getAllUsers`. When omitted, the current account is used.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub selection_id: Option<String>,
+    /// End-to-end deadline in milliseconds, covering credential resolution, queueing, the model call and parsing. Defaults to 5000; allowed range 250-30000.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub timeout_ms: Option<i32>,
+}
+
+/// Token usage the backend reported for one request.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct DecisionUsage {
+    /// Input tokens served from the backend's prompt cache, when reported.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub cached_input_tokens: Option<i64>,
+    /// Input tokens written to the backend's prompt cache, when reported.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub cache_write_tokens: Option<i64>,
+    /// Input tokens, including cached and cache-write tokens.
+    pub input_tokens: i64,
+    /// Output tokens, including reasoning tokens.
+    pub output_tokens: i64,
+    /// Reasoning tokens, when reported.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub reasoning_tokens: Option<i64>,
+}
+
+/// The decision model's answers.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct DecisionsAskResult {
+    /// One answer per question, in request order.
+    pub answers: Vec<DecisionAnswer>,
+    /// Milliseconds from receiving the request to producing the result.
+    pub latency_ms: i64,
+    /// Decision model id that answered; valid as `model` in a later request.
+    pub model: String,
+    /// Model name the backend reported, when it differs from `model`. Informational only.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub upstream_model: Option<String>,
+    /// Token usage, when the backend reports it.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub usage: Option<DecisionUsage>,
+}
+
 /// Extensions discovered from persisted Copilot home state and their effective loading mode. Launch-scoped additional plugins are not included.
 ///
 /// <div class="warning">
@@ -7534,41 +7862,6 @@ pub struct JsonSchemaResponseFormat {
     pub strict: Option<bool>,
 }
 
-/// Requests a fresh initial SPNEGO token for a Kerberos service principal.
-#[derive(Debug, Clone, Default, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub struct KerberosAuthAcquireRequest {
-    /// Service principal in the platform-independent `service/host` form, optionally followed by `@REALM`.
-    pub spn: String,
-}
-
-/// Client credentials for a single authentication exchange.
-#[derive(Debug, Clone, Default, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub struct KerberosAuthAcquireResult {
-    /// Base64 initial SPNEGO token without the Negotiate prefix; omitted when unavailable. Never log or persist it.
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub token: Option<String>,
-}
-
-/// Registers the calling SDK connection's Kerberos credential provider.
-///
-/// <div class="warning">
-///
-/// **Experimental.** This type is part of an experimental wire-protocol surface
-/// and may change or be removed in future SDK or CLI releases.
-///
-/// </div>
-#[derive(Debug, Clone, Default, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub struct KerberosAuthSetProviderRequest {
-    /// Native lookup fallback or exclusive client callback.
-    pub mode: KerberosAuthMode,
-    /// Traffic the callback authenticates; defaults to `connection`.
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub scope: Option<KerberosAuthScope>,
-}
-
 /// Cursor-based request for experimental runtime lifecycle diagnostic events. The default max is 100 (maximum 500); the default waitMs is zero (maximum 30000).
 ///
 /// <div class="warning">
@@ -7853,6 +8146,61 @@ pub struct LogResult {
     pub event_id: String,
 }
 
+/// Runtime-owned configuration inventory and configuration diagnostics.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct LspConfigurationSnapshot {
+    /// Effective servers in merge order.
+    pub configs: Vec<LspServerSummary>,
+    /// Effective plugin entries.
+    pub plugin_servers: Vec<LspServerSummary>,
+    /// Plugin configuration diagnostics.
+    pub plugin_warnings: Vec<String>,
+    /// Nearest project configuration file path.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub project_config_path: Option<String>,
+    /// Failure to inspect project configuration.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub project_inspection_error: Option<String>,
+    /// Project files rejected by the loader.
+    pub project_problems: Vec<LspConfigurationProblem>,
+    /// Project entries, including disabled entries absent from the effective set.
+    pub project_servers: Vec<LspServerSummary>,
+    /// User configuration read or validation failure.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub user_config_error: Option<String>,
+    /// User configuration file path.
+    pub user_config_path: String,
+    /// Identifiers disabled through the user toggle list.
+    pub user_disabled_servers: Vec<String>,
+    /// User entries, including entries disabled by project configuration.
+    pub user_servers: Vec<LspServerSummary>,
+    /// Configuration loader diagnostics.
+    pub warnings: Vec<String>,
+}
+
+/// Parameters for a process-wide, read-only language-server inventory.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct LspGlobalConfigurationRequest {
+    /// Absolute working directory used for project and plugin discovery.
+    pub working_directory: String,
+}
+
 /// Parameters for (re)loading the merged LSP configuration set.
 ///
 /// <div class="warning">
@@ -7873,6 +8221,81 @@ pub struct LspInitializeRequest {
     /// Working directory used to load project-level LSP configs. Defaults to the session working directory when omitted.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub working_directory: Option<String>,
+}
+
+/// A server selected for a startup probe.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct LspProbeRequest {
+    /// Configured server identifier.
+    pub server_id: String,
+}
+
+/// Result of a language-server startup probe.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct LspProbeResult {
+    /// Effective server identifiers, used when the requested server is absent.
+    pub available_servers: Vec<String>,
+    /// Child exit observed during the startup window.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub immediate_exit: Option<LspProbeExitStatus>,
+    /// Child process identifier, or null when no process identifier exists.
+    pub pid: Option<i64>,
+    /// Whether the runtime confined the probe in the session sandbox.
+    pub sandboxed: bool,
+    /// Time spent on process startup, in milliseconds.
+    pub spawn_time_ms: i64,
+    /// Runtime selection outcome: started, disabled, missing, or unavailable.
+    pub status: String,
+}
+
+/// A persistent user-level server toggle.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct LspSetEnabledRequest {
+    /// True to remove the user-level disable override.
+    pub enabled: bool,
+    /// Configured server identifier.
+    pub server_id: String,
+}
+
+/// The servers retained by the session after warmup.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct LspWarmupResult {
+    /// Individual server startup failures.
+    pub errors: Vec<LspWarmupError>,
+    /// Successfully acquired server identifiers.
+    pub servers: Vec<String>,
 }
 
 /// Result of registering a new marketplace.
@@ -7967,6 +8390,29 @@ pub struct McpTaskMetadata {
     /// Task time-to-live.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub ttl: Option<i64>,
+}
+
+/// A memory the agent stored after validation, secret filtering and approval.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct MemoryStoreRequest {
+    /// Target session identifier
+    pub session_id: SessionId,
+    /// Short topic the memory is about.
+    pub subject: String,
+    /// The fact to remember.
+    pub fact: String,
+    /// Sources supporting the fact, such as file paths with line numbers or a quotation of the user.
+    pub citations: String,
+    /// Why the agent considers the fact worth remembering.
+    pub reason: String,
 }
 
 /// The six normalized `/context` header buckets, computed from the same tokenization as `entries` so the two never disagree. Convenience rollups: `freeSpace` and `buffer` describe window capacity rather than occupied context, so the values do not sum to `totalTokens`.
@@ -8486,6 +8932,86 @@ pub struct NameSetAutoResult {
 pub struct NameSetRequest {
     /// New session name (1–100 characters, trimmed of leading/trailing whitespace)
     pub name: String,
+}
+
+/// Registers the Negotiate authentication callback, which then supplies the Kerberos tokens instead of native credential lookup.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct NetworkAuthenticateNegotiateOptions {}
+
+/// Requests a fresh initial SPNEGO token for a Kerberos service principal.
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct NetworkAuthenticateNegotiateRequest {
+    /// Service principal in the platform-independent `service/host` form, optionally followed by `@REALM`.
+    pub spn: String,
+}
+
+/// Client credentials for a single Negotiate authentication exchange.
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct NetworkAuthenticateNegotiateResult {
+    /// Base64 initial SPNEGO token without the Negotiate prefix; omitted when unavailable. Never log or persist it.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub token: Option<String>,
+}
+
+/// Registers the proxy resolution callback, which then decides the proxies for every request the runtime would otherwise route by ambient proxy settings, or leaves a request to that routing.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct NetworkResolveProxyOptions {}
+
+/// Requests the proxies for a request target.
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct NetworkResolveProxyRequest {
+    /// Request target as a PAC script sees it: without credentials or fragment, and for `https` and `wss` also without path and query.
+    pub url: String,
+}
+
+/// Proxies for a request target, in the order to try them.
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct NetworkResolveProxyResult {
+    /// PAC-style proxy list such as `PROXY proxy.example:8080; HTTPS proxy.example:443; DIRECT`, as returned by a PAC script or Electron's `session.resolveProxy`; `DIRECT` connects directly. Omitted, null or empty leaves the request to the runtime's own proxy resolution, as if no callback were registered: proxy environment variables, `NO_PROXY`, then the operating system's proxy settings and PAC. Entry types the runtime doesn't support, such as SOCKS and QUIC, are skipped.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub proxy: Option<String>,
+}
+
+/// Registers the calling SDK connection's network callbacks, replacing any previous registration.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct NetworkSetProviderRequest {
+    /// Present when the client answers `network.authenticateNegotiate`.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub authenticate_negotiate: Option<NetworkAuthenticateNegotiateOptions>,
+    /// Present when the client answers `network.resolveProxy`.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub resolve_proxy: Option<NetworkResolveProxyOptions>,
+    /// Traffic the callbacks serve; defaults to `connection`.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub scope: Option<NetworkScope>,
 }
 
 /// External tool calls still waiting for a result.
@@ -10265,6 +10791,100 @@ pub struct SendMessagesRequest {
     pub wait: Option<bool>,
 }
 
+/// Extensible [`SendMessagesRequest`], including inputs added after it was published.
+///
+/// Required inputs are [`SendMessagesOptions::new`] arguments; optional inputs have fluent setters.
+/// Input-only: it serialises to the flat wire request and is not deserialisable.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SendMessagesOptions {
+    #[serde(flatten)]
+    legacy: SendMessagesRequest,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    client_turn_id: Option<String>,
+}
+
+impl SendMessagesOptions {
+    /// Creates options with the required inputs.
+    pub fn new(messages: Vec<SendMessageItem>) -> Self {
+        Self {
+            legacy: SendMessagesRequest {
+                messages,
+                mode: None,
+                prepend: None,
+                agent_mode: None,
+                request_headers: None,
+                response_format: None,
+                traceparent: None,
+                tracestate: None,
+                wait: None,
+            },
+            client_turn_id: None,
+        }
+    }
+
+    /// How to deliver the messages. `enqueue` (default) appends to the message queue. `immediate` interjects during an in-progress turn.
+    pub fn mode(mut self, value: SendMode) -> Self {
+        self.legacy.mode = Some(value);
+        self
+    }
+
+    /// If true, adds the messages to the front of the queue instead of the end
+    pub fn prepend(mut self, value: bool) -> Self {
+        self.legacy.prepend = Some(value);
+        self
+    }
+
+    /// The UI mode the agent was in when these messages were sent. Defaults to the session's current mode.
+    pub fn agent_mode(mut self, value: SendAgentMode) -> Self {
+        self.legacy.agent_mode = Some(value);
+        self
+    }
+
+    /// Custom HTTP headers to include in outbound model requests for this turn. Merged with session-level provider headers; per-turn headers augment and overwrite session-level headers with the same key.
+    pub fn request_headers(mut self, value: HashMap<String, String>) -> Self {
+        self.legacy.request_headers = Some(value);
+        self
+    }
+
+    /// Provider-native output format for the whole turn, including an empty message batch and all tool-call iterations. Not inherited by later turns or subagents. Ordinary steering inherits the active format; specifying responseFormat with mode: immediate is an error, even while idle. Returned assistant content remains text; the runtime does not parse or validate it. Unsupported models or schemas produce provider errors.
+    pub fn response_format(mut self, value: SendMessagesRequestResponseFormat) -> Self {
+        self.legacy.response_format = Some(value);
+        self
+    }
+
+    /// W3C Trace Context traceparent header for distributed tracing of this agent turn
+    pub fn traceparent(mut self, value: impl Into<String>) -> Self {
+        self.legacy.traceparent = Some(value.into());
+        self
+    }
+
+    /// W3C Trace Context tracestate header for distributed tracing
+    pub fn tracestate(mut self, value: impl Into<String>) -> Self {
+        self.legacy.tracestate = Some(value.into());
+        self
+    }
+
+    /// If true, await completion of the agentic loop for this turn before returning. Defaults to false (fire-and-forget). When true, the result still contains the same `messageIds`; the caller can rely on the agent having processed the messages before the call resolves. Transport-dependent tail semantics: on a LOCAL (in-process) session the wait additionally blocks until the completed turn's event tail has been dispatched to this session's in-process subscribers, so a subsequent read of subscriber state already reflects the turn; on a REMOTE session the wait resolves once the loop completes and mirrored delivery follows over the wire. Callers that need the stronger local guarantee on remote sessions should await the event stream explicitly.
+    pub fn wait(mut self, value: bool) -> Self {
+        self.legacy.wait = Some(value);
+        self
+    }
+
+    /// Opaque caller-chosen ID for the turn this batch starts. The runtime copies it unchanged into `params._meta["com.github.copilot/turnId"]` on every MCP `tools/call` the agent makes while serving that turn, including calls from sub-agents it spawns and from Autopilot continuations of it. Visible user steering (`mode: "immediate"`) that a running turn consumes hands it to a successor turn: the steering's value replaces the running turn's from the next model call onward, and steering without one clears it. System and hidden steering leave it unchanged. A turn started without one, including one the runtime starts itself, carries no turn ID. The `user.message` event for each message the send delivers echoes it as `clientTurnId` when the message is consumed, and is persisted like other events; the value stamped on MCP calls is held in memory only and is not restored on resume.
+    pub fn client_turn_id(mut self, value: impl Into<String>) -> Self {
+        self.client_turn_id = Some(value.into());
+        self
+    }
+}
+
 /// Result of sending zero or more user messages
 ///
 /// <div class="warning">
@@ -10342,6 +10962,135 @@ pub struct SendRequest {
     /// If true, await completion of the agentic loop for this message before returning. Defaults to false (fire-and-forget). When true, the result still contains the same `messageId`; the caller can rely on the agent having processed the message before the call resolves. Transport-dependent tail semantics: on a LOCAL (in-process) session the wait additionally blocks until the completed turn's event tail has been dispatched to this session's in-process subscribers, so a subsequent read of subscriber state already reflects the turn; on a REMOTE session the wait resolves once the loop completes and mirrored delivery follows over the wire. Callers that need the stronger local guarantee on remote sessions should await the event stream explicitly.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub wait: Option<bool>,
+}
+
+/// Extensible [`SendRequest`], including inputs added after it was published.
+///
+/// Required inputs are [`SendOptions::new`] arguments; optional inputs have fluent setters.
+/// Input-only: it serialises to the flat wire request and is not deserialisable.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SendOptions {
+    #[serde(flatten)]
+    legacy: SendRequest,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    client_turn_id: Option<String>,
+}
+
+impl SendOptions {
+    /// Creates options with the required inputs.
+    pub fn new(prompt: impl Into<String>) -> Self {
+        Self {
+            legacy: SendRequest {
+                prompt: prompt.into(),
+                display_prompt: None,
+                attachments: None,
+                mode: None,
+                prepend: None,
+                billable: None,
+                required_tool: None,
+                source: None,
+                agent_mode: None,
+                request_headers: None,
+                response_format: None,
+                traceparent: None,
+                tracestate: None,
+                wait: None,
+            },
+            client_turn_id: None,
+        }
+    }
+
+    /// If provided, this is shown in the timeline instead of `prompt`
+    pub fn display_prompt(mut self, value: impl Into<String>) -> Self {
+        self.legacy.display_prompt = Some(value.into());
+        self
+    }
+
+    /// Optional attachments (files, directories, selections, blobs, GitHub references) to include with the message
+    pub fn attachments(mut self, value: Vec<serde_json::Value>) -> Self {
+        self.legacy.attachments = Some(value);
+        self
+    }
+
+    /// How to deliver the message. `enqueue` (default) appends to the message queue. `immediate` interjects during an in-progress turn.
+    pub fn mode(mut self, value: SendMode) -> Self {
+        self.legacy.mode = Some(value);
+        self
+    }
+
+    /// If true, adds the message to the front of the queue instead of the end
+    pub fn prepend(mut self, value: bool) -> Self {
+        self.legacy.prepend = Some(value);
+        self
+    }
+
+    /// If false, this message will not trigger a Premium Request Unit charge. User messages default to billable.
+    pub fn billable(mut self, value: bool) -> Self {
+        self.legacy.billable = Some(value);
+        self
+    }
+
+    /// If set, the request will fail if the named tool is not available when this message is among the user messages at the start of the current exchange
+    pub fn required_tool(mut self, value: impl Into<String>) -> Self {
+        self.legacy.required_tool = Some(value.into());
+        self
+    }
+
+    /// Optional provenance tag copied to the resulting user.message event. Must be `user`, `system`, `command-<command-id>` for command-originated messages, `schedule-<numeric-id>` for scheduled prompts, or `agent-<agent-id>` for prompts sent by another agent.
+    pub(crate) fn source(mut self, value: impl Into<String>) -> Self {
+        self.legacy.source = Some(value.into());
+        self
+    }
+
+    /// The UI mode the agent was in when this message was sent. Defaults to the session's current mode.
+    pub fn agent_mode(mut self, value: SendAgentMode) -> Self {
+        self.legacy.agent_mode = Some(value);
+        self
+    }
+
+    /// Custom HTTP headers to include in outbound model requests for this turn. Merged with session-level provider headers; per-turn headers augment and overwrite session-level headers with the same key.
+    pub fn request_headers(mut self, value: HashMap<String, String>) -> Self {
+        self.legacy.request_headers = Some(value);
+        self
+    }
+
+    /// Provider-native output format for this turn, including all tool-call iterations. Not inherited by later turns or subagents. Ordinary steering inherits the active format; specifying responseFormat with mode: immediate is an error, even while idle. Returned assistant content remains text; the runtime does not parse or validate it. Unsupported models or schemas produce provider errors.
+    pub fn response_format(mut self, value: SendRequestResponseFormat) -> Self {
+        self.legacy.response_format = Some(value);
+        self
+    }
+
+    /// W3C Trace Context traceparent header for distributed tracing of this agent turn
+    pub fn traceparent(mut self, value: impl Into<String>) -> Self {
+        self.legacy.traceparent = Some(value.into());
+        self
+    }
+
+    /// W3C Trace Context tracestate header for distributed tracing
+    pub fn tracestate(mut self, value: impl Into<String>) -> Self {
+        self.legacy.tracestate = Some(value.into());
+        self
+    }
+
+    /// If true, await completion of the agentic loop for this message before returning. Defaults to false (fire-and-forget). When true, the result still contains the same `messageId`; the caller can rely on the agent having processed the message before the call resolves. Transport-dependent tail semantics: on a LOCAL (in-process) session the wait additionally blocks until the completed turn's event tail has been dispatched to this session's in-process subscribers, so a subsequent read of subscriber state already reflects the turn; on a REMOTE session the wait resolves once the loop completes and mirrored delivery follows over the wire. Callers that need the stronger local guarantee on remote sessions should await the event stream explicitly.
+    pub fn wait(mut self, value: bool) -> Self {
+        self.legacy.wait = Some(value);
+        self
+    }
+
+    /// Opaque caller-chosen ID for the turn this message starts. The runtime copies it unchanged into `params._meta["com.github.copilot/turnId"]` on every MCP `tools/call` the agent makes while serving that turn, including calls from sub-agents it spawns and from Autopilot continuations of it. Visible user steering (`mode: "immediate"`) that a running turn consumes hands it to a successor turn: the steering's value replaces the running turn's from the next model call onward, and steering without one clears it. System and hidden steering leave it unchanged. A turn started without one, including one the runtime starts itself, carries no turn ID. The `user.message` event for each message the send delivers echoes it as `clientTurnId` when the message is consumed, and is persisted like other events; the value stamped on MCP calls is held in memory only and is not restored on resume.
+    pub fn client_turn_id(mut self, value: impl Into<String>) -> Self {
+        self.client_turn_id = Some(value.into());
+        self
+    }
 }
 
 /// Result of sending a user message
@@ -11458,7 +12207,23 @@ pub struct UIHandlePendingUserInputRequest {
     pub response: UIUserInputResponse,
 }
 
-/// Register an in-process handler for `auto_mode_switch.requested` events. The caller still attaches the actual listener via the standard event-subscription mechanism; this registration solely tells the server bridge to skip its own dispatch (so a remote client doesn't race the in-process handler for the same requestId).
+/// Optional recovery-aware enrollment for an in-process Auto-switch handler.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct UIRegisterDirectAutoModeSwitchHandlerRequest {
+    /// Opt into active-request Auto recovery before starting a turn. Attach the handler separately, show the failure reason, and return the user's choice for the originating live session. Require a positive acknowledgment in the registration result. Dismiss offers on auto_mode_recovery_consent.completed and on session resume or disconnect. Omitted or false preserves legacy rate-limit switching.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub auto_mode_recovery: Option<bool>,
+}
+
+/// Registers an in-process Auto-switch responder and suppresses server-bridge dispatch to avoid competing responders for the same requestId. When requested, also enrolls the responder for active-request Auto recovery and acknowledges support. Attach the actual listener separately through standard event subscriptions before starting a turn, and release the handle when the responder is removed.
 ///
 /// <div class="warning">
 ///
@@ -11469,6 +12234,17 @@ pub struct UIHandlePendingUserInputRequest {
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct UIRegisterDirectAutoModeSwitchHandlerResult {
+    /// Opaque handle representing the registration. Pass this same handle to `unregisterDirectAutoModeSwitchHandler` when the in-process handler is no longer active. Multiple registrations are reference-counted; the server bridge will only dispatch auto-mode-switch requests when no handles are active.
+    pub handle: String,
+}
+
+/// Registers an in-process Auto-switch responder and suppresses server-bridge dispatch to avoid competing responders for the same requestId. When requested, also enrolls the responder for active-request Auto recovery and acknowledges support. Attach the actual listener separately through standard event subscriptions before starting a turn, and release the handle when the responder is removed.
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct UIRegisterDirectAutoModeSwitchHandlerResultWithAutoModeRecovery {
+    /// Positive acknowledgment of recovery-aware enrollment. Absence on an older runtime means recovery is unsupported.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub auto_mode_recovery: Option<bool>,
     /// Opaque handle representing the registration. Pass this same handle to `unregisterDirectAutoModeSwitchHandler` when the in-process handler is no longer active. Multiple registrations are reference-counted; the server bridge will only dispatch auto-mode-switch requests when no handles are active.
     pub handle: String,
 }
@@ -12089,6 +12865,46 @@ pub struct ConnectorsRefreshResult {
     pub refreshed_at_ms: i64,
     /// Revision.
     pub revision: i64,
+}
+
+/// Runtime-owned configuration inventory and configuration diagnostics.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct LspListResult {
+    /// Effective servers in merge order.
+    pub configs: Vec<LspServerSummary>,
+    /// Effective plugin entries.
+    pub plugin_servers: Vec<LspServerSummary>,
+    /// Plugin configuration diagnostics.
+    pub plugin_warnings: Vec<String>,
+    /// Nearest project configuration file path.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub project_config_path: Option<String>,
+    /// Failure to inspect project configuration.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub project_inspection_error: Option<String>,
+    /// Project files rejected by the loader.
+    pub project_problems: Vec<LspConfigurationProblem>,
+    /// Project entries, including disabled entries absent from the effective set.
+    pub project_servers: Vec<LspServerSummary>,
+    /// User configuration read or validation failure.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub user_config_error: Option<String>,
+    /// User configuration file path.
+    pub user_config_path: String,
+    /// Identifiers disabled through the user toggle list.
+    pub user_disabled_servers: Vec<String>,
+    /// User entries, including entries disabled by project configuration.
+    pub user_servers: Vec<LspServerSummary>,
+    /// Configuration loader diagnostics.
+    pub warnings: Vec<String>,
 }
 
 /// The sharing status a cloud task carries after the call. Read `credentialResolved` first: when it is false no request was attempted at all, which is a different outcome from a request the service declined.
@@ -14414,6 +15230,172 @@ pub enum DebugCollectLogsRedaction {
     Unknown,
 }
 
+/// Answered question kind discriminator.
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub enum DecisionAnswerBooleanKind {
+    #[serde(rename = "boolean")]
+    #[default]
+    Boolean,
+}
+
+/// Answered question kind discriminator.
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub enum DecisionAnswerChoiceKind {
+    #[serde(rename = "choice")]
+    #[default]
+    Choice,
+}
+
+/// Answered question kind discriminator.
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub enum DecisionAnswerScoreKind {
+    #[serde(rename = "score")]
+    #[default]
+    Score,
+}
+
+/// Answered question kind discriminator.
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub enum DecisionAnswerRefusedKind {
+    #[serde(rename = "refused")]
+    #[default]
+    Refused,
+}
+
+/// The answer to one question. Probabilities are normalized the same way for every backend.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(untagged)]
+pub enum DecisionAnswer {
+    Boolean(DecisionAnswerBoolean),
+    Choice(DecisionAnswerChoice),
+    Score(DecisionAnswerScore),
+    Refused(DecisionAnswerRefused),
+}
+
+/// Context format discriminator.
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub enum DecisionContextTextKind {
+    #[serde(rename = "text")]
+    #[default]
+    Text,
+}
+
+/// Context format discriminator.
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub enum DecisionContextJsonKind {
+    #[serde(rename = "json")]
+    #[default]
+    Json,
+}
+
+/// Context shared by every question in a request.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(untagged)]
+pub enum DecisionContext {
+    Text(DecisionContextText),
+    Json(DecisionContextJson),
+}
+
+/// Why a decisions request failed.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub enum DecisionErrorKind {
+    /// The decisions feature is disabled for this runtime.
+    #[serde(rename = "notEnabled")]
+    NotEnabled,
+    /// No usable decision model: unknown id, not entitled, or rejected by the backend.
+    #[serde(rename = "noModel")]
+    NoModel,
+    /// No account, or the backend rejected its credential.
+    #[serde(rename = "unauthenticated")]
+    Unauthenticated,
+    /// The request is malformed or breaks a limit other than size.
+    #[serde(rename = "invalidRequest")]
+    InvalidRequest,
+    /// The request is over a size limit.
+    #[serde(rename = "tooLarge")]
+    TooLarge,
+    /// The backend answered with something that breaks the answer rules.
+    #[serde(rename = "upstreamProtocol")]
+    UpstreamProtocol,
+    /// The backend is rate limiting this account.
+    #[serde(rename = "rateLimited")]
+    RateLimited,
+    /// The deadline passed.
+    #[serde(rename = "timeout")]
+    Timeout,
+    /// The backend could not be reached or failed.
+    #[serde(rename = "unavailable")]
+    Unavailable,
+    /// Too many decisions requests are already running or waiting on this connection.
+    #[serde(rename = "overloaded")]
+    Overloaded,
+    /// Unknown variant for forward compatibility.
+    #[default]
+    #[serde(other)]
+    Unknown,
+}
+
+/// Question kind discriminator.
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub enum DecisionQuestionBooleanKind {
+    #[serde(rename = "boolean")]
+    #[default]
+    Boolean,
+}
+
+/// Question kind discriminator.
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub enum DecisionQuestionChoiceKind {
+    #[serde(rename = "choice")]
+    #[default]
+    Choice,
+}
+
+/// Question kind discriminator.
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub enum DecisionQuestionScoreKind {
+    #[serde(rename = "score")]
+    #[default]
+    Score,
+}
+
+/// One question for the decision model to answer about the context.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(untagged)]
+pub enum DecisionQuestion {
+    Boolean(DecisionQuestionBoolean),
+    Choice(DecisionQuestionChoice),
+    Score(DecisionQuestionScore),
+}
+
 /// Hook event name. Discovery emits the file-configurable subset; SDK callbacks additionally support callback-only events.
 ///
 /// <div class="warning">
@@ -14924,50 +15906,6 @@ pub enum InstructionDiscoveryPathLocation {
     Unknown,
 }
 
-/// Selects whether Kerberos credentials come from native lookup with a client fallback, or only from the client.
-///
-/// <div class="warning">
-///
-/// **Experimental.** This type is part of an experimental wire-protocol surface
-/// and may change or be removed in future SDK or CLI releases.
-///
-/// </div>
-#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
-pub enum KerberosAuthMode {
-    /// Use the callback only when native credential lookup fails.
-    #[serde(rename = "fallback")]
-    Fallback,
-    /// Always use the callback without native credential lookup.
-    #[serde(rename = "always")]
-    Always,
-    /// Unknown variant for forward compatibility.
-    #[default]
-    #[serde(other)]
-    Unknown,
-}
-
-/// Selects which traffic a client's Kerberos callback authenticates.
-///
-/// <div class="warning">
-///
-/// **Experimental.** This type is part of an experimental wire-protocol surface
-/// and may change or be removed in future SDK or CLI releases.
-///
-/// </div>
-#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
-pub enum KerberosAuthScope {
-    /// Authenticate only requests made for this connection's sessions.
-    #[serde(rename = "connection")]
-    Connection,
-    /// Also authenticate the runtime's shared background traffic. Only one connection at a time may claim this scope.
-    #[serde(rename = "runtime")]
-    Runtime,
-    /// Unknown variant for forward compatibility.
-    #[default]
-    #[serde(other)]
-    Unknown,
-}
-
 /// Transport the runtime would otherwise use for this request. `http` (the default when absent) covers plain HTTP and SSE responses; `websocket` indicates a full-duplex message channel where each body chunk maps to one WebSocket message and the `binary` flag distinguishes text from binary frames. The SDK consumer uses this to decide whether to service the request with an HTTP client or a WebSocket client. It is the one piece of request metadata the consumer cannot reliably infer from the URL or headers alone.
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
 pub enum LlmInferenceHttpRequestStartTransport {
@@ -15020,6 +15958,28 @@ pub enum SessionLogLevel {
 pub enum McpElicitationFormMode {
     #[serde(rename = "form")]
     Form,
+    /// Unknown variant for forward compatibility.
+    #[default]
+    #[serde(other)]
+    Unknown,
+}
+
+/// Selects which traffic a client's network callbacks serve.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub enum NetworkScope {
+    /// Serve only requests made for this connection and its sessions.
+    #[serde(rename = "connection")]
+    Connection,
+    /// Also serve the runtime's shared background traffic. Only one connection at a time may claim this scope.
+    #[serde(rename = "runtime")]
+    Runtime,
     /// Unknown variant for forward compatibility.
     #[default]
     #[serde(other)]

@@ -14,7 +14,7 @@ import com.github.copilot.CopilotExperimental;
 import javax.annotation.processing.Generated;
 
 /**
- * Identifies the target session.
+ * Request parameters for the {@code session.ui.registerDirectAutoModeSwitchHandler} RPC method.
  *
  * @apiNote This method is experimental and may change in a future version.
  * @since 1.0.0
@@ -25,6 +25,19 @@ import javax.annotation.processing.Generated;
 @JsonIgnoreProperties(ignoreUnknown = true)
 public record SessionUiRegisterDirectAutoModeSwitchHandlerParams(
     /** Target session identifier */
-    @JsonProperty("sessionId") String sessionId
+    @JsonProperty("sessionId") String sessionId,
+    /** Opt into active-request Auto recovery before starting a turn. Attach the handler separately, show the failure reason, and return the user's choice for the originating live session. Require a positive acknowledgment in the registration result. Dismiss offers on auto_mode_recovery_consent.completed and on session resume or disconnect. Omitted or false preserves legacy rate-limit switching. */
+    @JsonProperty("autoModeRecovery") Boolean autoModeRecovery
 ) {
+
+    /**
+     * Creates a direct Auto-switch registration without recovery enrollment.
+     *
+     * @param sessionId Target session identifier
+     */
+    public SessionUiRegisterDirectAutoModeSwitchHandlerParams(
+        String sessionId
+    ) {
+        this(sessionId, null);
+    }
 }

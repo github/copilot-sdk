@@ -2,8 +2,8 @@
 //!
 //! Each callback the CLI may dispatch (permission requests, elicitation
 //! prompts, user-input questions, exit-plan-mode prompts,
-//! auto-mode-switch prompts) has its own focused trait with a single
-//! `handle` method.
+//! auto-mode-switch prompts) has its own focused trait. Recovery-aware Auto
+//! handlers also implement `handle_auto_mode_recovery`, leaving legacy `handle` unchanged.
 //!
 //! Handlers are **optional**: install only the ones the application cares
 //! about. The SDK derives the corresponding wire flag on
@@ -29,8 +29,8 @@ use crate::session_events::{
     McpOauthRequestReason, McpOauthRequiredStaticClientConfig, McpOauthWWWAuthenticateParams,
 };
 use crate::types::{
-    ElicitationRequest, ElicitationResult, ExitPlanModeData, PermissionRequestData, RequestId,
-    SessionId,
+    AutoModeRecoveryContext, ElicitationRequest, ElicitationResult, ExitPlanModeData,
+    PermissionRequestData, RequestId, SessionId,
 };
 
 /// Decision returned by a [`PermissionHandler`].
@@ -184,13 +184,13 @@ impl Default for ExitPlanModeResult {
 #[derive(Debug, Clone, Copy, Eq, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum AutoModeSwitchResponse {
-    /// Approve the auto-mode switch for this rate-limit cycle only.
+    /// Approve this one Auto-switch or recovery offer.
     Yes,
-    /// Approve and remember -- auto-accept future auto-mode switches in
-    /// this session without prompting.
+    /// Approve and remember consent. Currently saves the session-local rate-limit
+    /// preference; recovery requires `allow_always` to be true.
     YesAlways,
     /// Decline the auto-mode switch. The session stays on the current
-    /// model and surfaces the rate-limit error.
+    /// model and surfaces the original failure.
     No,
 }
 
@@ -382,7 +382,7 @@ pub trait ExitPlanModeHandler: Send + Sync + 'static {
     ) -> ExitPlanModeResult;
 }
 
-/// Handler for `auto_mode_switch.requested` events. When unset,
+/// Handler for `autoModeSwitch.request` callbacks. When unset,
 /// `requestAutoModeSwitch: false` goes on the wire.
 #[async_trait]
 pub trait AutoModeSwitchHandler: Send + Sync + 'static {
@@ -395,6 +395,20 @@ pub trait AutoModeSwitchHandler: Send + Sync + 'static {
         error_code: Option<String>,
         retry_after_seconds: Option<f64>,
     ) -> AutoModeSwitchResponse;
+
+    /// Decide whether to recover the retained active request using Auto.
+    /// Only called after explicit `auto_mode_recovery` enrollment. The default
+    /// declines; existing legacy handlers never silently consent to recovery.
+    /// Return `YesAlways` only when `auto_mode_recovery.allow_always` is true.
+    async fn handle_auto_mode_recovery(
+        &self,
+        _session_id: SessionId,
+        _error_code: Option<String>,
+        _retry_after_seconds: Option<f64>,
+        _auto_mode_recovery: AutoModeRecoveryContext,
+    ) -> AutoModeSwitchResponse {
+        AutoModeSwitchResponse::No
+    }
 }
 
 /// A [`PermissionHandler`] that approves ordinary requests when managed settings are disabled.

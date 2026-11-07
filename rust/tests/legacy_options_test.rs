@@ -12,6 +12,36 @@ use github_copilot_sdk::rpc::{
 };
 use serde_json::json;
 
+#[test]
+fn session_info_preserves_struct_update_construction_and_internal_wire_metadata() {
+    use github_copilot_sdk::session_events::SessionInfoData;
+
+    let info = SessionInfoData {
+        info_type: "notification".to_string(),
+        message: "message".to_string(),
+        tip: Some("tip".to_string()),
+        url: Some("https://example.com".to_string()),
+        ..Default::default()
+    };
+    let mut wire = serde_json::to_value(info).unwrap();
+    assert_eq!(
+        wire,
+        json!({
+            "infoType": "notification",
+            "message": "message",
+            "tip": "tip",
+            "url": "https://example.com",
+        })
+    );
+    wire["responsesReasoning"] = json!({
+        "model": "model",
+        "initialEffort": "low",
+        "effort": "high",
+    });
+    let restored: SessionInfoData = serde_json::from_value(wire.clone()).unwrap();
+    assert_eq!(serde_json::to_value(restored).unwrap(), wire);
+}
+
 fn contract() -> CatalogClientContract {
     CatalogClientContract {
         protocol_version: 3,

@@ -17,6 +17,7 @@ import type {
     AttachmentExtensionContext as GeneratedExtensionContextAttachment,
     AutoTier,
     ModelProviderRef,
+    PermissionMode,
     PermissionRequest as GeneratedPermissionRequest,
     PermissionRequestedData as GeneratedPermissionRequestedData,
     PermissionRequestedEvent as GeneratedPermissionRequestedEvent,
@@ -39,18 +40,18 @@ import type {
     OpenCanvasInstance,
     ProtocolExternalToolNamespace,
     CurrentToolMetadata,
-    KerberosAuthAcquireRequest,
-    KerberosAuthMode,
-    KerberosAuthScope,
+    NetworkAuthenticateNegotiateRequest,
+    NetworkResolveProxyRequest,
+    NetworkScope,
     SandboxConfig,
     SessionManagementCreateHostRequest,
     SessionManagementCreateResult,
 } from "./generated/rpc.js";
 import type { ToolSet } from "./toolSet.js";
 export type {
-    KerberosAuthAcquireRequest,
-    KerberosAuthMode,
-    KerberosAuthScope,
+    NetworkAuthenticateNegotiateRequest,
+    NetworkResolveProxyRequest,
+    NetworkScope,
 } from "./generated/rpc.js";
 export type { RemoteSessionMode } from "./generated/rpc.js";
 export type { AutopilotOptions } from "./generated/rpc.js";
@@ -543,9 +544,11 @@ export interface CopilotClientOptions {
     extensionLaunchProvider?: ExtensionLaunchProvider;
 
     /**
-     * Supplies Kerberos credentials from the SDK host. Registered before sessions start.
+     * Network callbacks through which the SDK host decides the runtime's proxies and supplies its
+     * Kerberos tokens. Registered before sessions start.
+     * @experimental
      */
-    kerberosAuth?: KerberosAuthConfig;
+    network?: NetworkConfig;
 
     /**
      * Connection-global human review for experimental installation operations.
@@ -696,30 +699,56 @@ export interface CopilotClientOptions {
 /** Resolves launch profiles for extension entrypoints discovered by the runtime. */
 export type ExtensionLaunchProvider = GeneratedExtensionLaunchProvider;
 
-/** Supplies Kerberos credentials from the SDK host for a requested service principal. */
-export interface KerberosAuthConfig {
-    /** `fallback` uses the callback only when native lookup fails; `always` never attempts native lookup. */
-    mode: KerberosAuthMode;
+/**
+ * Network callbacks through which the SDK host takes over parts of the runtime's networking, for
+ * example when the runtime runs in WSL or a container and should use VS Code's proxy settings and
+ * the host's Kerberos tickets. Each registered callback replaces the runtime's own handling for the
+ * traffic in {@link NetworkConfig.scope}; without it, the runtime handles that part itself.
+ *
+ * Each callback receives a `signal` that aborts when the runtime stops waiting: it cancels the
+ * request (for example when its wait times out) or the connection closes. The SDK then stops
+ * awaiting the callback and ignores any later result.
+ * @experimental
+ */
+export interface NetworkConfig {
     /**
-     * `connection` (the default) authenticates only requests made for sessions this client creates or resumes;
-     * `runtime` also authenticates the runtime's shared background traffic. Only one connection at a time can
+     * `connection` (the default) serves only requests made for sessions this client creates or resumes;
+     * `runtime` also serves the runtime's shared background traffic. Only one connection at a time can
      * hold `runtime` scope, so startup fails if another client holds it. The registration ends when the
      * connection closes.
      */
-    scope?: KerberosAuthScope;
+    scope?: NetworkScope;
     /**
-     * Returns a fresh, single-use base64 SPNEGO token without the `Negotiate ` prefix, or `undefined` when unavailable.
-     * The SPN uses the platform-independent `service/host[@REALM]` form; validate it before issuing credentials.
-     * `signal` aborts when the runtime stops waiting: it cancels the request (for example when its wait times
-     * out) or the connection closes. The SDK then stops awaiting the callback and ignores any later result,
-     * so pass `signal` to credential lookups that support cancellation.
+     * Returns the proxies for `request.url` as a PAC-style list such as
+     * `PROXY proxy.example:8080; HTTPS proxy.example:443; DIRECT` (the format of Electron's
+     * `session.resolveProxy`); return `DIRECT` for a direct connection, or `undefined` to let the runtime
+     * resolve the proxy itself, as if no callback were registered. Entry types the runtime doesn't
+     * support, such as SOCKS and QUIC, are skipped.
+     * `request.url` is the request target as a PAC script sees it: without credentials or fragment, and for
+     * `https` and `wss` also without path and query.
+     *
+     * The callback decides every request that would otherwise follow ambient proxy settings: proxy
+     * environment variables, `NO_PROXY` and operating-system proxy settings are not consulted unless it
+     * returns `undefined`, and a failing callback fails the request rather than connecting directly.
+     * Requests to loopback targets, and requests with an explicitly configured proxy, never consult it. The
+     * runtime caches answers, including `undefined`, for a few seconds.
      */
-    callback: (
-        request: KerberosAuthAcquireRequest,
+    resolveProxy?: (
+        request: NetworkResolveProxyRequest,
+        signal: AbortSignal
+    ) => Promise<string | undefined>;
+    /**
+     * Returns a fresh, single-use base64 SPNEGO token without the `Negotiate ` prefix for a proxy's Negotiate
+     * challenge, or `undefined` when unavailable. The runtime then does not look up Kerberos credentials
+     * itself, so a missing token or a failing callback fails the request.
+     * The SPN uses the platform-independent `service/host[@REALM]` form; validate it before issuing
+     * credentials. Never log or persist tokens.
+     */
+    authenticateNegotiate?: (
+        request: NetworkAuthenticateNegotiateRequest,
         signal: AbortSignal
     ) => Promise<string | undefined>;
 }
-
 /**
  * Configuration for creating a session
  */
@@ -1144,6 +1173,8 @@ export interface SessionCapabilities {
         mcpApps?: boolean;
         /** Whether the host supports canvas rendering. */
         canvases?: boolean;
+        /** Whether the runtime acknowledges retained-request Auto recovery. Absence means unsupported. */
+        autoModeRecovery?: boolean;
     };
 }
 
@@ -1706,13 +1737,27 @@ export type ExitPlanModeHandler = (
 ) => Promise<ExitPlanModeResult> | ExitPlanModeResult;
 
 /**
- * Request to switch to auto mode after an eligible rate limit.
+ * Context for an offer to recover the active request using Auto.
+ */
+export interface AutoModeRecoveryContext {
+    requestId: string;
+    originalModel: string;
+    /** Whether this offer permits remembering consent. Currently true only for per-model rate limits. */
+    allowAlways: boolean;
+    interactionId?: string;
+    originatingMessageId?: string;
+}
+
+/**
+ * Request to switch to Auto after a rate limit or recover an eligible active request.
  */
 export interface AutoModeSwitchRequest {
-    /** The rate-limit error code that triggered the request. */
+    /** The upstream error code that triggered the request. */
     errorCode?: string;
     /** Seconds until the rate limit resets, when known. */
     retryAfterSeconds?: number;
+    /** Present only for retained-request recovery, not legacy future-message switching. */
+    autoModeRecovery?: AutoModeRecoveryContext;
 }
 
 /**
@@ -1803,7 +1848,9 @@ export interface PreMcpToolCallHookOutput {
      * Hook-controlled metadata to use for the outgoing MCP request.
      * - undefined/absent: preserve the current request `_meta`
      * - object: use this object as request `_meta`
-     * - null: omit `_meta`
+     * - null: drop hook-controlled `_meta`; the runtime still sends its own keys,
+     *   `com.github.copilot/toolCallId` and `com.github.copilot/turnId` (present only
+     *   when the turn was started with a `clientTurnId`)
      */
     metaToUse?: Record<string, unknown> | null;
 }
@@ -2383,6 +2430,48 @@ export interface MemoryConfiguration {
      * @experimental This option may change or be removed in a future release.
      */
     mode?: "system-prompt" | "user-prompt";
+    /**
+     * Stores memories in the app instead of the built-in memory backends.
+     *
+     * The runtime validates the memory, filters secrets and requests approval,
+     * then calls this callback. `store_memory` succeeds only after the returned
+     * promise resolves; a rejection fails the tool call with a generic message
+     * and nothing is stored elsewhere. `options.signal` aborts when the runtime
+     * stops waiting, for example after its 60-second timeout. While set, the
+     * runtime retrieves no memories and `vote_memory` is unavailable, so supply
+     * recall yourself, for example through `systemMessage`.
+     * @experimental This option may change or be removed in a future release.
+     */
+    storeMemory?: (memory: StoredMemory, options: MemoryStoreCallOptions) => Promise<void>;
+}
+
+/**
+ * Per-call options passed to {@link MemoryConfiguration.storeMemory}.
+ * @experimental This type may change or be removed in a future release.
+ */
+export interface MemoryStoreCallOptions {
+    /**
+     * Aborted when the runtime cancels the call, for example when it times out
+     * or the session disconnects. The runtime ignores any later result.
+     */
+    signal: AbortSignal;
+}
+
+/**
+ * A memory the agent asked to store, after validation, secret filtering and approval.
+ * @experimental This type may change or be removed in a future release.
+ */
+export interface StoredMemory {
+    /** ID of the session that stored the memory. */
+    sessionId: string;
+    /** Short topic the memory is about. */
+    subject: string;
+    /** The fact to remember. */
+    fact: string;
+    /** Sources supporting the fact, such as file paths with line numbers. */
+    citations: string;
+    /** Why the agent considers the fact worth remembering. */
+    reason: string;
 }
 
 /**
@@ -2401,7 +2490,8 @@ export interface LargeToolOutputConfig {
 
     /**
      * Maximum size in bytes before output is written to a temp file.
-     * @default 51200
+     * Uses the runtime's configured threshold when unset.
+     * @default 20480
      */
     maxSizeBytes?: number;
 
@@ -2753,6 +2843,12 @@ export interface SkillProviderCallOptions {
  * an existing one).
  */
 export interface SessionConfigBase {
+    /**
+     * Whether the model may request multiple tool calls per response. Defaults to true.
+     * False sends a provider hint, not an execution guarantee: all returned calls
+     * are still handled and handlers may run concurrently. Re-supply on cold resume.
+     */
+    allowMultipleToolCalls?: boolean;
     /** Exact model IDs allowed by the host. Omission preserves runtime policy. */
     allowedModels?: string[];
     /**
@@ -3162,6 +3258,16 @@ export interface SessionConfigBase {
     onAutoModeSwitchRequest?: AutoModeSwitchHandler;
 
     /**
+     * Opt in to runtime-owned recovery of an eligible active request using Auto.
+     * Requires `onAutoModeSwitchRequest` and a runtime acknowledgment in
+     * `session.capabilities.ui.autoModeRecovery`; unsupported enrollment rejects
+     * create/resume and detaches the session. Re-supply when resuming.
+     * Consent has no runtime deadline. The handler must not resend or rewind.
+     * @default false
+     */
+    autoModeRecovery?: boolean;
+
+    /**
      * Hook handlers for intercepting session lifecycle events.
      * When provided, enables hooks callback allowing custom logic at various points.
      */
@@ -3405,6 +3511,17 @@ export interface SessionConfigBase {
      * for cloud sessions and when resuming a session that is already active.
      */
     interactiveUser?: boolean;
+
+    /**
+     * Permission mode applied before the session's first turn: before
+     * `createSession` returns, and before a resume continues pending work.
+     * Uses the same checks as `session.rpc.permissions.setMode`; a mode that
+     * managed policy or session capabilities refuse leaves the current mode in
+     * place. `session.permissionModeResult` reports whether it was applied and
+     * the authoritative mode. Omit to keep the default mode on create, or the
+     * restored mode on resume. Not supported for cloud sessions.
+     */
+    permissionMode?: PermissionMode;
 
     /**
      * Host-injected enterprise managed settings for this session.
@@ -4024,6 +4141,17 @@ export interface MessageOptions {
      * If provided, this is shown in the timeline instead of `prompt`.
      */
     displayPrompt?: string;
+
+    /**
+     * Opaque caller-chosen ID for the turn this message starts. The runtime copies it unchanged
+     * into `_meta["com.github.copilot/turnId"]` on every MCP `tools/call` made while serving that
+     * turn, including calls from sub-agents and Autopilot continuations. When a running turn
+     * consumes the message as visible user steering, the value (or its absence) replaces the
+     * turn's ID from the next model call onward. The `user.message` event for the message echoes
+     * it as `clientTurnId` and is persisted like other events; the value stamped on MCP calls is
+     * held in memory only and is not restored on resume.
+     */
+    clientTurnId?: string;
 
     /**
      * JSON Schema or a Zod schema for this run's output, including requests after tool calls.

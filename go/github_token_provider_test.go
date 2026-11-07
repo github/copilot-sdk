@@ -268,10 +268,17 @@ func TestGitHubTokenProviderCleanupOnDelete(t *testing.T) {
 
 func TestSessionOperationsSerializeBySessionID(t *testing.T) {
 	client := &Client{}
-	unlockFirst := client.lockSessionOperation("same-session")
+	unlockFirst, err := client.lockSessionOperation(t.Context(), "same-session")
+	if err != nil {
+		t.Fatal(err)
+	}
 	sameSessionAcquired := make(chan struct{})
 	go func() {
-		unlock := client.lockSessionOperation("same-session")
+		unlock, err := client.lockSessionOperation(t.Context(), "same-session")
+		if err != nil {
+			t.Error(err)
+			return
+		}
 		close(sameSessionAcquired)
 		unlock()
 	}()
@@ -284,7 +291,11 @@ func TestSessionOperationsSerializeBySessionID(t *testing.T) {
 
 	otherSessionAcquired := make(chan struct{})
 	go func() {
-		unlock := client.lockSessionOperation("other-session")
+		unlock, err := client.lockSessionOperation(t.Context(), "other-session")
+		if err != nil {
+			t.Error(err)
+			return
+		}
 		close(otherSessionAcquired)
 		unlock()
 	}()

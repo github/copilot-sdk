@@ -71,7 +71,9 @@ behavior.
 download, binary discovery, launch implementation, or native runtime embedding.
 Use `Client::from_streams(reader, writer, cwd)`, or
 `Client::from_streams_with_entra(reader, writer, cwd, Some(entra))` for Entra.
-Then call `client.verify_protocol_version().await?` to complete the handshake.
+Then call `client.verify_protocol_version().await?` to complete the handshake,
+and `client.register_network(config).await?` for
+[network callbacks](#network-callbacks-experimental).
 `Client::start` returns a configuration error without runtime support.
 
 The default `bundled-cli` feature still enables runtime management. To manage a
@@ -158,7 +160,7 @@ leaves only direct-child cleanup, without crash-safe SDK-host-exit ownership.
 | `extra_args`        | `Vec<String>`               | Extra CLI flags                                                   |
 | `transport`         | `Transport`                 | `Default`, `Stdio`, `InProcess`, `Tcp`, or `External`             |
 | `extension_launch_provider` | `Option<Arc<dyn ExtensionLaunchProvider>>` | Connection-global extension launch resolver |
-| `kerberos_auth` | `Option<KerberosAuthConfig>` | Host-supplied Kerberos credentials; see [Kerberos authentication callback](#kerberos-authentication-callback) |
+| `network` | `Option<NetworkConfig>` | Experimental host-supplied proxy resolution and Negotiate authentication; see [Network callbacks](#network-callbacks-experimental) |
 | `installation_confirmation_handler` | `Option<Arc<dyn InstallationConfirmationHandler>>` | Experimental connection-global human installation review |
 
 Set `ClientOptions::disable_client_telemetry` with
@@ -446,55 +448,92 @@ executable is a version-matched standalone Copilot binary, omit that variable
 and set `COPILOT_AUTO_UPDATE=false` so its embedded distribution remains
 selected.
 
-#### Kerberos authentication callback
+#### Network callbacks (experimental)
 
-Use `ClientOptions::with_kerberos_auth(mode, provider)` when Kerberos tickets
-must be obtained by the SDK host, for example from Windows when the runtime
-runs in WSL. The runtime currently uses it for proxy authentication. The
-`kerberos_auth::KerberosAuthProvider` receives the generated
-`KerberosAuthAcquireRequest`, whose `spn` is a service principal in the
-platform-independent `service/host[@REALM]` form, and returns a fresh base64
-SPNEGO token without the `Negotiate ` prefix, or `None` when credentials are
-unavailable. Async functions and closures implement the trait. The provider
-should validate the principal before issuing credentials.
+Use `ClientOptions::with_network(config)` when the SDK host should take over
+parts of the runtime's networking, for example when the runtime runs in WSL or
+a container and should use VS Code's proxy settings and the host's Kerberos
+tickets. A `network::NetworkConfig` holds an optional scope and two optional
+callbacks; async functions and closures implement both provider traits.
+`Client::start` registers the configured callbacks before returning, so they
+precede every session; a failed registration fails startup. Without this
+option, or for a callback you leave out, the runtime handles that part itself.
+
+- `NetworkConfig::with_resolve_proxy(provider)` decides the proxies for every
+  request the runtime would otherwise route by ambient proxy settings: proxy
+  environment variables, `NO_PROXY` and operating-system proxy settings are not
+  consulted unless it returns `None`. The `network::ResolveProxyProvider`
+  receives the generated `NetworkResolveProxyRequest`, whose `url` is the
+  request target as a PAC script sees it: without credentials or fragment, and
+  for `https` and `wss` also without path and query. It returns a PAC-style
+  list such as `PROXY proxy.example:8080; HTTPS proxy.example:443; DIRECT` (the
+  format of Electron's `session.resolveProxy`); return `DIRECT` for a direct
+  connection, or `None` to let the runtime resolve the proxy itself, as if no
+  provider were configured. Entry types the runtime doesn't support, such as
+  SOCKS and QUIC, are skipped. If the provider fails,
+  the request fails rather than connecting directly. Requests to loopback
+  targets, and requests with an explicitly configured proxy, never consult it.
+  The runtime caches answers, including `None`, for 5 seconds and waits at most
+  10 seconds for the provider.
+- `NetworkConfig::with_authenticate_negotiate(provider)` supplies the Kerberos
+  token for a proxy's Negotiate challenge instead of the runtime's native
+  credential lookup. The `network::AuthenticateNegotiateProvider` receives the
+  generated `NetworkAuthenticateNegotiateRequest`, whose `spn` is a service
+  principal in the platform-independent `service/host[@REALM]` form; validate
+  it before issuing credentials. It returns a fresh base64 SPNEGO token without
+  the `Negotiate ` prefix, or `None` when credentials are unavailable, which
+  fails the request. The runtime waits at most 30 seconds for the provider
+  (less when the request's own deadline is sooner). Tokens are not cached and
+  must not be logged or persisted. The provider supplies the initial SPNEGO
+  token only; exchanges requiring continuation tokens are not supported.
+  Proxies chosen by the proxy resolution callback are authenticated the same
+  way.
+
+A provider error is returned to the runtime as a JSON-RPC error. When the
+runtime stops waiting (it cancels the request, for example after its timeout,
+or the connection closes), the SDK drops the provider's future and answers a
+cancelled request with the standard request-cancelled error, so any separately
+spawned work must stop on its own.
+
+By default the callbacks serve only requests made for sessions this client
+creates or resumes. With `NetworkConfig::with_scope(NetworkScope::Runtime)`
+they also serve the runtime's shared background traffic, such as catalog
+refreshes and telemetry; only one connection at a time can hold that scope, so
+startup fails if another client holds it. The registration ends when the
+connection closes. A client created with `Client::from_streams` takes no
+options and registers its callbacks with `client.register_network(config)`
+after `verify_protocol_version`.
 
 ```rust,no_run
-use github_copilot_sdk::kerberos_auth::{KerberosAuthAcquireRequest, KerberosAuthMode};
+use github_copilot_sdk::network::{
+    NetworkAuthenticateNegotiateRequest, NetworkConfig, NetworkResolveProxyRequest, NetworkScope,
+};
 use github_copilot_sdk::{Client, ClientOptions, Result};
 # async fn example() -> Result<()> {
 
-async fn acquire_token(request: KerberosAuthAcquireRequest) -> Result<Option<String>> {
+async fn resolve_proxy(request: NetworkResolveProxyRequest) -> Result<Option<String>> {
+    // Look up the proxies for `request.url`, for example "PROXY proxy.example:8080; DIRECT".
+    todo!()
+}
+
+async fn authenticate_negotiate(
+    request: NetworkAuthenticateNegotiateRequest,
+) -> Result<Option<String>> {
     // Validate `request.spn`, then return a fresh base64 SPNEGO token.
     todo!()
 }
 
 let client = Client::start(
-    ClientOptions::new().with_kerberos_auth(KerberosAuthMode::Fallback, acquire_token),
+    ClientOptions::new().with_network(
+        NetworkConfig::new()
+            .with_scope(NetworkScope::Runtime)
+            .with_resolve_proxy(resolve_proxy)
+            .with_authenticate_negotiate(authenticate_negotiate),
+    ),
 ).await?;
 # Ok(())
 # }
 ```
-
-With `KerberosAuthMode::Fallback`, native credential acquisition (including the
-first token) is tried first; only failure invokes the provider. With
-`KerberosAuthMode::Always`, native credential lookup is never attempted.
-Without this option, behavior is unchanged. `Client::start` registers the
-provider before returning, so it precedes every session; a failed registration
-fails startup.
-
-By default the provider authenticates only requests made for sessions this
-client creates or resumes. With `KerberosAuthScope::Runtime` it also
-authenticates the runtime's shared background traffic, such as catalog
-refreshes and telemetry; only one connection at a time can hold that scope, so
-startup fails if another client holds it. The registration ends when the
-connection closes. In `Fallback` mode, if the provider cannot supply a valid
-token, the native credential error is reported. In `Always` mode, a
-disconnected, failing, or empty provider fails authentication. A provider error
-is returned to the runtime as a JSON-RPC error. The runtime waits at most 30
-seconds for the provider (less when the request's own deadline is sooner) and
-treats a timeout as a provider failure. Tokens are not cached and must not be
-logged or persisted. The provider supplies the initial SPNEGO token only;
-exchanges requiring continuation tokens still need native negotiation.
 
 ### Azure ML model acquisition (experimental)
 
@@ -843,7 +882,7 @@ compatibility.
 
 ### Handler Traits
 
-The SDK exposes five focused handler traits, one per CLI callback type. Implement only the traits you need and install each with the matching `SessionConfig` setter. Each trait has a single `async fn handle(...)` method:
+The SDK exposes five focused handler traits, one per CLI callback type. Implement only the traits you need and install each with the matching `SessionConfig` setter. Each trait has an `async fn handle(...)` method:
 
 | Trait                   | Setter                            | Purpose                                       |
 | ----------------------- | --------------------------------- | --------------------------------------------- |
@@ -851,7 +890,7 @@ The SDK exposes five focused handler traits, one per CLI callback type. Implemen
 | `ElicitationHandler`    | `with_elicitation_handler(...)`   | Respond to structured elicitation prompts     |
 | `UserInputHandler`      | `with_user_input_handler(...)`    | Answer free-form / choice user-input prompts  |
 | `ExitPlanModeHandler`   | `with_exit_plan_mode_handler(...)`| Respond when the agent exits plan mode        |
-| `AutoModeSwitchHandler` | `with_auto_mode_switch_handler(...)`| Respond to automatic mode-switch proposals  |
+| `AutoModeSwitchHandler` | `with_auto_mode_switch_handler(...)`| Respond to automatic mode-switch proposals, and Auto recovery offers |
 
 The CLI's `requestPermission` / `requestElicitation` / `requestUserInput` / etc. wire flags are derived automatically from which traits you've installed — clients that don't install a handler are silently skipped, letting another connected client handle the request.
 
@@ -976,6 +1015,12 @@ messages, as in an editor chat panel. This enables the runtime's user-message
 analysis telemetry for user-authored messages; automated messages stay
 excluded. The default is off, and cloud sessions ignore it. Re-supply it through
 `ResumeSessionConfig` on a cold resume.
+
+Use `with_permission_mode(PermissionMode::AllowAll)` to apply a permission mode
+before the session's first turn: before `create_session` returns, and before a
+resume continues pending work. It uses the same checks as
+`session.permissions.setMode`; `Session::permission_mode_result()` reports
+whether it was applied and the authoritative mode. Cloud sessions reject it.
 
 For rotating per-session GitHub credentials, install a `GitHubTokenProvider`
 instead of setting `github_token`:
@@ -1600,6 +1645,8 @@ let config = SessionConfig::default().with_memory(MemoryConfiguration::enabled()
 `MemoryConfiguration` is accepted on both `Client::create_session` and `Client::resume_session` (via `ResumeSessionConfig::with_memory`). `enabled` toggles the feature.
 
 The client mode affects the default: in the default `ClientMode::CopilotCli` the SDK leaves `memory` unset so the runtime applies its own default, while `ClientMode::Empty` defaults `memory` to disabled unless you set it explicitly.
+
+**Experimental:** `with_memory_store(Arc<dyn MemoryStore>)` stores approved memories in your app instead of the built-in backends. It requires `with_memory(MemoryConfiguration::enabled())`; otherwise session setup fails with `memory_store requires memory to be enabled with with_memory(...).` before any request is sent. Cloud sessions reject it. The SDK advertises the store with `hasMemoryStore: true` on `session.create` / `session.resume` and registers it before sending either request. `store_memory` succeeds only when `MemoryStore::store` returns `Ok`; errors reach the model as a generic failure. While a store is set, the runtime retrieves no memories and `vote_memory` is unavailable, so supply recall yourself (for example through the system message). Re-supply the store on every resume.
 
 ### Custom Providers (BYOK)
 

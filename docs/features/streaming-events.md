@@ -45,7 +45,7 @@ sequenceDiagram
 | **Ephemeral event** | Transient; streamed in real time but **not** persisted to the session log. Not replayed on session resume. |
 | **Persisted event** | Saved to the session event log on disk. Replayed when resuming a session. |
 | **Delta event** | An ephemeral streaming chunk (text or reasoning). Accumulate deltas to build the complete content. |
-| **`parentId` chain** | Each event's `parentId` points to the previous event, forming a linked list you can walk. |
+| **`parentId` chain** | Each persisted event's `parentId` points to the persisted event before it, forming a chain you can walk. An ephemeral event's `parentId` points to the most recent persisted event, and no event's `parentId` points to an ephemeral event, so walking the chain visits only persisted events. |
 
 ## Event envelope
 
@@ -55,7 +55,7 @@ Every session event, regardless of type, includes these fields:
 |-------|------|-------------|
 | `id` | `string` (UUID v4) | Unique event identifier |
 | `timestamp` | `string` (ISO 8601) | When the event was created |
-| `parentId` | `string \| null` | ID of the previous event in the chain; `null` for the first event |
+| `parentId` | `string \| null` | ID of the most recent persisted event when this event was emitted; `null` if there was none yet |
 | `agentId` | `string?` | Sub-agent instance ID for sub-agent-originated events; absent for root/main agent and session-level events |
 | `ephemeral` | `boolean?` | `true` for transient events; absent or `false` for persisted events |
 | `type` | `string` | Event type discriminator (see tables below) |
@@ -85,18 +85,15 @@ session.on("assistant.message_delta", (event) => {
 
 <!-- docs-validate: hidden -->
 ```python
-from copilot import CopilotClient
+from copilot.session import CopilotSession
 from copilot.session_events import SessionEventType
-
-client = CopilotClient()
-
-session = None  # assume session is created elsewhere
 
 def handle(event):
     if event.type == SessionEventType.ASSISTANT_MESSAGE_DELTA:
         print(event.data.delta_content, end="", flush=True)
 
-# session.on(handle)
+def register(session: CopilotSession):
+    session.on(handle)
 ```
 <!-- /docs-validate: hidden -->
 
@@ -402,6 +399,9 @@ Emitted when the agent begins processing a turn.
 |------------|------|----------|-------------|
 | `turnId` | `string` | ✅ | Turn identifier (typically a stringified turn number) |
 | `interactionId` | `string` | | CAPI interaction ID for telemetry correlation |
+| `agentMode` | `"interactive" \| "plan" \| "autopilot"` | | Agent mode whose tools this turn was offered; absent on historical events and sub-agent turns |
+| `model` | `string` | | Model identifier used for this turn, when known |
+| `parentToolCallId` | `string` | | Parent task tool call ID when this turn belongs to a sub-agent |
 
 ### `assistant.intent`
 
@@ -472,6 +472,8 @@ Emitted when the agent finishes a turn (all tool executions complete, final resp
 | Data Field | Type | Required | Description |
 |------------|------|----------|-------------|
 | `turnId` | `string` | ✅ | Matches the corresponding `assistant.turn_start` event |
+| `model` | `string` | | Model identifier used for this turn, when known |
+| `parentToolCallId` | `string` | | Parent task tool call ID when this turn belongs to a sub-agent |
 
 ### `assistant.usage`
 
@@ -673,6 +675,10 @@ Ephemeral. Context window utilization snapshot.
 | `tokenLimit` | `number` | ✅ | Maximum tokens for the model's context window |
 | `currentTokens` | `number` | ✅ | Current tokens in the context window |
 | `messagesLength` | `number` | ✅ | Current message count in the conversation |
+| `systemTokens` | `number` | | Tokens used by system messages |
+| `conversationTokens` | `number` | | Tokens used by non-system messages (user, assistant, tool) |
+| `toolDefinitionsTokens` | `number` | | Tokens used by tool definitions |
+| `isInitial` | `boolean` | | Whether this is the session's first `session.usage_info` event |
 
 ### `session.session_limits_changed`
 
@@ -765,6 +771,7 @@ Ephemeral. The agent is asking the user a question.
 | `question` | `string` | ✅ | The question to present to the user |
 | `choices` | `string[]` | | Predefined choices for the user |
 | `allowFreeform` | `boolean` | | Whether free-form text input is allowed |
+| `toolCallId` | `string` | | The tool call that asked the question, for correlating the request with it |
 
 ### `user_input.completed`
 
@@ -773,6 +780,8 @@ Ephemeral. A user input request was resolved.
 | Data Field | Type | Required | Description |
 |------------|------|----------|-------------|
 | `requestId` | `string` | ✅ | Matches the corresponding `user_input.requested` |
+| `answer` | `string` | | The user's answer |
+| `wasFreeform` | `boolean` | | Whether the answer was typed as free-form text rather than selected from `choices` |
 
 ### `elicitation.requested`
 
@@ -785,6 +794,9 @@ Ephemeral. The agent needs input from the user, either as structured form fields
 | `mode` | `"form" \| "url"` | | Elicitation mode: structured form or browser URL |
 | `requestedSchema` | `{ type: "object", properties, required? }` | | JSON Schema describing the form fields (form mode only) |
 | `url` | `string` | | URL to open in the user's browser (url mode only) |
+| `elicitationSource` | `string` | | The MCP server that initiated the request; absent when the agent initiated it |
+| `elicitationSourceDisplayName` | `string` | | Display label for a connector-owned MCP server; `elicitationSource` remains its identity |
+| `toolCallId` | `string` | | The tool call that triggered the request, for correlating the request with it |
 
 ### `elicitation.completed`
 
@@ -793,6 +805,8 @@ Ephemeral. An elicitation request was resolved.
 | Data Field | Type | Required | Description |
 |------------|------|----------|-------------|
 | `requestId` | `string` | ✅ | Matches the corresponding `elicitation.requested` |
+| `action` | `"accept" \| "decline" \| "cancel"` | | The user's choice: submitted the form, explicitly refused, or dismissed |
+| `content` | `Record<string, JsonValue>` | | The submitted form values when `action` is `"accept"`; keys match the `requestedSchema` fields |
 
 ## Sub-agent and skill events
 
@@ -897,6 +911,8 @@ A system or developer prompt was injected into the conversation.
 | `role` | `"system" \| "developer"` | ✅ | Message role |
 | `name` | `string` | | Source identifier |
 | `metadata` | `{ promptVersion?, variables? }` | | Prompt template metadata |
+| `contentBlocks` | `{ content, cacheBreakpoint?, isStatic? }[]` | | Ordered structured blocks corresponding to `content`, retained to restore the prompt-cache layout |
+| `interactionId` | `string` | | Interaction identifier of the model run receiving this prompt |
 
 ### `external_tool.requested`
 
@@ -951,6 +967,7 @@ Ephemeral. `scheduled: true` requires checking scheduling eligibility before exe
 |------------|------|----------|-------------|
 | `requestId` | `string` | ✅ | Pass this as the `requestId` of the `session.commands.respondToQueuedCommand` RPC to respond |
 | `command` | `string` | ✅ | The slash command text (e.g., `/help`, `/clear`) |
+| `scheduled` | `boolean` | | Whether a schedule dispatched this command; absent for ordinary queued commands |
 
 ### `command.completed`
 
@@ -1043,9 +1060,9 @@ This table lists every event type documented on this page with its key `data` pa
 | `permission.requested` | | Permission | `requestId`, `permissionRequest` |
 | `permission.completed` | | Permission | `requestId`, `result.kind` |
 | `user_input.requested` | ✅ | User Input | `requestId`, `question`, `choices?` |
-| `user_input.completed` | ✅ | User Input | `requestId` |
+| `user_input.completed` | ✅ | User Input | `requestId`, `answer?` |
 | `elicitation.requested` | ✅ | User Input | `requestId`, `message`, `mode?`, `requestedSchema?`, `url?` |
-| `elicitation.completed` | ✅ | User Input | `requestId` |
+| `elicitation.completed` | ✅ | User Input | `requestId`, `action?`, `content?` |
 | `subagent.started` | | Sub-Agent | `toolCallId`, `agentName`, `agentDisplayName`, `model?` |
 | `subagent.completed` | | Sub-Agent | `toolCallId`, `agentName`, `agentDisplayName`, `model?`, `durationMs?`, `totalTokens?`, `totalToolCalls?` |
 | `subagent.failed` | | Sub-Agent | `toolCallId`, `agentName`, `error`, `model?`, `durationMs?`, `totalTokens?`, `totalToolCalls?` |

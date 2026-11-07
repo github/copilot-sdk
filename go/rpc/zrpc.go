@@ -6110,6 +6110,367 @@ type DebugCollectLogsSkippedEntry struct {
 	Reason string `json:"reason"`
 }
 
+// The answer to one question. Probabilities are normalized the same way for every backend.
+// Experimental: DecisionAnswer is part of an experimental API and may change or be removed.
+type DecisionAnswer interface {
+	decisionAnswer()
+	Kind() DecisionAnswerKind
+}
+
+type RawDecisionAnswerData struct {
+	Discriminator DecisionAnswerKind
+	Raw           json.RawMessage
+}
+
+func (RawDecisionAnswerData) decisionAnswer() {}
+func (r RawDecisionAnswerData) Kind() DecisionAnswerKind {
+	return r.Discriminator
+}
+
+// Answer to a boolean question.
+type DecisionAnswerBoolean struct {
+	// Name of the question this answers.
+	Name string `json:"name"`
+	// Probability, from 0 to 1, that the answer is yes.
+	Probability float64 `json:"probability"`
+}
+
+func (DecisionAnswerBoolean) decisionAnswer() {}
+func (DecisionAnswerBoolean) Kind() DecisionAnswerKind {
+	return DecisionAnswerKindBoolean
+}
+
+// Answer to a choice question.
+type DecisionAnswerChoice struct {
+	// How peaked the distribution is: `(p_max - 1/n) / (1 - 1/n)`. Not a probability of being
+	// correct.
+	Confidence float64 `json:"confidence"`
+	// Name of the question this answers.
+	Name string `json:"name"`
+	// Probability of every option, in request order, summing to 1.
+	Probabilities []DecisionOptionProbability `json:"probabilities"`
+	// True when another option has exactly the same probability as `value`. Check this, not
+	// only `confidence`.
+	Tied bool `json:"tied"`
+	// Value of the most probable option. On a tie, the tied option listed first.
+	Value string `json:"value"`
+	// The backend's own confidence, which may use a different formula. Diagnostic only.
+	VendorConfidence *float64 `json:"vendorConfidence,omitempty"`
+}
+
+func (DecisionAnswerChoice) decisionAnswer() {}
+func (DecisionAnswerChoice) Kind() DecisionAnswerKind {
+	return DecisionAnswerKindChoice
+}
+
+// The model declined to answer this question. Other answers in the request are unaffected.
+type DecisionAnswerRefused struct {
+	// Name of the question that was refused.
+	Name string `json:"name"`
+}
+
+func (DecisionAnswerRefused) decisionAnswer() {}
+func (DecisionAnswerRefused) Kind() DecisionAnswerKind {
+	return DecisionAnswerKindRefused
+}
+
+// Answer to a score question.
+type DecisionAnswerScore struct {
+	// How peaked the distribution is: `(p_max - 1/n) / (1 - 1/n)`. Not a probability of being
+	// correct.
+	Confidence float64 `json:"confidence"`
+	// Label of the most probable level. On a tie, the lower level.
+	Level string `json:"level"`
+	// Name of the question this answers.
+	Name string `json:"name"`
+	// Probability of every level, from lowest to highest, summing to 1.
+	Probabilities []DecisionLevelProbability `json:"probabilities"`
+	// Expected level position: the sum of each level's zero-based position times its
+	// probability.
+	Score float64 `json:"score"`
+	// The backend's own confidence, which may use a different formula. Diagnostic only.
+	VendorConfidence *float64 `json:"vendorConfidence,omitempty"`
+}
+
+func (DecisionAnswerScore) decisionAnswer() {}
+func (DecisionAnswerScore) Kind() DecisionAnswerKind {
+	return DecisionAnswerKindScore
+}
+
+// Context shared by every question in a request.
+// Experimental: DecisionContext is part of an experimental API and may change or be removed.
+type DecisionContext interface {
+	decisionContext()
+	Kind() DecisionContextKind
+}
+
+type RawDecisionContextData struct {
+	Discriminator DecisionContextKind
+	Raw           json.RawMessage
+}
+
+func (RawDecisionContextData) decisionContext() {}
+func (r RawDecisionContextData) Kind() DecisionContextKind {
+	return r.Discriminator
+}
+
+// Structured context: a JSON object or an array of objects.
+type DecisionContextJSON struct {
+	// A JSON object, or an array of JSON objects. Other JSON values are rejected with
+	// `invalidRequest`.
+	Value any `json:"value"`
+}
+
+func (DecisionContextJSON) decisionContext() {}
+func (DecisionContextJSON) Kind() DecisionContextKind {
+	return DecisionContextKindJSON
+}
+
+// Plain-text context.
+type DecisionContextText struct {
+	// The text the questions are about.
+	Text string `json:"text"`
+}
+
+func (DecisionContextText) decisionContext() {}
+func (DecisionContextText) Kind() DecisionContextKind {
+	return DecisionContextKindText
+}
+
+// `data` of a JSON-RPC error returned by a `decisions.*` method.
+// Experimental: DecisionErrorData is part of an experimental API and may change or be
+// removed.
+type DecisionErrorData struct {
+	// Error category to branch on.
+	Kind DecisionErrorKind `json:"kind"`
+	// How long to wait before retrying, for `rateLimited`.
+	RetryAfterMs *int64 `json:"retryAfterMs,omitempty"`
+	// HTTP status the backend returned, when the error came from it.
+	StatusCode *int32 `json:"statusCode,omitempty"`
+	// Every limit or rule the request broke, for `invalidRequest` and `tooLarge`.
+	Violations []DecisionViolation `json:"violations,omitzero"`
+}
+
+// One level of a score question's scale.
+// Experimental: DecisionLevel is part of an experimental API and may change or be removed.
+type DecisionLevel struct {
+	// When this level applies.
+	Description string `json:"description"`
+	// Short, unique name of the level, such as `Low`.
+	Label string `json:"label"`
+}
+
+// Probability of one score level.
+// Experimental: DecisionLevelProbability is part of an experimental API and may change or
+// be removed.
+type DecisionLevelProbability struct {
+	// Level label.
+	Label string `json:"label"`
+	// Probability from 0 to 1.
+	Probability float64 `json:"probability"`
+}
+
+// One callable decision model.
+// Experimental: DecisionModelInfo is part of an experimental API and may change or be
+// removed.
+type DecisionModelInfo struct {
+	// Model id to pass as `model` to `decisions.ask`.
+	ID string `json:"id"`
+	// Whether `decisions.ask` uses this model when `model` is omitted.
+	IsDefault bool `json:"isDefault"`
+	// Effective limits callers can rely on: the stricter of the backend's and the runtime's.
+	Limits DecisionModelLimits `json:"limits"`
+	// Display name.
+	Name string `json:"name"`
+	// Whether the backend can refuse individual questions.
+	SupportsRefusals bool `json:"supportsRefusals"`
+}
+
+// Request limits for one decision model.
+// Experimental: DecisionModelLimits is part of an experimental API and may change or be
+// removed.
+type DecisionModelLimits struct {
+	// Token budget for the context plus any one question, when the model has one.
+	ContextPlusQuestionTokens *int64 `json:"contextPlusQuestionTokens,omitempty"`
+	// Maximum nesting depth of JSON context.
+	MaxJSONDepth int64 `json:"maxJsonDepth"`
+	// Maximum levels per score question.
+	MaxLevels int64 `json:"maxLevels"`
+	// Maximum options per choice question.
+	MaxOptions int64 `json:"maxOptions"`
+	// Maximum questions per request.
+	MaxQuestions int64 `json:"maxQuestions"`
+	// Maximum size of the serialized request, in bytes.
+	MaxRequestBytes int64 `json:"maxRequestBytes"`
+	// Minimum levels per score question.
+	MinLevels int64 `json:"minLevels"`
+	// Minimum options per choice question.
+	MinOptions int64 `json:"minOptions"`
+}
+
+// One candidate answer to a choice question.
+// Experimental: DecisionOption is part of an experimental API and may change or be removed.
+type DecisionOption struct {
+	// When this option applies.
+	Description string `json:"description"`
+	// Identifier returned when the model picks this option. Letters, digits and `._:/@-`, 1-64
+	// characters. The model reads it, so it must not hold anything the caller would not put in
+	// the context.
+	Value string `json:"value"`
+}
+
+// Probability of one choice option.
+// Experimental: DecisionOptionProbability is part of an experimental API and may change or
+// be removed.
+type DecisionOptionProbability struct {
+	// Probability from 0 to 1.
+	Probability float64 `json:"probability"`
+	// Option value.
+	Value string `json:"value"`
+}
+
+// One question for the decision model to answer about the context.
+// Experimental: DecisionQuestion is part of an experimental API and may change or be
+// removed.
+type DecisionQuestion interface {
+	decisionQuestion()
+	Kind() DecisionQuestionKind
+}
+
+type RawDecisionQuestionData struct {
+	Discriminator DecisionQuestionKind
+	Raw           json.RawMessage
+}
+
+func (RawDecisionQuestionData) decisionQuestion() {}
+func (r RawDecisionQuestionData) Kind() DecisionQuestionKind {
+	return r.Discriminator
+}
+
+// A yes/no question, answered with the probability that the answer is yes.
+type DecisionQuestionBoolean struct {
+	// The yes/no question.
+	Instructions string `json:"instructions"`
+	// Caller-chosen name, unique within the request, that identifies this question's answer.
+	// Never sent to the model.
+	Name string `json:"name"`
+	// Optional description of when the answer is no.
+	WhenFalse *string `json:"whenFalse,omitempty"`
+	// Optional description of when the answer is yes.
+	WhenTrue *string `json:"whenTrue,omitempty"`
+}
+
+func (DecisionQuestionBoolean) decisionQuestion() {}
+func (DecisionQuestionBoolean) Kind() DecisionQuestionKind {
+	return DecisionQuestionKindBoolean
+}
+
+// A pick-one question, answered with one of the supplied options. The model always picks
+// one; ask a separate boolean question when none may fit.
+type DecisionQuestionChoice struct {
+	// The question whose answer is one of `options`.
+	Instructions string `json:"instructions"`
+	// Caller-chosen name, unique within the request, that identifies this question's answer.
+	// Never sent to the model.
+	Name string `json:"name"`
+	// Candidate answers. Values must be unique identifiers; the model reads both value and
+	// description.
+	Options []DecisionOption `json:"options"`
+}
+
+func (DecisionQuestionChoice) decisionQuestion() {}
+func (DecisionQuestionChoice) Kind() DecisionQuestionKind {
+	return DecisionQuestionKindChoice
+}
+
+// A rating question, answered on the supplied ordered scale.
+type DecisionQuestionScore struct {
+	// The question whose answer is a rating on `levels`.
+	Instructions string `json:"instructions"`
+	// Scale levels from lowest to highest. A level's zero-based position is its numeric value.
+	Levels []DecisionLevel `json:"levels"`
+	// Caller-chosen name, unique within the request, that identifies this question's answer.
+	// Never sent to the model.
+	Name string `json:"name"`
+}
+
+func (DecisionQuestionScore) decisionQuestion() {}
+func (DecisionQuestionScore) Kind() DecisionQuestionKind {
+	return DecisionQuestionKindScore
+}
+
+// One request to a decision model: shared context plus the questions to answer about it.
+// Experimental: DecisionsAskRequest is part of an experimental API and may change or be
+// removed.
+type DecisionsAskRequest struct {
+	// Shared context every question sees. The runtime never truncates it; an oversized request
+	// fails with `tooLarge`.
+	Context DecisionContext `json:"context"`
+	// GitHub token to ask as. When provided, it is used instead of the current account or
+	// `selectionId`.
+	GitHubToken *string `json:"gitHubToken,omitempty"`
+	// Decision model id from `models.list` `decisionModels`. When omitted, the runtime uses its
+	// default decision model for the account.
+	Model *string `json:"model,omitempty"`
+	// Static identifier of the calling feature, used only for telemetry and never sent to the
+	// model, for example `vscode.chat.route`. Unrecognized values are reported as `other`.
+	Purpose *string `json:"purpose,omitempty"`
+	// Questions to answer about the context. Names must be unique; answers come back in the
+	// same order.
+	Questions []DecisionQuestion `json:"questions"`
+	// Opaque account identifier returned by `account.getAllUsers`. When omitted, the current
+	// account is used.
+	SelectionID *string `json:"selectionId,omitempty"`
+	// End-to-end deadline in milliseconds, covering credential resolution, queueing, the model
+	// call and parsing. Defaults to 5000; allowed range 250-30000.
+	TimeoutMs *int32 `json:"timeoutMs,omitempty"`
+}
+
+// The decision model's answers.
+// Experimental: DecisionsAskResult is part of an experimental API and may change or be
+// removed.
+type DecisionsAskResult struct {
+	// One answer per question, in request order.
+	Answers []DecisionAnswer `json:"answers"`
+	// Milliseconds from receiving the request to producing the result.
+	LatencyMs int64 `json:"latencyMs"`
+	// Decision model id that answered; valid as `model` in a later request.
+	Model string `json:"model"`
+	// Model name the backend reported, when it differs from `model`. Informational only.
+	UpstreamModel *string `json:"upstreamModel,omitempty"`
+	// Token usage, when the backend reports it.
+	Usage *DecisionUsage `json:"usage,omitempty"`
+}
+
+// Token usage the backend reported for one request.
+// Experimental: DecisionUsage is part of an experimental API and may change or be removed.
+type DecisionUsage struct {
+	// Input tokens served from the backend's prompt cache, when reported.
+	CachedInputTokens *int64 `json:"cachedInputTokens,omitempty"`
+	// Input tokens written to the backend's prompt cache, when reported.
+	CacheWriteTokens *int64 `json:"cacheWriteTokens,omitempty"`
+	// Input tokens, including cached and cache-write tokens.
+	InputTokens int64 `json:"inputTokens"`
+	// Output tokens, including reasoning tokens.
+	OutputTokens int64 `json:"outputTokens"`
+	// Reasoning tokens, when reported.
+	ReasoningTokens *int64 `json:"reasoningTokens,omitempty"`
+}
+
+// One rule or limit a request broke.
+// Experimental: DecisionViolation is part of an experimental API and may change or be
+// removed.
+type DecisionViolation struct {
+	// The value the request had, when numeric.
+	Actual *int64 `json:"actual,omitempty"`
+	// The limit it broke, when numeric.
+	Limit *int64 `json:"limit,omitempty"`
+	// Where in the request, for example `questions[2].options`.
+	Path string `json:"path"`
+	// Stable rule identifier, for example `minOptions` or `requestBytes`.
+	Rule string `json:"rule"`
+}
+
 // Experimental: DiagnosticEntry is part of an experimental API and may change or be removed.
 type DiagnosticEntry struct {
 	// Agent identifier for a subagent host. Omitted for the root agent.
@@ -9659,6 +10020,9 @@ type InstalledPlugin struct {
 // Experimental: InstalledPluginInfo is part of an experimental API and may change or be
 // removed.
 type InstalledPluginInfo struct {
+	// Soft assignment from effective managed settings. This is not a mandatory enabled-state
+	// restriction.
+	Assignment *ManagedPluginAssignment `json:"assignment,omitempty"`
 	// Description from the manifest of the installed copy. Present only for a direct install
 	// pinned to one GitHub commit, such as a verified install from GitHub.
 	Description *string `json:"description,omitempty"`
@@ -9962,39 +10326,6 @@ type JSONSchemaResponseFormat struct {
 	// Optional strict enforcement setting for OpenAI providers. Omitted uses the provider
 	// default. Anthropic always enforces its supported schema subset.
 	Strict *bool `json:"strict,omitempty"`
-}
-
-// Requests a fresh initial SPNEGO token for a Kerberos service principal.
-// Experimental: KerberosAuthAcquireRequest is part of an experimental API and may change or
-// be removed.
-type KerberosAuthAcquireRequest struct {
-	// Service principal in the platform-independent `service/host` form, optionally followed by
-	// `@REALM`.
-	Spn string `json:"spn"`
-}
-
-// Client credentials for a single authentication exchange.
-// Experimental: KerberosAuthAcquireResult is part of an experimental API and may change or
-// be removed.
-type KerberosAuthAcquireResult struct {
-	// Base64 initial SPNEGO token without the Negotiate prefix; omitted when unavailable. Never
-	// log or persist it.
-	Token *string `json:"token,omitempty"`
-}
-
-// Registers the calling SDK connection's Kerberos credential provider.
-// Experimental: KerberosAuthSetProviderRequest is part of an experimental API and may
-// change or be removed.
-type KerberosAuthSetProviderRequest struct {
-	// Native lookup fallback or exclusive client callback.
-	Mode KerberosAuthMode `json:"mode"`
-	// Traffic the callback authenticates; defaults to `connection`.
-	Scope *KerberosAuthScope `json:"scope,omitempty"`
-}
-
-// Experimental: KerberosAuthSetProviderResult is part of an experimental API and may change
-// or be removed.
-type KerberosAuthSetProviderResult struct {
 }
 
 // Startup-only configuration for the experimental runtime lifecycle diagnostic event stream.
@@ -10302,6 +10633,54 @@ type LogResult struct {
 	EventID string `json:"eventId"`
 }
 
+// A project configuration that the tolerant loader could not use.
+// Experimental: LspConfigurationProblem is part of an experimental API and may change or be
+// removed.
+type LspConfigurationProblem struct {
+	// Configuration read or validation failure.
+	Error string `json:"error"`
+	// Configuration file path.
+	Path string `json:"path"`
+}
+
+// Runtime-owned configuration inventory and configuration diagnostics.
+// Experimental: LspConfigurationSnapshot is part of an experimental API and may change or
+// be removed.
+type LspConfigurationSnapshot struct {
+	// Effective servers in merge order.
+	Configs []LspServerSummary `json:"configs"`
+	// Effective plugin entries.
+	PluginServers []LspServerSummary `json:"pluginServers"`
+	// Plugin configuration diagnostics.
+	PluginWarnings []string `json:"pluginWarnings"`
+	// Nearest project configuration file path.
+	ProjectConfigPath *string `json:"projectConfigPath,omitempty"`
+	// Failure to inspect project configuration.
+	ProjectInspectionError *string `json:"projectInspectionError,omitempty"`
+	// Project files rejected by the loader.
+	ProjectProblems []LspConfigurationProblem `json:"projectProblems"`
+	// Project entries, including disabled entries absent from the effective set.
+	ProjectServers []LspServerSummary `json:"projectServers"`
+	// User configuration read or validation failure.
+	UserConfigError *string `json:"userConfigError,omitempty"`
+	// User configuration file path.
+	UserConfigPath string `json:"userConfigPath"`
+	// Identifiers disabled through the user toggle list.
+	UserDisabledServers []string `json:"userDisabledServers"`
+	// User entries, including entries disabled by project configuration.
+	UserServers []LspServerSummary `json:"userServers"`
+	// Configuration loader diagnostics.
+	Warnings []string `json:"warnings"`
+}
+
+// Parameters for a process-wide, read-only language-server inventory.
+// Experimental: LspGlobalConfigurationRequest is part of an experimental API and may change
+// or be removed.
+type LspGlobalConfigurationRequest struct {
+	// Absolute working directory used for project and plugin discovery.
+	WorkingDirectory string `json:"workingDirectory"`
+}
+
 // Parameters for (re)loading the merged LSP configuration set.
 // Experimental: LspInitializeRequest is part of an experimental API and may change or be
 // removed.
@@ -10315,6 +10694,125 @@ type LspInitializeRequest struct {
 	// Working directory used to load project-level LSP configs. Defaults to the session working
 	// directory when omitted.
 	WorkingDirectory *string `json:"workingDirectory,omitempty"`
+}
+
+// Runtime-owned configuration inventory and configuration diagnostics.
+// Experimental: LspListResult is part of an experimental API and may change or be removed.
+type LspListResult struct {
+	// Effective servers in merge order.
+	Configs []LspServerSummary `json:"configs"`
+	// Effective plugin entries.
+	PluginServers []LspServerSummary `json:"pluginServers"`
+	// Plugin configuration diagnostics.
+	PluginWarnings []string `json:"pluginWarnings"`
+	// Nearest project configuration file path.
+	ProjectConfigPath *string `json:"projectConfigPath,omitempty"`
+	// Failure to inspect project configuration.
+	ProjectInspectionError *string `json:"projectInspectionError,omitempty"`
+	// Project files rejected by the loader.
+	ProjectProblems []LspConfigurationProblem `json:"projectProblems"`
+	// Project entries, including disabled entries absent from the effective set.
+	ProjectServers []LspServerSummary `json:"projectServers"`
+	// User configuration read or validation failure.
+	UserConfigError *string `json:"userConfigError,omitempty"`
+	// User configuration file path.
+	UserConfigPath string `json:"userConfigPath"`
+	// Identifiers disabled through the user toggle list.
+	UserDisabledServers []string `json:"userDisabledServers"`
+	// User entries, including entries disabled by project configuration.
+	UserServers []LspServerSummary `json:"userServers"`
+	// Configuration loader diagnostics.
+	Warnings []string `json:"warnings"`
+}
+
+// Process exit information from a startup probe.
+// Experimental: LspProbeExitStatus is part of an experimental API and may change or be
+// removed.
+type LspProbeExitStatus struct {
+	// Exit code, or null when the process ended through a signal.
+	Code *int64 `json:"code"`
+	// Failure to observe the child process.
+	Error *string `json:"error,omitempty"`
+	// Termination signal, or null for a normal exit.
+	Signal *string `json:"signal"`
+}
+
+// A server selected for a startup probe.
+// Experimental: LspProbeRequest is part of an experimental API and may change or be removed.
+type LspProbeRequest struct {
+	// Configured server identifier.
+	ServerID string `json:"serverId"`
+}
+
+// Result of a language-server startup probe.
+// Experimental: LspProbeResult is part of an experimental API and may change or be removed.
+type LspProbeResult struct {
+	// Effective server identifiers, used when the requested server is absent.
+	AvailableServers []string `json:"availableServers"`
+	// Child exit observed during the startup window.
+	ImmediateExit *LspProbeExitStatus `json:"immediateExit,omitempty"`
+	// Child process identifier, or null when no process identifier exists.
+	Pid *int64 `json:"pid"`
+	// Whether the runtime confined the probe in the session sandbox.
+	Sandboxed bool `json:"sandboxed"`
+	// Time spent on process startup, in milliseconds.
+	SpawnTimeMs int64 `json:"spawnTimeMs"`
+	// Runtime selection outcome: started, disabled, missing, or unavailable.
+	Status string `json:"status"`
+}
+
+// One language server in the runtime's configuration inventory.
+// Experimental: LspServerSummary is part of an experimental API and may change or be
+// removed.
+type LspServerSummary struct {
+	// Whether the effective configuration disables this entry.
+	Disabled bool `json:"disabled"`
+	// File suffixes handled by the server.
+	FileExtensions map[string]string `json:"fileExtensions"`
+	// Configured server identifier.
+	ID string `json:"id"`
+	// Protocol initialization deadline in milliseconds.
+	InitializationTimeoutMs *float64 `json:"initializationTimeoutMs,omitempty"`
+	// Platform-selected launch script for a user entry.
+	LaunchDescription *string `json:"launchDescription,omitempty"`
+	// Request deadline in milliseconds.
+	RequestTimeoutMs *float64 `json:"requestTimeoutMs,omitempty"`
+	// Project root relative to the repository root.
+	RootURI *string `json:"rootUri,omitempty"`
+	// Plugin that supplies the server, when applicable.
+	SourcePlugin *string `json:"sourcePlugin,omitempty"`
+	// Process startup deadline in milliseconds.
+	SpawnTimeoutMs *float64 `json:"spawnTimeoutMs,omitempty"`
+	// Warmup deadline in milliseconds.
+	WarmupTimeoutMs *float64 `json:"warmupTimeoutMs,omitempty"`
+}
+
+// A persistent user-level server toggle.
+// Experimental: LspSetEnabledRequest is part of an experimental API and may change or be
+// removed.
+type LspSetEnabledRequest struct {
+	// True to remove the user-level disable override.
+	Enabled bool `json:"enabled"`
+	// Configured server identifier.
+	ServerID string `json:"serverId"`
+}
+
+// A server whose warmup failed.
+// Experimental: LspWarmupError is part of an experimental API and may change or be removed.
+type LspWarmupError struct {
+	// Server startup failure.
+	Error string `json:"error"`
+	// Configured server identifier.
+	ServerID string `json:"serverId"`
+}
+
+// The servers retained by the session after warmup.
+// Experimental: LspWarmupResult is part of an experimental API and may change or be removed.
+type LspWarmupResult struct {
+	// Individual server startup failures.
+	Errors []LspWarmupError `json:"errors"`
+	// Successfully acquired server identifiers.
+	Servers []string `json:"servers"`
 }
 
 // Organization-specific information that clients surface to end users. Informational only;
@@ -10403,6 +10901,17 @@ type ManagedPermissionsEvaluateResult struct {
 	FailClosed bool `json:"failClosed"`
 	// One verdict per input operation, in the same order, including duplicates.
 	Results []ManagedPermissionEvaluation `json:"results"`
+}
+
+// An optional plugin default from managed settings. Explicit user choices override this
+// default.
+// Experimental: ManagedPluginAssignment is part of an experimental API and may change or be
+// removed.
+type ManagedPluginAssignment struct {
+	// Administrator-provided explanation from the same winning policy entry as the state.
+	Reason *string `json:"reason,omitempty"`
+	// Assignment state. The runtime currently supports defaultEnabled.
+	State string `json:"state"`
 }
 
 // Retry outcome for one plugin required by managed settings.
@@ -11372,6 +11881,8 @@ type MarketplaceListResult struct {
 // Experimental: MarketplacePluginInfo is part of an experimental API and may change or be
 // removed.
 type MarketplacePluginInfo struct {
+	// Soft assignment from effective managed settings for this marketplace entry.
+	Assignment *ManagedPluginAssignment `json:"assignment,omitempty"`
 	// Short description from the marketplace catalog, when present
 	Description *string `json:"description,omitempty"`
 	// Plugin name as listed in the marketplace catalog
@@ -12610,6 +13121,77 @@ type MCPListToolsResult struct {
 	Tools []MCPTools `json:"tools"`
 }
 
+// Full host-driven authentication for an arbitrary, possibly unsaved, MCP URL.
+// Experimental: MCPOauthAuthenticateRequest is part of an experimental API and may change
+// or be removed.
+// Internal: MCPOauthAuthenticateRequest is an internal SDK API and is not part of the
+// public surface.
+type MCPOauthAuthenticateRequest struct {
+	// Authorization timeout in milliseconds. Defaults to five minutes.
+	AuthorizationTimeoutMs *int64 `json:"authorizationTimeoutMs,omitempty"`
+	// Fail with browser_required when silent authentication cannot complete.
+	Browserless *bool `json:"browserless,omitempty"`
+	// Text displayed after a successful loopback callback.
+	CallbackSuccessMessage *string `json:"callbackSuccessMessage,omitempty"`
+	// Client metadata document URL. Omission uses the session identity.
+	ClientIDMetadataURL *string `json:"clientIdMetadataUrl,omitempty"`
+	// Display name for new dynamic client registrations.
+	ClientName *string `json:"clientName,omitempty"`
+	// Delay before the runtime offers device authorization.
+	DeviceCodeOfferTimeoutMs *int64 `json:"deviceCodeOfferTimeoutMs,omitempty"`
+	// Override the device authorization poll interval in milliseconds.
+	DeviceCodePollIntervalMs *int64 `json:"deviceCodePollIntervalMs,omitempty"`
+	// Correlation identity reserved through prepareFlow.
+	FlowID string `json:"flowId"`
+	// Start device authorization instead of a browser flow.
+	ForceDeviceCode *bool `json:"forceDeviceCode,omitempty"`
+	// Bypass cached grants for explicit account selection.
+	ForceReauth *bool `json:"forceReauth,omitempty"`
+	// Preserve previously granted scopes during additional consent.
+	IncludeExistingTokenScopes *bool `json:"includeExistingTokenScopes,omitempty"`
+	// Preserve replacement policy when another pending flow owns consent.
+	PreservePendingFlowReplacementFlags *bool `json:"preservePendingFlowReplacementFlags,omitempty"`
+	// Fixed callback port. A busy port fails without fallback.
+	RedirectPort *int64 `json:"redirectPort,omitempty"`
+	// Raw protected-resource metadata already fetched by the host.
+	ResourceMetadata *string `json:"resourceMetadata,omitempty"`
+	// Proxy fallback when the session has not published an egress entry.
+	SandboxProxy *string `json:"sandboxProxy,omitempty"`
+	// MCP endpoint, without a requirement for saved configuration.
+	ServerURL string `json:"serverUrl"`
+	// Use environment session claims for a hostless compatibility call, while retaining this
+	// requester's egress authority.
+	Sessionless *bool `json:"sessionless,omitempty"`
+	// Let the host present the authorization URL without a runtime browser launch.
+	SkipBrowserOpen *bool `json:"skipBrowserOpen,omitempty"`
+	// Reject the cached access token but permit a refresh grant.
+	SkipCachedAccessToken *bool `json:"skipCachedAccessToken,omitempty"`
+	// Static OAuth client settings for this attempt.
+	// Internal: StaticClientConfig is part of the SDK's internal API surface and is not
+	// intended for external use.
+	StaticClientConfig *MCPOauthFlowStaticClientConfig `json:"staticClientConfig,omitempty"`
+	// Credential owner. Omission uses the authoritative session store.
+	// Internal: Store is part of the SDK's internal API surface and is not intended for
+	// external use.
+	Store MCPOauthFlowStore `json:"store,omitempty"`
+	// Challenge captured by the host, including an empty challenge.
+	WwwAuthenticateParams *MCPOauthWwwAuthenticateParams `json:"wwwAuthenticateParams,omitempty"`
+}
+
+// Token projection for the existing host-delegated provider.
+// Experimental: MCPOauthAuthenticateResult is part of an experimental API and may change or
+// be removed.
+// Internal: MCPOauthAuthenticateResult is an internal SDK API and is not part of the public
+// surface.
+type MCPOauthAuthenticateResult struct {
+	// Access token from the runtime-owned store.
+	AccessToken string `json:"accessToken"`
+	// Remaining lifetime in seconds when the issuer supplied an expiry.
+	ExpiresIn *int64 `json:"expiresIn,omitempty"`
+	// Token scheme. Defaults to Bearer.
+	TokenType string `json:"tokenType"`
+}
+
 // Identifies the MCP server whose persisted OAuth credentials were updated.
 // Experimental: MCPOauthAuthenticationStateChangedRequest is part of an experimental API
 // and may change or be removed.
@@ -12684,6 +13266,14 @@ type MCPOauthCompleteRequest struct {
 	CallbackURL string `json:"callbackUrl"`
 }
 
+// Dispose an explicit host store without altering the session authorizer's owner.
+// Internal: MCPOauthDisposeStoreRequest is an internal SDK API and is not part of the
+// public surface.
+type MCPOauthDisposeStoreRequest struct {
+	// Host-selected identity of the explicit store.
+	StoreID string `json:"storeId"`
+}
+
 // An OAuth challenge from a remote MCP server whose protected-resource metadata should be
 // read.
 // Experimental: MCPOauthFetchProtectedResourceMetadataRequest is part of an experimental
@@ -12719,6 +13309,96 @@ type MCPOauthFetchProtectedResourceMetadataResult struct {
 	// could be read from the explicit metadata URL or, when omitted, the conventional metadata
 	// endpoints.
 	MetadataText *string `json:"metadataText,omitempty"`
+}
+
+// Correlation identity reserved before an effectful authentication request.
+// Internal: MCPOauthFlowIdentityRequest is an internal SDK API and is not part of the
+// public surface.
+type MCPOauthFlowIdentityRequest struct {
+	// Host-chosen identity, unique within this session requester.
+	FlowID string `json:"flowId"`
+}
+
+// A pre-registered OAuth client for this attempt.
+// Experimental: MCPOauthFlowStaticClientConfig is part of an experimental API and may
+// change or be removed.
+// Internal: MCPOauthFlowStaticClientConfig is an internal SDK API and is not part of the
+// public surface.
+type MCPOauthFlowStaticClientConfig struct {
+	// Pre-registered client identifier.
+	ClientID string `json:"clientId"`
+	// Ephemeral secret that the runtime never persists.
+	ClientSecret *string `json:"clientSecret,omitempty"`
+	// OAuth grant override.
+	GrantType *MCPOauthLoginGrantType `json:"grantType,omitempty"`
+	// Whether this client has no secret. Defaults to true.
+	PublicClient *bool `json:"publicClient,omitempty"`
+	// Scope used when the server omits its challenge scope.
+	Scope *string `json:"scope,omitempty"`
+}
+
+// Credential owner for a host-driven OAuth flow.
+// Experimental: MCPOauthFlowStore is part of an experimental API and may change or be
+// removed.
+type MCPOauthFlowStore interface {
+	mcpOauthFlowStore()
+	Kind() MCPOauthFlowStoreKind
+}
+
+type RawMCPOauthFlowStoreData struct {
+	Discriminator MCPOauthFlowStoreKind
+	Raw           json.RawMessage
+}
+
+func (RawMCPOauthFlowStoreData) mcpOauthFlowStore() {}
+func (r RawMCPOauthFlowStoreData) Kind() MCPOauthFlowStoreKind {
+	return r.Discriminator
+}
+
+// Call the original requester's OAuth store host effects.
+type MCPOauthFlowStoreCallback struct {
+	// Host-owned callback store identity.
+	StoreID string `json:"storeId"`
+}
+
+func (MCPOauthFlowStoreCallback) mcpOauthFlowStore() {}
+func (MCPOauthFlowStoreCallback) Kind() MCPOauthFlowStoreKind {
+	return MCPOauthFlowStoreKindCallback
+}
+
+// Retain an isolated in-memory store until disposal or requester detachment.
+type MCPOauthFlowStoreMemory struct {
+	// Identity chosen by the host, scoped to this session requester.
+	StoreID string `json:"storeId"`
+}
+
+func (MCPOauthFlowStoreMemory) mcpOauthFlowStore() {}
+func (MCPOauthFlowStoreMemory) Kind() MCPOauthFlowStoreKind {
+	return MCPOauthFlowStoreKindMemory
+}
+
+// Use the host's configured profile directory.
+type MCPOauthFlowStorePersistent struct {
+	// Profile directory containing the OAuth credential store.
+	ConfigDir string `json:"configDir"`
+	// Identity chosen by the host, scoped to this session requester.
+	StoreID string `json:"storeId"`
+	// Original store's effective token session. An empty value selects unscoped storage.
+	TokenSessionID string `json:"tokenSessionId"`
+}
+
+func (MCPOauthFlowStorePersistent) mcpOauthFlowStore() {}
+func (MCPOauthFlowStorePersistent) Kind() MCPOauthFlowStoreKind {
+	return MCPOauthFlowStoreKindPersistent
+}
+
+// Use the current session authorizer's store.
+type MCPOauthFlowStoreSession struct {
+}
+
+func (MCPOauthFlowStoreSession) mcpOauthFlowStore() {}
+func (MCPOauthFlowStoreSession) Kind() MCPOauthFlowStoreKind {
+	return MCPOauthFlowStoreKindSession
 }
 
 // Pending MCP OAuth request ID and host token, cancellation, or advertised runtime refresh
@@ -13005,6 +13685,22 @@ type MCPOauthRespondResult struct {
 	Success bool `json:"success"`
 }
 
+// Persist a confidential client's static secret without exposing token-store CRUD.
+// Internal: MCPOauthSaveStaticClientSecretRequest is an internal SDK API and is not part of
+// the public surface.
+type MCPOauthSaveStaticClientSecretRequest struct {
+	// Secret to persist in the selected credential owner.
+	Secret string `json:"secret"`
+	// Preserve hostless credential and account selection.
+	Sessionless *bool `json:"sessionless,omitempty"`
+	// Credential owner. Omission uses the authoritative session store.
+	// Internal: Store is part of the SDK's internal API surface and is not intended for
+	// external use.
+	Store MCPOauthFlowStore `json:"store,omitempty"`
+	// Runtime OAuth credential key.
+	StoreKey string `json:"storeKey"`
+}
+
 // An OAuth client a server configuration pins, without its secret.
 // Experimental: MCPOauthStaticClientConfig is part of an experimental API and may change or
 // be removed.
@@ -13045,6 +13741,115 @@ type MCPOauthStaticClientConfigResult struct {
 	// Internal: ClientConfig is part of the SDK's internal API surface and is not intended for
 	// external use.
 	ClientConfig *MCPOauthStaticClientConfig `json:"clientConfig,omitempty"`
+}
+
+// A narrow token-validity query against the chosen credential owner.
+// Internal: MCPOauthStoredGrantRequest is an internal SDK API and is not part of the public
+// surface.
+type MCPOauthStoredGrantRequest struct {
+	// Preserve hostless credential and account selection.
+	Sessionless *bool `json:"sessionless,omitempty"`
+	// Static client identity required for refresh, when configured.
+	// Internal: StaticClientConfig is part of the SDK's internal API surface and is not
+	// intended for external use.
+	StaticClientConfig *MCPOauthFlowStaticClientConfig `json:"staticClientConfig,omitempty"`
+	// Credential owner. Omission uses the authoritative session store.
+	// Internal: Store is part of the SDK's internal API surface and is not intended for
+	// external use.
+	Store MCPOauthFlowStore `json:"store,omitempty"`
+	// Runtime OAuth credential key.
+	StoreKey string `json:"storeKey"`
+}
+
+// Derive a credential key through the selected account and store owner.
+// Internal: MCPOauthStoreKeyRequest is an internal SDK API and is not part of the public
+// surface.
+type MCPOauthStoreKeyRequest struct {
+	// Static OAuth client identity, when configured.
+	ClientID *string `json:"clientId,omitempty"`
+	// Metadata document identity when no static client is configured.
+	ClientIDMetadataURL *string `json:"clientIdMetadataUrl,omitempty"`
+	// MCP endpoint whose credentials the key identifies.
+	ServerURL string `json:"serverUrl"`
+	// Preserve hostless credential and account selection.
+	Sessionless *bool `json:"sessionless,omitempty"`
+	// Credential owner. Omission uses the authoritative session store.
+	// Internal: Store is part of the SDK's internal API surface and is not intended for
+	// external use.
+	Store MCPOauthFlowStore `json:"store,omitempty"`
+}
+
+// Tokenless initialize handshake for a possibly unsaved remote MCP server.
+// Experimental: MCPOauthTestConnectionRequest is part of an experimental API and may change
+// or be removed.
+// Internal: MCPOauthTestConnectionRequest is an internal SDK API and is not part of the
+// public surface.
+type MCPOauthTestConnectionRequest struct {
+	// Headers sent during the handshake.
+	Headers map[string]string `json:"headers,omitzero"`
+	// Proxy fallback when no session egress entry exists.
+	SandboxProxy *string `json:"sandboxProxy,omitempty"`
+	// Transport. Omission selects Streamable HTTP.
+	// Internal: Type is part of the SDK's internal API surface and is not intended for external
+	// use.
+	Type *MCPOauthTestConnectionTransport `json:"type,omitempty"`
+	// Remote endpoint to initialize without an OAuth token.
+	URL string `json:"url"`
+}
+
+// Outcome of the tokenless handshake, with the original challenge when available.
+// Experimental: MCPOauthTestConnectionResult is part of an experimental API and may change
+// or be removed.
+type MCPOauthTestConnectionResult interface {
+	mcpOauthTestConnectionResult()
+	Status() MCPOauthTestConnectionResultStatus
+}
+
+type RawMCPOauthTestConnectionResultData struct {
+	Discriminator MCPOauthTestConnectionResultStatus
+	Raw           json.RawMessage
+}
+
+func (RawMCPOauthTestConnectionResultData) mcpOauthTestConnectionResult() {}
+func (r RawMCPOauthTestConnectionResultData) Status() MCPOauthTestConnectionResultStatus {
+	return r.Discriminator
+}
+
+// The server accepted an unauthenticated initialize request.
+type MCPOauthTestConnectionResultConnected struct {
+}
+
+func (MCPOauthTestConnectionResultConnected) mcpOauthTestConnectionResult() {}
+func (MCPOauthTestConnectionResultConnected) Status() MCPOauthTestConnectionResultStatus {
+	return MCPOauthTestConnectionResultStatusConnected
+}
+
+// The handshake failed for a reason other than authentication.
+type MCPOauthTestConnectionResultFailed struct {
+	// Transport or session policy failure detail.
+	Error string `json:"error"`
+}
+
+func (MCPOauthTestConnectionResultFailed) mcpOauthTestConnectionResult() {}
+func (MCPOauthTestConnectionResultFailed) Status() MCPOauthTestConnectionResultStatus {
+	return MCPOauthTestConnectionResultStatusFailed
+}
+
+// The server refused the initialize request with an authentication challenge.
+type MCPOauthTestConnectionResultNeedsAuth struct {
+	// The transport's authentication error message.
+	Error string `json:"error"`
+	// Exact refusing HTTP response, when the transport captured it.
+	HTTPResponse *MCPOauthHTTPResponse `json:"httpResponse,omitempty"`
+	// Raw WWW-Authenticate header, when the refusing response supplies one.
+	WwwAuthenticateHeader *string `json:"wwwAuthenticateHeader,omitempty"`
+	// Parsed challenge parameters from the refusing HTTP response.
+	WwwAuthenticateParams *MCPOauthWwwAuthenticateParams `json:"wwwAuthenticateParams,omitempty"`
+}
+
+func (MCPOauthTestConnectionResultNeedsAuth) mcpOauthTestConnectionResult() {}
+func (MCPOauthTestConnectionResultNeedsAuth) Status() MCPOauthTestConnectionResultStatus {
+	return MCPOauthTestConnectionResultStatusNeedsAuth
 }
 
 // The configuration-change alternative for the transportChoices entry at the same index.
@@ -14583,6 +15388,28 @@ type MemoryConfiguration struct {
 	Mode *MemoryMode `json:"mode,omitempty"`
 }
 
+// A memory the agent stored after validation, secret filtering and approval.
+// Experimental: MemoryStoreRequest is part of an experimental API and may change or be
+// removed.
+type MemoryStoreRequest struct {
+	// Sources supporting the fact, such as file paths with line numbers or a quotation of the
+	// user.
+	Citations string `json:"citations"`
+	// The fact to remember.
+	Fact string `json:"fact"`
+	// Why the agent considers the fact worth remembering.
+	Reason string `json:"reason"`
+	// Target session identifier
+	SessionID string `json:"sessionId"`
+	// Short topic the memory is about.
+	Subject string `json:"subject"`
+}
+
+// Experimental: MemoryStoreStoreResult is part of an experimental API and may change or be
+// removed.
+type MemoryStoreStoreResult struct {
+}
+
 // Per-source attribution breakdown for the session's current context window, or null if
 // uninitialized.
 // Experimental: MetadataContextAttributionResult is part of an experimental API and may
@@ -15181,6 +16008,12 @@ type ModelList struct {
 	// Ordered Auto routing preferences discovered for the resolved account. Present only
 	// when CAPI returned Auto metadata; same shape and semantics as `SessionModelList.auto`.
 	Auto *AutoTierMetadata `json:"auto,omitempty"`
+	// Decision models the resolved account can call with `decisions.ask`, separate from
+	// conversation models, with each model's effective limits. Absent when the `DECISIONS_API`
+	// feature flag is off or the runtime does not expose this catalog; empty when the account
+	// has none. These entries must not be selected as chat models.
+	// Experimental: DecisionModels is part of an experimental API and may change or be removed.
+	DecisionModels []DecisionModelInfo `json:"decisionModels,omitzero"`
 	// The runtime's default image model, separate from conversation models, with its
 	// availability for the resolved account. The default is reported even when unavailable;
 	// clients choose whether to display it. These entries must not be selected as chat models.
@@ -15555,8 +16388,9 @@ type ModelSetReasoningEffortRequest struct {
 }
 
 // Update the session's reasoning effort without changing the selected model. Use `switchTo`
-// instead when you also need to change the model. The runtime stores the effort on the
-// session and applies it to subsequent turns.
+// instead when you also need to change the model. The runtime applies the effort to the
+// next new model request, including tool continuations, without changing retries of an
+// already-started request.
 // Experimental: ModelSetReasoningEffortResult is part of an experimental API and may change
 // or be removed.
 type ModelSetReasoningEffortResult struct {
@@ -15590,6 +16424,31 @@ type ModelsListTokenPriceUnitsRequest struct {
 	// When true, replaces the display names of preview and hidden models with `Hidden Model N`,
 	// and masks their promotion and data-retention text. Model ids are unchanged.
 	StreamerMode *bool `json:"streamerMode,omitempty"`
+}
+
+// Options for a host's startup model admission check.
+// Experimental: ModelStartupAdmissionRequest is part of an experimental API and may change
+// or be removed.
+type ModelStartupAdmissionRequest struct {
+	// Claims the session's one-time enablement prompt only when its catalog is ready.
+	ClaimEnablement *bool `json:"claimEnablement,omitempty"`
+}
+
+// A cached startup model snapshot and an optional one-time enablement prompt. This check
+// never resolves credentials or fetches a catalog.
+// Experimental: ModelStartupAdmissionResult is part of an experimental API and may change
+// or be removed.
+type ModelStartupAdmissionResult struct {
+	// Whether the session already has a resolved Copilot catalog.
+	CatalogReady bool `json:"catalogReady"`
+	// Whether this call consumed the session's startup enablement claim.
+	ClaimedEnablement bool `json:"claimedEnablement"`
+	// The selected model to enable, only for the first successful prompt claim.
+	ModelToEnable *string `json:"modelToEnable,omitempty"`
+	// Whether the cached selected model currently requires enablement.
+	RequiresEnablement bool `json:"requiresEnablement"`
+	// The selected model, when the session has one.
+	SelectedModel *string `json:"selectedModel,omitempty"`
 }
 
 // An Auto preference request for the session. This updates Auto configuration only; it does
@@ -15888,6 +16747,79 @@ type NameSetAutoResult struct {
 type NameSetRequest struct {
 	// New session name (1–100 characters, trimmed of leading/trailing whitespace)
 	Name string `json:"name"`
+}
+
+// Registers the Negotiate authentication callback, which then supplies the Kerberos tokens
+// instead of native credential lookup.
+// Experimental: NetworkAuthenticateNegotiateOptions is part of an experimental API and may
+// change or be removed.
+type NetworkAuthenticateNegotiateOptions struct {
+}
+
+// Requests a fresh initial SPNEGO token for a Kerberos service principal.
+// Experimental: NetworkAuthenticateNegotiateRequest is part of an experimental API and may
+// change or be removed.
+type NetworkAuthenticateNegotiateRequest struct {
+	// Service principal in the platform-independent `service/host` form, optionally followed by
+	// `@REALM`.
+	Spn string `json:"spn"`
+}
+
+// Client credentials for a single Negotiate authentication exchange.
+// Experimental: NetworkAuthenticateNegotiateResult is part of an experimental API and may
+// change or be removed.
+type NetworkAuthenticateNegotiateResult struct {
+	// Base64 initial SPNEGO token without the Negotiate prefix; omitted when unavailable. Never
+	// log or persist it.
+	Token *string `json:"token,omitempty"`
+}
+
+// Registers the proxy resolution callback, which then decides the proxies for every request
+// the runtime would otherwise route by ambient proxy settings, or leaves a request to that
+// routing.
+// Experimental: NetworkResolveProxyOptions is part of an experimental API and may change or
+// be removed.
+type NetworkResolveProxyOptions struct {
+}
+
+// Requests the proxies for a request target.
+// Experimental: NetworkResolveProxyRequest is part of an experimental API and may change or
+// be removed.
+type NetworkResolveProxyRequest struct {
+	// Request target as a PAC script sees it: without credentials or fragment, and for `https`
+	// and `wss` also without path and query.
+	URL string `json:"url"`
+}
+
+// Proxies for a request target, in the order to try them.
+// Experimental: NetworkResolveProxyResult is part of an experimental API and may change or
+// be removed.
+type NetworkResolveProxyResult struct {
+	// PAC-style proxy list such as `PROXY proxy.example:8080; HTTPS proxy.example:443; DIRECT`,
+	// as returned by a PAC script or Electron's `session.resolveProxy`; `DIRECT` connects
+	// directly. Omitted, null or empty leaves the request to the runtime's own proxy
+	// resolution, as if no callback were registered: proxy environment variables, `NO_PROXY`,
+	// then the operating system's proxy settings and PAC. Entry types the runtime doesn't
+	// support, such as SOCKS and QUIC, are skipped.
+	Proxy *string `json:"proxy,omitempty"`
+}
+
+// Registers the calling SDK connection's network callbacks, replacing any previous
+// registration.
+// Experimental: NetworkSetProviderRequest is part of an experimental API and may change or
+// be removed.
+type NetworkSetProviderRequest struct {
+	// Present when the client answers `network.authenticateNegotiate`.
+	AuthenticateNegotiate *NetworkAuthenticateNegotiateOptions `json:"authenticateNegotiate,omitempty"`
+	// Present when the client answers `network.resolveProxy`.
+	ResolveProxy *NetworkResolveProxyOptions `json:"resolveProxy,omitempty"`
+	// Traffic the callbacks serve; defaults to `connection`.
+	Scope *NetworkScope `json:"scope,omitempty"`
+}
+
+// Experimental: NetworkSetProviderResult is part of an experimental API and may change or
+// be removed.
+type NetworkSetProviderResult struct {
 }
 
 // Open canvas instance snapshot.
@@ -17573,6 +18505,9 @@ type PlanUpdateRequest struct {
 // Session plugin metadata, with name, marketplace, optional version, and enabled state.
 // Experimental: Plugin is part of an experimental API and may change or be removed.
 type Plugin struct {
+	// Soft assignment from effective managed settings. This does not mark the plugin as
+	// hard-managed.
+	Assignment *ManagedPluginAssignment `json:"assignment,omitempty"`
 	// Opaque stable identity for a direct plugin source.
 	DirectSourceID *string `json:"directSourceId,omitempty"`
 	// Whether the plugin is currently enabled
@@ -20120,6 +21055,11 @@ type SandboxConfigUserPolicyExperimentalSeatbelt struct {
 type SandboxConfigUserPolicyFilesystem struct {
 	// Paths explicitly denied.
 	DeniedPaths []string `json:"deniedPaths,omitzero"`
+	// Paths granted enumerate-only access: sandboxed commands can list these directories
+	// without reading the files in them. Honored only on Windows hosts with the
+	// `filesystem_enumeration` capability; ignored elsewhere. An entry at or under a read-only,
+	// read-write, or denied path is ignored, so it never narrows a grant or reopens a denial.
+	EnumeratePaths []string `json:"enumeratePaths,omitzero"`
 	// Paths granted read-only access.
 	ReadonlyPaths []string `json:"readonlyPaths,omitzero"`
 	// Paths granted read/write access.
@@ -20370,10 +21310,11 @@ type SandboxHostCapability struct {
 	// explicit identity-less runtime proxy, not general host-loopback access, and other policy
 	// restrictions still apply), `denied_paths` (native enforcement of
 	// `filesystem.deniedPaths`), `shell` (shell commands inside the sandbox), and
-	// `filesystem_enumeration` (enumerate-only filesystem grants; on Windows this needs Process
-	// Security Environment 1.1 filesystem enumeration support, and without it sandboxed
-	// PowerShell still runs but cannot resolve its current location; other platforms always
-	// report it).
+	// `filesystem_enumeration` (enumerate-only filesystem grants: PowerShell's drive roots and
+	// `filesystem.enumeratePaths`; on Windows this needs Process Security Environment 1.1
+	// filesystem enumeration support, and without it sandboxed PowerShell still runs but cannot
+	// resolve its current location, and `filesystem.enumeratePaths` entries are ignored; other
+	// platforms always report it).
 	Name string `json:"name"`
 	// Human-readable reason and remedy when the feature is unsupported, such as a package to
 	// install or an OS update. Present only when `supported` is false.
@@ -20398,11 +21339,12 @@ type SandboxHostCapability struct {
 // version whose sandbox contract reports denied-path support. `shell` — shell commands
 // inside the sandbox: bash on macOS and Linux, PowerShell on Windows.
 // `filesystem_enumeration` — enumerate-only filesystem grants, which PowerShell's drive
-// roots use on Windows; this needs a version with Process Security Environment 1.1
-// filesystem enumeration support. Without it, sandboxed PowerShell still runs, but
-// `Get-Location` may report the drive root, `Set-Location` may fail, and relative paths may
-// resolve against the drive root; the session also receives a `session.warning` with
-// `warningType` `sandbox`. Other platforms always report it.
+// roots and `filesystem.enumeratePaths` use on Windows; this needs a version with Process
+// Security Environment 1.1 filesystem enumeration support. Without it, sandboxed PowerShell
+// still runs, but `Get-Location` may report the drive root, `Set-Location` may fail, and
+// relative paths may resolve against the drive root; the session also receives a
+// `session.warning` with `warningType` `sandbox`. `filesystem.enumeratePaths` entries are
+// ignored. Other platforms always report it.
 // Experimental: SandboxHostCapabilityName is part of an experimental API and may change or
 // be removed.
 type SandboxHostCapabilityName string
@@ -20861,6 +21803,18 @@ type SendMessagesRequest struct {
 	// The UI mode the agent was in when these messages were sent. Defaults to the session's
 	// current mode.
 	AgentMode *SendAgentMode `json:"agentMode,omitempty"`
+	// Opaque caller-chosen ID for the turn this batch starts. The runtime copies it unchanged
+	// into `params._meta["com.github.copilot/turnId"]` on every MCP `tools/call` the agent
+	// makes while serving that turn, including calls from sub-agents it spawns and from
+	// Autopilot continuations of it. Visible user steering (`mode: "immediate"`) that a running
+	// turn consumes hands it to a successor turn: the steering's value replaces the running
+	// turn's from the next model call onward, and steering without one clears it. System and
+	// hidden steering leave it unchanged. A turn started without one, including one the runtime
+	// starts itself, carries no turn ID. The `user.message` event for each message the send
+	// delivers echoes it as `clientTurnId` when the message is consumed, and is persisted like
+	// other events; the value stamped on MCP calls is held in memory only and is not restored
+	// on resume.
+	ClientTurnID *string `json:"clientTurnId,omitempty"`
 	// The user messages to append to the conversation, in order, before running one agent loop.
 	// When the batch starts a run, its final message is the primary initiating message; earlier
 	// messages provide context, not separate runs or replies. May be empty, in which case a
@@ -20922,6 +21876,18 @@ type SendRequest struct {
 	// If false, this message will not trigger a Premium Request Unit charge. User messages
 	// default to billable.
 	Billable *bool `json:"billable,omitempty"`
+	// Opaque caller-chosen ID for the turn this message starts. The runtime copies it unchanged
+	// into `params._meta["com.github.copilot/turnId"]` on every MCP `tools/call` the agent
+	// makes while serving that turn, including calls from sub-agents it spawns and from
+	// Autopilot continuations of it. Visible user steering (`mode: "immediate"`) that a running
+	// turn consumes hands it to a successor turn: the steering's value replaces the running
+	// turn's from the next model call onward, and steering without one clears it. System and
+	// hidden steering leave it unchanged. A turn started without one, including one the runtime
+	// starts itself, carries no turn ID. The `user.message` event for each message the send
+	// delivers echoes it as `clientTurnId` when the message is consumed, and is persisted like
+	// other events; the value stamped on MCP calls is held in memory only and is not restored
+	// on resume.
+	ClientTurnID *string `json:"clientTurnId,omitempty"`
 	// If provided, this is shown in the timeline instead of `prompt`
 	DisplayPrompt *string `json:"displayPrompt,omitempty"`
 	// How to deliver the message. `enqueue` (default) appends to the message queue. `immediate`
@@ -22141,9 +23107,95 @@ type SessionLoadDeferredRepoHooksResult struct {
 	StartupPrompts []string `json:"startupPrompts"`
 }
 
+// A server selected for a startup probe.
+// Experimental: SessionLspDiagnoseRequest is part of an experimental API and may change or
+// be removed.
+type SessionLspDiagnoseRequest struct {
+	// Configured server identifier.
+	ServerID string `json:"serverId"`
+}
+
+// Result of a language-server startup probe.
+// Experimental: SessionLspDiagnoseResult is part of an experimental API and may change or
+// be removed.
+type SessionLspDiagnoseResult struct {
+	// Effective server identifiers, used when the requested server is absent.
+	AvailableServers []string `json:"availableServers"`
+	// Child exit observed during the startup window.
+	ImmediateExit *LspProbeExitStatus `json:"immediateExit,omitempty"`
+	// Child process identifier, or null when no process identifier exists.
+	Pid *int64 `json:"pid"`
+	// Whether the runtime confined the probe in the session sandbox.
+	Sandboxed bool `json:"sandboxed"`
+	// Time spent on process startup, in milliseconds.
+	SpawnTimeMs int64 `json:"spawnTimeMs"`
+	// Runtime selection outcome: started, disabled, missing, or unavailable.
+	Status string `json:"status"`
+}
+
 // Experimental: SessionLspInitializeResult is part of an experimental API and may change or
 // be removed.
 type SessionLspInitializeResult struct {
+}
+
+// Runtime-owned configuration inventory and configuration diagnostics.
+// Experimental: SessionLspListResult is part of an experimental API and may change or be
+// removed.
+type SessionLspListResult struct {
+	// Effective servers in merge order.
+	Configs []LspServerSummary `json:"configs"`
+	// Effective plugin entries.
+	PluginServers []LspServerSummary `json:"pluginServers"`
+	// Plugin configuration diagnostics.
+	PluginWarnings []string `json:"pluginWarnings"`
+	// Nearest project configuration file path.
+	ProjectConfigPath *string `json:"projectConfigPath,omitempty"`
+	// Failure to inspect project configuration.
+	ProjectInspectionError *string `json:"projectInspectionError,omitempty"`
+	// Project files rejected by the loader.
+	ProjectProblems []LspConfigurationProblem `json:"projectProblems"`
+	// Project entries, including disabled entries absent from the effective set.
+	ProjectServers []LspServerSummary `json:"projectServers"`
+	// User configuration read or validation failure.
+	UserConfigError *string `json:"userConfigError,omitempty"`
+	// User configuration file path.
+	UserConfigPath string `json:"userConfigPath"`
+	// Identifiers disabled through the user toggle list.
+	UserDisabledServers []string `json:"userDisabledServers"`
+	// User entries, including entries disabled by project configuration.
+	UserServers []LspServerSummary `json:"userServers"`
+	// Configuration loader diagnostics.
+	Warnings []string `json:"warnings"`
+}
+
+// A persistent user-level server toggle.
+// Experimental: SessionLspSetRequest is part of an experimental API and may change or be
+// removed.
+type SessionLspSetRequest struct {
+	// True to remove the user-level disable override.
+	Enabled bool `json:"enabled"`
+	// Configured server identifier.
+	ServerID string `json:"serverId"`
+}
+
+// Experimental: SessionLspSetResult is part of an experimental API and may change or be
+// removed.
+type SessionLspSetResult struct {
+}
+
+// The servers retained by the session after warmup.
+// Experimental: SessionLspStartResult is part of an experimental API and may change or be
+// removed.
+type SessionLspStartResult struct {
+	// Individual server startup failures.
+	Errors []LspWarmupError `json:"errors"`
+	// Successfully acquired server identifiers.
+	Servers []string `json:"servers"`
+}
+
+// Experimental: SessionLspStopResult is part of an experimental API and may change or be
+// removed.
+type SessionLspStopResult struct {
 }
 
 // Enterprise permission policy expressed with the runtime's managed permission-rule syntax.
@@ -22360,9 +23412,91 @@ type SessionMCPDisableResult struct {
 type SessionMCPEnableResult struct {
 }
 
+// Full host-driven authentication for an arbitrary, possibly unsaved, MCP URL.
+// Experimental: SessionMCPOauthAuthenticateRequest is part of an experimental API and may
+// change or be removed.
+// Internal: SessionMCPOauthAuthenticateRequest is an internal SDK API and is not part of
+// the public surface.
+type SessionMCPOauthAuthenticateRequest struct {
+	// Authorization timeout in milliseconds. Defaults to five minutes.
+	AuthorizationTimeoutMs *int64 `json:"authorizationTimeoutMs,omitempty"`
+	// Fail with browser_required when silent authentication cannot complete.
+	Browserless *bool `json:"browserless,omitempty"`
+	// Text displayed after a successful loopback callback.
+	CallbackSuccessMessage *string `json:"callbackSuccessMessage,omitempty"`
+	// Client metadata document URL. Omission uses the session identity.
+	ClientIDMetadataURL *string `json:"clientIdMetadataUrl,omitempty"`
+	// Display name for new dynamic client registrations.
+	ClientName *string `json:"clientName,omitempty"`
+	// Delay before the runtime offers device authorization.
+	DeviceCodeOfferTimeoutMs *int64 `json:"deviceCodeOfferTimeoutMs,omitempty"`
+	// Override the device authorization poll interval in milliseconds.
+	DeviceCodePollIntervalMs *int64 `json:"deviceCodePollIntervalMs,omitempty"`
+	// Correlation identity reserved through prepareFlow.
+	FlowID string `json:"flowId"`
+	// Start device authorization instead of a browser flow.
+	ForceDeviceCode *bool `json:"forceDeviceCode,omitempty"`
+	// Bypass cached grants for explicit account selection.
+	ForceReauth *bool `json:"forceReauth,omitempty"`
+	// Preserve previously granted scopes during additional consent.
+	IncludeExistingTokenScopes *bool `json:"includeExistingTokenScopes,omitempty"`
+	// Preserve replacement policy when another pending flow owns consent.
+	PreservePendingFlowReplacementFlags *bool `json:"preservePendingFlowReplacementFlags,omitempty"`
+	// Fixed callback port. A busy port fails without fallback.
+	RedirectPort *int64 `json:"redirectPort,omitempty"`
+	// Raw protected-resource metadata already fetched by the host.
+	ResourceMetadata *string `json:"resourceMetadata,omitempty"`
+	// Proxy fallback when the session has not published an egress entry.
+	SandboxProxy *string `json:"sandboxProxy,omitempty"`
+	// MCP endpoint, without a requirement for saved configuration.
+	ServerURL string `json:"serverUrl"`
+	// Use environment session claims for a hostless compatibility call, while retaining this
+	// requester's egress authority.
+	Sessionless *bool `json:"sessionless,omitempty"`
+	// Let the host present the authorization URL without a runtime browser launch.
+	SkipBrowserOpen *bool `json:"skipBrowserOpen,omitempty"`
+	// Reject the cached access token but permit a refresh grant.
+	SkipCachedAccessToken *bool `json:"skipCachedAccessToken,omitempty"`
+	// Static OAuth client settings for this attempt.
+	StaticClientConfig *MCPOauthFlowStaticClientConfig `json:"staticClientConfig,omitempty"`
+	// Credential owner. Omission uses the authoritative session store.
+	Store MCPOauthFlowStore `json:"store,omitempty"`
+	// Challenge captured by the host, including an empty challenge.
+	WwwAuthenticateParams *MCPOauthWwwAuthenticateParams `json:"wwwAuthenticateParams,omitempty"`
+}
+
+// Token projection for the existing host-delegated provider.
+// Experimental: SessionMCPOauthAuthenticateResult is part of an experimental API and may
+// change or be removed.
+// Internal: SessionMCPOauthAuthenticateResult is an internal SDK API and is not part of the
+// public surface.
+type SessionMCPOauthAuthenticateResult struct {
+	// Access token from the runtime-owned store.
+	AccessToken string `json:"accessToken"`
+	// Remaining lifetime in seconds when the issuer supplied an expiry.
+	ExpiresIn *int64 `json:"expiresIn,omitempty"`
+	// Token scheme. Defaults to Bearer.
+	TokenType string `json:"tokenType"`
+}
+
 // Experimental: SessionMCPOauthAuthenticationStateChangedResult is part of an experimental
 // API and may change or be removed.
 type SessionMCPOauthAuthenticationStateChangedResult struct {
+}
+
+// Correlation identity reserved before an effectful authentication request.
+// Experimental: SessionMCPOauthCancelFlowRequest is part of an experimental API and may
+// change or be removed.
+// Internal: SessionMCPOauthCancelFlowRequest is an internal SDK API and is not part of the
+// public surface.
+type SessionMCPOauthCancelFlowRequest struct {
+	// Host-chosen identity, unique within this session requester.
+	FlowID string `json:"flowId"`
+}
+
+// Experimental: SessionMCPOauthCancelFlowResult is part of an experimental API and may
+// change or be removed.
+type SessionMCPOauthCancelFlowResult struct {
 }
 
 // Targets only the original prepared/applying owned login on this exact session requester.
@@ -22387,6 +23521,57 @@ type SessionMCPOauthCancelLoginResult struct {
 // Experimental: SessionMCPOauthCompleteResult is part of an experimental API and may change
 // or be removed.
 type SessionMCPOauthCompleteResult struct {
+}
+
+// Dispose an explicit host store without altering the session authorizer's owner.
+// Experimental: SessionMCPOauthDisposeStoreRequest is part of an experimental API and may
+// change or be removed.
+// Internal: SessionMCPOauthDisposeStoreRequest is an internal SDK API and is not part of
+// the public surface.
+type SessionMCPOauthDisposeStoreRequest struct {
+	// Host-selected identity of the explicit store.
+	StoreID string `json:"storeId"`
+}
+
+// Experimental: SessionMCPOauthDisposeStoreResult is part of an experimental API and may
+// change or be removed.
+type SessionMCPOauthDisposeStoreResult struct {
+}
+
+// A narrow token-validity query against the chosen credential owner.
+// Experimental: SessionMCPOauthHasValidTokensRequest is part of an experimental API and may
+// change or be removed.
+// Internal: SessionMCPOauthHasValidTokensRequest is an internal SDK API and is not part of
+// the public surface.
+type SessionMCPOauthHasValidTokensRequest struct {
+	// Preserve hostless credential and account selection.
+	Sessionless *bool `json:"sessionless,omitempty"`
+	// Static client identity required for refresh, when configured.
+	StaticClientConfig *MCPOauthFlowStaticClientConfig `json:"staticClientConfig,omitempty"`
+	// Credential owner. Omission uses the authoritative session store.
+	Store MCPOauthFlowStore `json:"store,omitempty"`
+	// Runtime OAuth credential key.
+	StoreKey string `json:"storeKey"`
+}
+
+// Whether the credential operation succeeded.
+// Experimental: SessionMCPOauthHasValidTokensResult is part of an experimental API and may
+// change or be removed.
+type SessionMCPOauthHasValidTokensResult bool
+
+// Correlation identity reserved before an effectful authentication request.
+// Experimental: SessionMCPOauthPrepareFlowRequest is part of an experimental API and may
+// change or be removed.
+// Internal: SessionMCPOauthPrepareFlowRequest is an internal SDK API and is not part of the
+// public surface.
+type SessionMCPOauthPrepareFlowRequest struct {
+	// Host-chosen identity, unique within this session requester.
+	FlowID string `json:"flowId"`
+}
+
+// Experimental: SessionMCPOauthPrepareFlowResult is part of an experimental API and may
+// change or be removed.
+type SessionMCPOauthPrepareFlowResult struct {
 }
 
 // Effect-free preparation bound to the existing local session, requester and installation,
@@ -22416,6 +23601,142 @@ type SessionMCPOauthPrepareLoginResult struct {
 	// Retain with the original requester and use for one login or cancellation.
 	LoginID string `json:"loginId"`
 }
+
+// Persist a confidential client's static secret without exposing token-store CRUD.
+// Experimental: SessionMCPOauthSaveStaticClientSecretRequest is part of an experimental API
+// and may change or be removed.
+// Internal: SessionMCPOauthSaveStaticClientSecretRequest is an internal SDK API and is not
+// part of the public surface.
+type SessionMCPOauthSaveStaticClientSecretRequest struct {
+	// Secret to persist in the selected credential owner.
+	Secret string `json:"secret"`
+	// Preserve hostless credential and account selection.
+	Sessionless *bool `json:"sessionless,omitempty"`
+	// Credential owner. Omission uses the authoritative session store.
+	Store MCPOauthFlowStore `json:"store,omitempty"`
+	// Runtime OAuth credential key.
+	StoreKey string `json:"storeKey"`
+}
+
+// Experimental: SessionMCPOauthSaveStaticClientSecretResult is part of an experimental API
+// and may change or be removed.
+type SessionMCPOauthSaveStaticClientSecretResult struct {
+}
+
+// Derive a credential key through the selected account and store owner.
+// Experimental: SessionMCPOauthStoreKeyRequest is part of an experimental API and may
+// change or be removed.
+// Internal: SessionMCPOauthStoreKeyRequest is an internal SDK API and is not part of the
+// public surface.
+type SessionMCPOauthStoreKeyRequest struct {
+	// Static OAuth client identity, when configured.
+	ClientID *string `json:"clientId,omitempty"`
+	// Metadata document identity when no static client is configured.
+	ClientIDMetadataURL *string `json:"clientIdMetadataUrl,omitempty"`
+	// MCP endpoint whose credentials the key identifies.
+	ServerURL string `json:"serverUrl"`
+	// Preserve hostless credential and account selection.
+	Sessionless *bool `json:"sessionless,omitempty"`
+	// Credential owner. Omission uses the authoritative session store.
+	Store MCPOauthFlowStore `json:"store,omitempty"`
+}
+
+// The selected owner's OAuth credential key.
+// Experimental: SessionMCPOauthStoreKeyResult is part of an experimental API and may change
+// or be removed.
+type SessionMCPOauthStoreKeyResult string
+
+// Tokenless initialize handshake for a possibly unsaved remote MCP server.
+// Experimental: SessionMCPOauthTestConnectionRequest is part of an experimental API and may
+// change or be removed.
+// Internal: SessionMCPOauthTestConnectionRequest is an internal SDK API and is not part of
+// the public surface.
+type SessionMCPOauthTestConnectionRequest struct {
+	// Headers sent during the handshake.
+	Headers map[string]string `json:"headers,omitzero"`
+	// Proxy fallback when no session egress entry exists.
+	SandboxProxy *string `json:"sandboxProxy,omitempty"`
+	// Transport. Omission selects Streamable HTTP.
+	Type *MCPOauthTestConnectionTransport `json:"type,omitempty"`
+	// Remote endpoint to initialize without an OAuth token.
+	URL string `json:"url"`
+}
+
+// Outcome of the tokenless handshake, with the original challenge when available.
+// Experimental: SessionMCPOauthTestConnectionResult is part of an experimental API and may
+// change or be removed.
+type SessionMCPOauthTestConnectionResult interface {
+	sessionMCPOauthTestConnectionResult()
+	Status() SessionMCPOauthTestConnectionResultStatus
+}
+
+type RawSessionMCPOauthTestConnectionResultData struct {
+	Discriminator SessionMCPOauthTestConnectionResultStatus
+	Raw           json.RawMessage
+}
+
+func (RawSessionMCPOauthTestConnectionResultData) sessionMCPOauthTestConnectionResult() {}
+func (r RawSessionMCPOauthTestConnectionResultData) Status() SessionMCPOauthTestConnectionResultStatus {
+	return r.Discriminator
+}
+
+// The server accepted an unauthenticated initialize request.
+type SessionMCPOauthTestConnectionResultConnected struct {
+}
+
+func (SessionMCPOauthTestConnectionResultConnected) sessionMCPOauthTestConnectionResult() {}
+func (SessionMCPOauthTestConnectionResultConnected) Status() SessionMCPOauthTestConnectionResultStatus {
+	return SessionMCPOauthTestConnectionResultStatusConnected
+}
+
+// The handshake failed for a reason other than authentication.
+type SessionMCPOauthTestConnectionResultFailed struct {
+	// Transport or session policy failure detail.
+	Error string `json:"error"`
+}
+
+func (SessionMCPOauthTestConnectionResultFailed) sessionMCPOauthTestConnectionResult() {}
+func (SessionMCPOauthTestConnectionResultFailed) Status() SessionMCPOauthTestConnectionResultStatus {
+	return SessionMCPOauthTestConnectionResultStatusFailed
+}
+
+// The server refused the initialize request with an authentication challenge.
+type SessionMCPOauthTestConnectionResultNeedsAuth struct {
+	// The transport's authentication error message.
+	Error string `json:"error"`
+	// Exact refusing HTTP response, when the transport captured it.
+	HTTPResponse *MCPOauthHTTPResponse `json:"httpResponse,omitempty"`
+	// Raw WWW-Authenticate header, when the refusing response supplies one.
+	WwwAuthenticateHeader *string `json:"wwwAuthenticateHeader,omitempty"`
+	// Parsed challenge parameters from the refusing HTTP response.
+	WwwAuthenticateParams *MCPOauthWwwAuthenticateParams `json:"wwwAuthenticateParams,omitempty"`
+}
+
+func (SessionMCPOauthTestConnectionResultNeedsAuth) sessionMCPOauthTestConnectionResult() {}
+func (SessionMCPOauthTestConnectionResultNeedsAuth) Status() SessionMCPOauthTestConnectionResultStatus {
+	return SessionMCPOauthTestConnectionResultStatusNeedsAuth
+}
+
+// A narrow token-validity query against the chosen credential owner.
+// Experimental: SessionMCPOauthTryRefreshTokensRequest is part of an experimental API and
+// may change or be removed.
+// Internal: SessionMCPOauthTryRefreshTokensRequest is an internal SDK API and is not part
+// of the public surface.
+type SessionMCPOauthTryRefreshTokensRequest struct {
+	// Preserve hostless credential and account selection.
+	Sessionless *bool `json:"sessionless,omitempty"`
+	// Static client identity required for refresh, when configured.
+	StaticClientConfig *MCPOauthFlowStaticClientConfig `json:"staticClientConfig,omitempty"`
+	// Credential owner. Omission uses the authoritative session store.
+	Store MCPOauthFlowStore `json:"store,omitempty"`
+	// Runtime OAuth credential key.
+	StoreKey string `json:"storeKey"`
+}
+
+// Whether the credential operation succeeded.
+// Experimental: SessionMCPOauthTryRefreshTokensResult is part of an experimental API and
+// may change or be removed.
+type SessionMCPOauthTryRefreshTokensResult bool
 
 // Experimental: SessionMCPRegisterExternalClientResult is part of an experimental API and
 // may change or be removed.
@@ -22605,6 +23926,10 @@ type SessionOpenOptions struct {
 	// Whether to include instructions from every MCP server in the system prompt instead of
 	// only allowlisted servers.
 	AllowAllMCPServerInstructions *bool `json:"allowAllMcpServerInstructions,omitempty"`
+	// Whether the model may request multiple tool calls per response. Defaults to true. False
+	// sends a provider hint, not an execution guarantee: all returned calls are still handled
+	// and handlers may run concurrently. Re-supply on cold resume.
+	AllowMultipleToolCalls *bool `json:"allowMultipleToolCalls,omitempty"`
 	// Whether ask_user is explicitly disabled.
 	AskUserDisabled *bool `json:"askUserDisabled,omitempty"`
 	// OAuth Client ID Metadata Document URL used by this host for MCP authorization.
@@ -23107,6 +24432,22 @@ type SessionPlanDeleteResult struct {
 // Experimental: SessionPlanUpdateResult is part of an experimental API and may change or be
 // removed.
 type SessionPlanUpdateResult struct {
+}
+
+// Soft plugin defaults for this session, without persistent user preferences or hard policy.
+// Experimental: SessionPluginDefaults is part of an experimental API and may change or be
+// removed.
+type SessionPluginDefaults struct {
+	// Plugin specs mapped to soft enablement defaults. Managed defaultEnabled assignments
+	// override Team defaults for the same spec.
+	DefaultEnabledPlugins map[string]bool `json:"defaultEnabledPlugins"`
+	// Team marketplace definitions available only as best-effort installation fallbacks.
+	ExtraKnownMarketplaces map[string]TeamPluginMarketplace `json:"extraKnownMarketplaces"`
+	// Opaque revision of the defaults, assignment reasons, and Team marketplaces.
+	Generation string `json:"generation"`
+	// Team-only defaults for hosts that retain activation inputs. Managed assignments are read
+	// live by the runtime resolver and must not be retained as Team defaults.
+	TeamDefaultEnabledPlugins map[string]bool `json:"teamDefaultEnabledPlugins"`
 }
 
 // Plugin names (or specs) to disable in the session's authoritative working directory.
@@ -23761,6 +25102,18 @@ type SessionSettingsValidationSnapshot struct {
 }
 
 // UUID prefix to resolve to a unique session ID.
+// Experimental: SessionsFindByPrefixOptions is part of an experimental API and may change
+// or be removed.
+type SessionsFindByPrefixOptions struct {
+	// Configuration directory containing the session state. Omitted to use the server's
+	// configured home.
+	ConfigDir *string `json:"configDir,omitempty"`
+	// UUID prefix (>=7 hex chars, <36 chars). Returns the unique session ID, or undefined when
+	// there is no match or the prefix matches multiple sessions.
+	Prefix string `json:"prefix"`
+}
+
+// UUID prefix to resolve to a unique session ID.
 // Experimental: SessionsFindByPrefixRequest is part of an experimental API and may change
 // or be removed.
 type SessionsFindByPrefixRequest struct {
@@ -24204,6 +25557,17 @@ type SessionTelemetryEngagement struct {
 // Experimental: SessionTelemetrySetFeatureOverridesResult is part of an experimental API
 // and may change or be removed.
 type SessionTelemetrySetFeatureOverridesResult struct {
+}
+
+// Experimental: SessionUIRegisterDirectAutoModeSwitchHandlerRequest is part of an
+// experimental API and may change or be removed.
+type SessionUIRegisterDirectAutoModeSwitchHandlerRequest struct {
+	// Opt into active-request Auto recovery before starting a turn. Attach the handler
+	// separately, show the failure reason, and return the user's choice for the originating
+	// live session. Require a positive acknowledgment in the registration result. Dismiss
+	// offers on auto_mode_recovery_consent.completed and on session resume or disconnect.
+	// Omitted or false preserves legacy rate-limit switching.
+	AutoModeRecovery *bool `json:"autoModeRecovery,omitempty"`
 }
 
 // Patch of mutable session options to apply to the running session.
@@ -26702,6 +28066,23 @@ type TasksUpdateResult struct {
 type TasksWaitForPendingResult struct {
 }
 
+// A Team marketplace fallback. Explicit marketplace configuration takes precedence.
+// Experimental: TeamPluginMarketplace is part of an experimental API and may change or be
+// removed.
+type TeamPluginMarketplace struct {
+	// Validated GitHub repository source for the marketplace.
+	Source TeamPluginMarketplaceSource `json:"source"`
+}
+
+// Experimental: TeamPluginMarketplaceSource is part of an experimental API and may change
+// or be removed.
+type TeamPluginMarketplaceSource struct {
+	// GitHub repository in owner/name form.
+	Repo string `json:"repo"`
+	// Marketplace source discriminator. Currently only github is supported.
+	Source TeamPluginMarketplaceSourceSource `json:"source"`
+}
+
 // Feature override key/value pairs to attach to subsequent telemetry events from this
 // session.
 // Experimental: TelemetrySetFeatureOverridesRequest is part of an experimental API and may
@@ -27360,13 +28741,41 @@ type UIHandlePendingUserInputRequest struct {
 	Response UIUserInputResponse `json:"response"`
 }
 
-// Register an in-process handler for `auto_mode_switch.requested` events. The caller still
-// attaches the actual listener via the standard event-subscription mechanism; this
-// registration solely tells the server bridge to skip its own dispatch (so a remote client
-// doesn't race the in-process handler for the same requestId).
+type UIRegisterDirectAutoModeSwitchHandlerRequest struct {
+	// Opt into active-request Auto recovery before starting a turn. Attach the handler
+	// separately, show the failure reason, and return the user's choice for the originating
+	// live session. Require a positive acknowledgment in the registration result. Dismiss
+	// offers on auto_mode_recovery_consent.completed and on session resume or disconnect.
+	// Omitted or false preserves legacy rate-limit switching.
+	AutoModeRecovery *bool `json:"autoModeRecovery,omitempty"`
+}
+
+// Registers an in-process Auto-switch responder and suppresses server-bridge dispatch to
+// avoid competing responders for the same requestId. When requested, also enrolls the
+// responder for active-request Auto recovery and acknowledges support. Attach the actual
+// listener separately through standard event subscriptions before starting a turn, and
+// release the handle when the responder is removed.
 // Experimental: UIRegisterDirectAutoModeSwitchHandlerResult is part of an experimental API
 // and may change or be removed.
 type UIRegisterDirectAutoModeSwitchHandlerResult struct {
+	// Opaque handle representing the registration. Pass this same handle to
+	// `unregisterDirectAutoModeSwitchHandler` when the in-process handler is no longer active.
+	// Multiple registrations are reference-counted; the server bridge will only dispatch
+	// auto-mode-switch requests when no handles are active.
+	Handle string `json:"handle"`
+}
+
+// Registers an in-process Auto-switch responder and suppresses server-bridge dispatch to
+// avoid competing responders for the same requestId. When requested, also enrolls the
+// responder for active-request Auto recovery and acknowledges support. Attach the actual
+// listener separately through standard event subscriptions before starting a turn, and
+// release the handle when the responder is removed.
+// Experimental: UIRegisterDirectAutoModeSwitchHandlerResultWithAutoModeRecovery is part of
+// an experimental API and may change or be removed.
+type UIRegisterDirectAutoModeSwitchHandlerResultWithAutoModeRecovery struct {
+	// Positive acknowledgment of recovery-aware enrollment. Absence on an older runtime means
+	// recovery is unsupported.
+	AutoModeRecovery *bool `json:"autoModeRecovery,omitempty"`
 	// Opaque handle representing the registration. Pass this same handle to
 	// `unregisterDirectAutoModeSwitchHandler` when the in-process handler is no longer active.
 	// Multiple registrations are reference-counted; the server bridge will only dispatch
@@ -28283,6 +29692,27 @@ type UserSettingsWriteAllRequest struct {
 // Experimental: UserSettingsWriteAllResult is part of an experimental API and may change or
 // be removed.
 type UserSettingsWriteAllResult struct {
+}
+
+// A raw top-level setting edit with explicit read-failure behavior.
+// Experimental: UserSettingsWriteKeyRequest is part of an experimental API and may change
+// or be removed.
+type UserSettingsWriteKeyRequest struct {
+	// Optional host paths and environment. Omit to use the server's settings home.
+	Context *UserSettingsHostContext `json:"context,omitempty"`
+	// Remove the key instead of writing it. Defaults to false.
+	Delete *bool `json:"delete,omitempty"`
+	// The top-level setting to write without canonicalizing legacy siblings.
+	Key string `json:"key"`
+	// Refuse to replace an unreadable or invalid file. Defaults to false.
+	RefuseOnReadFailure *bool `json:"refuseOnReadFailure,omitempty"`
+	// The value to store. Explicit null is retained. Pass null when deleting.
+	Value *any `json:"value"`
+}
+
+// Experimental: UserSettingsWriteKeyResult is part of an experimental API and may change or
+// be removed.
+type UserSettingsWriteKeyResult struct {
 }
 
 // The approval to add as a session-scoped rule
@@ -31458,6 +32888,67 @@ const (
 	DebugCollectLogsSourceShellLog DebugCollectLogsSource = "shell-log"
 )
 
+// Kind discriminator for DecisionAnswer.
+// Experimental: DecisionAnswerKind is part of an experimental API and may change or be
+// removed.
+type DecisionAnswerKind string
+
+const (
+	DecisionAnswerKindBoolean DecisionAnswerKind = "boolean"
+	DecisionAnswerKindChoice  DecisionAnswerKind = "choice"
+	DecisionAnswerKindRefused DecisionAnswerKind = "refused"
+	DecisionAnswerKindScore   DecisionAnswerKind = "score"
+)
+
+// Kind discriminator for DecisionContext.
+// Experimental: DecisionContextKind is part of an experimental API and may change or be
+// removed.
+type DecisionContextKind string
+
+const (
+	DecisionContextKindJSON DecisionContextKind = "json"
+	DecisionContextKindText DecisionContextKind = "text"
+)
+
+// Why a decisions request failed.
+// Experimental: DecisionErrorKind is part of an experimental API and may change or be
+// removed.
+type DecisionErrorKind string
+
+const (
+	// The request is malformed or breaks a limit other than size.
+	DecisionErrorKindInvalidRequest DecisionErrorKind = "invalidRequest"
+	// No usable decision model: unknown id, not entitled, or rejected by the backend.
+	DecisionErrorKindNoModel DecisionErrorKind = "noModel"
+	// The decisions feature is disabled for this runtime.
+	DecisionErrorKindNotEnabled DecisionErrorKind = "notEnabled"
+	// Too many decisions requests are already running or waiting on this connection.
+	DecisionErrorKindOverloaded DecisionErrorKind = "overloaded"
+	// The backend is rate limiting this account.
+	DecisionErrorKindRateLimited DecisionErrorKind = "rateLimited"
+	// The deadline passed.
+	DecisionErrorKindTimeout DecisionErrorKind = "timeout"
+	// The request is over a size limit.
+	DecisionErrorKindTooLarge DecisionErrorKind = "tooLarge"
+	// No account, or the backend rejected its credential.
+	DecisionErrorKindUnauthenticated DecisionErrorKind = "unauthenticated"
+	// The backend could not be reached or failed.
+	DecisionErrorKindUnavailable DecisionErrorKind = "unavailable"
+	// The backend answered with something that breaks the answer rules.
+	DecisionErrorKindUpstreamProtocol DecisionErrorKind = "upstreamProtocol"
+)
+
+// Kind discriminator for DecisionQuestion.
+// Experimental: DecisionQuestionKind is part of an experimental API and may change or be
+// removed.
+type DecisionQuestionKind string
+
+const (
+	DecisionQuestionKindBoolean DecisionQuestionKind = "boolean"
+	DecisionQuestionKindChoice  DecisionQuestionKind = "choice"
+	DecisionQuestionKindScore   DecisionQuestionKind = "score"
+)
+
 // Whether the supplied diagnostic cursor remained within the retained buffer window.
 // Experimental: DiagnosticCursorStatus is part of an experimental API and may change or be
 // removed.
@@ -32336,32 +33827,6 @@ const (
 	InstructionSourceTypeVscode InstructionSourceType = "vscode"
 )
 
-// Selects whether Kerberos credentials come from native lookup with a client fallback, or
-// only from the client.
-// Experimental: KerberosAuthMode is part of an experimental API and may change or be
-// removed.
-type KerberosAuthMode string
-
-const (
-	// Always use the callback without native credential lookup.
-	KerberosAuthModeAlways KerberosAuthMode = "always"
-	// Use the callback only when native credential lookup fails.
-	KerberosAuthModeFallback KerberosAuthMode = "fallback"
-)
-
-// Selects which traffic a client's Kerberos callback authenticates.
-// Experimental: KerberosAuthScope is part of an experimental API and may change or be
-// removed.
-type KerberosAuthScope string
-
-const (
-	// Authenticate only requests made for this connection's sessions.
-	KerberosAuthScopeConnection KerberosAuthScope = "connection"
-	// Also authenticate the runtime's shared background traffic. Only one connection at a time
-	// may claim this scope.
-	KerberosAuthScopeRuntime KerberosAuthScope = "runtime"
-)
-
 // Transport the runtime would otherwise use for this request. `http` (the default when
 // absent) covers plain HTTP and SSE responses; `websocket` indicates a full-duplex message
 // channel where each body chunk maps to one WebSocket message and the `binary` flag
@@ -32928,6 +34393,16 @@ const (
 	MCPInstallationStateRecoveryRequired MCPInstallationState = "recovery-required"
 )
 
+// Kind discriminator for MCPOauthFlowStore.
+type MCPOauthFlowStoreKind string
+
+const (
+	MCPOauthFlowStoreKindCallback   MCPOauthFlowStoreKind = "callback"
+	MCPOauthFlowStoreKindMemory     MCPOauthFlowStoreKind = "memory"
+	MCPOauthFlowStoreKindPersistent MCPOauthFlowStoreKind = "persistent"
+	MCPOauthFlowStoreKindSession    MCPOauthFlowStoreKind = "session"
+)
+
 // OAuth grant type override for this login.
 // Experimental: MCPOauthLoginGrantType is part of an experimental API and may change or be
 // removed.
@@ -32975,6 +34450,27 @@ const (
 	MCPOauthProbeResultStatusFailed         MCPOauthProbeResultStatus = "failed"
 	MCPOauthProbeResultStatusNeedsAuth      MCPOauthProbeResultStatus = "needs-auth"
 	MCPOauthProbeResultStatusNoAuthRequired MCPOauthProbeResultStatus = "no-auth-required"
+)
+
+// Status discriminator for MCPOauthTestConnectionResult.
+type MCPOauthTestConnectionResultStatus string
+
+const (
+	MCPOauthTestConnectionResultStatusConnected MCPOauthTestConnectionResultStatus = "connected"
+	MCPOauthTestConnectionResultStatusFailed    MCPOauthTestConnectionResultStatus = "failed"
+	MCPOauthTestConnectionResultStatusNeedsAuth MCPOauthTestConnectionResultStatus = "needs-auth"
+)
+
+// Remote protocol selected for the tokenless handshake.
+// Experimental: MCPOauthTestConnectionTransport is part of an experimental API and may
+// change or be removed.
+type MCPOauthTestConnectionTransport string
+
+const (
+	// Streamable HTTP.
+	MCPOauthTestConnectionTransportHTTP MCPOauthTestConnectionTransport = "http"
+	// Legacy HTTP with server-sent events.
+	MCPOauthTestConnectionTransportSSE MCPOauthTestConnectionTransport = "sse"
 )
 
 // Outcome of starting the original prepared owned login.
@@ -33639,6 +35135,18 @@ const (
 	// this request may have cancelled an earlier unclaimed preference reported in
 	// `supersededAutoTier`.
 	ModelSwitchAutoTierStatusUnchanged ModelSwitchAutoTierStatus = "unchanged"
+)
+
+// Selects which traffic a client's network callbacks serve.
+// Experimental: NetworkScope is part of an experimental API and may change or be removed.
+type NetworkScope string
+
+const (
+	// Serve only requests made for this connection and its sessions.
+	NetworkScopeConnection NetworkScope = "connection"
+	// Also serve the runtime's shared background traffic. Only one connection at a time may
+	// claim this scope.
+	NetworkScopeRuntime NetworkScope = "runtime"
 )
 
 // Why the binary data is absent: it exceeded the inline size limit, or its asset was
@@ -34990,6 +36498,15 @@ const (
 	SessionManagementScopeInProcess SessionManagementScope = "in-process"
 )
 
+// Status discriminator for SessionMCPOauthTestConnectionResult.
+type SessionMCPOauthTestConnectionResultStatus string
+
+const (
+	SessionMCPOauthTestConnectionResultStatusConnected SessionMCPOauthTestConnectionResultStatus = "connected"
+	SessionMCPOauthTestConnectionResultStatusFailed    SessionMCPOauthTestConnectionResultStatus = "failed"
+	SessionMCPOauthTestConnectionResultStatusNeedsAuth SessionMCPOauthTestConnectionResultStatus = "needs-auth"
+)
+
 // The session mode the agent is operating in
 // Experimental: SessionMode is part of an experimental API and may change or be removed.
 type SessionMode string
@@ -35882,6 +37399,13 @@ const (
 	TaskStatusIdle TaskStatus = "idle"
 	// The task is actively executing.
 	TaskStatusRunning TaskStatus = "running"
+)
+
+// Marketplace source discriminator. Currently only github is supported.
+type TeamPluginMarketplaceSourceSource string
+
+const (
+	TeamPluginMarketplaceSourceSourceGitHub TeamPluginMarketplaceSourceSource = "github"
 )
 
 // Unit the catalog publishes a model's token prices in. The numeric fields of
@@ -36920,6 +38444,32 @@ func (a *ServerContentExclusionAPI) ValidatePolicies(ctx context.Context, params
 	return &result, nil
 }
 
+// Experimental: ServerDecisionsAPI contains experimental APIs that may change or be removed.
+type ServerDecisionsAPI serverAPI
+
+// Asks a decision model yes/no, pick-one, or rating questions about shared context and
+// returns normalized probabilities. Sessionless, so a host can classify or route a request
+// before any session exists. Requires the `DECISIONS_API` feature flag. A failed request is
+// a JSON-RPC error whose `data` is a `DecisionErrorData`.
+//
+// RPC method: decisions.ask.
+//
+// Parameters: One request to a decision model: shared context plus the questions to answer
+// about it.
+//
+// Returns: The decision model's answers.
+func (a *ServerDecisionsAPI) Ask(ctx context.Context, params *DecisionsAskRequest) (*DecisionsAskResult, error) {
+	raw, err := a.client.Request(ctx, "decisions.ask", params)
+	if err != nil {
+		return nil, err
+	}
+	var result DecisionsAskResult
+	if err := json.Unmarshal(raw, &result); err != nil {
+		return nil, err
+	}
+	return &result, nil
+}
+
 // Experimental: ServerEnvironmentsAPI contains experimental APIs that may change or be
 // removed.
 type ServerEnvironmentsAPI serverAPI
@@ -37248,30 +38798,6 @@ func (a *ServerInstructionsAPI) GetDiscoveryPaths(ctx context.Context, params *I
 	return &result, nil
 }
 
-// Experimental: ServerKerberosAuthAPI contains experimental APIs that may change or be
-// removed.
-type ServerKerberosAuthAPI serverAPI
-
-// SetProvider registers the calling SDK client's Kerberos callback. The callback
-// authenticates requests made for the client's sessions and, with `runtime` scope, the
-// runtime's shared background traffic; only one connection may hold `runtime` scope. The
-// registration ends when the connection closes.
-//
-// RPC method: kerberosAuth.setProvider.
-//
-// Parameters: Registers the calling SDK connection's Kerberos credential provider.
-func (a *ServerKerberosAuthAPI) SetProvider(ctx context.Context, params *KerberosAuthSetProviderRequest) (*KerberosAuthSetProviderResult, error) {
-	raw, err := a.client.Request(ctx, "kerberosAuth.setProvider", params)
-	if err != nil {
-		return nil, err
-	}
-	var result KerberosAuthSetProviderResult
-	if err := json.Unmarshal(raw, &result); err != nil {
-		return nil, err
-	}
-	return &result, nil
-}
-
 // Experimental: ServerLlmInferenceAPI contains experimental APIs that may change or be
 // removed.
 type ServerLlmInferenceAPI serverAPI
@@ -37331,6 +38857,29 @@ func (a *ServerLlmInferenceAPI) SetProvider(ctx context.Context) (*LlmInferenceS
 		return nil, err
 	}
 	var result LlmInferenceSetProviderResult
+	if err := json.Unmarshal(raw, &result); err != nil {
+		return nil, err
+	}
+	return &result, nil
+}
+
+// Experimental: ServerLspAPI contains experimental APIs that may change or be removed.
+type ServerLspAPI serverAPI
+
+// List reads the process-wide language-server inventory for a working directory without
+// starting servers. Uses the host configuration home and persisted workspace trust.
+//
+// RPC method: lsp.list.
+//
+// Parameters: Parameters for a process-wide, read-only language-server inventory.
+//
+// Returns: Runtime-owned configuration inventory and configuration diagnostics.
+func (a *ServerLspAPI) List(ctx context.Context, params *LspGlobalConfigurationRequest) (*LspListResult, error) {
+	raw, err := a.client.Request(ctx, "lsp.list", params)
+	if err != nil {
+		return nil, err
+	}
+	var result LspListResult
 	if err := json.Unmarshal(raw, &result); err != nil {
 		return nil, err
 	}
@@ -37955,6 +39504,36 @@ func (a *ServerModelsAPI) ListTokenPriceUnits(ctx context.Context, params ...*Mo
 		return nil, err
 	}
 	var result ModelTokenPriceUnitList
+	if err := json.Unmarshal(raw, &result); err != nil {
+		return nil, err
+	}
+	return &result, nil
+}
+
+// Experimental: ServerNetworkAPI contains experimental APIs that may change or be removed.
+type ServerNetworkAPI serverAPI
+
+// SetProvider registers the calling SDK client's network callbacks, replacing any previous
+// registration. With `resolveProxy`, the client decides the proxies for every request the
+// runtime would otherwise route by ambient proxy settings (proxy environment variables,
+// `NO_PROXY` and operating-system settings), or leaves a request to that routing; requests
+// with an explicitly configured proxy and loopback targets never consult it. With
+// `authenticateNegotiate`, the client supplies the Kerberos tokens for Negotiate proxy
+// challenges instead of native credential lookup. The callbacks serve requests made for the
+// client's sessions and, with `runtime` scope, the runtime's shared traffic, which includes
+// background requests and remote MCP server connections; only one connection may hold
+// `runtime` scope. The registration ends when the connection closes.
+//
+// RPC method: network.setProvider.
+//
+// Parameters: Registers the calling SDK connection's network callbacks, replacing any
+// previous registration.
+func (a *ServerNetworkAPI) SetProvider(ctx context.Context, params *NetworkSetProviderRequest) (*NetworkSetProviderResult, error) {
+	raw, err := a.client.Request(ctx, "network.setProvider", params)
+	if err != nil {
+		return nil, err
+	}
+	var result NetworkSetProviderResult
 	if err := json.Unmarshal(raw, &result); err != nil {
 		return nil, err
 	}
@@ -38645,7 +40224,25 @@ func (a *ServerSessionsAPI) EnrichMetadata(ctx context.Context, params *Sessions
 // Parameters: UUID prefix to resolve to a unique session ID.
 //
 // Returns: Session ID matching the prefix, omitted when no unique match exists.
+// Use FindByPrefixWithOptions to set additional optional inputs.
 func (a *ServerSessionsAPI) FindByPrefix(ctx context.Context, params *SessionsFindByPrefixRequest) (*SessionsFindByPrefixResult, error) {
+	var options *SessionsFindByPrefixOptions
+	if params != nil {
+		options = &SessionsFindByPrefixOptions{}
+		options.Prefix = params.Prefix
+	}
+	return a.FindByPrefixWithOptions(ctx, options)
+}
+
+// FindByPrefixWithOptions resolves a UUID prefix to a unique session ID, if exactly one
+// session matches.
+//
+// RPC method: sessions.findByPrefix.
+//
+// Parameters: UUID prefix to resolve to a unique session ID.
+//
+// Returns: Session ID matching the prefix, omitted when no unique match exists.
+func (a *ServerSessionsAPI) FindByPrefixWithOptions(ctx context.Context, params *SessionsFindByPrefixOptions) (*SessionsFindByPrefixResult, error) {
 	raw, err := a.client.Request(ctx, "sessions.findByPrefix", params)
 	if err != nil {
 		return nil, err
@@ -39462,16 +41059,18 @@ type ServerRPC struct {
 	Commands         *ServerCommandsAPI
 	Connectors       *ServerConnectorsAPI
 	ContentExclusion *ServerContentExclusionAPI
+	Decisions        *ServerDecisionsAPI
 	Environments     *ServerEnvironmentsAPI
 	Extensions       *ServerExtensionsAPI
 	Hooks            *ServerHooksAPI
 	Host             *ServerHostAPI
 	Instructions     *ServerInstructionsAPI
-	KerberosAuth     *ServerKerberosAuthAPI
 	LlmInference     *ServerLlmInferenceAPI
+	Lsp              *ServerLspAPI
 	ManagedSettings  *ServerManagedSettingsAPI
 	MCP              *ServerMCPAPI
 	Models           *ServerModelsAPI
+	Network          *ServerNetworkAPI
 	Plugins          *ServerPluginsAPI
 	Runtime          *ServerRuntimeAPI
 	Sandbox          *ServerSandboxAPI
@@ -39534,16 +41133,18 @@ func NewServerRPC(client *jsonrpc2.Client) *ServerRPC {
 	r.Commands = (*ServerCommandsAPI)(&r.common)
 	r.Connectors = (*ServerConnectorsAPI)(&r.common)
 	r.ContentExclusion = (*ServerContentExclusionAPI)(&r.common)
+	r.Decisions = (*ServerDecisionsAPI)(&r.common)
 	r.Environments = (*ServerEnvironmentsAPI)(&r.common)
 	r.Extensions = (*ServerExtensionsAPI)(&r.common)
 	r.Hooks = (*ServerHooksAPI)(&r.common)
 	r.Host = (*ServerHostAPI)(&r.common)
 	r.Instructions = (*ServerInstructionsAPI)(&r.common)
-	r.KerberosAuth = (*ServerKerberosAuthAPI)(&r.common)
 	r.LlmInference = (*ServerLlmInferenceAPI)(&r.common)
+	r.Lsp = (*ServerLspAPI)(&r.common)
 	r.ManagedSettings = (*ServerManagedSettingsAPI)(&r.common)
 	r.MCP = (*ServerMCPAPI)(&r.common)
 	r.Models = (*ServerModelsAPI)(&r.common)
+	r.Network = (*ServerNetworkAPI)(&r.common)
 	r.Plugins = (*ServerPluginsAPI)(&r.common)
 	r.Runtime = (*ServerRuntimeAPI)(&r.common)
 	r.Sandbox = (*ServerSandboxAPI)(&r.common)
@@ -43596,6 +45197,30 @@ func (a *InternalServerUserSettingsAPI) WriteAll(ctx context.Context, params *Us
 	return &result, nil
 }
 
+// WriteKey writes or removes one raw user setting under the settings transaction and file
+// locks. Preserves unrelated keys and legacy spellings, and records explicit mutations so
+// startup cleanup cannot delete the user's choice. Unlike applyTopKey, this operation does
+// not validate or canonicalize settings. Invalid or unreadable files are replaced by
+// default, matching the existing raw writer; set refuseOnReadFailure=true to reject
+// instead. Deletion requires delete=true; otherwise value must be present.
+//
+// RPC method: user.settings.writeKey.
+//
+// Parameters: A raw top-level setting edit with explicit read-failure behavior.
+// Internal: WriteKey is part of the SDK's internal handshake/plumbing; external callers
+// should not use it.
+func (a *InternalServerUserSettingsAPI) WriteKey(ctx context.Context, params *UserSettingsWriteKeyRequest) (*UserSettingsWriteKeyResult, error) {
+	raw, err := a.client.Request(ctx, "user.settings.writeKey", params)
+	if err != nil {
+		return nil, err
+	}
+	var result UserSettingsWriteKeyResult
+	if err := json.Unmarshal(raw, &result); err != nil {
+		return nil, err
+	}
+	return &result, nil
+}
+
 // Experimental: Settings returns experimental APIs that may change or be removed.
 func (s *InternalServerUserAPI) Settings() *InternalServerUserSettingsAPI {
 	return (*InternalServerUserSettingsAPI)(s)
@@ -45548,6 +47173,30 @@ func (a *LimitPredictionAPI) Predict(ctx context.Context, params ...*SessionLimi
 // Experimental: LspAPI contains experimental APIs that may change or be removed.
 type LspAPI sessionAPI
 
+// Diagnose probes one configured language-server process under the session's effective LSP
+// sandbox policy, then terminates the probe process.
+//
+// RPC method: session.lsp.diagnose.
+//
+// Parameters: A server selected for a startup probe.
+//
+// Returns: Result of a language-server startup probe.
+func (a *LspAPI) Diagnose(ctx context.Context, params *SessionLspDiagnoseRequest) (*SessionLspDiagnoseResult, error) {
+	req := map[string]any{"sessionId": a.sessionID}
+	if params != nil {
+		req["serverId"] = params.ServerID
+	}
+	raw, err := a.client.Request(ctx, "session.lsp.diagnose", req)
+	if err != nil {
+		return nil, err
+	}
+	var result SessionLspDiagnoseResult
+	if err := json.Unmarshal(raw, &result); err != nil {
+		return nil, err
+	}
+	return &result, nil
+}
+
 // Initialize loads the merged LSP configuration set for the session's working directory.
 //
 // RPC method: session.lsp.initialize.
@@ -45571,6 +47220,110 @@ func (a *LspAPI) Initialize(ctx context.Context, params *LspInitializeRequest) (
 		return nil, err
 	}
 	var result SessionLspInitializeResult
+	if err := json.Unmarshal(raw, &result); err != nil {
+		return nil, err
+	}
+	return &result, nil
+}
+
+// List reads language-server configuration and diagnostics using the session's settings and
+// active plugins. Explicit force reloads the files from disk.
+//
+// RPC method: session.lsp.list.
+//
+// Parameters: Parameters for (re)loading the merged LSP configuration set.
+//
+// Returns: Runtime-owned configuration inventory and configuration diagnostics.
+func (a *LspAPI) List(ctx context.Context, params *LspInitializeRequest) (*SessionLspListResult, error) {
+	req := map[string]any{"sessionId": a.sessionID}
+	if params != nil {
+		if params.Force != nil {
+			req["force"] = *params.Force
+		}
+		if params.GitRoot != nil {
+			req["gitRoot"] = *params.GitRoot
+		}
+		if params.WorkingDirectory != nil {
+			req["workingDirectory"] = *params.WorkingDirectory
+		}
+	}
+	raw, err := a.client.Request(ctx, "session.lsp.list", req)
+	if err != nil {
+		return nil, err
+	}
+	var result SessionLspListResult
+	if err := json.Unmarshal(raw, &result); err != nil {
+		return nil, err
+	}
+	return &result, nil
+}
+
+// Set persists a user-level language-server enable override in the session's configuration
+// home. Reload configuration to apply it.
+//
+// RPC method: session.lsp.set.
+//
+// Parameters: A persistent user-level server toggle.
+func (a *LspAPI) Set(ctx context.Context, params *SessionLspSetRequest) (*SessionLspSetResult, error) {
+	req := map[string]any{"sessionId": a.sessionID}
+	if params != nil {
+		req["enabled"] = params.Enabled
+		req["serverId"] = params.ServerID
+	}
+	raw, err := a.client.Request(ctx, "session.lsp.set", req)
+	if err != nil {
+		return nil, err
+	}
+	var result SessionLspSetResult
+	if err := json.Unmarshal(raw, &result); err != nil {
+		return nil, err
+	}
+	return &result, nil
+}
+
+// Start initializes and retains configured language servers under the session's effective
+// LSP sandbox policy. The runtime owns client leases, callbacks, and process lifetime.
+//
+// RPC method: session.lsp.start.
+//
+// Parameters: Parameters for (re)loading the merged LSP configuration set.
+//
+// Returns: The servers retained by the session after warmup.
+func (a *LspAPI) Start(ctx context.Context, params *LspInitializeRequest) (*SessionLspStartResult, error) {
+	req := map[string]any{"sessionId": a.sessionID}
+	if params != nil {
+		if params.Force != nil {
+			req["force"] = *params.Force
+		}
+		if params.GitRoot != nil {
+			req["gitRoot"] = *params.GitRoot
+		}
+		if params.WorkingDirectory != nil {
+			req["workingDirectory"] = *params.WorkingDirectory
+		}
+	}
+	raw, err := a.client.Request(ctx, "session.lsp.start", req)
+	if err != nil {
+		return nil, err
+	}
+	var result SessionLspStartResult
+	if err := json.Unmarshal(raw, &result); err != nil {
+		return nil, err
+	}
+	return &result, nil
+}
+
+// Stops the session's language-server clients without changing another session or the
+// process-wide inventory.
+//
+// RPC method: session.lsp.stop.
+func (a *LspAPI) Stop(ctx context.Context) (*SessionLspStopResult, error) {
+	req := map[string]any{"sessionId": a.sessionID}
+	raw, err := a.client.Request(ctx, "session.lsp.stop", req)
+	if err != nil {
+		return nil, err
+	}
+	var result SessionLspStopResult
 	if err := json.Unmarshal(raw, &result); err != nil {
 		return nil, err
 	}
@@ -47239,8 +48992,9 @@ func (a *ModelAPI) SetAllowedModels(ctx context.Context, params *ModelSetAllowed
 // Parameters: Reasoning effort level to apply to the currently selected model.
 //
 // Returns: Update the session's reasoning effort without changing the selected model. Use
-// `switchTo` instead when you also need to change the model. The runtime stores the effort
-// on the session and applies it to subsequent turns.
+// `switchTo` instead when you also need to change the model. The runtime applies the effort
+// to the next new model request, including tool continuations, without changing retries of
+// an already-started request.
 func (a *ModelAPI) SetReasoningEffort(ctx context.Context, params *ModelSetReasoningEffortRequest) (*ModelSetReasoningEffortResult, error) {
 	req := map[string]any{"sessionId": a.sessionID}
 	if params != nil {
@@ -47251,6 +49005,35 @@ func (a *ModelAPI) SetReasoningEffort(ctx context.Context, params *ModelSetReaso
 		return nil, err
 	}
 	var result ModelSetReasoningEffortResult
+	if err := json.Unmarshal(raw, &result); err != nil {
+		return nil, err
+	}
+	return &result, nil
+}
+
+// StartupAdmission reads the session's cached startup model state without fetching a
+// catalog or resolving credentials. An interactive host can claim the one-time enablement
+// prompt after applying its startup configuration. Claims remain shared with the owning
+// host and are scoped to this session's lifetime.
+//
+// RPC method: session.model.startupAdmission.
+//
+// Parameters: Options for a host's startup model admission check.
+//
+// Returns: A cached startup model snapshot and an optional one-time enablement prompt. This
+// check never resolves credentials or fetches a catalog.
+func (a *ModelAPI) StartupAdmission(ctx context.Context, params *ModelStartupAdmissionRequest) (*ModelStartupAdmissionResult, error) {
+	req := map[string]any{"sessionId": a.sessionID}
+	if params != nil {
+		if params.ClaimEnablement != nil {
+			req["claimEnablement"] = *params.ClaimEnablement
+		}
+	}
+	raw, err := a.client.Request(ctx, "session.model.startupAdmission", req)
+	if err != nil {
+		return nil, err
+	}
+	var result ModelStartupAdmissionResult
 	if err := json.Unmarshal(raw, &result); err != nil {
 		return nil, err
 	}
@@ -48417,6 +50200,26 @@ func (a *PluginsAPI) Enable(ctx context.Context, params *SessionPluginsEnableReq
 		return nil, err
 	}
 	var result SessionPluginsEnableResult
+	if err := json.Unmarshal(raw, &result); err != nil {
+		return nil, err
+	}
+	return &result, nil
+}
+
+// GetDefaults reads Team and managed soft plugin defaults for the live session. Does not
+// install plugins or persist user preferences.
+//
+// RPC method: session.plugins.getDefaults.
+//
+// Returns: Soft plugin defaults for this session, without persistent user preferences or
+// hard policy.
+func (a *PluginsAPI) GetDefaults(ctx context.Context) (*SessionPluginDefaults, error) {
+	req := map[string]any{"sessionId": a.sessionID}
+	raw, err := a.client.Request(ctx, "session.plugins.getDefaults", req)
+	if err != nil {
+		return nil, err
+	}
+	var result SessionPluginDefaults
 	if err := json.Unmarshal(raw, &result); err != nil {
 		return nil, err
 	}
@@ -50710,15 +52513,16 @@ func (a *UIAPI) HandlePendingUserInput(ctx context.Context, params *UIHandlePend
 	return &result, nil
 }
 
-// RegisterDirectAutoModeSwitchHandler registers an in-process handler for auto-mode-switch
-// requests so the server bridge skips dispatch.
+// RegisterDirectAutoModeSwitchHandler registers an in-process handler for legacy
+// auto-mode-switch requests so the server bridge skips dispatch.
 //
 // RPC method: session.ui.registerDirectAutoModeSwitchHandler.
 //
-// Returns: Register an in-process handler for `auto_mode_switch.requested` events. The
-// caller still attaches the actual listener via the standard event-subscription mechanism;
-// this registration solely tells the server bridge to skip its own dispatch (so a remote
-// client doesn't race the in-process handler for the same requestId).
+// Returns: Registers an in-process Auto-switch responder and suppresses server-bridge
+// dispatch to avoid competing responders for the same requestId. When requested, also
+// enrolls the responder for active-request Auto recovery and acknowledges support. Attach
+// the actual listener separately through standard event subscriptions before starting a
+// turn, and release the handle when the responder is removed.
 func (a *UIAPI) RegisterDirectAutoModeSwitchHandler(ctx context.Context) (*UIRegisterDirectAutoModeSwitchHandlerResult, error) {
 	req := map[string]any{"sessionId": a.sessionID}
 	raw, err := a.client.Request(ctx, "session.ui.registerDirectAutoModeSwitchHandler", req)
@@ -50726,6 +52530,35 @@ func (a *UIAPI) RegisterDirectAutoModeSwitchHandler(ctx context.Context) (*UIReg
 		return nil, err
 	}
 	var result UIRegisterDirectAutoModeSwitchHandlerResult
+	if err := json.Unmarshal(raw, &result); err != nil {
+		return nil, err
+	}
+	return &result, nil
+}
+
+// RegisterDirectAutoModeSwitchHandlerWithAutoModeRecovery registers an in-process handler
+// for auto-mode-switch requests so the server bridge skips dispatch. Set `autoModeRecovery`
+// to also handle Auto recovery consent offers.
+//
+// RPC method: session.ui.registerDirectAutoModeSwitchHandler.
+//
+// Returns: Registers an in-process Auto-switch responder and suppresses server-bridge
+// dispatch to avoid competing responders for the same requestId. When requested, also
+// enrolls the responder for active-request Auto recovery and acknowledges support. Attach
+// the actual listener separately through standard event subscriptions before starting a
+// turn, and release the handle when the responder is removed.
+func (a *UIAPI) RegisterDirectAutoModeSwitchHandlerWithAutoModeRecovery(ctx context.Context, params *SessionUIRegisterDirectAutoModeSwitchHandlerRequest) (*UIRegisterDirectAutoModeSwitchHandlerResultWithAutoModeRecovery, error) {
+	req := map[string]any{"sessionId": a.sessionID}
+	if params != nil {
+		if params.AutoModeRecovery != nil {
+			req["autoModeRecovery"] = *params.AutoModeRecovery
+		}
+	}
+	raw, err := a.client.Request(ctx, "session.ui.registerDirectAutoModeSwitchHandler", req)
+	if err != nil {
+		return nil, err
+	}
+	var result UIRegisterDirectAutoModeSwitchHandlerResultWithAutoModeRecovery
 	if err := json.Unmarshal(raw, &result); err != nil {
 		return nil, err
 	}
@@ -51818,6 +53651,9 @@ func (a *SessionRPC) Send(ctx context.Context, params *SendRequest) (*SendResult
 		if params.Billable != nil {
 			req["billable"] = *params.Billable
 		}
+		if params.ClientTurnID != nil {
+			req["clientTurnId"] = *params.ClientTurnID
+		}
 		if params.DisplayPrompt != nil {
 			req["displayPrompt"] = *params.DisplayPrompt
 		}
@@ -51881,6 +53717,9 @@ func (a *SessionRPC) SendMessages(ctx context.Context, params *SendMessagesReque
 	if params != nil {
 		if params.AgentMode != nil {
 			req["agentMode"] = *params.AgentMode
+		}
+		if params.ClientTurnID != nil {
+			req["clientTurnId"] = *params.ClientTurnID
 		}
 		req["messages"] = params.Messages
 		if params.Mode != nil {
@@ -52682,6 +54521,347 @@ func (a *InternalMCPAPI) UnregisterExternalClient(ctx context.Context, params *M
 	return &result, nil
 }
 
+// Experimental: InternalMCPOauthAPI contains experimental APIs that may change or be
+// removed.
+type InternalMCPOauthAPI internalSessionAPI
+
+// Authenticates an arbitrary MCP URL through the original session credential owner, with
+// correlated host progress and authorization callbacks.
+//
+// RPC method: session.mcp.oauth.authenticate.
+//
+// Parameters: Full host-driven authentication for an arbitrary, possibly unsaved, MCP URL.
+//
+// Returns: Token projection for the existing host-delegated provider.
+// Internal: Authenticate is part of the SDK's internal handshake/plumbing; external callers
+// should not use it.
+func (a *InternalMCPOauthAPI) Authenticate(ctx context.Context, params *SessionMCPOauthAuthenticateRequest) (*SessionMCPOauthAuthenticateResult, error) {
+	req := map[string]any{"sessionId": a.sessionID}
+	if params != nil {
+		if params.AuthorizationTimeoutMs != nil {
+			req["authorizationTimeoutMs"] = *params.AuthorizationTimeoutMs
+		}
+		if params.Browserless != nil {
+			req["browserless"] = *params.Browserless
+		}
+		if params.CallbackSuccessMessage != nil {
+			req["callbackSuccessMessage"] = *params.CallbackSuccessMessage
+		}
+		if params.ClientIDMetadataURL != nil {
+			req["clientIdMetadataUrl"] = *params.ClientIDMetadataURL
+		}
+		if params.ClientName != nil {
+			req["clientName"] = *params.ClientName
+		}
+		if params.DeviceCodeOfferTimeoutMs != nil {
+			req["deviceCodeOfferTimeoutMs"] = *params.DeviceCodeOfferTimeoutMs
+		}
+		if params.DeviceCodePollIntervalMs != nil {
+			req["deviceCodePollIntervalMs"] = *params.DeviceCodePollIntervalMs
+		}
+		req["flowId"] = params.FlowID
+		if params.ForceDeviceCode != nil {
+			req["forceDeviceCode"] = *params.ForceDeviceCode
+		}
+		if params.ForceReauth != nil {
+			req["forceReauth"] = *params.ForceReauth
+		}
+		if params.IncludeExistingTokenScopes != nil {
+			req["includeExistingTokenScopes"] = *params.IncludeExistingTokenScopes
+		}
+		if params.PreservePendingFlowReplacementFlags != nil {
+			req["preservePendingFlowReplacementFlags"] = *params.PreservePendingFlowReplacementFlags
+		}
+		if params.RedirectPort != nil {
+			req["redirectPort"] = *params.RedirectPort
+		}
+		if params.ResourceMetadata != nil {
+			req["resourceMetadata"] = *params.ResourceMetadata
+		}
+		if params.SandboxProxy != nil {
+			req["sandboxProxy"] = *params.SandboxProxy
+		}
+		req["serverUrl"] = params.ServerURL
+		if params.Sessionless != nil {
+			req["sessionless"] = *params.Sessionless
+		}
+		if params.SkipBrowserOpen != nil {
+			req["skipBrowserOpen"] = *params.SkipBrowserOpen
+		}
+		if params.SkipCachedAccessToken != nil {
+			req["skipCachedAccessToken"] = *params.SkipCachedAccessToken
+		}
+		if params.StaticClientConfig != nil {
+			req["staticClientConfig"] = *params.StaticClientConfig
+		}
+		if params.Store != nil {
+			req["store"] = params.Store
+		}
+		if params.WwwAuthenticateParams != nil {
+			req["wwwAuthenticateParams"] = *params.WwwAuthenticateParams
+		}
+	}
+	raw, err := a.client.Request(ctx, "session.mcp.oauth.authenticate", req)
+	if err != nil {
+		return nil, err
+	}
+	var result SessionMCPOauthAuthenticateResult
+	if err := json.Unmarshal(raw, &result); err != nil {
+		return nil, err
+	}
+	return &result, nil
+}
+
+// CancelFlow cancels an exact host-driven OAuth flow on its original session requester.
+//
+// RPC method: session.mcp.oauth.cancelFlow.
+//
+// Parameters: Correlation identity reserved before an effectful authentication request.
+// Internal: CancelFlow is part of the SDK's internal handshake/plumbing; external callers
+// should not use it.
+func (a *InternalMCPOauthAPI) CancelFlow(ctx context.Context, params *SessionMCPOauthCancelFlowRequest) (*SessionMCPOauthCancelFlowResult, error) {
+	req := map[string]any{"sessionId": a.sessionID}
+	if params != nil {
+		req["flowId"] = params.FlowID
+	}
+	raw, err := a.client.Request(ctx, "session.mcp.oauth.cancelFlow", req)
+	if err != nil {
+		return nil, err
+	}
+	var result SessionMCPOauthCancelFlowResult
+	if err := json.Unmarshal(raw, &result); err != nil {
+		return nil, err
+	}
+	return &result, nil
+}
+
+// DisposeStore releases an explicit host-owned MCP OAuth store on its original session
+// requester.
+//
+// RPC method: session.mcp.oauth.disposeStore.
+//
+// Parameters: Dispose an explicit host store without altering the session authorizer's
+// owner.
+// Internal: DisposeStore is part of the SDK's internal handshake/plumbing; external callers
+// should not use it.
+func (a *InternalMCPOauthAPI) DisposeStore(ctx context.Context, params *SessionMCPOauthDisposeStoreRequest) (*SessionMCPOauthDisposeStoreResult, error) {
+	req := map[string]any{"sessionId": a.sessionID}
+	if params != nil {
+		req["storeId"] = params.StoreID
+	}
+	raw, err := a.client.Request(ctx, "session.mcp.oauth.disposeStore", req)
+	if err != nil {
+		return nil, err
+	}
+	var result SessionMCPOauthDisposeStoreResult
+	if err := json.Unmarshal(raw, &result); err != nil {
+		return nil, err
+	}
+	return &result, nil
+}
+
+// HasValidTokens checks whether the selected MCP credential owner has a valid access token.
+//
+// RPC method: session.mcp.oauth.hasValidTokens.
+//
+// Parameters: A narrow token-validity query against the chosen credential owner.
+//
+// Returns: Whether the credential operation succeeded.
+// Internal: HasValidTokens is part of the SDK's internal handshake/plumbing; external
+// callers should not use it.
+func (a *InternalMCPOauthAPI) HasValidTokens(ctx context.Context, params *SessionMCPOauthHasValidTokensRequest) (*SessionMCPOauthHasValidTokensResult, error) {
+	req := map[string]any{"sessionId": a.sessionID}
+	if params != nil {
+		if params.Sessionless != nil {
+			req["sessionless"] = *params.Sessionless
+		}
+		if params.StaticClientConfig != nil {
+			req["staticClientConfig"] = *params.StaticClientConfig
+		}
+		if params.Store != nil {
+			req["store"] = params.Store
+		}
+		req["storeKey"] = params.StoreKey
+	}
+	raw, err := a.client.Request(ctx, "session.mcp.oauth.hasValidTokens", req)
+	if err != nil {
+		return nil, err
+	}
+	var result SessionMCPOauthHasValidTokensResult
+	if err := json.Unmarshal(raw, &result); err != nil {
+		return nil, err
+	}
+	return &result, nil
+}
+
+// PrepareFlow reserves a host-driven OAuth flow identity before authentication or
+// cancellation.
+//
+// RPC method: session.mcp.oauth.prepareFlow.
+//
+// Parameters: Correlation identity reserved before an effectful authentication request.
+// Internal: PrepareFlow is part of the SDK's internal handshake/plumbing; external callers
+// should not use it.
+func (a *InternalMCPOauthAPI) PrepareFlow(ctx context.Context, params *SessionMCPOauthPrepareFlowRequest) (*SessionMCPOauthPrepareFlowResult, error) {
+	req := map[string]any{"sessionId": a.sessionID}
+	if params != nil {
+		req["flowId"] = params.FlowID
+	}
+	raw, err := a.client.Request(ctx, "session.mcp.oauth.prepareFlow", req)
+	if err != nil {
+		return nil, err
+	}
+	var result SessionMCPOauthPrepareFlowResult
+	if err := json.Unmarshal(raw, &result); err != nil {
+		return nil, err
+	}
+	return &result, nil
+}
+
+// SaveStaticClientSecret stores a confidential MCP client's static secret in its selected
+// credential owner.
+//
+// RPC method: session.mcp.oauth.saveStaticClientSecret.
+//
+// Parameters: Persist a confidential client's static secret without exposing token-store
+// CRUD.
+// Internal: SaveStaticClientSecret is part of the SDK's internal handshake/plumbing;
+// external callers should not use it.
+func (a *InternalMCPOauthAPI) SaveStaticClientSecret(ctx context.Context, params *SessionMCPOauthSaveStaticClientSecretRequest) (*SessionMCPOauthSaveStaticClientSecretResult, error) {
+	req := map[string]any{"sessionId": a.sessionID}
+	if params != nil {
+		req["secret"] = params.Secret
+		if params.Sessionless != nil {
+			req["sessionless"] = *params.Sessionless
+		}
+		if params.Store != nil {
+			req["store"] = params.Store
+		}
+		req["storeKey"] = params.StoreKey
+	}
+	raw, err := a.client.Request(ctx, "session.mcp.oauth.saveStaticClientSecret", req)
+	if err != nil {
+		return nil, err
+	}
+	var result SessionMCPOauthSaveStaticClientSecretResult
+	if err := json.Unmarshal(raw, &result); err != nil {
+		return nil, err
+	}
+	return &result, nil
+}
+
+// StoreKey derives an MCP credential key through the selected session account and store
+// owner.
+//
+// RPC method: session.mcp.oauth.storeKey.
+//
+// Parameters: Derive a credential key through the selected account and store owner.
+//
+// Returns: The selected owner's OAuth credential key.
+// Internal: StoreKey is part of the SDK's internal handshake/plumbing; external callers
+// should not use it.
+func (a *InternalMCPOauthAPI) StoreKey(ctx context.Context, params *SessionMCPOauthStoreKeyRequest) (*SessionMCPOauthStoreKeyResult, error) {
+	req := map[string]any{"sessionId": a.sessionID}
+	if params != nil {
+		if params.ClientID != nil {
+			req["clientId"] = *params.ClientID
+		}
+		if params.ClientIDMetadataURL != nil {
+			req["clientIdMetadataUrl"] = *params.ClientIDMetadataURL
+		}
+		req["serverUrl"] = params.ServerURL
+		if params.Sessionless != nil {
+			req["sessionless"] = *params.Sessionless
+		}
+		if params.Store != nil {
+			req["store"] = params.Store
+		}
+	}
+	raw, err := a.client.Request(ctx, "session.mcp.oauth.storeKey", req)
+	if err != nil {
+		return nil, err
+	}
+	var result SessionMCPOauthStoreKeyResult
+	if err := json.Unmarshal(raw, &result); err != nil {
+		return nil, err
+	}
+	return &result, nil
+}
+
+// TestConnection completes a tokenless initialize handshake for an unsaved remote MCP URL,
+// preserving session egress and the refusing authentication challenge.
+//
+// RPC method: session.mcp.oauth.testConnection.
+//
+// Parameters: Tokenless initialize handshake for a possibly unsaved remote MCP server.
+//
+// Returns: Outcome of the tokenless handshake, with the original challenge when available.
+// Internal: TestConnection is part of the SDK's internal handshake/plumbing; external
+// callers should not use it.
+func (a *InternalMCPOauthAPI) TestConnection(ctx context.Context, params *SessionMCPOauthTestConnectionRequest) (SessionMCPOauthTestConnectionResult, error) {
+	req := map[string]any{"sessionId": a.sessionID}
+	if params != nil {
+		if params.Headers != nil {
+			req["headers"] = params.Headers
+		}
+		if params.SandboxProxy != nil {
+			req["sandboxProxy"] = *params.SandboxProxy
+		}
+		if params.Type != nil {
+			req["type"] = *params.Type
+		}
+		req["url"] = params.URL
+	}
+	raw, err := a.client.Request(ctx, "session.mcp.oauth.testConnection", req)
+	if err != nil {
+		return nil, err
+	}
+	result, err := unmarshalSessionMCPOauthTestConnectionResult(raw)
+	if err != nil {
+		return nil, err
+	}
+	return result, nil
+}
+
+// TryRefreshTokens attempts silent MCP token refresh without opening a browser.
+//
+// RPC method: session.mcp.oauth.tryRefreshTokens.
+//
+// Parameters: A narrow token-validity query against the chosen credential owner.
+//
+// Returns: Whether the credential operation succeeded.
+// Internal: TryRefreshTokens is part of the SDK's internal handshake/plumbing; external
+// callers should not use it.
+func (a *InternalMCPOauthAPI) TryRefreshTokens(ctx context.Context, params *SessionMCPOauthTryRefreshTokensRequest) (*SessionMCPOauthTryRefreshTokensResult, error) {
+	req := map[string]any{"sessionId": a.sessionID}
+	if params != nil {
+		if params.Sessionless != nil {
+			req["sessionless"] = *params.Sessionless
+		}
+		if params.StaticClientConfig != nil {
+			req["staticClientConfig"] = *params.StaticClientConfig
+		}
+		if params.Store != nil {
+			req["store"] = params.Store
+		}
+		req["storeKey"] = params.StoreKey
+	}
+	raw, err := a.client.Request(ctx, "session.mcp.oauth.tryRefreshTokens", req)
+	if err != nil {
+		return nil, err
+	}
+	var result SessionMCPOauthTryRefreshTokensResult
+	if err := json.Unmarshal(raw, &result); err != nil {
+		return nil, err
+	}
+	return &result, nil
+}
+
+// Experimental: Oauth returns experimental APIs that may change or be removed.
+func (s *InternalMCPAPI) Oauth() *InternalMCPOauthAPI {
+	return (*InternalMCPOauthAPI)(s)
+}
+
 // Experimental: InternalModelAPI contains experimental APIs that may change or be removed.
 type InternalModelAPI internalSessionAPI
 
@@ -53475,6 +55655,9 @@ func (a *InternalSessionRPC) SendAndWait(ctx context.Context, params *SendReques
 		}
 		if params.Billable != nil {
 			req["billable"] = *params.Billable
+		}
+		if params.ClientTurnID != nil {
+			req["clientTurnId"] = *params.ClientTurnID
 		}
 		if params.DisplayPrompt != nil {
 			req["displayPrompt"] = *params.DisplayPrompt
@@ -54434,22 +56617,6 @@ type InstallationsHandler interface {
 	Confirm(request *InstallationConfirmationRequest) (*InstallationsConfirmResult, error)
 }
 
-// Experimental: KerberosAuthHandler contains experimental APIs that may change or be
-// removed.
-type KerberosAuthHandler interface {
-	// Acquire requests a fresh base64 initial SPNEGO token for a Kerberos service principal;
-	// the runtime currently uses it for proxy authentication. Tokens must not be logged,
-	// persisted or reused across connections. Continuation challenges are not supported by this
-	// callback.
-	//
-	// RPC method: kerberosAuth.acquire.
-	//
-	// Parameters: Requests a fresh initial SPNEGO token for a Kerberos service principal.
-	//
-	// Returns: Client credentials for a single authentication exchange.
-	Acquire(request *KerberosAuthAcquireRequest) (*KerberosAuthAcquireResult, error)
-}
-
 // Experimental: LlmInferenceHandler contains experimental APIs that may change or be
 // removed.
 type LlmInferenceHandler interface {
@@ -54481,6 +56648,32 @@ type LlmInferenceHandler interface {
 	HttpRequestStart(request *LlmInferenceHTTPRequestStartRequest) (*LlmInferenceHTTPRequestStartResult, error)
 }
 
+// Experimental: NetworkHandler contains experimental APIs that may change or be removed.
+type NetworkHandler interface {
+	// AuthenticateNegotiate requests a fresh base64 initial SPNEGO token for a Kerberos service
+	// principal; the runtime uses it to answer Negotiate proxy challenges. Tokens must not be
+	// logged, persisted or reused across connections. Continuation challenges are not supported
+	// by this callback.
+	//
+	// RPC method: network.authenticateNegotiate.
+	//
+	// Parameters: Requests a fresh initial SPNEGO token for a Kerberos service principal.
+	//
+	// Returns: Client credentials for a single Negotiate authentication exchange.
+	AuthenticateNegotiate(request *NetworkAuthenticateNegotiateRequest) (*NetworkAuthenticateNegotiateResult, error)
+	// ResolveProxy requests the proxies for a request target as a PAC-style proxy list, or no
+	// list to leave the request to the runtime's own proxy resolution. The runtime caches
+	// answers for a few seconds and fails the request, rather than connecting directly, when
+	// the callback fails.
+	//
+	// RPC method: network.resolveProxy.
+	//
+	// Parameters: Requests the proxies for a request target.
+	//
+	// Returns: Proxies for a request target, in the order to try them.
+	ResolveProxy(request *NetworkResolveProxyRequest) (*NetworkResolveProxyResult, error)
+}
+
 // Experimental: UIThreadHandler contains experimental APIs that may change or be removed.
 type UIThreadHandler interface {
 	// Run schedules a runtime-owned native action through an in-process SDK host's
@@ -54508,8 +56701,8 @@ type ClientGlobalAPIHandlers struct {
 	Hooks                   HooksHandler
 	Host                    HostHandler
 	Installations           InstallationsHandler
-	KerberosAuth            KerberosAuthHandler
 	LlmInference            LlmInferenceHandler
+	Network                 NetworkHandler
 	UIThread                UIThreadHandler
 }
 
@@ -54759,24 +56952,6 @@ func RegisterClientGlobalAPIHandlers(client *jsonrpc2.Client, handlers *ClientGl
 		}
 		return raw, nil
 	})
-	client.SetRequestHandler("kerberosAuth.acquire", func(params json.RawMessage) (json.RawMessage, *jsonrpc2.Error) {
-		var request KerberosAuthAcquireRequest
-		if err := json.Unmarshal(params, &request); err != nil {
-			return nil, &jsonrpc2.Error{Code: -32602, Message: fmt.Sprintf("Invalid params: %v", err)}
-		}
-		if handlers == nil || handlers.KerberosAuth == nil {
-			return nil, &jsonrpc2.Error{Code: -32603, Message: "No kerberosAuth client-global handler registered"}
-		}
-		result, err := handlers.KerberosAuth.Acquire(&request)
-		if err != nil {
-			return nil, clientGlobalHandlerError(err)
-		}
-		raw, err := json.Marshal(result)
-		if err != nil {
-			return nil, &jsonrpc2.Error{Code: -32603, Message: fmt.Sprintf("Failed to marshal response: %v", err)}
-		}
-		return raw, nil
-	})
 	client.SetRequestHandler("llmInference.httpRequestChunk", func(params json.RawMessage) (json.RawMessage, *jsonrpc2.Error) {
 		var request LlmInferenceHTTPRequestChunkRequest
 		if err := json.Unmarshal(params, &request); err != nil {
@@ -54804,6 +56979,42 @@ func RegisterClientGlobalAPIHandlers(client *jsonrpc2.Client, handlers *ClientGl
 			return nil, &jsonrpc2.Error{Code: -32603, Message: "No llmInference client-global handler registered"}
 		}
 		result, err := handlers.LlmInference.HttpRequestStart(&request)
+		if err != nil {
+			return nil, clientGlobalHandlerError(err)
+		}
+		raw, err := json.Marshal(result)
+		if err != nil {
+			return nil, &jsonrpc2.Error{Code: -32603, Message: fmt.Sprintf("Failed to marshal response: %v", err)}
+		}
+		return raw, nil
+	})
+	client.SetRequestHandler("network.authenticateNegotiate", func(params json.RawMessage) (json.RawMessage, *jsonrpc2.Error) {
+		var request NetworkAuthenticateNegotiateRequest
+		if err := json.Unmarshal(params, &request); err != nil {
+			return nil, &jsonrpc2.Error{Code: -32602, Message: fmt.Sprintf("Invalid params: %v", err)}
+		}
+		if handlers == nil || handlers.Network == nil {
+			return nil, &jsonrpc2.Error{Code: -32603, Message: "No network client-global handler registered"}
+		}
+		result, err := handlers.Network.AuthenticateNegotiate(&request)
+		if err != nil {
+			return nil, clientGlobalHandlerError(err)
+		}
+		raw, err := json.Marshal(result)
+		if err != nil {
+			return nil, &jsonrpc2.Error{Code: -32603, Message: fmt.Sprintf("Failed to marshal response: %v", err)}
+		}
+		return raw, nil
+	})
+	client.SetRequestHandler("network.resolveProxy", func(params json.RawMessage) (json.RawMessage, *jsonrpc2.Error) {
+		var request NetworkResolveProxyRequest
+		if err := json.Unmarshal(params, &request); err != nil {
+			return nil, &jsonrpc2.Error{Code: -32602, Message: fmt.Sprintf("Invalid params: %v", err)}
+		}
+		if handlers == nil || handlers.Network == nil {
+			return nil, &jsonrpc2.Error{Code: -32603, Message: "No network client-global handler registered"}
+		}
+		result, err := handlers.Network.ResolveProxy(&request)
 		if err != nil {
 			return nil, clientGlobalHandlerError(err)
 		}

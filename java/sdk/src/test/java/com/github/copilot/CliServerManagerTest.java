@@ -5,6 +5,7 @@
 package com.github.copilot;
 
 import static org.junit.jupiter.api.Assertions.*;
+import static org.junit.jupiter.api.Assumptions.assumeTrue;
 import static org.mockito.Mockito.*;
 
 import java.io.IOException;
@@ -29,6 +30,7 @@ import com.github.copilot.ffi.NativeRuntimeLoader;
 import com.github.copilot.rpc.CopilotClientMode;
 import com.github.copilot.rpc.CopilotClientOptions;
 import com.github.copilot.rpc.InternalTestOptions;
+import com.github.copilot.rpc.RuntimeConnection;
 import com.github.copilot.rpc.TelemetryConfig;
 
 /**
@@ -154,10 +156,25 @@ class CliServerManagerTest {
         assertEquals("http://example.com:3000", uri.toString());
     }
 
+    @ParameterizedTest
+    @ValueSource(strings = {"https://example.com:443", "HtTpS://example.com:443", "https://[::1]:9000",
+            "https://localhost:9000"})
+    void rejectHttpsUrlBeforeConnecting(String url) {
+        var legacy = assertThrows(IllegalArgumentException.class, () -> new CopilotClient(
+                new CopilotClientOptions().setCliUrl(url).setTcpConnectionToken("connection-secret")));
+        var connection = assertThrows(IllegalArgumentException.class, () -> new CopilotClient(new CopilotClientOptions()
+                .setConnection(RuntimeConnection.forUri(url).setConnectionToken("connection-secret"))));
+
+        String message = "HTTPS runtime connections are not supported: this transport uses plaintext TCP, not TLS";
+        assertEquals(message, legacy.getMessage());
+        assertEquals(message, connection.getMessage());
+    }
+
     @Test
-    void parseCliUrlWithHttpsPrefix() {
-        URI uri = CliServerManager.parseCliUrl("https://secure.host:443");
-        assertEquals("https://secure.host:443", uri.toString());
+    void parseCliUrlWithHostNamedHttps() {
+        URI uri = CliServerManager.parseCliUrl("https:9000");
+        assertEquals("https", uri.getHost());
+        assertEquals(9000, uri.getPort());
     }
 
     @Test
@@ -557,5 +574,16 @@ class CliServerManagerTest {
 
         var ex = assertThrows(IOException.class, () -> manager.startCliServer());
         assertNotNull(ex);
+    }
+
+    @Test
+    void mergeDescendantsEndsAProcessBeforeItsParent() {
+        var child = ProcessHandle.current();
+        var parent = child.parent();
+        assumeTrue(parent.isPresent(), "The test process has no parent");
+
+        // The parent was retained; the child first appears in a later snapshot.
+        assertEquals(List.of(child, parent.get()),
+                CliServerManager.mergeDescendants(List.of(parent.get()), List.of(child, parent.get())));
     }
 }

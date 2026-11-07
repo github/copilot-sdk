@@ -8,6 +8,7 @@
 package com.github.copilot.generated.rpc;
 
 import com.github.copilot.CopilotExperimental;
+import java.util.Objects;
 import java.util.concurrent.CompletableFuture;
 import javax.annotation.processing.Generated;
 
@@ -222,6 +223,21 @@ public final class SessionRpc {
     }
 
     /**
+     * Sends a user message to the session and returns its message ID.
+     * <p>
+     * Accepts the extensible request, including inputs added after the params record.
+     *
+     * @apiNote This method is experimental and may change in a future version.
+     * @since 1.0.0
+     */
+    @CopilotExperimental
+    public CompletableFuture<SessionSendResult> send(SessionSendRequest request) {
+        com.fasterxml.jackson.databind.node.ObjectNode _p = MAPPER.valueToTree(Objects.requireNonNull(request, "request"));
+        _p.put("sessionId", this.sessionId);
+        return caller.invoke("session.send", _p, SessionSendResult.class);
+    }
+
+    /**
      * Submits one message through normal admission and waits for its request-owned completion. Returns the exact root assistant event, or an explicit aborted/no-response outcome. Cancelling or timing out the wait does not abort agent work. Unsupported execution hosts reject the method before admitting the message.
      * <p>
      * Note: the {@code sessionId} field in the params record is overridden
@@ -238,6 +254,21 @@ public final class SessionRpc {
     }
 
     /**
+     * Submits one message through normal admission and waits for its request-owned completion. Returns the exact root assistant event, or an explicit aborted/no-response outcome. Cancelling or timing out the wait does not abort agent work. Unsupported execution hosts reject the method before admitting the message.
+     * <p>
+     * Accepts the extensible request, including inputs added after the params record.
+     *
+     * @apiNote This method is experimental and may change in a future version.
+     * @since 1.0.0
+     */
+    @CopilotExperimental
+    CompletableFuture<SendAndWaitResult> sendAndWait(SessionSendAndWaitRequest request) {
+        com.fasterxml.jackson.databind.node.ObjectNode _p = MAPPER.valueToTree(Objects.requireNonNull(request, "request"));
+        _p.put("sessionId", this.sessionId);
+        return caller.invoke("session.sendAndWait", _p, SendAndWaitResult.class);
+    }
+
+    /**
      * Sends zero or more user messages to the session in a single turn and returns their message IDs. All provided messages are appended to the conversation in order, then exactly one agent turn runs over the resulting history. When the list is empty, one turn runs over the existing history with no new user message. Remote-backed (Mission Control) sessions do not support this method and will return an error.
      * <p>
      * Note: the {@code sessionId} field in the params record is overridden
@@ -249,6 +280,21 @@ public final class SessionRpc {
     @CopilotExperimental
     public CompletableFuture<SessionSendMessagesResult> sendMessages(SessionSendMessagesParams params) {
         com.fasterxml.jackson.databind.node.ObjectNode _p = MAPPER.valueToTree(params);
+        _p.put("sessionId", this.sessionId);
+        return caller.invoke("session.sendMessages", _p, SessionSendMessagesResult.class);
+    }
+
+    /**
+     * Sends zero or more user messages to the session in a single turn and returns their message IDs. All provided messages are appended to the conversation in order, then exactly one agent turn runs over the resulting history. When the list is empty, one turn runs over the existing history with no new user message. Remote-backed (Mission Control) sessions do not support this method and will return an error.
+     * <p>
+     * Accepts the extensible request, including inputs added after the params record.
+     *
+     * @apiNote This method is experimental and may change in a future version.
+     * @since 1.0.0
+     */
+    @CopilotExperimental
+    public CompletableFuture<SessionSendMessagesResult> sendMessages(SessionSendMessagesRequest request) {
+        com.fasterxml.jackson.databind.node.ObjectNode _p = MAPPER.valueToTree(Objects.requireNonNull(request, "request"));
         _p.put("sessionId", this.sessionId);
         return caller.invoke("session.sendMessages", _p, SessionSendMessagesResult.class);
     }

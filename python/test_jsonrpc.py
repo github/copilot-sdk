@@ -62,6 +62,252 @@ class MockProcess:
 
 
 @pytest.mark.asyncio
+async def test_stop_fails_all_pending_requests_without_eof(monkeypatch):
+    read_fd, write_fd = os.pipe()
+    with os.fdopen(read_fd, "rb") as stdout, os.fdopen(write_fd, "wb") as writer:
+        process = MockProcess()
+        process.stdout = stdout
+        client = JsonRpcClient(process)
+        loop = asyncio.get_running_loop()
+        loop_errors = []
+        monkeypatch.setattr(loop, "call_exception_handler", loop_errors.append)
+        sent = asyncio.Queue()
+        callback_results = []
+        original_send = client._send_message
+
+        async def send(message):
+            await original_send(message)
+            sent.put_nowait(message)
+
+        monkeypatch.setattr(client, "_send_message", send)
+        client.start()
+        requests = [
+            asyncio.create_task(client.request(method, on_response_inline=callback_results.append))
+            for method in ("first", "second")
+        ]
+        try:
+            for _ in requests:
+                await asyncio.wait_for(sent.get(), timeout=5)
+            assert all(not request.done() for request in requests)
+
+            await client.stop()
+            await client.stop()
+            settled = asyncio.Event()
+            loop.call_soon(settled.set)
+            await settled.wait()
+
+            assert all(request.done() for request in requests), (
+                "Intentional stop left requests pending without transport EOF"
+            )
+            for request in requests:
+                with pytest.raises(ProcessExitedError):
+                    await request
+            assert client.pending_requests == {}
+            assert client._pending_inline_callbacks == {}
+            assert callback_results == []
+            assert loop_errors == []
+            with pytest.raises(ProcessExitedError):
+                await client.request("after-stop")
+            with pytest.raises(ProcessExitedError):
+                await client.notify("after-stop")
+            assert not writer.closed
+            assert process.poll() is None
+        finally:
+            for request in requests:
+                request.cancel()
+            await asyncio.gather(*requests, return_exceptions=True)
+            writer.close()
+            await client.stop()
+
+
+@pytest.mark.asyncio
+async def test_stop_does_not_wait_for_process_exit_diagnostics(monkeypatch):
+    loop = asyncio.get_running_loop()
+    progress = threading.Event()
+
+    def collect_error():
+        loop.call_soon_threadsafe(progress.set)
+        assert progress.wait(5), "stop blocked the event loop collecting process-exit diagnostics"
+        return "unexpected process exit"
+
+    process = MockProcess()
+    client = JsonRpcClient(process, process_exit_error=collect_error)
+    client._loop = loop
+    sent = asyncio.Event()
+
+    async def send(message):
+        sent.set()
+
+    monkeypatch.setattr(client, "_send_message", send)
+    request = asyncio.create_task(client.request("pending"))
+    try:
+        await asyncio.wait_for(sent.wait(), 5)
+        await client.stop()
+        await client.stop()
+
+        with pytest.raises(ProcessExitedError, match="JSON-RPC client stopped"):
+            await asyncio.wait_for(request, 5)
+        assert process.poll() is None
+        assert client.pending_requests == {}
+    finally:
+        progress.set()
+        request.cancel()
+        await asyncio.gather(request, return_exceptions=True)
+        await client.stop()
+
+
+@pytest.mark.asyncio
+async def test_client_stop_closes_transport_with_blocked_write():
+    loop = asyncio.get_running_loop()
+    entered = asyncio.Event()
+    release = threading.Event()
+    stopped = threading.Event()
+    timed_out = threading.Event()
+
+    class Output(io.BytesIO):
+        def flush(self):
+            loop.call_soon_threadsafe(entered.set)
+            release.wait()
+
+    class Process(MockProcess):
+        def terminate(self):
+            self.returncode = 0
+            release.set()
+
+    process = Process()
+    process.stdin = Output()
+    rpc = JsonRpcClient(process)
+    rpc._loop = loop
+    client = copilot.CopilotClient(connection=copilot.RuntimeConnection.for_uri("127.0.0.1:12345"))
+    client._client = rpc
+    client._process = process
+    client._state = "connected"
+    request = asyncio.create_task(rpc.request("pending"))
+
+    def unblock_stuck_stop():
+        # A loop-blocking stop cannot be bounded by asyncio.wait_for.
+        if not stopped.wait(5):
+            timed_out.set()
+            release.set()
+
+    watchdog = threading.Thread(target=unblock_stuck_stop)
+    try:
+        await asyncio.wait_for(entered.wait(), 5)
+        watchdog.start()
+        await client.stop()
+        stopped.set()
+        await asyncio.to_thread(watchdog.join)
+
+        assert not timed_out.is_set(), "stop waited for the writer before closing its transport"
+        assert process.poll() == 0
+        assert client._state == "disconnected"
+        with pytest.raises(ProcessExitedError):
+            await asyncio.wait_for(request, 5)
+        assert rpc.pending_requests == {}
+    finally:
+        stopped.set()
+        release.set()
+        if watchdog.ident is not None:
+            await asyncio.to_thread(watchdog.join)
+        request.cancel()
+        await asyncio.gather(request, return_exceptions=True)
+        await client.stop()
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("arrival", ["after-stop", "during-inline-callback"])
+async def test_stop_ignores_late_response_completion(monkeypatch, arrival):
+    client = JsonRpcClient(MockProcess())
+    loop = asyncio.get_running_loop()
+    client._loop = loop
+    loop_errors = []
+    monkeypatch.setattr(loop, "call_exception_handler", loop_errors.append)
+    sent = asyncio.Queue()
+    entered = asyncio.Event()
+    release = threading.Event()
+    callback_results = []
+
+    async def send(message):
+        sent.put_nowait(message)
+
+    def on_response(result):
+        callback_results.append(result)
+        if arrival == "during-inline-callback":
+            loop.call_soon_threadsafe(entered.set)
+            release.wait()
+
+    monkeypatch.setattr(client, "_send_message", send)
+    request = asyncio.create_task(client.request("pending", on_response_inline=on_response))
+    dispatch = None
+    try:
+        message = await asyncio.wait_for(sent.get(), 5)
+        response = {"id": message["id"], "result": {"ok": True}}
+        if arrival == "during-inline-callback":
+            dispatch = asyncio.create_task(asyncio.to_thread(client._handle_message, response))
+            await asyncio.wait_for(entered.wait(), 5)
+
+        await client.stop()
+        if dispatch is None:
+            client._handle_message(response)
+        else:
+            release.set()
+            await asyncio.wait_for(dispatch, 5)
+
+        with pytest.raises(ProcessExitedError):
+            await asyncio.wait_for(request, 5)
+        assert callback_results == ([{"ok": True}] if dispatch is not None else [])
+        assert loop_errors == []
+        assert client.pending_requests == {}
+        assert client._pending_inline_callbacks == {}
+    finally:
+        release.set()
+        if dispatch is not None:
+            await dispatch
+        request.cancel()
+        await asyncio.gather(request, return_exceptions=True)
+        await client.stop()
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("completion", ["response", "cancellation", "timeout"])
+async def test_stop_preserves_request_completion(monkeypatch, completion):
+    client = JsonRpcClient(MockProcess())
+    loop = asyncio.get_running_loop()
+    client._loop = loop
+    loop_errors = []
+    monkeypatch.setattr(loop, "call_exception_handler", loop_errors.append)
+    sent = asyncio.Queue()
+
+    async def send(message):
+        sent.put_nowait(message)
+
+    monkeypatch.setattr(client, "_send_message", send)
+    request = asyncio.create_task(
+        client.request("pending", timeout=0 if completion == "timeout" else None)
+    )
+    try:
+        message = await asyncio.wait_for(sent.get(), timeout=5)
+        if completion == "response":
+            client._handle_message({"id": message["id"], "result": {"ok": True}})
+        await client.stop()
+        if completion == "cancellation":
+            request.cancel()
+
+        if completion == "response":
+            assert await request == {"ok": True}
+        else:
+            expected = asyncio.CancelledError if completion == "cancellation" else TimeoutError
+            with pytest.raises(expected):
+                await request
+        assert client.pending_requests == {}
+        assert loop_errors == []
+    finally:
+        request.cancel()
+        await asyncio.gather(request, return_exceptions=True)
+        await client.stop()
+
+
+@pytest.mark.asyncio
 @pytest.mark.parametrize("error", ["not an object", 42, [], None, {"message": "readable"}])
 async def test_unreadable_error_fails_request_and_keeps_reading(error, monkeypatch):
     read_fd, write_fd = os.pipe()
@@ -464,7 +710,8 @@ async def test_process_exit_waits_for_stderr_reader():
     process = MockProcess()
     process.returncode = 1
     client = JsonRpcClient(process)
-    future = asyncio.get_running_loop().create_future()
+    client._loop = asyncio.get_running_loop()
+    future = client._loop.create_future()
     client.pending_requests["request-id"] = future
 
     def capture_stderr():
@@ -479,6 +726,10 @@ async def test_process_exit_waits_for_stderr_reader():
 
     with pytest.raises(ProcessExitedError, match=r"stderr: unsupported argument"):
         await asyncio.wait_for(future, timeout=1)
+
+    await client.stop()
+    with pytest.raises(ProcessExitedError, match=r"stderr: unsupported argument"):
+        await client.request("after-stop")
 
 
 class TestReadMessageWithLargePayloads:

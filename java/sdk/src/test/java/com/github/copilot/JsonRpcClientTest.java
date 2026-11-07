@@ -119,6 +119,45 @@ class JsonRpcClientTest {
     // ---- notify() ----
 
     @Test
+    void sessionCallbackScopeLastsUntilEveryReplyOrConnectionClose() throws Exception {
+        try (var pair = createSocketPair()) {
+            var first = new CompletableFuture<Void>();
+            var second = new CompletableFuture<Void>();
+            var third = new CompletableFuture<Void>();
+            pair.client.registerMethodHandler("fixture.callback", (id, params) -> {
+                switch (id) {
+                    case "101" -> first.complete(null);
+                    case "102" -> second.complete(null);
+                    case "103" -> third.complete(null);
+                    default -> fail("Unexpected callback ID: " + id);
+                }
+            });
+            for (int id : List.of(101, 102)) {
+                writeRpcMessage(pair.serverSide.getOutputStream(), "{\"jsonrpc\":\"2.0\",\"id\":" + id
+                        + ",\"method\":\"fixture.callback\",\"params\":{\"sessionId\":\"shared\"}}");
+            }
+            first.get(5, TimeUnit.SECONDS);
+            second.get(5, TimeUnit.SECONDS);
+            assertTrue(pair.client.hasSessionCallback("shared"));
+            assertFalse(pair.client.hasSessionCallback("unrelated"));
+
+            pair.client.sendResponse(101L, Map.of());
+            assertEquals(101, MAPPER.readTree(readRpcMessage(pair.serverSide.getInputStream())).path("id").asInt());
+            assertTrue(pair.client.hasSessionCallback("shared"));
+            pair.client.sendErrorResponse(102L, -32603, "controlled callback failure");
+            assertEquals(102, MAPPER.readTree(readRpcMessage(pair.serverSide.getInputStream())).path("id").asInt());
+            assertFalse(pair.client.hasSessionCallback("shared"));
+
+            writeRpcMessage(pair.serverSide.getOutputStream(),
+                    "{\"jsonrpc\":\"2.0\",\"id\":103,\"method\":\"fixture.callback\",\"params\":{\"sessionId\":\"shared\"}}");
+            third.get(5, TimeUnit.SECONDS);
+            assertTrue(pair.client.hasSessionCallback("shared"));
+            pair.client.close();
+            assertFalse(pair.client.hasSessionCallback("shared"));
+        }
+    }
+
+    @Test
     void testGeneratedProxyCaQueriesPreserveBooleanResponses() throws Exception {
         try (var pair = createSocketPair()) {
             var server = new ServerRpc(pair.client::invoke);
@@ -156,7 +195,7 @@ class JsonRpcClientTest {
     void testCredentialValuesAreRedactedOnlyFromDiagnosticRendering() throws Exception {
         String json = """
                 {"jsonrpc":"2.0","result":{"accessToken":"secret","nested":{"gitHubToken":"static"},
-                "kerberos":{"token":"spnego"}},"metadata":{"tokenType":"Bearer"}}
+                "negotiate":{"token":"spnego"}},"metadata":{"tokenType":"Bearer"}}
                 """;
 
         String rendered = JsonRpcClient.redactCredentialsForLogging(json);
@@ -166,7 +205,7 @@ class JsonRpcClientTest {
         assertFalse(rendered.contains("spnego"));
         assertEquals("<redacted>", MAPPER.readTree(rendered).at("/result/accessToken").asText());
         assertEquals("<redacted>", MAPPER.readTree(rendered).at("/result/nested/gitHubToken").asText());
-        assertEquals("<redacted>", MAPPER.readTree(rendered).at("/result/kerberos/token").asText());
+        assertEquals("<redacted>", MAPPER.readTree(rendered).at("/result/negotiate/token").asText());
         assertEquals("Bearer", MAPPER.readTree(rendered).at("/metadata/tokenType").asText());
     }
 

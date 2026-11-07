@@ -116,9 +116,8 @@ public class McpOAuthE2ETest {
     void testShouldSatisfyMcpOauthUsingHostProvidedToken() throws Exception {
         try (var oauthServer = OAuthMcpServer.start(ctx.getRepoRoot())) {
             var serverName = "oauth-protected-mcp";
-            var observedRequest = new java.util.concurrent.atomic.AtomicReference<com.github.copilot.rpc.McpAuthRequest>();
-            var observedInvocation = new java.util.concurrent.atomic.AtomicReference<McpAuthInvocation>();
-            var observedCapability = new AtomicReference<Boolean>();
+            var authHandler = new InitialMcpAuthHandler();
+            McpAuthObservation initialAuth;
             var statusObserver = new McpStatusObserver(serverName);
 
             try (var client = ctx.createClient();
@@ -126,28 +125,11 @@ public class McpOAuthE2ETest {
                             .setOnPermissionRequest(PermissionHandler.APPROVE_ALL).setOnEvent(statusObserver::onEvent)
                             .setDiagnostics(new DiagnosticsConfiguration(new DiagnosticSourcesConfiguration(
                                     new McpDiagnosticSourceConfiguration(DiagnosticLogLevel.DEBUG))))
-                            .setOnMcpAuthRequest(new McpAuthHandler() {
-                                @Override
-                                public java.util.concurrent.CompletableFuture<McpAuthResult> handle(
-                                        McpAuthRequest request, McpAuthInvocation invocation) {
-                                    observedRequest.set(request);
-                                    observedInvocation.set(invocation);
-                                    return java.util.concurrent.CompletableFuture.completedFuture(
-                                            McpAuthResult.token(new McpAuthToken(EXPECTED_TOKEN, "Bearer", 3600L)));
-                                }
-
-                                @Override
-                                public java.util.concurrent.CompletableFuture<McpAuthResponse> handleWithRuntimeRefresh(
-                                        McpAuthRequest request, McpAuthInvocation invocation, boolean supported) {
-                                    observedCapability.set(supported);
-                                    return McpAuthHandler.super.handleWithRuntimeRefresh(request, invocation,
-                                            supported);
-                                }
-                            }).setMcpServers(Map.of(serverName, new McpHttpServerConfig()
+                            .setOnMcpAuthRequest(authHandler).setMcpServers(Map.of(serverName, new McpHttpServerConfig()
                                     .setUrl(oauthServer.url() + "/mcp").setTools(List.of("*")))))
                             .get()) {
                 try {
-                    waitForMcpServerStatus(session, serverName, McpServerStatus.CONNECTED, observedRequest,
+                    waitForMcpServerStatus(session, serverName, McpServerStatus.CONNECTED, authHandler.observedRequest,
                             statusObserver);
                 } catch (AssertionError failure) {
                     try {
@@ -172,17 +154,18 @@ public class McpOAuthE2ETest {
                     }
                     throw failure;
                 }
-                assertNotNull(observedInvocation.get(), "MCP auth invocation should be provided");
-                assertEquals(session.getSessionId(), observedInvocation.get().getSessionId());
-                assertEquals(Boolean.FALSE, observedCapability.get(),
-                        "Initial authentication cannot advertise refresh");
+                initialAuth = authHandler.initialAuth.get();
+                assertNotNull(initialAuth, "MCP auth handler should be invoked for INITIAL");
+                assertNotNull(initialAuth.invocation(), "MCP auth invocation should be provided");
+                assertEquals(session.getSessionId(), initialAuth.invocation().getSessionId());
+                assertFalse(initialAuth.runtimeRefreshSupported(), "Initial authentication cannot advertise refresh");
                 var tools = E2ETestContext.awaitReply(
                         session.getRpc().mcp.listTools(new SessionMcpListToolsParams(null, serverName)), 30,
                         TimeUnit.SECONDS);
                 assertTrue(tools.tools().stream().anyMatch(tool -> "whoami".equals(tool.name())));
             }
 
-            var request = observedRequest.get();
+            var request = initialAuth.request();
             assertNotNull(request, "MCP auth handler should be invoked");
             assertEquals(serverName, request.serverName());
             assertEquals(oauthServer.url() + "/mcp", request.serverUrl());
@@ -199,6 +182,30 @@ public class McpOAuthE2ETest {
             assertTrue(requests.stream().anyMatch(record -> record.authorization() == null));
             assertTrue(
                     requests.stream().anyMatch(record -> ("Bearer " + EXPECTED_TOKEN).equals(record.authorization())));
+        }
+    }
+
+    record McpAuthObservation(McpAuthRequest request, McpAuthInvocation invocation, boolean runtimeRefreshSupported) {
+    }
+
+    static final class InitialMcpAuthHandler implements McpAuthHandler {
+        final AtomicReference<McpAuthRequest> observedRequest = new AtomicReference<>();
+        final AtomicReference<McpAuthObservation> initialAuth = new AtomicReference<>();
+
+        @Override
+        public CompletableFuture<McpAuthResult> handle(McpAuthRequest request, McpAuthInvocation invocation) {
+            observedRequest.set(request);
+            return CompletableFuture
+                    .completedFuture(McpAuthResult.token(new McpAuthToken(EXPECTED_TOKEN, "Bearer", 3600L)));
+        }
+
+        @Override
+        public CompletableFuture<McpAuthResponse> handleWithRuntimeRefresh(McpAuthRequest request,
+                McpAuthInvocation invocation, boolean supported) {
+            if (request.reason() == McpOauthRequestReason.INITIAL) {
+                initialAuth.compareAndSet(null, new McpAuthObservation(request, invocation, supported));
+            }
+            return McpAuthHandler.super.handleWithRuntimeRefresh(request, invocation, supported);
         }
     }
 

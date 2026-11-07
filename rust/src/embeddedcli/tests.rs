@@ -92,6 +92,137 @@ fn publish_overwrites_an_existing_binary() {
     assert_eq!(fs::read(&final_path).expect("read"), bytes);
 }
 
+/// Temp files a publish left behind in `dir`.
+#[cfg(unix)]
+fn leftover_temp_files(dir: &Path) -> Vec<String> {
+    fs::read_dir(dir)
+        .expect("read_dir")
+        .filter_map(|e| e.ok())
+        .map(|e| e.file_name().to_string_lossy().into_owned())
+        .filter(|name| name.contains(".tmp."))
+        .collect()
+}
+
+#[cfg(unix)]
+#[test]
+fn publish_keeps_an_identical_binary_another_installer_published() {
+    use std::os::unix::fs::MetadataExt;
+
+    let dir = tempfile::tempdir().expect("tempdir");
+    let final_path = dir.path().join("copilot-bin");
+    let marker = marker_path(dir.path());
+    let bytes = fake_image(2048);
+
+    // The first installer publishes, and a process it starts runs this file.
+    publish_verified(dir.path(), &final_path, &marker, &bytes).expect("first publish");
+    let published = fs::metadata(&final_path).expect("stat").ino();
+
+    // A second installer that checked before the first finished missed the
+    // fast path, so it publishes the same bytes too.
+    publish_verified(dir.path(), &final_path, &marker, &bytes).expect("second publish");
+
+    assert_eq!(
+        fs::metadata(&final_path).expect("stat").ino(),
+        published,
+        "the binary another installer published must stay in place"
+    );
+    assert_eq!(fs::read(&final_path).expect("read"), bytes);
+    assert!(existing_install_is_valid(
+        &final_path,
+        &marker,
+        bytes.len() as u64
+    ));
+    assert_eq!(leftover_temp_files(dir.path()), Vec::<String>::new());
+}
+
+#[cfg(unix)]
+#[test]
+fn concurrent_publishers_all_return_the_first_published_binary() {
+    use std::os::unix::fs::MetadataExt;
+
+    let dir = tempfile::tempdir().expect("tempdir");
+    let final_path = dir.path().join("copilot-bin");
+    let marker = marker_path(dir.path());
+    let bytes = fake_image(256 * 1024);
+    let barrier = std::sync::Barrier::new(8);
+
+    // Each publisher records the file it would hand back to its caller.
+    let returned: Vec<u64> = std::thread::scope(|scope| {
+        let publishers: Vec<_> = (0..8)
+            .map(|_| {
+                scope.spawn(|| {
+                    barrier.wait();
+                    publish_verified(dir.path(), &final_path, &marker, &bytes).expect("publish");
+                    fs::metadata(&final_path).expect("stat").ino()
+                })
+            })
+            .collect();
+        publishers
+            .into_iter()
+            .map(|publisher| publisher.join().expect("publisher"))
+            .collect()
+    });
+
+    let published = fs::metadata(&final_path).expect("stat").ino();
+    assert!(
+        returned.iter().all(|&ino| ino == published),
+        "every publisher must hand back the one published file: {returned:?} vs {published}"
+    );
+    assert_eq!(fs::read(&final_path).expect("read"), bytes);
+    assert_eq!(leftover_temp_files(dir.path()), Vec::<String>::new());
+}
+
+#[cfg(unix)]
+#[test]
+fn publish_replaces_identical_bytes_that_lost_the_execute_bit() {
+    use std::os::unix::fs::PermissionsExt;
+
+    let dir = tempfile::tempdir().expect("tempdir");
+    let final_path = dir.path().join("copilot-bin");
+    let marker = marker_path(dir.path());
+    let bytes = fake_image(512);
+    fs::write(&final_path, &bytes).expect("seed");
+    fs::set_permissions(&final_path, fs::Permissions::from_mode(0o644)).expect("chmod");
+
+    publish_verified(dir.path(), &final_path, &marker, &bytes).expect("publish");
+
+    let mode = fs::metadata(&final_path)
+        .expect("stat")
+        .permissions()
+        .mode();
+    assert_eq!(mode & 0o777, 0o755);
+    assert_eq!(leftover_temp_files(dir.path()), Vec::<String>::new());
+}
+
+#[cfg(unix)]
+#[test]
+fn publish_requires_execute_access_only_for_executables() {
+    use std::os::unix::fs::{MetadataExt, PermissionsExt};
+
+    let dir = tempfile::tempdir().expect("tempdir");
+    let target = dir.path().join("asset");
+    let staged = dir.path().join("staged");
+    for executable in [false, true] {
+        fs::write(&target, b"matching bytes").expect("seed target");
+        fs::write(&staged, b"matching bytes").expect("stage");
+        for path in [&target, &staged] {
+            fs::set_permissions(path, fs::Permissions::from_mode(0o644)).expect("chmod");
+        }
+        let published = fs::metadata(&target).expect("stat target").ino();
+        let replacement = fs::metadata(&staged).expect("stat staged").ino();
+
+        publish_staged(&staged, &target, executable).expect("publish");
+
+        assert_eq!(
+            fs::metadata(&target).expect("stat published").ino(),
+            if executable { replacement } else { published },
+            "execute access must gate reuse only for executable targets"
+        );
+        assert_eq!(fs::read(&target).expect("read"), b"matching bytes");
+        assert!(!staged.exists(), "staging file must be cleaned up");
+    }
+}
+
 #[test]
 fn corrupt_or_unmarked_install_is_rejected() {
     let dir = tempfile::tempdir().expect("tempdir");
@@ -568,6 +699,41 @@ fn concurrent_runtime_installers_publish_complete_files() {
         b"runtime"
     );
     assert_no_runtime_temps(dir.path());
+}
+
+#[cfg(all(has_bundled_cli, unix))]
+#[test]
+fn concurrent_cold_runtime_installers_all_return_the_first_published_wrapper() {
+    use std::os::unix::fs::MetadataExt;
+
+    let archive = runtime_fixture(&[]);
+    for _ in 0..20 {
+        let dir = tempfile::tempdir().unwrap();
+        let barrier = std::sync::Barrier::new(8);
+        let returned: Vec<u64> = std::thread::scope(|scope| {
+            let installers: Vec<_> = (0..8)
+                .map(|_| {
+                    scope.spawn(|| {
+                        barrier.wait();
+                        let wrapper = install_runtime(dir.path(), &archive).unwrap();
+                        fs::metadata(wrapper).unwrap().ino()
+                    })
+                })
+                .collect();
+            installers
+                .into_iter()
+                .map(|installer| installer.join().unwrap())
+                .collect()
+        });
+        let published = fs::metadata(dir.path().join(RUNTIME_BINARY_NAME))
+            .unwrap()
+            .ino();
+        assert!(
+            returned.iter().all(|&ino| ino == published),
+            "every installer must hand back the one published wrapper: {returned:?} vs {published}"
+        );
+        assert_no_runtime_temps(dir.path());
+    }
 }
 
 #[cfg(has_bundled_cli)]

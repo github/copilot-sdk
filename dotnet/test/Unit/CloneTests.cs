@@ -4,7 +4,7 @@
 
 using Xunit;
 using InstallationDecision = GitHub.Copilot.Rpc.InstallationDecision;
-using KerberosAuthMode = GitHub.Copilot.Rpc.KerberosAuthMode;
+using NetworkScope = GitHub.Copilot.Rpc.NetworkScope;
 using SandboxConfig = GitHub.Copilot.Rpc.SandboxConfig;
 
 namespace GitHub.Copilot.Test.Unit;
@@ -18,10 +18,11 @@ public class CloneTests
         var extensionLaunchProvider = new TestExtensionLaunchProvider();
         InstallationConfirmationHandler installationConfirmationHandler =
             (_request, _context) => ValueTask.FromResult(InstallationDecision.Decline);
-        var kerberosAuth = new KerberosAuthConfig
+        var network = new NetworkConfig
         {
-            Mode = KerberosAuthMode.Fallback,
-            Callback = (_request, _cancellationToken) => Task.FromResult<string?>(null),
+            Scope = NetworkScope.Runtime,
+            ResolveProxy = (_request, _cancellationToken) => Task.FromResult<string?>(null),
+            AuthenticateNegotiate = (_request, _cancellationToken) => Task.FromResult<string?>(null),
         };
         var original = new CopilotClientOptions
         {
@@ -35,7 +36,7 @@ public class CloneTests
             BuiltinPluginDirectories = ["/plugins/core", "/plugins/github"],
             SessionIdleTimeoutSeconds = 600,
             ExtensionLaunchProvider = extensionLaunchProvider,
-            KerberosAuth = kerberosAuth,
+            Network = network,
             InstallationConfirmationHandler = installationConfirmationHandler,
             ClientInfo = new CopilotClientInfo
             {
@@ -59,7 +60,7 @@ public class CloneTests
         Assert.NotSame(original.BuiltinPluginDirectories, clone.BuiltinPluginDirectories);
         Assert.Equal(original.SessionIdleTimeoutSeconds, clone.SessionIdleTimeoutSeconds);
         Assert.Same(extensionLaunchProvider, clone.ExtensionLaunchProvider);
-        Assert.Same(kerberosAuth, clone.KerberosAuth);
+        Assert.Same(network, clone.Network);
         Assert.Same(installationConfirmationHandler, clone.InstallationConfirmationHandler);
         Assert.Same(original.ClientInfo, clone.ClientInfo);
     }
@@ -372,6 +373,7 @@ public class CloneTests
             AgentMode = AgentMode.Plan,
             Source = source,
             DisplayPrompt = "Display text",
+            ClientTurnId = "host-turn-1",
             RequestHeaders = new Dictionary<string, string> { ["X-Test"] = "original" },
         };
 
@@ -382,6 +384,7 @@ public class CloneTests
         Assert.Equal(original.AgentMode, clone.AgentMode);
         Assert.Equal(original.Source, clone.Source);
         Assert.Equal(original.DisplayPrompt, clone.DisplayPrompt);
+        Assert.Equal(original.ClientTurnId, clone.ClientTurnId);
         Assert.Single(clone.Attachments!);
         Assert.NotSame(original.Attachments, clone.Attachments);
         Assert.Equal(original.RequestHeaders, clone.RequestHeaders);

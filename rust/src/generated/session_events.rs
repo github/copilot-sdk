@@ -422,6 +422,12 @@ pub enum SessionEventType {
     AutoModeSwitchRequested,
     #[serde(rename = "auto_mode_switch.completed")]
     AutoModeSwitchCompleted,
+    #[serde(rename = "auto_mode_recovery_consent.requested")]
+    AutoModeRecoveryConsentRequested,
+    #[serde(rename = "auto_mode_recovery_consent.completed")]
+    AutoModeRecoveryConsentCompleted,
+    #[serde(rename = "auto_mode_recovery.outcome")]
+    AutoModeRecoveryOutcome,
     #[serde(rename = "session_limits_exhausted.requested")]
     SessionLimitsExhaustedRequested,
     #[serde(rename = "session_limits_exhausted.completed")]
@@ -978,6 +984,12 @@ pub enum SessionEventData {
     AutoModeSwitchRequested(AutoModeSwitchRequestedData),
     #[serde(rename = "auto_mode_switch.completed")]
     AutoModeSwitchCompleted(AutoModeSwitchCompletedData),
+    #[serde(rename = "auto_mode_recovery_consent.requested")]
+    AutoModeRecoveryConsentRequested(AutoModeRecoveryConsentRequestedData),
+    #[serde(rename = "auto_mode_recovery_consent.completed")]
+    AutoModeRecoveryConsentCompleted(AutoModeRecoveryConsentCompletedData),
+    #[serde(rename = "auto_mode_recovery.outcome")]
+    AutoModeRecoveryOutcome(AutoModeRecoveryOutcomeData),
     #[serde(rename = "session_limits_exhausted.requested")]
     SessionLimitsExhaustedRequested(SessionLimitsExhaustedRequestedData),
     #[serde(rename = "session_limits_exhausted.completed")]
@@ -1518,6 +1530,18 @@ pub struct SessionAutopilotObjectiveChangedData {
     pub status: Option<AutopilotObjectiveChangedStatus>,
 }
 
+/// Original request-level and effective conversation reasoning effort for a provider history boundary; the historical type name is retained for compatibility
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ResponsesReasoning {
+    /// Effective effort selected before this message, independent of the response-level reasoning field
+    pub effort: String,
+    /// Original request-level effort, retained while replaying this conversation prefix
+    pub initial_effort: String,
+    /// Provider model whose reasoning settings this boundary records
+    pub model: String,
+}
+
 /// Session event "session.info". Informational message for timeline display with categorization
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -1526,6 +1550,10 @@ pub struct SessionInfoData {
     pub info_type: String,
     /// Human-readable informational message for display in the timeline
     pub message: String,
+    /// Reasoning configuration consumed at this conversation boundary. Present on reasoning_effort updates; preserves the original request baseline and applied effort without creating a user message.
+    #[doc(hidden)]
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub responses_reasoning: Option<ResponsesReasoning>,
     /// Optional actionable tip displayed with this message
     #[serde(skip_serializing_if = "Option::is_none")]
     pub tip: Option<String>,
@@ -1644,7 +1672,7 @@ pub struct SessionModelChangeData {
     /// True when autoTier is a managed-policy default. Omitted for user-authored and legacy values.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub auto_tier_managed: Option<bool>,
-    /// Reason the change happened, when not user-initiated. `"rate_limit_auto_switch"` for changes triggered by the auto-mode-switch rate-limit recovery path, or `"refusal_fallback"` when the active model declined a request (content refusal) and the runtime switched to the configured refusal-fallback model. UI clients can use this to render contextual copy.
+    /// Reason the change happened, when not user-initiated. `"rate_limit_auto_switch"` for changes triggered by the auto-mode-switch rate-limit recovery path, `"auto_mode_recovery"` when a prepared Auto route commits and a recovered inference is allowed to proceed before provider dispatch, or `"refusal_fallback"` when the active model declined a request (content refusal) and the runtime switched to the configured refusal-fallback model. UI clients can use this to render contextual copy.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub cause: Option<String>,
     /// Context tier after the model change; null explicitly clears a previously selected tier
@@ -2747,18 +2775,6 @@ pub(crate) struct CompactionCompleteFailureDiagnostics {
     pub(crate) transport_error_kind: Option<String>,
 }
 
-/// Original request-level and effective conversation reasoning effort for a provider history boundary; the historical type name is retained for compatibility
-#[derive(Debug, Clone, Default, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub struct ResponsesReasoning {
-    /// Effective effort selected before this message, independent of the response-level reasoning field
-    pub effort: String,
-    /// Original request-level effort, retained while replaying this conversation prefix
-    pub initial_effort: String,
-    /// Provider model whose reasoning settings this boundary records
-    pub model: String,
-}
-
 /// How far the compaction's summarizer model calls had progressed when the compaction's outcome was decided. Stream statistics describe the latest model request; durationMs and attemptCount cover every request.
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -3532,6 +3548,9 @@ pub struct UserMessageData {
     /// IDs of accepted assistant messages that caused this delivered inter-agent prompt, referring to assistant.message.data.messageId across the agent tree. Captured when sending and retained through queued or immediate delivery. An empty list means no model-produced dependency; absence means provenance is unavailable.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub causal_dependencies: Option<Vec<String>>,
+    /// Opaque clientTurnId the caller supplied on the send that delivered this message, echoed when the message is consumed, whether it started a turn, drained from the queue or was consumed as steering. Absent when that send supplied none.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub client_turn_id: Option<String>,
     /// The user's message text as displayed in the timeline
     pub content: String,
     /// How this message was delivered to the agentic loop relative to loop state (idle-start vs. steering/queued while busy). The timing axis; combine with `source` (origin) for the full picture. Used for telemetry attribution.
@@ -8771,6 +8790,58 @@ pub struct AutoModeSwitchCompletedData {
     pub request_id: RequestId,
     /// The user's auto-mode-switch choice
     pub response: AutoModeSwitchResponse,
+}
+
+/// Session event "auto_mode_recovery_consent.requested". Recovery consent for a still-active request. Respond using session.ui.handlePendingAutoModeSwitch. The offer has no timer. Entering Autopilot before recovery admission withdraws it. Dismiss it on auto_mode_recovery_consent.completed or on session resume, rebuild, or disconnect; resume can invalidate it without a completed event.
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct AutoModeRecoveryConsentRequestedData {
+    /// Whether this offer permits remembering consent with yes_always. Currently true only for per-model rate limits.
+    pub allow_always: bool,
+    /// Eligible upstream failure code: model_degraded, model_overloaded, or user_model_rate_limited.
+    pub error_code: String,
+    /// Original logical interaction identity, when available. Do not infer it from transcript order.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub interaction_id: Option<String>,
+    /// Explicit model selected for the failed request before Auto recovery.
+    pub original_model: String,
+    /// Initiating user-message identity, when available, distinct from later steering messages.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub originating_message_id: Option<String>,
+    /// One-use offer or recovery episode identifier bound to the originating live session. It cannot be carried across resume or used to replay a settled request.
+    pub request_id: RequestId,
+    /// Rate-limit reset information when supplied by the provider. This is not a consent deadline.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub retry_after_seconds: Option<f64>,
+}
+
+/// Session event "auto_mode_recovery_consent.completed". Recovery consent offer closed; clients must dismiss its UI. Completion does not imply consent or recovery success. Events belong to the originating live session; resume can invalidate an offer without this event.
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct AutoModeRecoveryConsentCompletedData {
+    /// Settlement reason, distinguishing user acceptance/decline and saved-preference acceptance from cancellation, handler loss, supersession, and emergency disablement. mode_changed withdraws an unanswered offer when the session enters Autopilot before recovery admission.
+    pub reason: String,
+    /// Identifier of the settled offer; clients must dismiss the matching consent UI.
+    pub request_id: RequestId,
+    /// User response when one was supplied. Absent when the runtime settled the offer without a user answer.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub response: Option<AutoModeSwitchResponse>,
+}
+
+/// Session event "auto_mode_recovery.outcome". Authoritative final outcome of an active-request Auto recovery episode, not a retry-start notification or manual response regeneration. Normal response/error and session completion signals still settle the logical request.
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct AutoModeRecoveryOutcomeData {
+    /// Whether a recovered Auto inference was allowed to proceed, reported on the final outcome rather than as a live start notification. True does not imply success. False when consent or preparation ended without a retry.
+    pub auto_mode_recovery_admitted: bool,
+    /// Original upstream failure code that qualified the request for recovery.
+    pub error_code: String,
+    /// Explicit model selected for the original failed request.
+    pub original_model: String,
+    /// Recovery episode identifier, also used by its consent offer when one was displayed.
+    pub request_id: RequestId,
+    /// Final recovery disposition, such as succeeded, failed, declined, cancelled, superseded, or unavailable. mode_changed means entering Autopilot stopped recovery before admission, including after consent was accepted.
+    pub status: String,
 }
 
 /// Session event "session_limits_exhausted.requested". Session limit exhaustion notification requiring user action.

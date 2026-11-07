@@ -2,13 +2,17 @@
 
 from __future__ import annotations
 
+import errno
 import hashlib
 import io
 import os
+import subprocess
+import sys
 import tarfile
 from concurrent.futures import ThreadPoolExecutor
 from http.client import IncompleteRead
 from threading import Barrier
+from types import SimpleNamespace
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -199,12 +203,130 @@ def test_cli_and_runtime_share_one_staged_bundle(tmp_path, monkeypatch, version)
         assert (install_dir / wrapper_name).stat().st_mode & 0o111
 
 
-def test_concurrent_staging_materializes_one_complete_bundle(tmp_path):
+def test_cached_cli_probe_treats_a_concurrently_removed_bundle_as_a_miss(tmp_path):
+    runtime_platform = "linux-x64"
+    cli_name = "copilot.exe" if os.name == "nt" else "copilot"
+    wrapper_name = "copilot-runtime.exe" if os.name == "nt" else "copilot-runtime"
+    cache_dir = tmp_path / "cache"
+    install_dir = cache_dir / "prebuilds" / runtime_platform
+    install_dir.mkdir(parents=True)
+    for name in (cli_name, wrapper_name, "runtime.node", ".hostless-runtime-assets-v2"):
+        (install_dir / name).write_bytes(b"x")
+    real_is_file = _cli_download.Path.is_file
+
+    def is_file_then_concurrent_removal(path):
+        # A repair in another process removes the file right after is_file() saw it.
+        found = real_is_file(path)
+        if found and path.parent == install_dir:
+            path.unlink()
+        return found
+
+    with (
+        patch.object(_cli_download, "get_cache_dir", return_value=cache_dir),
+        patch.object(_cli_download, "get_runtime_platform", return_value=runtime_platform),
+        patch.object(_cli_download.Path, "is_file", is_file_then_concurrent_removal),
+    ):
+        assert _cli_download.get_cached_cli_path("1.2.3") is None
+
+
+@pytest.mark.skipif(os.name == "nt", reason="POSIX directory permissions")
+def test_cli_alias_is_created_when_the_bundle_parent_is_read_only(tmp_path, monkeypatch):
+    runtime_platform = "linux-x64"
+    cli_name = "copilot"
+    cache_dir = tmp_path / "cache"
+    prebuilds = cache_dir / "prebuilds"
+    install_dir = prebuilds / runtime_platform
+    install_dir.mkdir(parents=True)
+    (install_dir / "copilot-runtime").write_bytes(b"wrapper")
+    (install_dir / "copilot-runtime").chmod(0o755)
+    (install_dir / "runtime.node").write_bytes(b"runtime")
+    (install_dir / ".hostless-runtime-assets-v2").write_text("1\n", encoding="ascii")
+    monkeypatch.setenv("COPILOT_SKIP_CLI_DOWNLOAD", "1")
+    # A pre-provisioned bundle: its platform directory is writable, its parent is not.
+    prebuilds.chmod(0o555)
+    try:
+        with (
+            patch.object(_cli_download, "get_cache_dir", return_value=cache_dir),
+            patch.object(_cli_download, "get_runtime_platform", return_value=runtime_platform),
+        ):
+            cli = _cli_download.download_cli("1.2.3")
+    finally:
+        prebuilds.chmod(0o755)
+
+    assert cli == str(install_dir / cli_name)
+    assert (install_dir / cli_name).read_bytes() == b"wrapper"
+
+
+@pytest.mark.skipif(os.name == "nt", reason="POSIX directory flock")
+def test_cli_alias_waits_with_an_unreadable_lock_file(tmp_path, monkeypatch):
+    import fcntl
+    import threading
+
+    runtime_platform = "linux-x64"
+    cache_dir = tmp_path / "cache"
+    prebuilds = cache_dir / "prebuilds"
+    install_dir = prebuilds / runtime_platform
+    install_dir.mkdir(parents=True)
+    (install_dir / "copilot-runtime").write_bytes(b"wrapper")
+    (install_dir / "copilot-runtime").chmod(0o755)
+    (install_dir / "runtime.node").write_bytes(b"runtime")
+    (install_dir / ".hostless-runtime-assets-v2").write_text("1\n", encoding="ascii")
+    # A previous installer used a restrictive umask; its lock is inaccessible.
+    lock_path = prebuilds / f".runtime-bundle.{runtime_platform}.lock"
+    lock_path.write_bytes(b"")
+    lock_path.chmod(0o000)
+    monkeypatch.setenv("COPILOT_SKIP_CLI_DOWNLOAD", "1")
+    waiting = threading.Event()
+    flock = fcntl.flock
+
+    def observe_contention(fd, operation):
+        if operation == fcntl.LOCK_EX:
+            with pytest.raises(BlockingIOError):
+                flock(fd, operation | fcntl.LOCK_NB)
+            waiting.set()
+        return flock(fd, operation)
+
+    with (
+        patch.object(_cli_download, "get_cache_dir", return_value=cache_dir),
+        patch.object(_cli_download, "get_runtime_platform", return_value=runtime_platform),
+    ):
+        holder = os.open(prebuilds, os.O_RDONLY)
+        try:
+            flock(holder, fcntl.LOCK_EX)
+            with (
+                patch.object(fcntl, "flock", side_effect=observe_contention),
+                ThreadPoolExecutor(max_workers=1) as executor,
+            ):
+                future = executor.submit(_cli_download.download_cli, "1.2.3")
+                future.add_done_callback(lambda _: waiting.set())
+                try:
+                    assert waiting.wait(10), "Installer never reached the held directory lock"
+                    if future.done():
+                        future.result()
+                    assert not (install_dir / "copilot").exists()
+                finally:
+                    flock(holder, fcntl.LOCK_UN)
+                cli = future.result(timeout=10)
+        finally:
+            os.close(holder)
+            lock_path.chmod(0o600)
+
+    assert cli == str(install_dir / "copilot")
+    assert (install_dir / "copilot").read_bytes() == b"wrapper"
+
+
+@pytest.mark.parametrize("repair", [False, True])
+def test_concurrent_staging_materializes_one_complete_bundle(tmp_path, repair):
     version = "1.2.3"
     runtime_platform = "linux-x64"
     wrapper_name = "copilot-runtime.exe" if os.name == "nt" else "copilot-runtime"
     data = _release_package(runtime_platform)
     cache_dir = tmp_path / "cache"
+    install_dir = cache_dir / "prebuilds" / runtime_platform
+    if repair:
+        install_dir.mkdir(parents=True)
+        (install_dir / wrapper_name).write_bytes(b"old-wrapper")
+        (install_dir / "runtime.node").write_bytes(b"old-runtime")
     fetch = _release_fetches(version, runtime_platform, data)
     fetch_barrier = Barrier(2)
 
@@ -230,6 +352,272 @@ def test_concurrent_staging_materializes_one_complete_bundle(tmp_path):
     assert not list((cache_dir / "prebuilds").glob(".runtime-bundle-*"))
     assert not (cache_dir / "packages").exists()
     assert fetch_mock.call_count == 4
+
+
+def test_runtime_bundle_repair_holds_cross_process_lock(tmp_path):
+    import shutil
+
+    version = "1.2.3"
+    runtime_platform = "linux-x64"
+    wrapper_name = "copilot-runtime.exe" if os.name == "nt" else "copilot-runtime"
+    cache_dir = tmp_path / "cache"
+    install_dir = cache_dir / "prebuilds" / runtime_platform
+    install_dir.mkdir(parents=True)
+    (install_dir / wrapper_name).write_bytes(b"old-wrapper")
+    (install_dir / "runtime.node").write_bytes(b"old-runtime")
+    lock_path = (
+        install_dir.parent / f".runtime-bundle.{runtime_platform}.lock"
+        if os.name == "nt"
+        else install_dir.parent
+    )
+    data = _release_package(runtime_platform)
+    remove_tree = shutil.rmtree
+
+    def remove_under_lock(path, *args, **kwargs):
+        if path == install_dir:
+            result = subprocess.run(
+                [
+                    sys.executable,
+                    "-c",
+                    """
+import os
+import sys
+if os.name == "nt":
+    import msvcrt
+    # The parent already seeded the file and holds byte 0; writing it would fail.
+    lock = os.open(sys.argv[1], os.O_RDWR)
+    try:
+        msvcrt.locking(lock, msvcrt.LK_NBLCK, 1)
+    except OSError:
+        sys.exit(0)
+else:
+    import fcntl
+    lock = os.open(sys.argv[1], os.O_RDONLY)
+    try:
+        fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
+    except BlockingIOError:
+        sys.exit(0)
+sys.exit("Another installer can enter while the old bundle is being removed")
+""",
+                    str(lock_path),
+                ],
+                capture_output=True,
+                text=True,
+                timeout=10,
+            )
+            assert result.returncode == 0, result.stderr
+        return remove_tree(path, *args, **kwargs)
+
+    with (
+        patch.object(_cli_download, "get_cache_dir", return_value=cache_dir),
+        patch.object(_cli_download, "get_runtime_platform", return_value=runtime_platform),
+        patch.object(
+            _cli_download,
+            "_fetch_url_bytes",
+            side_effect=_release_fetches(version, runtime_platform, data),
+        ),
+        patch.object(shutil, "rmtree", side_effect=remove_under_lock),
+    ):
+        wrapper = _cli_download.ensure_runtime_wrapper(version)
+
+    assert wrapper == str(install_dir / wrapper_name)
+    assert (install_dir / wrapper_name).read_bytes() == b"wrapper"
+    assert (install_dir / "runtime.node").read_bytes() == b"runtime"
+    assert (install_dir / ".hostless-runtime-assets-v2").is_file()
+
+
+def _complete_bundle_without_alias(tmp_path):
+    cache_dir = tmp_path / "cache"
+    install_dir = cache_dir / "prebuilds" / "linux-x64"
+    install_dir.mkdir(parents=True)
+    (install_dir / "copilot-runtime").write_bytes(b"wrapper")
+    (install_dir / "copilot-runtime").chmod(0o755)
+    (install_dir / "runtime.node").write_bytes(b"runtime")
+    (install_dir / ".hostless-runtime-assets-v2").write_text("1\n", encoding="ascii")
+    return cache_dir, install_dir
+
+
+@pytest.mark.skipif(os.name == "nt", reason="POSIX flock")
+def test_cli_alias_is_created_when_the_cache_cannot_be_locked(tmp_path, monkeypatch):
+    import fcntl
+
+    cache_dir, install_dir = _complete_bundle_without_alias(tmp_path)
+    monkeypatch.setenv("COPILOT_SKIP_CLI_DOWNLOAD", "1")
+
+    def nfs_flock(fd, operation):
+        # Linux NFS rejects an exclusive flock on a read-only descriptor.
+        raise OSError(errno.EBADF, "Bad file descriptor")
+
+    with (
+        patch.object(_cli_download, "get_cache_dir", return_value=cache_dir),
+        patch.object(_cli_download, "get_runtime_platform", return_value="linux-x64"),
+        patch.object(fcntl, "flock", side_effect=nfs_flock),
+    ):
+        cli = _cli_download.download_cli("1.2.3")
+
+    assert cli == str(install_dir / "copilot")
+    assert (install_dir / "copilot").read_bytes() == b"wrapper"
+
+
+@pytest.mark.skipif(
+    os.name == "nt" or (hasattr(os, "geteuid") and os.geteuid() == 0),
+    reason="POSIX directory permissions, not as root",
+)
+def test_cli_alias_is_created_when_the_bundle_parent_is_unreadable(tmp_path, monkeypatch):
+    cache_dir, install_dir = _complete_bundle_without_alias(tmp_path)
+    monkeypatch.setenv("COPILOT_SKIP_CLI_DOWNLOAD", "1")
+    # Searchable but not readable: the platform directory is still reachable.
+    install_dir.parent.chmod(0o311)
+    try:
+        with (
+            patch.object(_cli_download, "get_cache_dir", return_value=cache_dir),
+            patch.object(_cli_download, "get_runtime_platform", return_value="linux-x64"),
+        ):
+            cli = _cli_download.download_cli("1.2.3")
+    finally:
+        install_dir.parent.chmod(0o755)
+
+    assert cli == str(install_dir / "copilot")
+    assert (install_dir / "copilot").read_bytes() == b"wrapper"
+
+
+def test_windows_bundle_lock_proceeds_when_an_existing_lock_is_read_only(tmp_path):
+    pair_dir = tmp_path / "linux-x64"
+    lock_path = tmp_path / ".runtime-bundle.linux-x64.lock"
+    lock_path.write_bytes(b"\0")
+    msvcrt = SimpleNamespace(LK_LOCK=1, LK_NBLCK=2, LK_UNLCK=0, locking=MagicMock())
+    real_open = _cli_download.Path.open
+
+    def read_only_lock(path, mode="r", *args, **kwargs):
+        if path == lock_path and "+" in mode:
+            raise PermissionError(errno.EACCES, "Access is denied", str(path))
+        return real_open(path, mode, *args, **kwargs)
+
+    entered = False
+    with (
+        patch.object(_cli_download, "sys", SimpleNamespace(platform="win32")),
+        patch.dict(sys.modules, {"msvcrt": msvcrt}),
+        patch.object(_cli_download.Path, "open", read_only_lock),
+    ):
+        with _cli_download._runtime_bundle_lock(pair_dir):
+            entered = True
+
+    assert entered
+    msvcrt.locking.assert_not_called()
+
+
+@pytest.mark.skipif(
+    os.name == "nt" or (hasattr(os, "geteuid") and os.geteuid() == 0),
+    reason="POSIX directory permissions, not as root",
+)
+def test_disabled_download_reports_the_missing_bundle_on_a_read_only_cache(tmp_path, monkeypatch):
+    read_only = tmp_path / "read-only"
+    read_only.mkdir()
+    monkeypatch.setenv("COPILOT_SKIP_CLI_DOWNLOAD", "1")
+    read_only.chmod(0o555)
+    try:
+        with (
+            patch.object(_cli_download, "get_cache_dir", return_value=read_only / "cache"),
+            patch.object(_cli_download, "get_runtime_platform", return_value="linux-x64"),
+        ):
+            with pytest.raises(RuntimeError, match="automatic downloads are disabled"):
+                _cli_download.ensure_runtime_wrapper("1.2.3")
+    finally:
+        read_only.chmod(0o755)
+
+    assert not (read_only / "cache").exists()
+
+
+def test_windows_bundle_lock_proceeds_when_the_cache_does_not_exist_yet(tmp_path):
+    msvcrt = SimpleNamespace(LK_LOCK=1, LK_NBLCK=2, LK_UNLCK=0, locking=MagicMock())
+    entered = False
+    with (
+        patch.object(_cli_download, "sys", SimpleNamespace(platform="win32")),
+        patch.dict(sys.modules, {"msvcrt": msvcrt}),
+    ):
+        with _cli_download._runtime_bundle_lock(tmp_path / "missing" / "linux-x64"):
+            entered = True
+
+    assert entered
+    msvcrt.locking.assert_not_called()
+
+
+def test_windows_bundle_lock_waits_past_ten_contention_attempts(tmp_path):
+    pair_dir = tmp_path / "linux-x64"
+    msvcrt = SimpleNamespace(
+        LK_LOCK=1,
+        LK_NBLCK=2,
+        LK_UNLCK=0,
+        locking=MagicMock(
+            side_effect=[OSError(errno.EACCES, "Lock held by another installer")] * 12
+            + [None, None]
+        ),
+    )
+    with (
+        patch.object(_cli_download, "sys", SimpleNamespace(platform="win32")),
+        patch.dict(sys.modules, {"msvcrt": msvcrt}),
+        patch.object(_cli_download.time, "sleep"),
+    ):
+        with _cli_download._runtime_bundle_lock(pair_dir):
+            assert msvcrt.locking.call_count == 13
+            assert all(call.args[1] == msvcrt.LK_NBLCK for call in msvcrt.locking.call_args_list)
+
+    assert msvcrt.locking.call_count == 14
+    assert msvcrt.locking.call_args.args[1:] == (msvcrt.LK_UNLCK, 1)
+
+
+def test_windows_bundle_lock_propagates_non_contention_errors(tmp_path):
+    failure = OSError(errno.EBADF, "Invalid lock descriptor")
+    msvcrt = SimpleNamespace(
+        LK_LOCK=1, LK_NBLCK=2, LK_UNLCK=0, locking=MagicMock(side_effect=failure)
+    )
+    with (
+        patch.object(_cli_download, "sys", SimpleNamespace(platform="win32")),
+        patch.dict(sys.modules, {"msvcrt": msvcrt}),
+        patch.object(_cli_download.time, "sleep") as sleep,
+    ):
+        with pytest.raises(OSError) as exc_info:
+            with _cli_download._runtime_bundle_lock(tmp_path / "linux-x64"):
+                pytest.fail("A failed lock must not admit the installer")
+
+    assert exc_info.value is failure
+    msvcrt.locking.assert_called_once()
+    sleep.assert_not_called()
+
+
+def test_cli_reuses_alias_published_after_cache_miss(tmp_path):
+    version = "1.2.3"
+    runtime_platform = "linux-x64"
+    cli_name = "copilot.exe" if os.name == "nt" else "copilot"
+    wrapper_name = "copilot-runtime.exe" if os.name == "nt" else "copilot-runtime"
+    cache_dir = tmp_path / "cache"
+    install_dir = cache_dir / "prebuilds" / runtime_platform
+    install_dir.mkdir(parents=True)
+    wrapper_path = install_dir / wrapper_name
+    wrapper_path.write_bytes(b"wrapper")
+    (install_dir / "runtime.node").write_bytes(b"runtime")
+    (install_dir / ".hostless-runtime-assets-v2").write_text("1\n", encoding="ascii")
+    cli_path = install_dir / cli_name
+    published_inode = None
+
+    def publish_competing_alias(*args, **kwargs):
+        nonlocal published_inode
+        cli_path.write_bytes(wrapper_path.read_bytes())
+        cli_path.chmod(0o755)
+        published_inode = cli_path.stat().st_ino
+        return str(wrapper_path)
+
+    with (
+        patch.object(_cli_download, "get_cache_dir", return_value=cache_dir),
+        patch.object(_cli_download, "get_runtime_platform", return_value=runtime_platform),
+        patch.object(_cli_download, "ensure_runtime_wrapper", side_effect=publish_competing_alias),
+    ):
+        assert _cli_download.get_cached_cli_path(version) is None
+        assert _cli_download.download_cli(version) == str(cli_path)
+
+    assert cli_path.read_bytes() == b"wrapper"
+    assert cli_path.stat().st_ino == published_inode
+    assert not list(install_dir.glob(".cli-*"))
 
 
 def test_force_restages_complete_bundle_and_compatibility_alias(tmp_path):

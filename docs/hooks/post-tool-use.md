@@ -81,10 +81,17 @@ package main
 
 import copilot "github.com/github/copilot-sdk/go"
 
+// Aliases let the signature below use the package's own type names.
+type (
+    PostToolUseHookInput  = copilot.PostToolUseHookInput
+    HookInvocation        = copilot.HookInvocation
+    PostToolUseHookOutput = copilot.PostToolUseHookOutput
+)
+
 type PostToolUseHandler func(
-    input copilot.PostToolUseHookInput,
-    invocation copilot.HookInvocation,
-) (*copilot.PostToolUseHookOutput, error)
+    input PostToolUseHookInput,
+    invocation HookInvocation,
+) (*PostToolUseHookOutput, error)
 
 var _ = copilot.PostToolUseHandler(PostToolUseHandler(nil))
 
@@ -140,11 +147,24 @@ import com.github.copilot.rpc.*;
 import java.util.concurrent.CompletableFuture;
 
 public class PostToolUseSignature {
-    PostToolUseHandler handler = (PostToolUseHookInput input, HookInvocation invocation) ->
-        CompletableFuture.completedFuture(null);
-    CompletableFuture<PostToolUseHookOutput> handle(PostToolUseHookInput input, HookInvocation invocation) {
-        return handler.handle(input, invocation);
+    static class Documented {
+        @FunctionalInterface
+        public interface PostToolUseHandler {
+            CompletableFuture<PostToolUseHookOutput> handle(
+                PostToolUseHookInput input,
+                HookInvocation invocation);
+        }
     }
+
+    // The documented interface and the SDK's accept each other's implementations.
+    static PostToolUseHandler toSdk(Documented.PostToolUseHandler documented) {
+        return documented::handle;
+    }
+
+    static Documented.PostToolUseHandler fromSdk(PostToolUseHandler sdk) {
+        return sdk::handle;
+    }
+
     public static void main(String[] args) {}
 }
 ```
@@ -248,7 +268,6 @@ import (
 func main() {
 	client := copilot.NewClient(nil)
 	session, _ := client.CreateSession(context.Background(), &copilot.SessionConfig{
-		OnPermissionRequest: copilot.PermissionHandler.ApproveAll,
 		Hooks: &copilot.SessionHooks{
 			OnPostToolUse: func(input copilot.PostToolUseHookInput, inv copilot.HookInvocation) (*copilot.PostToolUseHookOutput, error) {
 				fmt.Printf("[%s] Tool: %s\n", inv.SessionID, input.ToolName)

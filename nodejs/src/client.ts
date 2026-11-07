@@ -11,6 +11,7 @@
  * @module client
  */
 
+import { AsyncLocalStorage } from "node:async_hooks";
 import { spawn, type ChildProcess } from "node:child_process";
 import { randomUUID } from "node:crypto";
 import { accessSync, constants, existsSync, statSync } from "node:fs";
@@ -18,11 +19,12 @@ import { isIPv6, Socket } from "node:net";
 import { dirname, isAbsolute, join, resolve, win32 } from "node:path";
 import {
     type CancellationToken,
+    CancellationTokenSource,
     type ContentTypeEncoder,
     createMessageConnection as createRpcMessageConnection,
     type DataCallback,
     ErrorCodes,
-    type Message,
+    Message,
     MessageConnection,
     ResponseError,
     StreamMessageReader,
@@ -40,12 +42,17 @@ import type {
     GitHubTokenAcquireRequest,
     GitHubTokenAcquireResult,
     InstallationConfirmationRequest,
-    KerberosAuthAcquireRequest,
-    KerberosAuthAcquireResult,
+    NetworkAuthenticateNegotiateRequest,
+    NetworkAuthenticateNegotiateResult,
+    NetworkResolveProxyRequest,
+    NetworkResolveProxyResult,
     OpenCanvasInstance,
+    PermissionsSetModeResult,
+    SessionsFindByPrefixResult,
     SessionUpdateOptionsParams,
     TaskKind,
 } from "./generated/rpc.js";
+import { CopilotDecisions } from "./decisions.js";
 import { getSdkProtocolVersion } from "./sdkProtocolVersion.js";
 import { CopilotSession } from "./session.js";
 import {
@@ -71,6 +78,8 @@ import { ToolSet } from "./toolSet.js";
 import type {
     AutoModeSwitchRequest,
     AutoModeSwitchResponse,
+    MemoryConfiguration,
+    StoredMemory,
     CopilotClientInfo,
     CopilotClientMode,
     CopilotClientOptions,
@@ -85,12 +94,12 @@ import type {
     GitHubTokenProvider,
     GetStatusResponse,
     InternalRuntimeConnection,
-    KerberosAuthConfig,
     RuntimeConnection,
     LargeToolOutputConfig,
     MCPServerConfig,
     ModelInfo,
     NamedProviderConfig,
+    NetworkConfig,
     ProviderConfig,
     ResumeSessionConfig,
     SectionTransformFn,
@@ -125,8 +134,33 @@ interface ExtensionOrchestrationContributions {
 const MIN_PROTOCOL_VERSION = 3;
 const RUNTIME_SHUTDOWN_TIMEOUT_MS = 10_000;
 const CLOUD_SESSION_CLEANUP_TIMEOUT_MS = 10_000;
+const AUTO_MODE_RECOVERY_CLEANUP_TIMEOUT_MS = 10_000;
+
+function sessionIdsOverlap(left: string, right: string): boolean {
+    if (left === right) return true;
+    if (!isUuidSessionId(left) || !isUuidSessionId(right)) return false;
+    const normalizedLeft = left.toLowerCase();
+    const normalizedRight = right.toLowerCase();
+    return normalizedLeft.startsWith(normalizedRight) || normalizedRight.startsWith(normalizedLeft);
+}
+
+function isAbbreviatedUuidPrefix(sessionId: string): boolean {
+    return /^[0-9a-f]{7}[0-9a-f-]{0,28}$/i.test(sessionId);
+}
+
+function isUuidSessionId(sessionId: string): boolean {
+    return (
+        isAbbreviatedUuidPrefix(sessionId) ||
+        /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(sessionId)
+    );
+}
 
 type DrainingMessageConnection = MessageConnection & { drain: () => Promise<void> };
+
+interface SessionInitializationContext {
+    sessionId: string;
+    active: boolean;
+}
 
 /** Errors from serializing one outgoing message; see {@link TeardownResilientStreamMessageWriter}. */
 const messageEncodeErrors = new WeakSet<Error>();
@@ -150,12 +184,14 @@ const jsonMessageEncoder: ContentTypeEncoder = {
 
 function createMessageConnection(
     reader: StreamMessageReader,
-    writer: StreamMessageWriter
+    writer: StreamMessageWriter,
+    sessionInitializationContext: AsyncLocalStorage<SessionInitializationContext | undefined>
 ): DrainingMessageConnection {
     let dispatch: DataCallback | undefined;
     let finishDrain: (() => void) | undefined;
     let drained: Promise<void> | undefined;
     let disposed = false;
+    const callbacks = new Map<string | number | null, SessionInitializationContext>();
     const barrier = { jsonrpc: "2.0", method: "$/sdkDrain" };
     const connection = createRpcMessageConnection(
         {
@@ -168,7 +204,22 @@ function createMessageConnection(
             },
             dispose: () => reader.dispose(),
         },
-        writer,
+        {
+            onError: writer.onError,
+            onClose: writer.onClose,
+            write: (message) => {
+                if (Message.isResponse(message)) {
+                    const context = callbacks.get(message.id);
+                    if (context) {
+                        context.active = false;
+                        callbacks.delete(message.id);
+                    }
+                }
+                return writer.write(message);
+            },
+            end: () => writer.end(),
+            dispose: () => writer.dispose(),
+        },
         undefined,
         {
             messageStrategy: {
@@ -176,7 +227,22 @@ function createMessageConnection(
                     if (message === barrier) {
                         finishDrain?.();
                     } else {
-                        next(message);
+                        const request = Message.isRequest(message) ? message : undefined;
+                        const params = request?.params;
+                        const sessionId =
+                            params &&
+                            typeof params === "object" &&
+                            "sessionId" in params &&
+                            typeof params.sessionId === "string"
+                                ? params.sessionId
+                                : undefined;
+                        const context =
+                            sessionId === undefined ? undefined : { sessionId, active: true };
+                        if (request && context) {
+                            callbacks.set(request.id, context);
+                        }
+                        // Response writes end the callback lifetime, including inherited async work.
+                        sessionInitializationContext.run(context, next, message);
                     }
                 },
             },
@@ -184,6 +250,10 @@ function createMessageConnection(
     );
     connection.onDispose(() => {
         disposed = true;
+        for (const context of callbacks.values()) {
+            context.active = false;
+        }
+        callbacks.clear();
         finishDrain?.();
     });
     return Object.assign(connection, {
@@ -253,20 +323,20 @@ async function waitForChildExit(child: ChildProcess, timeoutMs: number): Promise
 }
 
 /**
- * Runs the Kerberos callback with a signal that aborts when the runtime cancels the request
- * (`$/cancelRequest`) or the connection ends. Cancellation stops awaiting the callback and
- * answers with the standard request-cancelled error; any later result is ignored.
+ * Runs a client callback the runtime requested with a signal that aborts when the runtime
+ * cancels the request (`$/cancelRequest`) or the connection ends. Cancellation stops awaiting the
+ * callback and answers with the standard request-cancelled error; any later result is ignored.
  */
-async function acquireKerberosToken(
+async function runCancellableCallback<T>(
     connection: MessageConnection,
-    callback: KerberosAuthConfig["callback"],
-    request: KerberosAuthAcquireRequest,
-    token: CancellationToken
-): Promise<KerberosAuthAcquireResult> {
+    label: string,
+    token: CancellationToken,
+    invoke: (signal: AbortSignal) => Promise<T>
+): Promise<T> {
     const ended = () =>
         token.isCancellationRequested
-            ? new ResponseError(-32800, "Kerberos auth request cancelled")
-            : new Error("Kerberos auth connection closed");
+            ? new ResponseError(-32800, `${label} request cancelled`)
+            : new Error(`${label} connection closed`);
     if (token.isCancellationRequested) {
         throw ended();
     }
@@ -282,14 +352,66 @@ async function acquireKerberosToken(
     ];
     try {
         // Invoke the callback from a microtask so the race handles `abandoned` even when the
-        // callback aborts and then throws synchronously.
-        const lookup = Promise.resolve().then(() => callback(request, controller.signal));
-        return { token: await Promise.race([lookup, abandoned]) };
+        // callback aborts and then throws synchronously. Like the other SDKs, never start a
+        // callback the runtime stopped waiting for before the microtask ran.
+        const lookup = Promise.resolve().then(() => {
+            if (controller.signal.aborted) {
+                throw ended();
+            }
+            return invoke(controller.signal);
+        });
+        return await Promise.race([lookup, abandoned]);
     } finally {
         for (const subscription of subscriptions) {
             subscription.dispose();
         }
     }
+}
+
+/**
+ * A copy of the caller's network configuration, so later changes to the caller's object cannot make
+ * the registration and the request handlers disagree. Reads each field, so callbacks a class
+ * inherits are kept, and calls them on the caller's object.
+ */
+function snapshotNetworkConfig(network: NetworkConfig): NetworkConfig {
+    const { scope, resolveProxy, authenticateNegotiate } = network;
+    return {
+        scope,
+        resolveProxy:
+            resolveProxy && ((request, signal) => resolveProxy.call(network, request, signal)),
+        authenticateNegotiate:
+            authenticateNegotiate &&
+            ((request, signal) => authenticateNegotiate.call(network, request, signal)),
+    };
+}
+
+async function resolveClientProxy(
+    connection: MessageConnection,
+    callback: NonNullable<NetworkConfig["resolveProxy"]>,
+    request: NetworkResolveProxyRequest,
+    token: CancellationToken
+): Promise<NetworkResolveProxyResult> {
+    return {
+        proxy: await runCancellableCallback(connection, "Proxy resolution", token, (signal) =>
+            callback(request, signal)
+        ),
+    };
+}
+
+async function authenticateClientNegotiate(
+    connection: MessageConnection,
+    callback: NonNullable<NetworkConfig["authenticateNegotiate"]>,
+    request: NetworkAuthenticateNegotiateRequest,
+    token: CancellationToken
+): Promise<NetworkAuthenticateNegotiateResult> {
+    return {
+        token: await runCancellableCallback(
+            connection,
+            "Negotiate authentication",
+            token,
+            (signal) => callback(request, signal)
+        ),
+    };
 }
 
 /** Implicit provider name for the singular, whole-session {@link ProviderConfig}. */
@@ -367,6 +489,24 @@ function toWireMcpServers(
             return [name, server];
         })
     );
+}
+
+function requestedMemoryStore(
+    memory: MemoryConfiguration | undefined
+): MemoryConfiguration["storeMemory"] {
+    if (!memory?.storeMemory) return undefined;
+    if (memory.enabled !== true) {
+        throw new Error("memory.storeMemory requires memory.enabled to be true.");
+    }
+    return memory.storeMemory;
+}
+
+function toWireMemoryConfiguration(
+    memory: MemoryConfiguration | undefined
+): Omit<MemoryConfiguration, "storeMemory"> | undefined {
+    if (!memory) return memory;
+    const { storeMemory: _storeMemory, ...wire } = memory;
+    return wire;
 }
 
 /**
@@ -585,6 +725,7 @@ export class CopilotClient {
     private ffiHost: FfiRuntimeHost | null = null;
     private connection: DrainingMessageConnection | null = null;
     private requestAdapter: ReturnType<typeof createCopilotRequestAdapter> | null = null;
+    private pendingMemoryStores = new Set<AbortController>();
     private messageWriter: TeardownResilientStreamMessageWriter | null = null;
     private connectionClosed: boolean = false;
     private connectionEpoch = 0;
@@ -594,7 +735,26 @@ export class CopilotClient {
     private state: "disconnected" | "connecting" | "connected" | "error" = "disconnected";
     /** Shared in-flight start; concurrent callers await it instead of spawning another CLI. */
     private startPromise: Promise<void> | null = null;
+    private shutdownCanceledStartup: Promise<void> | null = null;
+    private stopPromise: Promise<Error[]> | null = null;
+    private forceStopPromise: Promise<void> | null = null;
     private sessions: Map<string, CopilotSession> = new Map();
+    private pendingSessionResumes = new Map<
+        string,
+        {
+            session: CopilotSession;
+            connection: MessageConnection;
+            gitHubTokenProviderRegistrationId?: string;
+            resolveAliases: boolean;
+        }
+    >();
+    private sessionInitializations = new Map<string, Promise<void>>();
+    private failedAutoModeRecoveryCleanups = new WeakMap<MessageConnection, Map<string, Error>>();
+    private sessionInitializationContext = new AsyncLocalStorage<
+        SessionInitializationContext | undefined
+    >();
+    private sessionInitializationLifetime = new AbortController();
+    private sessionInitializationGeneration = 0;
     private hostExitCallbacks = new Map<string, (exit: AhpHostExit) => void>();
     private hostSessionFactories = new Map<
         string,
@@ -659,6 +819,7 @@ export class CopilotClient {
     > = new Map();
     private _rpc: ReturnType<typeof createServerRpc> | null = null;
     private _internalRpc: ReturnType<typeof createInternalServerRpc> | null = null;
+    private _decisions: CopilotDecisions | undefined;
     private processExitPromise: Promise<never> | null = null; // Rejects when CLI process exits
     private processTransportError: Error | null = null;
     private negotiatedProtocolVersion: number | null = null;
@@ -666,7 +827,7 @@ export class CopilotClient {
     private sessionFsConfig: SessionFsConfig | null = null;
     private requestHandler: CopilotRequestHandler | null = null;
     private extensionLaunchProvider?: ExtensionLaunchProvider;
-    private readonly kerberosAuth?: CopilotClientOptions["kerberosAuth"];
+    private readonly network?: CopilotClientOptions["network"];
     private installationConfirmationHandler?: InstallationConfirmationHandler;
     private builtinPluginDirectories: string[] = [];
     private onGitHubTelemetry?: (notification: GitHubTelemetryNotification) => void | Promise<void>;
@@ -688,6 +849,17 @@ export class CopilotClient {
             this._rpc = createServerRpc(this.connection);
         }
         return this._rpc;
+    }
+
+    /**
+     * One-off yes/no, pick-one and rating questions answered by Copilot decision
+     * models. Requires the runtime's `DECISIONS_API` feature flag.
+     *
+     * @experimental
+     */
+    get decisions(): CopilotDecisions {
+        this._decisions ??= new CopilotDecisions(() => this.rpc);
+        return this._decisions;
     }
 
     /**
@@ -871,7 +1043,7 @@ export class CopilotClient {
         this.sessionFsConfig = options.sessionFs ?? null;
         this.requestHandler = options.requestHandler ?? null;
         this.extensionLaunchProvider = options.extensionLaunchProvider;
-        this.kerberosAuth = options.kerberosAuth;
+        this.network = options.network ? snapshotNetworkConfig(options.network) : undefined;
         this.installationConfirmationHandler = options.installationConfirmationHandler;
         this.onGitHubTelemetry = options.onGitHubTelemetry;
         this.setupClientGlobalHandlers();
@@ -939,11 +1111,17 @@ export class CopilotClient {
 
     /**
      * Parse CLI URL into host and port
-     * Supports formats: "host:port", "[ipv6]:port", "http://host:port", "https://host:port", or just "port"
+     * Supports raw TCP addresses: "host:port", "[ipv6]:port", "http://host:port", or just "port"
      */
     private parseCliUrl(url: string): { host: string; port: number } {
+        if (/^https:\/\//i.test(url)) {
+            throw new Error(
+                "HTTPS runtime connections are not supported: this transport uses plaintext TCP, not TLS"
+            );
+        }
+
         // Remove protocol if present
-        const cleanUrl = url.replace(/^https?:\/\//, "");
+        const cleanUrl = url.replace(/^http:\/\//, "");
 
         // Check if it's just a port number
         if (/^\d+$/.test(cleanUrl)) {
@@ -1150,13 +1328,31 @@ export class CopilotClient {
      * ```
      */
     async start(): Promise<void> {
+        if (this.forceStopPromise || (this.stopPromise && !this.forceStopping)) {
+            throw new Error("Client disconnected during session initialization");
+        }
+        const startup = this.startPromise;
+        if (startup && startup === this.shutdownCanceledStartup) {
+            const generation = this.sessionInitializationGeneration;
+            // Forced shutdown must return without native startup; reuse still waits for its cleanup.
+            await Promise.allSettled([startup, this.stopPromise]);
+            if (generation !== this.sessionInitializationGeneration) {
+                throw new Error("Client disconnected during session initialization");
+            }
+            return this.start();
+        }
+        // Outside teardown, concurrent callers share startup failures, including failure cleanup.
+        if (startup && !this.stopPromise) {
+            return startup;
+        }
+        if (
+            this.stopPromise ||
+            (this.connection && this.sessionInitializationLifetime.signal.aborted)
+        ) {
+            throw new Error("Client disconnected during session initialization");
+        }
         if (this.state === "connected") {
             return;
-        }
-
-        // Concurrent callers share one in-progress start instead of each spawning a CLI.
-        if (this.startPromise) {
-            return this.startPromise;
         }
 
         this.startPromise = this.doStart();
@@ -1164,10 +1360,13 @@ export class CopilotClient {
             await this.startPromise;
         } finally {
             this.startPromise = null;
+            this.shutdownCanceledStartup = null;
         }
     }
 
     private async doStart(): Promise<void> {
+        this.sessionInitializationLifetime = new AbortController();
+        const signal = this.sessionInitializationLifetime.signal;
         this.forceStopping = false;
         this.connectionEpoch++;
         this.connectionClosed = false;
@@ -1181,16 +1380,22 @@ export class CopilotClient {
             } else if (!this.isExternalServer) {
                 await this.startCLIServer();
             }
+            signal.throwIfAborted();
 
             // Connect to the server
             await this.connectToServer();
+            signal.throwIfAborted();
 
             // Verify protocol version compatibility
             await this.verifyProtocolVersion();
 
-            if (this.kerberosAuth) {
-                const { mode, scope } = this.kerberosAuth;
-                await this.rpc.kerberosAuth.setProvider(scope ? { mode, scope } : { mode });
+            if (this.network?.resolveProxy || this.network?.authenticateNegotiate) {
+                const { scope, resolveProxy, authenticateNegotiate } = this.network;
+                await this.rpc.network.setProvider({
+                    ...(scope ? { scope } : {}),
+                    ...(resolveProxy ? { resolveProxy: {} } : {}),
+                    ...(authenticateNegotiate ? { authenticateNegotiate: {} } : {}),
+                });
             }
 
             if (this.extensionLaunchProvider) {
@@ -1198,14 +1403,9 @@ export class CopilotClient {
             }
 
             if (this.builtinPluginDirectories.length > 0) {
-                try {
-                    await this.connection!.sendRequest("plugins.builtin.set", {
-                        paths: this.builtinPluginDirectories,
-                    });
-                } catch (error) {
-                    await this.forceStop();
-                    throw error;
-                }
+                await this.connection!.sendRequest("plugins.builtin.set", {
+                    paths: this.builtinPluginDirectories,
+                });
             }
 
             // If a session filesystem provider was configured, register it
@@ -1228,10 +1428,15 @@ export class CopilotClient {
             if (this.connectionClosed) {
                 throw new Error("CLI server connection closed during startup");
             }
+            signal.throwIfAborted();
             this.state = "connected";
         } catch (error) {
             const startupError = this.processTransportError ?? error;
-            await this.forceStop();
+            if (!signal.aborted) {
+                this.invalidateSessionInitializations();
+            }
+            // Startup retains cleanup ownership even after forceStop has returned.
+            await this.doForceStop();
             this.state = "error";
             throw startupError;
         }
@@ -1268,6 +1473,22 @@ export class CopilotClient {
      * ```
      */
     async stop(): Promise<Error[]> {
+        if (this.stopPromise) {
+            return this.stopPromise;
+        }
+        if (!this.sessionInitializationLifetime.signal.aborted) {
+            this.shutdownCanceledStartup = this.startPromise;
+        }
+        this.invalidateSessionInitializations();
+        this.stopPromise = this.doStop(this.startPromise);
+        try {
+            return await this.stopPromise;
+        } finally {
+            this.stopPromise = null;
+        }
+    }
+
+    private async doStop(startup: Promise<void> | null): Promise<Error[]> {
         const errors: Error[] = [];
 
         // Disconnect all active sessions with retry logic
@@ -1351,6 +1572,7 @@ export class CopilotClient {
         this.sessions.clear();
         this.githubTokenProviders.clear();
         this.requestAdapter?.cancelPending();
+        this.abortPendingMemoryStores();
 
         // Ask SDK-owned runtimes to flush and clean up before we tear down
         // their transport/process. External runtimes may be shared, so only
@@ -1517,6 +1739,10 @@ export class CopilotClient {
             this.cliStartTimeout = null;
         }
 
+        // Startup owns its rejection; shutdown waits for any late startup resources to be released.
+        if (startup) {
+            await Promise.allSettled([startup]);
+        }
         this.state = "disconnected";
         this.runtimePort = null;
         this.stderrBuffer = "";
@@ -1551,7 +1777,8 @@ export class CopilotClient {
      * - Sends SIGKILL to the CLI process (if spawned by this client)
      * - Waits for the spawned CLI process to exit
      *
-     * @returns A promise that resolves when the force stop is complete
+     * @returns Resolves after disconnection and spawned-process exit; later starts
+     * wait for pending startup cleanup.
      * @throws If the spawned CLI process cannot be terminated
      *
      * @example
@@ -1570,6 +1797,22 @@ export class CopilotClient {
      * ```
      */
     async forceStop(): Promise<void> {
+        if (this.forceStopPromise) {
+            return this.forceStopPromise;
+        }
+        if (!this.sessionInitializationLifetime.signal.aborted) {
+            this.shutdownCanceledStartup = this.startPromise;
+        }
+        this.invalidateSessionInitializations();
+        this.forceStopPromise = this.doForceStop();
+        try {
+            await this.forceStopPromise;
+        } finally {
+            this.forceStopPromise = null;
+        }
+    }
+
+    private async doForceStop(): Promise<void> {
         this.forceStopping = true;
         this.disconnectHosts();
 
@@ -1580,6 +1823,7 @@ export class CopilotClient {
         this.sessions.clear();
         this.githubTokenProviders.clear();
         this.requestAdapter?.cancelPending();
+        this.abortPendingMemoryStores();
 
         // Force close connection. Suppress writer failures first so teardown
         // write rejections don't surface as unhandled rejections.
@@ -1837,16 +2081,132 @@ export class CopilotClient {
     }
 
     async createSession(config: SessionConfig): Promise<CopilotSession> {
+        if (config.autoModeRecovery && typeof config.onAutoModeSwitchRequest !== "function") {
+            throw new Error("autoModeRecovery requires onAutoModeSwitchRequest");
+        }
         if (config.gitHubToken !== undefined && config.gitHubTokenProvider !== undefined) {
             throw new Error("gitHubToken and gitHubTokenProvider are mutually exclusive");
         }
         if (config.cloud != null && config.skillProvider) {
             throw new Error("Skill providers are not supported for cloud sessions.");
         }
-        // Wait for in-progress startup too: its provider registrations must precede any session.
-        if (!this.connection || this.startPromise) {
-            await this.start();
+        const storeMemory = requestedMemoryStore(config.memory);
+        if (config.cloud != null && storeMemory) {
+            throw new Error("Memory stores are not supported for cloud sessions.");
         }
+        const signal = await this.getSessionInitializationSignal();
+        const sessionId = config.sessionId ?? (config.cloud != null ? undefined : randomUUID());
+        if (sessionId === undefined) {
+            return this.createSessionInternal(config, signal);
+        }
+        const release = await this.acquireSessionInitialization(sessionId, signal);
+        try {
+            signal.throwIfAborted();
+            return await this.createSessionInternal({ ...config, sessionId }, signal);
+        } finally {
+            release();
+        }
+    }
+
+    private invalidateSessionInitializations(): void {
+        this.sessionInitializationGeneration++;
+        this.sessionInitializationLifetime.abort(
+            new Error("Client disconnected during session initialization")
+        );
+    }
+
+    private async getSessionInitializationSignal(): Promise<AbortSignal> {
+        // Starting a new connection renews the lifetime; queued operations keep their old signal.
+        const generation = this.sessionInitializationGeneration;
+        // Provider registration can still be in flight after the connection is assigned.
+        const starting = !this.connection || this.startPromise ? this.start() : undefined;
+        await starting;
+        if (generation !== this.sessionInitializationGeneration) {
+            throw new Error("Client disconnected during session initialization");
+        }
+        const signal = this.sessionInitializationLifetime.signal;
+        signal.throwIfAborted();
+        return signal;
+    }
+
+    private async runInitializationCallback<T>(
+        sessionId: string | undefined,
+        callback: () => Promise<T>
+    ): Promise<T> {
+        const context = sessionId === undefined ? undefined : { sessionId, active: true };
+        try {
+            return await this.sessionInitializationContext.run(context, callback);
+        } finally {
+            if (context) context.active = false;
+        }
+    }
+
+    private async acquireSessionInitialization(
+        sessionId: string,
+        signal: AbortSignal
+    ): Promise<() => void> {
+        signal.throwIfAborted();
+        const predecessors = [...this.sessionInitializations]
+            .filter(([id]) => sessionIdsOverlap(id, sessionId))
+            .map(([, pending]) => pending);
+        const previous = predecessors.length ? Promise.all(predecessors).then(() => {}) : undefined;
+        const context = this.sessionInitializationContext.getStore();
+        if (previous && context?.active && sessionIdsOverlap(context.sessionId, sessionId)) {
+            throw new Error(
+                `Cannot re-enter session initialization for ${sessionId} from its callback`
+            );
+        }
+        let finish!: () => void;
+        const current = new Promise<void>((resolve) => {
+            finish = resolve;
+        });
+        // Canceling a waiter must not let its successors overtake the active owner.
+        const tail = previous ? previous.then(() => current) : current;
+        this.sessionInitializations.set(sessionId, tail);
+        void tail.then(() => {
+            if (this.sessionInitializations.get(sessionId) === tail) {
+                this.sessionInitializations.delete(sessionId);
+            }
+        });
+        try {
+            if (previous) {
+                let cancel!: () => void;
+                try {
+                    await new Promise<void>((resolve, reject) => {
+                        cancel = () => reject(signal.reason);
+                        signal.addEventListener("abort", cancel, { once: true });
+                        void previous.then(resolve);
+                    });
+                } finally {
+                    signal.removeEventListener("abort", cancel);
+                }
+            }
+            signal.throwIfAborted();
+            const cleanupError = this.connection
+                ? [...(this.failedAutoModeRecoveryCleanups.get(this.connection) ?? [])].find(
+                      ([id]) => sessionIdsOverlap(id, sessionId)
+                  )?.[1]
+                : undefined;
+            if (cleanupError) {
+                throw new Error(
+                    `Cannot initialize session ${sessionId} after failed Auto recovery cleanup; stop and restart the client before retrying`,
+                    { cause: cleanupError }
+                );
+            }
+            return finish;
+        } catch (error) {
+            finish();
+            throw error;
+        }
+    }
+
+    private async createSessionInternal(
+        config: SessionConfig,
+        signal: AbortSignal
+    ): Promise<CopilotSession> {
+        signal.throwIfAborted();
+        const connection = this.connection!;
+        const storeMemory = requestedMemoryStore(config.memory);
 
         const modeDefaults = this.configDefaultsForMode();
         config = { ...modeDefaults, ...config };
@@ -1886,25 +2246,15 @@ export class CopilotClient {
         // Creates the session object, wires up handlers, and registers it in
         // the sessions map.
         const initializeSession = (sessionId: string): CopilotSession => {
-            const s = new CopilotSession(
-                sessionId,
-                this.connection!,
-                undefined,
-                this.onGetTraceContext,
-                {
-                    mcpAuthHandler: config.onMcpAuthRequest,
-                    managedSettingsEnabled:
-                        config.enableManagedSettings === true ||
-                        config.managedSettings !== undefined,
-                    onDisconnected:
-                        gitHubTokenProviderRegistrationId === undefined
-                            ? undefined
-                            : () =>
-                                  this.githubTokenProviders.delete(
-                                      gitHubTokenProviderRegistrationId
-                                  ),
-                }
-            );
+            const s = new CopilotSession(sessionId, connection, undefined, this.onGetTraceContext, {
+                mcpAuthHandler: config.onMcpAuthRequest,
+                managedSettingsEnabled:
+                    config.enableManagedSettings === true || config.managedSettings !== undefined,
+                onDisconnected:
+                    gitHubTokenProviderRegistrationId === undefined
+                        ? undefined
+                        : () => this.githubTokenProviders.delete(gitHubTokenProviderRegistrationId),
+            });
             s.registerTools(config.tools);
             s.registerCanvases(config.canvases);
             s.registerCommands(config.commands);
@@ -1930,6 +2280,7 @@ export class CopilotClient {
             if (config.skillProvider) {
                 s.registerSkillProvider(config.skillProvider);
             }
+            s._registerMemoryStore(storeMemory);
             if (transformCallbacks) {
                 s.registerTransformCallbacks(transformCallbacks);
             }
@@ -1939,6 +2290,7 @@ export class CopilotClient {
             // Session-FS setup can throw, so finish it before the session
             // becomes routable; a failed open must not leave handlers behind.
             this.setupSessionFs(s, config);
+            signal.throwIfAborted();
             this.sessions.set(sessionId, s);
             return s;
         };
@@ -1946,6 +2298,7 @@ export class CopilotClient {
         let session: CopilotSession | undefined;
         let registeredId: string | undefined;
         let uninitializedCloudSessionId: string | undefined;
+        let releaseCloudInitialization: (() => void) | undefined;
 
         // Pre-register non-cloud sessions BEFORE issuing the RPC so any
         // session-scoped requests the CLI emits during `session.create`
@@ -1964,14 +2317,19 @@ export class CopilotClient {
         }
 
         try {
-            const response = await this.connection!.sendRequest("session.create", {
-                ...(await getTraceContext(this.onGetTraceContext)),
+            const traceContext = await this.runInitializationCallback(localSessionId, () =>
+                getTraceContext(this.onGetTraceContext)
+            );
+            signal.throwIfAborted();
+            const response = await connection.sendRequest("session.create", {
+                ...traceContext,
                 model: config.model,
                 allowedModels: config.allowedModels,
                 sessionId: localSessionId,
                 name: config.name,
                 clientName: config.clientName,
                 reasoningEffort: config.reasoningEffort,
+                allowMultipleToolCalls: config.allowMultipleToolCalls,
                 reasoningSummary: config.reasoningSummary,
                 isExperimentalMode: this.experimentalModeForMode(config.enableExperimentalMode),
                 contextTier: config.contextTier,
@@ -2024,6 +2382,7 @@ export class CopilotClient {
                     : {}),
                 requestExitPlanMode: !!config.onExitPlanModeRequest,
                 requestAutoModeSwitch: !!config.onAutoModeSwitchRequest,
+                ...(config.autoModeRecovery ? { requestAutoModeRecovery: true } : {}),
                 hooks: !!(config.hooks && Object.values(config.hooks).some(Boolean)),
                 workingDirectory: config.workingDirectory,
                 trustWorkingDirectory: config.trustWorkingDirectory,
@@ -2058,6 +2417,7 @@ export class CopilotClient {
                 enableSkills: config.enableSkills,
                 skillDirectories: config.skillDirectories,
                 ...(config.skillProvider ? { hasSkillProvider: true } : {}),
+                ...(storeMemory ? { hasMemoryStore: true } : {}),
                 agentDirectories: config.agentDirectories,
                 hookDirectories: config.hookDirectories,
                 pluginDirectories: config.pluginDirectories,
@@ -2066,7 +2426,7 @@ export class CopilotClient {
                 disabledMcpServers: config.disabledMcpServers,
                 sandboxConfig: config.sandboxConfig,
                 infiniteSessions: config.infiniteSessions,
-                memory: config.memory,
+                memory: toWireMemoryConfiguration(config.memory),
                 gitHubToken: config.gitHubToken,
                 gitHubTokenProviderRegistrationId,
                 cloud: config.cloud,
@@ -2076,6 +2436,7 @@ export class CopilotClient {
                 excludedManagedSettings: config.excludedManagedSettings,
                 enforceManagedModelDefaults: config.enforceManagedModelDefaults,
                 interactiveUser: config.interactiveUser,
+                permissionMode: config.permissionMode,
                 managedSettings: config.managedSettings,
             });
 
@@ -2083,10 +2444,12 @@ export class CopilotClient {
                 sessionId: returnedSessionId,
                 workspacePath,
                 capabilities,
+                permissionModeResult,
             } = response as {
                 sessionId: string;
                 workspacePath?: string;
                 capabilities?: SessionCapabilities;
+                permissionModeResult?: PermissionsSetModeResult;
             };
             if (!returnedSessionId) {
                 throw new Error("session.create response did not include a sessionId");
@@ -2097,28 +2460,41 @@ export class CopilotClient {
                 );
             }
             if (session === undefined) {
+                uninitializedCloudSessionId = returnedSessionId;
+            }
+            signal.throwIfAborted();
+            if (session === undefined) {
                 // Cloud / server-assigned path: register the session now that
                 // the CLI has told us which id it chose.
-                uninitializedCloudSessionId = returnedSessionId;
+                releaseCloudInitialization = await this.acquireSessionInitialization(
+                    returnedSessionId,
+                    signal
+                );
+                signal.throwIfAborted();
                 session = initializeSession(returnedSessionId);
-                uninitializedCloudSessionId = undefined;
                 registeredId = returnedSessionId;
             }
             this.assignGitHubTokenProvider(gitHubTokenProviderRegistrationId, returnedSessionId);
+            session.setCapabilities(capabilities);
+            if (config.autoModeRecovery) {
+                await this.requireAutoModeRecovery(session, connection);
+            }
             if (config.onMcpAuthRequest) {
-                await this.connection!.sendRequest("session.eventLog.registerInterest", {
+                await connection.sendRequest("session.eventLog.registerInterest", {
                     sessionId: returnedSessionId,
                     eventType: "mcp.oauth_required",
                 });
             }
             session["_workspacePath"] = workspacePath;
-            session.setCapabilities(capabilities);
+            session.setPermissionModeResult(permissionModeResult);
 
             await this.updateSessionOptionsForMode(session, config);
+            signal.throwIfAborted();
+            uninitializedCloudSessionId = undefined;
             this.commitGitHubTokenProvider(returnedSessionId, gitHubTokenProviderRegistrationId);
         } catch (e) {
             session?._markDisconnected();
-            if (registeredId !== undefined) {
+            if (registeredId !== undefined && this.sessions.get(registeredId) === session) {
                 this.sessions.delete(registeredId);
             }
             if (gitHubTokenProviderRegistrationId !== undefined) {
@@ -2127,18 +2503,28 @@ export class CopilotClient {
             if (uninitializedCloudSessionId !== undefined) {
                 try {
                     await withTimeout(
-                        this.deleteSession(uninitializedCloudSessionId),
+                        this.requestSessionDeletion(connection, uninitializedCloudSessionId),
                         CLOUD_SESSION_CLEANUP_TIMEOUT_MS,
                         `session.delete timed out after ${CLOUD_SESSION_CLEANUP_TIMEOUT_MS}ms`
                     );
                 } catch (cleanupError) {
-                    throw new AggregateError(
+                    const failure = new AggregateError(
                         [e, cleanupError],
-                        "Failed to initialize and delete cloud session"
+                        `Failed to initialize and delete cloud session ${uninitializedCloudSessionId}`
                     );
+                    if (config.autoModeRecovery) {
+                        this.recordFailedAutoModeRecoveryCleanup(
+                            connection,
+                            uninitializedCloudSessionId,
+                            failure
+                        );
+                    }
+                    throw failure;
                 }
             }
             throw e;
+        } finally {
+            releaseCloudInitialization?.();
         }
 
         for (const entry of this.hostHandoffs.values()) {
@@ -2193,20 +2579,63 @@ export class CopilotClient {
         contributions: ExtensionOrchestrationContributions = {},
         extensionOptions?: ExtensionJoinOptions
     ): Promise<CopilotSession> {
-        const { workflows } = contributions;
+        if (config.autoModeRecovery && typeof config.onAutoModeSwitchRequest !== "function") {
+            throw new Error("autoModeRecovery requires onAutoModeSwitchRequest");
+        }
         if (config.gitHubToken !== undefined && config.gitHubTokenProvider !== undefined) {
             throw new Error("gitHubToken and gitHubTokenProvider are mutually exclusive");
         }
-        // Wait for in-progress startup too: its provider registrations must precede any session.
-        if (!this.connection || this.startPromise) {
-            await this.start();
+        requestedMemoryStore(config.memory);
+        const signal = await this.getSessionInitializationSignal();
+        const release = await this.acquireSessionInitialization(sessionId, signal);
+        try {
+            signal.throwIfAborted();
+            return await this.resumeSessionWithInitialization(
+                sessionId,
+                config,
+                contributions,
+                signal,
+                extensionOptions
+            );
+        } finally {
+            release();
+        }
+    }
+
+    private async resumeSessionWithInitialization(
+        sessionId: string,
+        config: ResumeSessionConfig,
+        contributions: ExtensionOrchestrationContributions,
+        signal: AbortSignal,
+        extensionOptions?: ExtensionJoinOptions
+    ): Promise<CopilotSession> {
+        const { workflows } = contributions;
+        const storeMemory = requestedMemoryStore(config.memory);
+        signal.throwIfAborted();
+        const connection = this.connection!;
+        const resolveAliases = config.autoModeRecovery === true && !this.sessionFsConfig;
+        if (resolveAliases && isAbbreviatedUuidPrefix(sessionId)) {
+            // Resolve against persisted sessions before redirecting any resident callbacks.
+            const resolved = await connection.sendRequest<SessionsFindByPrefixResult>(
+                "sessions.findByPrefix",
+                { prefix: sessionId, configDir: config.configDirectory }
+            );
+            const canonicalId = resolved?.sessionId;
+            if (typeof canonicalId !== "string" || canonicalId.length === 0) {
+                throw new Error(`No unique session matches prefix ${sessionId}`);
+            }
+            if (!canonicalId.toLowerCase().startsWith(sessionId.toLowerCase())) {
+                throw new Error(`Runtime returned an unrelated session ID for prefix ${sessionId}`);
+            }
+            sessionId = canonicalId;
+            signal.throwIfAborted();
         }
 
         // Create and register the session before issuing the RPC so that
         // events emitted by the CLI (e.g. session.start) are not dropped.
         const session = new CopilotSession(
             sessionId,
-            this.connection!,
+            connection,
             undefined,
             this.onGetTraceContext,
             {
@@ -2246,6 +2675,7 @@ export class CopilotClient {
         if (config.skillProvider) {
             session.registerSkillProvider(config.skillProvider);
         }
+        session._registerMemoryStore(storeMemory);
 
         const modeDefaults = this.configDefaultsForMode();
         config = { ...modeDefaults, ...config };
@@ -2266,8 +2696,12 @@ export class CopilotClient {
         // replacement session becomes routable over any resident one.
         const toolFilterOptions = this.resolveToolFilterOptions(config);
         this.setupSessionFs(session, config);
-        const replacedSession = this.sessions.get(sessionId);
-        this.sessions.set(sessionId, session);
+        signal.throwIfAborted();
+        const requestedSessionId = sessionId;
+        let replacedRequestedSession: CopilotSession | undefined;
+        let replacedSession: CopilotSession | undefined;
+        let releaseCanonicalInitialization: (() => void) | undefined;
+        let keepResumedSessionOnRecoveryRejection = false;
 
         const gitHubTokenProviderRegistrationId = this.registerGitHubTokenProvider(
             config.gitHubTokenProvider,
@@ -2280,14 +2714,28 @@ export class CopilotClient {
         }
 
         try {
-            const response = await this.connection!.sendRequest("session.resume", {
+            const traceContext = await this.runInitializationCallback(sessionId, () =>
+                getTraceContext(this.onGetTraceContext)
+            );
+            signal.throwIfAborted();
+            replacedRequestedSession = this.sessions.get(sessionId);
+            replacedSession = replacedRequestedSession;
+            this.sessions.set(sessionId, session);
+            this.pendingSessionResumes.set(requestedSessionId, {
+                session,
+                connection,
+                gitHubTokenProviderRegistrationId,
+                resolveAliases,
+            });
+            const response = await connection.sendRequest("session.resume", {
                 allowedModels: config.allowedModels,
-                ...(await getTraceContext(this.onGetTraceContext)),
+                ...traceContext,
                 sessionId,
                 allowTranscriptRecovery: config.allowTranscriptRecovery,
                 clientName: config.clientName,
                 model: config.model,
                 reasoningEffort: config.reasoningEffort,
+                allowMultipleToolCalls: config.allowMultipleToolCalls,
                 reasoningSummary: config.reasoningSummary,
                 isExperimentalMode: this.experimentalModeForMode(config.enableExperimentalMode),
                 contextTier: config.contextTier,
@@ -2342,6 +2790,7 @@ export class CopilotClient {
                     : {}),
                 requestExitPlanMode: !!config.onExitPlanModeRequest,
                 requestAutoModeSwitch: !!config.onAutoModeSwitchRequest,
+                ...(config.autoModeRecovery ? { requestAutoModeRecovery: true } : {}),
                 hooks: !!(config.hooks && Object.values(config.hooks).some(Boolean)),
                 workingDirectory: config.workingDirectory,
                 additionalDirectories: config.additionalDirectories,
@@ -2374,6 +2823,7 @@ export class CopilotClient {
                 agent: config.agent,
                 skillDirectories: config.skillDirectories,
                 ...(config.skillProvider ? { hasSkillProvider: true } : {}),
+                ...(storeMemory ? { hasMemoryStore: true } : {}),
                 agentDirectories: config.agentDirectories,
                 hookDirectories: config.hookDirectories,
                 pluginDirectories: config.pluginDirectories,
@@ -2382,7 +2832,7 @@ export class CopilotClient {
                 disabledMcpServers: config.disabledMcpServers,
                 sandboxConfig: config.sandboxConfig,
                 infiniteSessions: config.infiniteSessions,
-                memory: config.memory,
+                memory: toWireMemoryConfiguration(config.memory),
                 disableResume: config.suppressResumeEvent,
                 continuePendingWork: config.continuePendingWork,
                 gitHubToken: config.gitHubToken,
@@ -2394,6 +2844,7 @@ export class CopilotClient {
                 excludedManagedSettings: config.excludedManagedSettings,
                 enforceManagedModelDefaults: config.enforceManagedModelDefaults,
                 interactiveUser: config.interactiveUser,
+                permissionMode: config.permissionMode,
                 managedSettings: config.managedSettings,
                 ...(extensionOptions?.requestedEnvironmentVariables
                     ? {
@@ -2403,6 +2854,30 @@ export class CopilotClient {
                     : {}),
             });
 
+            const { sessionId: returnedSessionId } = response as { sessionId?: string };
+            if (returnedSessionId && returnedSessionId !== sessionId) {
+                // A prefix permit already excludes the returned ID. Reacquiring
+                // it could wait on a successor queued behind this operation.
+                if (!sessionIdsOverlap(requestedSessionId, returnedSessionId)) {
+                    releaseCanonicalInitialization = await this.acquireSessionInitialization(
+                        returnedSessionId,
+                        signal
+                    );
+                }
+                replacedSession = this.sessions.get(returnedSessionId);
+                if (this.sessions.get(requestedSessionId) === session) {
+                    if (replacedRequestedSession) {
+                        this.sessions.set(requestedSessionId, replacedRequestedSession);
+                    } else {
+                        this.sessions.delete(requestedSessionId);
+                    }
+                }
+                session._setSessionId(returnedSessionId);
+                sessionId = returnedSessionId;
+                this.sessions.set(sessionId, session);
+                this.assignGitHubTokenProvider(gitHubTokenProviderRegistrationId, sessionId);
+            }
+            signal.throwIfAborted();
             // The host answers an approved environment request with the resolved
             // values, and this method consumes the response, so the grant has to be
             // applied here — no caller ever sees it. Only the names the user
@@ -2420,41 +2895,71 @@ export class CopilotClient {
                 }
             }
 
-            const { workspacePath, capabilities, openCanvases, transcriptRecovery } = response as {
+            const {
+                workspacePath,
+                capabilities,
+                openCanvases,
+                transcriptRecovery,
+                permissionModeResult,
+            } = response as {
                 sessionId: string;
                 workspacePath?: string;
                 capabilities?: SessionCapabilities;
                 openCanvases?: OpenCanvasInstance[];
                 transcriptRecovery?: TranscriptRecovery;
+                permissionModeResult?: PermissionsSetModeResult;
             };
             session["_workspacePath"] = workspacePath;
             session.setCapabilities(capabilities);
+            if (config.autoModeRecovery) {
+                keepResumedSessionOnRecoveryRejection =
+                    replacedSession !== undefined &&
+                    session.capabilities.ui?.autoModeRecovery !== true;
+                await this.requireAutoModeRecovery(
+                    session,
+                    connection,
+                    replacedSession === undefined
+                );
+            }
             session.setOpenCanvases(openCanvases ?? []);
             session.setTranscriptRecovery(transcriptRecovery);
+            session.setPermissionModeResult(permissionModeResult);
             if (config.onMcpAuthRequest) {
-                await this.connection!.sendRequest("session.eventLog.registerInterest", {
+                await connection.sendRequest("session.eventLog.registerInterest", {
                     sessionId,
                     eventType: "mcp.oauth_required",
                 });
             }
 
             await this.updateSessionOptionsForMode(session, config);
+            signal.throwIfAborted();
             this.commitGitHubTokenProvider(sessionId, gitHubTokenProviderRegistrationId);
         } catch (e) {
-            session._markDisconnected();
+            if (!keepResumedSessionOnRecoveryRejection) {
+                session._markDisconnected();
+            }
             // The runtime keeps the resident session's bindings when a resume
             // fails, so its callbacks must keep reaching the replaced session.
             if (this.sessions.get(sessionId) === session) {
-                if (replacedSession) {
+                if (replacedSession && !keepResumedSessionOnRecoveryRejection) {
                     this.sessions.set(sessionId, replacedSession);
-                } else {
+                } else if (!keepResumedSessionOnRecoveryRejection) {
                     this.sessions.delete(sessionId);
                 }
             }
             if (gitHubTokenProviderRegistrationId !== undefined) {
-                this.githubTokenProviders.delete(gitHubTokenProviderRegistrationId);
+                if (keepResumedSessionOnRecoveryRejection) {
+                    this.commitGitHubTokenProvider(sessionId, gitHubTokenProviderRegistrationId);
+                } else {
+                    this.githubTokenProviders.delete(gitHubTokenProviderRegistrationId);
+                }
             }
             throw e;
+        } finally {
+            if (this.pendingSessionResumes.get(requestedSessionId)?.session === session) {
+                this.pendingSessionResumes.delete(requestedSessionId);
+            }
+            releaseCanonicalInitialization?.();
         }
 
         for (const entry of this.hostHandoffs.values()) {
@@ -2463,6 +2968,59 @@ export class CopilotClient {
             }
         }
         return session;
+    }
+
+    private async requireAutoModeRecovery(
+        session: CopilotSession,
+        connection: MessageConnection,
+        detachOnFailure = true
+    ): Promise<void> {
+        if (session.capabilities.ui?.autoModeRecovery === true) {
+            return;
+        }
+        const error = new Error("The runtime does not support autoModeRecovery");
+        // A failed resume restores the resident owner of this same runtime attachment.
+        if (!detachOnFailure) {
+            throw error;
+        }
+        const cancellation = new CancellationTokenSource();
+        try {
+            const response = await withTimeout(
+                connection.sendRequest<{ success: boolean; error?: string }>(
+                    "session.detach",
+                    { sessionId: session.sessionId },
+                    cancellation.token
+                ),
+                AUTO_MODE_RECOVERY_CLEANUP_TIMEOUT_MS,
+                `session.detach timed out after ${AUTO_MODE_RECOVERY_CLEANUP_TIMEOUT_MS}ms`
+            );
+            if (!response.success) {
+                throw new Error(`Failed to detach session: ${response.error || "Unknown error"}`);
+            }
+        } catch (cleanupError) {
+            const failure = new AggregateError([error, cleanupError], error.message);
+            this.recordFailedAutoModeRecoveryCleanup(connection, session.sessionId, failure);
+            throw failure;
+        } finally {
+            cancellation.cancel();
+            cancellation.dispose();
+            session._markDisconnected();
+        }
+        throw error;
+    }
+
+    private recordFailedAutoModeRecoveryCleanup(
+        connection: MessageConnection,
+        sessionId: string,
+        failure: Error
+    ): void {
+        let failed = this.failedAutoModeRecoveryCleanups.get(connection);
+        if (!failed) {
+            failed = new Map();
+            this.failedAutoModeRecoveryCleanups.set(connection, failed);
+        }
+        // A failed wait cannot retract cleanup the runtime may still process.
+        failed.set(sessionId, failure);
     }
 
     /**
@@ -2587,6 +3145,13 @@ export class CopilotClient {
                 reportError(error);
             }
         }
+    }
+
+    private abortPendingMemoryStores(): void {
+        for (const controller of this.pendingMemoryStores) {
+            controller.abort();
+        }
+        this.pendingMemoryStores.clear();
     }
 
     private disconnectHosts(): void {
@@ -3024,18 +3589,39 @@ export class CopilotClient {
             throw new Error("Client not connected");
         }
 
-        const response = await this.connection.sendRequest("session.delete", {
-            sessionId,
-        });
+        const signal = await this.getSessionInitializationSignal();
+        const release = await this.acquireSessionInitialization(sessionId, signal);
+        try {
+            signal.throwIfAborted();
+            const connection = this.connection!;
+            const session = this.sessions.get(sessionId);
+            await this.requestSessionDeletion(connection, sessionId);
+            signal.throwIfAborted();
+            if (this.sessions.get(sessionId) === session) {
+                this.sessions.delete(sessionId);
+                session?._clearMemoryStore();
+                session?._runOnDisconnected();
+            }
+        } finally {
+            release();
+        }
+    }
 
-        const { success, error } = response as { success: boolean; error?: string };
+    private async requestSessionDeletion(
+        connection: MessageConnection,
+        sessionId: string
+    ): Promise<void> {
+        const response = await connection.sendRequest<{ success: boolean; error?: string }>(
+            "session.delete",
+            {
+                sessionId,
+            }
+        );
+
+        const { success, error } = response;
         if (!success) {
             throw new Error(`Failed to delete session ${sessionId}: ${error || "Unknown error"}`);
         }
-
-        const session = this.sessions.get(sessionId);
-        this.sessions.delete(sessionId);
-        session?._runOnDisconnected();
     }
 
     /**
@@ -3672,7 +4258,8 @@ export class CopilotClient {
         this.messageWriter = new TeardownResilientStreamMessageWriter(this.ffiHost.sendStream);
         this.connection = createMessageConnection(
             new StreamMessageReader(this.ffiHost.receiveStream),
-            this.messageWriter
+            this.messageWriter,
+            this.sessionInitializationContext
         );
 
         this.attachConnectionHandlers();
@@ -3745,7 +4332,8 @@ export class CopilotClient {
         this.messageWriter = new TeardownResilientStreamMessageWriter(this.cliProcess.stdin!);
         this.connection = createMessageConnection(
             new StreamMessageReader(this.cliProcess.stdout!),
-            this.messageWriter
+            this.messageWriter,
+            this.sessionInitializationContext
         );
 
         this.attachConnectionHandlers();
@@ -3764,7 +4352,8 @@ export class CopilotClient {
         this.messageWriter = new TeardownResilientStreamMessageWriter(process.stdout);
         this.connection = createMessageConnection(
             new StreamMessageReader(process.stdin),
-            this.messageWriter
+            this.messageWriter,
+            this.sessionInitializationContext
         );
 
         this.attachConnectionHandlers();
@@ -3793,7 +4382,8 @@ export class CopilotClient {
                 this.messageWriter = new TeardownResilientStreamMessageWriter(this.socket!);
                 this.connection = createMessageConnection(
                     new StreamMessageReader(this.socket!),
-                    this.messageWriter
+                    this.messageWriter,
+                    this.sessionInitializationContext
                 );
 
                 this.attachConnectionHandlers();
@@ -3858,9 +4448,8 @@ export class CopilotClient {
         );
 
         // Register client session API handlers.
-        const sessions = this.sessions;
         registerClientSessionApiHandlers(this.connection, (sessionId) => {
-            const session = sessions.get(sessionId);
+            const session = this.resolveSessionCallback(sessionId);
             if (!session) throw new Error(`No session found for sessionId: ${sessionId}`);
             return session.clientSessionApis;
         });
@@ -3884,14 +4473,23 @@ export class CopilotClient {
                     confirmation.confirm(params, token)
             );
         }
-        if (this.kerberosAuth) {
-            // Registered directly so the callback receives the transport's request cancellation.
-            const { callback } = this.kerberosAuth;
+        // Registered directly so the callbacks receive the transport's request cancellation.
+        const resolveProxy = this.network?.resolveProxy;
+        if (resolveProxy) {
             const connection = this.connection;
             this.connection.onRequest(
-                "kerberosAuth.acquire",
-                (params: KerberosAuthAcquireRequest, token: CancellationToken) =>
-                    acquireKerberosToken(connection, callback, params, token)
+                "network.resolveProxy",
+                (params: NetworkResolveProxyRequest, token: CancellationToken) =>
+                    resolveClientProxy(connection, resolveProxy, params, token)
+            );
+        }
+        const authenticateNegotiate = this.network?.authenticateNegotiate;
+        if (authenticateNegotiate) {
+            const connection = this.connection;
+            this.connection.onRequest(
+                "network.authenticateNegotiate",
+                (params: NetworkAuthenticateNegotiateRequest, token: CancellationToken) =>
+                    authenticateClientNegotiate(connection, authenticateNegotiate, params, token)
             );
         }
         this.connection.onRequest("host.materializeSession", (params) =>
@@ -3977,9 +4575,29 @@ export class CopilotClient {
                 },
                 token: CancellationToken
             ) => {
-                const session = this.sessions.get(params.sessionId);
+                const session = this.resolveSessionCallback(params.sessionId);
                 if (!session) throw new Error("Session creation owner is unavailable");
                 return await session._handleSessionManagementCreate(params, token);
+            }
+        );
+        // Internal experimental callback backing `MemoryConfiguration.storeMemory`.
+        this.connection.onRequest(
+            "memoryStore.store",
+            async (params: StoredMemory, token: CancellationToken) => {
+                const session = this.sessions.get(params?.sessionId);
+                if (!session) throw new Error("Memory store owner is unavailable");
+                // Tracked here so connection loss also aborts stores of sessions a resume replaced.
+                const controller = new AbortController();
+                this.pendingMemoryStores.add(controller);
+                const subscription = token.onCancellationRequested(() => controller.abort());
+                if (token.isCancellationRequested) controller.abort();
+                try {
+                    await session._handleMemoryStore(params, controller.signal);
+                } finally {
+                    this.pendingMemoryStores.delete(controller);
+                    subscription.dispose();
+                }
+                return null;
             }
         );
         this.connection.onRequest(
@@ -4017,6 +4635,7 @@ export class CopilotClient {
             this.sessions.clear();
             this.githubTokenProviders.clear();
             this.requestAdapter?.cancelPending();
+            this.abortPendingMemoryStores();
             connection.dispose();
             this.socket?.destroy();
             this.connection = null;
@@ -4036,6 +4655,7 @@ export class CopilotClient {
             }
             if (disconnecting) return;
             disconnecting = true;
+            this.invalidateSessionInitializations();
             this.connectionClosed = true;
             if (messageWriter) messageWriter.suppressWriteErrors = true;
             // jsonrpc dispatches parsed messages asynchronously, one per event-loop
@@ -4075,6 +4695,36 @@ export class CopilotClient {
         });
     }
 
+    private resolveSessionCallback(sessionId: string): CopilotSession | undefined {
+        let selected: CopilotSession | undefined;
+        let selectedPrefixLength = -1;
+        for (const [prefix, pending] of this.pendingSessionResumes) {
+            if (
+                pending.connection !== this.connection ||
+                (!pending.resolveAliases && prefix !== sessionId) ||
+                prefix.length <= selectedPrefixLength ||
+                !(sessionIdsOverlap(prefix, sessionId) && sessionId.length >= prefix.length)
+            )
+                continue;
+            const knownOwners = new Set(
+                [...this.sessions.values()].filter(
+                    (owner) =>
+                        owner !== pending.session &&
+                        sessionIdsOverlap(prefix, owner.sessionId) &&
+                        owner.sessionId.length >= prefix.length
+                )
+            );
+            if (knownOwners.size > 1) continue;
+            if (pending.session.sessionId !== sessionId) {
+                pending.session._setSessionId(sessionId);
+            }
+            this.assignGitHubTokenProvider(pending.gitHubTokenProviderRegistrationId, sessionId);
+            selected = pending.session;
+            selectedPrefixLength = prefix.length;
+        }
+        return selected ?? this.sessions.get(sessionId);
+    }
+
     private handleSessionEventNotification(notification: unknown): void {
         if (
             typeof notification !== "object" ||
@@ -4086,7 +4736,9 @@ export class CopilotClient {
             return;
         }
 
-        const session = this.sessions.get((notification as { sessionId: string }).sessionId);
+        const session = this.resolveSessionCallback(
+            (notification as { sessionId: string }).sessionId
+        );
         const event = (notification as { event: SessionEvent }).event;
         if (session) {
             session._dispatchEvent(event);
@@ -4163,7 +4815,7 @@ export class CopilotClient {
             throw new Error("Invalid user input request payload");
         }
 
-        const session = this.sessions.get(params.sessionId);
+        const session = this.resolveSessionCallback(params.sessionId);
         if (!session) {
             throw new Error(`Session not found: ${params.sessionId}`);
         }
@@ -4190,7 +4842,7 @@ export class CopilotClient {
             throw new Error("Invalid exit plan mode request payload");
         }
 
-        const session = this.sessions.get(params.sessionId);
+        const session = this.resolveSessionCallback(params.sessionId);
         if (!session) {
             throw new Error(`Session not found: ${params.sessionId}`);
         }
@@ -4211,7 +4863,7 @@ export class CopilotClient {
             throw new Error("Invalid auto mode switch request payload");
         }
 
-        const session = this.sessions.get(params.sessionId);
+        const session = this.resolveSessionCallback(params.sessionId);
         if (!session) {
             throw new Error(`Session not found: ${params.sessionId}`);
         }
@@ -4219,6 +4871,9 @@ export class CopilotClient {
         const response = await session._handleAutoModeSwitchRequest({
             errorCode: params.errorCode,
             retryAfterSeconds: params.retryAfterSeconds,
+            ...(params.autoModeRecovery === undefined
+                ? {}
+                : { autoModeRecovery: params.autoModeRecovery }),
         });
         return { response };
     }
@@ -4227,7 +4882,7 @@ export class CopilotClient {
         if (!params || typeof params.sessionId !== "string") {
             throw new Error("Invalid skillProvider payload");
         }
-        const session = this.sessions.get(params.sessionId);
+        const session = this.resolveSessionCallback(params.sessionId);
         if (!session) {
             throw new Error(`Session not found: ${params.sessionId}`);
         }
@@ -4247,7 +4902,7 @@ export class CopilotClient {
             throw new Error("Invalid hooks invoke payload");
         }
 
-        const session = this.sessions.get(params.sessionId);
+        const session = this.resolveSessionCallback(params.sessionId);
         if (!session) {
             throw new Error(`Session not found: ${params.sessionId}`);
         }
@@ -4269,7 +4924,7 @@ export class CopilotClient {
             throw new Error("Invalid systemMessage.transform payload");
         }
 
-        const session = this.sessions.get(params.sessionId);
+        const session = this.resolveSessionCallback(params.sessionId);
         if (!session) {
             throw new Error(`Session not found: ${params.sessionId}`);
         }

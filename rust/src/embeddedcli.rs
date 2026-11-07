@@ -17,7 +17,8 @@
 //! handed back as "good", fails to launch (e.g. Windows `ERROR_BAD_EXE_FORMAT`).
 //! Full CLI installation therefore: extracts to a unique temp file in the target dir,
 //! fsyncs and marks it executable, verifies the staged bytes against the
-//! trusted in-memory image, atomically renames it into place, re-verifies the
+//! trusted in-memory image, atomically publishes it in place without replacing
+//! an identical binary another process already published, re-verifies the
 //! published file, and records an integrity marker. Subsequent runs trust an
 //! existing install only after a cheap re-check (size marker + executable-image
 //! header); anything that looks truncated or quarantined is re-extracted, and
@@ -384,7 +385,11 @@ fn install_runtime(install_dir: &Path, archive: &[u8]) -> Result<PathBuf, Embedd
             .map_err(|e| EmbeddedCliError::new(EmbeddedCliErrorKind::Archive, e))?;
     }
     for staged in pending {
-        publish(&staged.temporary, &staged.target)?;
+        publish_staged(
+            &staged.temporary,
+            &staged.target,
+            staged.target == root.join(RUNTIME_BINARY_NAME),
+        )?;
     }
     #[cfg(unix)]
     check_runtime_wrapper_execute_access(&root.join(RUNTIME_BINARY_NAME))
@@ -392,7 +397,7 @@ fn install_runtime(install_dir: &Path, archive: &[u8]) -> Result<PathBuf, Embedd
     Ok(install_dir.join(RUNTIME_BINARY_NAME))
 }
 
-#[cfg(all(has_bundled_cli, unix))]
+#[cfg(all(any(has_bundled_cli, test), unix))]
 fn check_runtime_wrapper_execute_access(path: &Path) -> std::io::Result<()> {
     use std::ffi::{CString, c_char, c_int};
     use std::os::unix::ffi::OsStrExt;
@@ -765,10 +770,10 @@ fn existing_install_is_valid(
 }
 
 /// Extract → stage in a unique temp file in the *same* directory → verify the
-/// staged bytes → atomically rename into place → re-verify the published file
-/// → write the integrity marker. Every step that can leave a partial file
-/// cleans up after itself, so a failure never leaves a half-written binary at
-/// the final path.
+/// staged bytes → atomically publish into place (see [`publish_staged`]) →
+/// re-verify the published file → write the integrity marker. Every step that
+/// can leave a partial file cleans up after itself, so a failure never leaves a
+/// half-written binary at the final path.
 #[cfg(any(has_bundled_cli, test))]
 fn publish_verified(
     install_dir: &Path,
@@ -785,12 +790,12 @@ fn publish_verified(
         return Err(e);
     }
 
-    if let Err(e) = publish(&tmp, final_path) {
+    if let Err(e) = publish_staged(&tmp, final_path, true) {
         let _ = fs::remove_file(&tmp);
         return Err(e);
     }
 
-    // Re-verify after the rename: catches the window where antivirus
+    // Re-verify after publishing: catches the window where antivirus
     // quarantines or rewrites the file between staging and publishing.
     verify_on_disk_matches(final_path, bytes)?;
 
@@ -858,6 +863,88 @@ fn create_temp_file(dir: &Path) -> Result<(PathBuf, fs::File), EmbeddedCliError>
 #[cfg(any(has_bundled_cli, test))]
 fn publish(tmp: &Path, final_path: &Path) -> Result<(), EmbeddedCliError> {
     fs::rename(tmp, final_path).map_err(|e| EmbeddedCliError::new(EmbeddedCliErrorKind::Publish, e))
+}
+
+/// Publish the staged file at `staged` as `target`, keeping a file already
+/// there when it holds the same bytes and permissions, including effective
+/// execute access when `executable` is required.
+///
+/// Installers that start on a cold cache at the same time all miss the fast
+/// path and stage their own copy. Renaming each copy into place replaces the
+/// file an earlier installer already published, and a process that earlier
+/// installer started from it keeps running an unlinked executable (on Linux,
+/// `/proc/<pid>/exe` ends in ` (deleted)`). On unix the staged file is
+/// therefore hard-linked into place, which never replaces an existing file; an
+/// identical file found there is kept and the staged copy discarded. A
+/// different file is replaced by [`publish`] as before, as is any target when
+/// the filesystem cannot hard-link.
+#[cfg(any(has_bundled_cli, test))]
+fn publish_staged(staged: &Path, target: &Path, executable: bool) -> Result<(), EmbeddedCliError> {
+    #[cfg(not(unix))]
+    let _ = executable;
+    #[cfg(unix)]
+    {
+        let in_place = match fs::hard_link(staged, target) {
+            Ok(()) => true,
+            Err(e) if e.kind() == std::io::ErrorKind::AlreadyExists => {
+                same_contents_and_mode(staged, target)
+                    && (!executable || check_runtime_wrapper_execute_access(target).is_ok())
+            }
+            Err(e) => {
+                tracing::debug!(path = %target.display(), error = %e,
+                    "cannot hard-link the staged file; replacing the target");
+                false
+            }
+        };
+        if in_place {
+            if let Err(e) = fs::remove_file(staged)
+                && e.kind() != std::io::ErrorKind::NotFound
+            {
+                tracing::debug!(path = %staged.display(), error = %e,
+                    "failed to remove the staged file");
+            }
+            return Ok(());
+        }
+    }
+    publish(staged, target)
+}
+
+/// True when `target` is a regular file with the same bytes and permission
+/// bits as `staged`. Any I/O error counts as a difference, so the caller
+/// replaces the target.
+#[cfg(all(any(has_bundled_cli, test), unix))]
+fn same_contents_and_mode(staged: &Path, target: &Path) -> bool {
+    use std::io::Read as _;
+    use std::os::unix::fs::PermissionsExt;
+
+    let (Ok(staged_meta), Ok(target_meta)) = (fs::metadata(staged), fs::symlink_metadata(target))
+    else {
+        return false;
+    };
+    if !target_meta.is_file()
+        || staged_meta.len() != target_meta.len()
+        || staged_meta.permissions().mode() & 0o777 != target_meta.permissions().mode() & 0o777
+    {
+        return false;
+    }
+    let (Ok(mut staged), Ok(mut target)) = (fs::File::open(staged), fs::File::open(target)) else {
+        return false;
+    };
+    let mut staged_buf = [0u8; 64 * 1024];
+    let mut target_buf = [0u8; 64 * 1024];
+    loop {
+        let Ok(read) = staged.read(&mut staged_buf) else {
+            return false;
+        };
+        if read == 0 {
+            return matches!(target.read(&mut target_buf[..1]), Ok(0));
+        }
+        if target.read_exact(&mut target_buf[..read]).is_err()
+            || staged_buf[..read] != target_buf[..read]
+        {
+            return false;
+        }
+    }
 }
 
 /// Read the file at `path` and confirm it byte-for-byte matches the trusted

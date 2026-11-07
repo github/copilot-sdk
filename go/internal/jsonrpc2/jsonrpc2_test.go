@@ -152,6 +152,42 @@ func TestOnCloseCalledOnUnexpectedExit(t *testing.T) {
 	}
 }
 
+func TestConnectionCloseCancelsInFlightRequestHandlers(t *testing.T) {
+	stdinR, stdinW := io.Pipe()
+	stdoutR, stdoutW := io.Pipe()
+	defer stdinR.Close()
+	go io.Copy(io.Discard, stdinR)
+
+	client := NewClient(stdinW, stdoutR)
+	entered := make(chan struct{})
+	cancelled := make(chan struct{})
+	client.SetRequestContextHandler("memoryStore.store", func(ctx context.Context, _ json.RawMessage) (json.RawMessage, *Error) {
+		close(entered)
+		<-ctx.Done()
+		close(cancelled)
+		return nil, nil
+	})
+	client.Start()
+	t.Cleanup(client.Stop)
+
+	writer := newHeaderWriter(stdoutW)
+	if err := writer.Write([]byte(`{"jsonrpc":"2.0","id":1,"method":"memoryStore.store","params":{}}`)); err != nil {
+		t.Fatalf("Write request: %v", err)
+	}
+	select {
+	case <-entered:
+	case <-time.After(time.Second):
+		t.Fatal("handler did not start")
+	}
+	stdoutW.Close()
+
+	select {
+	case <-cancelled:
+	case <-time.After(time.Second):
+		t.Fatal("connection close did not cancel the in-flight handler")
+	}
+}
+
 func TestOnCloseNotCalledOnIntentionalStop(t *testing.T) {
 	stdinR, stdinW := io.Pipe()
 	stdoutR, stdoutW := io.Pipe()

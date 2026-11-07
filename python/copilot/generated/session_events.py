@@ -270,6 +270,9 @@ class SessionEventType(Enum):
     COMMAND_COMPLETED = "command.completed"
     AUTO_MODE_SWITCH_REQUESTED = "auto_mode_switch.requested"
     AUTO_MODE_SWITCH_COMPLETED = "auto_mode_switch.completed"
+    AUTO_MODE_RECOVERY_CONSENT_REQUESTED = "auto_mode_recovery_consent.requested"
+    AUTO_MODE_RECOVERY_CONSENT_COMPLETED = "auto_mode_recovery_consent.completed"
+    AUTO_MODE_RECOVERY_OUTCOME = "auto_mode_recovery.outcome"
     SESSION_LIMITS_EXHAUSTED_REQUESTED = "session_limits_exhausted.requested"
     SESSION_LIMITS_EXHAUSTED_COMPLETED = "session_limits_exhausted.completed"
     # Experimental: this event is part of an experimental API and may change or be removed.
@@ -5226,6 +5229,115 @@ class AttachmentSelectionDetailsStart:
 
 
 @dataclass
+class AutoModeRecoveryConsentCompletedData:
+    "Recovery consent offer closed; clients must dismiss its UI. Completion does not imply consent or recovery success. Events belong to the originating live session; resume can invalidate an offer without this event."
+    reason: str
+    request_id: str
+    response: AutoModeSwitchResponse | None = None
+
+    @staticmethod
+    def from_dict(obj: Any) -> "AutoModeRecoveryConsentCompletedData":
+        assert isinstance(obj, dict)
+        reason = from_str(obj.get("reason"))
+        request_id = from_str(obj.get("requestId"))
+        response = from_union([from_none, lambda x: parse_enum(AutoModeSwitchResponse, x)], obj.get("response"))
+        return AutoModeRecoveryConsentCompletedData(
+            reason=reason,
+            request_id=request_id,
+            response=response,
+        )
+
+    def to_dict(self) -> dict:
+        result: dict = {}
+        result["reason"] = from_str(self.reason)
+        result["requestId"] = from_str(self.request_id)
+        if self.response is not None:
+            result["response"] = from_union([from_none, lambda x: to_enum(AutoModeSwitchResponse, x)], self.response)
+        return result
+
+
+@dataclass
+class AutoModeRecoveryConsentRequestedData:
+    "Recovery consent for a still-active request. Respond using session.ui.handlePendingAutoModeSwitch. The offer has no timer. Entering Autopilot before recovery admission withdraws it. Dismiss it on auto_mode_recovery_consent.completed or on session resume, rebuild, or disconnect; resume can invalidate it without a completed event."
+    allow_always: bool
+    error_code: str
+    original_model: str
+    request_id: str
+    interaction_id: str | None = None
+    originating_message_id: str | None = None
+    retry_after_seconds: float | None = None
+
+    @staticmethod
+    def from_dict(obj: Any) -> "AutoModeRecoveryConsentRequestedData":
+        assert isinstance(obj, dict)
+        allow_always = from_bool(obj.get("allowAlways"))
+        error_code = from_str(obj.get("errorCode"))
+        original_model = from_str(obj.get("originalModel"))
+        request_id = from_str(obj.get("requestId"))
+        interaction_id = from_union([from_none, from_str], obj.get("interactionId"))
+        originating_message_id = from_union([from_none, from_str], obj.get("originatingMessageId"))
+        retry_after_seconds = from_union([from_none, from_float], obj.get("retryAfterSeconds"))
+        return AutoModeRecoveryConsentRequestedData(
+            allow_always=allow_always,
+            error_code=error_code,
+            original_model=original_model,
+            request_id=request_id,
+            interaction_id=interaction_id,
+            originating_message_id=originating_message_id,
+            retry_after_seconds=retry_after_seconds,
+        )
+
+    def to_dict(self) -> dict:
+        result: dict = {}
+        result["allowAlways"] = from_bool(self.allow_always)
+        result["errorCode"] = from_str(self.error_code)
+        result["originalModel"] = from_str(self.original_model)
+        result["requestId"] = from_str(self.request_id)
+        if self.interaction_id is not None:
+            result["interactionId"] = from_union([from_none, from_str], self.interaction_id)
+        if self.originating_message_id is not None:
+            result["originatingMessageId"] = from_union([from_none, from_str], self.originating_message_id)
+        if self.retry_after_seconds is not None:
+            result["retryAfterSeconds"] = from_union([from_none, to_float], self.retry_after_seconds)
+        return result
+
+
+@dataclass
+class AutoModeRecoveryOutcomeData:
+    "Authoritative final outcome of an active-request Auto recovery episode, not a retry-start notification or manual response regeneration. Normal response/error and session completion signals still settle the logical request."
+    auto_mode_recovery_admitted: bool
+    error_code: str
+    original_model: str
+    request_id: str
+    status: str
+
+    @staticmethod
+    def from_dict(obj: Any) -> "AutoModeRecoveryOutcomeData":
+        assert isinstance(obj, dict)
+        auto_mode_recovery_admitted = from_bool(obj.get("autoModeRecoveryAdmitted"))
+        error_code = from_str(obj.get("errorCode"))
+        original_model = from_str(obj.get("originalModel"))
+        request_id = from_str(obj.get("requestId"))
+        status = from_str(obj.get("status"))
+        return AutoModeRecoveryOutcomeData(
+            auto_mode_recovery_admitted=auto_mode_recovery_admitted,
+            error_code=error_code,
+            original_model=original_model,
+            request_id=request_id,
+            status=status,
+        )
+
+    def to_dict(self) -> dict:
+        result: dict = {}
+        result["autoModeRecoveryAdmitted"] = from_bool(self.auto_mode_recovery_admitted)
+        result["errorCode"] = from_str(self.error_code)
+        result["originalModel"] = from_str(self.original_model)
+        result["requestId"] = from_str(self.request_id)
+        result["status"] = from_str(self.status)
+        return result
+
+
+@dataclass
 class AutoModeSwitchCompletedData:
     "Auto mode switch completion notification"
     request_id: str
@@ -5303,6 +5415,7 @@ class CapabilitiesChangedUI:
     canvases: bool | None = None
     elicitation: bool | None = None
     mcp_apps: bool | None = None
+    auto_mode_recovery: bool | None = None
 
     @staticmethod
     def from_dict(obj: Any) -> "CapabilitiesChangedUI":
@@ -5310,10 +5423,12 @@ class CapabilitiesChangedUI:
         canvases = from_union([from_none, from_bool], obj.get("canvases"))
         elicitation = from_union([from_none, from_bool], obj.get("elicitation"))
         mcp_apps = from_union([from_none, from_bool], obj.get("mcpApps"))
+        auto_mode_recovery = from_union([from_none, from_bool], obj.get("autoModeRecovery"))
         return CapabilitiesChangedUI(
             canvases=canvases,
             elicitation=elicitation,
             mcp_apps=mcp_apps,
+            auto_mode_recovery=auto_mode_recovery,
         )
 
     def to_dict(self) -> dict:
@@ -5324,6 +5439,8 @@ class CapabilitiesChangedUI:
             result["elicitation"] = from_union([from_none, from_bool], self.elicitation)
         if self.mcp_apps is not None:
             result["mcpApps"] = from_union([from_none, from_bool], self.mcp_apps)
+        if self.auto_mode_recovery is not None:
+            result["autoModeRecovery"] = from_union([from_none, from_bool], self.auto_mode_recovery)
         return result
 
 
@@ -11319,6 +11436,8 @@ class SessionInfoData:
     "Informational message for timeline display with categorization"
     info_type: str
     message: str
+    # Internal: this field is an internal SDK API and is not part of the public surface.
+    _responses_reasoning: ResponsesReasoning | None = field(default=None, kw_only=True)
     tip: str | None = None
     url: str | None = None
 
@@ -11327,11 +11446,13 @@ class SessionInfoData:
         assert isinstance(obj, dict)
         info_type = from_str(obj.get("infoType"))
         message = from_str(obj.get("message"))
+        _responses_reasoning = from_union([from_none, ResponsesReasoning.from_dict], obj.get("responsesReasoning"))
         tip = from_union([from_none, from_str], obj.get("tip"))
         url = from_union([from_none, from_str], obj.get("url"))
         return SessionInfoData(
             info_type=info_type,
             message=message,
+            _responses_reasoning=_responses_reasoning,
             tip=tip,
             url=url,
         )
@@ -11340,6 +11461,8 @@ class SessionInfoData:
         result: dict = {}
         result["infoType"] = from_str(self.info_type)
         result["message"] = from_str(self.message)
+        if self._responses_reasoning is not None:
+            result["responsesReasoning"] = from_union([from_none, lambda x: to_class(ResponsesReasoning, x)], self._responses_reasoning)
         if self.tip is not None:
             result["tip"] = from_union([from_none, from_str], self.tip)
         if self.url is not None:
@@ -15495,6 +15618,7 @@ class UserMessageData:
     supported_native_document_mime_types: list[str] | None = None
     transformed_content: str | None = None
     turn_id: str | None = None
+    client_turn_id: str | None = None
 
     @staticmethod
     def from_dict(obj: Any) -> "UserMessageData":
@@ -15514,6 +15638,7 @@ class UserMessageData:
         supported_native_document_mime_types = from_union([from_none, lambda x: from_list(from_str, x)], obj.get("supportedNativeDocumentMimeTypes"))
         transformed_content = from_union([from_none, from_str], obj.get("transformedContent"))
         turn_id = from_union([from_none, from_str], obj.get("turnId"))
+        client_turn_id = from_union([from_none, from_str], obj.get("clientTurnId"))
         return UserMessageData(
             content=content,
             agent_mode=agent_mode,
@@ -15530,6 +15655,7 @@ class UserMessageData:
             supported_native_document_mime_types=supported_native_document_mime_types,
             transformed_content=transformed_content,
             turn_id=turn_id,
+            client_turn_id=client_turn_id,
         )
 
     def to_dict(self) -> dict:
@@ -15563,6 +15689,8 @@ class UserMessageData:
             result["transformedContent"] = from_union([from_none, from_str], self.transformed_content)
         if self.turn_id is not None:
             result["turnId"] = from_union([from_none, from_str], self.turn_id)
+        if self.client_turn_id is not None:
+            result["clientTurnId"] = from_union([from_none, from_str], self.client_turn_id)
         return result
 
 
@@ -17886,7 +18014,7 @@ class WorkspaceFileChangedOperation(Enum):
     UPDATE = "update"
 
 
-SessionEventData = SessionJournalLinkData | SessionStartData | SessionResumeData | SessionRemoteSteerableChangedData | SessionErrorData | SessionIdleData | SessionAutopilotStoppedData | SessionTitleChangedData | SessionScheduleCreatedData | SessionScheduleCancelledData | SessionScheduleRearmedData | SessionAutopilotObjectiveChangedData | SessionInfoData | SessionIndexedSearchData | SessionWarningData | SessionModelChangeData | SessionModelDeselectedData | SessionAutoTierRecommendationData | SessionAutoTierSwitchFailedData | SessionModeChangedData | SessionModeNoticeDeliveredData | SessionSessionLimitsChangedData | SessionPermissionsChangedData | SessionPlanChangedData | SessionTodosChangedData | SessionWorkspaceFileChangedData | SessionHandoffData | SessionTruncationData | SessionSnapshotRewindData | SessionShutdownData | SessionUsageCheckpointData | SessionQuotaObservationData | SessionContextChangedData | SessionUsageInfoData | SessionContextClearedData | SessionCompactionStartData | SessionCompactionCompleteData | SessionTaskCompleteData | SessionCompletionReceiptData | SessionFusionRouteStartedData | SessionFusionRouteFailedData | SessionFusionResolvedData | SessionFusionCompletedData | SessionPermissionRecoveryData | UserMessageData | PendingMessagesModifiedData | AssistantTurnStartData | AssistantTurnRetryData | AgentInterruptedData | AssistantIntentData | AssistantFusionPhaseStartedData | AssistantFusionPhaseActivityData | AssistantFusionPhaseCompletedData | AssistantFusionPhaseFailedData | AssistantServerToolProgressData | AssistantReasoningData | AssistantReasoningDeltaData | AssistantToolCallDeltaData | AssistantStreamingDeltaData | AssistantMessageData | AssistantMessageStartData | AssistantMessageDeltaData | AssistantTurnEndData | AssistantIdleData | AssistantUsageData | PromptCacheBreakData | ModelCallFailureData | ModelCallFinalResultData | ModelCallFinishedData | ModelCallStartData | AbortData | ToolUserRequestedData | ToolExecutionStartData | ToolExecutionPartialResultData | ToolShellOutputData | ToolExecutionProgressData | ToolExecutionCompleteData | ToolSearchActivatedData | SkillInvokedData | SkillInvokedRefData | SkillContextDeliveredData | SkillContextDeliveredRefData | SandboxDecisionData | SubagentStartedData | SubagentConfiguredData | SubagentCompletedData | SubagentFailedData | SubagentSelectedData | SubagentDeselectedData | HookStartData | HookEndData | HookProgressData | SessionBinaryAssetData | SystemMessageData | InstructionUpdateData | SystemNotificationData | PermissionRequestedData | PermissionCompletedData | PermissionCarriedForwardData | PermissionMessageAuthorizationData | PermissionMessageAuthorizationReadData | PermissionMessageAuthorizationDegradedData | PermissionAssentDetectedData | PermissionContextualAuthorizationData | UserInputRequestedData | UserInputCompletedData | ElicitationRequestedData | ElicitationCompletedData | SamplingRequestedData | SamplingCompletedData | McpOauthRequiredData | McpOauthCompletedData | McpOauthRecoveryCompletedData | McpHeadersRefreshRequiredData | McpHeadersRefreshCompletedData | SessionCustomNotificationData | UiEphemeralQueryData | ExternalToolRequestedData | ExternalToolCompletedData | CommandQueuedData | CommandExecuteData | CommandCompletedData | AutoModeSwitchRequestedData | AutoModeSwitchCompletedData | SessionLimitsExhaustedRequestedData | SessionLimitsExhaustedCompletedData | SessionAutoModeResolvedData | SessionManagedPluginProgressData | SessionManagedSettingsResolvedData | SessionManagedSettingsEnforcedData | CommandsChangedData | CapabilitiesChangedData | ExitPlanModeRequestedData | ExitPlanModeCompletedData | HumanResponseRecordedData | SessionToolsUpdatedData | SessionBackgroundTasksChangedData | WorkflowRunUpdatedData | WorkflowRunStartedData | WorkflowRunSettledData | SessionSkillsLoadedData | SessionCustomAgentsUpdatedData | SessionMcpServersLoadedData | SessionMcpServerStatusChangedData | SessionMcpServerToolsLoadedData | SessionMcpServerRemovedData | SessionMcpServerNeedsReconnectData | McpToolsListChangedData | McpResourcesListChangedData | McpPromptsListChangedData | SessionExtensionsLoadedData | SessionCanvasOpenedData | SessionCanvasRegistryChangedData | SessionCanvasClosedData | SessionCanvasUnavailableData | SessionCanvasRecordedData | SessionCanvasRemovedData | SessionExtensionsAttachmentsPushedData | McpAppToolCallCompleteData | RawSessionEventData | Data
+SessionEventData = SessionJournalLinkData | SessionStartData | SessionResumeData | SessionRemoteSteerableChangedData | SessionErrorData | SessionIdleData | SessionAutopilotStoppedData | SessionTitleChangedData | SessionScheduleCreatedData | SessionScheduleCancelledData | SessionScheduleRearmedData | SessionAutopilotObjectiveChangedData | SessionInfoData | SessionIndexedSearchData | SessionWarningData | SessionModelChangeData | SessionModelDeselectedData | SessionAutoTierRecommendationData | SessionAutoTierSwitchFailedData | SessionModeChangedData | SessionModeNoticeDeliveredData | SessionSessionLimitsChangedData | SessionPermissionsChangedData | SessionPlanChangedData | SessionTodosChangedData | SessionWorkspaceFileChangedData | SessionHandoffData | SessionTruncationData | SessionSnapshotRewindData | SessionShutdownData | SessionUsageCheckpointData | SessionQuotaObservationData | SessionContextChangedData | SessionUsageInfoData | SessionContextClearedData | SessionCompactionStartData | SessionCompactionCompleteData | SessionTaskCompleteData | SessionCompletionReceiptData | SessionFusionRouteStartedData | SessionFusionRouteFailedData | SessionFusionResolvedData | SessionFusionCompletedData | SessionPermissionRecoveryData | UserMessageData | PendingMessagesModifiedData | AssistantTurnStartData | AssistantTurnRetryData | AgentInterruptedData | AssistantIntentData | AssistantFusionPhaseStartedData | AssistantFusionPhaseActivityData | AssistantFusionPhaseCompletedData | AssistantFusionPhaseFailedData | AssistantServerToolProgressData | AssistantReasoningData | AssistantReasoningDeltaData | AssistantToolCallDeltaData | AssistantStreamingDeltaData | AssistantMessageData | AssistantMessageStartData | AssistantMessageDeltaData | AssistantTurnEndData | AssistantIdleData | AssistantUsageData | PromptCacheBreakData | ModelCallFailureData | ModelCallFinalResultData | ModelCallFinishedData | ModelCallStartData | AbortData | ToolUserRequestedData | ToolExecutionStartData | ToolExecutionPartialResultData | ToolShellOutputData | ToolExecutionProgressData | ToolExecutionCompleteData | ToolSearchActivatedData | SkillInvokedData | SkillInvokedRefData | SkillContextDeliveredData | SkillContextDeliveredRefData | SandboxDecisionData | SubagentStartedData | SubagentConfiguredData | SubagentCompletedData | SubagentFailedData | SubagentSelectedData | SubagentDeselectedData | HookStartData | HookEndData | HookProgressData | SessionBinaryAssetData | SystemMessageData | InstructionUpdateData | SystemNotificationData | PermissionRequestedData | PermissionCompletedData | PermissionCarriedForwardData | PermissionMessageAuthorizationData | PermissionMessageAuthorizationReadData | PermissionMessageAuthorizationDegradedData | PermissionAssentDetectedData | PermissionContextualAuthorizationData | UserInputRequestedData | UserInputCompletedData | ElicitationRequestedData | ElicitationCompletedData | SamplingRequestedData | SamplingCompletedData | McpOauthRequiredData | McpOauthCompletedData | McpOauthRecoveryCompletedData | McpHeadersRefreshRequiredData | McpHeadersRefreshCompletedData | SessionCustomNotificationData | UiEphemeralQueryData | ExternalToolRequestedData | ExternalToolCompletedData | CommandQueuedData | CommandExecuteData | CommandCompletedData | AutoModeSwitchRequestedData | AutoModeSwitchCompletedData | AutoModeRecoveryConsentRequestedData | AutoModeRecoveryConsentCompletedData | AutoModeRecoveryOutcomeData | SessionLimitsExhaustedRequestedData | SessionLimitsExhaustedCompletedData | SessionAutoModeResolvedData | SessionManagedPluginProgressData | SessionManagedSettingsResolvedData | SessionManagedSettingsEnforcedData | CommandsChangedData | CapabilitiesChangedData | ExitPlanModeRequestedData | ExitPlanModeCompletedData | HumanResponseRecordedData | SessionToolsUpdatedData | SessionBackgroundTasksChangedData | WorkflowRunUpdatedData | WorkflowRunStartedData | WorkflowRunSettledData | SessionSkillsLoadedData | SessionCustomAgentsUpdatedData | SessionMcpServersLoadedData | SessionMcpServerStatusChangedData | SessionMcpServerToolsLoadedData | SessionMcpServerRemovedData | SessionMcpServerNeedsReconnectData | McpToolsListChangedData | McpResourcesListChangedData | McpPromptsListChangedData | SessionExtensionsLoadedData | SessionCanvasOpenedData | SessionCanvasRegistryChangedData | SessionCanvasClosedData | SessionCanvasUnavailableData | SessionCanvasRecordedData | SessionCanvasRemovedData | SessionExtensionsAttachmentsPushedData | McpAppToolCallCompleteData | RawSessionEventData | Data
 
 
 @dataclass
@@ -18038,6 +18166,9 @@ class SessionEvent:
             case SessionEventType.COMMAND_COMPLETED: data = CommandCompletedData.from_dict(data_obj)
             case SessionEventType.AUTO_MODE_SWITCH_REQUESTED: data = AutoModeSwitchRequestedData.from_dict(data_obj)
             case SessionEventType.AUTO_MODE_SWITCH_COMPLETED: data = AutoModeSwitchCompletedData.from_dict(data_obj)
+            case SessionEventType.AUTO_MODE_RECOVERY_CONSENT_REQUESTED: data = AutoModeRecoveryConsentRequestedData.from_dict(data_obj)
+            case SessionEventType.AUTO_MODE_RECOVERY_CONSENT_COMPLETED: data = AutoModeRecoveryConsentCompletedData.from_dict(data_obj)
+            case SessionEventType.AUTO_MODE_RECOVERY_OUTCOME: data = AutoModeRecoveryOutcomeData.from_dict(data_obj)
             case SessionEventType.SESSION_LIMITS_EXHAUSTED_REQUESTED: data = SessionLimitsExhaustedRequestedData.from_dict(data_obj)
             case SessionEventType.SESSION_LIMITS_EXHAUSTED_COMPLETED: data = SessionLimitsExhaustedCompletedData.from_dict(data_obj)
             case SessionEventType.SESSION_AUTO_MODE_RESOLVED: data = SessionAutoModeResolvedData.from_dict(data_obj)
@@ -18178,6 +18309,9 @@ __all__ = [
     "AttachmentSelectionDetailsEnd",
     "AttachmentSelectionDetailsStart",
     "AttachmentSessionReference",
+    "AutoModeRecoveryConsentCompletedData",
+    "AutoModeRecoveryConsentRequestedData",
+    "AutoModeRecoveryOutcomeData",
     "AutoModeResolvedReasoningBucket",
     "AutoModeSwitchCompletedData",
     "AutoModeSwitchRequestedData",

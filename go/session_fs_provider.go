@@ -160,14 +160,23 @@ type SessionFSFileInfo struct {
 // sessionFSAdapter wraps a SessionFSProvider to implement rpc.SessionFSHandler,
 // converting idiomatic Go errors into SessionFSError results.
 type sessionFSAdapter struct {
-	provider SessionFSProvider
+	provider      SessionFSProvider
+	beginCallback func() func()
 }
 
 func newSessionFSAdapter(provider SessionFSProvider) *sessionFSAdapter {
 	return &sessionFSAdapter{provider: provider}
 }
 
+func (a *sessionFSAdapter) callbackScope() func() {
+	if a.beginCallback != nil {
+		return a.beginCallback()
+	}
+	return func() {}
+}
+
 func (a *sessionFSAdapter) ReadFile(request *rpc.SessionFSReadFileRequest) (*rpc.SessionFSReadFileResult, error) {
+	defer a.callbackScope()()
 	content, err := a.provider.ReadFile(request.Path)
 	if err != nil {
 		return &rpc.SessionFSReadFileResult{Error: toSessionFSError(err)}, nil
@@ -176,6 +185,7 @@ func (a *sessionFSAdapter) ReadFile(request *rpc.SessionFSReadFileRequest) (*rpc
 }
 
 func (a *sessionFSAdapter) ReadFileBytes(request *rpc.SessionFSReadFileBytesRequest) (*rpc.SessionFSReadFileBytesResult, error) {
+	defer a.callbackScope()()
 	provider, ok := a.provider.(SessionFSBinaryProvider)
 	if !ok {
 		return &rpc.SessionFSReadFileBytesResult{Error: toSessionFSError(errors.New("binary reads are not supported"))}, nil
@@ -193,6 +203,7 @@ func (a *sessionFSAdapter) ReadFileBytes(request *rpc.SessionFSReadFileBytesRequ
 }
 
 func (a *sessionFSAdapter) ReadFileRange(request *rpc.SessionFSReadFileRangeRequest) (*rpc.SessionFSReadFileRangeResult, error) {
+	defer a.callbackScope()()
 	if request.Offset < 0 || request.Offset > 9_007_199_254_740_991 ||
 		request.Length != nil && (*request.Length < 0 || *request.Length > 9_007_199_254_740_991) {
 		return &rpc.SessionFSReadFileRangeResult{Error: toSessionFSError(errors.New("SessionFS byte offset and length must be non-negative safe integers"))}, nil
@@ -219,6 +230,7 @@ func (a *sessionFSAdapter) ReadFileRange(request *rpc.SessionFSReadFileRangeRequ
 }
 
 func (a *sessionFSAdapter) WriteFile(request *rpc.SessionFSWriteFileRequest) (*rpc.SessionFSError, error) {
+	defer a.callbackScope()()
 	var mode *int
 	if request.Mode != nil {
 		m := int(*request.Mode)
@@ -237,6 +249,7 @@ func (a *sessionFSAdapter) WriteFile(request *rpc.SessionFSWriteFileRequest) (*r
 }
 
 func (a *sessionFSAdapter) WriteFileBytes(request *rpc.SessionFSWriteFileBytesRequest) (*rpc.SessionFSError, error) {
+	defer a.callbackScope()()
 	provider, ok := a.provider.(SessionFSBinaryProvider)
 	if !ok {
 		return toSessionFSError(errors.New("binary writes are not supported")), nil
@@ -266,6 +279,7 @@ func (a *sessionFSAdapter) WriteFileBytes(request *rpc.SessionFSWriteFileBytesRe
 }
 
 func (a *sessionFSAdapter) AppendFile(request *rpc.SessionFSAppendFileRequest) (*rpc.SessionFSError, error) {
+	defer a.callbackScope()()
 	var mode *int
 	if request.Mode != nil {
 		m := int(*request.Mode)
@@ -278,6 +292,7 @@ func (a *sessionFSAdapter) AppendFile(request *rpc.SessionFSAppendFileRequest) (
 }
 
 func (a *sessionFSAdapter) Exists(request *rpc.SessionFSExistsRequest) (*rpc.SessionFSExistsResult, error) {
+	defer a.callbackScope()()
 	exists, err := a.provider.Exists(request.Path)
 	if err != nil {
 		return &rpc.SessionFSExistsResult{Exists: false}, nil
@@ -286,6 +301,7 @@ func (a *sessionFSAdapter) Exists(request *rpc.SessionFSExistsRequest) (*rpc.Ses
 }
 
 func (a *sessionFSAdapter) Stat(request *rpc.SessionFSStatRequest) (*rpc.SessionFSStatResult, error) {
+	defer a.callbackScope()()
 	info, err := a.provider.Stat(request.Path)
 	if err != nil {
 		return &rpc.SessionFSStatResult{Error: toSessionFSError(err)}, nil
@@ -300,6 +316,7 @@ func (a *sessionFSAdapter) Stat(request *rpc.SessionFSStatRequest) (*rpc.Session
 }
 
 func (a *sessionFSAdapter) Mkdir(request *rpc.SessionFSMkdirRequest) (*rpc.SessionFSError, error) {
+	defer a.callbackScope()()
 	recursive := request.Recursive != nil && *request.Recursive
 	var mode *int
 	if request.Mode != nil {
@@ -313,6 +330,7 @@ func (a *sessionFSAdapter) Mkdir(request *rpc.SessionFSMkdirRequest) (*rpc.Sessi
 }
 
 func (a *sessionFSAdapter) Readdir(request *rpc.SessionFSReaddirRequest) (*rpc.SessionFSReaddirResult, error) {
+	defer a.callbackScope()()
 	entries, err := a.provider.ReadDirectory(request.Path)
 	if err != nil {
 		return &rpc.SessionFSReaddirResult{Error: toSessionFSError(err)}, nil
@@ -321,6 +339,7 @@ func (a *sessionFSAdapter) Readdir(request *rpc.SessionFSReaddirRequest) (*rpc.S
 }
 
 func (a *sessionFSAdapter) ReaddirWithTypes(request *rpc.SessionFSReaddirWithTypesRequest) (*rpc.SessionFSReaddirWithTypesResult, error) {
+	defer a.callbackScope()()
 	entries, err := a.provider.ReadDirectoryWithTypes(request.Path)
 	if err != nil {
 		return &rpc.SessionFSReaddirWithTypesResult{Error: toSessionFSError(err)}, nil
@@ -329,6 +348,7 @@ func (a *sessionFSAdapter) ReaddirWithTypes(request *rpc.SessionFSReaddirWithTyp
 }
 
 func (a *sessionFSAdapter) Rm(request *rpc.SessionFSRmRequest) (*rpc.SessionFSError, error) {
+	defer a.callbackScope()()
 	recursive := request.Recursive != nil && *request.Recursive
 	force := request.Force != nil && *request.Force
 	if err := a.provider.Remove(request.Path, recursive, force); err != nil {
@@ -338,6 +358,7 @@ func (a *sessionFSAdapter) Rm(request *rpc.SessionFSRmRequest) (*rpc.SessionFSEr
 }
 
 func (a *sessionFSAdapter) Rename(request *rpc.SessionFSRenameRequest) (*rpc.SessionFSError, error) {
+	defer a.callbackScope()()
 	if err := a.provider.Rename(request.Src, request.Dest); err != nil {
 		return toSessionFSError(err), nil
 	}
@@ -345,6 +366,7 @@ func (a *sessionFSAdapter) Rename(request *rpc.SessionFSRenameRequest) (*rpc.Ses
 }
 
 func (a *sessionFSAdapter) SqliteQuery(request *rpc.SessionFSSqliteQueryRequest) (*rpc.SessionFSSqliteQueryResult, error) {
+	defer a.callbackScope()()
 	sp, ok := a.provider.(SessionFSSqliteProvider)
 	if !ok {
 		msg := "SQLite is not supported by this session filesystem provider"
@@ -376,6 +398,7 @@ func (a *sessionFSAdapter) SqliteQuery(request *rpc.SessionFSSqliteQueryRequest)
 }
 
 func (a *sessionFSAdapter) SqliteTransaction(request *rpc.SessionFSSqliteTransactionRequest) (*rpc.SessionFSSqliteTransactionResult, error) {
+	defer a.callbackScope()()
 	sp, ok := a.provider.(SessionFSSqliteTransactionProvider)
 	if !ok {
 		return &rpc.SessionFSSqliteTransactionResult{
@@ -418,6 +441,7 @@ func toWireSqliteQueryResult(result SessionFSSqliteQueryResult) rpc.SessionFSSql
 }
 
 func (a *sessionFSAdapter) SqliteExists(request *rpc.SessionFSSqliteExistsRequest) (*rpc.SessionFSSqliteExistsResult, error) {
+	defer a.callbackScope()()
 	sp, ok := a.provider.(SessionFSSqliteProvider)
 	if !ok {
 		return &rpc.SessionFSSqliteExistsResult{Exists: false}, nil

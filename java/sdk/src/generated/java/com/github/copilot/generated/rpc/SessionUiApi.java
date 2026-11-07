@@ -207,14 +207,46 @@ public final class SessionUiApi {
     }
 
     /**
-     * Registers an in-process handler for auto-mode-switch requests so the server bridge skips dispatch.
+     * Registers an in-process handler for auto-mode-switch requests so the server bridge skips dispatch. Set `autoModeRecovery` to also handle Auto recovery consent offers.
+     * <p>
+     * Invokes the method with no params, applying the runtime defaults.
      *
      * @apiNote This method is experimental and may change in a future version.
      * @since 1.0.0
      */
     @CopilotExperimental
     public CompletableFuture<SessionUiRegisterDirectAutoModeSwitchHandlerResult> registerDirectAutoModeSwitchHandler() {
-        return caller.invoke("session.ui.registerDirectAutoModeSwitchHandler", java.util.Map.of("sessionId", this.sessionId), SessionUiRegisterDirectAutoModeSwitchHandlerResult.class);
+        return registerDirectAutoModeSwitchHandler(null);
+    }
+
+    /**
+     * Registers an in-process handler for auto-mode-switch requests so the server bridge skips dispatch. Set `autoModeRecovery` to also handle Auto recovery consent offers.
+     * <p>
+     * Note: the {@code sessionId} field in the params record is overridden
+     * by the session-scoped wrapper; any value provided is ignored.
+     *
+     * @apiNote This method is experimental and may change in a future version.
+     * @since 1.0.0
+     */
+    @CopilotExperimental
+    public CompletableFuture<SessionUiRegisterDirectAutoModeSwitchHandlerResult> registerDirectAutoModeSwitchHandler(SessionUiRegisterDirectAutoModeSwitchHandlerParams params) {
+        com.fasterxml.jackson.databind.node.ObjectNode _p = params == null ? MAPPER.createObjectNode() : MAPPER.valueToTree(params);
+        _p.put("sessionId", this.sessionId);
+        return caller.invoke("session.ui.registerDirectAutoModeSwitchHandler", _p, SessionUiRegisterDirectAutoModeSwitchHandlerResult.class);
+    }
+
+    /**
+     * Registers an in-process handler for auto-mode-switch requests so the server bridge skips dispatch. Set `autoModeRecovery` to also handle Auto recovery consent offers.
+     *
+     * @param autoModeRecovery whether to also handle Auto recovery consent offers
+     * @return a future with the registration handle and recovery acknowledgment
+     *
+     * @apiNote This method is experimental and may change in a future version.
+     * @since 1.0.0
+     */
+    @CopilotExperimental
+    public CompletableFuture<SessionUiRegisterDirectAutoModeSwitchHandlerResult> registerDirectAutoModeSwitchHandler(boolean autoModeRecovery) {
+        return registerDirectAutoModeSwitchHandler(new SessionUiRegisterDirectAutoModeSwitchHandlerParams(this.sessionId, autoModeRecovery));
     }
 
     /**

@@ -17,17 +17,23 @@ public class ClientOptionsE2ETests(E2ETestFixture fixture, ITestOutputHelper out
     : E2ETestBase(fixture, "client_options", output)
 {
     [Fact]
-    public async Task Should_Listen_On_Configured_Tcp_Port()
+    public async Task Should_Fail_When_Configured_Tcp_Port_Is_In_Use()
     {
-        var port = GetAvailableTcpPort();
-        await using var client = Ctx.CreateClient(
-            options: new CopilotClientOptions { Connection = RuntimeConnection.ForTcp(port: port) });
+        var listener = new TcpListener(IPAddress.Loopback, 0) { ExclusiveAddressUse = true };
+        listener.Start();
+        try
+        {
+            var port = ((IPEndPoint)listener.LocalEndpoint).Port;
+            await using var client = Ctx.CreateClient(
+                options: new CopilotClientOptions { Connection = RuntimeConnection.ForTcp(port: port) });
 
-        await client.StartAsync();
-        Assert.Equal(port, client.RuntimePort);
-
-        var response = await client.PingAsync("fixed-port");
-        Assert.Equal("pong: fixed-port", response.Message);
+            var ex = await Assert.ThrowsAsync<IOException>(() => client.StartAsync());
+            Assert.Contains($"failed to bind TCP server at 127.0.0.1:{port}:", ex.Message, StringComparison.Ordinal);
+        }
+        finally
+        {
+            listener.Stop();
+        }
     }
 
     [Fact]

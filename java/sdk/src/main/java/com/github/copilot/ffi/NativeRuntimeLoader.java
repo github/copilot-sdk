@@ -16,6 +16,7 @@ import java.nio.file.AccessDeniedException;
 import java.nio.file.AtomicMoveNotSupportedException;
 import java.nio.file.FileAlreadyExistsException;
 import java.nio.file.Files;
+import java.nio.file.LinkOption;
 import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
 import java.nio.file.StandardOpenOption;
@@ -75,10 +76,26 @@ public final class NativeRuntimeLoader {
     }
 
     /**
-     * Production publisher: {@link Files#move} with
-     * {@link StandardCopyOption#ATOMIC_MOVE}.
+     * Production publisher: keeps identical existing files on Unix, otherwise uses
+     * {@link Files#move} with {@link StandardCopyOption#ATOMIC_MOVE}.
      */
     static final AtomicPublisher DEFAULT_PUBLISHER = (temp, cached) -> {
+        if (!isWindows()) {
+            boolean published;
+            try {
+                Files.createLink(cached, temp);
+                published = true;
+            } catch (FileAlreadyExistsException ex) {
+                published = canReusePublishedFile(temp, cached);
+            } catch (UnsupportedOperationException | IOException | SecurityException ex) {
+                // Preserve atomic moves when hard links are unsupported or denied.
+                published = false;
+            }
+            if (published) {
+                tryDelete(temp);
+                return;
+            }
+        }
         try {
             Files.move(temp, cached, StandardCopyOption.ATOMIC_MOVE, StandardCopyOption.REPLACE_EXISTING);
         } catch (AtomicMoveNotSupportedException ex) {
@@ -561,6 +578,17 @@ public final class NativeRuntimeLoader {
 
     private static boolean isValidCachedCli(Path path) throws IOException {
         return isValidCachedFile(path) && (isWindows() || Files.isExecutable(path));
+    }
+
+    private static boolean canReusePublishedFile(Path temp, Path cached) {
+        try {
+            return Files.isRegularFile(cached, LinkOption.NOFOLLOW_LINKS)
+                    && Files.getPosixFilePermissions(temp).equals(Files.getPosixFilePermissions(cached))
+                    && (!Files.isExecutable(temp) || Files.isExecutable(cached)) && Files.mismatch(temp, cached) == -1;
+        } catch (IOException | UnsupportedOperationException | SecurityException ex) {
+            // If equivalence cannot be established, retain the atomic repair path.
+            return false;
+        }
     }
 
     private static void makeExecutable(Path path) throws IOException {

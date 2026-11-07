@@ -1684,6 +1684,15 @@ async fn stale_resume_guard_does_not_unregister_same_id_retry() {
     let first_req = server.read_request().await;
     assert_eq!(first_req["method"], "session.resume");
 
+    // Keep the first startup guard pending on skills reload so the ordinary
+    // retry can replace it before the first caller is cancelled.
+    server
+        .respond(&first_req, json!({ "sessionId": session_id.as_str() }))
+        .await;
+    let _ = timeout(DRIVE, &mut first).await;
+    let first_reload = server.read_request().await;
+    assert_eq!(first_reload["method"], "session.skills.reload");
+
     let prepared = client
         .prepare_resume_session(
             ResumeSessionConfig::new(session_id.clone()).with_event_buffer_capacity(64),
@@ -1722,6 +1731,8 @@ async fn stale_resume_guard_does_not_unregister_same_id_retry() {
     let event = timeout(TIMEOUT, events.recv()).await.unwrap().unwrap();
     assert_eq!(event.id.as_str(), "evt-after-stale");
     drop(session);
+    expect_closed(&mut events).await;
+    await_no_registrations(&client).await;
 }
 
 /// A disconnected session must not unregister a same-ID session that

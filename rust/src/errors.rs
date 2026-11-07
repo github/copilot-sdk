@@ -176,6 +176,9 @@ pub enum SessionErrorKind {
     /// Check `session.capabilities().ui.elicitation` before calling UI methods.
     ElicitationNotSupported,
 
+    /// The runtime did not acknowledge explicit retained-request Auto recovery enrollment.
+    AutoModeRecoveryNotSupported,
+
     /// The client was started with [`crate::ClientOptions::session_fs`] but this
     /// session was created without a [`crate::session_fs::SessionFsProvider`]. Set one via
     /// [`crate::SessionConfig::with_session_fs_provider`] (or
@@ -196,6 +199,9 @@ pub enum SessionErrorKind {
 
     /// The CLI could not detach the session.
     DetachFailed,
+
+    /// The CLI could not delete the persisted session.
+    DeleteFailed,
 }
 
 impl fmt::Display for SessionErrorKind {
@@ -215,6 +221,9 @@ impl fmt::Display for SessionErrorKind {
                 "elicitation not supported by host \
                  \u{2014} check session.capabilities().ui.elicitation first"
             ),
+            SessionErrorKind::AutoModeRecoveryNotSupported => {
+                write!(f, "the runtime does not support auto_mode_recovery")
+            }
             SessionErrorKind::SessionFsProviderRequired => write!(
                 f,
                 "session was created on a client with session_fs configured \
@@ -231,6 +240,7 @@ impl fmt::Display for SessionErrorKind {
                 "CLI returned session ID {returned} after SDK registered {requested}"
             ),
             SessionErrorKind::DetachFailed => write!(f, "failed to detach session"),
+            SessionErrorKind::DeleteFailed => write!(f, "failed to delete session"),
         }
     }
 }

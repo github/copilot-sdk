@@ -6,3 +6,6 @@
 //! an implementation detail whose layout may change.
 
 pub use crate::generated::session_events::*;
+pub use crate::types::{
+    CapabilitiesChangedDataWithAutoModeRecovery, CapabilitiesChangedUIWithAutoModeRecovery,
+};

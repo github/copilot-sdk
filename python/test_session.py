@@ -3,6 +3,7 @@
 import asyncio
 import io
 import json
+import logging
 from collections.abc import Callable
 from dataclasses import FrozenInstanceError
 from datetime import UTC, datetime
@@ -364,6 +365,7 @@ async def test_send_source_preserves_other_options(source: MessageSource | None,
         attachments=attachments,
         display_prompt="Context updated",
         request_headers={"X-Tag": "context"},
+        client_turn_id="host-turn-1",
     )
 
     expected = {
@@ -374,6 +376,7 @@ async def test_send_source_preserves_other_options(source: MessageSource | None,
         "attachments": attachments,
         "displayPrompt": "Context updated",
         "requestHeaders": {"X-Tag": "context"},
+        "clientTurnId": "host-turn-1",
         **trace,
     }
     if source is not None:
@@ -501,6 +504,7 @@ async def test_send_and_wait_forwards_agent_source_and_other_options(mode, monke
         "attachments": attachments,
         "display_prompt": "Review complete",
         "request_headers": {"X-Tag": "review"},
+        "client_turn_id": "host-turn-1",
     }
     assistant = _event(
         AssistantMessageData(
@@ -518,6 +522,7 @@ async def test_send_and_wait_forwards_agent_source_and_other_options(mode, monke
             "attachments": attachments,
             "displayPrompt": "Review complete",
             "requestHeaders": {"X-Tag": "review"},
+            "clientTurnId": "host-turn-1",
             **trace,
         }
         if mode is not None:
@@ -1162,8 +1167,17 @@ async def test_external_tool_completed_cancels_blocked_handler():
     client.request.assert_not_awaited()
 
 
-async def _answer_tool_call(tool_result: ToolResult) -> list[dict]:
-    """Answer one external tool call over a real JSON-RPC client; return what was sent."""
+async def _answer_tool_call(
+    tool_result: ToolResult | None = None,
+    *,
+    reject_first_send: bool = False,
+    handler=None,
+) -> list[dict]:
+    """Answer one external tool call over a real JSON-RPC client; return what was sent.
+
+    With ``reject_first_send``, the runtime answers the first request with a JSON-RPC
+    error while the session stays connected.
+    """
 
     class StdinProcess:
         def __init__(self):
@@ -1176,13 +1190,23 @@ async def _answer_tool_call(tool_result: ToolResult) -> list[dict]:
     client._loop = asyncio.get_running_loop()
     send_message = client._send_message
 
+    sends = 0
+
     async def send_and_acknowledge(message, **kwargs):
+        nonlocal sends
         await send_message(message, **kwargs)
+        sends += 1
+        if reject_first_send and sends == 1:
+            error = {"code": -32603, "message": "result rejected"}
+            client._handle_message({"jsonrpc": "2.0", "id": message["id"], "error": error})
+            return
         client._handle_message({"jsonrpc": "2.0", "id": message["id"], "result": {"success": True}})
 
     client._send_message = send_and_acknowledge
     session = CopilotSession("session-1", client)
-    session._register_tools([Tool("record_note", "Records a note", lambda _: tool_result)])
+    session._register_tools(
+        [Tool("record_note", "Records a note", handler or (lambda _: tool_result))]
+    )
 
     session._dispatch_event(_external_tool_request("record_note", "request-1"))
     pending = session._pending_external_tools.get("request-1")
@@ -1213,6 +1237,55 @@ async def test_tool_result_with_encodable_telemetry_is_sent():
                 "toolTelemetry": {"metrics": {"ms": 5}},
             },
         }
+    ]
+
+
+@pytest.mark.asyncio
+async def test_tool_result_that_fails_to_send_is_reported_and_answered_with_the_error(caplog):
+    caplog.set_level(logging.ERROR, logger="copilot.session")
+
+    answers = await _answer_tool_call(ToolResult(text_result_for_llm="ok"), reject_first_send=True)
+
+    assert answers == [
+        {
+            "sessionId": "session-1",
+            "requestId": "request-1",
+            "result": {"textResultForLlm": "ok", "resultType": "success"},
+        },
+        {
+            "sessionId": "session-1",
+            "requestId": "request-1",
+            "error": "JSON-RPC Error -32603: result rejected",
+        },
+    ]
+    logged = [r.getMessage() for r in caplog.records if r.name == "copilot.session"]
+    assert logged == [
+        "External tool result delivery failed: "
+        "session_id=session-1 request_id=request-1 tool=record_note"
+    ]
+
+
+@pytest.mark.asyncio
+async def test_handler_error_reply_that_fails_to_send_is_retried_once(caplog):
+    caplog.set_level(logging.ERROR, logger="copilot.session")
+
+    def failing(_):
+        raise RuntimeError("handler exploded")
+
+    answers = await _answer_tool_call(handler=failing, reject_first_send=True)
+
+    assert answers == [
+        {"sessionId": "session-1", "requestId": "request-1", "error": "handler exploded"},
+        {
+            "sessionId": "session-1",
+            "requestId": "request-1",
+            "error": "JSON-RPC Error -32603: result rejected",
+        },
+    ]
+    logged = [r.getMessage() for r in caplog.records if r.name == "copilot.session"]
+    assert logged == [
+        "External tool error delivery failed: session_id=session-1 request_id=request-1 "
+        "tool=record_note"
     ]
 
 
@@ -1263,7 +1336,7 @@ async def test_tool_result_with_nonfinite_telemetry_is_answered_with_error(value
 @pytest.mark.asyncio
 async def test_tool_invocation_names_the_sub_agent_and_request_behind_the_call():
     client = Mock()
-    client.request = AsyncMock()
+    client.request = AsyncMock(return_value={"success": True})
     session = CopilotSession("session-1", client)
     invocations = []
 
@@ -1360,6 +1433,33 @@ def test_capabilities_changed_without_ui_leaves_capabilities_unchanged():
     _capabilities_changed(session, CapabilitiesChangedUI(canvases=True))
 
     assert session.capabilities["ui"].get("elicitation") is True
+
+
+@pytest.mark.asyncio
+async def test_system_message_transform_without_a_value_keeps_the_section():
+    async def async_no_value(_content: str) -> None:
+        return None
+
+    session = CopilotSession("sess-1", client=None)
+    session._register_transform_callbacks(
+        {"identity": lambda _content: None, "tone": async_no_value, "safety": lambda _content: ""}
+    )
+
+    result = await session._handle_system_message_transform(
+        {
+            "identity": {"content": "Original identity"},
+            "tone": {"content": "Original tone"},
+            "safety": {"content": "Original safety"},
+        }
+    )
+
+    assert result == {
+        "sections": {
+            "identity": {"content": "Original identity"},
+            "tone": {"content": "Original tone"},
+            "safety": {"content": ""},
+        }
+    }
 
 
 @pytest.mark.asyncio
@@ -1605,6 +1705,81 @@ async def test_cancelling_permission_or_mcp_auth_dispatch_cancels_handler_withou
     finally:
         dispatch.cancel()
         await asyncio.gather(dispatch, return_exceptions=True)
+
+
+class _HostAbort(BaseException):
+    """A host-defined BaseException that is not an Exception, like pytest's ``Failed``."""
+
+
+BASE_EXCEPTION_HANDLER_SHAPES = [
+    pytest.param("custom", id="custom-base-exception"),
+    pytest.param("pytest-fail", id="pytest-fail"),
+]
+
+
+def _base_exception_handler(shape: str) -> Callable[..., Any]:
+    """A handler that fails with a BaseException that is not an Exception."""
+
+    async def handler(*_args: Any) -> Any:
+        if shape == "pytest-fail":
+            pytest.fail("handler assertion failed")
+        raise _HostAbort("handler assertion failed")
+
+    return handler
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("shape", BASE_EXCEPTION_HANDLER_SHAPES)
+async def test_tool_handler_raising_base_exception_answers_the_call_with_an_error(shape: str):
+    client = Mock(request=AsyncMock(return_value={"success": True}))
+    session = CopilotSession("session-1", client)
+    session._register_tools([Tool("fetch_data", "Fetches", _base_exception_handler(shape))])
+
+    session._dispatch_event(_external_tool_request("fetch_data"))
+
+    assert await _wait_for_tool_result(session, client, "request-1") == {
+        "sessionId": "session-1",
+        "requestId": "request-1",
+        "error": "handler assertion failed",
+    }
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("shape", BASE_EXCEPTION_HANDLER_SHAPES)
+async def test_command_handler_raising_base_exception_answers_the_command(shape: str):
+    client = Mock(request=AsyncMock(return_value={"success": True}))
+    session = CopilotSession("session-1", client)
+    session._register_commands(
+        [CommandDefinition(name="deploy", handler=_base_exception_handler(shape))]
+    )
+
+    await asyncio.create_task(
+        session._execute_command_and_respond("command-1", "deploy", "/deploy prod", "prod")
+    )
+
+    client.request.assert_awaited_once_with(
+        "session.commands.handlePendingCommand",
+        {"sessionId": "session-1", "requestId": "command-1", "error": "handler assertion failed"},
+    )
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("shape", BASE_EXCEPTION_HANDLER_SHAPES)
+async def test_elicitation_handler_raising_base_exception_sends_cancel(shape: str):
+    client = Mock(request=AsyncMock(return_value={"success": True}))
+    session = CopilotSession("session-1", client)
+    session._register_elicitation_handler(_base_exception_handler(shape))
+
+    await asyncio.create_task(
+        session._handle_elicitation_request(
+            {"session_id": session.session_id, "message": "Pick a color"}, "request-1"
+        )
+    )
+
+    client.request.assert_awaited_once_with(
+        "session.ui.handlePendingElicitation",
+        {"sessionId": "session-1", "requestId": "request-1", "result": {"action": "cancel"}},
+    )
 
 
 @pytest.mark.asyncio

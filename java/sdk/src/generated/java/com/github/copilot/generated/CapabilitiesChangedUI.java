@@ -26,6 +26,23 @@ public record CapabilitiesChangedUI(
     /** Whether MCP Apps (SEP-1865) UI passthrough is now supported */
     @JsonProperty("mcpApps") Boolean mcpApps,
     /** Whether canvas rendering is now supported */
-    @JsonProperty("canvases") Boolean canvases
+    @JsonProperty("canvases") Boolean canvases,
+    /** Whether a recovery-aware Auto-switch responder is registered. This does not imply current eligibility or override model policy. */
+    @JsonProperty("autoModeRecovery") Boolean autoModeRecovery
 ) {
+
+    /**
+     * Creates UI capability changes without an Auto recovery update.
+     *
+     * @param elicitation Whether elicitation is now supported
+     * @param mcpApps Whether MCP Apps (SEP-1865) UI passthrough is now supported
+     * @param canvases Whether canvas rendering is now supported
+     */
+    public CapabilitiesChangedUI(
+        Boolean elicitation,
+        Boolean mcpApps,
+        Boolean canvases
+    ) {
+        this(elicitation, mcpApps, canvases, null);
+    }
 }

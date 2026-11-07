@@ -85,11 +85,14 @@ import (
 )
 
 func main() {
-	ctx := context.Background()
+	_ = run(context.Background())
+}
+
+func run(ctx context.Context) error {
 	client := copilot.NewClient(nil)
 	session, err := client.CreateSession(ctx, &copilot.SessionConfig{})
 	if err != nil {
-		return
+		return err
 	}
 
 	prompt := "Update each package independently, then report validation results."
@@ -97,11 +100,12 @@ func main() {
 		Prompt: &prompt,
 	})
 	if err != nil {
-		return
+		return err
 	}
 	if result.Started {
 		fmt.Println("Fleet mode started")
 	}
+	return nil
 }
 ```
 <!-- /docs-validate: hidden -->

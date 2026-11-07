@@ -23,6 +23,7 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.github.copilot.generated.SessionEvent;
 import com.github.copilot.rpc.AutoModeSwitchRequest;
+import com.github.copilot.rpc.AutoModeRecoveryContext;
 import com.github.copilot.rpc.ExitPlanModeRequest;
 import com.github.copilot.rpc.BearerTokenProvider;
 import com.github.copilot.rpc.GitHubTokenProviderArgs;
@@ -35,6 +36,7 @@ import com.github.copilot.rpc.PermissionRequestResult;
 import com.github.copilot.rpc.PermissionRequestResultKind;
 import com.github.copilot.rpc.SessionLifecycleEvent;
 import com.github.copilot.rpc.SessionLifecycleEventMetadata;
+import com.github.copilot.rpc.StoredMemory;
 import com.github.copilot.rpc.ToolDefinition;
 import com.github.copilot.rpc.ToolInvocation;
 import com.github.copilot.rpc.ToolResultObject;
@@ -63,7 +65,7 @@ final class RpcHandlerDispatcher {
     private final LifecycleEventDispatcher lifecycleDispatcher;
     private final Executor executor;
     private final GitHubTokenProviderRegistry gitHubTokenProviders;
-    private final Map<Long, CompletableFuture<Void>> skillProviderCancellations = new ConcurrentHashMap<>();
+    private final Map<Long, CompletableFuture<Void>> callbackCancellations = new ConcurrentHashMap<>();
 
     /**
      * Creates a dispatcher with session registry and lifecycle dispatcher.
@@ -112,6 +114,80 @@ final class RpcHandlerDispatcher {
                 (requestId, params) -> handleSkillProviderList(rpc, requestId, params));
         rpc.registerMethodHandler("skillProvider.read",
                 (requestId, params) -> handleSkillProviderRead(rpc, requestId, params));
+        rpc.registerMethodHandler("memoryStore.store",
+                (requestId, params) -> handleMemoryStore(rpc, requestId, params));
+    }
+
+    // Backs the experimental MemoryConfiguration store-memory callback. Callback
+    // failures map to a generic message so app error text never reaches the
+    // runtime.
+    private void handleMemoryStore(JsonRpcClient rpc, String requestId, JsonNode params) {
+        final long requestIdLong = parseRequestId(requestId, "memoryStore.store");
+        if (requestIdLong == -1) {
+            return;
+        }
+        // Registered on the reader thread so a later $/cancelRequest always finds it.
+        var cancellation = new CompletableFuture<Void>();
+        callbackCancellations.put(requestIdLong, cancellation);
+        runAsync(() -> {
+            String sessionId = textParam(params, "sessionId");
+            CopilotSession session = sessionId != null ? sessions.get(sessionId) : null;
+            var handler = session != null ? session.getMemoryStoreHandler() : null;
+            if (handler == null) {
+                callbackCancellations.remove(requestIdLong, cancellation);
+                sendMemoryStoreError(rpc, requestIdLong,
+                        session == null ? "Memory store owner is unavailable" : "No memory store is registered",
+                        sessionId, null);
+                return;
+            }
+            CompletableFuture<Void> future;
+            try {
+                future = cancellation.isDone()
+                        ? CompletableFuture.failedFuture(new CancellationException())
+                        : handler.apply(
+                                new StoredMemory(sessionId, textParam(params, "subject"), textParam(params, "fact"),
+                                        textParam(params, "citations"), textParam(params, "reason")));
+                if (future == null) {
+                    future = CompletableFuture
+                            .failedFuture(new IllegalStateException("storeMemory returned a null future"));
+                }
+            } catch (Throwable error) {
+                // An Error the callback throws (an AssertionError, say) is answered too, so the
+                // runtime does not wait out its timeout; only a fatal error is rethrown.
+                CopilotRequestHandler.rethrowFatalError(error);
+                future = CompletableFuture.failedFuture(error);
+            }
+            final CompletableFuture<Void> storeFuture = future;
+            cancellation.thenRun(() -> storeFuture.cancel(true));
+            storeFuture.whenComplete((value, error) -> {
+                callbackCancellations.remove(requestIdLong, cancellation);
+                if (cancellation.isDone()) {
+                    sendCallbackCancelled(rpc, requestIdLong);
+                    return;
+                }
+                if (error != null) {
+                    sendMemoryStoreError(rpc, requestIdLong, "Memory store callback failed", sessionId, error);
+                    return;
+                }
+                try {
+                    rpc.sendResponse(requestIdLong, null);
+                } catch (IOException sendError) {
+                    LOG.log(Level.SEVERE, "Error sending memoryStore.store response", sendError);
+                }
+            });
+        });
+    }
+
+    private void sendMemoryStoreError(JsonRpcClient rpc, long requestId, String message, String sessionId,
+            Throwable error) {
+        if (error != null) {
+            LOG.log(Level.WARNING, message + " (sessionId=" + sessionId + ")", error);
+        }
+        try {
+            rpc.sendErrorResponse(requestId, -32603, message);
+        } catch (IOException sendError) {
+            LOG.log(Level.SEVERE, "Error sending memoryStore.store error", sendError);
+        }
     }
 
     // The generated skillProvider.* records are package-private because the
@@ -151,7 +227,7 @@ final class RpcHandlerDispatcher {
         }
         // Registered on the reader thread so a later $/cancelRequest always finds it.
         var cancellation = new CompletableFuture<Void>();
-        skillProviderCancellations.put(requestIdLong, cancellation);
+        callbackCancellations.put(requestIdLong, cancellation);
         runAsync(() -> {
             String failure = "Skill provider " + operation + " failed";
             String sessionId = null;
@@ -159,7 +235,7 @@ final class RpcHandlerDispatcher {
                 sessionId = textParam(params, "sessionId");
                 SkillProvider provider = findSkillProvider(sessionId);
                 if (provider == null) {
-                    skillProviderCancellations.remove(requestIdLong, cancellation);
+                    callbackCancellations.remove(requestIdLong, cancellation);
                     sendSkillProviderError(rpc, requestIdLong, "No skill provider for session: " + sessionId, sessionId,
                             null);
                     return;
@@ -175,9 +251,9 @@ final class RpcHandlerDispatcher {
                 final String callSessionId = sessionId;
                 cancellation.thenRun(() -> providerFuture.cancel(true));
                 providerFuture.whenComplete((value, error) -> {
-                    skillProviderCancellations.remove(requestIdLong, cancellation);
+                    callbackCancellations.remove(requestIdLong, cancellation);
                     if (cancellation.isDone()) {
-                        sendSkillProviderCancelled(rpc, requestIdLong);
+                        sendCallbackCancelled(rpc, requestIdLong);
                     } else if (error != null) {
                         sendSkillProviderError(rpc, requestIdLong, failure, callSessionId, error);
                     } else {
@@ -186,30 +262,33 @@ final class RpcHandlerDispatcher {
                     }
                 });
             } catch (Exception error) {
-                skillProviderCancellations.remove(requestIdLong, cancellation);
+                callbackCancellations.remove(requestIdLong, cancellation);
                 sendSkillProviderError(rpc, requestIdLong, failure, sessionId, error);
             }
         });
     }
 
     /**
-     * Cancels the skill provider call named by a {@code $/cancelRequest}
-     * notification, if it is still in flight.
+     * Cancels the skill provider or memory store call named by a
+     * {@code $/cancelRequest} notification, if it is still in flight.
      */
     void handleCancelRequest(JsonNode params) {
         JsonNode id = params != null ? params.get("id") : null;
         if (id == null || !id.isIntegralNumber() || !id.canConvertToLong()) {
             return;
         }
-        CompletableFuture<Void> cancellation = skillProviderCancellations.get(id.asLong());
+        CompletableFuture<Void> cancellation = callbackCancellations.get(id.asLong());
         if (cancellation != null) {
             cancellation.complete(null);
         }
     }
 
-    /** Cancels every in-flight skill provider call when the connection closes. */
-    void cancelSkillProviderCalls() {
-        skillProviderCancellations.values().forEach(cancellation -> cancellation.complete(null));
+    /**
+     * Cancels every in-flight skill provider and memory store call when the
+     * connection closes.
+     */
+    void cancelCallbacks() {
+        callbackCancellations.values().forEach(cancellation -> cancellation.complete(null));
     }
 
     private SkillProvider findSkillProvider(String sessionId) {
@@ -228,11 +307,11 @@ final class RpcHandlerDispatcher {
         }
     }
 
-    private void sendSkillProviderCancelled(JsonRpcClient rpc, long requestId) {
+    private void sendCallbackCancelled(JsonRpcClient rpc, long requestId) {
         try {
             rpc.sendErrorResponse(requestId, -32800, "Request cancelled");
         } catch (IOException error) {
-            LOG.log(Level.FINE, "Error sending skill provider cancellation", error);
+            LOG.log(Level.FINE, "Error sending callback cancellation", error);
         }
     }
 
@@ -670,6 +749,10 @@ final class RpcHandlerDispatcher {
                 if (params.has("retryAfterSeconds") && !params.get("retryAfterSeconds").isNull()) {
                     request.setRetryAfterSeconds(params.get("retryAfterSeconds").asDouble());
                 }
+                if (params.hasNonNull("autoModeRecovery")) {
+                    request.setAutoModeRecovery(
+                            MAPPER.treeToValue(params.get("autoModeRecovery"), AutoModeRecoveryContext.class));
+                }
 
                 session.handleAutoModeSwitchRequest(request).thenAccept(response -> {
                     try {
@@ -688,6 +771,11 @@ final class RpcHandlerDispatcher {
                 });
             } catch (Exception e) {
                 LOG.log(Level.SEVERE, "Error handling auto mode switch request", e);
+                try {
+                    rpc.sendErrorResponse(requestIdLong, -32602, "Invalid auto mode switch request");
+                } catch (IOException responseError) {
+                    LOG.log(Level.SEVERE, "Error sending auto mode switch error", responseError);
+                }
             }
         });
     }

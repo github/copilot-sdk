@@ -94,7 +94,7 @@ func run(ctx context.Context) error {
                 Branch: "main",
             },
         },
-        OnPermissionRequest: func(_ copilot.PermissionRequest, _ copilot.PermissionInvocation) (rpc.PermissionDecision, error) {
+        OnPermissionRequest: func(req copilot.PermissionRequest, inv copilot.PermissionInvocation) (rpc.PermissionDecision, error) {
             return &rpc.PermissionDecisionApproveOnce{}, nil
         },
     })

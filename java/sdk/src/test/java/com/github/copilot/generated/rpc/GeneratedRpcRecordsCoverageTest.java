@@ -1103,7 +1103,7 @@ class GeneratedRpcRecordsCoverageTest {
 
     @Test
     void sessionPluginsListResult_nested() {
-        var plugin = new Plugin("my-plugin", "marketplace-x", "1.2.3", true, null, "/plugins/my-plugin",
+        var plugin = new Plugin(null, "my-plugin", "marketplace-x", "1.2.3", true, null, "/plugins/my-plugin",
                 "/marketplaces/marketplace-x", null, true, true, true, "opaque-plugin");
         var result = new SessionPluginsListResult(List.of(plugin));
         assertEquals(1, result.plugins().size());
@@ -1268,9 +1268,10 @@ class GeneratedRpcRecordsCoverageTest {
         var billing = new ModelBilling(1.0, null, null, promo);
         var modelItem = new Model("gpt-5", "GPT-5", capabilities, null, null, policy, billing, null, null, null, null,
                 null, null, null, null, null);
-        var result = new ModelsListResult(List.of(modelItem), null, null);
+        var result = new ModelsListResult(List.of(modelItem), null, null, null);
 
         assertNull(result.auto());
+        assertNull(result.decisionModels());
         assertEquals(1, result.models().size());
         assertNull(result.imageModels());
         assertEquals("gpt-5", result.models().get(0).id());

@@ -92,7 +92,8 @@ public class SessionCapabilitiesChangedTest {
 
     private static CapabilitiesChangedEvent changed(Boolean elicitation, Boolean mcpApps, Boolean canvases) {
         var event = new CapabilitiesChangedEvent();
-        event.setData(new CapabilitiesChangedEventData(new CapabilitiesChangedUI(elicitation, mcpApps, canvases)));
+        event.setData(
+                new CapabilitiesChangedEventData(new CapabilitiesChangedUI(elicitation, mcpApps, canvases, null)));
         return event;
     }
 }

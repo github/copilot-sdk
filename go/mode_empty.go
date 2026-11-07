@@ -227,7 +227,7 @@ func (c *Client) applyResumeDefaultsForMode(config *ResumeSessionConfig) {
 // four overridable feature flags default to safe values; caller values win.
 // installedPlugins=[] is unconditional in empty mode. IncludedBuiltinSkills
 // defaults to [] but callers can explicitly allow selected runtime-bundled skills.
-func (c *Client) updateSessionOptionsForMode(ctx context.Context, session *Session, base optBackInFields) error {
+func (c *Client) updateSessionOptionsForMode(ctx context.Context, session *Session, base optBackInFields, deleteOnFailure bool) error {
 	patch := &rpc.SessionUpdateOptionsParams{}
 	hasAny := false
 	if c.options.Mode == ModeEmpty {
@@ -288,6 +288,10 @@ func (c *Client) updateSessionOptionsForMode(ctx context.Context, session *Sessi
 		return nil
 	}
 	if _, err := session.RPC.Options.Update(ctx, patch); err != nil {
+		if deleteOnFailure {
+			return c.cleanupFailedSession(ctx, session,
+				fmt.Errorf("failed to apply mode-specific session options: %w", err), true, true)
+		}
 		// The runtime session exists but the post-create options patch
 		// failed — best-effort disconnect so we don't leak it (in empty
 		// mode it would otherwise keep running with permissive defaults).

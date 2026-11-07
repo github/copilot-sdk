@@ -14,6 +14,7 @@ from copilot.generated.rpc import (
     CustomizationReloadStatus,
     CustomizationReloadSubsystem,
     UsageGetMetricsResult,
+    UserSettingsWriteKeyRequest,
     _InternalServerRpc,
     _SettingsRedactValueForDisplayRequest,
     register_client_global_api_handlers,
@@ -42,6 +43,7 @@ from copilot.rpc import (
     RemoteControlStatusResult,
     RemoteSessionMetadataValue,
     SandboxConfig,
+    SandboxConfigUserPolicyFilesystem,
     ServerRpc,
     ServerSkill,
     SessionList,
@@ -54,6 +56,18 @@ from copilot.rpc import (
     UIElicitationSchemaType,
     UpdateSubagentSettingsRequest,
 )
+
+
+@pytest.mark.asyncio
+async def test_raw_setting_write_keeps_required_null():
+    client = Mock()
+    client.request = AsyncMock(return_value=None)
+    await _InternalServerRpc(client).user.settings._write_key(
+        UserSettingsWriteKeyRequest(key="showReasoning", value=None)
+    )
+    client.request.assert_awaited_once_with(
+        "user.settings.writeKey", {"key": "showReasoning", "value": None}
+    )
 
 
 @pytest.mark.parametrize(
@@ -409,6 +423,22 @@ def test_sandbox_extensions_preserve_existing_positional_parameters():
     assert SandboxConfig.from_dict(extended.to_dict()) == extended
     assert extended.to_dict()["sandboxExtensions"] is False
     assert extended.to_dict()["managedExtensionsRoutingLocked"] is True
+
+
+def test_sandbox_enumerate_paths_preserve_existing_positional_parameters():
+    filesystem = SandboxConfigUserPolicyFilesystem(["denied"], ["readonly"], ["readwrite"])
+    assert filesystem.to_dict() == {
+        "deniedPaths": ["denied"],
+        "readonlyPaths": ["readonly"],
+        "readwritePaths": ["readwrite"],
+    }
+
+    payload = {**filesystem.to_dict(), "enumeratePaths": ["C:\\"]}
+    restored = SandboxConfigUserPolicyFilesystem.from_dict(payload)
+    assert restored == SandboxConfigUserPolicyFilesystem(
+        ["denied"], ["readonly"], ["readwrite"], enumerate_paths=["C:\\"]
+    )
+    assert restored.to_dict() == payload
 
 
 def test_slash_command_prompt_preserves_existing_positional_parameters():

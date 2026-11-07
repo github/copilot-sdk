@@ -222,6 +222,60 @@ func TestCanvasAdapter_HandlerGenericError_WrappedAsCanvasHandlerError(t *testin
 	assertCanvasJSONRPCError(t, err, "canvas_handler_error", "boom")
 }
 
+func TestCanvasAdapter_ToolResultGetsToolHandlerResultTypeDefault(t *testing.T) {
+	image := []ToolBinaryResult{{Data: "aW1n", MIMEType: "image/png", Type: "image"}}
+	pointer := &ToolResult{TextResultForLLM: "shot", BinaryResultsForLLM: image}
+	tests := []struct {
+		name           string
+		actionResult   any
+		wantResultType string
+		wantImages     int
+	}{
+		{"value with unset type", ToolResult{TextResultForLLM: "shot", BinaryResultsForLLM: image}, "success", 1},
+		{"pointer with unset type", pointer, "success", 1},
+		{"unset type with error", ToolResult{TextResultForLLM: "shot", Error: "boom"}, "failure", 0},
+		{"explicit type", ToolResult{TextResultForLLM: "shot", ResultType: "rejected"}, "rejected", 0},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			session := newTestCanvasSession("s1")
+			session.registerCanvasHandler(&recordingCanvasHandler{actionResult: tt.actionResult})
+
+			resp, err := session.clientSessionAPIs.Canvas.Invoke(&rpc.CanvasProviderInvokeActionRequest{SessionID: "s1"})
+			if err != nil {
+				t.Fatalf("unexpected action error: %v", err)
+			}
+			raw, err := json.Marshal(resp)
+			if err != nil {
+				t.Fatalf("marshal action result: %v", err)
+			}
+			var decoded ToolResult
+			if err := json.Unmarshal(raw, &decoded); err != nil {
+				t.Fatalf("bad action result JSON: %v", err)
+			}
+			if decoded.ResultType != tt.wantResultType || decoded.TextResultForLLM != "shot" || len(decoded.BinaryResultsForLLM) != tt.wantImages {
+				t.Fatalf("expected resultType=%q, the text and %d image(s), got %s", tt.wantResultType, tt.wantImages, raw)
+			}
+		})
+	}
+	if pointer.ResultType != "" {
+		t.Fatalf("the handler's ToolResult was modified: %+v", pointer)
+	}
+}
+
+func TestCanvasAdapter_NilToolResultPointerIsPassedThrough(t *testing.T) {
+	session := newTestCanvasSession("s1")
+	session.registerCanvasHandler(&recordingCanvasHandler{actionResult: (*ToolResult)(nil)})
+
+	resp, err := session.clientSessionAPIs.Canvas.Invoke(&rpc.CanvasProviderInvokeActionRequest{SessionID: "s1"})
+	if err != nil {
+		t.Fatalf("unexpected action error: %v", err)
+	}
+	if r, ok := resp.(*ToolResult); !ok || r != nil {
+		t.Fatalf("expected the nil *ToolResult back, got %#v", resp)
+	}
+}
+
 func TestCanvasRegisterClientSessionAPIHandlers_RawJSONRoundTrip(t *testing.T) {
 	clientToServerReader, clientToServerWriter := io.Pipe()
 	serverToClientReader, serverToClientWriter := io.Pipe()

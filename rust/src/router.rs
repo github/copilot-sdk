@@ -1,5 +1,5 @@
 use std::collections::HashMap;
-use std::sync::atomic::{AtomicU64, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::sync::{Arc, Weak};
 
 use parking_lot::Mutex;
@@ -25,6 +25,33 @@ pub(crate) struct RegistrationToken(u64);
 pub(crate) struct SessionRegistration {
     pub(crate) channels: SessionChannels,
     pub(crate) token: RegistrationToken,
+    pub(crate) state: Arc<RegistrationState>,
+}
+
+/// Open channels alone do not prove startup completed or its owner is still
+/// active. Displaced registrations share this state with their startup guard.
+#[derive(Default)]
+pub(crate) struct RegistrationState {
+    ready: AtomicBool,
+    cancelled: AtomicBool,
+}
+
+impl RegistrationState {
+    pub(crate) fn mark_ready(&self) {
+        self.ready.store(true, Ordering::Release);
+    }
+
+    pub(crate) fn cancel(&self) {
+        self.cancelled.store(true, Ordering::Release);
+    }
+
+    fn is_active(&self) -> bool {
+        !self.cancelled.load(Ordering::Acquire)
+    }
+
+    fn is_resident(&self) -> bool {
+        self.ready.load(Ordering::Acquire) && self.is_active()
+    }
 }
 
 /// Per-session channels created by the router during session registration.
@@ -39,6 +66,7 @@ struct SessionSenders {
     notifications: mpsc::UnboundedSender<SessionEventNotification>,
     requests: mpsc::UnboundedSender<JsonRpcRequest>,
     token: RegistrationToken,
+    state: Arc<RegistrationState>,
 }
 
 /// A registration displaced by [`SessionRouter::replace`].
@@ -48,11 +76,39 @@ struct SessionSenders {
 /// Dropping it closes them, which ends that session's event loop.
 pub(crate) struct ReplacedRegistration(SessionSenders);
 
+impl ReplacedRegistration {
+    pub(crate) fn is_resident(&self) -> bool {
+        self.0.state.is_resident() && !self.0.requests.is_closed()
+    }
+}
+
+pub(crate) struct SessionRpcCallbackGuard {
+    callbacks: Arc<Mutex<HashMap<SessionId, usize>>>,
+    session_id: SessionId,
+}
+
+impl Drop for SessionRpcCallbackGuard {
+    fn drop(&mut self) {
+        let mut callbacks = self.callbacks.lock();
+        if let Some(count) = callbacks.get_mut(&self.session_id) {
+            *count -= 1;
+            if *count == 0 {
+                callbacks.remove(&self.session_id);
+            }
+        }
+    }
+}
+
 /// Routes notifications and requests by sessionId to per-session channels.
 ///
 /// Internal to the SDK — consumers interact via `Client::register_session()`.
 pub(crate) struct SessionRouter {
     sessions: Arc<Mutex<HashMap<SessionId, SessionSenders>>>,
+    /// Recovery and rejected-enrollment cleanup require exclusive initialization
+    /// ownership; ordinary initializations share it until all setup settles.
+    /// A true value fences the ID after failed cleanup on this connection.
+    initializations: Mutex<HashMap<SessionId, Arc<tokio::sync::RwLock<bool>>>>,
+    active_rpc_callbacks: Arc<Mutex<HashMap<SessionId, usize>>>,
     next_token: AtomicU64,
     started: Mutex<bool>,
 }
@@ -61,9 +117,35 @@ impl SessionRouter {
     pub(crate) fn new() -> Self {
         Self {
             sessions: Arc::new(Mutex::new(HashMap::new())),
+            initializations: Mutex::new(HashMap::new()),
+            active_rpc_callbacks: Arc::default(),
             next_token: AtomicU64::new(0),
             started: Mutex::new(false),
         }
+    }
+
+    pub(crate) fn initialization(&self, session_id: &SessionId) -> Arc<tokio::sync::RwLock<bool>> {
+        self.initializations
+            .lock()
+            .entry(session_id.clone())
+            .or_default()
+            .clone()
+    }
+
+    pub(crate) fn track_rpc_callback(&self, session_id: &SessionId) -> SessionRpcCallbackGuard {
+        *self
+            .active_rpc_callbacks
+            .lock()
+            .entry(session_id.clone())
+            .or_default() += 1;
+        SessionRpcCallbackGuard {
+            callbacks: self.active_rpc_callbacks.clone(),
+            session_id: session_id.clone(),
+        }
+    }
+
+    pub(crate) fn has_active_rpc_callback(&self, session_id: &SessionId) -> bool {
+        self.active_rpc_callbacks.lock().contains_key(session_id)
     }
 
     /// Register a session to receive filtered events and requests.
@@ -84,12 +166,14 @@ impl SessionRouter {
         let (notif_tx, notif_rx) = mpsc::unbounded_channel();
         let (req_tx, req_rx) = mpsc::unbounded_channel();
         let token = RegistrationToken(self.next_token.fetch_add(1, Ordering::Relaxed));
+        let state = Arc::new(RegistrationState::default());
         let replaced = self.sessions.lock().insert(
             session_id.clone(),
             SessionSenders {
                 notifications: notif_tx,
                 requests: req_tx,
                 token,
+                state: state.clone(),
             },
         );
         let registration = SessionRegistration {
@@ -98,6 +182,7 @@ impl SessionRouter {
                 requests: req_rx,
             },
             token,
+            state,
         };
         (registration, replaced.map(ReplacedRegistration))
     }
@@ -155,7 +240,9 @@ impl SessionRouter {
         {
             return false;
         }
-        match replaced.filter(|replaced| !replaced.0.requests.is_closed()) {
+        match replaced
+            .filter(|replaced| replaced.0.state.is_active() && !replaced.0.requests.is_closed())
+        {
             Some(ReplacedRegistration(senders)) => {
                 sessions.insert(session_id.clone(), senders);
             }
@@ -395,11 +482,18 @@ impl SessionRouter {
                             method = %request.method,
                             "request for unregistered session"
                         );
+                        let message = if request.method
+                            == crate::generated::api_types::rpc_methods::MEMORYSTORE_STORE
+                        {
+                            "Memory store owner is unavailable".to_string()
+                        } else {
+                            format!("Session not found: {session_id}")
+                        };
                         if !send_error(
                             &weak_client,
                             request.id,
                             error_codes::INTERNAL_ERROR,
-                            format!("Session not found: {session_id}"),
+                            message,
                         ) {
                             break;
                         }

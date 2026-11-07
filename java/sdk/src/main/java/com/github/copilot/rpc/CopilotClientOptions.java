@@ -89,7 +89,7 @@ public class CopilotClientOptions {
     private CopilotClientMode mode = CopilotClientMode.COPILOT_CLI;
     private ExtensionLaunchProvider extensionLaunchProvider;
     private InstallationConfirmationHandler installationConfirmationHandler;
-    private KerberosAuthConfig kerberosAuth;
+    private NetworkConfig network;
     private Supplier<CompletableFuture<List<ModelInfo>>> onListModels;
     private CopilotRequestHandler requestHandler;
     private Function<GitHubTelemetryNotification, CompletableFuture<Void>> onGitHubTelemetry;
@@ -244,28 +244,36 @@ public class CopilotClientOptions {
     }
 
     /**
-     * Gets the SDK-host Kerberos credential callback configuration.
+     * Gets the network callbacks through which the SDK host takes over parts of the
+     * runtime's networking.
      *
      * @return the configuration, or {@code null} if not set
      */
     @JsonIgnore
-    public KerberosAuthConfig getKerberosAuth() {
-        return kerberosAuth;
+    @CopilotExperimental
+    public NetworkConfig getNetwork() {
+        return network;
     }
 
     /**
-     * Supplies Kerberos credentials from the SDK host.
+     * Sets the network callbacks through which the SDK host decides the runtime's
+     * proxies and supplies its Kerberos tokens.
      * <p>
-     * When provided, the client handles the runtime's {@code kerberosAuth.acquire}
-     * requests with the configured callback and registers it during startup, before
-     * any session can be created. Startup fails if registration fails.
+     * When the configuration has at least one callback, the client handles the
+     * runtime's {@code network.resolveProxy} and
+     * {@code network.authenticateNegotiate} requests for the configured callbacks
+     * and registers them during startup, before any session can be created. Startup
+     * fails if registration fails. The callbacks and scope are read when the client
+     * starts.
      *
-     * @param kerberosAuth
+     * @param network
      *            the configuration (must not be {@code null})
      * @return this options instance for method chaining
+     * @see NetworkConfig
      */
-    public CopilotClientOptions setKerberosAuth(KerberosAuthConfig kerberosAuth) {
-        this.kerberosAuth = Objects.requireNonNull(kerberosAuth, "kerberosAuth must not be null");
+    @CopilotExperimental
+    public CopilotClientOptions setNetwork(NetworkConfig network) {
+        this.network = Objects.requireNonNull(network, "network must not be null");
         return this;
     }
 
@@ -1023,9 +1031,9 @@ public class CopilotClientOptions {
         copy.executor = this.executor;
         copy.extensionLaunchProvider = this.extensionLaunchProvider;
         copy.installationConfirmationHandler = this.installationConfirmationHandler;
-        copy.kerberosAuth = this.kerberosAuth;
         copy.gitHubToken = this.gitHubToken;
         copy.logLevel = this.logLevel;
+        copy.network = this.network;
         copy.onListModels = this.onListModels;
         copy.requestHandler = this.requestHandler;
         copy.onGitHubTelemetry = this.onGitHubTelemetry;

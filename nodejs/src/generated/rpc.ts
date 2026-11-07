@@ -2428,6 +2428,220 @@ export type DebugCollectLogsResultKind =
   /** A directory containing the collected files was written. */
   | "directory";
 /**
+ * The answer to one question. Probabilities are normalized the same way for every backend.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "DecisionAnswer".
+ */
+/** @experimental */
+export type DecisionAnswer =
+  | {
+      /**
+       * Name of the question this answers.
+       */
+      name: string;
+      /**
+       * Probability, from 0 to 1, that the answer is yes.
+       */
+      probability: number;
+      /**
+       * Answered question kind discriminator.
+       */
+      kind: "boolean";
+    }
+  | {
+      /**
+       * Name of the question this answers.
+       */
+      name: string;
+      /**
+       * Value of the most probable option. On a tie, the tied option listed first.
+       */
+      value: string;
+      /**
+       * True when another option has exactly the same probability as `value`. Check this, not only `confidence`.
+       */
+      tied: boolean;
+      /**
+       * How peaked the distribution is: `(p_max - 1/n) / (1 - 1/n)`. Not a probability of being correct.
+       */
+      confidence: number;
+      /**
+       * The backend's own confidence, which may use a different formula. Diagnostic only.
+       */
+      vendorConfidence?: number;
+      /**
+       * Probability of every option, in request order, summing to 1.
+       */
+      probabilities: DecisionOptionProbability[];
+      /**
+       * Answered question kind discriminator.
+       */
+      kind: "choice";
+    }
+  | {
+      /**
+       * Name of the question this answers.
+       */
+      name: string;
+      /**
+       * Expected level position: the sum of each level's zero-based position times its probability.
+       */
+      score: number;
+      /**
+       * Label of the most probable level. On a tie, the lower level.
+       */
+      level: string;
+      /**
+       * How peaked the distribution is: `(p_max - 1/n) / (1 - 1/n)`. Not a probability of being correct.
+       */
+      confidence: number;
+      /**
+       * The backend's own confidence, which may use a different formula. Diagnostic only.
+       */
+      vendorConfidence?: number;
+      /**
+       * Probability of every level, from lowest to highest, summing to 1.
+       */
+      probabilities: DecisionLevelProbability[];
+      /**
+       * Answered question kind discriminator.
+       */
+      kind: "score";
+    }
+  | {
+      /**
+       * Name of the question that was refused.
+       */
+      name: string;
+      /**
+       * Answered question kind discriminator.
+       */
+      kind: "refused";
+    };
+/**
+ * Context shared by every question in a request.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "DecisionContext".
+ */
+/** @experimental */
+export type DecisionContext =
+  | {
+      /**
+       * The text the questions are about.
+       */
+      text: string;
+      /**
+       * Context format discriminator.
+       */
+      kind: "text";
+    }
+  | {
+      /**
+       * A JSON object, or an array of JSON objects. Other JSON values are rejected with `invalidRequest`.
+       */
+      value: JsonValue;
+      /**
+       * Context format discriminator.
+       */
+      kind: "json";
+    };
+/**
+ * Why a decisions request failed.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "DecisionErrorKind".
+ */
+/** @experimental */
+export type DecisionErrorKind =
+  /** The decisions feature is disabled for this runtime. */
+  | "notEnabled"
+  /** No usable decision model: unknown id, not entitled, or rejected by the backend. */
+  | "noModel"
+  /** No account, or the backend rejected its credential. */
+  | "unauthenticated"
+  /** The request is malformed or breaks a limit other than size. */
+  | "invalidRequest"
+  /** The request is over a size limit. */
+  | "tooLarge"
+  /** The backend answered with something that breaks the answer rules. */
+  | "upstreamProtocol"
+  /** The backend is rate limiting this account. */
+  | "rateLimited"
+  /** The deadline passed. */
+  | "timeout"
+  /** The backend could not be reached or failed. */
+  | "unavailable"
+  /** Too many decisions requests are already running or waiting on this connection. */
+  | "overloaded";
+/**
+ * One question for the decision model to answer about the context.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "DecisionQuestion".
+ */
+/** @experimental */
+export type DecisionQuestion =
+  | {
+      /**
+       * Caller-chosen name, unique within the request, that identifies this question's answer. Never sent to the model.
+       */
+      name: string;
+      /**
+       * The yes/no question.
+       */
+      instructions: string;
+      /**
+       * Optional description of when the answer is yes.
+       */
+      whenTrue?: string;
+      /**
+       * Optional description of when the answer is no.
+       */
+      whenFalse?: string;
+      /**
+       * Question kind discriminator.
+       */
+      kind: "boolean";
+    }
+  | {
+      /**
+       * Caller-chosen name, unique within the request, that identifies this question's answer. Never sent to the model.
+       */
+      name: string;
+      /**
+       * The question whose answer is one of `options`.
+       */
+      instructions: string;
+      /**
+       * Candidate answers. Values must be unique identifiers; the model reads both value and description.
+       */
+      options: DecisionOption[];
+      /**
+       * Question kind discriminator.
+       */
+      kind: "choice";
+    }
+  | {
+      /**
+       * Caller-chosen name, unique within the request, that identifies this question's answer. Never sent to the model.
+       */
+      name: string;
+      /**
+       * The question whose answer is a rating on `levels`.
+       */
+      instructions: string;
+      /**
+       * Scale levels from lowest to highest. A level's zero-based position is its numeric value.
+       */
+      levels: DecisionLevel[];
+      /**
+       * Question kind discriminator.
+       */
+      kind: "score";
+    };
+/**
  * Whether the supplied diagnostic cursor remained within the retained buffer window.
  *
  * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
@@ -3964,30 +4178,6 @@ export type InstructionSourceLocation =
   /** Instructions live in plugin-provided configuration. */
   | "plugin";
 /**
- * Selects whether Kerberos credentials come from native lookup with a client fallback, or only from the client.
- *
- * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
- * via the `definition` "KerberosAuthMode".
- */
-/** @experimental */
-export type KerberosAuthMode =
-  /** Use the callback only when native credential lookup fails. */
-  | "fallback"
-  /** Always use the callback without native credential lookup. */
-  | "always";
-/**
- * Selects which traffic a client's Kerberos callback authenticates.
- *
- * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
- * via the `definition` "KerberosAuthScope".
- */
-/** @experimental */
-export type KerberosAuthScope =
-  /** Authenticate only requests made for this connection's sessions. */
-  | "connection"
-  /** Also authenticate the runtime's shared background traffic. Only one connection at a time may claim this scope. */
-  | "runtime";
-/**
  * Transport the runtime would otherwise use for this request. `http` (the default when absent) covers plain HTTP and SSE responses; `websocket` indicates a full-duplex message channel where each body chunk maps to one WebSocket message and the `binary` flag distinguishes text from binary frames. The SDK consumer uses this to decide whether to service the request with an HTTP client or a WebSocket client. It is the one piece of request metadata the consumer cannot reliably infer from the URL or headers alone.
  *
  * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
@@ -4873,6 +5063,59 @@ export type McpToolUiVisibility =
   /** An MCP App view may call the tool. */
   | "app";
 /**
+ * Credential owner for a host-driven OAuth flow.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "McpOauthFlowStore".
+ */
+/** @experimental */
+/** @internal */
+export type McpOauthFlowStore =
+  | {
+      kind: "session";
+    }
+  | {
+      kind: "memory";
+      /**
+       * Identity chosen by the host, scoped to this session requester.
+       */
+      storeId: string;
+    }
+  | {
+      kind: "persistent";
+      /**
+       * Identity chosen by the host, scoped to this session requester.
+       */
+      storeId: string;
+      /**
+       * Profile directory containing the OAuth credential store.
+       */
+      configDir: string;
+      /**
+       * Original store's effective token session. An empty value selects unscoped storage.
+       */
+      tokenSessionId: string;
+    }
+  | {
+      kind: "callback";
+      /**
+       * Host-owned callback store identity.
+       */
+      storeId: string;
+    };
+/**
+ * OAuth grant type override for this login.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "McpOauthLoginGrantType".
+ */
+/** @experimental */
+export type McpOauthLoginGrantType =
+  /** Interactive browser-based OAuth flow using an authorization code, typically with PKCE. */
+  | "authorization_code"
+  /** Headless OAuth flow where a confidential client authenticates directly with a client secret. */
+  | "client_credentials";
+/**
  * Host response to the pending OAuth request.
  *
  * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
@@ -4910,18 +5153,6 @@ export type McpOauthPendingRequestResponse =
        */
       kind: "runtimeRefresh";
     };
-/**
- * OAuth grant type override for this login.
- *
- * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
- * via the `definition` "McpOauthLoginGrantType".
- */
-/** @experimental */
-export type McpOauthLoginGrantType =
-  /** Interactive browser-based OAuth flow using an authorization code, typically with PKCE. */
-  | "authorization_code"
-  /** Headless OAuth flow where a confidential client authenticates directly with a client secret. */
-  | "client_credentials";
 /**
  * Outcome of starting the original prepared owned login.
  *
@@ -5016,6 +5247,57 @@ export type McpOauthProbeResult =
  */
 /** @experimental */
 export type McpServerConfig = McpServerConfigStdio | McpServerConfigHttp;
+/**
+ * Remote protocol selected for the tokenless handshake.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "McpOauthTestConnectionTransport".
+ */
+/** @experimental */
+/** @internal */
+export type McpOauthTestConnectionTransport =
+  /** Streamable HTTP. */
+  | "http"
+  /** Legacy HTTP with server-sent events. */
+  | "sse";
+/**
+ * Outcome of the tokenless handshake, with the original challenge when available.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "McpOauthTestConnectionResult".
+ */
+/** @experimental */
+/** @internal */
+export type McpOauthTestConnectionResult =
+  | {
+      status: "connected";
+    }
+  | {
+      status: "needs-auth";
+      /**
+       * The transport's authentication error message.
+       */
+      error: string;
+      /**
+       * Raw WWW-Authenticate header, when the refusing response supplies one.
+       */
+      wwwAuthenticateHeader?: string;
+      /**
+       * Parsed challenge parameters from the refusing HTTP response.
+       */
+      wwwAuthenticateParams?: McpOauthWWWAuthenticateParams;
+      /**
+       * Exact refusing HTTP response, when the transport captured it.
+       */
+      httpResponse?: McpOauthHttpResponse;
+    }
+  | {
+      status: "failed";
+      /**
+       * Transport or session policy failure detail.
+       */
+      error: string;
+    };
 /**
  * What an install plan is computed from: a candidate handle from a previous search, or a card supplied directly.
  *
@@ -5632,6 +5914,18 @@ export type TokenPriceUnit =
   | "ai_credits"
   /** Prices are quoted in nano-AIU; divide by 1,000,000,000 to get AI Credits. */
   | "nano_aiu";
+/**
+ * Selects which traffic a client's network callbacks serve.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "NetworkScope".
+ */
+/** @experimental */
+export type NetworkScope =
+  /** Serve only requests made for this connection and its sessions. */
+  | "connection"
+  /** Also serve the runtime's shared background traffic. Only one connection at a time may claim this scope. */
+  | "runtime";
 /**
  * Allowed values for the `OptionsUpdateAdditionalContentExclusionPolicyScope` enumeration.
  *
@@ -6374,7 +6668,7 @@ export type SandboxConfigSource =
   /** A repository policy selected the sandbox state. */
   | "repository_policy";
 /**
- * Extensible identifier of a sandbox policy feature whose availability varies between hosts. A plain string, so an older client decodes a name added by a newer runtime; ignore names you do not recognize. Known values: `network` — sandboxed commands can reach the network (`network.allowOutbound`, on by default); on Linux this needs the tooling for Bubblewrap's private network namespace, such as slirp4netns. `network_filtering` — host rules and the sandbox proxy (`network.allowedHosts`, `network.blockedHosts`, `network.proxy`); on Linux this needs the same tooling as `network`; on Windows it needs Process Security Environment 1.1 host-loopback support or MXC's PSEC 1.0-only proxy-loopback compatibility capability, and a policy that uses it must also set `network.allowLocalNetwork`, because Windows reaches the local proxy only together with private-network access. Compatibility applies only to an explicit identity-less runtime proxy, not general host-loopback access, and other policy restrictions still apply. `denied_paths` — native enforcement of `filesystem.deniedPaths`; on Windows this needs a version whose sandbox contract reports denied-path support. `shell` — shell commands inside the sandbox: bash on macOS and Linux, PowerShell on Windows. `filesystem_enumeration` — enumerate-only filesystem grants, which PowerShell's drive roots use on Windows; this needs a version with Process Security Environment 1.1 filesystem enumeration support. Without it, sandboxed PowerShell still runs, but `Get-Location` may report the drive root, `Set-Location` may fail, and relative paths may resolve against the drive root; the session also receives a `session.warning` with `warningType` `sandbox`. Other platforms always report it.
+ * Extensible identifier of a sandbox policy feature whose availability varies between hosts. A plain string, so an older client decodes a name added by a newer runtime; ignore names you do not recognize. Known values: `network` — sandboxed commands can reach the network (`network.allowOutbound`, on by default); on Linux this needs the tooling for Bubblewrap's private network namespace, such as slirp4netns. `network_filtering` — host rules and the sandbox proxy (`network.allowedHosts`, `network.blockedHosts`, `network.proxy`); on Linux this needs the same tooling as `network`; on Windows it needs Process Security Environment 1.1 host-loopback support or MXC's PSEC 1.0-only proxy-loopback compatibility capability, and a policy that uses it must also set `network.allowLocalNetwork`, because Windows reaches the local proxy only together with private-network access. Compatibility applies only to an explicit identity-less runtime proxy, not general host-loopback access, and other policy restrictions still apply. `denied_paths` — native enforcement of `filesystem.deniedPaths`; on Windows this needs a version whose sandbox contract reports denied-path support. `shell` — shell commands inside the sandbox: bash on macOS and Linux, PowerShell on Windows. `filesystem_enumeration` — enumerate-only filesystem grants, which PowerShell's drive roots and `filesystem.enumeratePaths` use on Windows; this needs a version with Process Security Environment 1.1 filesystem enumeration support. Without it, sandboxed PowerShell still runs, but `Get-Location` may report the drive root, `Set-Location` may fail, and relative paths may resolve against the drive root; the session also receives a `session.warning` with `warningType` `sandbox`. `filesystem.enumeratePaths` entries are ignored. Other platforms always report it.
  *
  * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
  * via the `definition` "SandboxHostCapabilityName".
@@ -6846,6 +7140,23 @@ export type SessionsOpenProgressStatus =
   | "in-progress"
   /** The step has completed successfully. */
   | "complete";
+/**
+ * GitHub marketplace source supplied by Team customizations.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "TeamPluginMarketplaceSource".
+ */
+/** @experimental */
+export type TeamPluginMarketplaceSource = {
+  /**
+   * Marketplace source discriminator. Currently only github is supported.
+   */
+  source: "github";
+  /**
+   * GitHub repository in owner/name form.
+   */
+  repo: string;
+};
 /**
  * Copilot plan tier used by the session quota projection.
  *
@@ -7899,6 +8210,23 @@ export type UISessionLimitsExhaustedResponseAction =
   /** Leave the limit unchanged and cancel the blocked model request. */
   | "cancel";
 /**
+ * Optional recovery-aware enrollment for an in-process Auto-switch handler.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "UIRegisterDirectAutoModeSwitchHandlerRequest".
+ */
+/** @experimental */
+export type UIRegisterDirectAutoModeSwitchHandlerRequest =
+  | {
+      [k: string]: unknown | undefined;
+    }
+  | {
+      /**
+       * Opt into active-request Auto recovery before starting a turn. Attach the handler separately, show the failure reason, and return the user's choice for the originating live session. Require a positive acknowledgment in the registration result. Dismiss offers on auto_mode_recovery_consent.completed and on session resume or disconnect. Omitted or false preserves legacy rate-limit switching.
+       */
+      autoModeRecovery?: boolean;
+    };
+/**
  * What the one-time obsolete-settings cleanup did to the document.
  *
  * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
@@ -8269,6 +8597,68 @@ export type SessionGitHubAuthLogoutResult = boolean;
  */
 /** @experimental */
 export type SessionGitHubAuthLogoutUserResult = boolean;
+/**
+ * Whether the credential operation succeeded.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "SessionMcpOauthHasValidTokensResult".
+ */
+/** @experimental */
+export type SessionMcpOauthHasValidTokensResult = boolean;
+/**
+ * Whether the credential operation succeeded.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "SessionMcpOauthTryRefreshTokensResult".
+ */
+/** @experimental */
+export type SessionMcpOauthTryRefreshTokensResult = boolean;
+/**
+ * Outcome of the tokenless handshake, with the original challenge when available.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "SessionMcpOauthTestConnectionResult".
+ */
+/** @experimental */
+/** @internal */
+export type SessionMcpOauthTestConnectionResult =
+  | {
+      status: "connected";
+    }
+  | {
+      status: "needs-auth";
+      /**
+       * The transport's authentication error message.
+       */
+      error: string;
+      /**
+       * Raw WWW-Authenticate header, when the refusing response supplies one.
+       */
+      wwwAuthenticateHeader?: string;
+      /**
+       * Parsed challenge parameters from the refusing HTTP response.
+       */
+      wwwAuthenticateParams?: McpOauthWWWAuthenticateParams;
+      /**
+       * Exact refusing HTTP response, when the transport captured it.
+       */
+      httpResponse?: McpOauthHttpResponse;
+    }
+  | {
+      status: "failed";
+      /**
+       * Transport or session policy failure detail.
+       */
+      error: string;
+    };
+/**
+ * The selected owner's OAuth credential key.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "SessionMcpOauthStoreKeyResult".
+ */
+/** @experimental */
+export type SessionMcpOauthStoreKeyResult = string;
 /**
  * Pending warnings returned and cleared by session.quota.takeWarnings.
  *
@@ -15834,6 +16224,289 @@ export interface DebugCollectLogsSkippedEntry {
   reason: string;
 }
 /**
+ * Probability of one choice option.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "DecisionOptionProbability".
+ */
+/** @experimental */
+export interface DecisionOptionProbability {
+  /**
+   * Option value.
+   */
+  value: string;
+  /**
+   * Probability from 0 to 1.
+   */
+  probability: number;
+}
+/**
+ * Probability of one score level.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "DecisionLevelProbability".
+ */
+/** @experimental */
+export interface DecisionLevelProbability {
+  /**
+   * Level label.
+   */
+  label: string;
+  /**
+   * Probability from 0 to 1.
+   */
+  probability: number;
+}
+/**
+ * `data` of a JSON-RPC error returned by a `decisions.*` method.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "DecisionErrorData".
+ */
+/** @experimental */
+export interface DecisionErrorData {
+  /**
+   * Error category to branch on.
+   */
+  kind: DecisionErrorKind;
+  /**
+   * Every limit or rule the request broke, for `invalidRequest` and `tooLarge`.
+   */
+  violations?: DecisionViolation[];
+  /**
+   * HTTP status the backend returned, when the error came from it.
+   */
+  statusCode?: number;
+  /**
+   * How long to wait before retrying, for `rateLimited`.
+   */
+  retryAfterMs?: number;
+}
+/**
+ * One rule or limit a request broke.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "DecisionViolation".
+ */
+/** @experimental */
+export interface DecisionViolation {
+  /**
+   * Where in the request, for example `questions[2].options`.
+   */
+  path: string;
+  /**
+   * Stable rule identifier, for example `minOptions` or `requestBytes`.
+   */
+  rule: string;
+  /**
+   * The value the request had, when numeric.
+   */
+  actual?: number;
+  /**
+   * The limit it broke, when numeric.
+   */
+  limit?: number;
+}
+/**
+ * One level of a score question's scale.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "DecisionLevel".
+ */
+/** @experimental */
+export interface DecisionLevel {
+  /**
+   * Short, unique name of the level, such as `Low`.
+   */
+  label: string;
+  /**
+   * When this level applies.
+   */
+  description: string;
+}
+/**
+ * One callable decision model.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "DecisionModelInfo".
+ */
+/** @experimental */
+export interface DecisionModelInfo {
+  /**
+   * Model id to pass as `model` to `decisions.ask`.
+   */
+  id: string;
+  /**
+   * Display name.
+   */
+  name: string;
+  /**
+   * Whether `decisions.ask` uses this model when `model` is omitted.
+   */
+  isDefault: boolean;
+  /**
+   * Effective limits callers can rely on: the stricter of the backend's and the runtime's.
+   */
+  limits: DecisionModelLimits;
+  /**
+   * Whether the backend can refuse individual questions.
+   */
+  supportsRefusals: boolean;
+}
+/**
+ * Request limits for one decision model.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "DecisionModelLimits".
+ */
+/** @experimental */
+export interface DecisionModelLimits {
+  /**
+   * Maximum questions per request.
+   */
+  maxQuestions: number;
+  /**
+   * Minimum options per choice question.
+   */
+  minOptions: number;
+  /**
+   * Maximum options per choice question.
+   */
+  maxOptions: number;
+  /**
+   * Minimum levels per score question.
+   */
+  minLevels: number;
+  /**
+   * Maximum levels per score question.
+   */
+  maxLevels: number;
+  /**
+   * Maximum size of the serialized request, in bytes.
+   */
+  maxRequestBytes: number;
+  /**
+   * Maximum nesting depth of JSON context.
+   */
+  maxJsonDepth: number;
+  /**
+   * Token budget for the context plus any one question, when the model has one.
+   */
+  contextPlusQuestionTokens?: number;
+}
+/**
+ * One candidate answer to a choice question.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "DecisionOption".
+ */
+/** @experimental */
+export interface DecisionOption {
+  /**
+   * Identifier returned when the model picks this option. Letters, digits and `._:/@-`, 1-64 characters. The model reads it, so it must not hold anything the caller would not put in the context.
+   */
+  value: string;
+  /**
+   * When this option applies.
+   */
+  description: string;
+}
+/**
+ * One request to a decision model: shared context plus the questions to answer about it.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "DecisionsAskRequest".
+ */
+/** @experimental */
+export interface DecisionsAskRequest {
+  /**
+   * Opaque account identifier returned by `account.getAllUsers`. When omitted, the current account is used.
+   */
+  selectionId?: string;
+  /**
+   * GitHub token to ask as. When provided, it is used instead of the current account or `selectionId`.
+   */
+  gitHubToken?: string;
+  /**
+   * Decision model id from `models.list` `decisionModels`. When omitted, the runtime uses its default decision model for the account.
+   */
+  model?: string;
+  /**
+   * Shared context every question sees. The runtime never truncates it; an oversized request fails with `tooLarge`.
+   */
+  context: DecisionContext;
+  /**
+   * Questions to answer about the context. Names must be unique; answers come back in the same order.
+   */
+  questions: DecisionQuestion[];
+  /**
+   * End-to-end deadline in milliseconds, covering credential resolution, queueing, the model call and parsing. Defaults to 5000; allowed range 250-30000.
+   */
+  timeoutMs?: number;
+  /**
+   * Static identifier of the calling feature, used only for telemetry and never sent to the model, for example `vscode.chat.route`. Unrecognized values are reported as `other`.
+   */
+  purpose?: string;
+}
+/**
+ * The decision model's answers.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "DecisionsAskResult".
+ */
+/** @experimental */
+export interface DecisionsAskResult {
+  /**
+   * Decision model id that answered; valid as `model` in a later request.
+   */
+  model: string;
+  /**
+   * Model name the backend reported, when it differs from `model`. Informational only.
+   */
+  upstreamModel?: string;
+  /**
+   * One answer per question, in request order.
+   */
+  answers: DecisionAnswer[];
+  /**
+   * Token usage, when the backend reports it.
+   */
+  usage?: DecisionUsage;
+  /**
+   * Milliseconds from receiving the request to producing the result.
+   */
+  latencyMs: number;
+}
+/**
+ * Token usage the backend reported for one request.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "DecisionUsage".
+ */
+/** @experimental */
+export interface DecisionUsage {
+  /**
+   * Input tokens, including cached and cache-write tokens.
+   */
+  inputTokens: number;
+  /**
+   * Input tokens served from the backend's prompt cache, when reported.
+   */
+  cachedInputTokens?: number;
+  /**
+   * Input tokens written to the backend's prompt cache, when reported.
+   */
+  cacheWriteTokens?: number;
+  /**
+   * Output tokens, including reasoning tokens.
+   */
+  outputTokens: number;
+  /**
+   * Reasoning tokens, when reported.
+   */
+  reasoningTokens?: number;
+}
+/**
  * MCP-specific detail for a source-discriminated diagnostic entry.
  *
  * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
@@ -20576,6 +21249,10 @@ export interface InstallationConfirmationResponse {
 /** @experimental */
 export interface InstalledPluginInfo {
   /**
+   * Soft assignment from effective managed settings. This is not a mandatory enabled-state restriction.
+   */
+  assignment?: ManagedPluginAssignment;
+  /**
    * Plugin name
    */
   name: string;
@@ -20635,6 +21312,23 @@ export interface InstalledPluginInfo {
    * Opaque plugin identity in this runtime's inventory. Matches MCP effectiveSource.plugin.id for the same plugin. Stable across enablement changes, updates and restarts while the installation source is unchanged; not a cross-host identifier or a mutation argument. Compare the complete value without parsing it. May be absent on older runtimes.
    */
   id?: string;
+}
+/**
+ * An optional plugin default from managed settings. Explicit user choices override this default.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "ManagedPluginAssignment".
+ */
+/** @experimental */
+export interface ManagedPluginAssignment {
+  /**
+   * Assignment state. The runtime currently supports defaultEnabled.
+   */
+  state: string;
+  /**
+   * Administrator-provided explanation from the same winning policy entry as the state.
+   */
+  reason?: string;
 }
 /**
  * The GitHub repository and commit an installed plugin is pinned to.
@@ -20901,49 +21595,6 @@ export interface JsonSchemaResponseFormat {
    * Optional strict enforcement setting for OpenAI providers. Omitted uses the provider default. Anthropic always enforces its supported schema subset.
    */
   strict?: boolean;
-}
-/**
- * Requests a fresh initial SPNEGO token for a Kerberos service principal.
- *
- * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
- * via the `definition` "KerberosAuthAcquireRequest".
- */
-/** @experimental */
-export interface KerberosAuthAcquireRequest {
-  /**
-   * Service principal in the platform-independent `service/host` form, optionally followed by `@REALM`.
-   */
-  spn: string;
-}
-/**
- * Client credentials for a single authentication exchange.
- *
- * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
- * via the `definition` "KerberosAuthAcquireResult".
- */
-/** @experimental */
-export interface KerberosAuthAcquireResult {
-  /**
-   * Base64 initial SPNEGO token without the Negotiate prefix; omitted when unavailable. Never log or persist it.
-   */
-  token?: string;
-}
-/**
- * Registers the calling SDK connection's Kerberos credential provider.
- *
- * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
- * via the `definition` "KerberosAuthSetProviderRequest".
- */
-/** @experimental */
-export interface KerberosAuthSetProviderRequest {
-  /**
-   * Native lookup fallback or exclusive client callback.
-   */
-  mode: KerberosAuthMode;
-  /**
-   * Traffic the callback authenticates; defaults to `connection`.
-   */
-  scope?: KerberosAuthScope;
 }
 /**
  * Startup-only configuration for the experimental runtime lifecycle diagnostic event stream.
@@ -21380,6 +22031,144 @@ export interface LogResult {
   eventId: string;
 }
 /**
+ * A project configuration that the tolerant loader could not use.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "LspConfigurationProblem".
+ */
+/** @experimental */
+export interface LspConfigurationProblem {
+  /**
+   * Configuration file path.
+   */
+  path: string;
+  /**
+   * Configuration read or validation failure.
+   */
+  error: string;
+}
+/**
+ * Runtime-owned configuration inventory and configuration diagnostics.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "LspConfigurationSnapshot".
+ */
+/** @experimental */
+export interface LspConfigurationSnapshot {
+  /**
+   * Effective servers in merge order.
+   */
+  configs: LspServerSummary[];
+  /**
+   * User entries, including entries disabled by project configuration.
+   */
+  userServers: LspServerSummary[];
+  /**
+   * Effective plugin entries.
+   */
+  pluginServers: LspServerSummary[];
+  /**
+   * Project entries, including disabled entries absent from the effective set.
+   */
+  projectServers: LspServerSummary[];
+  /**
+   * User configuration file path.
+   */
+  userConfigPath: string;
+  /**
+   * Nearest project configuration file path.
+   */
+  projectConfigPath?: string;
+  /**
+   * User configuration read or validation failure.
+   */
+  userConfigError?: string;
+  /**
+   * Project files rejected by the loader.
+   */
+  projectProblems: LspConfigurationProblem[];
+  /**
+   * Failure to inspect project configuration.
+   */
+  projectInspectionError?: string;
+  /**
+   * Identifiers disabled through the user toggle list.
+   */
+  userDisabledServers: string[];
+  /**
+   * Configuration loader diagnostics.
+   */
+  warnings: string[];
+  /**
+   * Plugin configuration diagnostics.
+   */
+  pluginWarnings: string[];
+}
+/**
+ * One language server in the runtime's configuration inventory.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "LspServerSummary".
+ */
+/** @experimental */
+export interface LspServerSummary {
+  /**
+   * Configured server identifier.
+   */
+  id: string;
+  /**
+   * File suffixes handled by the server.
+   */
+  fileExtensions: {
+    [k: string]: string | undefined;
+  };
+  /**
+   * Project root relative to the repository root.
+   */
+  rootUri?: string;
+  /**
+   * Request deadline in milliseconds.
+   */
+  requestTimeoutMs?: number;
+  /**
+   * Protocol initialization deadline in milliseconds.
+   */
+  initializationTimeoutMs?: number;
+  /**
+   * Process startup deadline in milliseconds.
+   */
+  spawnTimeoutMs?: number;
+  /**
+   * Warmup deadline in milliseconds.
+   */
+  warmupTimeoutMs?: number;
+  /**
+   * Plugin that supplies the server, when applicable.
+   */
+  sourcePlugin?: string;
+  /**
+   * Whether the effective configuration disables this entry.
+   */
+  disabled: boolean;
+  /**
+   * Platform-selected launch script for a user entry.
+   */
+  launchDescription?: string;
+}
+/**
+ * Parameters for a process-wide, read-only language-server inventory.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "LspGlobalConfigurationRequest".
+ */
+/** @experimental */
+export interface LspGlobalConfigurationRequest {
+  /**
+   * Absolute working directory used for project and plugin discovery.
+   */
+  workingDirectory: string;
+}
+/**
  * Parameters for (re)loading the merged LSP configuration set.
  *
  * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
@@ -21399,6 +22188,124 @@ export interface LspInitializeRequest {
    * Force re-initialization even when LSP configs were already loaded for the working directory.
    */
   force?: boolean;
+}
+/**
+ * Process exit information from a startup probe.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "LspProbeExitStatus".
+ */
+/** @experimental */
+export interface LspProbeExitStatus {
+  /**
+   * Exit code, or null when the process ended through a signal.
+   */
+  code: number | null;
+  /**
+   * Termination signal, or null for a normal exit.
+   */
+  signal: string | null;
+  /**
+   * Failure to observe the child process.
+   */
+  error?: string;
+}
+/**
+ * A server selected for a startup probe.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "LspProbeRequest".
+ */
+/** @experimental */
+export interface LspProbeRequest {
+  /**
+   * Configured server identifier.
+   */
+  serverId: string;
+}
+/**
+ * Result of a language-server startup probe.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "LspProbeResult".
+ */
+/** @experimental */
+export interface LspProbeResult {
+  /**
+   * Runtime selection outcome: started, disabled, missing, or unavailable.
+   */
+  status: string;
+  /**
+   * Effective server identifiers, used when the requested server is absent.
+   */
+  availableServers: string[];
+  /**
+   * Child process identifier, or null when no process identifier exists.
+   */
+  pid: number | null;
+  /**
+   * Time spent on process startup, in milliseconds.
+   */
+  spawnTimeMs: number;
+  /**
+   * Child exit observed during the startup window.
+   */
+  immediateExit?: LspProbeExitStatus;
+  /**
+   * Whether the runtime confined the probe in the session sandbox.
+   */
+  sandboxed: boolean;
+}
+/**
+ * A persistent user-level server toggle.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "LspSetEnabledRequest".
+ */
+/** @experimental */
+export interface LspSetEnabledRequest {
+  /**
+   * Configured server identifier.
+   */
+  serverId: string;
+  /**
+   * True to remove the user-level disable override.
+   */
+  enabled: boolean;
+}
+/**
+ * A server whose warmup failed.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "LspWarmupError".
+ */
+/** @experimental */
+export interface LspWarmupError {
+  /**
+   * Configured server identifier.
+   */
+  serverId: string;
+  /**
+   * Server startup failure.
+   */
+  error: string;
+}
+/**
+ * The servers retained by the session after warmup.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "LspWarmupResult".
+ */
+/** @experimental */
+export interface LspWarmupResult {
+  /**
+   * Successfully acquired server identifiers.
+   */
+  servers: string[];
+  /**
+   * Individual server startup failures.
+   */
+  errors: LspWarmupError[];
 }
 /**
  * Organization-specific information that clients surface to end users. Informational only; the runtime does not enforce it.
@@ -22614,6 +23521,10 @@ export interface MarketplacePluginInfo {
    * Short description from the marketplace catalog, when present
    */
   description?: string;
+  /**
+   * Soft assignment from effective managed settings for this marketplace entry.
+   */
+  assignment?: ManagedPluginAssignment;
 }
 /**
  * Registered marketplace summary.
@@ -24125,6 +25036,156 @@ export interface McpToolUi {
   visibility?: McpToolUiVisibility[];
 }
 /**
+ * Full host-driven authentication for an arbitrary, possibly unsaved, MCP URL.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "McpOauthAuthenticateRequest".
+ */
+/** @experimental */
+/** @internal */
+export interface McpOauthAuthenticateRequest {
+  /**
+   * Correlation identity reserved through prepareFlow.
+   */
+  flowId: string;
+  /**
+   * MCP endpoint, without a requirement for saved configuration.
+   */
+  serverUrl: string;
+  /**
+   * Use environment session claims for a hostless compatibility call, while retaining this requester's egress authority.
+   */
+  sessionless?: boolean;
+  /**
+   * Credential owner. Omission uses the authoritative session store.
+   */
+  store?: McpOauthFlowStore;
+  /**
+   * Proxy fallback when the session has not published an egress entry.
+   */
+  sandboxProxy?: string;
+  /**
+   * Static OAuth client settings for this attempt.
+   */
+  staticClientConfig?: McpOauthFlowStaticClientConfig;
+  /**
+   * Bypass cached grants for explicit account selection.
+   */
+  forceReauth?: boolean;
+  /**
+   * Fail with browser_required when silent authentication cannot complete.
+   */
+  browserless?: boolean;
+  /**
+   * Start device authorization instead of a browser flow.
+   */
+  forceDeviceCode?: boolean;
+  /**
+   * Let the host present the authorization URL without a runtime browser launch.
+   */
+  skipBrowserOpen?: boolean;
+  /**
+   * Authorization timeout in milliseconds. Defaults to five minutes.
+   */
+  authorizationTimeoutMs?: number;
+  /**
+   * Override the device authorization poll interval in milliseconds.
+   */
+  deviceCodePollIntervalMs?: number;
+  /**
+   * Delay before the runtime offers device authorization.
+   */
+  deviceCodeOfferTimeoutMs?: number;
+  /**
+   * Display name for new dynamic client registrations.
+   */
+  clientName?: string;
+  /**
+   * Client metadata document URL. Omission uses the session identity.
+   */
+  clientIdMetadataUrl?: string;
+  /**
+   * Text displayed after a successful loopback callback.
+   */
+  callbackSuccessMessage?: string;
+  /**
+   * Fixed callback port. A busy port fails without fallback.
+   */
+  redirectPort?: number;
+  /**
+   * Reject the cached access token but permit a refresh grant.
+   */
+  skipCachedAccessToken?: boolean;
+  /**
+   * Preserve previously granted scopes during additional consent.
+   */
+  includeExistingTokenScopes?: boolean;
+  /**
+   * Preserve replacement policy when another pending flow owns consent.
+   */
+  preservePendingFlowReplacementFlags?: boolean;
+  /**
+   * Challenge captured by the host, including an empty challenge.
+   */
+  wwwAuthenticateParams?: McpOauthWWWAuthenticateParams;
+  /**
+   * Raw protected-resource metadata already fetched by the host.
+   */
+  resourceMetadata?: string;
+}
+/**
+ * A pre-registered OAuth client for this attempt.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "McpOauthFlowStaticClientConfig".
+ */
+/** @experimental */
+/** @internal */
+export interface McpOauthFlowStaticClientConfig {
+  /**
+   * Pre-registered client identifier.
+   */
+  clientId: string;
+  /**
+   * Ephemeral secret that the runtime never persists.
+   */
+  clientSecret?: string;
+  /**
+   * Whether this client has no secret. Defaults to true.
+   */
+  publicClient?: boolean;
+  /**
+   * OAuth grant override.
+   */
+  grantType?: McpOauthLoginGrantType;
+  /**
+   * Scope used when the server omits its challenge scope.
+   */
+  scope?: string;
+}
+/**
+ * Token projection for the existing host-delegated provider.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "McpOauthAuthenticateResult".
+ */
+/** @experimental */
+/** @internal */
+export interface McpOauthAuthenticateResult {
+  /**
+   * Access token from the runtime-owned store.
+   */
+  accessToken: string;
+  /**
+   * Token scheme. Defaults to Bearer.
+   */
+  tokenType: string;
+  /**
+   * Remaining lifetime in seconds when the issuer supplied an expiry.
+   */
+  expiresIn?: number;
+}
+/**
  * Identifies the MCP server whose persisted OAuth credentials were updated.
  *
  * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
@@ -24233,6 +25294,19 @@ export interface McpOauthCompleteRequest {
   callbackUrl: string;
 }
 /**
+ * Dispose an explicit host store without altering the session authorizer's owner.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "McpOauthDisposeStoreRequest".
+ */
+/** @internal */
+export interface McpOauthDisposeStoreRequest {
+  /**
+   * Host-selected identity of the explicit store.
+   */
+  storeId: string;
+}
+/**
  * An OAuth challenge from a remote MCP server whose protected-resource metadata should be read.
  *
  * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
@@ -24279,6 +25353,19 @@ export interface McpOauthFetchProtectedResourceMetadataResult {
    * Metadata document exactly as the server returned it, unparsed. Absent when no document could be read from the explicit metadata URL or, when omitted, the conventional metadata endpoints.
    */
   metadataText?: string;
+}
+/**
+ * Correlation identity reserved before an effectful authentication request.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "McpOauthFlowIdentityRequest".
+ */
+/** @internal */
+export interface McpOauthFlowIdentityRequest {
+  /**
+   * Host-chosen identity, unique within this session requester.
+   */
+  flowId: string;
 }
 /**
  * Pending MCP OAuth request ID and host token, cancellation, or advertised runtime refresh response.
@@ -24507,6 +25594,31 @@ export interface McpOauthRespondResult {
   success: boolean;
 }
 /**
+ * Persist a confidential client's static secret without exposing token-store CRUD.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "McpOauthSaveStaticClientSecretRequest".
+ */
+/** @internal */
+export interface McpOauthSaveStaticClientSecretRequest {
+  /**
+   * Runtime OAuth credential key.
+   */
+  storeKey: string;
+  /**
+   * Preserve hostless credential and account selection.
+   */
+  sessionless?: boolean;
+  /**
+   * Secret to persist in the selected credential owner.
+   */
+  secret: string;
+  /**
+   * Credential owner. Omission uses the authoritative session store.
+   */
+  store?: McpOauthFlowStore;
+}
+/**
  * An OAuth client a server configuration pins, without its secret.
  *
  * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
@@ -24559,6 +25671,88 @@ export interface McpOauthStaticClientConfigResult {
    * The pinned client. Absent when the configuration pins no non-empty client id, so the flow should register one dynamically.
    */
   clientConfig?: McpOauthStaticClientConfig;
+}
+/**
+ * A narrow token-validity query against the chosen credential owner.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "McpOauthStoredGrantRequest".
+ */
+/** @internal */
+export interface McpOauthStoredGrantRequest {
+  /**
+   * Runtime OAuth credential key.
+   */
+  storeKey: string;
+  /**
+   * Preserve hostless credential and account selection.
+   */
+  sessionless?: boolean;
+  /**
+   * Credential owner. Omission uses the authoritative session store.
+   */
+  store?: McpOauthFlowStore;
+  /**
+   * Static client identity required for refresh, when configured.
+   */
+  staticClientConfig?: McpOauthFlowStaticClientConfig;
+}
+/**
+ * Derive a credential key through the selected account and store owner.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "McpOauthStoreKeyRequest".
+ */
+/** @internal */
+export interface McpOauthStoreKeyRequest {
+  /**
+   * MCP endpoint whose credentials the key identifies.
+   */
+  serverUrl: string;
+  /**
+   * Static OAuth client identity, when configured.
+   */
+  clientId?: string;
+  /**
+   * Metadata document identity when no static client is configured.
+   */
+  clientIdMetadataUrl?: string;
+  /**
+   * Credential owner. Omission uses the authoritative session store.
+   */
+  store?: McpOauthFlowStore;
+  /**
+   * Preserve hostless credential and account selection.
+   */
+  sessionless?: boolean;
+}
+/**
+ * Tokenless initialize handshake for a possibly unsaved remote MCP server.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "McpOauthTestConnectionRequest".
+ */
+/** @experimental */
+/** @internal */
+export interface McpOauthTestConnectionRequest {
+  /**
+   * Remote endpoint to initialize without an OAuth token.
+   */
+  url: string;
+  /**
+   * Transport. Omission selects Streamable HTTP.
+   */
+  type?: McpOauthTestConnectionTransport;
+  /**
+   * Headers sent during the handshake.
+   */
+  headers?: {
+    [k: string]: string | undefined;
+  };
+  /**
+   * Proxy fallback when no session egress entry exists.
+   */
+  sandboxProxy?: string;
 }
 /**
  * A computed MCP install plan. Nothing has been applied: the plan describes what installing would change, and the plan handle is what a later apply operation would consume.
@@ -25831,6 +27025,35 @@ export interface MemoryConfiguration {
   mode?: MemoryMode;
 }
 /**
+ * A memory the agent stored after validation, secret filtering and approval.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "MemoryStoreRequest".
+ */
+/** @experimental */
+export interface MemoryStoreRequest {
+  /**
+   * Target session identifier
+   */
+  sessionId: string;
+  /**
+   * Short topic the memory is about.
+   */
+  subject: string;
+  /**
+   * The fact to remember.
+   */
+  fact: string;
+  /**
+   * Sources supporting the fact, such as file paths with line numbers or a quotation of the user.
+   */
+  citations: string;
+  /**
+   * Why the agent considers the fact worth remembering.
+   */
+  reason: string;
+}
+/**
  * Per-source attribution breakdown for the session's current context window, or null if uninitialized.
  *
  * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
@@ -26631,6 +27854,14 @@ export interface ModelList {
    * The runtime's default image model, separate from conversation models, with its availability for the resolved account. The default is reported even when unavailable; clients choose whether to display it. These entries must not be selected as chat models. Absent on runtimes that do not expose this catalog.
    */
   imageModels?: ImageToolModel[];
+  /**
+   * Decision models the resolved account can call with `decisions.ask`, separate from conversation models, with each model's effective limits. Absent when the `DECISIONS_API` feature flag is off or the runtime does not expose this catalog; empty when the account has none. These entries must not be selected as chat models.
+   *
+   * @experimental
+   *
+   * @experimental
+   */
+  decisionModels?: DecisionModelInfo[];
 }
 
 /** @experimental */
@@ -27249,7 +28480,7 @@ export interface ModelSetReasoningEffortRequest {
   reasoningEffort: string;
 }
 /**
- * Update the session's reasoning effort without changing the selected model. Use `switchTo` instead when you also need to change the model. The runtime stores the effort on the session and applies it to subsequent turns.
+ * Update the session's reasoning effort without changing the selected model. Use `switchTo` instead when you also need to change the model. The runtime applies the effort to the next new model request, including tool continuations, without changing retries of an already-started request.
  *
  * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
  * via the `definition` "ModelSetReasoningEffortResult".
@@ -27276,6 +28507,48 @@ export interface ModelsListRequest {
    * When true, replaces the display names of preview and hidden models with `Hidden Model N`, and masks their promotion and data-retention text. Model ids are unchanged.
    */
   streamerMode?: boolean;
+}
+/**
+ * Options for a host's startup model admission check.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "ModelStartupAdmissionRequest".
+ */
+/** @experimental */
+export interface ModelStartupAdmissionRequest {
+  /**
+   * Claims the session's one-time enablement prompt only when its catalog is ready.
+   */
+  claimEnablement?: boolean;
+}
+/**
+ * A cached startup model snapshot and an optional one-time enablement prompt. This check never resolves credentials or fetches a catalog.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "ModelStartupAdmissionResult".
+ */
+/** @experimental */
+export interface ModelStartupAdmissionResult {
+  /**
+   * The selected model, when the session has one.
+   */
+  selectedModel?: string;
+  /**
+   * Whether the session already has a resolved Copilot catalog.
+   */
+  catalogReady: boolean;
+  /**
+   * Whether the cached selected model currently requires enablement.
+   */
+  requiresEnablement: boolean;
+  /**
+   * Whether this call consumed the session's startup enablement claim.
+   */
+  claimedEnablement: boolean;
+  /**
+   * The selected model to enable, only for the first successful prompt claim.
+   */
+  modelToEnable?: string;
 }
 /**
  * An Auto preference request for the session. This updates Auto configuration only; it does not change the selected model to `auto`.
@@ -27665,6 +28938,95 @@ export interface NameSetRequest {
    * New session name (1–100 characters, trimmed of leading/trailing whitespace)
    */
   name: string;
+}
+/**
+ * Registers the Negotiate authentication callback, which then supplies the Kerberos tokens instead of native credential lookup.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "NetworkAuthenticateNegotiateOptions".
+ */
+/** @experimental */
+export interface NetworkAuthenticateNegotiateOptions {}
+/**
+ * Requests a fresh initial SPNEGO token for a Kerberos service principal.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "NetworkAuthenticateNegotiateRequest".
+ */
+/** @experimental */
+export interface NetworkAuthenticateNegotiateRequest {
+  /**
+   * Service principal in the platform-independent `service/host` form, optionally followed by `@REALM`.
+   */
+  spn: string;
+}
+/**
+ * Client credentials for a single Negotiate authentication exchange.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "NetworkAuthenticateNegotiateResult".
+ */
+/** @experimental */
+export interface NetworkAuthenticateNegotiateResult {
+  /**
+   * Base64 initial SPNEGO token without the Negotiate prefix; omitted when unavailable. Never log or persist it.
+   */
+  token?: string;
+}
+/**
+ * Registers the proxy resolution callback, which then decides the proxies for every request the runtime would otherwise route by ambient proxy settings, or leaves a request to that routing.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "NetworkResolveProxyOptions".
+ */
+/** @experimental */
+export interface NetworkResolveProxyOptions {}
+/**
+ * Requests the proxies for a request target.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "NetworkResolveProxyRequest".
+ */
+/** @experimental */
+export interface NetworkResolveProxyRequest {
+  /**
+   * Request target as a PAC script sees it: without credentials or fragment, and for `https` and `wss` also without path and query.
+   */
+  url: string;
+}
+/**
+ * Proxies for a request target, in the order to try them.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "NetworkResolveProxyResult".
+ */
+/** @experimental */
+export interface NetworkResolveProxyResult {
+  /**
+   * PAC-style proxy list such as `PROXY proxy.example:8080; HTTPS proxy.example:443; DIRECT`, as returned by a PAC script or Electron's `session.resolveProxy`; `DIRECT` connects directly. Omitted, null or empty leaves the request to the runtime's own proxy resolution, as if no callback were registered: proxy environment variables, `NO_PROXY`, then the operating system's proxy settings and PAC. Entry types the runtime doesn't support, such as SOCKS and QUIC, are skipped.
+   */
+  proxy?: string;
+}
+/**
+ * Registers the calling SDK connection's network callbacks, replacing any previous registration.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "NetworkSetProviderRequest".
+ */
+/** @experimental */
+export interface NetworkSetProviderRequest {
+  /**
+   * Traffic the callbacks serve; defaults to `connection`.
+   */
+  scope?: NetworkScope;
+  /**
+   * Present when the client answers `network.resolveProxy`.
+   */
+  resolveProxy?: NetworkResolveProxyOptions;
+  /**
+   * Present when the client answers `network.authenticateNegotiate`.
+   */
+  authenticateNegotiate?: NetworkAuthenticateNegotiateOptions;
 }
 /**
  * Content-exclusion policy supplied to `session.options.update`, with rules, last-updated data, and scope.
@@ -29675,6 +31037,10 @@ export interface PlanUpdateRequest {
  */
 /** @experimental */
 export interface Plugin {
+  /**
+   * Soft assignment from effective managed settings. This does not mark the plugin as hard-managed.
+   */
+  assignment?: ManagedPluginAssignment;
   /**
    * Plugin name
    */
@@ -32235,6 +33601,10 @@ export interface SandboxConfigUserPolicyFilesystem {
    * Paths explicitly denied.
    */
   deniedPaths?: string[];
+  /**
+   * Paths granted enumerate-only access: sandboxed commands can list these directories without reading the files in them. Honored only on Windows hosts with the `filesystem_enumeration` capability; ignored elsewhere. An entry at or under a read-only, read-write, or denied path is ignored, so it never narrows a grant or reopens a denial.
+   */
+  enumeratePaths?: string[];
 }
 /**
  * Network rules to merge into the base policy.
@@ -32611,7 +33981,7 @@ export interface SandboxGrantPathForRequestResult {
 /** @experimental */
 export interface SandboxHostCapability {
   /**
-   * The policy feature, as an extensible string: ignore names you do not recognize. Known values: `network` (sandboxed commands can reach the network; on Linux this needs the tooling for Bubblewrap's private network namespace, such as slirp4netns), `network_filtering` (host rules and the sandbox proxy; on Linux this needs the same tooling as `network`; on Windows it needs Process Security Environment 1.1 host-loopback support or MXC's PSEC 1.0-only proxy-loopback compatibility capability, and a policy that uses it must also set `network.allowLocalNetwork`; compatibility applies only to an explicit identity-less runtime proxy, not general host-loopback access, and other policy restrictions still apply), `denied_paths` (native enforcement of `filesystem.deniedPaths`), `shell` (shell commands inside the sandbox), and `filesystem_enumeration` (enumerate-only filesystem grants; on Windows this needs Process Security Environment 1.1 filesystem enumeration support, and without it sandboxed PowerShell still runs but cannot resolve its current location; other platforms always report it).
+   * The policy feature, as an extensible string: ignore names you do not recognize. Known values: `network` (sandboxed commands can reach the network; on Linux this needs the tooling for Bubblewrap's private network namespace, such as slirp4netns), `network_filtering` (host rules and the sandbox proxy; on Linux this needs the same tooling as `network`; on Windows it needs Process Security Environment 1.1 host-loopback support or MXC's PSEC 1.0-only proxy-loopback compatibility capability, and a policy that uses it must also set `network.allowLocalNetwork`; compatibility applies only to an explicit identity-less runtime proxy, not general host-loopback access, and other policy restrictions still apply), `denied_paths` (native enforcement of `filesystem.deniedPaths`), `shell` (shell commands inside the sandbox), and `filesystem_enumeration` (enumerate-only filesystem grants: PowerShell's drive roots and `filesystem.enumeratePaths`; on Windows this needs Process Security Environment 1.1 filesystem enumeration support, and without it sandboxed PowerShell still runs but cannot resolve its current location, and `filesystem.enumeratePaths` entries are ignored; other platforms always report it).
    */
   name: SandboxHostCapabilityName;
   /**
@@ -33253,6 +34623,10 @@ export interface SendMessagesRequest {
    */
   tracestate?: string;
   /**
+   * Opaque caller-chosen ID for the turn this batch starts. The runtime copies it unchanged into `params._meta["com.github.copilot/turnId"]` on every MCP `tools/call` the agent makes while serving that turn, including calls from sub-agents it spawns and from Autopilot continuations of it. Visible user steering (`mode: "immediate"`) that a running turn consumes hands it to a successor turn: the steering's value replaces the running turn's from the next model call onward, and steering without one clears it. System and hidden steering leave it unchanged. A turn started without one, including one the runtime starts itself, carries no turn ID. The `user.message` event for each message the send delivers echoes it as `clientTurnId` when the message is consumed, and is persisted like other events; the value stamped on MCP calls is held in memory only and is not restored on resume.
+   */
+  clientTurnId?: string;
+  /**
    * If true, await completion of the agentic loop for this turn before returning. Defaults to false (fire-and-forget). When true, the result still contains the same `messageIds`; the caller can rely on the agent having processed the messages before the call resolves. Transport-dependent tail semantics: on a LOCAL (in-process) session the wait additionally blocks until the completed turn's event tail has been dispatched to this session's in-process subscribers, so a subsequent read of subscriber state already reflects the turn; on a REMOTE session the wait resolves once the loop completes and mirrored delivery follows over the wire. Callers that need the stronger local guarantee on remote sessions should await the event stream explicitly.
    */
   wait?: boolean;
@@ -33334,6 +34708,10 @@ export interface SendRequest {
    * W3C Trace Context tracestate header for distributed tracing
    */
   tracestate?: string;
+  /**
+   * Opaque caller-chosen ID for the turn this message starts. The runtime copies it unchanged into `params._meta["com.github.copilot/turnId"]` on every MCP `tools/call` the agent makes while serving that turn, including calls from sub-agents it spawns and from Autopilot continuations of it. Visible user steering (`mode: "immediate"`) that a running turn consumes hands it to a successor turn: the steering's value replaces the running turn's from the next model call onward, and steering without one clears it. System and hidden steering leave it unchanged. A turn started without one, including one the runtime starts itself, carries no turn ID. The `user.message` event for each message the send delivers echoes it as `clientTurnId` when the message is consumed, and is persisted like other events; the value stamped on MCP calls is held in memory only and is not restored on resume.
+   */
+  clientTurnId?: string;
   /**
    * If true, await completion of the agentic loop for this message before returning. Defaults to false (fire-and-forget). When true, the result still contains the same `messageId`; the caller can rely on the agent having processed the message before the call resolves. Transport-dependent tail semantics: on a LOCAL (in-process) session the wait additionally blocks until the completed turn's event tail has been dispatched to this session's in-process subscribers, so a subsequent read of subscriber state already reflects the turn; on a REMOTE session the wait resolves once the loop completes and mirrored delivery follows over the wire. Callers that need the stronger local guarantee on remote sessions should await the event stream explicitly.
    */
@@ -35286,6 +36664,10 @@ export interface SessionOpenOptions {
    */
   enableCitations?: boolean;
   /**
+   * Whether the model may request multiple tool calls per response. Defaults to true. False sends a provider hint, not an execution guarantee: all returned calls are still handled and handlers may run concurrently. Re-supply on cold resume.
+   */
+  allowMultipleToolCalls?: boolean;
+  /**
    * Override URL for the Copilot API endpoint.
    */
   copilotUrl?: string;
@@ -35762,6 +37144,50 @@ export interface SessionsOpenProgress {
    * Optional step message.
    */
   message?: string;
+}
+/**
+ * Soft plugin defaults for this session, without persistent user preferences or hard policy.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "SessionPluginDefaults".
+ */
+/** @experimental */
+export interface SessionPluginDefaults {
+  /**
+   * Opaque revision of the defaults, assignment reasons, and Team marketplaces.
+   */
+  generation: string;
+  /**
+   * Plugin specs mapped to soft enablement defaults. Managed defaultEnabled assignments override Team defaults for the same spec.
+   */
+  defaultEnabledPlugins: {
+    [k: string]: boolean | undefined;
+  };
+  /**
+   * Team-only defaults for hosts that retain activation inputs. Managed assignments are read live by the runtime resolver and must not be retained as Team defaults.
+   */
+  teamDefaultEnabledPlugins: {
+    [k: string]: boolean | undefined;
+  };
+  /**
+   * Team marketplace definitions available only as best-effort installation fallbacks.
+   */
+  extraKnownMarketplaces: {
+    [k: string]: TeamPluginMarketplace | undefined;
+  };
+}
+/**
+ * A Team marketplace fallback. Explicit marketplace configuration takes precedence.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "TeamPluginMarketplace".
+ */
+/** @experimental */
+export interface TeamPluginMarketplace {
+  /**
+   * Validated GitHub repository source for the marketplace.
+   */
+  source: TeamPluginMarketplaceSource;
 }
 /**
  * Plugin names (or specs) to disable in the session's authoritative working directory.
@@ -36490,6 +37916,10 @@ export interface SessionsFindByPrefixRequest {
    * UUID prefix (>=7 hex chars, <36 chars). Returns the unique session ID, or undefined when there is no match or the prefix matches multiple sessions.
    */
   prefix: string;
+  /**
+   * Configuration directory containing the session state. Omitted to use the server's configured home.
+   */
+  configDir?: string;
 }
 /**
  * Session ID matching the prefix, omitted when no unique match exists.
@@ -40245,7 +41675,7 @@ export interface UIUserInputResponse {
   wasFreeform: boolean;
 }
 /**
- * Register an in-process handler for `auto_mode_switch.requested` events. The caller still attaches the actual listener via the standard event-subscription mechanism; this registration solely tells the server bridge to skip its own dispatch (so a remote client doesn't race the in-process handler for the same requestId).
+ * Registers an in-process Auto-switch responder and suppresses server-bridge dispatch to avoid competing responders for the same requestId. When requested, also enrolls the responder for active-request Auto recovery and acknowledges support. Attach the actual listener separately through standard event subscriptions before starting a turn, and release the handle when the responder is removed.
  *
  * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
  * via the `definition` "UIRegisterDirectAutoModeSwitchHandlerResult".
@@ -40256,6 +41686,10 @@ export interface UIRegisterDirectAutoModeSwitchHandlerResult {
    * Opaque handle representing the registration. Pass this same handle to `unregisterDirectAutoModeSwitchHandler` when the in-process handler is no longer active. Multiple registrations are reference-counted; the server bridge will only dispatch auto-mode-switch requests when no handles are active.
    */
   handle: string;
+  /**
+   * Positive acknowledgment of recovery-aware enrollment. Absence on an older runtime means recovery is unsupported.
+   */
+  autoModeRecovery?: boolean;
 }
 /**
  * Identifies one runtime-owned native action for an in-process SDK UI dispatcher.
@@ -41236,6 +42670,35 @@ export interface UserSettingsWriteAllRequest {
    * The settings object to store. It replaces the file's entire content, so a key absent here is removed.
    */
   settings: JsonValue;
+}
+/**
+ * A raw top-level setting edit with explicit read-failure behavior.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "UserSettingsWriteKeyRequest".
+ */
+/** @experimental */
+export interface UserSettingsWriteKeyRequest {
+  /**
+   * The top-level setting to write without canonicalizing legacy siblings.
+   */
+  key: string;
+  /**
+   * Optional host paths and environment. Omit to use the server's settings home.
+   */
+  context?: UserSettingsHostContext;
+  /**
+   * The value to store. Explicit null is retained. Pass null when deleting.
+   */
+  value: JsonValue | null;
+  /**
+   * Remove the key instead of writing it. Defaults to false.
+   */
+  delete?: boolean;
+  /**
+   * Refuse to replace an unreadable or invalid file. Defaults to false.
+   */
+  refuseOnReadFailure?: boolean;
 }
 /**
  * Current sharing status and shareable GitHub URL for a session.
@@ -43502,6 +44965,76 @@ export interface AgentRegistryRemoveEntryRequest {
    */
   pid: number;
 }
+/**
+ * Runtime-owned configuration inventory and configuration diagnostics.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "LspListResult".
+ */
+/** @experimental */
+export interface LspListResult {
+  /**
+   * Effective servers in merge order.
+   */
+  configs: LspServerSummary[];
+  /**
+   * User entries, including entries disabled by project configuration.
+   */
+  userServers: LspServerSummary[];
+  /**
+   * Effective plugin entries.
+   */
+  pluginServers: LspServerSummary[];
+  /**
+   * Project entries, including disabled entries absent from the effective set.
+   */
+  projectServers: LspServerSummary[];
+  /**
+   * User configuration file path.
+   */
+  userConfigPath: string;
+  /**
+   * Nearest project configuration file path.
+   */
+  projectConfigPath?: string;
+  /**
+   * User configuration read or validation failure.
+   */
+  userConfigError?: string;
+  /**
+   * Project files rejected by the loader.
+   */
+  projectProblems: LspConfigurationProblem[];
+  /**
+   * Failure to inspect project configuration.
+   */
+  projectInspectionError?: string;
+  /**
+   * Identifiers disabled through the user toggle list.
+   */
+  userDisabledServers: string[];
+  /**
+   * Configuration loader diagnostics.
+   */
+  warnings: string[];
+  /**
+   * Plugin configuration diagnostics.
+   */
+  pluginWarnings: string[];
+}
+/**
+ * Parameters for a process-wide, read-only language-server inventory.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "LspListRequest".
+ */
+/** @experimental */
+export interface LspListRequest {
+  /**
+   * Absolute working directory used for project and plugin discovery.
+   */
+  workingDirectory: string;
+}
 
 /** @experimental */
 export interface SessionWorkflowPauseAtCheckpointResult {
@@ -43512,11 +45045,13 @@ export interface SessionWorkflowPauseAtCheckpointResult {
 }
 
 /** @experimental */
+/** @internal */
 export interface SessionModelClearStartupSeedResult {
   cleared: boolean;
 }
 
 /** @experimental */
+/** @internal */
 export interface SessionModelClearStartupSeedRequest {
   expectedModel: string;
   /**
@@ -43589,6 +45124,304 @@ export interface SessionMcpOauthPrepareLoginRequest {
    * Text shown on the loopback callback page after successful authorisation.
    */
   callbackSuccessMessage?: string;
+}
+/**
+ * Correlation identity reserved before an effectful authentication request.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "SessionMcpOauthPrepareFlowRequest".
+ */
+/** @experimental */
+/** @internal */
+export interface SessionMcpOauthPrepareFlowRequest {
+  /**
+   * Host-chosen identity, unique within this session requester.
+   */
+  flowId: string;
+}
+/**
+ * Correlation identity reserved before an effectful authentication request.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "SessionMcpOauthCancelFlowRequest".
+ */
+/** @experimental */
+/** @internal */
+export interface SessionMcpOauthCancelFlowRequest {
+  /**
+   * Host-chosen identity, unique within this session requester.
+   */
+  flowId: string;
+}
+/**
+ * Token projection for the existing host-delegated provider.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "SessionMcpOauthAuthenticateResult".
+ */
+/** @experimental */
+/** @internal */
+export interface SessionMcpOauthAuthenticateResult {
+  /**
+   * Access token from the runtime-owned store.
+   */
+  accessToken: string;
+  /**
+   * Token scheme. Defaults to Bearer.
+   */
+  tokenType: string;
+  /**
+   * Remaining lifetime in seconds when the issuer supplied an expiry.
+   */
+  expiresIn?: number;
+}
+/**
+ * Full host-driven authentication for an arbitrary, possibly unsaved, MCP URL.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "SessionMcpOauthAuthenticateRequest".
+ */
+/** @experimental */
+/** @internal */
+export interface SessionMcpOauthAuthenticateRequest {
+  /**
+   * Correlation identity reserved through prepareFlow.
+   */
+  flowId: string;
+  /**
+   * MCP endpoint, without a requirement for saved configuration.
+   */
+  serverUrl: string;
+  /**
+   * Use environment session claims for a hostless compatibility call, while retaining this requester's egress authority.
+   */
+  sessionless?: boolean;
+  /**
+   * Credential owner. Omission uses the authoritative session store.
+   */
+  store?: McpOauthFlowStore;
+  /**
+   * Proxy fallback when the session has not published an egress entry.
+   */
+  sandboxProxy?: string;
+  /**
+   * Static OAuth client settings for this attempt.
+   */
+  staticClientConfig?: McpOauthFlowStaticClientConfig;
+  /**
+   * Bypass cached grants for explicit account selection.
+   */
+  forceReauth?: boolean;
+  /**
+   * Fail with browser_required when silent authentication cannot complete.
+   */
+  browserless?: boolean;
+  /**
+   * Start device authorization instead of a browser flow.
+   */
+  forceDeviceCode?: boolean;
+  /**
+   * Let the host present the authorization URL without a runtime browser launch.
+   */
+  skipBrowserOpen?: boolean;
+  /**
+   * Authorization timeout in milliseconds. Defaults to five minutes.
+   */
+  authorizationTimeoutMs?: number;
+  /**
+   * Override the device authorization poll interval in milliseconds.
+   */
+  deviceCodePollIntervalMs?: number;
+  /**
+   * Delay before the runtime offers device authorization.
+   */
+  deviceCodeOfferTimeoutMs?: number;
+  /**
+   * Display name for new dynamic client registrations.
+   */
+  clientName?: string;
+  /**
+   * Client metadata document URL. Omission uses the session identity.
+   */
+  clientIdMetadataUrl?: string;
+  /**
+   * Text displayed after a successful loopback callback.
+   */
+  callbackSuccessMessage?: string;
+  /**
+   * Fixed callback port. A busy port fails without fallback.
+   */
+  redirectPort?: number;
+  /**
+   * Reject the cached access token but permit a refresh grant.
+   */
+  skipCachedAccessToken?: boolean;
+  /**
+   * Preserve previously granted scopes during additional consent.
+   */
+  includeExistingTokenScopes?: boolean;
+  /**
+   * Preserve replacement policy when another pending flow owns consent.
+   */
+  preservePendingFlowReplacementFlags?: boolean;
+  /**
+   * Challenge captured by the host, including an empty challenge.
+   */
+  wwwAuthenticateParams?: McpOauthWWWAuthenticateParams;
+  /**
+   * Raw protected-resource metadata already fetched by the host.
+   */
+  resourceMetadata?: string;
+}
+/**
+ * A narrow token-validity query against the chosen credential owner.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "SessionMcpOauthHasValidTokensRequest".
+ */
+/** @experimental */
+/** @internal */
+export interface SessionMcpOauthHasValidTokensRequest {
+  /**
+   * Runtime OAuth credential key.
+   */
+  storeKey: string;
+  /**
+   * Preserve hostless credential and account selection.
+   */
+  sessionless?: boolean;
+  /**
+   * Credential owner. Omission uses the authoritative session store.
+   */
+  store?: McpOauthFlowStore;
+  /**
+   * Static client identity required for refresh, when configured.
+   */
+  staticClientConfig?: McpOauthFlowStaticClientConfig;
+}
+/**
+ * A narrow token-validity query against the chosen credential owner.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "SessionMcpOauthTryRefreshTokensRequest".
+ */
+/** @experimental */
+/** @internal */
+export interface SessionMcpOauthTryRefreshTokensRequest {
+  /**
+   * Runtime OAuth credential key.
+   */
+  storeKey: string;
+  /**
+   * Preserve hostless credential and account selection.
+   */
+  sessionless?: boolean;
+  /**
+   * Credential owner. Omission uses the authoritative session store.
+   */
+  store?: McpOauthFlowStore;
+  /**
+   * Static client identity required for refresh, when configured.
+   */
+  staticClientConfig?: McpOauthFlowStaticClientConfig;
+}
+/**
+ * Persist a confidential client's static secret without exposing token-store CRUD.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "SessionMcpOauthSaveStaticClientSecretRequest".
+ */
+/** @experimental */
+/** @internal */
+export interface SessionMcpOauthSaveStaticClientSecretRequest {
+  /**
+   * Runtime OAuth credential key.
+   */
+  storeKey: string;
+  /**
+   * Preserve hostless credential and account selection.
+   */
+  sessionless?: boolean;
+  /**
+   * Secret to persist in the selected credential owner.
+   */
+  secret: string;
+  /**
+   * Credential owner. Omission uses the authoritative session store.
+   */
+  store?: McpOauthFlowStore;
+}
+/**
+ * Dispose an explicit host store without altering the session authorizer's owner.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "SessionMcpOauthDisposeStoreRequest".
+ */
+/** @experimental */
+/** @internal */
+export interface SessionMcpOauthDisposeStoreRequest {
+  /**
+   * Host-selected identity of the explicit store.
+   */
+  storeId: string;
+}
+/**
+ * Tokenless initialize handshake for a possibly unsaved remote MCP server.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "SessionMcpOauthTestConnectionRequest".
+ */
+/** @experimental */
+/** @internal */
+export interface SessionMcpOauthTestConnectionRequest {
+  /**
+   * Remote endpoint to initialize without an OAuth token.
+   */
+  url: string;
+  /**
+   * Transport. Omission selects Streamable HTTP.
+   */
+  type?: McpOauthTestConnectionTransport;
+  /**
+   * Headers sent during the handshake.
+   */
+  headers?: {
+    [k: string]: string | undefined;
+  };
+  /**
+   * Proxy fallback when no session egress entry exists.
+   */
+  sandboxProxy?: string;
+}
+/**
+ * Derive a credential key through the selected account and store owner.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "SessionMcpOauthStoreKeyRequest".
+ */
+/** @experimental */
+/** @internal */
+export interface SessionMcpOauthStoreKeyRequest {
+  /**
+   * MCP endpoint whose credentials the key identifies.
+   */
+  serverUrl: string;
+  /**
+   * Static OAuth client identity, when configured.
+   */
+  clientId?: string;
+  /**
+   * Metadata document identity when no static client is configured.
+   */
+  clientIdMetadataUrl?: string;
+  /**
+   * Credential owner. Omission uses the authoritative session store.
+   */
+  store?: McpOauthFlowStore;
+  /**
+   * Preserve hostless credential and account selection.
+   */
+  sessionless?: boolean;
 }
 /**
  * Honest terminal cancellation result; persistence or recovery failures remain RPC errors.
@@ -43670,6 +45503,143 @@ export interface SessionProviderGetEndpointRequest {
    */
   modelId?: string;
 }
+/**
+ * Runtime-owned configuration inventory and configuration diagnostics.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "SessionLspListResult".
+ */
+/** @experimental */
+export interface SessionLspListResult {
+  /**
+   * Effective servers in merge order.
+   */
+  configs: LspServerSummary[];
+  /**
+   * User entries, including entries disabled by project configuration.
+   */
+  userServers: LspServerSummary[];
+  /**
+   * Effective plugin entries.
+   */
+  pluginServers: LspServerSummary[];
+  /**
+   * Project entries, including disabled entries absent from the effective set.
+   */
+  projectServers: LspServerSummary[];
+  /**
+   * User configuration file path.
+   */
+  userConfigPath: string;
+  /**
+   * Nearest project configuration file path.
+   */
+  projectConfigPath?: string;
+  /**
+   * User configuration read or validation failure.
+   */
+  userConfigError?: string;
+  /**
+   * Project files rejected by the loader.
+   */
+  projectProblems: LspConfigurationProblem[];
+  /**
+   * Failure to inspect project configuration.
+   */
+  projectInspectionError?: string;
+  /**
+   * Identifiers disabled through the user toggle list.
+   */
+  userDisabledServers: string[];
+  /**
+   * Configuration loader diagnostics.
+   */
+  warnings: string[];
+  /**
+   * Plugin configuration diagnostics.
+   */
+  pluginWarnings: string[];
+}
+/**
+ * The servers retained by the session after warmup.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "SessionLspStartResult".
+ */
+/** @experimental */
+export interface SessionLspStartResult {
+  /**
+   * Successfully acquired server identifiers.
+   */
+  servers: string[];
+  /**
+   * Individual server startup failures.
+   */
+  errors: LspWarmupError[];
+}
+/**
+ * Result of a language-server startup probe.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "SessionLspDiagnoseResult".
+ */
+/** @experimental */
+export interface SessionLspDiagnoseResult {
+  /**
+   * Runtime selection outcome: started, disabled, missing, or unavailable.
+   */
+  status: string;
+  /**
+   * Effective server identifiers, used when the requested server is absent.
+   */
+  availableServers: string[];
+  /**
+   * Child process identifier, or null when no process identifier exists.
+   */
+  pid: number | null;
+  /**
+   * Time spent on process startup, in milliseconds.
+   */
+  spawnTimeMs: number;
+  /**
+   * Child exit observed during the startup window.
+   */
+  immediateExit?: LspProbeExitStatus;
+  /**
+   * Whether the runtime confined the probe in the session sandbox.
+   */
+  sandboxed: boolean;
+}
+/**
+ * A server selected for a startup probe.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "SessionLspDiagnoseRequest".
+ */
+/** @experimental */
+export interface SessionLspDiagnoseRequest {
+  /**
+   * Configured server identifier.
+   */
+  serverId: string;
+}
+/**
+ * A persistent user-level server toggle.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "SessionLspSetRequest".
+ */
+/** @experimental */
+export interface SessionLspSetRequest {
+  /**
+   * Configured server identifier.
+   */
+  serverId: string;
+  /**
+   * True to remove the user-level disable override.
+   */
+  enabled: boolean;
+}
 
 /** @experimental */
 export interface SessionCommandsListRequest {
@@ -43685,6 +45655,14 @@ export interface SessionCommandsListRequest {
    * Include commands registered by protocol clients, including SDK clients and extensions
    */
   includeClientCommands?: boolean;
+}
+
+/** @experimental */
+export interface SessionUiRegisterDirectAutoModeSwitchHandlerRequest {
+  /**
+   * Opt into active-request Auto recovery before starting a turn. Attach the handler separately, show the failure reason, and return the user's choice for the originating live session. Require a positive acknowledgment in the registration result. Dismiss offers on auto_mode_recovery_consent.completed and on session resume or disconnect. Omitted or false preserves legacy rate-limit switching.
+   */
+  autoModeRecovery?: boolean;
 }
 
 /** @experimental */
@@ -43712,6 +45690,7 @@ export interface SessionHistoryCompactRequest {
  * via the `definition` "SessionUsageSetCodeChangesRequest".
  */
 /** @experimental */
+/** @internal */
 export interface SessionUsageSetCodeChangesRequest {
   /**
    * Absolute added-line total, replacing the previous reading.
@@ -44380,6 +46359,18 @@ export function createServerRpc(connection: MessageConnection) {
              */
             listTokenPriceUnits: async (params?: ModelsListTokenPriceUnitsRequest): Promise<ModelTokenPriceUnitList> =>
                 connection.sendRequest("models.listTokenPriceUnits", params),
+        },
+        /** @experimental */
+        decisions: {
+            /**
+             * Asks a decision model yes/no, pick-one, or rating questions about shared context and returns normalized probabilities. Sessionless, so a host can classify or route a request before any session exists. Requires the `DECISIONS_API` feature flag. A failed request is a JSON-RPC error whose `data` is a `DecisionErrorData`.
+             *
+             * @param params One request to a decision model: shared context plus the questions to answer about it.
+             *
+             * @returns The decision model's answers.
+             */
+            ask: async (params: DecisionsAskRequest): Promise<DecisionsAskResult> =>
+                connection.sendRequest("decisions.ask", params),
         },
         /** @experimental */
         azureMl: {
@@ -45132,14 +47123,14 @@ export function createServerRpc(connection: MessageConnection) {
                 connection.sendRequest("llmInference.httpResponseChunk", params),
         },
         /** @experimental */
-        kerberosAuth: {
+        network: {
             /**
-             * Registers the calling SDK client's Kerberos callback. The callback authenticates requests made for the client's sessions and, with `runtime` scope, the runtime's shared background traffic; only one connection may hold `runtime` scope. The registration ends when the connection closes.
+             * Registers the calling SDK client's network callbacks, replacing any previous registration. With `resolveProxy`, the client decides the proxies for every request the runtime would otherwise route by ambient proxy settings (proxy environment variables, `NO_PROXY` and operating-system settings), or leaves a request to that routing; requests with an explicitly configured proxy and loopback targets never consult it. With `authenticateNegotiate`, the client supplies the Kerberos tokens for Negotiate proxy challenges instead of native credential lookup. The callbacks serve requests made for the client's sessions and, with `runtime` scope, the runtime's shared traffic, which includes background requests and remote MCP server connections; only one connection may hold `runtime` scope. The registration ends when the connection closes.
              *
-             * @param params Registers the calling SDK connection's Kerberos credential provider.
+             * @param params Registers the calling SDK connection's network callbacks, replacing any previous registration.
              */
-            setProvider: async (params: KerberosAuthSetProviderRequest): Promise<void> =>
-                connection.sendRequest("kerberosAuth.setProvider", params),
+            setProvider: async (params: NetworkSetProviderRequest): Promise<void> =>
+                connection.sendRequest("network.setProvider", params),
         },
         /** @experimental */
         sessions: {
@@ -45411,6 +47402,18 @@ export function createServerRpc(connection: MessageConnection) {
              */
             refresh: async (params: ConnectorDiscoveryAccountRequest): Promise<ConnectorDiscoveryCatalogResult> =>
                 connection.sendRequest("connectors.refresh", params),
+        },
+        /** @experimental */
+        lsp: {
+            /**
+             * Reads the process-wide language-server inventory for a working directory without starting servers. Uses the host configuration home and persisted workspace trust.
+             *
+             * @param params Parameters for a process-wide, read-only language-server inventory.
+             *
+             * @returns Runtime-owned configuration inventory and configuration diagnostics.
+             */
+            list: async (params: LspListRequest): Promise<LspListResult> =>
+                connection.sendRequest("lsp.list", params),
         },
     };
 }
@@ -45756,6 +47759,13 @@ export function createInternalServerRpc(connection: MessageConnection) {
                  */
                 applyTopKey: async (params: UserSettingsApplyTopKeyRequest): Promise<UserSettingsApplyTopKeyResult> =>
                     connection.sendRequest("user.settings.applyTopKey", params),
+                /**
+                 * Writes or removes one raw user setting under the settings transaction and file locks. Preserves unrelated keys and legacy spellings, and records explicit mutations so startup cleanup cannot delete the user's choice. Unlike applyTopKey, this operation does not validate or canonicalize settings. Invalid or unreadable files are replaced by default, matching the existing raw writer; set refuseOnReadFailure=true to reject instead. Deletion requires delete=true; otherwise value must be present.
+                 *
+                 * @param params A raw top-level setting edit with explicit read-failure behavior.
+                 */
+                writeKey: async (params: UserSettingsWriteKeyRequest): Promise<void> =>
+                    connection.sendRequest("user.settings.writeKey", params),
                 /**
                  * Replaces the user settings file's entire content in one write. A key absent from `settings` is removed, which is what distinguishes this from `user.settings.set`: that one merges, so it can never clear a key the caller has dropped. For a caller saving the result of a raw edit, a merge would silently resurrect every key the user deleted. Records the same one-time mutation marks a per-key write records, so a setting the user has now chosen explicitly stops being migrated for them.
                  *
@@ -47221,6 +49231,15 @@ export function createSessionRpc(connection: MessageConnection, sessionId: strin
             getCurrent: async (): Promise<CurrentModel> =>
                 connection.sendRequest("session.model.getCurrent", { sessionId }),
             /**
+             * Reads the session's cached startup model state without fetching a catalog or resolving credentials. An interactive host can claim the one-time enablement prompt after applying its startup configuration. Claims remain shared with the owning host and are scoped to this session's lifetime.
+             *
+             * @param params Options for a host's startup model admission check.
+             *
+             * @returns A cached startup model snapshot and an optional one-time enablement prompt. This check never resolves credentials or fetches a catalog.
+             */
+            startupAdmission: async (params: ModelStartupAdmissionRequest): Promise<ModelStartupAdmissionResult> =>
+                connection.sendRequest("session.model.startupAdmission", { ...params, sessionId }),
+            /**
              * Switches the session to a model and optional reasoning configuration.
              *
              * @param params Target model identifier and optional reasoning effort, summary, capability overrides, and context tier.
@@ -47252,7 +49271,7 @@ export function createSessionRpc(connection: MessageConnection, sessionId: strin
              *
              * @param params Reasoning effort level to apply to the currently selected model.
              *
-             * @returns Update the session's reasoning effort without changing the selected model. Use `switchTo` instead when you also need to change the model. The runtime stores the effort on the session and applies it to subsequent turns.
+             * @returns Update the session's reasoning effort without changing the selected model. Use `switchTo` instead when you also need to change the model. The runtime applies the effort to the next new model request, including tool continuations, without changing retries of an already-started request.
              */
             setReasoningEffort: async (params: ModelSetReasoningEffortRequest): Promise<ModelSetReasoningEffortResult> =>
                 connection.sendRequest("session.model.setReasoningEffort", { ...params, sessionId }),
@@ -48326,6 +50345,13 @@ export function createSessionRpc(connection: MessageConnection, sessionId: strin
                     connection.sendRequest("session.plugins.marketplaces.refresh", { ...params, sessionId }),
             },
             /**
+             * Reads Team and managed soft plugin defaults for the live session. Does not install plugins or persist user preferences.
+             *
+             * @returns Soft plugin defaults for this session, without persistent user preferences or hard policy.
+             */
+            getDefaults: async (): Promise<SessionPluginDefaults> =>
+                connection.sendRequest("session.plugins.getDefaults", { sessionId }),
+            /**
              * Reloads the session's plugin set, refreshing MCP servers, custom agents, hooks, and skills cache so SDK-driven changes via `server.plugins.*` take effect immediately.
              *
              * @param params Optional flags controlling which side effects the reload performs.
@@ -48409,6 +50435,45 @@ export function createSessionRpc(connection: MessageConnection, sessionId: strin
              */
             initialize: async (params: LspInitializeRequest): Promise<void> =>
                 connection.sendRequest("session.lsp.initialize", { ...params, sessionId }),
+            /**
+             * Reads language-server configuration and diagnostics using the session's settings and active plugins. Explicit force reloads the files from disk.
+             *
+             * @param params Parameters for (re)loading the merged LSP configuration set.
+             *
+             * @returns Runtime-owned configuration inventory and configuration diagnostics.
+             */
+            list: async (params: LspInitializeRequest): Promise<SessionLspListResult> =>
+                connection.sendRequest("session.lsp.list", { ...params, sessionId }),
+            /**
+             * Initializes and retains configured language servers under the session's effective LSP sandbox policy. The runtime owns client leases, callbacks, and process lifetime.
+             *
+             * @param params Parameters for (re)loading the merged LSP configuration set.
+             *
+             * @returns The servers retained by the session after warmup.
+             */
+            start: async (params: LspInitializeRequest): Promise<SessionLspStartResult> =>
+                connection.sendRequest("session.lsp.start", { ...params, sessionId }),
+            /**
+             * Stops the session's language-server clients without changing another session or the process-wide inventory.
+             */
+            stop: async (): Promise<void> =>
+                connection.sendRequest("session.lsp.stop", { sessionId }),
+            /**
+             * Probes one configured language-server process under the session's effective LSP sandbox policy, then terminates the probe process.
+             *
+             * @param params A server selected for a startup probe.
+             *
+             * @returns Result of a language-server startup probe.
+             */
+            diagnose: async (params: SessionLspDiagnoseRequest): Promise<SessionLspDiagnoseResult> =>
+                connection.sendRequest("session.lsp.diagnose", { ...params, sessionId }),
+            /**
+             * Persists a user-level language-server enable override in the session's configuration home. Reload configuration to apply it.
+             *
+             * @param params A persistent user-level server toggle.
+             */
+            set: async (params: SessionLspSetRequest): Promise<void> =>
+                connection.sendRequest("session.lsp.set", { ...params, sessionId }),
         },
         /** @experimental */
         extensions: {
@@ -48694,12 +50759,14 @@ export function createSessionRpc(connection: MessageConnection, sessionId: strin
             handlePendingExitPlanMode: async (params: UIHandlePendingExitPlanModeRequest): Promise<UIHandlePendingResult> =>
                 connection.sendRequest("session.ui.handlePendingExitPlanMode", { ...params, sessionId }),
             /**
-             * Registers an in-process handler for auto-mode-switch requests so the server bridge skips dispatch.
+             * Registers an in-process handler for auto-mode-switch requests so the server bridge skips dispatch. Set `autoModeRecovery` to also handle Auto recovery consent offers.
              *
-             * @returns Register an in-process handler for `auto_mode_switch.requested` events. The caller still attaches the actual listener via the standard event-subscription mechanism; this registration solely tells the server bridge to skip its own dispatch (so a remote client doesn't race the in-process handler for the same requestId).
+             * @param params Optional recovery-aware enrollment for an in-process Auto-switch handler.
+             *
+             * @returns Registers an in-process Auto-switch responder and suppresses server-bridge dispatch to avoid competing responders for the same requestId. When requested, also enrolls the responder for active-request Auto recovery and acknowledges support. Attach the actual listener separately through standard event subscriptions before starting a turn, and release the handle when the responder is removed.
              */
-            registerDirectAutoModeSwitchHandler: async (): Promise<UIRegisterDirectAutoModeSwitchHandlerResult> =>
-                connection.sendRequest("session.ui.registerDirectAutoModeSwitchHandler", { sessionId }),
+            registerDirectAutoModeSwitchHandler: async (params?: SessionUiRegisterDirectAutoModeSwitchHandlerRequest): Promise<UIRegisterDirectAutoModeSwitchHandlerResult> =>
+                connection.sendRequest("session.ui.registerDirectAutoModeSwitchHandler", { ...params, sessionId }),
             /**
              * Unregisters a previously-registered in-process auto-mode-switch handler by its opaque handle.
              *
@@ -49626,6 +51693,82 @@ export function createInternalSessionRpc(connection: MessageConnection, sessionI
              */
             unregisterExternalClient: async (params: McpUnregisterExternalClientRequest): Promise<void> =>
                 connection.sendRequest("session.mcp.unregisterExternalClient", { ...params, sessionId }),
+            /** @experimental */
+            oauth: {
+                /**
+                 * Reserves a host-driven OAuth flow identity before authentication or cancellation.
+                 *
+                 * @param params Correlation identity reserved before an effectful authentication request.
+                 */
+                prepareFlow: async (params: SessionMcpOauthPrepareFlowRequest): Promise<void> =>
+                    connection.sendRequest("session.mcp.oauth.prepareFlow", { ...params, sessionId }),
+                /**
+                 * Cancels an exact host-driven OAuth flow on its original session requester.
+                 *
+                 * @param params Correlation identity reserved before an effectful authentication request.
+                 */
+                cancelFlow: async (params: SessionMcpOauthCancelFlowRequest): Promise<void> =>
+                    connection.sendRequest("session.mcp.oauth.cancelFlow", { ...params, sessionId }),
+                /**
+                 * Authenticates an arbitrary MCP URL through the original session credential owner, with correlated host progress and authorization callbacks.
+                 *
+                 * @param params Full host-driven authentication for an arbitrary, possibly unsaved, MCP URL.
+                 *
+                 * @returns Token projection for the existing host-delegated provider.
+                 */
+                authenticate: async (params: SessionMcpOauthAuthenticateRequest): Promise<SessionMcpOauthAuthenticateResult> =>
+                    connection.sendRequest("session.mcp.oauth.authenticate", { ...params, sessionId }),
+                /**
+                 * Checks whether the selected MCP credential owner has a valid access token.
+                 *
+                 * @param params A narrow token-validity query against the chosen credential owner.
+                 *
+                 * @returns Whether the credential operation succeeded.
+                 */
+                hasValidTokens: async (params: SessionMcpOauthHasValidTokensRequest): Promise<SessionMcpOauthHasValidTokensResult> =>
+                    connection.sendRequest("session.mcp.oauth.hasValidTokens", { ...params, sessionId }),
+                /**
+                 * Attempts silent MCP token refresh without opening a browser.
+                 *
+                 * @param params A narrow token-validity query against the chosen credential owner.
+                 *
+                 * @returns Whether the credential operation succeeded.
+                 */
+                tryRefreshTokens: async (params: SessionMcpOauthTryRefreshTokensRequest): Promise<SessionMcpOauthTryRefreshTokensResult> =>
+                    connection.sendRequest("session.mcp.oauth.tryRefreshTokens", { ...params, sessionId }),
+                /**
+                 * Stores a confidential MCP client's static secret in its selected credential owner.
+                 *
+                 * @param params Persist a confidential client's static secret without exposing token-store CRUD.
+                 */
+                saveStaticClientSecret: async (params: SessionMcpOauthSaveStaticClientSecretRequest): Promise<void> =>
+                    connection.sendRequest("session.mcp.oauth.saveStaticClientSecret", { ...params, sessionId }),
+                /**
+                 * Releases an explicit host-owned MCP OAuth store on its original session requester.
+                 *
+                 * @param params Dispose an explicit host store without altering the session authorizer's owner.
+                 */
+                disposeStore: async (params: SessionMcpOauthDisposeStoreRequest): Promise<void> =>
+                    connection.sendRequest("session.mcp.oauth.disposeStore", { ...params, sessionId }),
+                /**
+                 * Completes a tokenless initialize handshake for an unsaved remote MCP URL, preserving session egress and the refusing authentication challenge.
+                 *
+                 * @param params Tokenless initialize handshake for a possibly unsaved remote MCP server.
+                 *
+                 * @returns Outcome of the tokenless handshake, with the original challenge when available.
+                 */
+                testConnection: async (params: SessionMcpOauthTestConnectionRequest): Promise<SessionMcpOauthTestConnectionResult> =>
+                    connection.sendRequest("session.mcp.oauth.testConnection", { ...params, sessionId }),
+                /**
+                 * Derives an MCP credential key through the selected session account and store owner.
+                 *
+                 * @param params Derive a credential key through the selected account and store owner.
+                 *
+                 * @returns The selected owner's OAuth credential key.
+                 */
+                storeKey: async (params: SessionMcpOauthStoreKeyRequest): Promise<SessionMcpOauthStoreKeyResult> =>
+                    connection.sendRequest("session.mcp.oauth.storeKey", { ...params, sessionId }),
+            },
         },
         /** @experimental */
         diagnostics: {
@@ -50248,17 +52391,25 @@ export interface ExtensionLaunchProviderHandler {
     resolve(params: ExtensionLaunchProviderResolveRequest): Promise<ExtensionLaunchProviderResolveResult>;
 }
 
-/** Handler for `kerberosAuth` client global API methods. */
+/** Handler for `network` client global API methods. */
 /** @experimental */
-export interface KerberosAuthHandler {
+export interface NetworkHandler {
     /**
-     * Requests a fresh base64 initial SPNEGO token for a Kerberos service principal; the runtime currently uses it for proxy authentication. Tokens must not be logged, persisted or reused across connections. Continuation challenges are not supported by this callback.
+     * Requests the proxies for a request target as a PAC-style proxy list, or no list to leave the request to the runtime's own proxy resolution. The runtime caches answers for a few seconds and fails the request, rather than connecting directly, when the callback fails.
+     *
+     * @param params Requests the proxies for a request target.
+     *
+     * @returns Proxies for a request target, in the order to try them.
+     */
+    resolveProxy(params: NetworkResolveProxyRequest): Promise<NetworkResolveProxyResult>;
+    /**
+     * Requests a fresh base64 initial SPNEGO token for a Kerberos service principal; the runtime uses it to answer Negotiate proxy challenges. Tokens must not be logged, persisted or reused across connections. Continuation challenges are not supported by this callback.
      *
      * @param params Requests a fresh initial SPNEGO token for a Kerberos service principal.
      *
-     * @returns Client credentials for a single authentication exchange.
+     * @returns Client credentials for a single Negotiate authentication exchange.
      */
-    acquire(params: KerberosAuthAcquireRequest): Promise<KerberosAuthAcquireResult>;
+    authenticateNegotiate(params: NetworkAuthenticateNegotiateRequest): Promise<NetworkAuthenticateNegotiateResult>;
 }
 
 /** Handler for `llmInference` client global API methods. */
@@ -50347,7 +52498,7 @@ export interface InstallationsHandler {
 export interface ClientGlobalApiHandlers {
     host?: HostHandler;
     extensionLaunchProvider?: ExtensionLaunchProviderHandler;
-    kerberosAuth?: KerberosAuthHandler;
+    network?: NetworkHandler;
     llmInference?: LlmInferenceHandler;
     gitHubTelemetry?: GitHubTelemetryHandler;
     gitHubToken?: GitHubTokenHandler;
@@ -50377,10 +52528,15 @@ export function registerClientGlobalApiHandlers(
         if (!handler) throw new Error("No extensionLaunchProvider client-global handler registered");
         return handler.resolve(params);
     });
-    connection.onRequest("kerberosAuth.acquire", async (params: KerberosAuthAcquireRequest) => {
-        const handler = handlers.kerberosAuth;
-        if (!handler) throw new Error("No kerberosAuth client-global handler registered");
-        return handler.acquire(params);
+    connection.onRequest("network.resolveProxy", async (params: NetworkResolveProxyRequest) => {
+        const handler = handlers.network;
+        if (!handler) throw new Error("No network client-global handler registered");
+        return handler.resolveProxy(params);
+    });
+    connection.onRequest("network.authenticateNegotiate", async (params: NetworkAuthenticateNegotiateRequest) => {
+        const handler = handlers.network;
+        if (!handler) throw new Error("No network client-global handler registered");
+        return handler.authenticateNegotiate(params);
     });
     connection.onRequest("llmInference.httpRequestStart", async (params: LlmInferenceHttpRequestStartRequest) => {
         const handler = handlers.llmInference;

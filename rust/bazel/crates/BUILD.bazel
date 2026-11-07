@@ -104,14 +104,14 @@ alias(
 )
 
 alias(
-    name = "flate2-1.1.10",
-    actual = "@sdk_vendor__flate2-1.1.10//:flate2",
+    name = "flate2-1.1.11",
+    actual = "@sdk_vendor__flate2-1.1.11//:flate2",
     tags = ["manual"],
 )
 
 alias(
     name = "flate2",
-    actual = "@sdk_vendor__flate2-1.1.10//:flate2",
+    actual = "@sdk_vendor__flate2-1.1.11//:flate2",
     tags = ["manual"],
 )
 
@@ -512,13 +512,13 @@ alias(
 )
 
 alias(
-    name = "zip-9.2.2",
-    actual = "@sdk_vendor__zip-9.2.2//:zip",
+    name = "zip-9.4.1",
+    actual = "@sdk_vendor__zip-9.4.1//:zip",
     tags = ["manual"],
 )
 
 alias(
     name = "zip",
-    actual = "@sdk_vendor__zip-9.2.2//:zip",
+    actual = "@sdk_vendor__zip-9.4.1//:zip",
     tags = ["manual"],
 )

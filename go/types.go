@@ -188,10 +188,15 @@ type ClientOptions struct {
 	// discovered by the runtime. When non-nil, Start registers the provider
 	// before any sessions can be created.
 	ExtensionLaunchProvider ExtensionLaunchProvider
-	// KerberosAuth supplies Kerberos credentials from the SDK host. When
-	// non-nil, Start installs the `kerberosAuth.acquire` handler and registers
-	// the callback before any sessions can be created.
-	KerberosAuth *KerberosAuthConfig
+	// Network lets the SDK host resolve the runtime's proxies and answer
+	// Negotiate (Kerberos) proxy challenges. When it configures a callback,
+	// Start installs the `network.resolveProxy` and
+	// `network.authenticateNegotiate` handlers for the configured callbacks and
+	// registers them before any sessions can be created. See [NetworkConfig].
+	//
+	// Experimental: Network is part of an experimental API and may change or be
+	// removed.
+	Network *NetworkConfig
 	// InstallationConfirmationHandler receives connection-global human reviews
 	// for experimental `installations.confirm` callbacks. It does not enable
 	// installation capabilities or perform any runtime registration RPC.
@@ -733,10 +738,28 @@ type ExitPlanModeInvocation struct {
 // ExitPlanModeRequestHandler handles exit-plan-mode requests from the agent.
 type ExitPlanModeRequestHandler func(request ExitPlanModeRequest, invocation ExitPlanModeInvocation) (ExitPlanModeResult, error)
 
-// AutoModeSwitchRequest represents a request to switch to auto mode after an eligible rate limit.
+// AutoModeRecoveryContext identifies an offer to recover the active request using Auto.
+type AutoModeRecoveryContext struct {
+	RequestID     string `json:"requestId"`
+	OriginalModel string `json:"originalModel"`
+	// AllowAlways indicates whether this offer permits remembering consent.
+	// Currently true only for per-model rate limits.
+	AllowAlways          bool    `json:"allowAlways"`
+	InteractionID        *string `json:"interactionId,omitempty"`
+	OriginatingMessageID *string `json:"originatingMessageId,omitempty"`
+}
+
+// AutoModeSwitchRequest represents a legacy Auto switch offer.
 type AutoModeSwitchRequest struct {
 	ErrorCode         *string  `json:"errorCode,omitempty"`
 	RetryAfterSeconds *float64 `json:"retryAfterSeconds,omitempty"`
+}
+
+// AutoModeSwitchRequestWithAutoModeRecovery includes active-request recovery context.
+// AutoModeRecovery is nil for a legacy Auto switch offer.
+type AutoModeSwitchRequestWithAutoModeRecovery struct {
+	AutoModeSwitchRequest
+	AutoModeRecovery *AutoModeRecoveryContext `json:"autoModeRecovery,omitempty"`
 }
 
 // AutoModeSwitchInvocation provides context about an auto-mode-switch request.
@@ -746,6 +769,24 @@ type AutoModeSwitchInvocation struct {
 
 // AutoModeSwitchRequestHandler handles auto-mode-switch requests from the agent.
 type AutoModeSwitchRequestHandler func(request AutoModeSwitchRequest, invocation AutoModeSwitchInvocation) (AutoModeSwitchResponse, error)
+
+// AutoModeSwitchRequestHandlerWithAutoModeRecovery handles both legacy Auto
+// switch offers and active-request recovery offers without resending the input.
+type AutoModeSwitchRequestHandlerWithAutoModeRecovery func(request AutoModeSwitchRequestWithAutoModeRecovery, invocation AutoModeSwitchInvocation) (AutoModeSwitchResponse, error)
+
+// AutoModeRecoveryOptions enrolls a session in runtime-owned active-request recovery.
+// Re-supply these options on resume. Unsupported enrollment fails explicitly.
+type AutoModeRecoveryOptions struct {
+	// OnAutoModeSwitchRequest replaces the legacy Auto switch handler for this enrollment.
+	// Required. The handler must not resend or rewind the request.
+	OnAutoModeSwitchRequest AutoModeSwitchRequestHandlerWithAutoModeRecovery
+	// OnEvent receives recovery-aware events, including
+	// *CapabilitiesChangedDataWithAutoModeRecovery. Legacy OnEvent remains unchanged.
+	OnEvent SessionEventHandler
+	// MCPAuthRuntimeRefreshHandler composes recovery enrollment with the existing
+	// opt-in MCP auth refresh callback instead of the legacy OnMCPAuthRequest.
+	MCPAuthRuntimeRefreshHandler MCPAuthRuntimeRefreshHandler
+}
 
 // PreToolUseHookInput is the input for a pre-tool-use hook
 type PreToolUseHookInput struct {
@@ -1558,6 +1599,22 @@ type MemoryConfiguration struct {
 	Mode MemoryMode `json:"mode,omitempty"`
 }
 
+// StoredMemory is a memory the agent asked to store, after validation, secret
+// filtering and approval.
+// Experimental: this type may change or be removed in a future release.
+type StoredMemory struct {
+	// SessionID is the ID of the session that stored the memory.
+	SessionID string `json:"sessionId"`
+	// Subject is the short topic the memory is about.
+	Subject string `json:"subject"`
+	// Fact is the fact to remember.
+	Fact string `json:"fact"`
+	// Citations are sources supporting the fact, such as file paths with line numbers.
+	Citations string `json:"citations"`
+	// Reason explains why the agent considers the fact worth remembering.
+	Reason string `json:"reason"`
+}
+
 // LargeToolOutputConfig configures handling of large tool outputs. When a tool
 // produces output exceeding the configured size, the output is written to a
 // temp file and a reference is returned to the model instead of the full
@@ -1566,7 +1623,8 @@ type LargeToolOutputConfig struct {
 	// Enabled controls whether large output handling is enabled. Default: true.
 	Enabled *bool `json:"enabled,omitempty"`
 	// MaxSizeBytes is the maximum size in bytes before output is written to a
-	// temp file. Default: 50KB.
+	// temp file. Uses the runtime's configured threshold when unset
+	// (20480 bytes by default).
 	MaxSizeBytes *int64 `json:"maxSizeBytes,omitempty"`
 	// OutputDirectory is the directory to write temp files to. Defaults to the OS
 	// temp directory.
@@ -1750,6 +1808,10 @@ type SkillProvider interface {
 
 // SessionConfig configures a new session
 type SessionConfig struct {
+	// AllowMultipleToolCalls permits multiple model tool calls per response (default true).
+	// False is a provider hint, not an execution guarantee: all returned calls are
+	// handled and handlers may run concurrently. Re-supply on cold resume.
+	AllowMultipleToolCalls *bool
 	// SessionID is an optional custom session ID
 	SessionID string
 	// Name names the session at creation, as session.name.set would, and is
@@ -2027,6 +2089,17 @@ type SessionConfig struct {
 	// Memory configures the memory feature for the session. When omitted, the
 	// runtime default applies.
 	Memory *MemoryConfiguration
+	// StoreMemory stores memories in the app instead of the built-in memory backends.
+	//
+	// The runtime validates the memory, filters secrets and requests approval,
+	// then calls this callback. store_memory succeeds only after the callback
+	// returns nil; an error fails the tool call with a generic message and
+	// nothing is stored elsewhere. While set, the runtime retrieves no memories
+	// and vote_memory is unavailable, so supply recall yourself, for example
+	// through SystemMessage. Requires Memory.Enabled to be true; creating or resuming
+	// a session fails otherwise.
+	// Experimental: this option may change or be removed in a future release.
+	StoreMemory func(ctx context.Context, memory StoredMemory) error `json:"-"`
 	// OnEvent is an optional event handler that is registered on the session before
 	// the session.create RPC is issued. This guarantees that early events emitted
 	// by the CLI during session creation (e.g. session.start) are delivered to the
@@ -2050,6 +2123,7 @@ type SessionConfig struct {
 	// OnAutoModeSwitchRequest is a handler for auto-mode-switch requests from the server.
 	// When provided, enables autoModeSwitch.request callbacks for the session.
 	OnAutoModeSwitchRequest AutoModeSwitchRequestHandler
+
 	// EnableMCPApps enables MCP Apps (SEP-1865) UI passthrough on this session.
 	//
 	// Experimental: EnableMCPApps is part of an experimental wire-protocol
@@ -2144,6 +2218,14 @@ type SessionConfig struct {
 	// Automated messages remain excluded. Defaults to false for SDK sessions.
 	// Ignored for cloud sessions.
 	InteractiveUser *bool
+	// PermissionMode is applied before the session's first turn: before
+	// CreateSession returns. It uses the same checks as
+	// session.RPC.Permissions.SetMode; a mode that managed policy or session
+	// capabilities refuse leaves the current mode in place.
+	// Session.PermissionModeResult reports whether it was applied and the
+	// authoritative mode. Empty keeps the default mode. Not supported for cloud
+	// sessions.
+	PermissionMode rpc.PermissionMode
 	// ManagedSettings supplies host-injected enterprise managed settings for
 	// the session. Unlike EnableManagedSettings (which asks the runtime to
 	// self-fetch account/org and device policy), this provides the managed
@@ -2363,6 +2445,18 @@ type UICapabilities struct {
 	MCPApps bool `json:"mcpApps,omitempty"`
 }
 
+// UICapabilitiesWithAutoModeRecovery extends the legacy UI capability snapshot.
+type UICapabilitiesWithAutoModeRecovery struct {
+	UICapabilities
+	// AutoModeRecovery acknowledges retained-request Auto recovery. Absent means unsupported.
+	AutoModeRecovery bool `json:"autoModeRecovery,omitempty"`
+}
+
+// SessionCapabilitiesWithAutoModeRecovery includes recovery enrollment acknowledgment.
+type SessionCapabilitiesWithAutoModeRecovery struct {
+	UI *UICapabilitiesWithAutoModeRecovery `json:"ui,omitempty"`
+}
+
 // ElicitationAction is the user response to an elicitation request.
 type ElicitationAction = rpc.UIElicitationResponseAction
 
@@ -2440,6 +2534,10 @@ type SessionUI struct {
 
 // ResumeSessionConfig configures options when resuming a session
 type ResumeSessionConfig struct {
+	// AllowMultipleToolCalls permits multiple model tool calls per response (default true).
+	// False is a provider hint, not an execution guarantee: all returned calls are
+	// handled and handlers may run concurrently. Re-supply on cold resume.
+	AllowMultipleToolCalls *bool
 	// ClientName identifies the application using the SDK.
 	// Included in the User-Agent header for API requests.
 	ClientName string
@@ -2692,6 +2790,17 @@ type ResumeSessionConfig struct {
 	// Memory configures the memory feature for the session. When omitted, the
 	// runtime default applies.
 	Memory *MemoryConfiguration
+	// StoreMemory stores memories in the app instead of the built-in memory backends.
+	//
+	// The runtime validates the memory, filters secrets and requests approval,
+	// then calls this callback. store_memory succeeds only after the callback
+	// returns nil; an error fails the tool call with a generic message and
+	// nothing is stored elsewhere. While set, the runtime retrieves no memories
+	// and vote_memory is unavailable, so supply recall yourself, for example
+	// through SystemMessage. Requires Memory.Enabled to be true; creating or resuming
+	// a session fails otherwise.
+	// Experimental: this option may change or be removed in a future release.
+	StoreMemory func(ctx context.Context, memory StoredMemory) error `json:"-"`
 	// GitHubToken is an optional per-session GitHub token used for authentication.
 	// When provided, the session authenticates as the token's owner instead of
 	// using the global client-level auth.
@@ -2733,6 +2842,7 @@ type ResumeSessionConfig struct {
 	// OnAutoModeSwitchRequest is a handler for auto-mode-switch requests from the server.
 	// See SessionConfig.OnAutoModeSwitchRequest.
 	OnAutoModeSwitchRequest AutoModeSwitchRequestHandler
+
 	// EnableMCPApps enables MCP Apps (SEP-1865) UI passthrough on resume.
 	// See SessionConfig.EnableMCPApps.
 	//
@@ -2788,6 +2898,12 @@ type ResumeSessionConfig struct {
 	// InteractiveUser re-supplies that a human drives this session. It is not
 	// persisted and is ignored if the session is already active in the runtime.
 	InteractiveUser *bool
+	// PermissionMode is applied before resumed pending work continues and
+	// before ResumeSession returns. If it is refused (for example by managed
+	// policy), continued work runs under the mode the session's
+	// PermissionModeResult reports. See SessionConfig.PermissionMode. Empty
+	// keeps the restored mode.
+	PermissionMode rpc.PermissionMode
 	// ManagedSettings re-injects host-provided managed settings on resume. See
 	// SessionConfig.ManagedSettings. It must be re-supplied on resume: it
 	// replaces the prior injected layer, and omitting it clears that layer so
@@ -3105,6 +3221,18 @@ type MessageOptions struct {
 	RequestHeaders map[string]string
 	// DisplayPrompt, if provided, is shown in the timeline instead of Prompt.
 	DisplayPrompt string
+	// ClientTurnID is an opaque caller-chosen ID for the turn this message
+	// starts. The runtime copies it unchanged into
+	// _meta["com.github.copilot/turnId"] on every MCP tools/call made while
+	// serving that turn, including calls from sub-agents and Autopilot
+	// continuations. When a running turn consumes the message as visible user
+	// steering, the value (or its absence) replaces the turn's ID from the next
+	// model call onward. The user.message event for the message echoes it as
+	// clientTurnId and is persisted like other events; the value stamped on MCP
+	// calls is held in memory only and is not restored on resume. Nil omits it;
+	// an empty string is sent unchanged like any other opaque ID. Use [String]
+	// to set it.
+	ClientTurnID *string
 }
 
 // AgentMode is the UI mode the agent is in for a given turn. See
@@ -3256,6 +3384,7 @@ type SessionLifecycleHandler func(event SessionLifecycleEvent)
 
 // createSessionRequest is the request for session.create
 type createSessionRequest struct {
+	AllowMultipleToolCalls             *bool                                  `json:"allowMultipleToolCalls,omitempty"`
 	Model                              string                                 `json:"model,omitempty"`
 	SessionID                          string                                 `json:"sessionId,omitempty"`
 	Name                               string                                 `json:"name,omitempty"`
@@ -3290,6 +3419,7 @@ type createSessionRequest struct {
 	AskUserVariant                     AskUserVariant                         `json:"askUserVariant,omitempty"`
 	RequestExitPlanMode                *bool                                  `json:"requestExitPlanMode,omitempty"`
 	RequestAutoModeSwitch              *bool                                  `json:"requestAutoModeSwitch,omitempty"`
+	RequestAutoModeRecovery            *bool                                  `json:"requestAutoModeRecovery,omitempty"`
 	Hooks                              *bool                                  `json:"hooks,omitempty"`
 	WorkingDirectory                   string                                 `json:"workingDirectory,omitempty"`
 	AdditionalDirectories              []string                               `json:"additionalDirectories,omitzero"`
@@ -3316,6 +3446,7 @@ type createSessionRequest struct {
 	EnableSessionStore                 *bool                                  `json:"enableSessionStore,omitempty"`
 	EnableSkills                       *bool                                  `json:"enableSkills,omitempty"`
 	HasSkillProvider                   *bool                                  `json:"hasSkillProvider,omitempty"`
+	HasMemoryStore                     *bool                                  `json:"hasMemoryStore,omitempty"`
 	SkillDirectories                   []string                               `json:"skillDirectories,omitzero"`
 	AgentDirectories                   []string                               `json:"agentDirectories,omitzero"`
 	HookDirectories                    []string                               `json:"hookDirectories,omitzero"`
@@ -3349,6 +3480,7 @@ type createSessionRequest struct {
 	ExcludedManagedSettings            []string                               `json:"excludedManagedSettings,omitempty"`
 	EnforceManagedModelDefaults        *bool                                  `json:"enforceManagedModelDefaults,omitempty"`
 	InteractiveUser                    *bool                                  `json:"interactiveUser,omitempty"`
+	PermissionMode                     rpc.PermissionMode                     `json:"permissionMode,omitempty"`
 	ManagedSettings                    *ManagedSettings                       `json:"managedSettings,omitempty"`
 	Traceparent                        string                                 `json:"traceparent,omitempty"`
 	Tracestate                         string                                 `json:"tracestate,omitempty"`
@@ -3362,13 +3494,15 @@ type wireCommand struct {
 
 // createSessionResponse is the response from session.create
 type createSessionResponse struct {
-	SessionID     string               `json:"sessionId"`
-	WorkspacePath string               `json:"workspacePath"`
-	Capabilities  *SessionCapabilities `json:"capabilities,omitempty"`
+	SessionID            string                                   `json:"sessionId"`
+	WorkspacePath        string                                   `json:"workspacePath"`
+	Capabilities         *SessionCapabilitiesWithAutoModeRecovery `json:"capabilities,omitempty"`
+	PermissionModeResult *rpc.PermissionsSetModeResult            `json:"permissionModeResult,omitempty"`
 }
 
 // resumeSessionRequest is the request for session.resume
 type resumeSessionRequest struct {
+	AllowMultipleToolCalls             *bool                                  `json:"allowMultipleToolCalls,omitempty"`
 	SessionID                          string                                 `json:"sessionId"`
 	ClientName                         string                                 `json:"clientName,omitempty"`
 	Model                              string                                 `json:"model,omitempty"`
@@ -3401,6 +3535,7 @@ type resumeSessionRequest struct {
 	AskUserVariant                     AskUserVariant                         `json:"askUserVariant,omitempty"`
 	RequestExitPlanMode                *bool                                  `json:"requestExitPlanMode,omitempty"`
 	RequestAutoModeSwitch              *bool                                  `json:"requestAutoModeSwitch,omitempty"`
+	RequestAutoModeRecovery            *bool                                  `json:"requestAutoModeRecovery,omitempty"`
 	Hooks                              *bool                                  `json:"hooks,omitempty"`
 	WorkingDirectory                   string                                 `json:"workingDirectory,omitempty"`
 	AdditionalDirectories              []string                               `json:"additionalDirectories,omitzero"`
@@ -3415,6 +3550,7 @@ type resumeSessionRequest struct {
 	EnableSessionStore                 *bool                                  `json:"enableSessionStore,omitempty"`
 	EnableSkills                       *bool                                  `json:"enableSkills,omitempty"`
 	HasSkillProvider                   *bool                                  `json:"hasSkillProvider,omitempty"`
+	HasMemoryStore                     *bool                                  `json:"hasMemoryStore,omitempty"`
 	DisableResume                      *bool                                  `json:"disableResume,omitempty"`
 	ContinuePendingWork                *bool                                  `json:"continuePendingWork,omitempty"`
 	AllowTranscriptRecovery            *bool                                  `json:"allowTranscriptRecovery,omitempty"`
@@ -3462,6 +3598,7 @@ type resumeSessionRequest struct {
 	ExcludedManagedSettings            []string                               `json:"excludedManagedSettings,omitempty"`
 	EnforceManagedModelDefaults        *bool                                  `json:"enforceManagedModelDefaults,omitempty"`
 	InteractiveUser                    *bool                                  `json:"interactiveUser,omitempty"`
+	PermissionMode                     rpc.PermissionMode                     `json:"permissionMode,omitempty"`
 	ManagedSettings                    *ManagedSettings                       `json:"managedSettings,omitempty"`
 	Traceparent                        string                                 `json:"traceparent,omitempty"`
 	Tracestate                         string                                 `json:"tracestate,omitempty"`
@@ -3469,11 +3606,12 @@ type resumeSessionRequest struct {
 
 // resumeSessionResponse is the response from session.resume
 type resumeSessionResponse struct {
-	SessionID          string                    `json:"sessionId"`
-	WorkspacePath      string                    `json:"workspacePath"`
-	Capabilities       *SessionCapabilities      `json:"capabilities,omitempty"`
-	OpenCanvases       []rpc.OpenCanvasInstance  `json:"openCanvases,omitempty"`
-	TranscriptRecovery *TranscriptRecoveryReport `json:"transcriptRecovery,omitempty"`
+	SessionID            string                                   `json:"sessionId"`
+	WorkspacePath        string                                   `json:"workspacePath"`
+	Capabilities         *SessionCapabilitiesWithAutoModeRecovery `json:"capabilities,omitempty"`
+	OpenCanvases         []rpc.OpenCanvasInstance                 `json:"openCanvases,omitempty"`
+	TranscriptRecovery   *TranscriptRecoveryReport                `json:"transcriptRecovery,omitempty"`
+	PermissionModeResult *rpc.PermissionsSetModeResult            `json:"permissionModeResult,omitempty"`
 }
 
 // TranscriptRecoveryReport describes the repair performed while resuming a session.
@@ -3620,6 +3758,7 @@ type sessionSendRequest struct {
 	Prompt         string              `json:"prompt"`
 	Source         MessageSource       `json:"source,omitempty"`
 	DisplayPrompt  string              `json:"displayPrompt,omitempty"`
+	ClientTurnID   *string             `json:"clientTurnId,omitempty"`
 	Attachments    []Attachment        `json:"attachments,omitempty"`
 	Mode           string              `json:"mode,omitempty"`
 	AgentMode      AgentMode           `json:"agentMode,omitempty"`
@@ -3635,8 +3774,8 @@ type sessionSendResponse struct {
 
 // sessionEventRequest is the request for session event notifications
 type sessionEventRequest struct {
-	SessionID string       `json:"sessionId"`
-	Event     SessionEvent `json:"event"`
+	SessionID string                           `json:"sessionId"`
+	Event     SessionEventWithAutoModeRecovery `json:"event"`
 }
 
 // userInputRequest represents a request for user input from the agent
@@ -3664,9 +3803,10 @@ type exitPlanModeRequest struct {
 }
 
 type autoModeSwitchRequest struct {
-	SessionID         string   `json:"sessionId"`
-	ErrorCode         *string  `json:"errorCode,omitempty"`
-	RetryAfterSeconds *float64 `json:"retryAfterSeconds,omitempty"`
+	SessionID         string                   `json:"sessionId"`
+	ErrorCode         *string                  `json:"errorCode,omitempty"`
+	RetryAfterSeconds *float64                 `json:"retryAfterSeconds,omitempty"`
+	AutoModeRecovery  *AutoModeRecoveryContext `json:"autoModeRecovery,omitempty"`
 }
 
 type autoModeSwitchResponse struct {

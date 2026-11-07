@@ -1,5 +1,8 @@
 #![allow(clippy::unwrap_used)]
 
+#[path = "session_test/auto_mode_recovery.rs"]
+mod auto_mode_recovery;
+
 use std::collections::HashMap;
 use std::fmt;
 use std::sync::Arc;
@@ -1375,6 +1378,73 @@ async fn create_session_forwards_refresh_custom_instructions_only_when_set() {
 }
 
 #[tokio::test]
+async fn create_and_resume_forward_permission_mode_and_surface_the_result() {
+    use github_copilot_sdk::types::{PermissionMode, ResumeSessionConfig};
+
+    for mode in [None, Some(PermissionMode::AllowAll)] {
+        // A refused outcome proves the session reports the runtime's result,
+        // not the request.
+        let result = mode
+            .as_ref()
+            .map(|_| serde_json::json!({ "success": false, "mode": "manual" }));
+        for resume in [false, true] {
+            let (client, mut server_read, mut server_write) = make_client();
+            let open = Box::pin(async {
+                if resume {
+                    let mut config = ResumeSessionConfig::new(SessionId::from("permission-mode"));
+                    if let Some(mode) = &mode {
+                        config = config.with_permission_mode(mode.clone());
+                    }
+                    client.resume_session(config).await
+                } else {
+                    let mut config = SessionConfig::default();
+                    if let Some(mode) = &mode {
+                        config = config.with_permission_mode(mode.clone());
+                    }
+                    client.create_session(config).await
+                }
+            });
+            let server = Box::pin(async {
+                let request = read_framed(&mut server_read).await;
+                assert_eq!(
+                    request["params"].get("permissionMode"),
+                    mode.as_ref()
+                        .map(|_| Value::String("allow-all".to_owned()))
+                        .as_ref(),
+                    "permission_mode = {mode:?}, resume = {resume}"
+                );
+                let mut body = serde_json::json!({ "sessionId": requested_session_id(&request) });
+                if let Some(result) = &result {
+                    body["permissionModeResult"] = result.clone();
+                }
+                let response = serde_json::json!({
+                    "jsonrpc": "2.0",
+                    "id": request["id"],
+                    "result": body,
+                });
+                write_framed(&mut server_write, &serde_json::to_vec(&response).unwrap()).await;
+                if resume {
+                    respond_to_reload(&mut server_read, &mut server_write).await;
+                }
+            });
+
+            let (session, ()) = timeout(TIMEOUT, Box::pin(async { tokio::join!(open, server) }))
+                .await
+                .unwrap();
+            let session = session.unwrap();
+            match session.permission_mode_result() {
+                None => assert!(mode.is_none(), "missing result for resume = {resume}"),
+                Some(reported) => {
+                    assert!(mode.is_some(), "unexpected result for resume = {resume}");
+                    assert!(!reported.success);
+                    assert_eq!(reported.mode, PermissionMode::Manual);
+                }
+            }
+        }
+    }
+}
+
+#[tokio::test]
 async fn create_session_omits_unset_diagnostics() {
     let (client, mut server_read, mut server_write) = make_client();
 
@@ -1846,6 +1916,39 @@ async fn send_omits_request_headers_when_unset_or_empty() {
     assert!(
         request["params"].get("requestHeaders").is_none(),
         "requestHeaders should be omitted for empty map, got: {}",
+        request["params"]
+    );
+    server.respond(&request, serde_json::json!({})).await;
+    timeout(TIMEOUT, handle).await.unwrap().unwrap().unwrap();
+}
+
+#[tokio::test]
+async fn send_forwards_client_turn_id_only_when_set() {
+    let (session, mut server) = create_session_pair().await;
+    let session = Arc::new(session);
+
+    let handle = tokio::spawn({
+        let session = session.clone();
+        async move {
+            session
+                .send(MessageOptions::new("hi").with_client_turn_id("host-turn-1"))
+                .await
+        }
+    });
+    let request = server.read_request().await;
+    assert_eq!(request["method"], "session.send");
+    assert_eq!(request["params"]["clientTurnId"], "host-turn-1");
+    server.respond(&request, serde_json::json!({})).await;
+    timeout(TIMEOUT, handle).await.unwrap().unwrap().unwrap();
+
+    let handle = tokio::spawn({
+        let session = session.clone();
+        async move { session.send(MessageOptions::new("plain")).await }
+    });
+    let request = server.read_request().await;
+    assert!(
+        request["params"].get("clientTurnId").is_none(),
+        "clientTurnId should be omitted when unset, got: {}",
         request["params"]
     );
     server.respond(&request, serde_json::json!({})).await;
@@ -5966,6 +6069,37 @@ async fn external_tool_requested_dispatches_to_handler_and_responds() {
 }
 
 #[tokio::test]
+async fn external_tool_result_that_fails_to_send_is_answered_with_the_error() {
+    let (_session, mut server) = create_session_pair_with_config(|cfg| {
+        cfg.with_tools(vec![label_tool("record_note", "ok")])
+    })
+    .await;
+
+    request_external_tool(&mut server, "req-delivery", "record_note").await;
+    let delivery = timeout(TIMEOUT, server.read_request()).await.unwrap();
+    assert_eq!(delivery["method"], "session.tools.handlePendingToolCall");
+    assert_eq!(delivery["params"]["requestId"], "req-delivery");
+    assert_eq!(delivery["params"]["result"], "ok");
+    server
+        .respond_error(&delivery, -32603, "tool result rejected")
+        .await;
+
+    // The runtime is still waiting on the call, so it is answered with the failure.
+    let answer = timeout(TIMEOUT, server.read_request()).await.unwrap();
+    assert_eq!(answer["method"], "session.tools.handlePendingToolCall");
+    assert_eq!(answer["params"]["requestId"], "req-delivery");
+    assert_eq!(
+        answer["params"]["error"],
+        "RPC error -32603: tool result rejected"
+    );
+    assert!(
+        answer["params"].get("result").is_none(),
+        "the failure must not be sent as a result: {answer}"
+    );
+    server.respond(&answer, serde_json::json!({})).await;
+}
+
+#[tokio::test]
 async fn external_tool_handler_error_is_reported_on_error_param() {
     struct FailingTool;
     #[async_trait]
@@ -6075,6 +6209,110 @@ async fn external_tool_handler_error_with_empty_message_reports_its_kind() {
             "a handler error must not be sent as a result: {reply}"
         );
     }
+}
+
+#[derive(Clone, Copy, Debug)]
+enum ToolPanicPhase {
+    Construction,
+    Poll,
+    Drop,
+}
+
+struct PanickingTool(ToolPanicPhase);
+
+// Implement the expanded trait directly so construction and drop happen outside polling.
+impl tool::ToolHandler for PanickingTool {
+    fn call<'life0, 'async_trait>(
+        &'life0 self,
+        _invocation: ToolInvocation,
+    ) -> std::pin::Pin<
+        Box<
+            dyn std::future::Future<Output = Result<ToolResult, github_copilot_sdk::Error>>
+                + Send
+                + 'async_trait,
+        >,
+    >
+    where
+        'life0: 'async_trait,
+        Self: 'async_trait,
+    {
+        if matches!(self.0, ToolPanicPhase::Construction) {
+            panic!("tool future construction exploded");
+        }
+        Box::pin(PanickingToolFuture(self.0))
+    }
+}
+
+struct PanickingToolFuture(ToolPanicPhase);
+
+impl std::future::Future for PanickingToolFuture {
+    type Output = Result<ToolResult, github_copilot_sdk::Error>;
+
+    fn poll(
+        self: std::pin::Pin<&mut Self>,
+        _cx: &mut std::task::Context<'_>,
+    ) -> std::task::Poll<Self::Output> {
+        if matches!(self.0, ToolPanicPhase::Poll) {
+            panic!("tool future polling exploded");
+        }
+        std::task::Poll::Ready(Ok(ToolResult::Text("finished".to_string())))
+    }
+}
+
+impl Drop for PanickingToolFuture {
+    fn drop(&mut self) {
+        if matches!(self.0, ToolPanicPhase::Drop) {
+            panic!("tool future drop exploded");
+        }
+    }
+}
+
+async fn assert_tool_handler_panic_is_answered_with_error(phase: ToolPanicPhase) {
+    let (_session, mut server) = create_session_pair_with_config(move |cfg| {
+        cfg.with_tools(vec![
+            Tool::new("panicking")
+                .with_description("Panics")
+                .with_parameters(serde_json::json!({"type": "object"}))
+                .with_handler(Arc::new(PanickingTool(phase))),
+            label_tool("record_note", "ok"),
+        ])
+    })
+    .await;
+
+    request_external_tool(&mut server, "req-panic", "panicking").await;
+    let reply = timeout(TIMEOUT, server.read_request())
+        .await
+        .expect("a panicking tool handler must still answer the pending tool call");
+    assert_eq!(reply["method"], "session.tools.handlePendingToolCall");
+    assert_eq!(reply["params"]["requestId"], "req-panic");
+    assert_eq!(
+        reply["params"]["error"], "tool handler panicked",
+        "got: {reply}"
+    );
+    assert!(
+        reply["params"].get("result").is_none(),
+        "a panic must not be sent as a result: {reply}"
+    );
+    server.respond(&reply, serde_json::json!({})).await;
+
+    // Later tool calls are still dispatched.
+    request_external_tool(&mut server, "req-after-panic", "record_note").await;
+    assert_eq!(read_tool_result(&mut server, "req-after-panic").await, "ok");
+}
+
+#[tokio::test]
+async fn external_tool_handler_panic_is_answered_with_error() {
+    assert_tool_handler_panic_is_answered_with_error(ToolPanicPhase::Poll).await;
+}
+
+#[tokio::test]
+async fn external_tool_handler_construction_panic_is_answered_with_error() {
+    assert_tool_handler_panic_is_answered_with_error(ToolPanicPhase::Construction).await;
+}
+
+#[tokio::test]
+async fn external_tool_handler_drop_panic_is_answered_with_error() {
+    assert_tool_handler_panic_is_answered_with_error(ToolPanicPhase::Drop).await;
 }
 
 #[tokio::test]

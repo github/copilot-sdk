@@ -21,6 +21,21 @@ use super::*;
 
 const DEADLINE: Duration = Duration::from_secs(5);
 
+#[test]
+fn rpc_callback_tracking_is_counted_and_scoped_to_the_session_and_router() {
+    let router = SessionRouter::new();
+    let session_id = SessionId::from("callback-session");
+    let first = router.track_rpc_callback(&session_id);
+    let second = router.track_rpc_callback(&session_id);
+    assert!(router.has_active_rpc_callback(&session_id));
+    assert!(!router.has_active_rpc_callback(&SessionId::from("other-session")));
+    assert!(!SessionRouter::new().has_active_rpc_callback(&session_id));
+    drop(first);
+    assert!(router.has_active_rpc_callback(&session_id));
+    drop(second);
+    assert!(!router.has_active_rpc_callback(&session_id));
+}
+
 #[derive(Clone, Copy, Debug)]
 enum BlockAt {
     Write,
@@ -600,6 +615,31 @@ fn restore_owned_unregisters_when_the_replaced_session_has_stopped() {
     let resident = router.register(&session_id());
     let (attempt, replaced) = router.replace(&session_id());
     drop(resident);
+
+    assert!(router.restore_owned(&session_id(), attempt.token, replaced));
+    assert!(router.session_ids().is_empty());
+}
+
+#[test]
+fn replaced_registration_becomes_resident_only_after_setup_completes() {
+    let router = SessionRouter::new();
+    let startup = router.register(&session_id());
+    let (_attempt, replaced) = router.replace(&session_id());
+    let replaced = replaced.expect("startup registration must have been replaced");
+    assert!(!replaced.is_resident());
+
+    startup.state.mark_ready();
+    assert!(replaced.is_resident());
+    startup.state.cancel();
+    assert!(!replaced.is_resident());
+}
+
+#[test]
+fn restore_owned_does_not_restore_cancelled_startup_with_open_channels() {
+    let router = SessionRouter::new();
+    let startup = router.register(&session_id());
+    let (attempt, replaced) = router.replace(&session_id());
+    startup.state.cancel();
 
     assert!(router.restore_owned(&session_id(), attempt.token, replaced));
     assert!(router.session_ids().is_empty());

@@ -410,7 +410,7 @@ All options are kw-only parameters:
 - `base_directory` (str | None): Base directory for Copilot data (session state, config, etc.). Sets `COPILOT_HOME` on the spawned CLI process. When `None`, the CLI defaults to `~/.copilot`. Useful in restricted environments where only specific directories are writable. Ignored when using a `UriRuntimeConnection`.
 - `extension_launch_provider` (ExtensionLaunchProviderHandler | None): Experimental connection-level resolver for extension launch profiles. The client installs the reverse-RPC handler and registers the provider during startup before sessions can be created.
 - `installation_confirmation_handler` (InstallationConfirmationHandler | None): Experimental connection-global human review for `installations.confirm`. Receives the typed request and one cancellation signal, and returns an explicit decision. Does not enable installation capabilities.
-- `kerberos_auth` (KerberosAuthConfig | None): Supplies Kerberos credentials from the SDK host. The client installs the `kerberosAuth.acquire` handler and registers `mode` and `scope` during startup before sessions can be created. See [Kerberos authentication callback](#kerberos-authentication-callback).
+- `network` (NetworkConfig | None): Experimental. Network callbacks through which the SDK host decides the runtime's proxies and supplies its Kerberos tokens. The client installs the `network.resolveProxy` and `network.authenticateNegotiate` handlers and registers the configured callbacks and `scope` during startup before sessions can be created. See [Network callbacks](#network-callbacks-experimental).
 - `use_logged_in_user` (bool | None): Whether to use logged-in user for authentication (default: True, but False when `github_token` is provided).
 - `telemetry` (dict | None): OpenTelemetry configuration for the CLI process. Providing this enables telemetry — no separate flag needed. See [Telemetry](#telemetry) below.
 - `session_fs` (dict | None): Connection-level session filesystem provider configuration. To let `view` read provider-only images, set `capabilities.binary` to `True` and return a provider implementing `SessionFsBinaryProvider` (`read_file_bytes(path)` and `write_file_bytes(path, content, mode=None)`) from `create_session_fs_handler`; image reads do not fall back to local files. Binary reads and writes are limited to 50,330,880 raw bytes (approximately 48 MiB); larger results return a filesystem error before encoding or decoding.
@@ -490,45 +490,80 @@ instead of falling back to raw configuration writes. Generated presence and
 transport tests do not establish a working installer, live OAuth or restart
 safety.
 
-### Kerberos authentication callback
+### Network callbacks (experimental)
 
-Provide `kerberos_auth={"mode": ..., "callback": ...}` (a `KerberosAuthConfig`) to `CopilotClient` when Kerberos tickets must be obtained by the SDK host, for example from Windows when the runtime runs in WSL. The runtime currently uses it for proxy authentication. The callback receives a `KerberosAuthAcquireRequest` whose `spn` is a service principal in the platform-independent `service/host[@REALM]` form, and returns a fresh base64 SPNEGO token without the `Negotiate ` prefix, or `None` when credentials are unavailable. The callback may be sync or async and should validate the principal before issuing credentials.
+Provide `network` (a `NetworkConfig`) to `CopilotClient` when the SDK host should take over parts of the runtime's networking, for example when the runtime runs in WSL or a container and should use VS Code's proxy settings and the host's Kerberos tickets. Registration happens during `start()`, before sessions can be created; if it fails, `start()` fails. Without this option, or for a callback you leave out, the runtime handles that part itself.
+
+- `resolve_proxy` receives a `NetworkResolveProxyRequest` and decides the proxies for every request the runtime would otherwise route by ambient proxy settings: proxy environment variables, `NO_PROXY` and operating-system proxy settings are not consulted unless it returns `None`. `request.url` is the request target as a PAC script sees it: without credentials or fragment, and for `https` and `wss` also without path and query. Return a PAC-style list such as `PROXY proxy.example:8080; HTTPS proxy.example:443; DIRECT` (the format of Electron's `session.resolveProxy`); return `DIRECT` for a direct connection, or `None` to let the runtime resolve the proxy itself, as if no callback were registered. Entry types the runtime doesn't support, such as SOCKS and QUIC, are skipped. If the callback fails, the request fails rather than connecting directly. Requests to loopback targets, and requests with an explicitly configured proxy, never consult it. The runtime caches answers, including `None`, for 5 seconds and waits at most 10 seconds for the callback.
+- `authenticate_negotiate` receives a `NetworkAuthenticateNegotiateRequest` and supplies the Kerberos token for a proxy's Negotiate challenge instead of the runtime's native credential lookup. `request.spn` is a service principal in the platform-independent `service/host[@REALM]` form; validate it before issuing credentials. Return a fresh base64 SPNEGO token without the `Negotiate ` prefix, or `None` when credentials are unavailable, which fails the request. The runtime waits at most 30 seconds for the callback (less when the request's own deadline is sooner). Tokens are not cached and must not be logged or persisted. The callback supplies the initial SPNEGO token only; exchanges requiring continuation tokens are not supported. Proxies chosen by `resolve_proxy` are authenticated the same way.
+
+The callbacks may be sync or async. When the runtime stops waiting (it cancels the request, for example after its timeout, or the connection closes), an awaitable a callback returned is cancelled with `asyncio.CancelledError` and any later result is ignored; if that awaitable is cancelled otherwise, the runtime receives a callback failure. Like other client callbacks, the callbacks run on the client's event loop, so keep a sync callback fast and offload a blocking lookup, for example with `await asyncio.to_thread(lookup, request.url)`.
+
+By default the callbacks serve only requests made for sessions this client creates or resumes. With `"scope": "runtime"` they also serve the runtime's shared background traffic, such as catalog refreshes and telemetry; only one connection at a time can hold that scope, so `start()` fails if another client holds it. The registration ends when the connection closes; a `start()` that fails or is cancelled closes it.
 
 <!-- docs-validate: hidden -->
 ```python
-from copilot import CopilotClient, KerberosAuthAcquireRequest
+from copilot import (
+    CopilotClient,
+    NetworkAuthenticateNegotiateRequest,
+    NetworkResolveProxyRequest,
+)
+
+
+async def lookup_proxy(url: str) -> str | None:
+    return None
 
 
 async def get_spnego_token(spn: str) -> str:
     return ""
 
 
-async def acquire_token(request: KerberosAuthAcquireRequest) -> str | None:
+async def resolve_proxy(request: NetworkResolveProxyRequest) -> str | None:
+    return await lookup_proxy(request.url)  # For example, from VS Code's proxy settings.
+
+
+async def authenticate_negotiate(request: NetworkAuthenticateNegotiateRequest) -> str | None:
     if request.spn != "HTTP/proxy.example.com":
         return None
     return await get_spnego_token(request.spn)  # Your Kerberos/SSPI integration.
 
 
-client = CopilotClient(kerberos_auth={"mode": "fallback", "callback": acquire_token})
+client = CopilotClient(
+    network={
+        "scope": "runtime",
+        "resolve_proxy": resolve_proxy,
+        "authenticate_negotiate": authenticate_negotiate,
+    }
+)
 ```
 <!-- /docs-validate: hidden -->
 
 ```python
-from copilot import CopilotClient, KerberosAuthAcquireRequest
+from copilot import (
+    CopilotClient,
+    NetworkAuthenticateNegotiateRequest,
+    NetworkResolveProxyRequest,
+)
 
 
-async def acquire_token(request: KerberosAuthAcquireRequest) -> str | None:
+async def resolve_proxy(request: NetworkResolveProxyRequest) -> str | None:
+    return await lookup_proxy(request.url)  # For example, from VS Code's proxy settings.
+
+
+async def authenticate_negotiate(request: NetworkAuthenticateNegotiateRequest) -> str | None:
     if request.spn != "HTTP/proxy.example.com":
         return None
     return await get_spnego_token(request.spn)  # Your Kerberos/SSPI integration.
 
 
-client = CopilotClient(kerberos_auth={"mode": "fallback", "callback": acquire_token})
+client = CopilotClient(
+    network={
+        "scope": "runtime",
+        "resolve_proxy": resolve_proxy,
+        "authenticate_negotiate": authenticate_negotiate,
+    }
+)
 ```
-
-With `mode="fallback"`, native credential acquisition (including the first token) is tried first; only failure invokes the callback. With `mode="always"`, native credential lookup is never attempted. Without this option, behavior is unchanged. Registration happens during `start()`, before sessions can be created; if it fails, `start()` fails.
-
-By default the callback authenticates only requests made for sessions this client creates or resumes. With `scope="runtime"` it also authenticates the runtime's shared background traffic, such as catalog refreshes and telemetry; only one connection at a time can hold that scope, so `start()` fails if another client holds it. The registration ends when the connection closes; a `start()` that fails or is cancelled closes it. In `fallback` mode, if the callback cannot supply a valid token, the native credential error is reported. In `always` mode, a disconnected, raising, or empty callback fails authentication. The runtime waits at most 30 seconds for the callback (less when the request's own deadline is sooner) and treats a timeout as a callback failure. When the runtime stops waiting or the connection closes, an awaitable the callback returned is cancelled with `asyncio.CancelledError`; if that awaitable is cancelled otherwise, the runtime receives a callback failure. Like other client callbacks, the callback runs on the client's event loop, so keep a sync callback fast and offload a blocking lookup, for example with `await asyncio.to_thread(lookup, request.spn)`; its late result is ignored. Tokens are not cached and must not be logged or persisted. The callback supplies the initial SPNEGO token only; exchanges requiring continuation tokens still need native negotiation.
 
 ### In-process (FFI) transport
 
@@ -583,6 +618,7 @@ These are passed as keyword arguments to `create_session()`:
 - `on_user_input_request` (callable): Handler for legacy question-and-answer requests from the agent. Enables the legacy `ask_user` tool. See [User Input Requests](#user-input-requests) section.
 - `ask_user_variant` (`"legacy"` | `"elicitation"`): Selects the model-facing shape of the `ask_user` tool. Defaults to `"legacy"`; use `"elicitation"` with `on_elicitation_request`. Re-supply this option when cold-resuming a session.
 - `interactive_user` (bool): Declares that a person types this session's messages, as in an editor chat panel. Enables the runtime's user-message analysis telemetry for user-authored messages; automated messages stay excluded. Defaults to `False`. Ignored for cloud sessions. Re-supply it when cold-resuming a session; it is ignored when resuming a session that is already active.
+- `permission_mode` (PermissionMode): Applies `manual`, `assisted`, or `allow-all` before the session's first turn: before `create_session` returns, and before a resume continues pending work. Uses the same checks as `session.rpc.permissions.set_mode`; `session.permission_mode_result` reports whether it was applied and the authoritative mode. Not supported for cloud sessions.
 - `hooks` (SessionHooks): Hook handlers for session lifecycle events. See [Session Hooks](#session-hooks) section.
 
 <!-- docs-validate: hidden -->
@@ -885,8 +921,6 @@ the shared behavior and active-turn limitations.
 
 If you register a tool with the same name as a built-in CLI tool (e.g. `edit_file`, `read_file`), the SDK will throw an error unless you explicitly opt in by setting `overrides_built_in_tool=True`. This flag signals that you intend to replace the built-in tool with your custom implementation.
 
-<!-- docs-validate: hidden -->
-<!--
 ```python
 from pydantic import BaseModel, Field
 from copilot import define_tool
@@ -905,18 +939,6 @@ class EditFileParams(BaseModel):
 async def edit_file(params: EditFileParams) -> str:
     # your logic
     return ""
-```
--->
-<!-- /docs-validate: hidden -->
-
-```python
-class EditFileParams(BaseModel):
-    path: str = Field(description="File path")
-    content: str = Field(description="New file content")
-
-@define_tool(name="edit_file", description="Custom file editor with project-specific validation", overrides_built_in_tool=True)
-async def edit_file(params: EditFileParams) -> str:
-    # your logic
 ```
 
 An explicit `apply_patch` override can declare a root string schema with
@@ -980,8 +1002,6 @@ async def safe_lookup(params: LookupParams) -> str:
 
 Set `defer` to control whether a tool may be loaded lazily via tool search rather than always pre-loaded. Use `"auto"` to allow the tool to be deferred and surfaced through tool search, or `"never"` to force it to always be pre-loaded. Defaults to `"auto"`.
 
-<!-- docs-validate: hidden -->
-<!--
 ```python
 from pydantic import BaseModel, Field
 from copilot import define_tool
@@ -995,14 +1015,6 @@ class LookupParams(BaseModel):
 async def lookup_issue(params: LookupParams) -> str:
     # your logic
     return ""
-```
--->
-<!-- /docs-validate: hidden -->
-
-```python
-@define_tool(name="lookup_issue", description="Fetch issue details", defer="auto")
-async def lookup_issue(params: LookupParams) -> str:
-    # your logic
 ```
 
 ## Auto routing tiers

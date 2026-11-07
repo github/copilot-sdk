@@ -95,6 +95,96 @@ public class JsonRpcTests
     }
 
     [Theory]
+    [InlineData(false, false)]
+    [InlineData(false, true)]
+    [InlineData(true, false)]
+    [InlineData(true, true)]
+    public async Task JsonRpc_Dispose_During_Send_Does_Not_Mask_Error(bool blockFlush, bool failSend)
+    {
+        var sendError = failSend ? new IOException("send failed") : null;
+        using var sendStream = new GatedSendStream(blockFlush, sendError);
+        using var rpc = new JsonRpcReflection(sendStream, Stream.Null);
+        var pending = rpc.InvokeAsync<string>("pending", args: null);
+        var shutdownError = new IOException("connection stopped");
+        var timeout = TimeSpan.FromSeconds(5);
+
+        try
+        {
+            await sendStream.Blocked.WaitAsync(timeout);
+            rpc.Dispose(shutdownError);
+            Assert.True(rpc.Completion.IsCompleted);
+            Assert.False(pending.IsCompleted);
+        }
+        finally
+        {
+            sendStream.Unblock();
+        }
+
+        var error = await Record.ExceptionAsync(() => pending.WaitAsync(timeout));
+        Assert.Same(sendError ?? shutdownError, error);
+        if (!failSend)
+        {
+            Assert.Equal(
+                CreateFrame("""{"jsonrpc":"2.0","id":1,"method":"pending"}"""),
+                sendStream.ToArray());
+        }
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task JsonRpc_Dispose_With_Queued_Send_Does_Not_Write_Another_Frame(bool cancelQueued)
+    {
+        using var sendStream = new GatedSendStream();
+        using var rpc = new JsonRpcReflection(sendStream, Stream.Null);
+        using var cancellation = new CancellationTokenSource();
+        var active = rpc.InvokeAsync<string>("active", args: null);
+        Task<string>? queued = null;
+        var shutdownError = Assert.Throws<IOException>((Action)(() => throw new IOException("connection stopped")));
+        var originalStackTrace = shutdownError.StackTrace!;
+        var timeout = TimeSpan.FromSeconds(5);
+
+        try
+        {
+            await sendStream.Blocked.WaitAsync(timeout);
+            queued = rpc.InvokeAsync<string>("queued", args: null, cancellation.Token);
+            Assert.False(queued.IsCompleted);
+            if (cancelQueued)
+            {
+                cancellation.Cancel();
+                // Finish canceling the lock wait before shutdown competes with it.
+                await Assert.ThrowsAnyAsync<OperationCanceledException>(() => queued.WaitAsync(timeout));
+            }
+            rpc.Dispose(shutdownError);
+        }
+        finally
+        {
+            sendStream.Unblock();
+        }
+
+        var activeError = await Record.ExceptionAsync(() => active.WaitAsync(timeout));
+        var queuedError = await Record.ExceptionAsync(() => queued!.WaitAsync(timeout));
+        cancellation.Cancel();
+        Assert.Same(shutdownError, activeError);
+        if (cancelQueued)
+        {
+            Assert.IsAssignableFrom<OperationCanceledException>(queuedError);
+        }
+        else
+        {
+            Assert.Same(shutdownError, queuedError);
+            Assert.Contains(originalStackTrace, queuedError.StackTrace, StringComparison.Ordinal);
+            var lateError = await Record.ExceptionAsync(() =>
+                rpc.InvokeAsync<string>("afterShutdown", args: null).WaitAsync(timeout));
+            Assert.Same(shutdownError, lateError);
+            Assert.Contains(originalStackTrace, lateError.StackTrace, StringComparison.Ordinal);
+        }
+        Assert.Equal(
+            CreateFrame("""{"jsonrpc":"2.0","id":1,"method":"active"}"""),
+            sendStream.ToArray());
+    }
+
+    [Theory]
     [InlineData(true)]
     [InlineData(false)]
     public async Task JsonRpc_Cancels_Incoming_Handler_Token_When_Connection_Disposed(bool requestHasId)
@@ -567,6 +657,10 @@ public class JsonRpcTests
 
         public void Dispose() => ((IDisposable)_instance).Dispose();
 
+        public void Dispose(Exception reason) =>
+            JsonRpcType.GetMethod("Dispose", BindingFlags.Instance | BindingFlags.NonPublic)!
+                .Invoke(_instance, [reason]);
+
         public void NotifyProcessExit(CopilotClient client) =>
             typeof(CopilotClient)
                 .GetMethod("DisposeRpcAfterProcessExit", BindingFlags.Instance | BindingFlags.NonPublic)!
@@ -610,6 +704,55 @@ public class JsonRpcTests
             if (Events.Count == expectedCount)
             {
                 _completion.TrySetResult();
+            }
+        }
+    }
+
+    private sealed class GatedSendStream(bool blockFlush = false, Exception? sendError = null) : MemoryStream
+    {
+        private readonly TaskCompletionSource _blocked = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        private readonly TaskCompletionSource _release = new(TaskCreationOptions.RunContinuationsAsynchronously);
+
+        public Task Blocked => _blocked.Task;
+
+        public void Unblock() => _release.TrySetResult();
+
+        public override Task WriteAsync(byte[] buffer, int offset, int count, CancellationToken cancellationToken) =>
+            WriteCoreAsync(buffer.AsMemory(offset, count), cancellationToken).AsTask();
+
+#if NET8_0_OR_GREATER
+        public override
+#else
+        internal
+#endif
+        ValueTask WriteAsync(ReadOnlyMemory<byte> source, CancellationToken cancellationToken = default) =>
+            WriteCoreAsync(source, cancellationToken);
+
+        private async ValueTask WriteCoreAsync(ReadOnlyMemory<byte> source, CancellationToken cancellationToken)
+        {
+            Assert.False(cancellationToken.CanBeCanceled);
+            if (!blockFlush)
+            {
+                await BlockAsync();
+            }
+
+            var bytes = source.ToArray();
+            base.Write(bytes, 0, bytes.Length);
+        }
+
+        public override Task FlushAsync(CancellationToken cancellationToken)
+        {
+            Assert.False(cancellationToken.CanBeCanceled);
+            return blockFlush ? BlockAsync() : Task.CompletedTask;
+        }
+
+        private async Task BlockAsync()
+        {
+            _blocked.TrySetResult();
+            await _release.Task;
+            if (sendError is not null)
+            {
+                throw sendError;
             }
         }
     }

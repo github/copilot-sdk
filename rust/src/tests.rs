@@ -7,6 +7,78 @@
 use super::*;
 use crate::entra::{EntraTokenProviderArgs, EntraTokenProviderContext, EntraTokenProviderResult};
 
+#[cfg(feature = "runtime")]
+#[tokio::test]
+async fn stderr_stream_logs_unterminated_output_before_eof_in_bounded_chunks() {
+    use tokio::io::AsyncWriteExt;
+
+    let (mut writer, reader) = tokio::io::duplex(16 * 1024);
+    let (sent, mut received) = mpsc::unbounded_channel();
+    let drain = tokio::spawn(async move {
+        Client::drain_stderr_stream(reader, |line| sent.send(line.to_owned()).unwrap()).await
+    });
+    let output = "x".repeat(12 * 1024);
+    writer.write_all(output.as_bytes()).await.unwrap();
+    let observed = tokio::time::timeout(Duration::from_secs(5), async {
+        let mut logged = String::new();
+        while logged.len() < output.len() {
+            let chunk = received.recv().await.expect("stderr reader stopped");
+            assert!(
+                chunk.len() <= 4096,
+                "oversized stderr chunk: {}",
+                chunk.len()
+            );
+            logged.push_str(&chunk);
+        }
+        logged
+    })
+    .await;
+    drop(writer);
+    drain.await.unwrap().unwrap();
+    assert_eq!(
+        observed.expect("stderr must be logged before EOF without a newline"),
+        output
+    );
+}
+
+#[cfg(feature = "runtime")]
+#[tokio::test]
+async fn stderr_stream_preserves_lines_and_split_utf8() {
+    let output = format!("first\r\n\n{}\u{1f600}tail", "x".repeat(4095));
+    let mut logged = Vec::new();
+    Client::drain_stderr_stream(output.as_bytes(), |line| logged.push(line.to_owned()))
+        .await
+        .unwrap();
+    assert_eq!(&logged[..2], &["first", ""]);
+    assert_eq!(
+        logged[2..].concat(),
+        format!("{}\u{1f600}tail", "x".repeat(4095))
+    );
+}
+
+#[cfg(all(unix, feature = "runtime"))]
+#[tokio::test]
+async fn tcp_startup_drains_stderr_before_port_announcement() {
+    let temp = tempfile::tempdir().unwrap();
+    let options = ClientOptions::new().with_prefix_args([
+        "-c",
+        r#"i=0
+while [ "$i" -lt 1024 ]; do
+    printf '%01024d\n' 0 >&2
+    i=$((i + 1))
+done
+printf 'listening on port 12345\n'
+exec sleep 60"#,
+        "--",
+    ]);
+    let (mut child, _tree, port, _, _) =
+        Client::spawn_tcp(Path::new("/bin/sh"), &options, temp.path(), 0)
+            .await
+            .expect("startup must drain stderr before waiting for the port");
+    child.kill().await.unwrap();
+    assert_eq!(port, 12345);
+}
+
 fn entra_transport(
     options: types::EntraAuthOptions,
 ) -> (tempfile::TempDir, Client, Arc<jsonrpc::JsonRpcClient>) {

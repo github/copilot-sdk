@@ -43,6 +43,8 @@ public final class UserMessageEvent extends SessionEvent {
         @JsonProperty("responsesReasoning") ResponsesReasoning responsesReasoning,
         /** Stable identity of the logical user message, matching the ID returned by send and retained by pending queue snapshots */
         @JsonProperty("messageId") String messageId,
+        /** Opaque clientTurnId the caller supplied on the send that delivered this message, echoed when the message is consumed, whether it started a turn, drained from the queue or was consumed as steering. Absent when that send supplied none. */
+        @JsonProperty("clientTurnId") String clientTurnId,
         /** Transformed version of the message sent to the model, with XML wrapping, timestamps, and other augmentations for prompt caching */
         @JsonProperty("transformedContent") String transformedContent,
         /** Files, selections, or GitHub references attached to the message */
@@ -66,5 +68,28 @@ public final class UserMessageEvent extends SessionEvent {
         /** Parent agent task ID for background telemetry correlated to this user turn */
         @JsonProperty("parentAgentTaskId") String parentAgentTaskId
     ) {
+
+        /**
+         * Creates event data with the components it had before later optional fields were added.
+         */
+        public UserMessageEventData(
+            List<String> causalDependencies,
+            String content,
+            ResponsesReasoning responsesReasoning,
+            String messageId,
+            String transformedContent,
+            List<Object> attachments,
+            List<String> supportedNativeDocumentMimeTypes,
+            List<String> nativeDocumentPathFallbackPaths,
+            String source,
+            UserMessageDelivery delivery,
+            UserMessageAgentMode agentMode,
+            Boolean isAutopilotContinuation,
+            String interactionId,
+            String turnId,
+            String parentAgentTaskId
+        ) {
+            this(causalDependencies, content, responsesReasoning, messageId, null, transformedContent, attachments, supportedNativeDocumentMimeTypes, nativeDocumentPathFallbackPaths, source, delivery, agentMode, isAutopilotContinuation, interactionId, turnId, parentAgentTaskId);
+        }
     }
 }

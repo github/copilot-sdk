@@ -66,10 +66,17 @@ package main
 
 import copilot "github.com/github/copilot-sdk/go"
 
+// Aliases let the signature below use the package's own type names.
+type (
+    ErrorOccurredHookInput  = copilot.ErrorOccurredHookInput
+    HookInvocation          = copilot.HookInvocation
+    ErrorOccurredHookOutput = copilot.ErrorOccurredHookOutput
+)
+
 type ErrorOccurredHandler func(
-    input copilot.ErrorOccurredHookInput,
-    invocation copilot.HookInvocation,
-) (*copilot.ErrorOccurredHookOutput, error)
+    input ErrorOccurredHookInput,
+    invocation HookInvocation,
+) (*ErrorOccurredHookOutput, error)
 
 var _ = copilot.ErrorOccurredHandler(ErrorOccurredHandler(nil))
 
@@ -207,7 +214,6 @@ import (
 func main() {
 	client := copilot.NewClient(nil)
 	session, _ := client.CreateSession(context.Background(), &copilot.SessionConfig{
-		OnPermissionRequest: copilot.PermissionHandler.ApproveAll,
 		Hooks: &copilot.SessionHooks{
 			OnErrorOccurred: func(input copilot.ErrorOccurredHookInput, inv copilot.HookInvocation) (*copilot.ErrorOccurredHookOutput, error) {
 				fmt.Printf("[%s] Error: %s\n", inv.SessionID, input.Error)

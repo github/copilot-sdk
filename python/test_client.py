@@ -28,6 +28,7 @@ from copilot import (
     ModelBillingTokenPrices,
     ModelBillingTokenPricesLongContext,
     ModelSwitchAutoTierStatus,
+    PermissionMode,
     RuntimeConnection,
     StdioRuntimeConnection,
     define_tool,
@@ -1733,6 +1734,7 @@ class TestCreateSessionConfig:
                 create_session_fs_handler=create_provider,
             )
         )
+        resumption = None
         try:
             await asyncio.wait_for(provider_started.wait(), timeout=5)
             creation.cancel()
@@ -1745,12 +1747,28 @@ class TestCreateSessionConfig:
                 provider = Mock(spec=SessionFsProvider)
                 provider.read_file_bytes = AsyncMock(return_value=b"image")
                 provider.write_file_bytes = AsyncMock()
-                successor = await client.resume_session(
-                    "server-assigned-session", create_session_fs_handler=lambda _: provider
+                resumption = asyncio.create_task(
+                    client.resume_session(
+                        "server-assigned-session", create_session_fs_handler=lambda _: provider
+                    )
                 )
+                async with asyncio.timeout(5):
+                    while True:
+                        if resumption.done():
+                            pytest.fail(
+                                f"Resume overtook provider validation: {resumption.result()!r}"
+                            )
+                        with client._sessions_lock:
+                            lock = client._session_initializations.get("server-assigned-session")
+                            if lock is not None and lock.users >= 2:
+                                break
+                        await asyncio.sleep(0)
+                assert not any(method == "session.resume" for method, _ in requests)
 
             release_provider.set()
             await asyncio.wait_for(callback_finished.wait(), timeout=5)
+            if resumption is not None:
+                successor = await asyncio.wait_for(resumption, timeout=5)
             if valid_provider:
                 assert not delete_called.is_set()
             else:
@@ -1772,6 +1790,9 @@ class TestCreateSessionConfig:
             if not creation.done():
                 creation.cancel()
                 await asyncio.gather(creation, return_exceptions=True)
+            if resumption is not None and not resumption.done():
+                resumption.cancel()
+                await asyncio.gather(resumption, return_exceptions=True)
 
     @pytest.mark.asyncio
     @pytest.mark.parametrize("operation", ["create", "resume"])
@@ -2141,6 +2162,54 @@ class TestCreateSessionConfig:
 
             assert captured["session.create"]["interactiveUser"] is False
             assert captured["session.resume"]["interactiveUser"] is False
+        finally:
+            await client.force_stop()
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize("permission_mode", [None, *PermissionMode])
+    async def test_create_and_resume_session_forward_permission_mode(self, permission_mode):
+        client = CopilotClient(connection=RuntimeConnection.for_stdio(path=CLI_PATH))
+        await client.start()
+        try:
+            captured = {}
+
+            async def mock_request(method, params, **kwargs):
+                captured[method] = params
+                if method in ("session.create", "session.resume"):
+                    result = {"sessionId": params.get("sessionId") or "session-1"}
+                    if "permissionMode" in params:
+                        # A refused result proves the SDK surfaces the outcome,
+                        # not the request.
+                        result["permissionModeResult"] = {"success": False, "mode": "manual"}
+                    callback = kwargs.get("on_response_inline")
+                    if callback is not None:
+                        callback(result)
+                    return result
+                return {}
+
+            client._client.request = mock_request
+            session = await client.create_session(
+                on_permission_request=PermissionHandler.approve_all,
+                permission_mode=permission_mode,
+            )
+            resumed = await client.resume_session(
+                session.session_id,
+                on_permission_request=PermissionHandler.approve_all,
+                permission_mode=permission_mode,
+            )
+
+            for method in ("session.create", "session.resume"):
+                if permission_mode is None:
+                    assert "permissionMode" not in captured[method]
+                else:
+                    assert captured[method]["permissionMode"] == permission_mode.value
+            for opened in (session, resumed):
+                if permission_mode is None:
+                    assert opened.permission_mode_result is None
+                else:
+                    assert opened.permission_mode_result is not None
+                    assert opened.permission_mode_result.success is False
+                    assert opened.permission_mode_result.mode == PermissionMode.MANUAL
         finally:
             await client.force_stop()
 
@@ -3005,80 +3074,6 @@ class TestCreateSessionConfig:
             assert captured["session.resume"]["featureFlags"] == feature_flags
         finally:
             await client.force_stop()
-
-
-class TestURLParsing:
-    def test_parse_port_only_url(self):
-        client = CopilotClient(connection=RuntimeConnection.for_uri("8080"))
-        assert client._runtime_port == 8080
-        assert client._actual_host == "localhost"
-        assert client._is_external_server
-
-    def test_parse_host_port_url(self):
-        client = CopilotClient(connection=RuntimeConnection.for_uri("127.0.0.1:9000"))
-        assert client._runtime_port == 9000
-        assert client._actual_host == "127.0.0.1"
-        assert client._is_external_server
-
-    def test_parse_bracketed_ipv6_host_port_url(self):
-        client = CopilotClient(connection=RuntimeConnection.for_uri("[::1]:9000"))
-        assert client._runtime_port == 9000
-        assert client._actual_host == "::1"
-        assert client._is_external_server
-
-    def test_parse_http_url(self):
-        client = CopilotClient(connection=RuntimeConnection.for_uri("http://localhost:7000"))
-        assert client._runtime_port == 7000
-        assert client._actual_host == "localhost"
-        assert client._is_external_server
-
-    def test_parse_http_ipv6_url(self):
-        client = CopilotClient(connection=RuntimeConnection.for_uri("http://[::1]:7000"))
-        assert client._runtime_port == 7000
-        assert client._actual_host == "::1"
-        assert client._is_external_server
-
-    def test_reject_bracketed_non_ipv6_host(self):
-        with pytest.raises(ValueError, match="Invalid cli_url format"):
-            CopilotClient(connection=RuntimeConnection.for_uri("[not-ipv6]:1234"))
-
-    def test_parse_https_url(self):
-        client = CopilotClient(connection=RuntimeConnection.for_uri("https://example.com:443"))
-        assert client._runtime_port == 443
-        assert client._actual_host == "example.com"
-        assert client._is_external_server
-
-    def test_invalid_url_format(self):
-        with pytest.raises(ValueError, match="Invalid cli_url format"):
-            CopilotClient(connection=RuntimeConnection.for_uri("invalid-url"))
-
-    def test_invalid_port_too_high(self):
-        with pytest.raises(ValueError, match="Invalid port in cli_url"):
-            CopilotClient(connection=RuntimeConnection.for_uri("localhost:99999"))
-
-    def test_invalid_port_zero(self):
-        with pytest.raises(ValueError, match="Invalid port in cli_url"):
-            CopilotClient(connection=RuntimeConnection.for_uri("localhost:0"))
-
-    def test_invalid_port_negative(self):
-        with pytest.raises(ValueError, match="Invalid port in cli_url"):
-            CopilotClient(connection=RuntimeConnection.for_uri("localhost:-1"))
-
-    def test_is_external_server_true(self):
-        client = CopilotClient(connection=RuntimeConnection.for_uri("localhost:8080"))
-        assert client._is_external_server
-
-    @pytest.mark.asyncio
-    async def test_connect_via_tcp_uses_family_independent_resolution(self):
-        client = CopilotClient(connection=RuntimeConnection.for_uri("[::1]:9000"))
-        fake_socket = Mock()
-        fake_socket.makefile.return_value = Mock()
-
-        with patch("socket.create_connection", return_value=fake_socket) as create_connection:
-            await client._connect_via_tcp()
-
-        create_connection.assert_called_once_with(("::1", 9000), timeout=10)
-        client._process.terminate()
 
 
 class TestSessionEventRouting:

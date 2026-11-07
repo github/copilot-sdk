@@ -52,6 +52,40 @@ func TestLoginBeginKeepsPositionalLiterals(t *testing.T) {
 	}
 }
 
+func TestSessionInfoKeepsPositionalLiterals(t *testing.T) {
+	data := SessionInfoData{"notification", "message", nil, nil}
+	wire := encodeRequest(t, data)
+	if len(wire) != 2 || wire["infoType"] != "notification" || wire["message"] != "message" {
+		t.Fatalf("legacy info payload changed: %v", wire)
+	}
+	tip, url := "a tip", "https://example.com"
+	data = SessionInfoData{"notification", "message", &tip, &url}
+	wire = encodeRequest(t, data)
+	if wire["tip"] != tip || wire["url"] != url {
+		t.Fatalf("legacy info payload field order changed: %v", wire)
+	}
+}
+
+func TestSessionInfoDecodesWithInternalReasoningMetadata(t *testing.T) {
+	var event SessionEvent
+	err := json.Unmarshal([]byte(`{
+		"type":"session.info",
+		"data":{
+			"infoType":"reasoning_effort","message":"Reasoning effort changed",
+			"tip":"a tip","url":"https://example.com",
+			"responsesReasoning":{"model":"gpt-6-astra","initialEffort":"low","effort":"high"}
+		}
+	}`), &event)
+	if err != nil {
+		t.Fatal(err)
+	}
+	data, ok := event.Data.(*SessionInfoData)
+	if !ok || data.InfoType != "reasoning_effort" || data.Message != "Reasoning effort changed" ||
+		data.Tip == nil || *data.Tip != "a tip" || data.URL == nil || *data.URL != "https://example.com" {
+		t.Fatalf("info event with internal metadata changed: %#v", event.Data)
+	}
+}
+
 func TestLoginBeginOptionsOnWire(t *testing.T) {
 	for _, name := range []string{"legacy", "device-code", "nil"} {
 		t.Run(name, func(t *testing.T) {

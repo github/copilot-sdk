@@ -322,7 +322,8 @@ public sealed class SetToolsTests
             await Assert.ThrowsAnyAsync<OperationCanceledException>(() => replacement);
 
             releaseSet.SetResult();
-            await logger.ResponseReceived.Task.WaitAsync(TimeSpan.FromSeconds(5));
+            // This is an ordering handshake; CI's hang timeout bounds a missing response.
+            await logger.ResponseReceived.Task;
 
             var result = await InvokeToolAsync(server, session, "cancel_tool", "cancel-request");
             Assert.Equal("new", result);
@@ -331,6 +332,33 @@ public sealed class SetToolsTests
         {
             releaseSet.TrySetResult();
             logger.ContinueResponse.TrySetResult();
+        }
+    }
+
+    [Theory]
+    [InlineData("Failed", true)]
+    [InlineData("Failed", false)]
+    [InlineData("Canceled", true)]
+    [InlineData("Canceled", false)]
+    public async Task SetToolsResponseLogger_Propagates_Unsuccessful_Response(string status, bool includeException)
+    {
+        var logger = new SetToolsResponseLogger();
+        var exception = includeException ? new IOException("Tool replacement failed.") : null;
+        logger.Log(LogLevel.Warning, default, new KeyValuePair<string, object?>[]
+        {
+            new("Method", "session.tools.set"),
+            new("Status", status),
+        }, exception, static (_, _) => string.Empty);
+
+        Assert.True(logger.ResponseReceived.Task.IsFaulted);
+        if (exception is not null)
+        {
+            Assert.Same(exception, await Assert.ThrowsAsync<IOException>(() => logger.ResponseReceived.Task));
+        }
+        else
+        {
+            var error = await Assert.ThrowsAsync<InvalidOperationException>(() => logger.ResponseReceived.Task);
+            Assert.Equal($"session.tools.set completed with status '{status}'.", error.Message);
         }
     }
 
@@ -606,8 +634,15 @@ public sealed class SetToolsTests
         {
             if (state is IReadOnlyList<KeyValuePair<string, object?>> properties &&
                 properties.Any(entry => entry is { Key: "Method", Value: "session.tools.set" }) &&
-                properties.Any(entry => entry is { Key: "Status", Value: "Succeeded" }))
+                properties.FirstOrDefault(entry => entry.Key == "Status").Value is string status)
             {
+                if (status != "Succeeded")
+                {
+                    ResponseReceived.TrySetException(exception ??
+                        new InvalidOperationException($"session.tools.set completed with status '{status}'."));
+                    return;
+                }
+
                 // Hold the RPC awaiter after acceptance without blocking the reader's next tool event.
                 ResponseReceived.TrySetResult();
                 ContinueResponse.Task.GetAwaiter().GetResult();

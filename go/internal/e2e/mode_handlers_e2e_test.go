@@ -33,6 +33,54 @@ func TestModeHandlersE2E(t *testing.T) {
 		t.Fatalf("Failed to set copilot user for mode handler test: %v", err)
 	}
 
+	t.Run("should opt in to recovery without changing legacy Go shapes", func(t *testing.T) {
+		ctx.ConfigureForTest(t)
+		options := &copilot.AutoModeRecoveryOptions{
+			OnAutoModeSwitchRequest: func(copilot.AutoModeSwitchRequestWithAutoModeRecovery, copilot.AutoModeSwitchInvocation) (copilot.AutoModeSwitchResponse, error) {
+				return copilot.AutoModeSwitchResponseNo, nil
+			},
+		}
+		session, err := client.CreateSessionWithAutoModeRecovery(t.Context(), &copilot.SessionConfig{
+			FeatureFlags:        map[string]bool{"AUTO_MODE_RECOVERY": true},
+			GitHubToken:         modeHandlerToken,
+			OnPermissionRequest: copilot.PermissionHandler.ApproveAll,
+		}, options)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if caps := session.CapabilitiesWithAutoModeRecovery(); caps.UI == nil || !caps.UI.AutoModeRecovery {
+			t.Fatalf("recovery enrollment was not acknowledged: %#v", caps)
+		}
+		if caps := session.Capabilities(); caps.UI == nil {
+			t.Fatal("legacy capability snapshot is unavailable")
+		}
+		legacy, err := client.ResumeSession(t.Context(), session.SessionID, &copilot.ResumeSessionConfig{
+			GitHubToken:         modeHandlerToken,
+			OnPermissionRequest: copilot.PermissionHandler.ApproveAll,
+		})
+		if err != nil {
+			t.Fatal(err)
+		}
+		if caps := legacy.CapabilitiesWithAutoModeRecovery(); caps.UI != nil && caps.UI.AutoModeRecovery {
+			t.Fatalf("legacy resume enrolled in recovery: %#v", caps)
+		}
+		resumed, err := client.ResumeSessionWithAutoModeRecovery(t.Context(), legacy.SessionID, &copilot.ResumeSessionConfig{
+			FeatureFlags:        map[string]bool{"AUTO_MODE_RECOVERY": true},
+			GitHubToken:         modeHandlerToken,
+			OnPermissionRequest: copilot.PermissionHandler.ApproveAll,
+		}, options)
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer resumed.Disconnect()
+		if caps := resumed.CapabilitiesWithAutoModeRecovery(); caps.UI == nil || !caps.UI.AutoModeRecovery {
+			t.Fatalf("recovery resume was not acknowledged: %#v", caps)
+		}
+		if resumed.SessionID != session.SessionID {
+			t.Fatalf("resume changed identity: %q != %q", resumed.SessionID, session.SessionID)
+		}
+	})
+
 	t.Run("should invoke exit plan mode handler when model uses tool", func(t *testing.T) {
 		ctx.ConfigureForTest(t)
 

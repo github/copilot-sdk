@@ -161,7 +161,8 @@ class MessageSourceTest {
         assertEquals(source, copy.getSource());
         assertEquals(MAPPER.<JsonNode>valueToTree(options), MAPPER.<JsonNode>valueToTree(copy));
         copy.setSource(null).setPrompt("changed").setAttachments(List.of()).setMode("enqueue")
-                .setAgentMode(AgentMode.INTERACTIVE).setRequestHeaders(Map.of()).setDisplayPrompt("changed");
+                .setAgentMode(AgentMode.INTERACTIVE).setRequestHeaders(Map.of()).setDisplayPrompt("changed")
+                .setClientTurnId("changed");
         assertEquals(source, options.getSource());
         assertEquals(MAPPER.<JsonNode>valueToTree(fullOptions().setSource(source)),
                 MAPPER.<JsonNode>valueToTree(options));
@@ -191,7 +192,7 @@ class MessageSourceTest {
 
             var expected = MAPPER.createObjectNode().put("sessionId", "source-session").put("prompt", "hello")
                     .put("mode", mode).put("agentMode", "plan").put("displayPrompt", "display")
-                    .put("source", source.getValue());
+                    .put("clientTurnId", "host-turn-1").put("source", source.getValue());
             expected.set("attachments", MAPPER.valueToTree(options.getAttachments()));
             expected.set("requestHeaders", MAPPER.valueToTree(Map.of("X-Trace", "trace-id")));
             assertEquals(expected, server.takeSendParams());
@@ -259,7 +260,8 @@ class MessageSourceTest {
     private static MessageOptions fullOptions() {
         return new MessageOptions().setPrompt("hello").setMode("immediate").setAgentMode(AgentMode.PLAN)
                 .setAttachments(List.of(new Attachment("file", "/workspace/example.java", "example")))
-                .setRequestHeaders(Map.of("X-Trace", "trace-id")).setDisplayPrompt("display");
+                .setRequestHeaders(Map.of("X-Trace", "trace-id")).setDisplayPrompt("display")
+                .setClientTurnId("host-turn-1");
     }
 
     private static SessionConfig sessionConfig() {

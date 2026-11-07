@@ -196,6 +196,7 @@ session.On(func(event copilot.SessionEvent) {
 <summary><strong>.NET</strong></summary>
 
 ```csharp
+#pragma warning disable GHCP001 // The per-call Cost field is experimental.
 session.On<AssistantUsageEvent>(evt =>
 {
     var data = evt.Data;
@@ -591,6 +592,7 @@ if info := result.ContextInfo; info != nil {
 <summary><strong>.NET</strong></summary>
 
 ```csharp
+#pragma warning disable GHCP001 // The context-info API is experimental.
 var result = await session.Rpc.Metadata.ContextInfoAsync(promptTokenLimit: 0, outputTokenLimit: 0);
 var info = result.ContextInfo;
 
@@ -807,6 +809,7 @@ for model, m := range metrics.ModelMetrics {
 <summary><strong>.NET</strong></summary>
 
 ```csharp
+#pragma warning disable GHCP001 // The accumulated usage metrics API is experimental.
 var metrics = await session.Rpc.Usage.GetMetricsAsync();
 
 var aiCredits = (metrics.TotalNanoAiu ?? 0) / 1e9;

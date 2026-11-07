@@ -60,6 +60,6 @@ rust_library(
     }),
     version = "0.1.58",
     deps = [
-        "@sdk_vendor__cc-1.11.0//:cc",
+        "@sdk_vendor__cc-1.11.1//:cc",
     ],
 )

@@ -463,7 +463,7 @@ public sealed class CopilotClientOptions
         SessionFs = other.SessionFs;
         RequestHandler = other.RequestHandler;
         ExtensionLaunchProvider = other.ExtensionLaunchProvider;
-        KerberosAuth = other.KerberosAuth;
+        Network = other.Network;
         InstallationConfirmationHandler = other.InstallationConfirmationHandler;
         OnGitHubTelemetry = other.OnGitHubTelemetry;
         SessionIdleTimeoutSeconds = other.SessionIdleTimeoutSeconds;
@@ -590,12 +590,12 @@ public sealed class CopilotClientOptions
     public IExtensionLaunchProviderHandler? ExtensionLaunchProvider { get; set; }
 
     /// <summary>
-    /// Supplies Kerberos credentials from the SDK host.
-    /// When set, the SDK registers the callback during <c>StartAsync()</c>
-    /// before any session can be created.
+    /// Network callbacks through which the SDK host decides the runtime's proxies
+    /// and supplies its Kerberos tokens. When at least one callback is set, the SDK
+    /// registers the callbacks during <c>StartAsync()</c> before any session can be created.
     /// </summary>
     [Experimental(global::GitHub.Copilot.Diagnostics.Experimental)]
-    public KerberosAuthConfig? KerberosAuth { get; set; }
+    public NetworkConfig? Network { get; set; }
 
     /// <summary>
     /// Connection-global human review for experimental installation operations.
@@ -927,7 +927,8 @@ public sealed class ToolResultObject
     /// <summary>
     /// Converts the result of an <see cref="AIFunction"/> invocation into a
     /// <see cref="ToolResultObject"/>. Handles <see cref="ToolResultAIContent"/>,
-    /// <see cref="AIContent"/>, and falls back to JSON serialization.
+    /// <see cref="AIContent"/>, sends a string (or JSON string) as-is, and falls back to
+    /// JSON serialization.
     /// </summary>
     internal static ToolResultObject ConvertFromInvocationResult(object? result, JsonSerializerOptions jsonOptions)
     {
@@ -944,9 +945,12 @@ public sealed class ToolResultObject
         return new ToolResultObject
         {
             ResultType = "success",
-            TextResultForLlm = result is JsonElement { ValueKind: JsonValueKind.String } je
-                ? je.GetString()!
-                : JsonSerializer.Serialize(result, jsonOptions.GetTypeInfo(typeof(object))),
+            TextResultForLlm = result switch
+            {
+                string text => text,
+                JsonElement { ValueKind: JsonValueKind.String } je => je.GetString()!,
+                _ => JsonSerializer.Serialize(result, jsonOptions.GetTypeInfo(typeof(object))),
+            },
         };
     }
 
@@ -1244,12 +1248,38 @@ public sealed class ExitPlanModeInvocation
 }
 
 /// <summary>
-/// Request to switch to auto mode after an eligible rate limit.
+/// Identifies an offer to recover the active request using Auto, without resending or rewinding.
+/// </summary>
+public sealed class AutoModeRecoveryContext
+{
+    /// <summary>The one-use offer identifier.</summary>
+    [JsonPropertyName("requestId")]
+    public required string RequestId { get; set; }
+
+    /// <summary>The original explicit model selection.</summary>
+    [JsonPropertyName("originalModel")]
+    public required string OriginalModel { get; set; }
+
+    /// <summary>Whether this offer permits remembering consent. Currently true only for per-model rate limits.</summary>
+    [JsonPropertyName("allowAlways")]
+    public bool AllowAlways { get; set; }
+
+    /// <summary>The retained interaction identifier, when available.</summary>
+    [JsonPropertyName("interactionId")]
+    public string? InteractionId { get; set; }
+
+    /// <summary>The original user-message identifier, when available.</summary>
+    [JsonPropertyName("originatingMessageId")]
+    public string? OriginatingMessageId { get; set; }
+}
+
+/// <summary>
+/// Request for a legacy Auto switch or eligible active-request recovery.
 /// </summary>
 public sealed class AutoModeSwitchRequest
 {
     /// <summary>
-    /// The rate-limit error code that triggered the request.
+    /// The upstream error code that triggered the request.
     /// </summary>
     [JsonPropertyName("errorCode")]
     public string? ErrorCode { get; set; }
@@ -1259,6 +1289,10 @@ public sealed class AutoModeSwitchRequest
     /// </summary>
     [JsonPropertyName("retryAfterSeconds")]
     public double? RetryAfterSeconds { get; set; }
+
+    /// <summary>Recovery context; absent for legacy future-message switching.</summary>
+    [JsonPropertyName("autoModeRecovery")]
+    public AutoModeRecoveryContext? AutoModeRecovery { get; set; }
 }
 
 /// <summary>
@@ -1583,6 +1617,9 @@ public sealed class SessionUiCapabilities
     /// </summary>
     public bool? Elicitation { get; set; }
 
+    /// <summary>Whether the runtime acknowledges retained-request Auto recovery. Absent means unsupported.</summary>
+    public bool? AutoModeRecovery { get; set; }
+
     /// <summary>
     /// Whether the runtime has accepted the session's MCP Apps (SEP-1865) opt-in.
     /// <c>true</c> when the consumer set <see cref="SessionConfigBase.EnableMcpApps"/>
@@ -1777,7 +1814,7 @@ public sealed class PreMcpToolCallHookInput
 /// <para>The <see cref="MetaToUse"/> property controls outgoing MCP request metadata:</para>
 /// <list type="bullet">
 /// <item><description>Return <c>null</c> from the hook handler: preserve existing <c>_meta</c> (no-op).</description></item>
-/// <item><description>Return a <see cref="PreMcpToolCallHookOutput"/> with <see cref="MetaToUse"/> left as <c>null</c>: omit <c>_meta</c> from the request.</description></item>
+/// <item><description>Return a <see cref="PreMcpToolCallHookOutput"/> with <see cref="MetaToUse"/> left as <c>null</c>: drop hook-controlled <c>_meta</c>; the runtime still sends its own keys, <c>com.github.copilot/toolCallId</c> and <c>com.github.copilot/turnId</c> (present only when the turn was started with a <see cref="MessageOptions.ClientTurnId"/>).</description></item>
 /// <item><description>Return a <see cref="PreMcpToolCallHookOutput"/> with <see cref="MetaToUse"/> set to a <see cref="JsonElement"/> object: replace <c>_meta</c> with that object.</description></item>
 /// </list>
 /// </remarks>
@@ -3610,6 +3647,9 @@ public sealed class LargeToolOutputConfig
     /// <summary>
     /// Maximum size in bytes before output is written to a temp file.
     /// </summary>
+    /// <remarks>
+    /// Uses the runtime's configured threshold when unset (20480 bytes by default).
+    /// </remarks>
     [JsonPropertyName("maxSizeBytes")]
     public long? MaxSizeBytes { get; set; }
 
@@ -3715,6 +3755,50 @@ public sealed class MemoryConfiguration
     [JsonPropertyName("mode")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public MemoryMode? Mode { get; set; }
+
+    /// <summary>
+    /// Stores memories in the app instead of the built-in memory backends.
+    /// </summary>
+    /// <remarks>
+    /// The runtime validates the memory, filters secrets and requests approval,
+    /// then calls this callback. <c>store_memory</c> succeeds only after the returned
+    /// task completes; a failure fails the tool call with a generic message and
+    /// nothing is stored elsewhere. While set, the runtime retrieves no memories and
+    /// <c>vote_memory</c> is unavailable, so supply recall yourself, for example
+    /// through <see cref="SessionConfigBase.SystemMessage"/>. Requires
+    /// <see cref="Enabled"/> to be <see langword="true"/>; creating or resuming a session
+    /// otherwise throws <see cref="ArgumentException"/>. Not supported for cloud sessions.
+    /// </remarks>
+    [Experimental(Diagnostics.Experimental)]
+    [JsonIgnore]
+    public Func<StoredMemory, CancellationToken, Task>? StoreMemory { get; set; }
+}
+
+/// <summary>
+/// A memory the agent asked to store, after validation, secret filtering and approval.
+/// </summary>
+[Experimental(Diagnostics.Experimental)]
+public sealed class StoredMemory
+{
+    /// <summary>ID of the session that stored the memory.</summary>
+    [JsonPropertyName("sessionId")]
+    public string SessionId { get; set; } = string.Empty;
+
+    /// <summary>Short topic the memory is about.</summary>
+    [JsonPropertyName("subject")]
+    public string Subject { get; set; } = string.Empty;
+
+    /// <summary>The fact to remember.</summary>
+    [JsonPropertyName("fact")]
+    public string Fact { get; set; } = string.Empty;
+
+    /// <summary>Sources supporting the fact, such as file paths with line numbers.</summary>
+    [JsonPropertyName("citations")]
+    public string Citations { get; set; } = string.Empty;
+
+    /// <summary>Why the agent considers the fact worth remembering.</summary>
+    [JsonPropertyName("reason")]
+    public string Reason { get; set; } = string.Empty;
 }
 
 /// <summary>
@@ -3982,6 +4066,13 @@ public enum AskUserVariant
 /// </summary>
 public abstract class SessionConfigBase
 {
+    /// <summary>
+    /// Whether the model may request multiple tool calls per response. Defaults to true.
+    /// False sends a provider hint, not an execution guarantee: all returned calls
+    /// are still handled and handlers may run concurrently. Re-supply on cold resume.
+    /// </summary>
+    public bool? AllowMultipleToolCalls { get; set; }
+
     /// <summary>Initializes a new instance of the <see cref="SessionConfigBase"/> class.</summary>
     protected SessionConfigBase() { }
 
@@ -4050,6 +4141,7 @@ public abstract class SessionConfigBase
         Model = other.Model;
         ModelCapabilities = other.ModelCapabilities;
         OnAutoModeSwitchRequest = other.OnAutoModeSwitchRequest;
+        AutoModeRecovery = other.AutoModeRecovery;
         OnElicitationRequest = other.OnElicitationRequest;
         OnEvent = other.OnEvent;
         OnExitPlanModeRequest = other.OnExitPlanModeRequest;
@@ -4067,6 +4159,7 @@ public abstract class SessionConfigBase
         CoauthorEnabled = other.CoauthorEnabled;
         ManageScheduleEnabled = other.ManageScheduleEnabled;
         ReasoningEffort = other.ReasoningEffort;
+        AllowMultipleToolCalls = other.AllowMultipleToolCalls;
         ReasoningSummary = other.ReasoningSummary;
         ContextTier = other.ContextTier;
         AskUserVariant = other.AskUserVariant;
@@ -4081,6 +4174,7 @@ public abstract class SessionConfigBase
         ExcludedManagedSettings = other.ExcludedManagedSettings?.ToList();
         EnforceManagedModelDefaults = other.EnforceManagedModelDefaults;
         InteractiveUser = other.InteractiveUser;
+        PermissionMode = other.PermissionMode;
         ManagedSettings = other.ManagedSettings;
         SkillProvider = other.SkillProvider;
 #pragma warning disable GHCP001
@@ -4386,6 +4480,15 @@ public abstract class SessionConfigBase
 
     /// <summary>Handler for auto-mode-switch requests from the server.</summary>
     public Func<AutoModeSwitchRequest, AutoModeSwitchInvocation, Task<AutoModeSwitchResponse>>? OnAutoModeSwitchRequest { get; set; }
+
+    /// <summary>
+    /// Opt in to runtime-owned recovery of an eligible active request using Auto.
+    /// Requires <see cref="OnAutoModeSwitchRequest"/> and a positive
+    /// <c>session.Capabilities.Ui.AutoModeRecovery</c> acknowledgment. Unsupported
+    /// enrollment rejects create/resume and detaches the session. Defaults to false;
+    /// re-supply when resuming. Consent has no runtime deadline. Do not resend or rewind.
+    /// </summary>
+    public bool AutoModeRecovery { get; set; }
 
     /// <summary>
     /// Enable MCP Apps (SEP-1865) UI passthrough on this session.
@@ -4699,6 +4802,19 @@ public abstract class SessionConfigBase
     public bool? InteractiveUser { get; set; }
 
     /// <summary>
+    /// Permission mode applied before the session's first turn: before
+    /// session creation returns, and before a resume continues pending work.
+    /// Uses the same checks as <c>session.Rpc.Permissions.SetModeAsync</c>; a
+    /// mode that managed policy or session capabilities refuse leaves the
+    /// current mode in place. <see cref="CopilotSession.PermissionModeResult"/>
+    /// reports whether it was applied and the authoritative mode. Leave unset to
+    /// keep the default mode on create, or the restored mode on resume. Not
+    /// supported for cloud sessions.
+    /// </summary>
+    [Experimental(global::GitHub.Copilot.Diagnostics.Experimental)]
+    public PermissionMode? PermissionMode { get; set; }
+
+    /// <summary>
     /// Optional managed-settings layer injected at session bootstrap. Currently
     /// carries a permissions object that composes restrictively with any
     /// server- or device-level managed settings. This layer is startup-only and
@@ -4953,6 +5069,7 @@ public sealed class MessageOptions
         Source = other.Source;
         Prompt = other.Prompt;
         DisplayPrompt = other.DisplayPrompt;
+        ClientTurnId = other.ClientTurnId;
         ResponseSchema = other.ResponseSchema;
         RequestHeaders = other.RequestHeaders is not null
             ? new Dictionary<string, string>(other.RequestHeaders)
@@ -4990,6 +5107,16 @@ public sealed class MessageOptions
     /// If provided, this is shown in the timeline instead of <see cref="Prompt"/>.
     /// </summary>
     public string? DisplayPrompt { get; set; }
+    /// <summary>
+    /// Opaque caller-chosen ID for the turn this message starts. The runtime copies it unchanged into
+    /// <c>_meta["com.github.copilot/turnId"]</c> on every MCP <c>tools/call</c> made while serving that turn,
+    /// including calls from sub-agents and Autopilot continuations. When a running turn consumes the message
+    /// as visible user steering, the value (or its absence) replaces the turn's ID from the next model call
+    /// onward. The <c>user.message</c> event for the message echoes it as <c>clientTurnId</c> and is
+    /// persisted like other events; the value stamped on MCP calls is held in memory only and is not
+    /// restored on resume.
+    /// </summary>
+    public string? ClientTurnId { get; set; }
 
     /// <summary>
     /// Optional provider-native JSON Schema for this turn, including tool continuations.

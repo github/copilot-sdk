@@ -153,7 +153,10 @@ import (
 )
 
 func main() {
-	ctx := context.Background()
+	_ = run(context.Background())
+}
+
+func run(ctx context.Context) error {
 	client := copilot.NewClient(&copilot.ClientOptions{
 		Connection: copilot.StdioConnection{
 			Args: []string{
@@ -163,8 +166,9 @@ func main() {
 		},
 	})
 	if err := client.Start(ctx); err != nil {
-		return
+		return err
 	}
+	return nil
 }
 ```
 <!-- /docs-validate: hidden -->
@@ -243,24 +247,6 @@ client.start().get();
 
 <details>
 <summary><strong>Rust</strong></summary>
-
-<!-- docs-validate: hidden -->
-```rust
-use github_copilot_sdk::{Client, ClientOptions};
-
-#[tokio::main]
-async fn main() -> Result<(), Box<dyn std::error::Error>> {
-    let _client = Client::start(
-        ClientOptions::new().with_extra_args([
-            "--plugin-dir", "./plugins/code-reviewer",
-            "--plugin-dir", "./plugins/lint-fix",
-        ]),
-    )
-    .await?;
-    Ok(())
-}
-```
-<!-- /docs-validate: hidden -->
 
 ```rust
 use github_copilot_sdk::{Client, ClientOptions};

@@ -38,6 +38,27 @@ The model sees the **full conversation history** on each call—system prompt, u
 
 **Key insight:** Each iteration of this loop is exactly one LLM API call, visible as one `assistant.turn_start` / `assistant.turn_end` pair in the event log. There are no hidden calls.
 
+## Multiple tool calls
+
+Session creation and resume accept `allowMultipleToolCalls` in TypeScript and Java,
+`AllowMultipleToolCalls` in Go and .NET, and `allow_multiple_tool_calls` in Python
+and Rust. Omitted or `true` preserves the default: the model can request multiple
+tools in one response and the runtime can execute their handlers concurrently.
+
+Set it to `false` to ask the provider for at most one tool call per response.
+The runtime sends OpenAI's `parallel_tool_calls: false` or Anthropic's
+`disable_parallel_tool_use: true`. This is a provider hint, not an execution
+guarantee; some compatible providers do not support it. If the provider returns
+multiple calls anyway, the runtime handles all of them using its existing
+execution policy. It does not discard calls, serialize handlers, or rewrite
+system instructions. Applications that require serialized access to a resource
+must coordinate that access in their handlers.
+
+Subagents inherit the preference. Omission on a resident resume preserves the
+current value; after a cold resume, supply it again. Changing it on resume can
+invalidate the provider's prompt cache. There is no separate runtime execution
+mode or live-update option.
+
 ## Turns—what they are
 
 A **turn** is a single LLM API call and its consequences:

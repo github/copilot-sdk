@@ -9,6 +9,7 @@ using System.Collections.Concurrent;
 using System.Diagnostics;
 using System.Globalization;
 using System.Reflection;
+using System.Runtime.ExceptionServices;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 using System.Text.Json.Serialization.Metadata;
@@ -41,12 +42,13 @@ internal sealed partial class JsonRpc : IDisposable
     private readonly ConcurrentDictionary<long, IncomingRequestCancellation> _incomingRequestCancellations = new();
     private readonly ConcurrentDictionary<string, MethodRegistration> _methods = new();
     private readonly TaskCompletionSource _completionSource = new(TaskCreationOptions.RunContinuationsAsynchronously);
+    // Sends can outlive Dispose. No wait handle is used, so leave this managed-only semaphore to GC.
     private readonly SemaphoreSlim _writeLock = new(1, 1);
     private readonly CancellationTokenSource _disposeCts = new();
     private readonly CancellationTokenSource _connectionClosedCts = new();
     private long _nextId;
     private int _disposeStarted;
-    private Exception? _terminalError;
+    private volatile Exception? _terminalError;
 
     /// <summary>
     /// Initializes a new <see cref="JsonRpc"/>.
@@ -105,9 +107,9 @@ internal sealed partial class JsonRpc : IDisposable
         CancellationTokenRegistration cancelRegistration = default;
         try
         {
-            if (Volatile.Read(ref _terminalError) is { } terminalError)
+            if (_terminalError is { } terminalError)
             {
-                throw terminalError;
+                ExceptionDispatchInfo.Throw(terminalError);
             }
 
             if (cancellationToken.CanBeCanceled)
@@ -150,7 +152,7 @@ internal sealed partial class JsonRpc : IDisposable
             LogInvokeTiming(LogLevel.Debug, ex, method, id, "Canceled", timingTimestamp);
             throw;
         }
-        catch (ObjectDisposedException ex) when (Volatile.Read(ref _terminalError) is ConnectionLostException)
+        catch (ObjectDisposedException ex) when (_terminalError is ConnectionLostException)
         {
             LogInvokeTiming(LogLevel.Warning, ex, method, id, "Failed", timingTimestamp);
             throw new ConnectionLostException();
@@ -304,18 +306,12 @@ internal sealed partial class JsonRpc : IDisposable
         finally
         {
             _completionSource.TrySetResult();
-            _writeLock.Dispose();
         }
     }
 
     private async Task SendMessageAsync<T>(T message, JsonTypeInfo<T> typeInfo, CancellationToken cancellationToken)
     {
         var json = JsonSerializer.SerializeToUtf8Bytes(message, typeInfo);
-
-        // Format the LSP header and body into a single pooled buffer so the framed
-        // message is written in one call — over the FFI transport that is one native
-        // boundary crossing per message instead of two.
-        var frame = BuildFrame(json, out int frameLen);
 
         // Cancellation only applies to *waiting* for the write lock. Once we hold the lock
         // and start writing a framed message, we must finish it — cancelling between the
@@ -325,13 +321,28 @@ internal sealed partial class JsonRpc : IDisposable
         await _writeLock.WaitAsync(cancellationToken).ConfigureAwait(false);
         try
         {
-            await _sendStream.WriteAsync(frame.AsMemory(0, frameLen), CancellationToken.None).ConfigureAwait(false);
-            await _sendStream.FlushAsync(CancellationToken.None).ConfigureAwait(false);
+            if (_terminalError is { } terminalError)
+            {
+                ExceptionDispatchInfo.Throw(terminalError);
+            }
+
+            // Format the LSP header and body into a single pooled buffer so the framed
+            // message is written in one call — over the FFI transport that is one native
+            // boundary crossing per message instead of two.
+            var frame = BuildFrame(json, out int frameLen);
+            try
+            {
+                await _sendStream.WriteAsync(frame.AsMemory(0, frameLen), CancellationToken.None).ConfigureAwait(false);
+                await _sendStream.FlushAsync(CancellationToken.None).ConfigureAwait(false);
+            }
+            finally
+            {
+                ArrayPool<byte>.Shared.Return(frame);
+            }
         }
         finally
         {
             _writeLock.Release();
-            ArrayPool<byte>.Shared.Return(frame);
         }
     }
 

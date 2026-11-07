@@ -77,6 +77,9 @@ type (
 	AttachmentSelectionDetailsStart                                = rpc.AttachmentSelectionDetailsStart
 	AttachmentSessionReference                                     = rpc.AttachmentSessionReference
 	AttachmentType                                                 = rpc.AttachmentType
+	AutoModeRecoveryConsentCompletedData                           = rpc.AutoModeRecoveryConsentCompletedData
+	AutoModeRecoveryConsentRequestedData                           = rpc.AutoModeRecoveryConsentRequestedData
+	AutoModeRecoveryOutcomeData                                    = rpc.AutoModeRecoveryOutcomeData
 	AutoModeResolvedReasoningBucket                                = rpc.AutoModeResolvedReasoningBucket
 	AutoModeSwitchCompletedData                                    = rpc.AutoModeSwitchCompletedData
 	AutoModeSwitchRequestedData                                    = rpc.AutoModeSwitchRequestedData
@@ -91,7 +94,9 @@ type (
 	CanvasRegistryChangedCanvas                                    = rpc.CanvasRegistryChangedCanvas
 	CanvasRegistryChangedCanvasAction                              = rpc.CanvasRegistryChangedCanvasAction
 	CapabilitiesChangedData                                        = rpc.CapabilitiesChangedData
+	CapabilitiesChangedDataWithAutoModeRecovery                    = rpc.CapabilitiesChangedDataWithAutoModeRecovery
 	CapabilitiesChangedUI                                          = rpc.CapabilitiesChangedUI
+	CapabilitiesChangedUIWithAutoModeRecovery                      = rpc.CapabilitiesChangedUIWithAutoModeRecovery
 	CitableSource                                                  = rpc.CitableSource
 	CitationLocation                                               = rpc.CitationLocation
 	CitationLocationBlock                                          = rpc.CitationLocationBlock
@@ -367,6 +372,7 @@ type (
 	SessionEvent                                                   = rpc.SessionEvent
 	SessionEventData                                               = rpc.SessionEventData
 	SessionEventType                                               = rpc.SessionEventType
+	SessionEventWithAutoModeRecovery                               = rpc.SessionEventWithAutoModeRecovery
 	SessionExtensionsAttachmentsPushedData                         = rpc.SessionExtensionsAttachmentsPushedData
 	SessionExtensionsLoadedData                                    = rpc.SessionExtensionsLoadedData
 	SessionFusionCompletedData                                     = rpc.SessionFusionCompletedData
@@ -1037,6 +1043,9 @@ const (
 	SessionEventTypeAssistantTurnRetry                                   = rpc.SessionEventTypeAssistantTurnRetry
 	SessionEventTypeAssistantTurnStart                                   = rpc.SessionEventTypeAssistantTurnStart
 	SessionEventTypeAssistantUsage                                       = rpc.SessionEventTypeAssistantUsage
+	SessionEventTypeAutoModeRecoveryConsentCompleted                     = rpc.SessionEventTypeAutoModeRecoveryConsentCompleted
+	SessionEventTypeAutoModeRecoveryConsentRequested                     = rpc.SessionEventTypeAutoModeRecoveryConsentRequested
+	SessionEventTypeAutoModeRecoveryOutcome                              = rpc.SessionEventTypeAutoModeRecoveryOutcome
 	SessionEventTypeAutoModeSwitchCompleted                              = rpc.SessionEventTypeAutoModeSwitchCompleted
 	SessionEventTypeAutoModeSwitchRequested                              = rpc.SessionEventTypeAutoModeSwitchRequested
 	SessionEventTypeCapabilitiesChanged                                  = rpc.SessionEventTypeCapabilitiesChanged

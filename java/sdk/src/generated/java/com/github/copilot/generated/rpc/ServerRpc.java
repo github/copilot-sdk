@@ -47,6 +47,8 @@ public final class ServerRpc {
     public final ServerHooksApi hooks;
     /** API methods for the {@code models} namespace. */
     public final ServerModelsApi models;
+    /** API methods for the {@code decisions} namespace. */
+    public final ServerDecisionsApi decisions;
     /** API methods for the {@code azureMl} namespace. */
     public final ServerAzureMlApi azureMl;
     /** API methods for the {@code contentExclusion} namespace. */
@@ -89,14 +91,16 @@ public final class ServerRpc {
     public final ServerSessionFsApi sessionFs;
     /** API methods for the {@code llmInference} namespace. */
     public final ServerLlmInferenceApi llmInference;
-    /** API methods for the {@code kerberosAuth} namespace. */
-    public final ServerKerberosAuthApi kerberosAuth;
+    /** API methods for the {@code network} namespace. */
+    public final ServerNetworkApi network;
     /** API methods for the {@code sessions} namespace. */
     public final ServerSessionsApi sessions;
     /** API methods for the {@code agentRegistry} namespace. */
     public final ServerAgentRegistryApi agentRegistry;
     /** API methods for the {@code connectors} namespace. */
     public final ServerConnectorsApi connectors;
+    /** API methods for the {@code lsp} namespace. */
+    public final ServerLspApi lsp;
     /** API methods for the {@code gitHubFetch} namespace. */
     final ServerGitHubFetchApi gitHubFetch;
     /** API methods for the {@code gitHubRelease} namespace. */
@@ -124,6 +128,7 @@ public final class ServerRpc {
         this.host = new ServerHostApi(caller);
         this.hooks = new ServerHooksApi(caller);
         this.models = new ServerModelsApi(caller);
+        this.decisions = new ServerDecisionsApi(caller);
         this.azureMl = new ServerAzureMlApi(caller);
         this.contentExclusion = new ServerContentExclusionApi(caller);
         this.tools = new ServerToolsApi(caller);
@@ -145,10 +150,11 @@ public final class ServerRpc {
         this.runtime = new ServerRuntimeApi(caller);
         this.sessionFs = new ServerSessionFsApi(caller);
         this.llmInference = new ServerLlmInferenceApi(caller);
-        this.kerberosAuth = new ServerKerberosAuthApi(caller);
+        this.network = new ServerNetworkApi(caller);
         this.sessions = new ServerSessionsApi(caller);
         this.agentRegistry = new ServerAgentRegistryApi(caller);
         this.connectors = new ServerConnectorsApi(caller);
+        this.lsp = new ServerLspApi(caller);
         this.gitHubFetch = new ServerGitHubFetchApi(caller);
         this.gitHubRelease = new ServerGitHubReleaseApi(caller);
         this.cloudTasks = new ServerCloudTasksApi(caller);

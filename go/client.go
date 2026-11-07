@@ -44,6 +44,7 @@ import (
 	"regexp"
 	"runtime"
 	"runtime/debug"
+	"sort"
 	"strconv"
 	"strings"
 	"sync"
@@ -68,6 +69,33 @@ type cloudSkillProviderError struct{}
 
 func (cloudSkillProviderError) Error() string {
 	return "Skill providers are not supported for cloud sessions."
+}
+
+type disabledMemoryStoreError struct{}
+
+func (disabledMemoryStoreError) Error() string {
+	return "StoreMemory requires Memory.Enabled to be true."
+}
+
+type cloudMemoryStoreError struct{}
+
+func (cloudMemoryStoreError) Error() string {
+	return "Memory stores are not supported for cloud sessions."
+}
+
+// requestedMemoryStore returns the memory store callback, failing when it is
+// set without enabling memory.
+func requestedMemoryStore(
+	memory *MemoryConfiguration,
+	store func(context.Context, StoredMemory) error,
+) (func(context.Context, StoredMemory) error, error) {
+	if store == nil {
+		return nil, nil
+	}
+	if memory == nil || !memory.Enabled {
+		return nil, disabledMemoryStoreError{}
+	}
+	return store, nil
 }
 
 // collectBearerTokenProviders gathers the per-provider [BearerTokenProvider] callbacks
@@ -163,6 +191,7 @@ type Client struct {
 	state                              connectionState
 	sessions                           map[string]*Session
 	sessionsMux                        sync.Mutex
+	autoModeRecoveryCleanups           map[*jsonrpc2.Client]map[string]<-chan struct{}
 	ahp                                ahpHostState
 	gitHubTokenProviders               map[string]GitHubTokenProvider
 	gitHubTokenProvidersMux            sync.RWMutex
@@ -172,6 +201,7 @@ type Client struct {
 	installationConfirmationAdapterMux sync.Mutex
 	sessionOperations                  map[string]*sessionOperation
 	sessionOperationsMux               sync.Mutex
+	activeSessionCallbacks             map[string]int
 	isExternalServer                   bool
 	conn                               net.Conn // stores net.Conn for external TCP connections
 	useStdio                           bool     // resolved value from options
@@ -213,8 +243,8 @@ type Client struct {
 }
 
 type sessionOperation struct {
-	mutex sync.Mutex
-	users int
+	permit chan struct{}
+	users  int
 }
 
 // NewClient creates a new Copilot runtime client with the given options.
@@ -355,10 +385,11 @@ func NewClient(options *ClientOptions) *Client {
 			panic(err.Error())
 		}
 	}
-	if opts.KerberosAuth != nil {
-		if err := validateKerberosAuthConfig(opts.KerberosAuth); err != nil {
-			panic(err.Error())
-		}
+	if opts.Network != nil {
+		// Copy so later changes by the caller cannot make the registration and
+		// the installed handlers disagree.
+		network := *opts.Network
+		opts.Network = &network
 	}
 
 	client.options = opts
@@ -426,12 +457,15 @@ func setEnvValue(env []string, key string, value string) []string {
 
 // parseCLIURL parses a CLI URL into host and port components.
 //
-// Supports formats: "host:port", "[ipv6]:port", "http://host:port", "https://host:port", or just "port".
+// Supports raw TCP addresses: "host:port", "[ipv6]:port", "http://host:port", or just "port".
 // Panics if the URL format is invalid or the port is out of range.
 func parseCLIURL(url string) (string, int) {
+	if strings.HasPrefix(strings.ToLower(url), "https://") {
+		panic("HTTPS runtime connections are not supported: this transport uses plaintext TCP, not TLS")
+	}
+
 	// Remove protocol if present
-	cleanURL, _ := strings.CutPrefix(url, "https://")
-	cleanURL, _ = strings.CutPrefix(cleanURL, "http://")
+	cleanURL, _ := strings.CutPrefix(url, "http://")
 
 	// Use the standard parser only for the bracketed IPv6 form. Keep the
 	// existing host:port parsing behavior for all other inputs.
@@ -537,7 +571,8 @@ func (c *Client) Start(ctx context.Context) (err error) {
 		// closing the connection joins.
 		startup.finish(err)
 		// The runtime keeps registrations made on this connection, such as an
-		// exclusive Kerberos claim, until it closes, so close it on any failure.
+		// exclusive runtime-scoped network callback claim, until it closes, so
+		// close it on any failure.
 		c.client.Stop()
 		c.client = nil
 		c.conn = nil
@@ -560,12 +595,8 @@ func (c *Client) initializeConnection(ctx context.Context) error {
 		return err
 	}
 
-	if c.options.KerberosAuth != nil {
-		request := &rpc.KerberosAuthSetProviderRequest{Mode: c.options.KerberosAuth.Mode}
-		if scope := c.options.KerberosAuth.Scope; scope != "" {
-			request.Scope = &scope
-		}
-		if _, err := c.RPC.KerberosAuth.SetProvider(ctx, request); err != nil {
+	if request := networkSetProviderRequest(c.options.Network); request != nil {
+		if _, err := c.RPC.Network.SetProvider(ctx, request); err != nil {
 			return err
 		}
 	}
@@ -819,6 +850,7 @@ func (c *Client) ForceStop() {
 	c.sessionsMux.Unlock()
 	for _, session := range sessions {
 		session.clearSkillProvider()
+		session.clearMemoryStore()
 		session.cancelPendingExternalTools()
 		session.stopEventProcessing()
 	}
@@ -1004,22 +1036,38 @@ func validateAskUserVariant(variant AskUserVariant) error {
 }
 
 func (c *Client) CreateSession(ctx context.Context, config *SessionConfig) (*Session, error) {
-	return c.createSession(ctx, config, nil)
+	return c.createSession(ctx, config, nil, nil)
+}
+
+// CreateSessionWithAutoModeRecovery creates a session with a recovery-aware
+// Auto switch handler. The runtime must acknowledge enrollment.
+func (c *Client) CreateSessionWithAutoModeRecovery(ctx context.Context, config *SessionConfig, options *AutoModeRecoveryOptions) (*Session, error) {
+	if options == nil || options.OnAutoModeSwitchRequest == nil {
+		return nil, fmt.Errorf("AutoModeRecovery requires OnAutoModeSwitchRequest")
+	}
+	return c.createSession(ctx, config, options.MCPAuthRuntimeRefreshHandler, options)
 }
 
 // CreateSessionWithMCPAuthRuntimeRefresh creates a session using the opt-in MCP
 // auth handler instead of config.OnMCPAuthRequest. A nil handler uses the legacy
 // callback. All other options and session lifecycle behavior match CreateSession.
 func (c *Client) CreateSessionWithMCPAuthRuntimeRefresh(ctx context.Context, config *SessionConfig, handler MCPAuthRuntimeRefreshHandler) (*Session, error) {
-	return c.createSession(ctx, config, handler)
+	return c.createSession(ctx, config, handler, nil)
 }
 
-func (c *Client) createSession(ctx context.Context, config *SessionConfig, runtimeRefreshHandler MCPAuthRuntimeRefreshHandler) (*Session, error) {
+func (c *Client) createSession(ctx context.Context, config *SessionConfig, runtimeRefreshHandler MCPAuthRuntimeRefreshHandler, recovery *AutoModeRecoveryOptions) (*Session, error) {
 	if config == nil {
 		config = &SessionConfig{}
 	}
 	if config.Cloud != nil && config.SkillProvider != nil {
 		return nil, cloudSkillProviderError{}
+	}
+	storeMemory, err := requestedMemoryStore(config.Memory, config.StoreMemory)
+	if err != nil {
+		return nil, err
+	}
+	if config.Cloud != nil && storeMemory != nil {
+		return nil, cloudMemoryStoreError{}
 	}
 	if config.GitHubToken != "" && config.GitHubTokenProvider != nil {
 		return nil, fmt.Errorf("GitHubToken and GitHubTokenProvider cannot be used together")
@@ -1050,6 +1098,7 @@ func (c *Client) createSession(ctx context.Context, config *SessionConfig, runti
 	req.Model = config.Model
 	req.ClientName = config.ClientName
 	req.ReasoningEffort = config.ReasoningEffort
+	req.AllowMultipleToolCalls = config.AllowMultipleToolCalls
 	req.ReasoningSummary = config.ReasoningSummary
 	req.ContextTier = config.ContextTier
 	req.ConfigDir = config.ConfigDirectory
@@ -1065,6 +1114,9 @@ func (c *Client) createSession(ctx context.Context, config *SessionConfig, runti
 	req.EnableSkills = config.EnableSkills
 	if config.SkillProvider != nil {
 		req.HasSkillProvider = Bool(true)
+	}
+	if storeMemory != nil {
+		req.HasMemoryStore = Bool(true)
 	}
 	req.Tools = config.Tools
 	systemMessage := c.systemMessageForMode(config.SystemMessage)
@@ -1140,6 +1192,7 @@ func (c *Client) createSession(ctx context.Context, config *SessionConfig, runti
 	req.ExcludedManagedSettings = config.ExcludedManagedSettings
 	req.EnforceManagedModelDefaults = config.EnforceManagedModelDefaults
 	req.InteractiveUser = config.InteractiveUser
+	req.PermissionMode = config.PermissionMode
 	req.ManagedSettings = config.ManagedSettings
 
 	if config.Commands != nil {
@@ -1155,8 +1208,11 @@ func (c *Client) createSession(ctx context.Context, config *SessionConfig, runti
 	if config.OnExitPlanModeRequest != nil {
 		req.RequestExitPlanMode = Bool(true)
 	}
-	if config.OnAutoModeSwitchRequest != nil {
+	if config.OnAutoModeSwitchRequest != nil || recovery != nil {
 		req.RequestAutoModeSwitch = Bool(true)
+	}
+	if recovery != nil {
+		req.RequestAutoModeRecovery = Bool(true)
 	}
 	if config.EnableMCPApps {
 		req.RequestMCPApps = Bool(true)
@@ -1217,6 +1273,17 @@ func (c *Client) createSession(ctx context.Context, config *SessionConfig, runti
 	}
 	req.SessionID = localSessionID
 	req.Name = config.Name
+	if localSessionID != "" {
+		// Keep provisional ownership through user setup, capability checks, and rejection cleanup.
+		unlockSession, err := c.lockSessionOperation(ctx, localSessionID)
+		if err != nil {
+			return nil, err
+		}
+		defer unlockSession()
+	}
+	if err := c.waitForAutoModeRecoveryCleanup(ctx, localSessionID); err != nil {
+		return nil, err
+	}
 
 	// unregisterSession removes only the session created by this call and stops
 	// its event consumer. The latter is essential on CreateSession error paths:
@@ -1261,6 +1328,9 @@ func (c *Client) createSession(ctx context.Context, config *SessionConfig, runti
 		if config.OnEvent != nil {
 			s.On(config.OnEvent)
 		}
+		if recovery != nil && recovery.OnEvent != nil {
+			s.OnWithAutoModeRecovery(recovery.OnEvent)
+		}
 		if len(config.Commands) > 0 {
 			s.registerCommands(config.Commands)
 		}
@@ -1273,11 +1343,17 @@ func (c *Client) createSession(ctx context.Context, config *SessionConfig, runti
 		if config.OnAutoModeSwitchRequest != nil {
 			s.registerAutoModeSwitchHandler(config.OnAutoModeSwitchRequest)
 		}
+		if recovery != nil {
+			s.registerAutoModeSwitchHandlerWithAutoModeRecovery(recovery.OnAutoModeSwitchRequest)
+		}
 		if config.CanvasHandler != nil {
 			s.registerCanvasHandler(config.CanvasHandler)
 		}
 		if config.SkillProvider != nil {
 			s.registerSkillProvider(config.SkillProvider)
+		}
+		if storeMemory != nil {
+			s.registerMemoryStore(storeMemory)
 		}
 		if bearerTokenProviders := collectBearerTokenProviders(config.Provider, config.Providers); bearerTokenProviders != nil {
 			s.registerBearerTokenProviders(bearerTokenProviders)
@@ -1288,7 +1364,7 @@ func (c *Client) createSession(ctx context.Context, config *SessionConfig, runti
 				unregisterSession(sessionID, s)
 				return nil, fmt.Errorf("CreateSessionFSProvider is required in session config when SessionFS is enabled in client options")
 			}
-			provider := config.CreateSessionFSProvider(s)
+			provider := c.createSessionFSProvider(s, config.CreateSessionFSProvider)
 			if c.options.SessionFS.Capabilities != nil && c.options.SessionFS.Capabilities.ReadFileRange {
 				if _, ok := provider.(SessionFSReadFileRangeProvider); !ok {
 					unregisterSession(sessionID, s)
@@ -1307,10 +1383,15 @@ func (c *Client) createSession(ctx context.Context, config *SessionConfig, runti
 					return nil, fmt.Errorf("SessionFS capabilities declare binary support but the provider does not implement SessionFSBinaryProvider")
 				}
 			}
-			s.clientSessionAPIs.SessionFS = newSessionFSAdapter(provider)
+			s.clientSessionAPIs.SessionFS = c.sessionFSAdapter(sessionID, provider)
 		}
 
 		c.sessionsMux.Lock()
+		if c.autoModeRecoveryCleanups[transport][sessionID] != nil {
+			c.sessionsMux.Unlock()
+			s.stopEventProcessing()
+			return nil, fmt.Errorf("session %s is still detaching after rejected AutoModeRecovery enrollment", sessionID)
+		}
 		c.sessions[sessionID] = s
 		c.sessionsMux.Unlock()
 		return s, nil
@@ -1321,10 +1402,19 @@ func (c *Client) createSession(ctx context.Context, config *SessionConfig, runti
 	var orphanedSessionID string
 	var inlineMu sync.Mutex
 	var requestFinished bool
+	var unlockAssignedSession func()
+	defer func() {
+		inlineMu.Lock()
+		unlock := unlockAssignedSession
+		inlineMu.Unlock()
+		if unlock != nil {
+			unlock()
+		}
+	}()
 	deleteOrphan := func(sessionID string) error {
 		cleanupCtx, cancelCleanup := context.WithTimeout(context.WithoutCancel(ctx), 10*time.Second)
 		defer cancelCleanup()
-		return c.DeleteSession(cleanupCtx, sessionID)
+		return requestSessionDeletion(cleanupCtx, transport, sessionID)
 	}
 
 	// Pre-register non-cloud sessions BEFORE issuing the RPC so any
@@ -1359,18 +1449,25 @@ func (c *Client) createSession(ctx context.Context, config *SessionConfig, runti
 			if early.SessionID == "" {
 				return fmt.Errorf("session.create response did not include a sessionId")
 			}
+			// The read loop cannot wait for a permit held by an RPC awaiting this loop.
+			unlock, err := c.acquireSessionOperation(context.WithoutCancel(ctx), early.SessionID, false)
+			if err != nil {
+				return err
+			}
 			s, err := initializeSession(early.SessionID)
 			inlineMu.Lock()
 			if err != nil {
 				if requestFinished {
 					// Cleanup must not wait for an RPC response on the read loop.
 					go func() {
+						defer unlock()
 						if cleanupErr := deleteOrphan(early.SessionID); cleanupErr != nil {
 							log.Printf("failed to delete uninitialized cloud session %s: %v", early.SessionID, cleanupErr)
 						}
 					}()
 				} else {
 					orphanedSessionID = early.SessionID
+					unlockAssignedSession = unlock
 				}
 				inlineMu.Unlock()
 				return err
@@ -1378,8 +1475,10 @@ func (c *Client) createSession(ctx context.Context, config *SessionConfig, runti
 			if requestFinished {
 				inlineMu.Unlock()
 				unregisterSession(early.SessionID, s)
+				unlock()
 				return nil
 			}
+			unlockAssignedSession = unlock
 			session = s
 			registeredSessionID = early.SessionID
 			inlineMu.Unlock()
@@ -1422,18 +1521,36 @@ func (c *Client) createSession(ctx context.Context, config *SessionConfig, runti
 		unregisterSession(registeredSessionID, session)
 		return nil, fmt.Errorf("session.create returned sessionId %s but the caller requested %s", response.SessionID, localSessionID)
 	}
+	session.setCapabilities(response.Capabilities)
+	failSetup := func(err error) (*Session, error) {
+		if useServerGeneratedID && recovery != nil {
+			return nil, c.cleanupFailedSession(ctx, session, err, true, true)
+		}
+		unregisterSession(registeredSessionID, session)
+		return nil, err
+	}
+	if recovery != nil {
+		if registrationID != "" {
+			session.setGitHubTokenProviderRegistrationRelease(func() {
+				c.unregisterGitHubTokenProvider(registrationID)
+			})
+			registrationTransferred = true
+		}
+		if err := c.requireAutoModeRecovery(ctx, session, true, useServerGeneratedID); err != nil {
+			return nil, err
+		}
+	}
 	if config.OnMCPAuthRequest != nil || runtimeRefreshHandler != nil {
 		if _, err := transport.Request(ctx, "session.eventLog.registerInterest", map[string]any{
 			"sessionId": session.SessionID,
 			"eventType": "mcp.oauth_required",
 		}); err != nil {
-			unregisterSession(registeredSessionID, session)
-			return nil, err
+			return failSetup(err)
 		}
 	}
 
 	session.workspacePath = response.WorkspacePath
-	session.setCapabilities(response.Capabilities)
+	session.permissionModeResult = response.PermissionModeResult
 
 	if err := c.updateSessionOptionsForMode(ctx, session, optBackInFields{
 		SkipCustomInstructions: config.SkipCustomInstructions,
@@ -1441,14 +1558,12 @@ func (c *Client) createSession(ctx context.Context, config *SessionConfig, runti
 		CoauthorEnabled:        config.CoauthorEnabled,
 		ManageScheduleEnabled:  config.ManageScheduleEnabled,
 		IncludedBuiltinSkills:  config.IncludedBuiltinSkills,
-	}); err != nil {
-		unregisterSession(registeredSessionID, session)
-		return nil, err
+	}, useServerGeneratedID && recovery != nil); err != nil {
+		return failSetup(err)
 	}
 
 	if err := c.captureAhpSession(session, req); err != nil {
-		unregisterSession(registeredSessionID, session)
-		return nil, err
+		return failSetup(err)
 	}
 	if registrationID != "" {
 		session.setGitHubTokenProviderRegistrationRelease(func() {
@@ -1483,20 +1598,41 @@ func (c *Client) ResumeSession(ctx context.Context, sessionID string, config *Re
 //	    Tools: []copilot.Tool{myNewTool},
 //	})
 func (c *Client) ResumeSessionWithOptions(ctx context.Context, sessionID string, config *ResumeSessionConfig) (*Session, error) {
-	return c.resumeSession(ctx, sessionID, config, nil)
+	return c.resumeSession(ctx, sessionID, config, nil, nil)
+}
+
+// ResumeSessionWithAutoModeRecovery resumes a session and re-enrolls its
+// recovery-aware Auto switch handler. The runtime must acknowledge enrollment.
+func (c *Client) ResumeSessionWithAutoModeRecovery(ctx context.Context, sessionID string, config *ResumeSessionConfig, options *AutoModeRecoveryOptions) (*Session, error) {
+	if options == nil || options.OnAutoModeSwitchRequest == nil {
+		return nil, fmt.Errorf("AutoModeRecovery requires OnAutoModeSwitchRequest")
+	}
+	return c.resumeSession(ctx, sessionID, config, options.MCPAuthRuntimeRefreshHandler, options)
 }
 
 // ResumeSessionWithMCPAuthRuntimeRefresh resumes a session using the opt-in MCP
 // auth handler instead of config.OnMCPAuthRequest. A nil handler uses the legacy
 // callback. All other options and session lifecycle behavior match ResumeSessionWithOptions.
 func (c *Client) ResumeSessionWithMCPAuthRuntimeRefresh(ctx context.Context, sessionID string, config *ResumeSessionConfig, handler MCPAuthRuntimeRefreshHandler) (*Session, error) {
-	return c.resumeSession(ctx, sessionID, config, handler)
+	return c.resumeSession(ctx, sessionID, config, handler, nil)
 }
 
-func (c *Client) resumeSession(ctx context.Context, sessionID string, config *ResumeSessionConfig, runtimeRefreshHandler MCPAuthRuntimeRefreshHandler) (*Session, error) {
-	unlockSession := c.lockSessionOperation(sessionID)
-	defer unlockSession()
+func (c *Client) resumeSession(ctx context.Context, sessionID string, config *ResumeSessionConfig, runtimeRefreshHandler MCPAuthRuntimeRefreshHandler, recovery *AutoModeRecoveryOptions) (*Session, error) {
+	requestedSessionID := sessionID
+	operationSessionID := requestedSessionID
+	unlockSession, err := c.lockSessionOperation(ctx, operationSessionID)
+	if err != nil {
+		return nil, err
+	}
+	defer func() {
+		if unlockSession != nil {
+			unlockSession()
+		}
+	}()
 
+	if err := c.waitForAutoModeRecoveryCleanup(ctx, operationSessionID); err != nil {
+		return nil, err
+	}
 	if config == nil {
 		config = &ResumeSessionConfig{}
 	}
@@ -1506,10 +1642,34 @@ func (c *Client) resumeSession(ctx context.Context, sessionID string, config *Re
 	if err := validateAskUserVariant(config.AskUserVariant); err != nil {
 		return nil, err
 	}
+	storeMemory, err := requestedMemoryStore(config.Memory, config.StoreMemory)
+	if err != nil {
+		return nil, err
+	}
 
 	transport, err := c.ensureConnected(ctx)
 	if err != nil {
 		return nil, err
+	}
+
+	resolveAliases := recovery != nil && c.options.SessionFS == nil
+	if resolveAliases && isAbbreviatedUUIDPrefix(requestedSessionID) {
+		// Resolve persisted uniqueness before replacing callbacks, and pin the
+		// full ID so resume cannot resolve the prefix to another session later.
+		lookup := &rpc.SessionsFindByPrefixOptions{Prefix: requestedSessionID}
+		if config.ConfigDirectory != "" {
+			lookup.ConfigDir = &config.ConfigDirectory
+		}
+		resolved, err := rpc.NewServerRPC(transport).Sessions.FindByPrefixWithOptions(ctx, lookup)
+		if err != nil {
+			return nil, fmt.Errorf("failed to resolve session prefix: %w", err)
+		}
+		if resolved.SessionID == nil || *resolved.SessionID == "" {
+			return nil, fmt.Errorf("no unique session matches prefix %q", requestedSessionID)
+		}
+		sessionID = *resolved.SessionID
+	} else if resolveAliases {
+		sessionID = c.residentSessionID(sessionID)
 	}
 
 	c.applyResumeDefaultsForMode(config)
@@ -1523,10 +1683,14 @@ func (c *Client) resumeSession(ctx context.Context, sessionID string, config *Re
 	}()
 
 	var req resumeSessionRequest
-	req.SessionID = sessionID
+	req.SessionID = requestedSessionID
+	if resolveAliases && isAbbreviatedUUIDPrefix(requestedSessionID) {
+		req.SessionID = sessionID
+	}
 	req.ClientName = config.ClientName
 	req.Model = config.Model
 	req.ReasoningEffort = config.ReasoningEffort
+	req.AllowMultipleToolCalls = config.AllowMultipleToolCalls
 	req.ReasoningSummary = config.ReasoningSummary
 	req.ContextTier = config.ContextTier
 	systemMessage := c.systemMessageForMode(config.SystemMessage)
@@ -1600,6 +1764,9 @@ func (c *Client) resumeSession(ctx context.Context, sessionID string, config *Re
 	if config.SkillProvider != nil {
 		req.HasSkillProvider = Bool(true)
 	}
+	if storeMemory != nil {
+		req.HasMemoryStore = Bool(true)
+	}
 	if config.SuppressResumeEvent {
 		req.DisableResume = Bool(true)
 	}
@@ -1648,6 +1815,7 @@ func (c *Client) resumeSession(ctx context.Context, sessionID string, config *Re
 	req.ExcludedManagedSettings = config.ExcludedManagedSettings
 	req.EnforceManagedModelDefaults = config.EnforceManagedModelDefaults
 	req.InteractiveUser = config.InteractiveUser
+	req.PermissionMode = config.PermissionMode
 	req.ManagedSettings = config.ManagedSettings
 	if config.OnPermissionRequest != nil || config.OnPermissionRequestWithPrompt != nil {
 		req.RequestPermission = Bool(true)
@@ -1666,8 +1834,11 @@ func (c *Client) resumeSession(ctx context.Context, sessionID string, config *Re
 	if config.OnExitPlanModeRequest != nil {
 		req.RequestExitPlanMode = Bool(true)
 	}
-	if config.OnAutoModeSwitchRequest != nil {
+	if config.OnAutoModeSwitchRequest != nil || recovery != nil {
 		req.RequestAutoModeSwitch = Bool(true)
+	}
+	if recovery != nil {
+		req.RequestAutoModeRecovery = Bool(true)
 	}
 	if config.EnableMCPApps {
 		req.RequestMCPApps = Bool(true)
@@ -1703,6 +1874,9 @@ func (c *Client) resumeSession(ctx context.Context, sessionID string, config *Re
 	if config.OnEvent != nil {
 		session.On(config.OnEvent)
 	}
+	if recovery != nil && recovery.OnEvent != nil {
+		session.OnWithAutoModeRecovery(recovery.OnEvent)
+	}
 	if len(config.Commands) > 0 {
 		session.registerCommands(config.Commands)
 	}
@@ -1715,11 +1889,17 @@ func (c *Client) resumeSession(ctx context.Context, sessionID string, config *Re
 	if config.OnAutoModeSwitchRequest != nil {
 		session.registerAutoModeSwitchHandler(config.OnAutoModeSwitchRequest)
 	}
+	if recovery != nil {
+		session.registerAutoModeSwitchHandlerWithAutoModeRecovery(recovery.OnAutoModeSwitchRequest)
+	}
 	if config.CanvasHandler != nil {
 		session.registerCanvasHandler(config.CanvasHandler)
 	}
 	if config.SkillProvider != nil {
 		session.registerSkillProvider(config.SkillProvider)
+	}
+	if storeMemory != nil {
+		session.registerMemoryStore(storeMemory)
 	}
 	if bearerTokenProviders := collectBearerTokenProviders(config.Provider, config.Providers); bearerTokenProviders != nil {
 		session.registerBearerTokenProviders(bearerTokenProviders)
@@ -1730,7 +1910,7 @@ func (c *Client) resumeSession(ctx context.Context, sessionID string, config *Re
 			session.stopEventProcessing()
 			return nil, fmt.Errorf("CreateSessionFSProvider is required in session config when SessionFS is enabled in client options")
 		}
-		provider := config.CreateSessionFSProvider(session)
+		provider := c.createSessionFSProvider(session, config.CreateSessionFSProvider)
 		if c.options.SessionFS.Capabilities != nil && c.options.SessionFS.Capabilities.ReadFileRange {
 			if _, ok := provider.(SessionFSReadFileRangeProvider); !ok {
 				session.stopEventProcessing()
@@ -1749,12 +1929,17 @@ func (c *Client) resumeSession(ctx context.Context, sessionID string, config *Re
 				return nil, fmt.Errorf("SessionFS capabilities declare binary support but the provider does not implement SessionFSBinaryProvider")
 			}
 		}
-		session.clientSessionAPIs.SessionFS = newSessionFSAdapter(provider)
+		session.clientSessionAPIs.SessionFS = c.sessionFSAdapter(sessionID, provider)
 	}
 
 	// Publish only fully initialized handlers: the runtime may still be issuing
 	// SessionFS callbacks for the previous session while its replacement is built.
 	c.sessionsMux.Lock()
+	if c.autoModeRecoveryCleanups[transport][sessionID] != nil {
+		c.sessionsMux.Unlock()
+		session.stopEventProcessing()
+		return nil, fmt.Errorf("session %s is still detaching after rejected AutoModeRecovery enrollment", sessionID)
+	}
 	replacedSession := c.sessions[sessionID]
 	c.sessions[sessionID] = session
 	c.sessionsMux.Unlock()
@@ -1777,6 +1962,18 @@ func (c *Client) resumeSession(ctx context.Context, sessionID string, config *Re
 		session.stopEventProcessing()
 	}
 
+	commitResumedSession := func() {
+		if registrationID != "" {
+			session.setGitHubTokenProviderRegistrationRelease(func() {
+				c.unregisterGitHubTokenProvider(registrationID)
+			})
+			registrationTransferred = true
+		}
+		if replacedSession != nil && replacedSession != session {
+			replacedSession.releaseGitHubTokenProviderRegistration()
+		}
+	}
+
 	result, err := transport.Request(ctx, "session.resume", req)
 	if err != nil {
 		restoreReplacedSession()
@@ -1789,6 +1986,64 @@ func (c *Client) resumeSession(ctx context.Context, sessionID string, config *Re
 		return nil, fmt.Errorf("failed to unmarshal response: %w", err)
 	}
 
+	if response.SessionID != "" && response.SessionID != sessionID {
+		// The runtime resolves abbreviations. Move admission and routing to that
+		// identity before deciding whether this is a resident attachment.
+		c.sessionsMux.Lock()
+		if c.sessions[sessionID] == session {
+			if replacedSession != nil {
+				c.sessions[sessionID] = replacedSession
+			} else {
+				delete(c.sessions, sessionID)
+			}
+		}
+		c.sessionsMux.Unlock()
+		if !sessionIDsOverlap(operationSessionID, response.SessionID) {
+			unlockSession()
+			unlockSession = nil
+			unlockSession, err = c.lockSessionOperation(ctx, response.SessionID)
+			if err != nil {
+				session.stopEventProcessing()
+				return nil, err
+			}
+		}
+		if err := c.waitForAutoModeRecoveryCleanup(ctx, response.SessionID); err != nil {
+			session.stopEventProcessing()
+			return nil, err
+		}
+		sessionID = response.SessionID
+		// The provisional session has not received canonical callbacks yet.
+		session.SessionID = sessionID
+		session.RPC = rpc.NewSessionRPC(transport, sessionID)
+		if adapter, ok := session.clientSessionAPIs.SessionFS.(*sessionFSAdapter); ok {
+			adapter.beginCallback = func() func() { return c.beginSessionCallback(sessionID) }
+		}
+		c.sessionsMux.Lock()
+		replacedSession = c.sessions[sessionID]
+		c.sessions[sessionID] = session
+		c.sessionsMux.Unlock()
+	}
+
+	session.workspacePath = response.WorkspacePath
+	session.transcriptRecovery = response.TranscriptRecovery
+	session.permissionModeResult = response.PermissionModeResult
+	session.setOpenCanvases(response.OpenCanvases)
+	session.setCapabilities(response.Capabilities)
+	if recovery != nil {
+		if registrationID != "" {
+			session.setGitHubTokenProviderRegistrationRelease(func() {
+				c.unregisterGitHubTokenProvider(registrationID)
+			})
+			registrationTransferred = true
+		}
+		if err := c.requireAutoModeRecovery(ctx, session, replacedSession == nil, false); err != nil {
+			if replacedSession != nil {
+				// Resume already committed these callbacks; missing support does not roll it back.
+				commitResumedSession()
+			}
+			return nil, err
+		}
+	}
 	if config.OnMCPAuthRequest != nil || runtimeRefreshHandler != nil {
 		if _, err := transport.Request(ctx, "session.eventLog.registerInterest", map[string]any{
 			"sessionId": sessionID,
@@ -1799,18 +2054,13 @@ func (c *Client) resumeSession(ctx context.Context, sessionID string, config *Re
 		}
 	}
 
-	session.workspacePath = response.WorkspacePath
-	session.transcriptRecovery = response.TranscriptRecovery
-	session.setCapabilities(response.Capabilities)
-	session.setOpenCanvases(response.OpenCanvases)
-
 	if err := c.updateSessionOptionsForMode(ctx, session, optBackInFields{
 		SkipCustomInstructions: config.SkipCustomInstructions,
 		CustomAgentsLocalOnly:  config.CustomAgentsLocalOnly,
 		CoauthorEnabled:        config.CoauthorEnabled,
 		ManageScheduleEnabled:  config.ManageScheduleEnabled,
 		IncludedBuiltinSkills:  config.IncludedBuiltinSkills,
-	}); err != nil {
+	}, false); err != nil {
 		restoreReplacedSession()
 		return nil, err
 	}
@@ -1819,15 +2069,7 @@ func (c *Client) resumeSession(ctx context.Context, sessionID string, config *Re
 		restoreReplacedSession()
 		return nil, err
 	}
-	if registrationID != "" {
-		session.setGitHubTokenProviderRegistrationRelease(func() {
-			c.unregisterGitHubTokenProvider(registrationID)
-		})
-		registrationTransferred = true
-	}
-	if replacedSession != nil && replacedSession != session {
-		replacedSession.releaseGitHubTokenProviderRegistration()
-	}
+	commitResumedSession()
 	return session, nil
 }
 
@@ -1921,30 +2163,23 @@ func (c *Client) GetSessionMetadata(ctx context.Context, sessionID string) (*Ses
 //	    log.Fatal(err)
 //	}
 func (c *Client) DeleteSession(ctx context.Context, sessionID string) error {
-	unlockSession := c.lockSessionOperation(sessionID)
+	unlockSession, err := c.lockSessionOperation(ctx, sessionID)
+	if err != nil {
+		return err
+	}
 	defer unlockSession()
+
+	if err := c.waitForAutoModeRecoveryCleanup(ctx, sessionID); err != nil {
+		return err
+	}
 
 	transport, err := c.ensureConnected(ctx)
 	if err != nil {
 		return err
 	}
 
-	result, err := transport.Request(ctx, "session.delete", deleteSessionRequest{SessionID: sessionID})
-	if err != nil {
+	if err := requestSessionDeletion(ctx, transport, sessionID); err != nil {
 		return err
-	}
-
-	var response deleteSessionResponse
-	if err := json.Unmarshal(result, &response); err != nil {
-		return fmt.Errorf("failed to unmarshal delete response: %w", err)
-	}
-
-	if !response.Success {
-		errorMsg := "unknown error"
-		if response.Error != nil {
-			errorMsg = *response.Error
-		}
-		return fmt.Errorf("failed to delete session %s: %s", sessionID, errorMsg)
 	}
 
 	// Remove from local sessions map if present
@@ -1954,9 +2189,29 @@ func (c *Client) DeleteSession(ctx context.Context, sessionID string) error {
 	c.sessionsMux.Unlock()
 	if session != nil {
 		session.clearSkillProvider()
+		session.clearMemoryStore()
 		session.releaseGitHubTokenProviderRegistration()
 	}
 
+	return nil
+}
+
+func requestSessionDeletion(ctx context.Context, transport *jsonrpc2.Client, sessionID string) error {
+	result, err := transport.Request(ctx, "session.delete", deleteSessionRequest{SessionID: sessionID})
+	if err != nil {
+		return err
+	}
+	var response deleteSessionResponse
+	if err := json.Unmarshal(result, &response); err != nil {
+		return fmt.Errorf("failed to unmarshal delete response: %w", err)
+	}
+	if !response.Success {
+		errorMsg := "unknown error"
+		if response.Error != nil {
+			errorMsg = *response.Error
+		}
+		return fmt.Errorf("failed to delete session %s: %s", sessionID, errorMsg)
+	}
 	return nil
 }
 
@@ -2861,6 +3116,15 @@ func (c *Client) connectViaTCP(ctx context.Context) error {
 
 // setupNotificationHandler configures handlers for session events and RPC requests.
 func (c *Client) setupNotificationHandler() {
+	c.client.SetRequestScope(func(params json.RawMessage) func() {
+		var request struct {
+			SessionID string `json:"sessionId"`
+		}
+		if json.Unmarshal(params, &request) == nil && request.SessionID != "" {
+			return c.beginSessionCallback(request.SessionID)
+		}
+		return func() {}
+	})
 	c.client.SetRequestHandler("session.event", jsonrpc2.NotificationHandlerFor(c.handleSessionEvent))
 	c.client.SetRequestHandler("session.lifecycle", jsonrpc2.NotificationHandlerFor(c.handleLifecycleEvent))
 	c.client.SetRequestHandler("userInput.request", jsonrpc2.RequestHandlerFor(c.handleUserInputRequest))
@@ -2869,6 +3133,8 @@ func (c *Client) setupNotificationHandler() {
 	c.client.SetRequestHandler("systemMessage.transform", jsonrpc2.RequestHandlerFor(c.handleSystemMessageTransform))
 	c.client.SetRequestContextHandler("skillProvider.list", c.handleSkillProviderList)
 	c.client.SetRequestContextHandler("skillProvider.read", c.handleSkillProviderRead)
+	// Internal experimental callback backing SessionConfig.StoreMemory.
+	c.client.SetRequestContextHandler("memoryStore.store", c.handleMemoryStore)
 	rpc.RegisterClientSessionAPIHandlers(c.client, func(sessionID string) *rpc.ClientSessionAPIHandlers {
 		c.sessionsMux.Lock()
 		defer c.sessionsMux.Unlock()
@@ -2911,10 +3177,10 @@ func (c *Client) setupNotificationHandler() {
 		c.client.SetRequestContextHandler("entraToken.getToken",
 			entraTokenHandler(c.options.Entra.TokenProvider, c.client.ConnectionClosed()))
 	}
-	if c.options.KerberosAuth != nil {
-		// Registered directly so the callback receives the request's cancellation.
-		adapter := &kerberosAuthAdapter{callback: c.options.KerberosAuth.Callback, connectionClosed: c.client.ConnectionClosed()}
-		c.client.SetRequestContextHandler("kerberosAuth.acquire", adapter.handle)
+	if c.options.Network != nil {
+		// Registered directly so the callbacks receive the request's cancellation.
+		adapter := &networkAdapter{config: *c.options.Network, connectionClosed: c.client.ConnectionClosed()}
+		adapter.register(c.client)
 	}
 	if c.options.InstallationConfirmationHandler != nil {
 		adapter := newInstallationConfirmationAdapter(c.options.InstallationConfirmationHandler, c.client.ConnectionClosed())
@@ -2982,6 +3248,7 @@ func (c *Client) handleConnectionClose() {
 	c.sessionsMux.Unlock()
 	for _, session := range sessions {
 		session.clearSkillProvider()
+		session.clearMemoryStore()
 		session.cancelPendingExternalTools()
 	}
 	// Avoid deadlocking with Stop/ForceStop, which hold startStopMux while
@@ -3012,29 +3279,314 @@ func (c *Client) closeInstallationConfirmationAdapter() {
 	}
 }
 
-func (c *Client) lockSessionOperation(sessionID string) func() {
+func (c *Client) waitForAutoModeRecoveryCleanup(ctx context.Context, sessionID string) error {
+	c.transportMux.Lock()
+	transport := c.client
+	c.transportMux.Unlock()
+	c.sessionsMux.Lock()
+	cleanups := c.autoModeRecoveryCleanups[transport]
+	pending := make(map[string]<-chan struct{})
+	for id, finished := range cleanups {
+		if sessionIDsOverlap(id, sessionID) {
+			pending[id] = finished
+		}
+	}
+	c.sessionsMux.Unlock()
+	for id, finished := range pending {
+		select {
+		case <-finished:
+		default:
+			c.sessionOperationsMux.Lock()
+			activeCallback := c.hasOverlappingSessionCallback(id)
+			c.sessionOperationsMux.Unlock()
+			if activeCallback {
+				return fmt.Errorf("cannot operate on session %s during an active session callback", sessionID)
+			}
+		}
+		// Detach is ID-only, so aliases must wait even after caller cancellation.
+		select {
+		case <-finished:
+			c.sessionsMux.Lock()
+			failed := cleanups[id] == finished
+			c.sessionsMux.Unlock()
+			if failed {
+				return fmt.Errorf("session %s cleanup failed after rejected AutoModeRecovery enrollment; stop and restart the client before reusing this ID", sessionID)
+			}
+		case <-ctx.Done():
+			return ctx.Err()
+		}
+	}
+	return nil
+}
+
+func (c *Client) requireAutoModeRecovery(ctx context.Context, s *Session, detachOnFailure, deleteOnFailure bool) error {
+	caps := s.CapabilitiesWithAutoModeRecovery()
+	if caps.UI != nil && caps.UI.AutoModeRecovery {
+		return nil
+	}
+	unsupported := errors.New("the runtime does not support AutoModeRecovery")
+	return c.cleanupFailedSession(ctx, s, unsupported, detachOnFailure, deleteOnFailure)
+}
+
+func (c *Client) cleanupFailedSession(ctx context.Context, s *Session, failure error, detachOnFailure, deleteOnFailure bool) error {
+	c.sessionsMux.Lock()
+	// A failed resident resume, or an already replaced owner, must not detach its successor.
+	if !detachOnFailure || c.sessions[s.SessionID] != s {
+		c.sessionsMux.Unlock()
+		if detachOnFailure {
+			s.stopEventProcessing()
+		}
+		return failure
+	}
+	finished := make(chan struct{})
+	if c.autoModeRecoveryCleanups == nil {
+		c.autoModeRecoveryCleanups = make(map[*jsonrpc2.Client]map[string]<-chan struct{})
+	}
+	cleanups := c.autoModeRecoveryCleanups[s.client]
+	if cleanups == nil {
+		cleanups = make(map[string]<-chan struct{})
+		c.autoModeRecoveryCleanups[s.client] = cleanups
+	}
+	cleanups[s.SessionID] = finished
+	c.sessionsMux.Unlock()
+
+	cleanupCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), 10*time.Second)
+	done := make(chan error, 1)
+	go func() {
+		defer cancel()
+		var err error
+		defer func() {
+			s.stopEventProcessing()
+			c.sessionsMux.Lock()
+			if c.sessions[s.SessionID] == s {
+				delete(c.sessions, s.SessionID)
+			}
+			if err == nil && cleanups[s.SessionID] == finished {
+				delete(cleanups, s.SessionID)
+			}
+			close(finished)
+			c.sessionsMux.Unlock()
+			done <- err
+		}()
+		err = s.detachRuntime(cleanupCtx)
+		if deleteOnFailure {
+			// Keep same-ID admission fenced through cloud rollback, even if the caller stopped waiting.
+			deleteCtx, cancelDelete := context.WithTimeout(context.WithoutCancel(ctx), 10*time.Second)
+			err = errors.Join(err, requestSessionDeletion(deleteCtx, s.client, s.SessionID))
+			cancelDelete()
+		}
+		if err != nil {
+			log.Printf("Failed to clean up session %s after setup failed: %v", s.SessionID, err)
+		}
+	}()
+	select {
+	case err := <-done:
+		return errors.Join(failure, err, ctx.Err())
+	case <-ctx.Done():
+		return errors.Join(failure, ctx.Err())
+	}
+}
+
+func (c *Client) sessionFSAdapter(sessionID string, provider SessionFSProvider) *sessionFSAdapter {
+	adapter := newSessionFSAdapter(provider)
+	adapter.beginCallback = func() func() {
+		return c.beginSessionCallback(sessionID)
+	}
+	return adapter
+}
+
+func (c *Client) createSessionFSProvider(session *Session, factory func(*Session) SessionFSProvider) SessionFSProvider {
+	defer c.beginSessionCallback(session.SessionID)()
+	return factory(session)
+}
+
+func (c *Client) beginSessionCallback(sessionID string) func() {
 	c.sessionOperationsMux.Lock()
+	if c.activeSessionCallbacks == nil {
+		c.activeSessionCallbacks = make(map[string]int)
+	}
+	c.activeSessionCallbacks[sessionID]++
+	c.sessionOperationsMux.Unlock()
+	return func() {
+		c.sessionOperationsMux.Lock()
+		c.activeSessionCallbacks[sessionID]--
+		if c.activeSessionCallbacks[sessionID] == 0 {
+			delete(c.activeSessionCallbacks, sessionID)
+		}
+		c.sessionOperationsMux.Unlock()
+	}
+}
+
+func (c *Client) lockSessionOperation(ctx context.Context, sessionID string) (func(), error) {
+	return c.acquireSessionOperation(ctx, sessionID, true)
+}
+
+func (c *Client) acquireSessionOperation(ctx context.Context, sessionID string, wait bool) (func(), error) {
+	c.sessionOperationsMux.Lock()
+	if err := ctx.Err(); err != nil {
+		c.sessionOperationsMux.Unlock()
+		return nil, err
+	}
+	keys := []string{}
+	for id := range c.sessionOperations {
+		if sessionIDsOverlap(id, sessionID) {
+			keys = append(keys, id)
+		}
+	}
 	if c.sessionOperations == nil {
 		c.sessionOperations = make(map[string]*sessionOperation)
 	}
 	operation := c.sessionOperations[sessionID]
 	if operation == nil {
-		operation = &sessionOperation{}
+		operation = &sessionOperation{permit: make(chan struct{}, 1)}
+		operation.permit <- struct{}{}
 		c.sessionOperations[sessionID] = operation
+		keys = append(keys, sessionID)
 	}
-	operation.users++
+	// A short prefix can overlap several independent full IDs. Acquire every
+	// matching permit in a stable order instead of merging their live owners.
+	sort.Strings(keys)
+	operations := make([]*sessionOperation, len(keys))
+	for i, id := range keys {
+		operations[i] = c.sessionOperations[id]
+		operations[i].users++
+	}
+	acquired := 0
+tryPermits:
+	for _, operation := range operations {
+		select {
+		case <-operation.permit:
+			acquired++
+		default:
+			break tryPermits
+		}
+	}
+	activeCallback := false
+	for _, id := range keys[acquired:] {
+		activeCallback = activeCallback || c.hasOverlappingSessionCallback(id)
+	}
+	if activeCallback {
+		for _, operation := range operations[:acquired] {
+			operation.permit <- struct{}{}
+		}
+		for i, operation := range operations {
+			operation.users--
+			if operation.users == 0 {
+				delete(c.sessionOperations, keys[i])
+			}
+		}
+		c.sessionOperationsMux.Unlock()
+		// Reject only a wait that could depend on this callback or provider factory.
+		return nil, fmt.Errorf("cannot operate on session %s during an active session callback", sessionID)
+	}
 	c.sessionOperationsMux.Unlock()
 
-	operation.mutex.Lock()
-	return func() {
-		operation.mutex.Unlock()
+	releaseReference := func() {
 		c.sessionOperationsMux.Lock()
-		operation.users--
-		if operation.users == 0 {
-			delete(c.sessionOperations, sessionID)
+		for i, operation := range operations {
+			operation.users--
+			if operation.users == 0 {
+				delete(c.sessionOperations, keys[i])
+			}
 		}
 		c.sessionOperationsMux.Unlock()
 	}
+	release := func() {
+		for _, operation := range operations[:acquired] {
+			operation.permit <- struct{}{}
+		}
+	}
+	if !wait && acquired != len(operations) {
+		release()
+		releaseReference()
+		return nil, fmt.Errorf("cannot initialize server-assigned session %s while another session operation is active", sessionID)
+	}
+	for _, operation := range operations[acquired:] {
+		select {
+		case <-ctx.Done():
+			release()
+			releaseReference()
+			return nil, ctx.Err()
+		case <-operation.permit:
+			acquired++
+		}
+	}
+	return func() {
+		release()
+		releaseReference()
+	}, nil
+}
+
+func sessionIDsOverlap(left, right string) bool {
+	if left == right {
+		return true
+	}
+	if !isUUIDSessionID(left) || !isUUIDSessionID(right) {
+		return false
+	}
+	left, right = strings.ToLower(left), strings.ToLower(right)
+	return strings.HasPrefix(left, right) || strings.HasPrefix(right, left)
+}
+
+func isUUIDSessionID(sessionID string) bool {
+	return isAbbreviatedUUIDPrefix(sessionID) || len(sessionID) == 36 && uuid.Validate(sessionID) == nil
+}
+
+func isAbbreviatedUUIDPrefix(sessionID string) bool {
+	if len(sessionID) < 7 || len(sessionID) >= 36 {
+		return false
+	}
+	for i := range len(sessionID) {
+		character := sessionID[i]
+		if character >= '0' && character <= '9' || character >= 'a' && character <= 'f' || character >= 'A' && character <= 'F' {
+			continue
+		}
+		if i >= 7 && character == '-' {
+			continue
+		}
+		return false
+	}
+	return true
+}
+
+// hasOverlappingSessionCallback requires sessionOperationsMux.
+func (c *Client) hasOverlappingSessionCallback(sessionID string) bool {
+	for id, active := range c.activeSessionCallbacks {
+		if active > 0 && sessionIDsOverlap(id, sessionID) {
+			return true
+		}
+	}
+	return false
+}
+
+func (c *Client) residentSessionID(sessionID string) string {
+	if !isUUIDSessionID(sessionID) {
+		return sessionID
+	}
+	c.sessionsMux.Lock()
+	defer c.sessionsMux.Unlock()
+	if c.sessions[sessionID] != nil {
+		return sessionID
+	}
+	matches := make(map[string]bool)
+	for id := range c.sessions {
+		if sessionIDsOverlap(id, sessionID) && len(id) >= len(sessionID) {
+			matches[id] = true
+		}
+	}
+	for _, cleanups := range c.autoModeRecoveryCleanups {
+		for id := range cleanups {
+			if sessionIDsOverlap(id, sessionID) && len(id) >= len(sessionID) {
+				matches[id] = true
+			}
+		}
+	}
+	if len(matches) == 1 {
+		for id := range matches {
+			return id
+		}
+	}
+	return sessionID
 }
 
 type uiThreadAdapter struct {
@@ -3113,7 +3665,7 @@ func (c *Client) handleSessionEvent(req sessionEventRequest) {
 	c.sessionsMux.Unlock()
 
 	if ok {
-		session.dispatchEvent(req.Event)
+		session.dispatchEvent(req.Event.SessionEvent)
 	}
 }
 
@@ -3177,6 +3729,55 @@ func (c *Client) handleSkillProviderRead(ctx context.Context, params json.RawMes
 		return nil, &jsonrpc2.Error{Code: -32603, Message: fmt.Sprintf("Failed to marshal response: %v", err)}
 	}
 	return raw, nil
+}
+
+func (c *Client) handleMemoryStore(ctx context.Context, params json.RawMessage) (json.RawMessage, *jsonrpc2.Error) {
+	var req rpc.MemoryStoreRequest
+	if err := json.Unmarshal(params, &req); err != nil || req.SessionID == "" {
+		return nil, &jsonrpc2.Error{Code: -32602, Message: "invalid memory store payload"}
+	}
+
+	c.sessionsMux.Lock()
+	session := c.sessions[req.SessionID]
+	c.sessionsMux.Unlock()
+	if session == nil {
+		return nil, &jsonrpc2.Error{Code: -32603, Message: "Memory store owner is unavailable"}
+	}
+	store := session.getMemoryStore()
+	if store == nil {
+		return nil, &jsonrpc2.Error{Code: -32603, Message: "No memory store is registered"}
+	}
+	// $/cancelRequest can be read before this goroutine runs; never write after the runtime gave up.
+	if ctx.Err() != nil {
+		return nil, &jsonrpc2.Error{Code: -32800, Message: "Request cancelled"}
+	}
+
+	if err := callMemoryStore(ctx, store, StoredMemory{
+		SessionID: req.SessionID,
+		Subject:   req.Subject,
+		Fact:      req.Fact,
+		Citations: req.Citations,
+		Reason:    req.Reason,
+	}); err != nil {
+		return nil, &jsonrpc2.Error{Code: -32603, Message: "Memory store callback failed"}
+	}
+	return json.RawMessage("null"), nil
+}
+
+// callMemoryStore logs callback failures locally and converts panics into an
+// error, so the runtime only ever receives a generic failure.
+func callMemoryStore(ctx context.Context, store func(context.Context, StoredMemory) error, memory StoredMemory) (err error) {
+	defer func() {
+		if failure := recover(); failure != nil {
+			log.Printf("memory store panicked: session_id=%s panic=%v\n%s", memory.SessionID, failure, debug.Stack())
+			err = errors.New("memory store panicked")
+		}
+	}()
+	err = store(ctx, memory)
+	if err != nil && ctx.Err() == nil {
+		log.Printf("memory store failed: session_id=%s error=%v", memory.SessionID, err)
+	}
+	return err
 }
 
 func (c *Client) resolveSkillProvider(sessionID string) (SkillProvider, *jsonrpc2.Error) {
@@ -3283,9 +3884,12 @@ func (c *Client) handleAutoModeSwitchRequest(req autoModeSwitchRequest) (*autoMo
 		return nil, &jsonrpc2.Error{Code: -32602, Message: fmt.Sprintf("unknown session %s", req.SessionID)}
 	}
 
-	response, err := session.handleAutoModeSwitchRequest(AutoModeSwitchRequest{
-		ErrorCode:         req.ErrorCode,
-		RetryAfterSeconds: req.RetryAfterSeconds,
+	response, err := session.handleAutoModeSwitchRequest(AutoModeSwitchRequestWithAutoModeRecovery{
+		AutoModeSwitchRequest: AutoModeSwitchRequest{
+			ErrorCode:         req.ErrorCode,
+			RetryAfterSeconds: req.RetryAfterSeconds,
+		},
+		AutoModeRecovery: req.AutoModeRecovery,
 	})
 	if err != nil {
 		return nil, &jsonrpc2.Error{Code: -32603, Message: err.Error()}

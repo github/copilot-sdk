@@ -38,6 +38,8 @@
 //!         std::fs::read_to_string(path)
 //!             .map_err(FsError::from)
 //!     }
+//!
+//!     // Implement the other core methods too; see `SessionFsProvider`.
 //! }
 //! ```
 
@@ -456,13 +458,23 @@ impl DirEntry {
 /// [`tokio::sync::Mutex`] keyed by path) if your backing store requires
 /// ordering.
 ///
+/// # Required methods
+///
+/// The runtime relies on all ten core methods: [`read_file`](Self::read_file),
+/// [`write_file`](Self::write_file), [`append_file`](Self::append_file),
+/// [`exists`](Self::exists), [`stat`](Self::stat), [`mkdir`](Self::mkdir),
+/// [`readdir`](Self::readdir), [`readdir_with_types`](Self::readdir_with_types),
+/// [`rm`](Self::rm) and [`rename`](Self::rename). Implement every one of them.
+/// A core method left at its default fails the operation that needs it, which
+/// can make session creation fail or stop the session's events from being
+/// saved.
+///
 /// # Forward compatibility
 ///
 /// Methods on this trait have default implementations that return
-/// `Err(FsError::with_message(FsErrorKind::Other, "operation not supported"))`. When the CLI
+/// `Err(FsError::with_message(FsErrorKind::Other, "<method> not supported"))`. When the CLI
 /// schema grows new `sessionFs.*` methods, the SDK adds them to this trait
 /// with default impls so existing implementations continue to compile.
-/// Override only the methods relevant to your backing store.
 #[async_trait]
 pub trait SessionFsProvider: Send + Sync + 'static {
     /// Read the full contents of a file as UTF-8.

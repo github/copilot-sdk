@@ -119,6 +119,8 @@ not start a separate logging process.
 <summary><strong>Node.js / TypeScript</strong></summary>
 
 ```typescript
+import { CopilotClient, RuntimeConnection } from "@github/copilot-sdk";
+
 const client = new CopilotClient({
   connection: RuntimeConnection.forStdio({ args: ["--log-dir", "/path/to/logs"] }),
 });
@@ -215,6 +217,8 @@ var client = new CopilotClient(new CopilotClientOptions()
    <summary><strong>Node.js</strong></summary>
 
    ```typescript
+   import { CopilotClient, RuntimeConnection } from "@github/copilot-sdk";
+
    const client = new CopilotClient({
      connection: RuntimeConnection.forStdio({ path: "/usr/local/bin/copilot" }),
    });
@@ -296,6 +300,8 @@ var client = new CopilotClient(new CopilotClientOptions()
    <summary><strong>Node.js</strong></summary>
 
    ```typescript
+   import { CopilotClient } from "@github/copilot-sdk";
+
    const client = new CopilotClient({
      gitHubToken: process.env.GITHUB_TOKEN,
    });
@@ -394,6 +400,8 @@ var client = new CopilotClient(new CopilotClientOptions()
 
 1. Check for port conflicts if using TCP mode:
    ```typescript
+   import { CopilotClient, RuntimeConnection } from "@github/copilot-sdk";
+
    const client = new CopilotClient({
      connection: RuntimeConnection.forTcp({ port: 0 }),  // Use random available port
    });
@@ -434,6 +442,8 @@ The SDK supports two transport modes:
 
 **Stdio mode (default):**
 ```typescript
+import { CopilotClient, RuntimeConnection } from "@github/copilot-sdk";
+
 const client = new CopilotClient({
   connection: RuntimeConnection.forStdio(),  // This is the default
 });
@@ -441,6 +451,8 @@ const client = new CopilotClient({
 
 **TCP mode:**
 ```typescript
+import { CopilotClient, RuntimeConnection } from "@github/copilot-sdk";
+
 const client = new CopilotClient({
   connection: RuntimeConnection.forTcp({ port: 8080 }),  // Or 0 for random port
 });
@@ -448,6 +460,8 @@ const client = new CopilotClient({
 
 **Connect to existing server:**
 ```typescript
+import { CopilotClient, RuntimeConnection } from "@github/copilot-sdk";
+
 const client = new CopilotClient({
   connection: RuntimeConnection.forUri("localhost:8080"),  // Connect to running server
 });
@@ -473,6 +487,17 @@ const client = new CopilotClient({
 ### Custom tool not being called
 
 1. **Verify tool registration:**
+   <!-- docs-validate: hidden -->
+   ```typescript
+   import type { Tool } from "@github/copilot-sdk";
+
+   declare const myTool: Tool<{ location: string }>;
+
+   const session = await client.createSession({
+     tools: [myTool],
+   });
+   ```
+   <!-- /docs-validate: hidden -->
    ```typescript
    const session = await client.createSession({
      tools: [myTool],
@@ -491,7 +516,7 @@ const client = new CopilotClient({
        },
        required: ["location"],
      },
-     handler: async (args) => {
+     handler: async (args: { location: string }) => {
        return { temperature: 72 };
      },
    };
@@ -499,7 +524,7 @@ const client = new CopilotClient({
 
 1. **Ensure handler returns valid result:**
    ```typescript
-   handler: async (args) => {
+   handler: async (args: { location: string }) => {
      // Must return something JSON-serializable
      return { success: true, data: "result" };
      
@@ -561,6 +586,8 @@ session.on("session.error", (event) => {
 
 1. **PATH issues in GUI apps:** GUI applications may not inherit shell PATH:
    ```typescript
+   import { CopilotClient, RuntimeConnection } from "@github/copilot-sdk";
+
    const client = new CopilotClient({
      connection: RuntimeConnection.forStdio({ path: "/opt/homebrew/bin/copilot" }),  // Full path
    });

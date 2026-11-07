@@ -41,7 +41,21 @@ public final class SessionInfoEvent extends SessionEvent {
         /** Optional URL associated with this message that the user can open in a browser */
         @JsonProperty("url") String url,
         /** Optional actionable tip displayed with this message */
-        @JsonProperty("tip") String tip
+        @JsonProperty("tip") String tip,
+        /** Reasoning configuration consumed at this conversation boundary. Present on reasoning_effort updates; preserves the original request baseline and applied effort without creating a user message. */
+        @JsonProperty("responsesReasoning") ResponsesReasoning responsesReasoning
     ) {
+
+        /**
+         * Creates event data with the components it had before later optional fields were added.
+         */
+        public SessionInfoEventData(
+            String infoType,
+            String message,
+            String url,
+            String tip
+        ) {
+            this(infoType, message, url, tip, null);
+        }
     }
 }

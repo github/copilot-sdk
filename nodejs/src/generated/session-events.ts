@@ -125,6 +125,9 @@ export type SessionEvent =
   | CommandCompletedEvent
   | AutoModeSwitchRequestedEvent
   | AutoModeSwitchCompletedEvent
+  | AutoModeRecoveryConsentRequestedEvent
+  | AutoModeRecoveryConsentCompletedEvent
+  | AutoModeRecoveryOutcomeEvent
   | SessionLimitsExhaustedRequestedEvent
   | SessionLimitsExhaustedCompletedEvent
   | AutoModeResolvedEvent
@@ -2959,6 +2962,12 @@ export interface InfoData {
    */
   message: string;
   /**
+   * Reasoning configuration consumed at this conversation boundary. Present on reasoning_effort updates; preserves the original request baseline and applied effort without creating a user message.
+   *
+   * @internal
+   */
+  responsesReasoning?: ResponsesReasoning;
+  /**
    * Optional actionable tip displayed with this message
    */
   tip?: string;
@@ -2966,6 +2975,23 @@ export interface InfoData {
    * Optional URL associated with this message that the user can open in a browser
    */
   url?: string;
+}
+/**
+ * Original request-level and effective conversation reasoning effort for a provider history boundary; the historical type name is retained for compatibility
+ */
+export interface ResponsesReasoning {
+  /**
+   * Effective effort selected before this message, independent of the response-level reasoning field
+   */
+  effort: string;
+  /**
+   * Original request-level effort, retained while replaying this conversation prefix
+   */
+  initialEffort: string;
+  /**
+   * Provider model whose reasoning settings this boundary records
+   */
+  model: string;
 }
 /**
  * Session event "session.indexed_search". Transient indexed-search status and diagnostics from the live runtime service. Never persisted or used to infer activation from session history.
@@ -3116,7 +3142,7 @@ export interface ModelChangeData {
    */
   autoTierManaged?: boolean;
   /**
-   * Reason the change happened, when not user-initiated. `"rate_limit_auto_switch"` for changes triggered by the auto-mode-switch rate-limit recovery path, or `"refusal_fallback"` when the active model declined a request (content refusal) and the runtime switched to the configured refusal-fallback model. UI clients can use this to render contextual copy.
+   * Reason the change happened, when not user-initiated. `"rate_limit_auto_switch"` for changes triggered by the auto-mode-switch rate-limit recovery path, `"auto_mode_recovery"` when a prepared Auto route commits and a recovered inference is allowed to proceed before provider dispatch, or `"refusal_fallback"` when the active model declined a request (content refusal) and the runtime switched to the configured refusal-fallback model. UI clients can use this to render contextual copy.
    */
   cause?: string;
   /**
@@ -5446,23 +5472,6 @@ export interface CompactionCompleteFailureDiagnostics {
   transportErrorKind?: string;
 }
 /**
- * Original request-level and effective conversation reasoning effort for a provider history boundary; the historical type name is retained for compatibility
- */
-export interface ResponsesReasoning {
-  /**
-   * Effective effort selected before this message, independent of the response-level reasoning field
-   */
-  effort: string;
-  /**
-   * Original request-level effort, retained while replaying this conversation prefix
-   */
-  initialEffort: string;
-  /**
-   * Provider model whose reasoning settings this boundary records
-   */
-  model: string;
-}
-/**
  * How far the compaction's summarizer model calls had progressed when the compaction's outcome was decided. Stream statistics describe the latest model request; durationMs and attemptCount cover every request.
  */
 /** @internal */
@@ -6484,6 +6493,10 @@ export interface UserMessageData {
    * IDs of accepted assistant messages that caused this delivered inter-agent prompt, referring to assistant.message.data.messageId across the agent tree. Captured when sending and retained through queued or immediate delivery. An empty list means no model-produced dependency; absence means provenance is unavailable.
    */
   causalDependencies?: string[];
+  /**
+   * Opaque clientTurnId the caller supplied on the send that delivered this message, echoed when the message is consumed, whether it started a turn, drained from the queue or was consumed as steering. Absent when that send supplied none.
+   */
+  clientTurnId?: string;
   /**
    * The user's message text as displayed in the timeline
    */
@@ -15363,6 +15376,192 @@ export interface AutoModeSwitchCompletedData {
   response: AutoModeSwitchResponse;
 }
 /**
+ * Session event "auto_mode_recovery_consent.requested". Recovery consent for a still-active request. Respond using session.ui.handlePendingAutoModeSwitch. The offer has no timer. Entering Autopilot before recovery admission withdraws it. Dismiss it on auto_mode_recovery_consent.completed or on session resume, rebuild, or disconnect; resume can invalidate it without a completed event.
+ */
+export interface AutoModeRecoveryConsentRequestedEvent {
+  /**
+   * Sub-agent instance identifier. Absent for events from the root/main agent and session-level events.
+   */
+  agentId?: string;
+  /**
+   * Whether this physical journal record belongs to a replay checkpoint rather than original session history.
+   */
+  checkpoint?: boolean;
+  /**
+   * Recovery consent for a still-active request. Respond using session.ui.handlePendingAutoModeSwitch. The offer has no timer. Entering Autopilot before recovery admission withdraws it. Dismiss it on auto_mode_recovery_consent.completed or on session resume, rebuild, or disconnect; resume can invalidate it without a completed event.
+   */
+  data: AutoModeRecoveryConsentRequestedData;
+  /**
+   * Always true for events that are transient and not persisted to the session event log on disk.
+   */
+  ephemeral: true;
+  /**
+   * Unique event identifier (UUID v4), generated when the event is emitted
+   */
+  id: string;
+  /**
+   * ID of the chronologically preceding event in the session, forming a linked chain. Null for the first event.
+   */
+  parentId: string | null;
+  /**
+   * ISO 8601 timestamp when the event was created
+   */
+  timestamp: string;
+  /**
+   * Type discriminator. Always "auto_mode_recovery_consent.requested".
+   */
+  type: "auto_mode_recovery_consent.requested";
+}
+/**
+ * Recovery consent for a still-active request. Respond using session.ui.handlePendingAutoModeSwitch. The offer has no timer. Entering Autopilot before recovery admission withdraws it. Dismiss it on auto_mode_recovery_consent.completed or on session resume, rebuild, or disconnect; resume can invalidate it without a completed event.
+ */
+export interface AutoModeRecoveryConsentRequestedData {
+  /**
+   * Whether this offer permits remembering consent with yes_always. Currently true only for per-model rate limits.
+   */
+  allowAlways: boolean;
+  /**
+   * Eligible upstream failure code: model_degraded, model_overloaded, or user_model_rate_limited.
+   */
+  errorCode: string;
+  /**
+   * Original logical interaction identity, when available. Do not infer it from transcript order.
+   */
+  interactionId?: string;
+  /**
+   * Explicit model selected for the failed request before Auto recovery.
+   */
+  originalModel: string;
+  /**
+   * Initiating user-message identity, when available, distinct from later steering messages.
+   */
+  originatingMessageId?: string;
+  /**
+   * One-use offer or recovery episode identifier bound to the originating live session. It cannot be carried across resume or used to replay a settled request.
+   */
+  requestId: string;
+  /**
+   * Rate-limit reset information when supplied by the provider. This is not a consent deadline.
+   */
+  retryAfterSeconds?: number;
+}
+/**
+ * Session event "auto_mode_recovery_consent.completed". Recovery consent offer closed; clients must dismiss its UI. Completion does not imply consent or recovery success. Events belong to the originating live session; resume can invalidate an offer without this event.
+ */
+export interface AutoModeRecoveryConsentCompletedEvent {
+  /**
+   * Sub-agent instance identifier. Absent for events from the root/main agent and session-level events.
+   */
+  agentId?: string;
+  /**
+   * Whether this physical journal record belongs to a replay checkpoint rather than original session history.
+   */
+  checkpoint?: boolean;
+  /**
+   * Recovery consent offer closed; clients must dismiss its UI. Completion does not imply consent or recovery success. Events belong to the originating live session; resume can invalidate an offer without this event.
+   */
+  data: AutoModeRecoveryConsentCompletedData;
+  /**
+   * Always true for events that are transient and not persisted to the session event log on disk.
+   */
+  ephemeral: true;
+  /**
+   * Unique event identifier (UUID v4), generated when the event is emitted
+   */
+  id: string;
+  /**
+   * ID of the chronologically preceding event in the session, forming a linked chain. Null for the first event.
+   */
+  parentId: string | null;
+  /**
+   * ISO 8601 timestamp when the event was created
+   */
+  timestamp: string;
+  /**
+   * Type discriminator. Always "auto_mode_recovery_consent.completed".
+   */
+  type: "auto_mode_recovery_consent.completed";
+}
+/**
+ * Recovery consent offer closed; clients must dismiss its UI. Completion does not imply consent or recovery success. Events belong to the originating live session; resume can invalidate an offer without this event.
+ */
+export interface AutoModeRecoveryConsentCompletedData {
+  /**
+   * Settlement reason, distinguishing user acceptance/decline and saved-preference acceptance from cancellation, handler loss, supersession, and emergency disablement. mode_changed withdraws an unanswered offer when the session enters Autopilot before recovery admission.
+   */
+  reason: string;
+  /**
+   * Identifier of the settled offer; clients must dismiss the matching consent UI.
+   */
+  requestId: string;
+  /**
+   * User response when one was supplied. Absent when the runtime settled the offer without a user answer.
+   */
+  response?: AutoModeSwitchResponse;
+}
+/**
+ * Session event "auto_mode_recovery.outcome". Authoritative final outcome of an active-request Auto recovery episode, not a retry-start notification or manual response regeneration. Normal response/error and session completion signals still settle the logical request.
+ */
+export interface AutoModeRecoveryOutcomeEvent {
+  /**
+   * Sub-agent instance identifier. Absent for events from the root/main agent and session-level events.
+   */
+  agentId?: string;
+  /**
+   * Whether this physical journal record belongs to a replay checkpoint rather than original session history.
+   */
+  checkpoint?: boolean;
+  /**
+   * Authoritative final outcome of an active-request Auto recovery episode, not a retry-start notification or manual response regeneration. Normal response/error and session completion signals still settle the logical request.
+   */
+  data: AutoModeRecoveryOutcomeData;
+  /**
+   * Always true for events that are transient and not persisted to the session event log on disk.
+   */
+  ephemeral: true;
+  /**
+   * Unique event identifier (UUID v4), generated when the event is emitted
+   */
+  id: string;
+  /**
+   * ID of the chronologically preceding event in the session, forming a linked chain. Null for the first event.
+   */
+  parentId: string | null;
+  /**
+   * ISO 8601 timestamp when the event was created
+   */
+  timestamp: string;
+  /**
+   * Type discriminator. Always "auto_mode_recovery.outcome".
+   */
+  type: "auto_mode_recovery.outcome";
+}
+/**
+ * Authoritative final outcome of an active-request Auto recovery episode, not a retry-start notification or manual response regeneration. Normal response/error and session completion signals still settle the logical request.
+ */
+export interface AutoModeRecoveryOutcomeData {
+  /**
+   * Whether a recovered Auto inference was allowed to proceed, reported on the final outcome rather than as a live start notification. True does not imply success. False when consent or preparation ended without a retry.
+   */
+  autoModeRecoveryAdmitted: boolean;
+  /**
+   * Original upstream failure code that qualified the request for recovery.
+   */
+  errorCode: string;
+  /**
+   * Explicit model selected for the original failed request.
+   */
+  originalModel: string;
+  /**
+   * Recovery episode identifier, also used by its consent offer when one was displayed.
+   */
+  requestId: string;
+  /**
+   * Final recovery disposition, such as succeeded, failed, declined, cancelled, superseded, or unavailable. mode_changed means entering Autopilot stopped recovery before admission, including after consent was accepted.
+   */
+  status: string;
+}
+/**
  * Session event "session_limits_exhausted.requested". Session limit exhaustion notification requiring user action.
  */
 export interface SessionLimitsExhaustedRequestedEvent {
@@ -16027,6 +16226,10 @@ export interface CapabilitiesChangedData {
  * UI capability changes
  */
 export interface CapabilitiesChangedUI {
+  /**
+   * Whether a recovery-aware Auto-switch responder is registered. This does not imply current eligibility or override model policy.
+   */
+  autoModeRecovery?: boolean;
   /**
    * Whether canvas rendering is now supported
    */

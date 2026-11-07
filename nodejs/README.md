@@ -34,13 +34,26 @@ Configured BYOK and older, unattributed rows omit `provider`; do not infer Copil
 branding from a model ID or fill it from the active account. This metadata identifies
 the model source, not the agent harness, an account, or a new routing/selection API.
 
-## Kerberos authentication callback
+## Network callbacks (experimental)
 
-Provide `kerberosAuth: { mode, callback }` in `CopilotClientOptions` when Kerberos tickets must be obtained by the SDK host, for example from Windows when the runtime runs in WSL. The runtime currently uses it for proxy authentication. The callback receives `{ spn }`, a service principal in the platform-independent `service/host[@REALM]` form, and returns a fresh base64 SPNEGO token without the `Negotiate ` prefix, or `undefined` when credentials are unavailable. The callback should validate the principal before issuing credentials. Its second argument is an `AbortSignal` that fires when the runtime stops waiting (it cancels the request, for example after its timeout, or the connection closes); the SDK then stops awaiting the callback and ignores any later result.
+Provide `network` in `CopilotClientOptions` when the SDK host should take over parts of the runtime's networking, for example when the runtime runs in WSL or a container and should use VS Code's proxy settings and the host's Kerberos tickets. Registration happens during `start()`, before sessions can be created. Without this option, or for a callback you leave out, the runtime handles that part itself.
 
-With `mode: "fallback"`, native credential acquisition (including the first token) is tried first; only failure invokes the callback. With `mode: "always"`, native credential lookup is never attempted. Without this option, behavior is unchanged. Registration happens during `start()`, before sessions can be created.
+- `resolveProxy({ url }, signal)` decides the proxies for every request the runtime would otherwise route by ambient proxy settings: proxy environment variables, `NO_PROXY` and operating-system proxy settings are not consulted unless it returns `undefined`. `url` is the request target as a PAC script sees it: without credentials or fragment, and for `https` and `wss` also without path and query. Return a PAC-style list such as `PROXY proxy.example:8080; HTTPS proxy.example:443; DIRECT` (the format of Electron's `session.resolveProxy`); return `DIRECT` for a direct connection, or `undefined` to let the runtime resolve the proxy itself, as if no callback were registered. Entry types the runtime doesn't support, such as SOCKS and QUIC, are skipped. If the callback fails, the request fails rather than connecting directly. Requests to loopback targets, and requests with an explicitly configured proxy, never consult it. The runtime caches answers, including `undefined`, for 5 seconds and waits at most 10 seconds for the callback.
+- `authenticateNegotiate({ spn }, signal)` supplies the Kerberos token for a proxy's Negotiate challenge instead of the runtime's native credential lookup. `spn` is a service principal in the platform-independent `service/host[@REALM]` form; validate it before issuing credentials. Return a fresh base64 SPNEGO token without the `Negotiate ` prefix, or `undefined` when credentials are unavailable, which fails the request. The runtime waits at most 30 seconds for the callback (less when the request's own deadline is sooner). Tokens are not cached and must not be logged or persisted. The callback supplies the initial SPNEGO token only; exchanges requiring continuation tokens are not supported. Proxies chosen by `resolveProxy` are authenticated the same way.
 
-By default the callback authenticates only requests made for sessions this client creates or resumes. With `scope: "runtime"` it also authenticates the runtime's shared background traffic, such as catalog refreshes and telemetry; only one connection at a time can hold that scope, so startup fails if another client holds it. The registration ends when the connection closes. In `fallback` mode, if the callback cannot supply a valid token, the native credential error is reported. In `always` mode, a disconnected, throwing, or empty callback fails authentication. The runtime waits at most 30 seconds for the callback (less when the request's own deadline is sooner) and treats a timeout as a callback failure. Tokens are not cached and must not be logged or persisted. The callback supplies the initial SPNEGO token only; exchanges requiring continuation tokens still need native negotiation.
+Each callback's `signal` aborts when the runtime stops waiting (it cancels the request, for example after its timeout, or the connection closes); the SDK then stops awaiting the callback and ignores any later result.
+
+By default the callbacks serve only requests made for sessions this client creates or resumes. With `scope: "runtime"` they also serve the runtime's shared traffic, such as catalog refreshes, telemetry and remote MCP server connections; only one connection at a time can hold that scope, so startup fails if another client holds it. The registration ends when the connection closes.
+
+```ts
+const client = new CopilotClient({
+    network: {
+        scope: "runtime",
+        resolveProxy: async ({ url }) => session.resolveProxy(url),
+        authenticateNegotiate: async ({ spn }, signal) => acquireToken(spn, signal),
+    },
+});
+```
 
 ## Runtime-supervised AHP host (experimental)
 
@@ -54,7 +67,8 @@ import { CopilotClient } from "@github/copilot-sdk";
 await using client = new CopilotClient();
 await client.start();
 const host = await client.startAhpHost({
-    localServer: {}, authentication: { mode: "github" },
+    localServer: {},
+    authentication: { mode: "github" },
     onExit: (exit) => {
         if (exit.error) console.error(exit.error);
     },
@@ -124,7 +138,8 @@ import { approveAll, CopilotClient, defineTool } from "@github/copilot-sdk";
 
 await using client = new CopilotClient();
 await using host = await client.startAhpHost({
-    localServer: {}, authentication: { mode: "github" },
+    localServer: {},
+    authentication: { mode: "github" },
     createSession: ({ config, signal }) => {
         signal.throwIfAborted();
         return client.createSession({
@@ -190,6 +205,7 @@ runtimes without these RPC operations cannot start a host.
 ## Quick Start
 
 <!-- docs-validate: strict -->
+
 ```typescript
 import { CopilotClient, approveAll } from "@github/copilot-sdk";
 
@@ -225,6 +241,7 @@ await client.stop();
 Sessions also support `Symbol.asyncDispose` for use with [`await using`](https://github.com/tc39/proposal-explicit-resource-management) (TypeScript 5.2+ / Node.js 20+):
 
 <!-- docs-validate: strict -->
+
 ```typescript
 import { approveAll } from "@github/copilot-sdk";
 
@@ -388,6 +405,7 @@ Create a new conversation session.
 - `onUserInputRequest?: UserInputHandler` - Handler for legacy question-and-answer requests from the agent. Enables the legacy `ask_user` tool. See [User Input Requests](#user-input-requests) section.
 - `askUserVariant?: "legacy" | "elicitation"` - Selects the model-facing `ask_user` tool shape when creating or cold-resuming a session. Defaults to `"legacy"`; use `"elicitation"` with `onElicitationRequest`.
 - `interactiveUser?: boolean` - Declares that a person types this session's messages, as in an editor chat panel. Enables the runtime's user-message analysis telemetry for user-authored messages; automated messages stay excluded. Defaults to `false`. Ignored for cloud sessions. Re-supply it when cold-resuming a session; it is ignored when resuming a session that is already active.
+- `permissionMode?: PermissionMode` - Applies `"manual"`, `"assisted"`, or `"allow-all"` before the session's first turn: before `createSession` returns, and before a resume continues pending work. Uses the same checks as `session.rpc.permissions.setMode`; `session.permissionModeResult` reports whether it was applied and the authoritative mode. Not supported for cloud sessions.
 - `onElicitationRequest?: ElicitationHandler` - Handler for elicitation requests dispatched by the server. Enables this client to present form-based UI dialogs on behalf of the agent or other session participants. See [Elicitation Requests](#elicitation-requests) section.
 - `hooks?: SessionHooks` - Hook handlers for session lifecycle events. See [Session Hooks](#session-hooks) section.
 - `skillProvider?: SkillProvider` - **Experimental.** Serves skills from host storage instead of skill directories. Not persisted; pass it again on resume. See [Skill providers](#skill-providers-experimental).
@@ -534,6 +552,7 @@ Send a message to the session. Returns immediately after the message is queued; 
 - `source?: MessageSource` - `"user"`, `"system"`, or `` `agent-${string}` `` provenance; omitted by default
 - `attachments?: Array<{type, path, displayName}>` - File attachments
 - `mode?: "enqueue" | "immediate"` - Delivery mode
+- `clientTurnId?: string` - Opaque turn ID the runtime adds to MCP `tools/call` requests in this turn as `_meta["com.github.copilot/turnId"]` and echoes on this message's `user.message` event as `clientTurnId` (see [Tool call and turn IDs in `_meta`](../docs/hooks/pre-mcp-tool-call.md#tool-call-and-turn-ids-in-_meta))
 
 Returns the message ID.
 
@@ -586,6 +605,7 @@ Sub-agent events are still delivered to listeners, but do not complete the wait 
 - `source?: MessageSource` - Same optional provenance as `send`
 - `attachments?: Array<{type, path, displayName}>` - File attachments
 - `mode?: "enqueue" | "immediate"` - Delivery mode
+- `clientTurnId?: string` - Same optional turn ID as `send`
 - `timeout?: number` - Optional timeout in milliseconds
 
 Returns the final assistant message event, or undefined if none was received.
@@ -955,6 +975,7 @@ The SDK supports image attachments via the `attachments` parameter. You can atta
 
 <!-- docs-validate: strict -->
 <!-- docs-validate: hidden -->
+
 ```typescript
 import type { CopilotSession } from "@github/copilot-sdk";
 
@@ -984,7 +1005,9 @@ await session.send({
     ],
 });
 ```
+
 <!-- /docs-validate: hidden -->
+
 ```typescript
 // File attachment — runtime reads from disk
 await session.send({
@@ -1014,6 +1037,7 @@ Supported image formats are PNG, JPEG, WebP, and GIF. Images in other formats, s
 
 <!-- docs-validate: strict -->
 <!-- docs-validate: hidden -->
+
 ```typescript
 import type { CopilotSession } from "@github/copilot-sdk";
 
@@ -1021,7 +1045,9 @@ declare const session: CopilotSession;
 
 await session.send({ prompt: "What does the most recent jpg in this directory portray?" });
 ```
+
 <!-- /docs-validate: hidden -->
+
 ```typescript
 await session.send({ prompt: "What does the most recent jpg in this directory portray?" });
 ```
@@ -1032,6 +1058,7 @@ Enable streaming to receive assistant response chunks as they're generated:
 
 <!-- docs-validate: strict -->
 <!-- docs-validate: hidden -->
+
 ```typescript
 import { approveAll } from "@github/copilot-sdk";
 
@@ -1074,7 +1101,9 @@ const done = new Promise<void>((resolve) => {
 await session.send({ prompt: "Tell me a short story" });
 await done; // Wait for streaming to complete
 ```
+
 <!-- /docs-validate: hidden -->
+
 ```typescript
 const session = await client.createSession({
     model: "gpt-5",
@@ -1129,6 +1158,7 @@ Note: `assistant.message` and `assistant.reasoning` (final events) are always se
 ### Manual Server Control
 
 <!-- docs-validate: strict -->
+
 ```typescript
 import { CopilotClient } from "@github/copilot-sdk";
 
@@ -1149,6 +1179,7 @@ You can let the CLI call back into your process when the model needs capabilitie
 
 <!-- docs-validate: strict -->
 <!-- docs-validate: hidden -->
+
 ```ts
 import { z } from "zod";
 import { defineTool } from "@github/copilot-sdk";
@@ -1171,7 +1202,9 @@ const session = await client.createSession({
     ],
 });
 ```
+
 <!-- /docs-validate: hidden -->
+
 ```ts
 import { z } from "zod";
 import { CopilotClient, defineTool } from "@github/copilot-sdk";
@@ -1201,6 +1234,7 @@ If you register a tool with the same name as a built-in CLI tool (e.g. `edit_fil
 
 <!-- docs-validate: strict -->
 <!-- docs-validate: hidden -->
+
 ```ts
 import { z } from "zod";
 import { defineTool } from "@github/copilot-sdk";
@@ -1214,7 +1248,9 @@ defineTool("edit_file", {
     },
 });
 ```
+
 <!-- /docs-validate: hidden -->
+
 ```ts
 defineTool("edit_file", {
     description: "Custom file editor with project-specific validation",
@@ -1233,6 +1269,7 @@ dispatching to any SDK. Both a Zod-inferred Node handler and
 
 <!-- docs-validate: strict -->
 <!-- docs-validate: hidden -->
+
 ```ts
 import { z } from "zod";
 import { defineTool } from "@github/copilot-sdk";
@@ -1243,7 +1280,9 @@ defineTool("apply_patch", {
     handler: (patch) => patch.trim(),
 });
 ```
+
 <!-- /docs-validate: hidden -->
+
 ```ts
 defineTool("apply_patch", {
     parameters: z.string(),
@@ -1261,6 +1300,7 @@ Set `skipPermission: true` on a tool definition to allow it to execute without t
 
 <!-- docs-validate: strict -->
 <!-- docs-validate: hidden -->
+
 ```ts
 import { z } from "zod";
 import { defineTool } from "@github/copilot-sdk";
@@ -1274,7 +1314,9 @@ defineTool("safe_lookup", {
     },
 });
 ```
+
 <!-- /docs-validate: hidden -->
+
 ```ts
 defineTool("safe_lookup", {
     description: "A read-only lookup that needs no confirmation",
@@ -1292,6 +1334,7 @@ Set `defer` to control whether a tool may be loaded lazily via tool search rathe
 
 <!-- docs-validate: strict -->
 <!-- docs-validate: hidden -->
+
 ```ts
 import { z } from "zod";
 import { defineTool } from "@github/copilot-sdk";
@@ -1305,7 +1348,9 @@ defineTool("lookup_issue", {
     },
 });
 ```
+
 <!-- /docs-validate: hidden -->
+
 ```ts
 defineTool("lookup_issue", {
     description: "Fetch issue details",
@@ -1323,6 +1368,7 @@ Register slash commands so that users of the CLI's TUI can invoke custom actions
 
 <!-- docs-validate: strict -->
 <!-- docs-validate: hidden -->
+
 ```ts
 import { approveAll } from "@github/copilot-sdk";
 
@@ -1340,7 +1386,9 @@ const session = await client.createSession({
     ],
 });
 ```
+
 <!-- /docs-validate: hidden -->
+
 ```ts
 const session = await client.createSession({
     onPermissionRequest: approveAll,
@@ -1369,6 +1417,7 @@ When the session has elicitation support — either from the CLI's TUI or from a
 
 <!-- docs-validate: strict -->
 <!-- docs-validate: hidden -->
+
 ```ts
 import { approveAll } from "@github/copilot-sdk";
 
@@ -1404,7 +1453,9 @@ if (session.capabilities.ui?.elicitation) {
     // result.content: { region: "us-east", dryRun: true } (when accepted)
 }
 ```
+
 <!-- /docs-validate: hidden -->
+
 ```ts
 const session = await client.createSession({ onPermissionRequest: approveAll });
 
@@ -1446,6 +1497,7 @@ All UI methods throw if elicitation is not supported by the host.
 Control the system prompt using `systemMessage` in session config:
 
 <!-- docs-validate: strict -->
+
 ```typescript
 const session = await client.createSession({
     model: "gpt-5",
@@ -1467,6 +1519,7 @@ The SDK auto-injects environment context, tool instructions, and security guardr
 Use `mode: "customize"` to selectively override individual sections of the prompt while preserving the rest:
 
 <!-- docs-validate: strict -->
+
 ```typescript
 import { SYSTEM_MESSAGE_SECTIONS } from "@github/copilot-sdk";
 import type { SectionOverride, SystemMessageSection } from "@github/copilot-sdk";
@@ -1515,6 +1568,7 @@ Unknown section IDs are handled gracefully: content from `replace`/`append`/`pre
 For full control (removes all guardrails), use `mode: "replace"`:
 
 <!-- docs-validate: strict -->
+
 ```typescript
 const session = await client.createSession({
     model: "gpt-5",
@@ -1531,6 +1585,7 @@ By default, sessions use **infinite sessions** which automatically manage contex
 
 <!-- docs-validate: strict -->
 <!-- docs-validate: hidden -->
+
 ```typescript
 // Default: infinite sessions enabled with default thresholds
 const session = await client.createSession({ model: "gpt-5" });
@@ -1555,7 +1610,9 @@ const disabled = await client.createSession({
     infiniteSessions: { enabled: false },
 });
 ```
+
 <!-- /docs-validate: hidden -->
+
 ```typescript
 // Default: infinite sessions enabled with default thresholds
 const session = await client.createSession({ model: "gpt-5" });
@@ -1597,6 +1654,7 @@ For more background, see [About GitHub Copilot Memory](https://docs.github.com/e
 
 <!-- docs-validate: strict -->
 <!-- docs-validate: hidden -->
+
 ```typescript
 // Enable memory for a session
 const enabled = await client.createSession({
@@ -1610,7 +1668,9 @@ const disabled = await client.createSession({
     memory: { enabled: false },
 });
 ```
+
 <!-- /docs-validate: hidden -->
+
 ```typescript
 // Enable memory for a session
 const enabled = await client.createSession({
@@ -1633,12 +1693,16 @@ files on disk. Provider skills join the session's skill catalog and load on dema
 
 <!-- docs-validate: strict -->
 <!-- docs-validate: hidden -->
+
 ```typescript
 import { approveAll } from "@github/copilot-sdk";
 import type { SkillProvider } from "@github/copilot-sdk";
 
 declare const db: {
-    findSkill(name: string, options: { signal: AbortSignal }): Promise<{ markdown: string } | undefined>;
+    findSkill(
+        name: string,
+        options: { signal: AbortSignal }
+    ): Promise<{ markdown: string } | undefined>;
 };
 
 const skillProvider: SkillProvider = {
@@ -1653,7 +1717,9 @@ const session = await client.createSession({
     skillProvider,
 });
 ```
+
 <!-- /docs-validate: hidden -->
+
 ```typescript
 import type { SkillProvider } from "@github/copilot-sdk";
 
@@ -1708,6 +1774,7 @@ See [Supporting files](../docs/features/skills.md#supporting-files-experimental)
 ### Multiple Sessions
 
 <!-- docs-validate: strict -->
+
 ```typescript
 const session1 = await client.createSession({ model: "gpt-5" });
 const session2 = await client.createSession({ model: "claude-sonnet-4.5" });
@@ -1720,6 +1787,7 @@ await session2.sendAndWait({ prompt: "Hello from session 2" });
 ### Custom Session IDs
 
 <!-- docs-validate: strict -->
+
 ```typescript
 const session = await client.createSession({
     sessionId: "my-custom-session-id",
@@ -1731,6 +1799,7 @@ const session = await client.createSession({
 
 <!-- docs-validate: strict -->
 <!-- docs-validate: hidden -->
+
 ```typescript
 import { approveAll } from "@github/copilot-sdk";
 
@@ -1747,7 +1816,9 @@ await session.send({
     ],
 });
 ```
+
 <!-- /docs-validate: hidden -->
+
 ```typescript
 await session.send({
     prompt: "Analyze this file",
@@ -1777,6 +1848,7 @@ The SDK supports custom OpenAI-compatible API providers (BYOK - Bring Your Own K
 **Example with Ollama:**
 
 <!-- docs-validate: strict -->
+
 ```typescript
 const session = await client.createSession({
     model: "deepseek-coder-v2:16b", // Required when using custom provider
@@ -1793,6 +1865,7 @@ await session.sendAndWait({ prompt: "Hello!" });
 **Example with custom OpenAI-compatible API:**
 
 <!-- docs-validate: strict -->
+
 ```typescript
 const session = await client.createSession({
     model: "gpt-4",
@@ -1807,6 +1880,7 @@ const session = await client.createSession({
 **Example with Azure OpenAI:**
 
 <!-- docs-validate: strict -->
+
 ```typescript
 const session = await client.createSession({
     model: "gpt-4",
@@ -1832,6 +1906,7 @@ const session = await client.createSession({
 The SDK supports OpenTelemetry for distributed tracing. Provide a `telemetry` config to enable trace export from the CLI process — this is all most users need:
 
 <!-- docs-validate: strict -->
+
 ```typescript
 import { CopilotClient } from "@github/copilot-sdk";
 
@@ -1888,6 +1963,7 @@ Use the built-in `approveAll` helper when managed settings are disabled:
 
 <!-- docs-validate: strict -->
 <!-- docs-validate: hidden -->
+
 ```typescript
 import { approveAll } from "@github/copilot-sdk";
 
@@ -1896,7 +1972,9 @@ const session = await client.createSession({
     onPermissionRequest: approveAll,
 });
 ```
+
 <!-- /docs-validate: hidden -->
+
 ```typescript
 import { CopilotClient, approveAll } from "@github/copilot-sdk";
 
@@ -1913,6 +1991,7 @@ When `enableManagedSettings` is true for the session, `approveAll` throws. Use a
 Provide your own function to inspect each request and apply custom logic. Check `managedApprovalRequired` before any automatic approval:
 
 <!-- docs-validate: strict -->
+
 ```typescript
 import type { PermissionRequest, PermissionRequestResult } from "@github/copilot-sdk";
 
@@ -1988,6 +2067,7 @@ and sanitize `helpLink` before navigation.
 
 <!-- docs-validate: strict -->
 <!-- docs-validate: hidden -->
+
 ```typescript
 import type { CopilotSession } from "@github/copilot-sdk";
 
@@ -2005,7 +2085,9 @@ if (snapshot.policyHelperCapabilities?.recheck === true) {
     console.log(refreshed.policyHelperFailure ?? "Policy Helper recovered");
 }
 ```
+
 <!-- /docs-validate: hidden -->
+
 ```typescript
 const snapshot = await session.rpc.managedSettings.get();
 
@@ -2046,6 +2128,7 @@ You may pass `onPermissionRequest` when resuming a session too:
 
 <!-- docs-validate: strict -->
 <!-- docs-validate: hidden -->
+
 ```typescript
 import { approveAll } from "@github/copilot-sdk";
 
@@ -2053,7 +2136,9 @@ const session = await client.resumeSession("session-id", {
     onPermissionRequest: approveAll,
 });
 ```
+
 <!-- /docs-validate: hidden -->
+
 ```typescript
 const session = await client.resumeSession("session-id", {
     onPermissionRequest: approveAll,
@@ -2069,6 +2154,7 @@ To let a specific custom tool bypass the permission prompt entirely, set `skipPe
 Enable the legacy question-and-answer `ask_user` tool by providing an `onUserInputRequest` handler:
 
 <!-- docs-validate: strict -->
+
 ```typescript
 const session = await client.createSession({
     model: "gpt-5",
@@ -2097,6 +2183,7 @@ const session = await client.createSession({
 Register an `onElicitationRequest` handler to let your client act as an elicitation provider — presenting form-based UI dialogs on behalf of the agent. When provided, the server notifies your client whenever a tool or MCP server needs structured user input.
 
 <!-- docs-validate: strict -->
+
 ```typescript
 import { approveAll } from "@github/copilot-sdk";
 
@@ -2142,6 +2229,7 @@ Hook into session lifecycle events by providing handlers in the `hooks` configur
 
 <!-- docs-validate: strict -->
 <!-- docs-validate: hidden -->
+
 ```typescript
 declare function needsMoreWork(): boolean;
 
@@ -2233,7 +2321,9 @@ const session = await client.createSession({
     },
 });
 ```
+
 <!-- /docs-validate: hidden -->
+
 ```typescript
 const session = await client.createSession({
     model: "gpt-5",
@@ -2340,6 +2430,7 @@ const session = await client.createSession({
 ## Error Handling
 
 <!-- docs-validate: strict -->
+
 ```typescript
 try {
     const session = await client.createSession({});

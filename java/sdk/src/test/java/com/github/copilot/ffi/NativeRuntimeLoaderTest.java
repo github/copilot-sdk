@@ -12,14 +12,17 @@ import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.junit.jupiter.api.Assumptions.assumeTrue;
+import static org.mockito.Mockito.mockStatic;
 
 import java.io.IOException;
+import java.io.UncheckedIOException;
 import java.net.URL;
 import java.net.URLClassLoader;
 import java.nio.file.AtomicMoveNotSupportedException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
+import java.nio.file.attribute.BasicFileAttributes;
 import java.nio.file.attribute.PosixFilePermissions;
 import java.util.ArrayList;
 import java.util.List;
@@ -412,6 +415,30 @@ class NativeRuntimeLoaderTest {
     }
 
     @Test
+    void defaultPublisherFallsBackWhenLinkOrComparisonPermissionIsDenied(@TempDir Path tempDir) throws Exception {
+        assumeLinuxX64();
+        for (boolean comparisonDenied : new boolean[]{false, true}) {
+            Path temp = Files.write(tempDir.resolve("staged"), FAKE_BINARY_CONTENT);
+            Path target = tempDir.resolve(NativeRuntimeLoader.RUNTIME_FILENAME);
+            if (comparisonDenied) {
+                Files.write(target, FAKE_BINARY_CONTENT);
+            }
+            try (var files = mockStatic(Files.class, invocation -> {
+                String deniedOperation = comparisonDenied ? "getPosixFilePermissions" : "createLink";
+                if (invocation.getMethod().getName().equals(deniedOperation)) {
+                    throw new SecurityException(deniedOperation + " denied");
+                }
+                return invocation.callRealMethod();
+            })) {
+                NativeRuntimeLoader.DEFAULT_PUBLISHER.publish(temp, target);
+            }
+
+            assertBytesEqual(FAKE_BINARY_CONTENT, Files.readAllBytes(target));
+            assertFalse(Files.exists(temp), "The atomic-move fallback must consume the staged file");
+        }
+    }
+
+    @Test
     void cliIsExecutableBeforeAtomicPublication(@TempDir Path tempDir) throws Exception {
         assumeLinuxX64();
         assumeTrue(Files.getFileStore(tempDir).supportsFileAttributeView("posix"));
@@ -539,6 +566,58 @@ class NativeRuntimeLoaderTest {
         assertTrue(Files.isRegularFile(wrapper));
         assertTrue(Files.isRegularFile(wrapper.resolveSibling(NativeRuntimeLoader.RUNTIME_FILENAME)));
         assertFalse(Files.exists(wrapper.resolveSibling(NativeRuntimeLoader.CLI_FILENAME)));
+    }
+
+    @Test
+    void resolveRuntimeWrapperKeepsWrapperPublishedAfterCacheMiss(@TempDir Path tempDir) throws Exception {
+        assumeLinuxX64();
+        Path cacheBase = tempDir.resolve("cache");
+        ClassLoader resources = classLoaderWithRuntimeWrapperArtifacts(tempDir, TEST_CLASSIFIER, TEST_NATIVE_VERSION);
+        Object[] firstFileKey = {null};
+        ClassLoader delayedInstaller = new ClassLoader(resources) {
+            @Override
+            public URL getResource(String name) {
+                if (name.equals("native/" + TEST_CLASSIFIER + "/" + NativeRuntimeLoader.RUNTIME_WRAPPER_FILENAME)) {
+                    try {
+                        Path first = NativeRuntimeLoader.resolveRuntimeWrapper(cacheBase, resources, TEST_CLASSIFIER,
+                                TEST_VERSION);
+                        firstFileKey[0] = Files.readAttributes(first, BasicFileAttributes.class).fileKey();
+                    } catch (IOException ex) {
+                        throw new UncheckedIOException(ex);
+                    }
+                }
+                return super.getResource(name);
+            }
+        };
+
+        Path wrapper = NativeRuntimeLoader.resolveRuntimeWrapper(cacheBase, delayedInstaller, TEST_CLASSIFIER,
+                TEST_VERSION);
+
+        assertNotNull(firstFileKey[0], "The first installer must publish after the other misses the cache");
+        assertEquals(firstFileKey[0], Files.readAttributes(wrapper, BasicFileAttributes.class).fileKey(),
+                "A late installer must not unlink the wrapper another caller can already be running");
+        assertBytesEqual(FAKE_WRAPPER_CONTENT, Files.readAllBytes(wrapper));
+        assertTrue(Files.isExecutable(wrapper));
+    }
+
+    @Test
+    void defaultPublisherRepairsDifferentBytesAndMissingExecuteAccess(@TempDir Path tempDir) throws Exception {
+        assumeLinuxX64();
+        Path target = tempDir.resolve(NativeRuntimeLoader.RUNTIME_WRAPPER_FILENAME);
+        for (boolean sameBytes : new boolean[]{false, true}) {
+            Files.write(target, sameBytes ? FAKE_WRAPPER_CONTENT : FAKE_CLI_CONTENT);
+            Files.setPosixFilePermissions(target,
+                    PosixFilePermissions.fromString(sameBytes ? "rw-r--r--" : "rwxr-xr-x"));
+            Path staged = Files.createTempFile(tempDir, "wrapper-", "");
+            Files.write(staged, FAKE_WRAPPER_CONTENT);
+            Files.setPosixFilePermissions(staged, PosixFilePermissions.fromString("rwxr-xr-x"));
+
+            NativeRuntimeLoader.DEFAULT_PUBLISHER.publish(staged, target);
+
+            assertBytesEqual(FAKE_WRAPPER_CONTENT, Files.readAllBytes(target));
+            assertTrue(Files.isExecutable(target));
+            assertFalse(Files.exists(staged));
+        }
     }
 
     @Test

@@ -2747,6 +2747,24 @@ pub struct HistorySkippedFileRestore {
     pub reason: HistoryFileRestoreSkipReason,
 }
 
+/// An optional plugin default from managed settings. Explicit user choices override this default.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ManagedPluginAssignment {
+    /// Administrator-provided explanation from the same winning policy entry as the state.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub reason: Option<String>,
+    /// Assignment state. The runtime currently supports defaultEnabled.
+    pub state: String,
+}
+
 /// The GitHub repository and commit an installed plugin is pinned to.
 ///
 /// <div class="warning">
@@ -2775,6 +2793,9 @@ pub struct InstalledPluginVerifiedSource {
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct InstalledPluginInfo {
+    /// Soft assignment from effective managed settings. This is not a mandatory enabled-state restriction.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub assignment: Option<ManagedPluginAssignment>,
     /// Description from the manifest of the installed copy. Present only for a direct install pinned to one GitHub commit, such as a verified install from GitHub.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub description: Option<String>,
@@ -2859,6 +2880,100 @@ pub struct InstructionSource {
     pub r#type: InstructionSourceType,
 }
 
+/// A project configuration that the tolerant loader could not use.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct LspConfigurationProblem {
+    /// Configuration read or validation failure.
+    pub error: String,
+    /// Configuration file path.
+    pub path: String,
+}
+
+/// One language server in the runtime's configuration inventory.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct LspServerSummary {
+    /// Whether the effective configuration disables this entry.
+    pub disabled: bool,
+    /// File suffixes handled by the server.
+    pub file_extensions: HashMap<String, String>,
+    /// Configured server identifier.
+    pub id: String,
+    /// Protocol initialization deadline in milliseconds.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub initialization_timeout_ms: Option<f64>,
+    /// Platform-selected launch script for a user entry.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub launch_description: Option<String>,
+    /// Request deadline in milliseconds.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub request_timeout_ms: Option<f64>,
+    /// Project root relative to the repository root.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub root_uri: Option<String>,
+    /// Plugin that supplies the server, when applicable.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub source_plugin: Option<String>,
+    /// Process startup deadline in milliseconds.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub spawn_timeout_ms: Option<f64>,
+    /// Warmup deadline in milliseconds.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub warmup_timeout_ms: Option<f64>,
+}
+
+/// Process exit information from a startup probe.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct LspProbeExitStatus {
+    /// Exit code, or null when the process ended through a signal.
+    pub code: Option<i64>,
+    /// Failure to observe the child process.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub error: Option<String>,
+    /// Termination signal, or null for a normal exit.
+    pub signal: Option<String>,
+}
+
+/// A server whose warmup failed.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct LspWarmupError {
+    /// Server startup failure.
+    pub error: String,
+    /// Configured server identifier.
+    pub server_id: String,
+}
+
 /// Plugin entry advertised by a marketplace.
 ///
 /// <div class="warning">
@@ -2870,6 +2985,9 @@ pub struct InstructionSource {
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct MarketplacePluginInfo {
+    /// Soft assignment from effective managed settings for this marketplace entry.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub assignment: Option<ManagedPluginAssignment>,
     /// Short description from the marketplace catalog, when present
     #[serde(skip_serializing_if = "Option::is_none")]
     pub description: Option<String>,
@@ -3237,6 +3355,71 @@ pub struct McpTools {
     /// Normalized MCP Apps discovery metadata. An empty object indicates that a valid `_meta.ui` block was present without recognized fields.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub ui: Option<McpToolUi>,
+}
+
+/// A pre-registered OAuth client for this attempt.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub(crate) struct McpOauthFlowStaticClientConfig {
+    /// Pre-registered client identifier.
+    pub client_id: String,
+    /// Ephemeral secret that the runtime never persists.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub client_secret: Option<String>,
+    /// OAuth grant override.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub grant_type: Option<McpOauthLoginGrantType>,
+    /// Whether this client has no secret. Defaults to true.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub public_client: Option<bool>,
+    /// Scope used when the server omits its challenge scope.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub scope: Option<String>,
+}
+
+/// Use the current session authorizer's store.
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct McpOauthFlowStoreSession {
+    pub kind: McpOauthFlowStoreSessionKind,
+}
+
+/// Retain an isolated in-memory store until disposal or requester detachment.
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct McpOauthFlowStoreMemory {
+    pub kind: McpOauthFlowStoreMemoryKind,
+    /// Identity chosen by the host, scoped to this session requester.
+    pub store_id: String,
+}
+
+/// Use the host's configured profile directory.
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct McpOauthFlowStorePersistent {
+    /// Profile directory containing the OAuth credential store.
+    pub config_dir: String,
+    pub kind: McpOauthFlowStorePersistentKind,
+    /// Identity chosen by the host, scoped to this session requester.
+    pub store_id: String,
+    /// Original store's effective token session. An empty value selects unscoped storage.
+    pub token_session_id: String,
+}
+
+/// Call the original requester's OAuth store host effects.
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct McpOauthFlowStoreCallback {
+    pub kind: McpOauthFlowStoreCallbackKind,
+    /// Host-owned callback store identity.
+    pub store_id: String,
 }
 
 /// An argument accepted by an MCP prompt.
@@ -4334,6 +4517,9 @@ pub struct PlanSqlTodoDependency {
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct Plugin {
+    /// Soft assignment from effective managed settings. This does not mark the plugin as hard-managed.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub assignment: Option<ManagedPluginAssignment>,
     /// Opaque stable identity for a direct plugin source.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub direct_source_id: Option<String>,
@@ -4582,6 +4768,9 @@ pub struct SandboxConfigUserPolicyFilesystem {
     /// Paths explicitly denied.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub denied_paths: Option<Vec<String>>,
+    /// Paths granted enumerate-only access: sandboxed commands can list these directories without reading the files in them. Honored only on Windows hosts with the `filesystem_enumeration` capability; ignored elsewhere. An entry at or under a read-only, read-write, or denied path is ignored, so it never narrows a grant or reopens a denial.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub enumerate_paths: Option<Vec<String>>,
     /// Paths granted read-only access.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub readonly_paths: Option<Vec<String>>,
@@ -7542,6 +7731,73 @@ pub enum McpToolUiVisibility {
     Unknown,
 }
 
+/// OAuth grant type override for this login.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub enum McpOauthLoginGrantType {
+    /// Interactive browser-based OAuth flow using an authorization code, typically with PKCE.
+    #[serde(rename = "authorization_code")]
+    AuthorizationCode,
+    /// Headless OAuth flow where a confidential client authenticates directly with a client secret.
+    #[serde(rename = "client_credentials")]
+    ClientCredentials,
+    /// Unknown variant for forward compatibility.
+    #[default]
+    #[serde(other)]
+    Unknown,
+}
+
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub enum McpOauthFlowStoreSessionKind {
+    #[serde(rename = "session")]
+    #[default]
+    Session,
+}
+
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub enum McpOauthFlowStoreMemoryKind {
+    #[serde(rename = "memory")]
+    #[default]
+    Memory,
+}
+
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub enum McpOauthFlowStorePersistentKind {
+    #[serde(rename = "persistent")]
+    #[default]
+    Persistent,
+}
+
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub enum McpOauthFlowStoreCallbackKind {
+    #[serde(rename = "callback")]
+    #[default]
+    Callback,
+}
+
+/// Credential owner for a host-driven OAuth flow.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(untagged)]
+pub(crate) enum McpOauthFlowStore {
+    Session(McpOauthFlowStoreSession),
+    Memory(McpOauthFlowStoreMemory),
+    Persistent(McpOauthFlowStorePersistent),
+    Callback(McpOauthFlowStoreCallback),
+}
+
 /// Outcome of starting the original prepared owned login.
 ///
 /// <div class="warning">
@@ -7558,6 +7814,28 @@ pub enum McpOwnedOauthLoginStatus {
     /// Cached credentials were accepted and the original server finished reconnecting.
     #[serde(rename = "connected")]
     Connected,
+    /// Unknown variant for forward compatibility.
+    #[default]
+    #[serde(other)]
+    Unknown,
+}
+
+/// Remote protocol selected for the tokenless handshake.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub(crate) enum McpOauthTestConnectionTransport {
+    /// Streamable HTTP.
+    #[serde(rename = "http")]
+    Http,
+    /// Legacy HTTP with server-sent events.
+    #[serde(rename = "sse")]
+    Sse,
     /// Unknown variant for forward compatibility.
     #[default]
     #[serde(other)]

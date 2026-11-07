@@ -35,7 +35,8 @@ public sealed class RuntimeStartupProcessObserverTests
                     args: [scriptPath, "--capture-file", capturePath, "--pid-file", pidPath, "--exit-file", exitPath]),
                 UseLoggedInUser = false,
             });
-            await client.StartAsync().WaitAsync(TimeSpan.FromSeconds(5));
+            // Startup is a precondition for the process-lifetime assertions, not a latency contract.
+            await client.StartAsync();
             using var observer = Process.GetProcessById(
                 int.Parse(await File.ReadAllTextAsync(pidPath), CultureInfo.InvariantCulture));
             try

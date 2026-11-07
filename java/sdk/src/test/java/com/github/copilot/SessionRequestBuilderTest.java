@@ -18,6 +18,8 @@ import com.github.copilot.generated.rpc.DiagnosticLogLevel;
 import com.github.copilot.generated.rpc.DiagnosticSourcesConfiguration;
 import com.github.copilot.generated.rpc.DiagnosticsConfiguration;
 import com.github.copilot.generated.rpc.McpDiagnosticSourceConfiguration;
+import com.github.copilot.generated.rpc.PermissionMode;
+import com.github.copilot.generated.rpc.SessionPermissionsSetModeResult;
 import com.github.copilot.generated.rpc.SandboxConfig;
 import com.github.copilot.generated.rpc.SessionLimitsConfig;
 import com.github.copilot.generated.rpc.AutopilotOptions;
@@ -28,6 +30,7 @@ import com.github.copilot.rpc.CloudSessionRepository;
 import com.github.copilot.rpc.CopilotClientMode;
 import com.github.copilot.rpc.CopilotExpAssignmentResponse;
 import com.github.copilot.rpc.CreateSessionRequest;
+import com.github.copilot.rpc.CreateSessionResponse;
 import com.github.copilot.rpc.DefaultAgentConfig;
 import com.github.copilot.rpc.ElicitationHandler;
 import com.github.copilot.rpc.ElicitationResult;
@@ -1484,6 +1487,41 @@ public class SessionRequestBuilderTest {
         assertFalse(
                 mapper.writeValueAsString(SessionRequestBuilder.buildCreateRequest(new SessionConfig(), "session-2"))
                         .contains("\"githubMcpToolConfig\""));
+    }
+
+    @Test
+    @AllowCopilotExperimental
+    void permissionModeIsMappedAndSerializedForCreateAndResume() throws Exception {
+        var mapper = JsonRpcClient.getObjectMapper();
+        for (var mode : PermissionMode.values()) {
+            var createRequest = SessionRequestBuilder.buildCreateRequest(new SessionConfig().setPermissionMode(mode),
+                    "session-1");
+            var resumeRequest = SessionRequestBuilder.buildResumeRequest("session-1",
+                    new ResumeSessionConfig().setPermissionMode(mode));
+
+            assertEquals(mode, createRequest.getPermissionMode());
+            assertEquals(mode, resumeRequest.getPermissionMode());
+            var expected = "\"permissionMode\":\"" + mode.getValue() + "\"";
+            assertTrue(mapper.writeValueAsString(createRequest).contains(expected));
+            assertTrue(mapper.writeValueAsString(resumeRequest).contains(expected));
+        }
+        assertFalse(
+                mapper.writeValueAsString(SessionRequestBuilder.buildCreateRequest(new SessionConfig(), "session-2"))
+                        .contains("permissionMode"));
+        assertFalse(mapper
+                .writeValueAsString(SessionRequestBuilder.buildResumeRequest("session-2", new ResumeSessionConfig()))
+                .contains("permissionMode"));
+
+        var outcome = "{\"sessionId\":\"s1\",\"permissionModeResult\":{\"success\":false,\"mode\":\"manual\"}}";
+        for (var result : new SessionPermissionsSetModeResult[]{
+                mapper.readValue(outcome, CreateSessionResponse.class).permissionModeResult(),
+                mapper.readValue(outcome, ResumeSessionResponse.class).permissionModeResult()}) {
+            assertNotNull(result);
+            assertFalse(result.success());
+            assertEquals(PermissionMode.MANUAL, result.mode());
+        }
+        assertNull(mapper.readValue("{\"sessionId\":\"s1\"}", CreateSessionResponse.class).permissionModeResult());
+        assertNull(new ResumeSessionResponse("s1", null, null, null, null).permissionModeResult());
     }
 
     @AllowCopilotExperimental

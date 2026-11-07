@@ -45,6 +45,9 @@ namespace GitHub.Copilot;
 [JsonDerivedType(typeof(AssistantTurnRetryEvent), "assistant.turn_retry")]
 [JsonDerivedType(typeof(AssistantTurnStartEvent), "assistant.turn_start")]
 [JsonDerivedType(typeof(AssistantUsageEvent), "assistant.usage")]
+[JsonDerivedType(typeof(AutoModeRecoveryConsentCompletedEvent), "auto_mode_recovery_consent.completed")]
+[JsonDerivedType(typeof(AutoModeRecoveryConsentRequestedEvent), "auto_mode_recovery_consent.requested")]
+[JsonDerivedType(typeof(AutoModeRecoveryOutcomeEvent), "auto_mode_recovery.outcome")]
 [JsonDerivedType(typeof(AutoModeSwitchCompletedEvent), "auto_mode_switch.completed")]
 [JsonDerivedType(typeof(AutoModeSwitchRequestedEvent), "auto_mode_switch.requested")]
 [JsonDerivedType(typeof(CapabilitiesChangedEvent), "capabilities.changed")]
@@ -505,6 +508,8 @@ internal sealed partial class SessionEventJsonConverter : JsonConverter<SessionE
                     return SessionEventsJsonContext.Default.SessionQuotaObservationEvent;
                 break;
             case 26:
+                if (type.SequenceEqual("auto_mode_recovery.outcome"u8))
+                    return SessionEventsJsonContext.Default.AutoModeRecoveryOutcomeEvent;
                 if (type.SequenceEqual("auto_mode_switch.completed"u8))
                     return SessionEventsJsonContext.Default.AutoModeSwitchCompletedEvent;
                 if (type.SequenceEqual("auto_mode_switch.requested"u8))
@@ -617,6 +622,12 @@ internal sealed partial class SessionEventJsonConverter : JsonConverter<SessionE
                     return SessionEventsJsonContext.Default.PermissionMessageAuthorizationReadEvent;
                 if (type.SequenceEqual("session.autopilot_objective_changed"u8))
                     return SessionEventsJsonContext.Default.SessionAutopilotObjectiveChangedEvent;
+                break;
+            case 36:
+                if (type.SequenceEqual("auto_mode_recovery_consent.completed"u8))
+                    return SessionEventsJsonContext.Default.AutoModeRecoveryConsentCompletedEvent;
+                if (type.SequenceEqual("auto_mode_recovery_consent.requested"u8))
+                    return SessionEventsJsonContext.Default.AutoModeRecoveryConsentRequestedEvent;
                 break;
             case 37:
                 if (type.SequenceEqual("session.extensions.attachments_pushed"u8))
@@ -2405,6 +2416,45 @@ public sealed partial class AutoModeSwitchCompletedEvent : SessionEvent
     public required AutoModeSwitchCompletedData Data { get; set; }
 }
 
+/// <summary>Recovery consent for a still-active request. Respond using session.ui.handlePendingAutoModeSwitch. The offer has no timer. Entering Autopilot before recovery admission withdraws it. Dismiss it on auto_mode_recovery_consent.completed or on session resume, rebuild, or disconnect; resume can invalidate it without a completed event.</summary>
+/// <remarks>Represents the <c>auto_mode_recovery_consent.requested</c> event.</remarks>
+public sealed partial class AutoModeRecoveryConsentRequestedEvent : SessionEvent
+{
+    /// <inheritdoc />
+    [JsonIgnore]
+    public override string Type => "auto_mode_recovery_consent.requested";
+
+    /// <summary>The <c>auto_mode_recovery_consent.requested</c> event payload.</summary>
+    [JsonPropertyName("data")]
+    public required AutoModeRecoveryConsentRequestedData Data { get; set; }
+}
+
+/// <summary>Recovery consent offer closed; clients must dismiss its UI. Completion does not imply consent or recovery success. Events belong to the originating live session; resume can invalidate an offer without this event.</summary>
+/// <remarks>Represents the <c>auto_mode_recovery_consent.completed</c> event.</remarks>
+public sealed partial class AutoModeRecoveryConsentCompletedEvent : SessionEvent
+{
+    /// <inheritdoc />
+    [JsonIgnore]
+    public override string Type => "auto_mode_recovery_consent.completed";
+
+    /// <summary>The <c>auto_mode_recovery_consent.completed</c> event payload.</summary>
+    [JsonPropertyName("data")]
+    public required AutoModeRecoveryConsentCompletedData Data { get; set; }
+}
+
+/// <summary>Authoritative final outcome of an active-request Auto recovery episode, not a retry-start notification or manual response regeneration. Normal response/error and session completion signals still settle the logical request.</summary>
+/// <remarks>Represents the <c>auto_mode_recovery.outcome</c> event.</remarks>
+public sealed partial class AutoModeRecoveryOutcomeEvent : SessionEvent
+{
+    /// <inheritdoc />
+    [JsonIgnore]
+    public override string Type => "auto_mode_recovery.outcome";
+
+    /// <summary>The <c>auto_mode_recovery.outcome</c> event payload.</summary>
+    [JsonPropertyName("data")]
+    public required AutoModeRecoveryOutcomeData Data { get; set; }
+}
+
 /// <summary>Session limit exhaustion notification requiring user action.</summary>
 /// <remarks>Represents the <c>session_limits_exhausted.requested</c> event.</remarks>
 public sealed partial class SessionLimitsExhaustedRequestedEvent : SessionEvent
@@ -3312,6 +3362,12 @@ public sealed partial class SessionInfoData
     [JsonPropertyName("message")]
     public required string Message { get; set; }
 
+    /// <summary>Reasoning configuration consumed at this conversation boundary. Present on reasoning_effort updates; preserves the original request baseline and applied effort without creating a user message.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonInclude]
+    [JsonPropertyName("responsesReasoning")]
+    internal ResponsesReasoning? ResponsesReasoning { get; set; }
+
     /// <summary>Optional actionable tip displayed with this message.</summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     [JsonPropertyName("tip")]
@@ -3380,7 +3436,7 @@ public sealed partial class SessionModelChangeData
     [JsonPropertyName("autoTierManaged")]
     public bool? AutoTierManaged { get; set; }
 
-    /// <summary>Reason the change happened, when not user-initiated. `"rate_limit_auto_switch"` for changes triggered by the auto-mode-switch rate-limit recovery path, or `"refusal_fallback"` when the active model declined a request (content refusal) and the runtime switched to the configured refusal-fallback model. UI clients can use this to render contextual copy.</summary>
+    /// <summary>Reason the change happened, when not user-initiated. `"rate_limit_auto_switch"` for changes triggered by the auto-mode-switch rate-limit recovery path, `"auto_mode_recovery"` when a prepared Auto route commits and a recovered inference is allowed to proceed before provider dispatch, or `"refusal_fallback"` when the active model declined a request (content refusal) and the runtime switched to the configured refusal-fallback model. UI clients can use this to render contextual copy.</summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     [JsonPropertyName("cause")]
     public string? Cause { get; set; }
@@ -4627,6 +4683,11 @@ public sealed partial class UserMessageData
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     [JsonPropertyName("causalDependencies")]
     public string[]? CausalDependencies { get; set; }
+
+    /// <summary>Opaque clientTurnId the caller supplied on the send that delivered this message, echoed when the message is consumed, whether it started a turn, drained from the queue or was consumed as steering. Absent when that send supplied none.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("clientTurnId")]
+    public string? ClientTurnId { get; set; }
 
     /// <summary>The user's message text as displayed in the timeline.</summary>
     [JsonPropertyName("content")]
@@ -7860,6 +7921,82 @@ public sealed partial class AutoModeSwitchCompletedData
     public required AutoModeSwitchResponse Response { get; set; }
 }
 
+/// <summary>Recovery consent for a still-active request. Respond using session.ui.handlePendingAutoModeSwitch. The offer has no timer. Entering Autopilot before recovery admission withdraws it. Dismiss it on auto_mode_recovery_consent.completed or on session resume, rebuild, or disconnect; resume can invalidate it without a completed event.</summary>
+public sealed partial class AutoModeRecoveryConsentRequestedData
+{
+    /// <summary>Whether this offer permits remembering consent with yes_always. Currently true only for per-model rate limits.</summary>
+    [JsonPropertyName("allowAlways")]
+    public required bool AllowAlways { get; set; }
+
+    /// <summary>Eligible upstream failure code: model_degraded, model_overloaded, or user_model_rate_limited.</summary>
+    [JsonPropertyName("errorCode")]
+    public required string ErrorCode { get; set; }
+
+    /// <summary>Original logical interaction identity, when available. Do not infer it from transcript order.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("interactionId")]
+    public string? InteractionId { get; set; }
+
+    /// <summary>Explicit model selected for the failed request before Auto recovery.</summary>
+    [JsonPropertyName("originalModel")]
+    public required string OriginalModel { get; set; }
+
+    /// <summary>Initiating user-message identity, when available, distinct from later steering messages.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("originatingMessageId")]
+    public string? OriginatingMessageId { get; set; }
+
+    /// <summary>One-use offer or recovery episode identifier bound to the originating live session. It cannot be carried across resume or used to replay a settled request.</summary>
+    [JsonPropertyName("requestId")]
+    public required string RequestId { get; set; }
+
+    /// <summary>Rate-limit reset information when supplied by the provider. This is not a consent deadline.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("retryAfterSeconds")]
+    public double? RetryAfterSeconds { get; set; }
+}
+
+/// <summary>Recovery consent offer closed; clients must dismiss its UI. Completion does not imply consent or recovery success. Events belong to the originating live session; resume can invalidate an offer without this event.</summary>
+public sealed partial class AutoModeRecoveryConsentCompletedData
+{
+    /// <summary>Settlement reason, distinguishing user acceptance/decline and saved-preference acceptance from cancellation, handler loss, supersession, and emergency disablement. mode_changed withdraws an unanswered offer when the session enters Autopilot before recovery admission.</summary>
+    [JsonPropertyName("reason")]
+    public required string Reason { get; set; }
+
+    /// <summary>Identifier of the settled offer; clients must dismiss the matching consent UI.</summary>
+    [JsonPropertyName("requestId")]
+    public required string RequestId { get; set; }
+
+    /// <summary>User response when one was supplied. Absent when the runtime settled the offer without a user answer.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("response")]
+    public AutoModeSwitchResponse? Response { get; set; }
+}
+
+/// <summary>Authoritative final outcome of an active-request Auto recovery episode, not a retry-start notification or manual response regeneration. Normal response/error and session completion signals still settle the logical request.</summary>
+public sealed partial class AutoModeRecoveryOutcomeData
+{
+    /// <summary>Whether a recovered Auto inference was allowed to proceed, reported on the final outcome rather than as a live start notification. True does not imply success. False when consent or preparation ended without a retry.</summary>
+    [JsonPropertyName("autoModeRecoveryAdmitted")]
+    public required bool AutoModeRecoveryAdmitted { get; set; }
+
+    /// <summary>Original upstream failure code that qualified the request for recovery.</summary>
+    [JsonPropertyName("errorCode")]
+    public required string ErrorCode { get; set; }
+
+    /// <summary>Explicit model selected for the original failed request.</summary>
+    [JsonPropertyName("originalModel")]
+    public required string OriginalModel { get; set; }
+
+    /// <summary>Recovery episode identifier, also used by its consent offer when one was displayed.</summary>
+    [JsonPropertyName("requestId")]
+    public required string RequestId { get; set; }
+
+    /// <summary>Final recovery disposition, such as succeeded, failed, declined, cancelled, superseded, or unavailable. mode_changed means entering Autopilot stopped recovery before admission, including after consent was accepted.</summary>
+    [JsonPropertyName("status")]
+    public required string Status { get; set; }
+}
+
 /// <summary>Session limit exhaustion notification requiring user action.</summary>
 public sealed partial class SessionLimitsExhaustedRequestedData
 {
@@ -8619,6 +8756,23 @@ public sealed partial class SessionLimitsConfig
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     [JsonPropertyName("maxAiCredits")]
     public double? MaxAiCredits { get; set; }
+}
+
+/// <summary>Original request-level and effective conversation reasoning effort for a provider history boundary; the historical type name is retained for compatibility.</summary>
+/// <remarks>Nested data type for <c>ResponsesReasoning</c>.</remarks>
+public sealed partial class ResponsesReasoning
+{
+    /// <summary>Effective effort selected before this message, independent of the response-level reasoning field.</summary>
+    [JsonPropertyName("effort")]
+    public required string Effort { get; set; }
+
+    /// <summary>Original request-level effort, retained while replaying this conversation prefix.</summary>
+    [JsonPropertyName("initialEffort")]
+    public required string InitialEffort { get; set; }
+
+    /// <summary>Provider model whose reasoning settings this boundary records.</summary>
+    [JsonPropertyName("model")]
+    public required string Model { get; set; }
 }
 
 /// <summary>The <c>status</c> variant of <see cref="SessionIndexedSearchData"/>.</summary>
@@ -9616,23 +9770,6 @@ internal sealed partial class CompactionCompleteFailureDiagnostics
     [JsonInclude]
     [JsonPropertyName("transportErrorKind")]
     internal string? TransportErrorKind { get; set; }
-}
-
-/// <summary>Original request-level and effective conversation reasoning effort for a provider history boundary; the historical type name is retained for compatibility.</summary>
-/// <remarks>Nested data type for <c>ResponsesReasoning</c>.</remarks>
-public sealed partial class ResponsesReasoning
-{
-    /// <summary>Effective effort selected before this message, independent of the response-level reasoning field.</summary>
-    [JsonPropertyName("effort")]
-    public required string Effort { get; set; }
-
-    /// <summary>Original request-level effort, retained while replaying this conversation prefix.</summary>
-    [JsonPropertyName("initialEffort")]
-    public required string InitialEffort { get; set; }
-
-    /// <summary>Provider model whose reasoning settings this boundary records.</summary>
-    [JsonPropertyName("model")]
-    public required string Model { get; set; }
 }
 
 /// <summary>How far the compaction's summarizer model calls had progressed when the compaction's outcome was decided. Stream statistics describe the latest model request; durationMs and attemptCount cover every request.</summary>
@@ -15018,6 +15155,11 @@ public sealed partial class CommandsChangedCommand
 /// <remarks>Nested data type for <c>CapabilitiesChangedUI</c>.</remarks>
 public sealed partial class CapabilitiesChangedUI
 {
+    /// <summary>Whether a recovery-aware Auto-switch responder is registered. This does not imply current eligibility or override model policy.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("autoModeRecovery")]
+    public bool? AutoModeRecovery { get; set; }
+
     /// <summary>Whether canvas rendering is now supported.</summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     [JsonPropertyName("canvases")]
@@ -25470,6 +25612,12 @@ public readonly struct ExtensionsLoadedExtensionStatus : IEquatable<ExtensionsLo
 [JsonSerializable(typeof(AttachmentSelectionDetailsEnd))]
 [JsonSerializable(typeof(AttachmentSelectionDetailsStart))]
 [JsonSerializable(typeof(AttachmentSessionReference))]
+[JsonSerializable(typeof(AutoModeRecoveryConsentCompletedData))]
+[JsonSerializable(typeof(AutoModeRecoveryConsentCompletedEvent))]
+[JsonSerializable(typeof(AutoModeRecoveryConsentRequestedData))]
+[JsonSerializable(typeof(AutoModeRecoveryConsentRequestedEvent))]
+[JsonSerializable(typeof(AutoModeRecoveryOutcomeData))]
+[JsonSerializable(typeof(AutoModeRecoveryOutcomeEvent))]
 [JsonSerializable(typeof(AutoModeSwitchCompletedData))]
 [JsonSerializable(typeof(AutoModeSwitchCompletedEvent))]
 [JsonSerializable(typeof(AutoModeSwitchRequestedData))]

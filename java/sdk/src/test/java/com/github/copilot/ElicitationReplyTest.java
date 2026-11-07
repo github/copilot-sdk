@@ -77,6 +77,15 @@ class ElicitationReplyTest {
     }
 
     @Test
+    void handlerThrowingAnErrorIsCancelled() throws Exception {
+        ObjectNode reply = reply("throws-error", context -> {
+            throw new AssertionError("handler failed");
+        });
+
+        assertEquals("cancel", reply.path("result").path("action").asText());
+    }
+
+    @Test
     void resultRpcThatCompletesExceptionallyIsCancelled() throws Exception {
         var resultResponse = new CompletableFuture<Object>();
         when(rpc.invoke(eq("session.ui.handlePendingElicitation"), any(), any())).thenAnswer(invocation -> {

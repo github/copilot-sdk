@@ -70,10 +70,17 @@ package main
 
 import copilot "github.com/github/copilot-sdk/go"
 
+// Aliases let the signature below use the package's own type names.
+type (
+    SessionStartHookInput  = copilot.SessionStartHookInput
+    HookInvocation         = copilot.HookInvocation
+    SessionStartHookOutput = copilot.SessionStartHookOutput
+)
+
 type SessionStartHandler func(
-    input copilot.SessionStartHookInput,
-    invocation copilot.HookInvocation,
-) (*copilot.SessionStartHookOutput, error)
+    input SessionStartHookInput,
+    invocation HookInvocation,
+) (*SessionStartHookOutput, error)
 
 var _ = copilot.SessionStartHandler(SessionStartHandler(nil))
 
@@ -124,11 +131,24 @@ import com.github.copilot.rpc.*;
 import java.util.concurrent.CompletableFuture;
 
 public class SessionStartSignature {
-    SessionStartHandler handler = (SessionStartHookInput input, HookInvocation invocation) ->
-        CompletableFuture.completedFuture(null);
-    CompletableFuture<SessionStartHookOutput> handle(SessionStartHookInput input, HookInvocation invocation) {
-        return handler.handle(input, invocation);
+    static class Documented {
+        @FunctionalInterface
+        public interface SessionStartHandler {
+            CompletableFuture<SessionStartHookOutput> handle(
+                SessionStartHookInput input,
+                HookInvocation invocation);
+        }
     }
+
+    // The documented interface and the SDK's accept each other's implementations.
+    static SessionStartHandler toSdk(Documented.SessionStartHandler documented) {
+        return documented::handle;
+    }
+
+    static Documented.SessionStartHandler fromSdk(SessionStartHandler sdk) {
+        return sdk::handle;
+    }
+
     public static void main(String[] args) {}
 }
 ```
@@ -323,10 +343,17 @@ package main
 
 import copilot "github.com/github/copilot-sdk/go"
 
+// Aliases let the signature below use the package's own type names.
+type (
+    SessionEndHookInput  = copilot.SessionEndHookInput
+    HookInvocation       = copilot.HookInvocation
+    SessionEndHookOutput = copilot.SessionEndHookOutput
+)
+
 type SessionEndHandler func(
-    input copilot.SessionEndHookInput,
-    invocation copilot.HookInvocation,
-) (*copilot.SessionEndHookOutput, error)
+    input SessionEndHookInput,
+    invocation HookInvocation,
+) (*SessionEndHookOutput, error)
 
 var _ = copilot.SessionEndHandler(SessionEndHandler(nil))
 
@@ -377,11 +404,24 @@ import com.github.copilot.rpc.*;
 import java.util.concurrent.CompletableFuture;
 
 public class SessionEndSignature {
-    SessionEndHandler handler = (SessionEndHookInput input, HookInvocation invocation) ->
-        CompletableFuture.completedFuture(null);
-    CompletableFuture<SessionEndHookOutput> handle(SessionEndHookInput input, HookInvocation invocation) {
-        return handler.handle(input, invocation);
+    static class Documented {
+        @FunctionalInterface
+        public interface SessionEndHandler {
+            CompletableFuture<SessionEndHookOutput> handle(
+                SessionEndHookInput input,
+                HookInvocation invocation);
+        }
     }
+
+    // The documented interface and the SDK's accept each other's implementations.
+    static SessionEndHandler toSdk(Documented.SessionEndHandler documented) {
+        return documented::handle;
+    }
+
+    static Documented.SessionEndHandler fromSdk(SessionEndHandler sdk) {
+        return sdk::handle;
+    }
+
     public static void main(String[] args) {}
 }
 ```

@@ -187,6 +187,8 @@ The `--share` option is not available via SDK. Workarounds:
 
 1. **Collect events manually** - Subscribe to session events and build your own export:
    ```typescript
+   import type { SessionEvent } from "@github/copilot-sdk";
+
    const events: SessionEvent[] = [];
    session.on((event) => events.push(event));
    // ... after conversation ...
@@ -203,6 +205,8 @@ The SDK uses a **deny-by-default** permission model. All permission requests (fi
 Instead of `--allow-all-paths` or `--yolo`, use the permission handler:
 
 ```typescript
+import { approveAll } from "@github/copilot-sdk";
+
 const session = await client.createSession({
   onPermissionRequest: approveAll,
 });

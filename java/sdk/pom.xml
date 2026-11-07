@@ -93,11 +93,10 @@
             <version>2.22.4</version>
         </dependency>
 
-        <!-- SpotBugs annotations for suppressing warnings -->
         <dependency>
-            <groupId>com.github.spotbugs</groupId>
-            <artifactId>spotbugs-annotations</artifactId>
-            <version>4.10.5</version>
+            <groupId>org.jspecify</groupId>
+            <artifactId>jspecify</artifactId>
+            <version>1.0.0</version>
             <scope>provided</scope>
         </dependency>
 

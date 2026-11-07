@@ -24,6 +24,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.SerializationFeature;
 import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
 import com.github.copilot.generated.rpc.SandboxConfig;
+import com.github.copilot.generated.rpc.SandboxConfigUserPolicyFilesystem;
 
 /**
  * Reflection-based Jackson round-trip test for all generated types in the
@@ -73,6 +74,19 @@ class GeneratedTypesJacksonRoundTripTest {
         assertFalse(json.has("sandboxExtensions"));
         assertFalse(json.has("managedExtensionsRoutingLocked"));
         assertEquals(config, MAPPER.treeToValue(json, SandboxConfig.class));
+    }
+
+    @Test
+    void sandboxFilesystemLegacyConstructorOmitsEnumeratePaths() throws IOException {
+        var filesystem = new SandboxConfigUserPolicyFilesystem(List.of("rw"), List.of("ro"), List.of("denied"));
+
+        assertEquals(List.of("rw"), filesystem.readwritePaths());
+        assertEquals(List.of("ro"), filesystem.readonlyPaths());
+        assertEquals(List.of("denied"), filesystem.deniedPaths());
+        assertNull(filesystem.enumeratePaths());
+        var json = MAPPER.readTree(MAPPER.writeValueAsString(filesystem));
+        assertFalse(json.has("enumeratePaths"));
+        assertEquals(filesystem, MAPPER.treeToValue(json, SandboxConfigUserPolicyFilesystem.class));
     }
 
     @Test

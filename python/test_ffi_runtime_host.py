@@ -3,12 +3,13 @@ import gc
 import threading
 import time
 import weakref
-from unittest.mock import patch
+from unittest.mock import AsyncMock, Mock, patch
 
 import pytest
 
 from copilot import CopilotClient, RuntimeConnection
 from copilot._ffi_runtime_host import FfiRuntimeHost
+from copilot._jsonrpc import JsonRpcClient, ProcessExitedError
 
 
 class _TestLibrary:
@@ -160,6 +161,60 @@ def test_ui_actions_are_synchronous_connection_scoped_and_reject_after_disposal(
     with pytest.raises(RuntimeError, match="retired, already executed"):
         host.run_ui_action(43)
     assert library.ui_calls == [(21, True), (21, 42), (21, 42)]
+
+
+@pytest.mark.asyncio
+async def test_graceful_stop_settles_pending_rpc():
+    written = threading.Event()
+
+    class Library(_OpeningLibrary):
+        def connection_write(self, *_args: object) -> bool:
+            written.set()
+            return True
+
+    library = Library(connection_id=21)
+    library.allow_close = True
+    with (
+        patch("copilot._ffi_runtime_host._load_library", return_value=library),
+        patch.object(CopilotClient, "_resolve_inprocess_runtime", return_value="test-runtime"),
+    ):
+        host = FfiRuntimeHost("test-runtime", None)
+        client = CopilotClient(connection=RuntimeConnection.for_inprocess())
+    rpc = JsonRpcClient(host.process)
+    runtime = Mock(shutdown=AsyncMock())
+    pending = None
+    try:
+        host.start_blocking()
+        rpc.start()
+        client._ffi_host = host
+        client._process = host.process
+        client._client = rpc
+        client._rpc = Mock(runtime=runtime)
+        client._state = "connected"
+        pending = asyncio.create_task(rpc.request("test.pending"))
+        assert await asyncio.to_thread(written.wait, 5), "Request was not written to the host"
+        assert not pending.done()
+
+        await client.stop()
+        settled = asyncio.Event()
+        asyncio.get_running_loop().call_soon(settled.set)
+        await settled.wait()
+
+        assert client._state == "disconnected"
+        assert library.shutdown_calls == 1
+        runtime.shutdown.assert_awaited_once()
+        assert pending.done(), "Client stopped its native host but left the RPC request pending"
+        with pytest.raises(ProcessExitedError):
+            await pending
+        assert rpc.pending_requests == {}
+        await client.stop()
+        assert library.shutdown_calls == 1
+    finally:
+        if pending is not None:
+            pending.cancel()
+            await asyncio.gather(pending, return_exceptions=True)
+        await asyncio.to_thread(host.dispose)
+        await rpc.stop()
 
 
 @pytest.mark.asyncio

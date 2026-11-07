@@ -18,6 +18,7 @@ import com.github.copilot.CopilotExperimental;
 import com.github.copilot.SkillProvider;
 import com.github.copilot.generated.SessionEvent;
 import com.github.copilot.generated.rpc.DiagnosticsConfiguration;
+import com.github.copilot.generated.rpc.PermissionMode;
 import com.github.copilot.generated.rpc.SandboxConfig;
 import com.github.copilot.generated.rpc.SessionLimitsConfig;
 import com.github.copilot.generated.rpc.AutopilotOptions;
@@ -50,6 +51,7 @@ public class SessionConfig {
     private String model;
     private String reasoningEffort;
     private String reasoningSummary;
+    private Boolean allowMultipleToolCalls;
     private String contextTier;
     private AskUserVariant askUserVariant;
     private List<ToolDefinition> tools;
@@ -119,6 +121,7 @@ public class SessionConfig {
     private ElicitationHandler onElicitationRequest;
     private ExitPlanModeHandler onExitPlanMode;
     private AutoModeSwitchHandler onAutoModeSwitch;
+    private boolean autoModeRecovery;
     private boolean enableMcpApps;
     private GitHubMcpToolConfig githubMcpToolConfig;
     private String gitHubToken;
@@ -130,6 +133,7 @@ public class SessionConfig {
     private List<String> excludedManagedSettings;
     private Boolean enforceManagedModelDefaults;
     private Boolean interactiveUser;
+    private PermissionMode permissionMode;
     private Map<String, Boolean> featureFlags;
     private ManagedSettings managedSettings;
 
@@ -272,6 +276,40 @@ public class SessionConfig {
      */
     public SessionConfig setReasoningSummary(String reasoningSummary) {
         this.reasoningSummary = reasoningSummary;
+        return this;
+    }
+
+    /**
+     * Gets the model multiple-tool-call preference.
+     *
+     * @return the preference, or an empty optional for the default (true)
+     */
+    @JsonIgnore
+    public Optional<Boolean> getAllowMultipleToolCalls() {
+        return Optional.ofNullable(allowMultipleToolCalls);
+    }
+
+    /**
+     * Sets whether the model may request multiple tool calls per response. False is
+     * a provider hint, not an execution guarantee: all returned calls are handled
+     * and handlers may run concurrently. Re-supply on cold resume.
+     *
+     * @param allowMultipleToolCalls
+     *            the preference
+     * @return this config for method chaining
+     */
+    public SessionConfig setAllowMultipleToolCalls(boolean allowMultipleToolCalls) {
+        this.allowMultipleToolCalls = allowMultipleToolCalls;
+        return this;
+    }
+
+    /**
+     * Clears the model multiple-tool-call preference, restoring the default.
+     *
+     * @return this config for method chaining
+     */
+    public SessionConfig clearAllowMultipleToolCalls() {
+        this.allowMultipleToolCalls = null;
         return this;
     }
 
@@ -2323,6 +2361,30 @@ public class SessionConfig {
     }
 
     /**
+     * Returns whether retained-request Auto recovery is explicitly enabled.
+     *
+     * @return {@code false} by default
+     */
+    public boolean isAutoModeRecovery() {
+        return autoModeRecovery;
+    }
+
+    /**
+     * Enables runtime-owned recovery of an eligible active request. Requires
+     * {@link #setOnAutoModeSwitch(AutoModeSwitchHandler)} and a positive runtime
+     * capability acknowledgment; unsupported enrollment fails and detaches. Consent
+     * has no runtime deadline. The handler must not resend or rewind.
+     *
+     * @param autoModeRecovery
+     *            whether to opt in
+     * @return this instance for method chaining
+     */
+    public SessionConfig setAutoModeRecovery(boolean autoModeRecovery) {
+        this.autoModeRecovery = autoModeRecovery;
+        return this;
+    }
+
+    /**
      * Gets the GitHub token for per-session authentication.
      *
      * @return the GitHub token, or {@code null} if not set
@@ -2560,6 +2622,35 @@ public class SessionConfig {
     }
 
     /**
+     * Gets the initial permission mode.
+     *
+     * @return an optional containing the mode, or empty when unset
+     */
+    @JsonIgnore
+    @CopilotExperimental
+    public Optional<PermissionMode> getPermissionMode() {
+        return Optional.ofNullable(permissionMode);
+    }
+
+    /**
+     * Permission mode applied before the session's first turn, before session
+     * creation returns. Uses the same checks as
+     * {@code session.permissions.setMode}; a mode that managed policy or session
+     * capabilities refuse leaves the current mode in place, so read
+     * {@code session.permissions.getMode} for the effective mode. Leave unset to
+     * keep the default mode. Not supported for cloud sessions.
+     *
+     * @param permissionMode
+     *            the permission mode to apply
+     * @return this config instance for method chaining
+     */
+    @CopilotExperimental
+    public SessionConfig setPermissionMode(PermissionMode permissionMode) {
+        this.permissionMode = permissionMode;
+        return this;
+    }
+
+    /**
      * Gets host-injected managed settings for this session.
      *
      * @return the managed settings, or {@code null} when unset
@@ -2601,6 +2692,7 @@ public class SessionConfig {
         copy.model = this.model;
         copy.reasoningEffort = this.reasoningEffort;
         copy.reasoningSummary = this.reasoningSummary;
+        copy.allowMultipleToolCalls = this.allowMultipleToolCalls;
         copy.contextTier = this.contextTier;
         copy.askUserVariant = this.askUserVariant;
         copy.tools = this.tools != null ? new ArrayList<>(this.tools) : null;
@@ -2678,6 +2770,7 @@ public class SessionConfig {
         copy.onMcpAuthRequest = this.onMcpAuthRequest;
         copy.onExitPlanMode = this.onExitPlanMode;
         copy.onAutoModeSwitch = this.onAutoModeSwitch;
+        copy.autoModeRecovery = this.autoModeRecovery;
         copy.enableMcpApps = this.enableMcpApps;
         copy.githubMcpToolConfig = this.githubMcpToolConfig;
         copy.gitHubToken = this.gitHubToken;
@@ -2691,6 +2784,7 @@ public class SessionConfig {
                 : new ArrayList<>(this.excludedManagedSettings);
         copy.enforceManagedModelDefaults = this.enforceManagedModelDefaults;
         copy.interactiveUser = this.interactiveUser;
+        copy.permissionMode = this.permissionMode;
         copy.managedSettings = this.managedSettings;
         return copy;
     }

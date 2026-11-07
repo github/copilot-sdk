@@ -670,7 +670,7 @@ unsubscribeIdle();
 ```python
 from copilot import CopilotClient
 from copilot.session import PermissionDecisionApproveOnce
-from copilot.session_events import AssistantMessageData, SessionEvent, SessionEventType
+from copilot.session_events import AssistantMessageData, SessionEventType
 
 client = CopilotClient()
 
@@ -680,7 +680,7 @@ session = await client.create_session(on_permission_request=lambda req, inv: Per
 unsubscribe = session.on(lambda event: print(f"Event: {event.type}"))
 
 # Filter by event type in your handler
-def handle_event(event: SessionEvent) -> None:
+def handle_event(event):
     if event.type == SessionEventType.SESSION_IDLE:
         print("Session is idle")
     elif isinstance(event.data, AssistantMessageData):
@@ -1322,7 +1322,7 @@ const getWeather = defineTool("get_weather", {
         },
         required: ["city"],
     },
-    handler: async ({ city }) => {
+    handler: async ({ city }: { city: string }) => {
         const conditions = ["sunny", "cloudy", "rainy", "partly cloudy"];
         const temp = Math.floor(Math.random() * 30) + 50;
         const condition = conditions[Math.floor(Math.random() * conditions.length)];
@@ -1975,6 +1975,8 @@ copilot --headless --host 0.0.0.0 --port 4321
 > [!WARNING]
 > Exposing the headless server on a non-loopback address makes it reachable by anyone who can route to that address. Pair it with network controls (firewall, private network, reverse proxy) and authentication appropriate for your environment.
 
+The connection carries plaintext JSON-RPC over TCP, not HTTP or TLS. Node.js, Python, Go, .NET, and Java reject `https://`; `http://` is an address alias. Connection tokens do not encrypt traffic, so confidentiality requires an encrypted tunnel or equivalent application-managed protection.
+
 ### Connecting the SDK to the external server
 
 Once the CLI is running in server mode, configure your SDK client to connect to it using the "cli url" option:
@@ -2021,19 +2023,19 @@ session = await client.create_session(on_permission_request=PermissionHandler.ap
 ```go
 package main
 
+import copilot "github.com/github/copilot-sdk/go"
+
 import (
 	"context"
 	"log"
-
-	copilot "github.com/github/copilot-sdk/go"
 )
 
 func main() {
 	ctx := context.Background()
 
-    client := copilot.NewClient(&copilot.ClientOptions{
-        Connection: copilot.URIConnection{URL: "localhost:4321"},
-    })
+	client := copilot.NewClient(&copilot.ClientOptions{
+		Connection: copilot.URIConnection{URL: "localhost:4321"},
+	})
 
 	if err := client.Start(ctx); err != nil {
 		log.Fatal(err)
@@ -2041,9 +2043,10 @@ func main() {
 	defer client.Stop()
 
 	// Use the client normally
-	_, _ = client.CreateSession(ctx, &copilot.SessionConfig{
+	session, err := client.CreateSession(ctx, &copilot.SessionConfig{
 		OnPermissionRequest: copilot.PermissionHandler.ApproveAll,
 	})
+	_, _ = session, err
 }
 ```
 <!-- /docs-validate: hidden -->

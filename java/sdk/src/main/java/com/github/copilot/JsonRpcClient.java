@@ -54,6 +54,7 @@ class JsonRpcClient implements AutoCloseable {
     private final AtomicLong requestIdCounter = new AtomicLong(0);
     private final Map<Long, CompletableFuture<JsonNode>> pendingRequests = new ConcurrentHashMap<>();
     private final Map<String, BiConsumer<String, JsonNode>> notificationHandlers = new ConcurrentHashMap<>();
+    private final Map<String, String> sessionCallbackRequests = new ConcurrentHashMap<>();
     private final ExecutorService readerExecutor;
     private final ExecutorService cancellationExecutor;
     private final CountDownLatch readerExited = new CountDownLatch(1);
@@ -142,6 +143,10 @@ class JsonRpcClient implements AutoCloseable {
      */
     public void registerMethodHandler(String method, BiConsumer<String, JsonNode> handler) {
         notificationHandlers.put(method, handler);
+    }
+
+    boolean hasSessionCallback(String sessionId) {
+        return sessionCallbackRequests.values().stream().anyMatch(id -> CopilotClient.sessionIdsOverlap(id, sessionId));
     }
 
     /**
@@ -235,7 +240,11 @@ class JsonRpcClient implements AutoCloseable {
         response.setJsonrpc("2.0");
         response.setId(id);
         response.setResult(result == null ? MAPPER.getNodeFactory().nullNode() : result);
-        sendMessage(response);
+        try {
+            sendMessage(response);
+        } finally {
+            sessionCallbackRequests.remove(MAPPER.valueToTree(id).toString());
+        }
     }
 
     /**
@@ -257,7 +266,11 @@ class JsonRpcClient implements AutoCloseable {
         error.setMessage(message);
         error.setData(data);
         response.setError(error);
-        sendMessage(response);
+        try {
+            sendMessage(response);
+        } finally {
+            sessionCallbackRequests.remove(MAPPER.valueToTree(id).toString());
+        }
     }
 
     private synchronized void sendMessage(Object message) throws IOException {
@@ -300,8 +313,8 @@ class JsonRpcClient implements AutoCloseable {
     }
 
     private static boolean isCredentialField(String name) {
-        // Protocol messages use a bare "token" for credentials (for example Kerberos
-        // SPNEGO and connection tokens); its rare non-secret uses only lose detail in
+        // Protocol messages use a bare "token" for credentials (for example Negotiate
+        // (SPNEGO) and connection tokens); its rare non-secret uses only lose detail in
         // diagnostics.
         return name.equals("accessToken") || name.equals("gitHubToken") || name.equals("bearerToken")
                 || name.equals("apiKey") || name.equals("token");
@@ -416,6 +429,7 @@ class JsonRpcClient implements AutoCloseable {
             handler = closeHandler;
             pendingRequests.forEach((id, future) -> future.completeExceptionally(new IOException("Client closed")));
             pendingRequests.clear();
+            sessionCallbackRequests.clear();
         }
         if (handler != null) {
             try {
@@ -459,6 +473,10 @@ class JsonRpcClient implements AutoCloseable {
                 BiConsumer<String, JsonNode> handler = notificationHandlers.get(method);
                 if (handler != null) {
                     try {
+                        if (id != null && params != null && params.path("sessionId").isTextual()) {
+                            // Async handlers remain active until their reply, not just dispatch.
+                            sessionCallbackRequests.put(id.toString(), params.path("sessionId").asText());
+                        }
                         // Create a context that includes the request ID for responses
                         handler.accept(id != null ? id.toString() : null, params);
                     } catch (Exception e) {

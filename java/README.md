@@ -318,48 +318,67 @@ spawned UI work should observe this signal and retire itself when it completes.
 Dropping an outbound installation or OAuth future does not cancel that
 operation.
 
-### Kerberos authentication callback
+### Network callbacks (experimental)
 
-Use `CopilotClientOptions.setKerberosAuth(new KerberosAuthConfig(mode, callback))`
-when Kerberos tickets must be obtained by the SDK host, for example from Windows
-when the runtime runs in WSL. The runtime currently uses it for proxy
-authentication. The callback receives the generated `KerberosAuthAcquireRequest`,
-whose `spn()` is a service principal in the platform-independent
-`service/host[@REALM]` form, and returns a `CompletableFuture<String>` with a
-fresh base64 SPNEGO token without the `Negotiate ` prefix, or `null` when
-credentials are unavailable. The callback should validate the principal before
-issuing credentials.
+Use `CopilotClientOptions.setNetwork(NetworkConfig)` when the SDK host should
+take over parts of the runtime's networking, for example when the runtime runs
+in WSL or a container and should use VS Code's proxy settings and the host's
+Kerberos tickets. Registration happens during `start()`, before sessions can be
+created, and startup fails if it is rejected. Without this option, or for a
+callback you leave unset, the runtime handles that part itself. Referencing
+`NetworkConfig` requires opting in to
+[experimental APIs](#using-experimental-apis).
+
+- `setResolveProxy(...)` decides the proxies for every request the runtime would
+  otherwise route by ambient proxy settings: proxy environment variables,
+  `NO_PROXY` and operating-system proxy settings are not consulted unless it
+  answers `null`. The callback receives the generated
+  `NetworkResolveProxyRequest`, whose `url()` is the request target as a PAC
+  script sees it: without credentials or fragment, and for `https` and `wss`
+  also without path and query. Return a `CompletableFuture<String>` with a
+  PAC-style list such as `PROXY proxy.example:8080; HTTPS proxy.example:443; DIRECT`
+  (the format of Electron's `session.resolveProxy`); answer `DIRECT` for a
+  direct connection, or `null` to let the runtime resolve the proxy itself, as
+  if no callback were registered. Entry types the runtime doesn't support, such
+  as SOCKS and QUIC, are skipped. If the callback
+  fails, the request fails rather than connecting directly. Requests to loopback
+  targets, and requests with an explicitly configured proxy, never consult it.
+  The runtime caches answers, including `null`, for 5 seconds and waits at most
+  10 seconds for the callback.
+- `setAuthenticateNegotiate(...)` supplies the Kerberos token for a proxy's
+  Negotiate challenge instead of the runtime's native credential lookup. The
+  callback receives the generated `NetworkAuthenticateNegotiateRequest`, whose
+  `spn()` is a service principal in the platform-independent
+  `service/host[@REALM]` form; validate it before issuing credentials. Return a
+  `CompletableFuture<String>` with a fresh base64 SPNEGO token without the
+  `Negotiate ` prefix, or `null` when credentials are unavailable, which fails
+  the request. The runtime waits at most 30 seconds for the callback (less when
+  the request's own deadline is sooner). Tokens are not cached and must not be
+  logged or persisted. The callback supplies the initial SPNEGO token only;
+  exchanges requiring continuation tokens are not supported. Proxies chosen by
+  `setResolveProxy(...)` are authenticated the same way.
+
+The callbacks run on the client executor; if the executor rejects one, the
+request fails. When the runtime stops waiting (it cancels the request, for
+example after its timeout, or the connection closes), a queued invocation is
+skipped, the returned future is cancelled, and any later result is ignored.
+
+By default the callbacks serve only requests made for sessions this client
+creates or resumes. With `setScope(NetworkScope.RUNTIME)` they also serve the
+runtime's shared background traffic, such as catalog refreshes and telemetry;
+only one connection at a time can hold that scope, so startup fails if another
+client holds it. The registration ends when the connection closes.
 
 ```java
-import com.github.copilot.generated.rpc.KerberosAuthMode;
+import com.github.copilot.generated.rpc.NetworkScope;
 import com.github.copilot.rpc.CopilotClientOptions;
-import com.github.copilot.rpc.KerberosAuthConfig;
+import com.github.copilot.rpc.NetworkConfig;
 
-var options = new CopilotClientOptions().setKerberosAuth(new KerberosAuthConfig(KerberosAuthMode.FALLBACK,
-        request -> acquireSpnegoToken(request.spn())));
+var options = new CopilotClientOptions().setNetwork(new NetworkConfig()
+        .setScope(NetworkScope.RUNTIME)
+        .setResolveProxy(request -> resolveProxyFor(request.url()))
+        .setAuthenticateNegotiate(request -> acquireSpnegoToken(request.spn())));
 ```
-
-With `KerberosAuthMode.FALLBACK`, native credential acquisition (including the
-first token) is tried first; only failure invokes the callback. With
-`KerberosAuthMode.ALWAYS`, native credential lookup is never attempted. Without
-this option, behavior is unchanged. Registration happens during `start()`,
-before sessions can be created, and startup fails if it is rejected.
-
-By default the callback authenticates only requests made for sessions this
-client creates or resumes. With `KerberosAuthScope.RUNTIME` it also
-authenticates the runtime's shared background traffic, such as catalog refreshes
-and telemetry; only one connection at a time can hold that scope, so startup
-fails if another client holds it. The registration ends when the connection
-closes. In `FALLBACK` mode, if the callback cannot supply a valid token,
-the native credential error is reported. In `ALWAYS` mode, a disconnected,
-failing, or empty callback fails authentication. The runtime waits at most 30
-seconds for the callback (less when the request's own deadline is sooner) and
-treats a timeout as a callback failure. The callback runs on the client
-executor; if the executor rejects it, the lookup fails. When the runtime cancels
-a lookup or the connection closes, a queued invocation is skipped and the
-returned future is cancelled. Tokens are not cached and must not be
-logged or persisted. The callback supplies the initial SPNEGO token only;
-exchanges requiring continuation tokens still need native negotiation.
 
 `SessionConfig.setAutopilot(AutopilotOptions)` and the corresponding
 `ResumeSessionConfig` setter configure experimental Autopilot policy.
@@ -378,8 +397,8 @@ The default is `AskUserVariant.LEGACY`. Re-supply the option and handler through
 `ResumeSessionConfig.setContinuePendingWork(false)` interrupts work still in
 flight when resuming (the default), while preserving completed tool results
 already durably recorded by the runtime.
-Pass `new ResumeSessionConfig().setContinuePendingWork(true)` to
-`resumeSession` to keep waiting for pending tool calls and permission requests
+Pass `new ResumeSessionConfig().setOnPermissionRequest(PermissionHandler.APPROVE_ALL).setContinuePendingWork(true)`
+to `resumeSession` to keep waiting for pending tool calls and permission requests
 instead. Leave the option unset to use the runtime default. Re-register any
 external tools needed to handle continued work.
 
@@ -388,6 +407,13 @@ session's messages, as in an editor chat panel. This enables the runtime's
 user-message analysis telemetry for user-authored messages. Automated messages
 stay excluded. The default is off, and cloud sessions ignore it. Re-supply it
 through `ResumeSessionConfig` on a cold resume.
+
+`SessionConfig.setPermissionMode(PermissionMode.ALLOW_ALL)` applies a permission
+mode before the session's first turn, and `ResumeSessionConfig` applies it
+before a resume continues pending work. It uses the same checks as
+`session.permissions.setMode`, and `CopilotSession.getPermissionModeResult()`
+reports whether it was applied and the authoritative mode. Cloud sessions
+reject it.
 
 For rotating per-session GitHub credentials, use
 `SessionConfig.setGitHubTokenProvider(...)` (or the equivalent
@@ -1080,7 +1106,7 @@ The processor uses standard JSR 269 annotation processing APIs for maximum porta
 | Local variable with experimental type (including `var` inference) | ❌ | Move the usage into a declaration the processor can see, or use the compiler flag |
 | Cast to experimental type | ❌ | Use the compiler flag for a whole-compilation opt-in |
 
-In practice, these gaps rarely matter: any meaningful use of an experimental SDK type almost always appears in a field declaration, method signature, or type hierarchy — all of which are caught. A purely inline expression with no declaration footprint (e.g., `session.rpc().experimental.foo().join()`) is the only case that would slip through.
+In practice, these gaps rarely matter for experimental types: any meaningful use of an experimental SDK type almost always appears in a field declaration, method signature, or type hierarchy — all of which are caught. A purely inline expression with no declaration footprint (e.g., `session.getRpc().model.getReasoningSummaries(params).join()`) slips through, and so does any use of an experimental method, described below.
 
 ### Example
 
@@ -1104,7 +1130,7 @@ public class Consumer {
 }
 ```
 
-The gate also applies to individual methods annotated with `@CopilotExperimental` on otherwise stable types. When a type-level annotation is present, all member accesses through that type are considered experimental. `@AllowCopilotExperimental` mirrors the same declaration-level boundary: annotating a class opts in that class and its enclosed declarations, while annotating a method or constructor opts in just that executable signature.
+The processor checks the types that declarations name, not the members your code uses. `@CopilotExperimental` on an individual method of an otherwise stable type is therefore not enforced: calling that method, storing its result in a field of a stable type, or overriding it compiles without an opt-in. Likewise, calling a static method of an experimental type compiles as long as no declaration names that type. `@AllowCopilotExperimental` mirrors the same declaration-level boundary: annotating a class opts in that class and its enclosed declarations, while annotating a method or constructor opts in just that executable signature.
 
 ## Projects Using This SDK
 

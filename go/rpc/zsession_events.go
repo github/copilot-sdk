@@ -14,6 +14,12 @@ type SessionEventData interface {
 	Type() SessionEventType
 }
 
+// SessionEventWithAutoModeRecovery decodes recovery-aware capability changes.
+// SessionEvent keeps its legacy payload types for existing type switches.
+type SessionEventWithAutoModeRecovery struct {
+	SessionEvent
+}
+
 // SessionEvent represents a single session event with a typed data payload.
 type SessionEvent struct {
 	// Sub-agent instance identifier. Absent for events from the root/main agent and session-level events.
@@ -68,53 +74,56 @@ const (
 	SessionEventTypeAssistantFusionPhaseFailed SessionEventType = "assistant.fusion_phase_failed"
 	// Experimental: SessionEventTypeAssistantFusionPhaseStarted identifies an experimental
 	// event that may change or be removed.
-	SessionEventTypeAssistantFusionPhaseStarted SessionEventType = "assistant.fusion_phase_started"
-	SessionEventTypeAssistantIdle               SessionEventType = "assistant.idle"
-	SessionEventTypeAssistantIntent             SessionEventType = "assistant.intent"
-	SessionEventTypeAssistantMessage            SessionEventType = "assistant.message"
-	SessionEventTypeAssistantMessageDelta       SessionEventType = "assistant.message_delta"
-	SessionEventTypeAssistantMessageStart       SessionEventType = "assistant.message_start"
-	SessionEventTypeAssistantReasoning          SessionEventType = "assistant.reasoning"
-	SessionEventTypeAssistantReasoningDelta     SessionEventType = "assistant.reasoning_delta"
-	SessionEventTypeAssistantServerToolProgress SessionEventType = "assistant.server_tool_progress"
-	SessionEventTypeAssistantStreamingDelta     SessionEventType = "assistant.streaming_delta"
-	SessionEventTypeAssistantToolCallDelta      SessionEventType = "assistant.tool_call_delta"
-	SessionEventTypeAssistantTurnEnd            SessionEventType = "assistant.turn_end"
-	SessionEventTypeAssistantTurnRetry          SessionEventType = "assistant.turn_retry"
-	SessionEventTypeAssistantTurnStart          SessionEventType = "assistant.turn_start"
-	SessionEventTypeAssistantUsage              SessionEventType = "assistant.usage"
-	SessionEventTypeAutoModeSwitchCompleted     SessionEventType = "auto_mode_switch.completed"
-	SessionEventTypeAutoModeSwitchRequested     SessionEventType = "auto_mode_switch.requested"
-	SessionEventTypeCapabilitiesChanged         SessionEventType = "capabilities.changed"
-	SessionEventTypeCommandCompleted            SessionEventType = "command.completed"
-	SessionEventTypeCommandExecute              SessionEventType = "command.execute"
-	SessionEventTypeCommandQueued               SessionEventType = "command.queued"
-	SessionEventTypeCommandsChanged             SessionEventType = "commands.changed"
-	SessionEventTypeElicitationCompleted        SessionEventType = "elicitation.completed"
-	SessionEventTypeElicitationRequested        SessionEventType = "elicitation.requested"
-	SessionEventTypeExitPlanModeCompleted       SessionEventType = "exit_plan_mode.completed"
-	SessionEventTypeExitPlanModeRequested       SessionEventType = "exit_plan_mode.requested"
-	SessionEventTypeExternalToolCompleted       SessionEventType = "external_tool.completed"
-	SessionEventTypeExternalToolRequested       SessionEventType = "external_tool.requested"
-	SessionEventTypeHookEnd                     SessionEventType = "hook.end"
-	SessionEventTypeHookProgress                SessionEventType = "hook.progress"
-	SessionEventTypeHookStart                   SessionEventType = "hook.start"
-	SessionEventTypeHumanResponseRecorded       SessionEventType = "human_response.recorded"
-	SessionEventTypeInstructionUpdate           SessionEventType = "instruction.update"
-	SessionEventTypeMCPAppToolCallComplete      SessionEventType = "mcp_app.tool_call_complete"
-	SessionEventTypeMCPHeadersRefreshCompleted  SessionEventType = "mcp.headers_refresh_completed"
-	SessionEventTypeMCPHeadersRefreshRequired   SessionEventType = "mcp.headers_refresh_required"
-	SessionEventTypeMCPOauthCompleted           SessionEventType = "mcp.oauth_completed"
-	SessionEventTypeMCPOauthRecoveryCompleted   SessionEventType = "mcp.oauth_recovery_completed"
-	SessionEventTypeMCPOauthRequired            SessionEventType = "mcp.oauth_required"
-	SessionEventTypeMCPPromptsListChanged       SessionEventType = "mcp.prompts.list_changed"
-	SessionEventTypeMCPResourcesListChanged     SessionEventType = "mcp.resources.list_changed"
-	SessionEventTypeMCPToolsListChanged         SessionEventType = "mcp.tools.list_changed"
-	SessionEventTypeModelCallFailure            SessionEventType = "model.call_failure"
-	SessionEventTypeModelCallFinalResult        SessionEventType = "model.call_final_result"
-	SessionEventTypeModelCallFinished           SessionEventType = "model.call_finished"
-	SessionEventTypeModelCallStart              SessionEventType = "model.call_start"
-	SessionEventTypePendingMessagesModified     SessionEventType = "pending_messages.modified"
+	SessionEventTypeAssistantFusionPhaseStarted      SessionEventType = "assistant.fusion_phase_started"
+	SessionEventTypeAssistantIdle                    SessionEventType = "assistant.idle"
+	SessionEventTypeAssistantIntent                  SessionEventType = "assistant.intent"
+	SessionEventTypeAssistantMessage                 SessionEventType = "assistant.message"
+	SessionEventTypeAssistantMessageDelta            SessionEventType = "assistant.message_delta"
+	SessionEventTypeAssistantMessageStart            SessionEventType = "assistant.message_start"
+	SessionEventTypeAssistantReasoning               SessionEventType = "assistant.reasoning"
+	SessionEventTypeAssistantReasoningDelta          SessionEventType = "assistant.reasoning_delta"
+	SessionEventTypeAssistantServerToolProgress      SessionEventType = "assistant.server_tool_progress"
+	SessionEventTypeAssistantStreamingDelta          SessionEventType = "assistant.streaming_delta"
+	SessionEventTypeAssistantToolCallDelta           SessionEventType = "assistant.tool_call_delta"
+	SessionEventTypeAssistantTurnEnd                 SessionEventType = "assistant.turn_end"
+	SessionEventTypeAssistantTurnRetry               SessionEventType = "assistant.turn_retry"
+	SessionEventTypeAssistantTurnStart               SessionEventType = "assistant.turn_start"
+	SessionEventTypeAssistantUsage                   SessionEventType = "assistant.usage"
+	SessionEventTypeAutoModeRecoveryConsentCompleted SessionEventType = "auto_mode_recovery_consent.completed"
+	SessionEventTypeAutoModeRecoveryConsentRequested SessionEventType = "auto_mode_recovery_consent.requested"
+	SessionEventTypeAutoModeRecoveryOutcome          SessionEventType = "auto_mode_recovery.outcome"
+	SessionEventTypeAutoModeSwitchCompleted          SessionEventType = "auto_mode_switch.completed"
+	SessionEventTypeAutoModeSwitchRequested          SessionEventType = "auto_mode_switch.requested"
+	SessionEventTypeCapabilitiesChanged              SessionEventType = "capabilities.changed"
+	SessionEventTypeCommandCompleted                 SessionEventType = "command.completed"
+	SessionEventTypeCommandExecute                   SessionEventType = "command.execute"
+	SessionEventTypeCommandQueued                    SessionEventType = "command.queued"
+	SessionEventTypeCommandsChanged                  SessionEventType = "commands.changed"
+	SessionEventTypeElicitationCompleted             SessionEventType = "elicitation.completed"
+	SessionEventTypeElicitationRequested             SessionEventType = "elicitation.requested"
+	SessionEventTypeExitPlanModeCompleted            SessionEventType = "exit_plan_mode.completed"
+	SessionEventTypeExitPlanModeRequested            SessionEventType = "exit_plan_mode.requested"
+	SessionEventTypeExternalToolCompleted            SessionEventType = "external_tool.completed"
+	SessionEventTypeExternalToolRequested            SessionEventType = "external_tool.requested"
+	SessionEventTypeHookEnd                          SessionEventType = "hook.end"
+	SessionEventTypeHookProgress                     SessionEventType = "hook.progress"
+	SessionEventTypeHookStart                        SessionEventType = "hook.start"
+	SessionEventTypeHumanResponseRecorded            SessionEventType = "human_response.recorded"
+	SessionEventTypeInstructionUpdate                SessionEventType = "instruction.update"
+	SessionEventTypeMCPAppToolCallComplete           SessionEventType = "mcp_app.tool_call_complete"
+	SessionEventTypeMCPHeadersRefreshCompleted       SessionEventType = "mcp.headers_refresh_completed"
+	SessionEventTypeMCPHeadersRefreshRequired        SessionEventType = "mcp.headers_refresh_required"
+	SessionEventTypeMCPOauthCompleted                SessionEventType = "mcp.oauth_completed"
+	SessionEventTypeMCPOauthRecoveryCompleted        SessionEventType = "mcp.oauth_recovery_completed"
+	SessionEventTypeMCPOauthRequired                 SessionEventType = "mcp.oauth_required"
+	SessionEventTypeMCPPromptsListChanged            SessionEventType = "mcp.prompts.list_changed"
+	SessionEventTypeMCPResourcesListChanged          SessionEventType = "mcp.resources.list_changed"
+	SessionEventTypeMCPToolsListChanged              SessionEventType = "mcp.tools.list_changed"
+	SessionEventTypeModelCallFailure                 SessionEventType = "model.call_failure"
+	SessionEventTypeModelCallFinalResult             SessionEventType = "model.call_final_result"
+	SessionEventTypeModelCallFinished                SessionEventType = "model.call_finished"
+	SessionEventTypeModelCallStart                   SessionEventType = "model.call_start"
+	SessionEventTypePendingMessagesModified          SessionEventType = "pending_messages.modified"
 	// Experimental: SessionEventTypePermissionAssentDetected identifies an experimental event
 	// that may change or be removed.
 	SessionEventTypePermissionAssentDetected SessionEventType = "permission.assentDetected"
@@ -513,6 +522,25 @@ type AssistantMessageData struct {
 
 func (*AssistantMessageData) sessionEventData()      {}
 func (*AssistantMessageData) Type() SessionEventType { return SessionEventTypeAssistantMessage }
+
+// Authoritative final outcome of an active-request Auto recovery episode, not a retry-start notification or manual response regeneration. Normal response/error and session completion signals still settle the logical request.
+type AutoModeRecoveryOutcomeData struct {
+	// Whether a recovered Auto inference was allowed to proceed, reported on the final outcome rather than as a live start notification. True does not imply success. False when consent or preparation ended without a retry.
+	AutoModeRecoveryAdmitted bool `json:"autoModeRecoveryAdmitted"`
+	// Original upstream failure code that qualified the request for recovery.
+	ErrorCode string `json:"errorCode"`
+	// Explicit model selected for the original failed request.
+	OriginalModel string `json:"originalModel"`
+	// Recovery episode identifier, also used by its consent offer when one was displayed.
+	RequestID string `json:"requestId"`
+	// Final recovery disposition, such as succeeded, failed, declined, cancelled, superseded, or unavailable. mode_changed means entering Autopilot stopped recovery before admission, including after consent was accepted.
+	Status string `json:"status"`
+}
+
+func (*AutoModeRecoveryOutcomeData) sessionEventData() {}
+func (*AutoModeRecoveryOutcomeData) Type() SessionEventType {
+	return SessionEventTypeAutoModeRecoveryOutcome
+}
 
 // Authoritative snapshot of an Autopilot permission-recovery episode
 type SessionPermissionRecoveryData struct {
@@ -2277,7 +2305,7 @@ type SessionModelChangeData struct {
 	AutoTier *AutoTier `json:"autoTier,omitempty"`
 	// True when autoTier is a managed-policy default. Omitted for user-authored and legacy values.
 	AutoTierManaged *bool `json:"autoTierManaged,omitempty"`
-	// Reason the change happened, when not user-initiated. `"rate_limit_auto_switch"` for changes triggered by the auto-mode-switch rate-limit recovery path, or `"refusal_fallback"` when the active model declined a request (content refusal) and the runtime switched to the configured refusal-fallback model. UI clients can use this to render contextual copy.
+	// Reason the change happened, when not user-initiated. `"rate_limit_auto_switch"` for changes triggered by the auto-mode-switch rate-limit recovery path, `"auto_mode_recovery"` when a prepared Auto route commits and a recovered inference is allowed to proceed before provider dispatch, or `"refusal_fallback"` when the active model declined a request (content refusal) and the runtime switched to the configured refusal-fallback model. UI clients can use this to render contextual copy.
 	Cause *string `json:"cause,omitempty"`
 	// Context tier after the model change; null explicitly clears a previously selected tier
 	ContextTier *ContextTier `json:"contextTier,omitempty"`
@@ -2631,6 +2659,8 @@ type UserMessageData struct {
 	Attachments []Attachment `json:"attachments,omitzero"`
 	// IDs of accepted assistant messages that caused this delivered inter-agent prompt, referring to assistant.message.data.messageId across the agent tree. Captured when sending and retained through queued or immediate delivery. An empty list means no model-produced dependency; absence means provenance is unavailable.
 	CausalDependencies []string `json:"causalDependencies,omitzero"`
+	// Opaque clientTurnId the caller supplied on the send that delivered this message, echoed when the message is consumed, whether it started a turn, drained from the queue or was consumed as steering. Absent when that send supplied none.
+	ClientTurnID *string `json:"clientTurnId,omitempty"`
 	// The user's message text as displayed in the timeline
 	Content string `json:"content"`
 	// How this message was delivered to the agentic loop relative to loop state (idle-start vs. steering/queued while busy). The timing axis; combine with `source` (origin) for the full picture. Used for telemetry attribution.
@@ -2829,6 +2859,44 @@ func (*SessionModeNoticeDeliveredData) Type() SessionEventType {
 	return SessionEventTypeSessionModeNoticeDelivered
 }
 
+// Recovery consent for a still-active request. Respond using session.ui.handlePendingAutoModeSwitch. The offer has no timer. Entering Autopilot before recovery admission withdraws it. Dismiss it on auto_mode_recovery_consent.completed or on session resume, rebuild, or disconnect; resume can invalidate it without a completed event.
+type AutoModeRecoveryConsentRequestedData struct {
+	// Whether this offer permits remembering consent with yes_always. Currently true only for per-model rate limits.
+	AllowAlways bool `json:"allowAlways"`
+	// Eligible upstream failure code: model_degraded, model_overloaded, or user_model_rate_limited.
+	ErrorCode string `json:"errorCode"`
+	// Original logical interaction identity, when available. Do not infer it from transcript order.
+	InteractionID *string `json:"interactionId,omitempty"`
+	// Explicit model selected for the failed request before Auto recovery.
+	OriginalModel string `json:"originalModel"`
+	// Initiating user-message identity, when available, distinct from later steering messages.
+	OriginatingMessageID *string `json:"originatingMessageId,omitempty"`
+	// One-use offer or recovery episode identifier bound to the originating live session. It cannot be carried across resume or used to replay a settled request.
+	RequestID string `json:"requestId"`
+	// Rate-limit reset information when supplied by the provider. This is not a consent deadline.
+	RetryAfterSeconds *float64 `json:"retryAfterSeconds,omitempty"`
+}
+
+func (*AutoModeRecoveryConsentRequestedData) sessionEventData() {}
+func (*AutoModeRecoveryConsentRequestedData) Type() SessionEventType {
+	return SessionEventTypeAutoModeRecoveryConsentRequested
+}
+
+// Recovery consent offer closed; clients must dismiss its UI. Completion does not imply consent or recovery success. Events belong to the originating live session; resume can invalidate an offer without this event.
+type AutoModeRecoveryConsentCompletedData struct {
+	// Settlement reason, distinguishing user acceptance/decline and saved-preference acceptance from cancellation, handler loss, supersession, and emergency disablement. mode_changed withdraws an unanswered offer when the session enters Autopilot before recovery admission.
+	Reason string `json:"reason"`
+	// Identifier of the settled offer; clients must dismiss the matching consent UI.
+	RequestID string `json:"requestId"`
+	// User response when one was supplied. Absent when the runtime settled the offer without a user answer.
+	Response *AutoModeSwitchResponse `json:"response,omitempty"`
+}
+
+func (*AutoModeRecoveryConsentCompletedData) sessionEventData() {}
+func (*AutoModeRecoveryConsentCompletedData) Type() SessionEventType {
+	return SessionEventTypeAutoModeRecoveryConsentCompleted
+}
+
 // Registered command dispatch request routed to the owning client
 type CommandExecuteData struct {
 	// Raw argument string after the command name
@@ -2964,6 +3032,30 @@ type CapabilitiesChangedData struct {
 
 func (*CapabilitiesChangedData) sessionEventData()      {}
 func (*CapabilitiesChangedData) Type() SessionEventType { return SessionEventTypeCapabilitiesChanged }
+
+// Session capability change notification
+type CapabilitiesChangedDataWithAutoModeRecovery struct {
+	// UI capability changes
+	UI *CapabilitiesChangedUIWithAutoModeRecovery `json:"ui,omitempty"`
+}
+
+func (*CapabilitiesChangedDataWithAutoModeRecovery) sessionEventData() {}
+func (*CapabilitiesChangedDataWithAutoModeRecovery) Type() SessionEventType {
+	return SessionEventTypeCapabilitiesChanged
+}
+
+// Legacy returns capability changes without recovery extensions.
+func (r CapabilitiesChangedDataWithAutoModeRecovery) Legacy() CapabilitiesChangedData {
+	var result CapabilitiesChangedData
+	if r.UI != nil {
+		result.UI = &CapabilitiesChangedUI{
+			Canvases:    r.UI.Canvases,
+			Elicitation: r.UI.Elicitation,
+			MCPApps:     r.UI.MCPApps,
+		}
+	}
+	return result
+}
 
 // Session command list change notification, for SDK command registration or built-in command availability; `session.commands.list` returns the full list
 type CommandsChangedData struct {
@@ -4029,6 +4121,18 @@ type CanvasRegistryChangedCanvasAction struct {
 
 // UI capability changes
 type CapabilitiesChangedUI struct {
+	// Whether canvas rendering is now supported
+	Canvases *bool `json:"canvases,omitempty"`
+	// Whether elicitation is now supported
+	Elicitation *bool `json:"elicitation,omitempty"`
+	// Whether MCP Apps (SEP-1865) UI passthrough is now supported
+	MCPApps *bool `json:"mcpApps,omitempty"`
+}
+
+// UI capability changes
+type CapabilitiesChangedUIWithAutoModeRecovery struct {
+	// Whether a recovery-aware Auto-switch responder is registered. This does not imply current eligibility or override model policy.
+	AutoModeRecovery *bool `json:"autoModeRecovery,omitempty"`
 	// Whether canvas rendering is now supported
 	Canvases *bool `json:"canvases,omitempty"`
 	// Whether elicitation is now supported

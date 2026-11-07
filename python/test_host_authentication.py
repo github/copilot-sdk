@@ -59,6 +59,8 @@ async def test_authentication_cancelled_before_handler_task_starts():
     rpc.set_request_handler(
         "host.validateAuthentication", client._ahp_hosts.validate_authentication, ordered=True
     )
+    client._client = rpc
+    client._register_session_callback_scopes()
     rpc.set_notification_handler(
         lambda method, params: client._ahp_hosts.notification(method, params)
     )

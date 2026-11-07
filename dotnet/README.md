@@ -140,7 +140,7 @@ new CopilotClient(CopilotClientOptions? options = null)
 - `Telemetry` - OpenTelemetry configuration for the runtime process. Providing this enables telemetry — no separate flag needed. See [Telemetry](#telemetry) below.
 - `SessionFs` - Custom session filesystem provider configuration. To serve provider-only images to the `view` tool, set `Capabilities.Binary` to `true` and return a provider implementing `ISessionFsBinaryProvider` (`ReadFileBytesAsync` and `WriteFileBytesAsync`) from `SessionConfig.CreateSessionFsProvider`. Image reads do not fall back to local files. Binary reads and writes are limited to 50,330,880 raw bytes (approximately 48 MiB); larger results return a filesystem error before encoding or decoding.
 - `InstallationConfirmationHandler` - Experimental connection-global human review for `installations.confirm`. Receives the typed request and one cancellation token that is cancelled when the request is retired or the connection closes, and returns an explicit decision. Does not enable installation capabilities.
-- `KerberosAuth` - Experimental Kerberos credentials supplied by the SDK host as a `KerberosAuthConfig` with `Mode`, optional `Scope`, and `Callback`. Registered during `StartAsync()` before sessions can be created. See "Kerberos authentication callback" below.
+- `Network` - Experimental network callbacks supplied by the SDK host as a `NetworkConfig` with optional `Scope`, `ResolveProxy` and `AuthenticateNegotiate`. Registered during `StartAsync()` before sessions can be created. See "Network callbacks" below.
 
 #### RuntimeConnection
 
@@ -198,27 +198,54 @@ Capability negotiation does not promise availability; preserve typed refusals
 instead of falling back to raw configuration writes. Generated presence and
 transport tests do not establish live OAuth, activation or cross-process recovery.
 
-#### Kerberos authentication callback (experimental)
+#### Network callbacks (experimental)
 
-Set `CopilotClientOptions.KerberosAuth` when Kerberos tickets must be obtained by the SDK host, for example from Windows when the runtime runs in WSL. The runtime currently uses it for proxy authentication. The callback receives the generated `GitHub.Copilot.Rpc.KerberosAuthAcquireRequest`, whose `Spn` is a service principal in the platform-independent `service/host[@REALM]` form, and a `CancellationToken`. It returns a fresh base64 SPNEGO token without the `Negotiate ` prefix, or `null` when credentials are unavailable. The callback should validate the principal before issuing credentials.
+Set `CopilotClientOptions.Network` when the SDK host should take over parts of the runtime's networking, for example when the runtime runs in WSL or a container and should use VS Code's proxy settings and the host's Kerberos tickets. Registration happens during `StartAsync()` (including the automatic start of `CreateSessionAsync` and `ResumeSessionAsync`), before sessions can be created; if registration fails, startup fails. Without this option, or for a callback you leave `null`, the runtime handles that part itself.
 
-<!-- docs-validate: skip -->
+- `ResolveProxy` receives the generated `GitHub.Copilot.Rpc.NetworkResolveProxyRequest` and a `CancellationToken`, and decides the proxies for every request the runtime would otherwise route by ambient proxy settings: proxy environment variables, `NO_PROXY` and operating-system proxy settings are not consulted unless it returns `null`. `Url` is the request target as a PAC script sees it: without credentials or fragment, and for `https` and `wss` also without path and query. Return a PAC-style list such as `PROXY proxy.example:8080; HTTPS proxy.example:443; DIRECT` (the format of Electron's `session.resolveProxy`); return `DIRECT` for a direct connection, or `null` to let the runtime resolve the proxy itself, as if no callback were registered. Entry types the runtime doesn't support, such as SOCKS and QUIC, are skipped. If the callback fails, the request fails rather than connecting directly. Requests to loopback targets, and requests with an explicitly configured proxy, never consult it. The runtime caches answers, including `null`, for 5 seconds and waits at most 10 seconds for the callback.
+- `AuthenticateNegotiate` receives the generated `GitHub.Copilot.Rpc.NetworkAuthenticateNegotiateRequest` and a `CancellationToken`, and supplies the Kerberos token for a proxy's Negotiate challenge instead of the runtime's native credential lookup. `Spn` is a service principal in the platform-independent `service/host[@REALM]` form; validate it before issuing credentials. Return a fresh base64 SPNEGO token without the `Negotiate ` prefix, or `null` when credentials are unavailable, which fails the request. The runtime waits at most 30 seconds for the callback (less when the request's own deadline is sooner). Tokens are not cached and must not be logged or persisted. The callback supplies the initial SPNEGO token only; exchanges requiring continuation tokens are not supported. Proxies chosen by `ResolveProxy` are authenticated the same way.
+
+Exceptions thrown by a callback, including cancellation not requested through the supplied `CancellationToken`, are returned to the runtime as JSON-RPC errors and fail the request. Callbacks are started on a thread-pool thread and may block, for example while prompting for credentials. The supplied `CancellationToken` is cancelled when the runtime stops waiting (it cancels the request, for example after its timeout, or the connection closes), and a callback not yet started by then is not started; the SDK then stops awaiting the callback and ignores any later result.
+
+By default the callbacks serve only requests made for sessions this client creates or resumes. With `Scope = NetworkScope.Runtime` they also serve the runtime's shared background traffic, such as catalog refreshes and telemetry; only one connection at a time can hold that scope, so startup fails if another client holds it. The registration ends when the connection closes.
+
+<!-- docs-validate: hidden -->
+<!--
 ```csharp
-#pragma warning disable GHCP001 // The Kerberos authentication callback is experimental.
+using GitHub.Copilot;
+using GitHub.Copilot.Rpc;
+
+#pragma warning disable GHCP001 // Network callbacks are experimental.
 await using var client = new CopilotClient(new CopilotClientOptions
 {
-    KerberosAuth = new KerberosAuthConfig
+    Network = new NetworkConfig
     {
-        Mode = KerberosAuthMode.Fallback,
-        Callback = (request, cancellationToken) => AcquireSpnegoTokenAsync(request.Spn, cancellationToken),
+        Scope = NetworkScope.Runtime,
+        ResolveProxy = (request, cancellationToken) => ResolveProxyAsync(request.Url, cancellationToken),
+        AuthenticateNegotiate = (request, cancellationToken) => AcquireSpnegoTokenAsync(request.Spn, cancellationToken),
+    },
+});
+#pragma warning restore GHCP001
+
+static Task<string?> ResolveProxyAsync(string url, CancellationToken cancellationToken) => Task.FromResult<string?>(null);
+static Task<string?> AcquireSpnegoTokenAsync(string spn, CancellationToken cancellationToken) => Task.FromResult<string?>(null);
+```
+-->
+<!-- /docs-validate: hidden -->
+
+```csharp
+#pragma warning disable GHCP001 // Network callbacks are experimental.
+await using var client = new CopilotClient(new CopilotClientOptions
+{
+    Network = new NetworkConfig
+    {
+        Scope = NetworkScope.Runtime,
+        ResolveProxy = (request, cancellationToken) => ResolveProxyAsync(request.Url, cancellationToken),
+        AuthenticateNegotiate = (request, cancellationToken) => AcquireSpnegoTokenAsync(request.Spn, cancellationToken),
     },
 });
 #pragma warning restore GHCP001
 ```
-
-With `KerberosAuthMode.Fallback`, native credential acquisition (including the first token) is tried first; only failure invokes the callback. With `KerberosAuthMode.Always`, native credential lookup is never attempted. Without this option, behavior is unchanged. Registration happens during `StartAsync()` (including the automatic start of `CreateSessionAsync` and `ResumeSessionAsync`), before sessions can be created; if registration fails, startup fails. Exceptions thrown by the callback, including cancellation not requested through the supplied `CancellationToken`, are returned to the runtime as JSON-RPC errors. The callback is started on a thread-pool thread and may block, for example while prompting for credentials; the supplied `CancellationToken` is cancelled when the runtime abandons the request or the connection closes, and a callback not yet started by then is not started.
-
-By default the callback authenticates only requests made for sessions this client creates or resumes. With `KerberosAuthScope.Runtime` it also authenticates the runtime's shared background traffic, such as catalog refreshes and telemetry; only one connection at a time can hold that scope, so startup fails if another client holds it. The registration ends when the connection closes. In fallback mode, if the callback cannot supply a valid token, the native credential error is reported. In always mode, a disconnected, throwing, or empty callback fails authentication. The runtime waits at most 30 seconds for the callback (less when the request's own deadline is sooner) and treats a timeout as a callback failure. Tokens are not cached and must not be logged or persisted. The callback supplies the initial SPNEGO token only; exchanges requiring continuation tokens still need native negotiation.
 
 #### Methods
 
@@ -281,6 +308,7 @@ Create a new conversation session.
 - `OnUserInputRequest` - Handler for legacy question-and-answer requests from the agent. Enables the legacy `ask_user` tool. See [User Input Requests](#user-input-requests) section.
 - `AskUserVariant` - Selects the model-facing `ask_user` tool shape. Defaults to `AskUserVariant.Legacy`; use `AskUserVariant.Elicitation` with `OnElicitationRequest`.
 - `InteractiveUser` - Declares that a person types this session's messages, as in an editor chat panel. Enables the runtime's user-message analysis telemetry for user-authored messages; automated messages stay excluded. Defaults to off. Ignored for cloud sessions.
+- `PermissionMode` - Applies `Manual`, `Assisted`, or `AllowAll` before the session's first turn, before `CreateSessionAsync` returns. Uses the same checks as `session.Rpc.Permissions.SetModeAsync`; `session.PermissionModeResult` reports whether it was applied and the authoritative mode. Not supported for cloud sessions.
 - `Hooks` - Hook handlers for session lifecycle events. See [Session Hooks](#session-hooks) section.
 - `CanvasHandler` - Handles canvas open, close, and action callbacks. The SDK awaits
   asynchronous callbacks before replying, including callbacks without a result, unless
@@ -299,6 +327,7 @@ Resume an existing session. Returns the session with `WorkspacePath` populated i
 - `SkillProvider` - Re-supplies the session-scoped skill provider when resuming.
 - `AskUserVariant` - Re-supplies the model-facing `ask_user` tool shape on cold resume.
 - `InteractiveUser` - Re-supplies the interactive-user declaration on cold resume. It is ignored when resuming a session that is already active.
+- `PermissionMode` - Applied before resumed pending work continues. If it is refused (for example by managed policy), continued work runs under the mode `session.PermissionModeResult` reports.
 - `AllowTranscriptRecovery` - Repairs a damaged transcript when true. The default
   is true in all modes; set false to reject recovery. `session.TranscriptRecovery` contains
   `PlannedBackupPath`, `InvalidLineNumbers` (including torn-tail loss), and

@@ -27,6 +27,23 @@ public record SandboxConfigUserPolicyFilesystem(
     /** Paths granted read-only access. */
     @JsonProperty("readonlyPaths") List<String> readonlyPaths,
     /** Paths explicitly denied. */
-    @JsonProperty("deniedPaths") List<String> deniedPaths
+    @JsonProperty("deniedPaths") List<String> deniedPaths,
+    /** Paths granted enumerate-only access: sandboxed commands can list these directories without reading the files in them. Honored only on Windows hosts with the `filesystem_enumeration` capability; ignored elsewhere. An entry at or under a read-only, read-write, or denied path is ignored, so it never narrows a grant or reopens a denial. */
+    @JsonProperty("enumeratePaths") List<String> enumeratePaths
 ) {
+
+    /**
+     * Creates filesystem rules without enumerate-only paths.
+     *
+     * @param readwritePaths Paths granted read/write access.
+     * @param readonlyPaths Paths granted read-only access.
+     * @param deniedPaths Paths explicitly denied.
+     */
+    public SandboxConfigUserPolicyFilesystem(
+        List<String> readwritePaths,
+        List<String> readonlyPaths,
+        List<String> deniedPaths
+    ) {
+        this(readwritePaths, readonlyPaths, deniedPaths, null);
+    }
 }

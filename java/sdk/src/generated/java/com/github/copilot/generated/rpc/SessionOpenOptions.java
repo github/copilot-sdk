@@ -166,6 +166,8 @@ public record SessionOpenOptions(
     /** Experimental: enable native model citations for supported Anthropic and OpenAI models, normalized onto the `assistant.message` event. Off by default; may change or be removed while the citations surface is experimental. */
     @CopilotExperimental
     @JsonProperty("enableCitations") Boolean enableCitations,
+    /** Whether the model may request multiple tool calls per response. Defaults to true. False sends a provider hint, not an execution guarantee: all returned calls are still handled and handlers may run concurrently. Re-supply on cold resume. */
+    @JsonProperty("allowMultipleToolCalls") Boolean allowMultipleToolCalls,
     /** Override URL for the Copilot API endpoint. */
     @JsonProperty("copilotUrl") String copilotUrl,
     /** Whether ask_user is explicitly disabled. */

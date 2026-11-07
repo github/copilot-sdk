@@ -14,6 +14,7 @@ import java.util.function.Function;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.github.copilot.rpc.CopilotClientMode;
 import com.github.copilot.rpc.CreateSessionRequest;
+import com.github.copilot.rpc.MemoryConfiguration;
 import com.github.copilot.rpc.ProviderConfig;
 import com.github.copilot.rpc.NamedProviderConfig;
 import com.github.copilot.rpc.BearerTokenProvider;
@@ -23,6 +24,7 @@ import com.github.copilot.rpc.ResumeSessionRequest;
 import com.github.copilot.rpc.SectionOverride;
 import com.github.copilot.rpc.SectionOverrideAction;
 import com.github.copilot.rpc.SessionConfig;
+import com.github.copilot.rpc.StoredMemory;
 import com.github.copilot.rpc.SystemMessageConfig;
 import com.github.copilot.rpc.ToolDefinition;
 import com.github.copilot.rpc.ToolDefer;
@@ -42,6 +44,20 @@ final class SessionRequestBuilder {
 
     private SessionRequestBuilder() {
         // Utility class
+    }
+
+    /**
+     * Returns the app's store-memory callback, or {@code null} when none is set.
+     *
+     * @throws IllegalArgumentException
+     *             if a callback is set but memory is not enabled
+     */
+    static Function<StoredMemory, CompletableFuture<Void>> requestedMemoryStore(MemoryConfiguration memory) {
+        var storeMemory = memory != null ? memory.getStoreMemory() : null;
+        if (storeMemory != null && !memory.getEnabled()) {
+            throw new IllegalArgumentException("memory.storeMemory requires memory.enabled to be true.");
+        }
+        return storeMemory;
     }
 
     /**
@@ -165,6 +181,7 @@ final class SessionRequestBuilder {
         request.setName(config.getName());
         request.setClientName(config.getClientName());
         request.setReasoningEffort(config.getReasoningEffort());
+        config.getAllowMultipleToolCalls().ifPresent(request::setAllowMultipleToolCalls);
         request.setReasoningSummary(config.getReasoningSummary());
         request.setContextTier(config.getContextTier());
         request.setAskUserVariant(config.getAskUserVariant());
@@ -234,6 +251,9 @@ final class SessionRequestBuilder {
         if (config.getSkillProvider() != null) {
             request.setHasSkillProvider(true);
         }
+        if (config.getMemory() != null && config.getMemory().getStoreMemory() != null) {
+            request.setHasMemoryStore(true);
+        }
         if (config.getEmbeddingCacheStorage() != null) {
             request.setEmbeddingCacheStorage(config.getEmbeddingCacheStorage());
         }
@@ -258,6 +278,9 @@ final class SessionRequestBuilder {
         if (config.getOnAutoModeSwitch() != null) {
             request.setRequestAutoModeSwitch(true);
         }
+        if (config.isAutoModeRecovery()) {
+            request.setRequestAutoModeRecovery(true);
+        }
         request.setGitHubToken(config.getGitHubToken());
         request.setCloud(config.getCloud());
         request.setFeatureFlags(config.getFeatureFlags());
@@ -266,6 +289,7 @@ final class SessionRequestBuilder {
         request.setExcludedManagedSettings(config.getExcludedManagedSettings());
         config.getEnforceManagedModelDefaults().ifPresent(request::setEnforceManagedModelDefaults);
         config.getInteractiveUser().ifPresent(request::setInteractiveUser);
+        config.getPermissionMode().ifPresent(request::setPermissionMode);
         request.setManagedSettings(config.getManagedSettings());
 
         return request;
@@ -322,6 +346,7 @@ final class SessionRequestBuilder {
         config.getAllowTranscriptRecovery().ifPresent(request::setAllowTranscriptRecovery);
         request.setClientName(config.getClientName());
         request.setReasoningEffort(config.getReasoningEffort());
+        config.getAllowMultipleToolCalls().ifPresent(request::setAllowMultipleToolCalls);
         request.setReasoningSummary(config.getReasoningSummary());
         request.setContextTier(config.getContextTier());
         request.setAskUserVariant(config.getAskUserVariant());
@@ -362,6 +387,9 @@ final class SessionRequestBuilder {
         config.getEnableSkills().ifPresent(request::setEnableSkills);
         if (config.getSkillProvider() != null) {
             request.setHasSkillProvider(true);
+        }
+        if (config.getMemory() != null && config.getMemory().getStoreMemory() != null) {
+            request.setHasMemoryStore(true);
         }
         if (config.getEmbeddingCacheStorage() != null) {
             request.setEmbeddingCacheStorage(config.getEmbeddingCacheStorage());
@@ -416,6 +444,9 @@ final class SessionRequestBuilder {
         if (config.getOnAutoModeSwitch() != null) {
             request.setRequestAutoModeSwitch(true);
         }
+        if (config.isAutoModeRecovery()) {
+            request.setRequestAutoModeRecovery(true);
+        }
         request.setGitHubToken(config.getGitHubToken());
         request.setFeatureFlags(config.getFeatureFlags());
         request.setExpAssignments(config.getExpAssignments());
@@ -423,6 +454,7 @@ final class SessionRequestBuilder {
         request.setExcludedManagedSettings(config.getExcludedManagedSettings());
         config.getEnforceManagedModelDefaults().ifPresent(request::setEnforceManagedModelDefaults);
         config.getInteractiveUser().ifPresent(request::setInteractiveUser);
+        config.getPermissionMode().ifPresent(request::setPermissionMode);
         request.setManagedSettings(config.getManagedSettings());
 
         return request;
@@ -471,6 +503,10 @@ final class SessionRequestBuilder {
         }
         if (config.getSkillProvider() != null) {
             session.registerSkillProvider(config.getSkillProvider());
+        }
+        var memoryStore = config.getMemory() != null ? config.getMemory().getStoreMemory() : null;
+        if (memoryStore != null) {
+            session.registerMemoryStore(memoryStore);
         }
         if (config.getHooks() != null) {
             session.registerHooks(config.getHooks());
@@ -526,6 +562,10 @@ final class SessionRequestBuilder {
         }
         if (config.getSkillProvider() != null) {
             session.registerSkillProvider(config.getSkillProvider());
+        }
+        var memoryStore = config.getMemory() != null ? config.getMemory().getStoreMemory() : null;
+        if (memoryStore != null) {
+            session.registerMemoryStore(memoryStore);
         }
         if (config.getHooks() != null) {
             session.registerHooks(config.getHooks());

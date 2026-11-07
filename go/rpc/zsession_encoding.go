@@ -157,6 +157,24 @@ func (e *SessionEvent) UnmarshalJSON(data []byte) error {
 			return err
 		}
 		e.Data = &d
+	case SessionEventTypeAutoModeRecoveryConsentCompleted:
+		var d AutoModeRecoveryConsentCompletedData
+		if err := json.Unmarshal(raw.Data, &d); err != nil {
+			return err
+		}
+		e.Data = &d
+	case SessionEventTypeAutoModeRecoveryConsentRequested:
+		var d AutoModeRecoveryConsentRequestedData
+		if err := json.Unmarshal(raw.Data, &d); err != nil {
+			return err
+		}
+		e.Data = &d
+	case SessionEventTypeAutoModeRecoveryOutcome:
+		var d AutoModeRecoveryOutcomeData
+		if err := json.Unmarshal(raw.Data, &d); err != nil {
+			return err
+		}
+		e.Data = &d
 	case SessionEventTypeAutoModeSwitchCompleted:
 		var d AutoModeSwitchCompletedData
 		if err := json.Unmarshal(raw.Data, &d); err != nil {
@@ -997,6 +1015,24 @@ func (e *SessionEvent) UnmarshalJSON(data []byte) error {
 	return nil
 }
 
+func (e *SessionEventWithAutoModeRecovery) UnmarshalJSON(data []byte) error {
+	var event SessionEvent
+	if err := json.Unmarshal(data, &event); err != nil {
+		return err
+	}
+	if event.Type() == SessionEventTypeCapabilitiesChanged {
+		var raw struct {
+			Data CapabilitiesChangedDataWithAutoModeRecovery `json:"data"`
+		}
+		if err := json.Unmarshal(data, &raw); err != nil {
+			return err
+		}
+		event.Data = &raw.Data
+	}
+	e.SessionEvent = event
+	return nil
+}
+
 func (e SessionEvent) MarshalJSON() ([]byte, error) {
 	type rawEvent struct {
 		AgentID    *string          `json:"agentId,omitempty"`
@@ -1041,6 +1077,7 @@ func (r *UserMessageData) UnmarshalJSON(data []byte) error {
 		AgentMode                        *UserMessageAgentMode `json:"agentMode,omitempty"`
 		Attachments                      []json.RawMessage     `json:"attachments,omitzero"`
 		CausalDependencies               []string              `json:"causalDependencies,omitzero"`
+		ClientTurnID                     *string               `json:"clientTurnId,omitempty"`
 		Content                          string                `json:"content"`
 		Delivery                         *UserMessageDelivery  `json:"delivery,omitempty"`
 		InteractionID                    *string               `json:"interactionId,omitempty"`
@@ -1070,6 +1107,7 @@ func (r *UserMessageData) UnmarshalJSON(data []byte) error {
 		}
 	}
 	r.CausalDependencies = raw.CausalDependencies
+	r.ClientTurnID = raw.ClientTurnID
 	r.Content = raw.Content
 	r.Delivery = raw.Delivery
 	r.InteractionID = raw.InteractionID

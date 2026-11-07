@@ -23,7 +23,7 @@ import com.github.copilot.generated.rpc.LlmInferenceHttpResponseChunkParams;
 import com.github.copilot.generated.rpc.LlmInferenceHttpResponseStartParams;
 import com.github.copilot.generated.rpc.ServerLlmInferenceApi;
 
-import edu.umd.cs.findbugs.annotations.Nullable;
+import org.jspecify.annotations.Nullable;
 
 /**
  * One intercepted request in flight. Carries the request context plus the body

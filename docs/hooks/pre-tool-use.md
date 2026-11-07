@@ -66,10 +66,17 @@ package main
 
 import copilot "github.com/github/copilot-sdk/go"
 
+// Aliases let the signature below use the package's own type names.
+type (
+    PreToolUseHookInput  = copilot.PreToolUseHookInput
+    HookInvocation       = copilot.HookInvocation
+    PreToolUseHookOutput = copilot.PreToolUseHookOutput
+)
+
 type PreToolUseHandler func(
-    input copilot.PreToolUseHookInput,
-    invocation copilot.HookInvocation,
-) (*copilot.PreToolUseHookOutput, error)
+    input PreToolUseHookInput,
+    invocation HookInvocation,
+) (*PreToolUseHookOutput, error)
 
 var _ = copilot.PreToolUseHandler(PreToolUseHandler(nil))
 
@@ -120,11 +127,24 @@ import com.github.copilot.rpc.*;
 import java.util.concurrent.CompletableFuture;
 
 public class PreToolUseSignature {
-    PreToolUseHandler handler = (PreToolUseHookInput input, HookInvocation invocation) ->
-        CompletableFuture.completedFuture(PreToolUseHookOutput.allow());
-    CompletableFuture<PreToolUseHookOutput> handle(PreToolUseHookInput input, HookInvocation invocation) {
-        return handler.handle(input, invocation);
+    static class Documented {
+        @FunctionalInterface
+        public interface PreToolUseHandler {
+            CompletableFuture<PreToolUseHookOutput> handle(
+                PreToolUseHookInput input,
+                HookInvocation invocation);
+        }
     }
+
+    // The documented interface and the SDK's accept each other's implementations.
+    static PreToolUseHandler toSdk(Documented.PreToolUseHandler documented) {
+        return documented::handle;
+    }
+
+    static Documented.PreToolUseHandler fromSdk(PreToolUseHandler sdk) {
+        return sdk::handle;
+    }
+
     public static void main(String[] args) {}
 }
 ```
@@ -252,7 +272,6 @@ import (
 func main() {
 	client := copilot.NewClient(nil)
 	session, _ := client.CreateSession(context.Background(), &copilot.SessionConfig{
-		OnPermissionRequest: copilot.PermissionHandler.ApproveAll,
 		Hooks: &copilot.SessionHooks{
 			OnPreToolUse: func(input copilot.PreToolUseHookInput, inv copilot.HookInvocation) (*copilot.PreToolUseHookOutput, error) {
 				fmt.Printf("[%s] Calling %s\n", inv.SessionID, input.ToolName)

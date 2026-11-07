@@ -156,6 +156,8 @@ Console.WriteLine(response?.Data.Content);
 ## Additional options
 
 ```typescript
+import { CopilotClient, RuntimeConnection } from "@github/copilot-sdk";
+
 const client = new CopilotClient({
     connection: RuntimeConnection.forStdio({
         path: "/usr/local/bin/copilot",

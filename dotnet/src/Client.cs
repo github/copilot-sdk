@@ -72,6 +72,7 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
     /// </remarks>
     internal readonly ConcurrentDictionary<string, CopilotSession> _sessions = new();
     private readonly object _sessionAdmissionLock = new();
+    private readonly HashSet<SessionOperation> _sessionOperations = [];
     private bool _sessionAdmissionClosed;
     private readonly ConcurrentDictionary<string, Func<GitHubTokenProviderArgs, Task<GitHubTokenProviderResult>>> _gitHubTokenProviders = new();
 
@@ -104,6 +105,22 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
     private readonly ClientGlobalApiHandlers? _clientGlobalApis;
 
     private sealed record LifecycleSubscription(Type EventType, Action<SessionLifecycleEvent> Handler);
+
+    private sealed class SessionOperation(CopilotClient client, string sessionId, JsonRpc rpc, bool recoveryInitialization) : IDisposable
+    {
+        public string SessionId { get; } = sessionId;
+        public JsonRpc Rpc { get; } = rpc;
+        public bool RecoveryInitialization { get; } = recoveryInitialization;
+        public CopilotSession? Session { get; set; }
+
+        public void Dispose()
+        {
+            lock (client._sessionAdmissionLock)
+            {
+                client._sessionOperations.Remove(this);
+            }
+        }
+    }
 
     /// <summary>
     /// Gets the typed RPC client for server-scoped methods (no session required).
@@ -314,15 +331,20 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
     /// <param name="url">The URL to parse. Supports formats: "port", "host:port", "[ipv6]:port", "http://host:port".</param>
     private static Uri ParseRuntimeUrl(string url)
     {
+        if (url.StartsWith("https://", StringComparison.OrdinalIgnoreCase))
+        {
+            throw new ArgumentException(
+                "HTTPS runtime connections are not supported: this transport uses plaintext TCP, not TLS");
+        }
+
         // If it's just a port number, treat as localhost
         if (int.TryParse(url, out var port))
         {
             return new Uri($"http://localhost:{port}");
         }
 
-        // Add scheme if missing
-        if (!url.StartsWith("http://", StringComparison.OrdinalIgnoreCase) &&
-            !url.StartsWith("https://", StringComparison.OrdinalIgnoreCase))
+        // Preserve legacy port defaults when normalizing scheme-less TCP addresses.
+        if (!url.StartsWith("http://", StringComparison.OrdinalIgnoreCase))
         {
             url = "https://" + url;
         }
@@ -383,6 +405,7 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
 
             var startTimestamp = Stopwatch.GetTimestamp();
             Connection? connection = null;
+            FfiRuntimeHost? ffiHost = null;
             Process? cliProcess = null;
             ProcessStderrPump? stderrPump = null;
 
@@ -402,7 +425,7 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
                             ?? throw new InvalidOperationException(
                                 $"In-process FFI runtime library not found at '{searchedRuntime}'.")
                         : ResolveRuntimePathForExplicitCli(explicitCliPath);
-                    var ffiHost = FfiRuntimeHost.Create(
+                    ffiHost = FfiRuntimeHost.Create(
                         ffiRuntimePath,
                         explicitCliPath,
                         ffiEnvironment,
@@ -438,9 +461,9 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
                     "CopilotClient.StartAsync protocol verification complete. Elapsed={Elapsed}",
                     startTimestamp);
 
-                if (_clientGlobalApis?.KerberosAuth is KerberosAuthAdapter kerberosAuth)
+                if (_clientGlobalApis?.Network is NetworkAdapter network)
                 {
-                    await connection.Server.KerberosAuth.SetProviderAsync(kerberosAuth.Mode, kerberosAuth.Scope, ct);
+                    await network.RegisterAsync(connection.Server.Network, ct);
                 }
 
                 if (_options.ExtensionLaunchProvider is not null)
@@ -483,6 +506,12 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
                 if (connection is not null)
                 {
                     await CleanupConnectionAsync(connection, errors: null, gracefulRuntimeShutdown: false);
+                }
+                else if (ffiHost is not null)
+                {
+                    try { await Task.Run(ffiHost.Dispose, CancellationToken.None).ConfigureAwait(false); }
+                    catch (Exception cleanupError) { AddCleanupError(null, cleanupError, _logger); }
+                    Interlocked.CompareExchange(ref _ffiHost, null, ffiHost);
                 }
                 else if (cliProcess is not null)
                 {
@@ -892,7 +921,8 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
         SessionConfigBase config,
         Dictionary<string, Func<string, Task<string>>>? transformCallbacks,
         bool hasHooks,
-        string callerName)
+        string callerName,
+        CopilotSession? replacedSession = null)
     {
         var setupTimestamp = Stopwatch.GetTimestamp();
         var session = new CopilotSession(
@@ -910,6 +940,7 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
         session.RegisterExitPlanModeHandler(config.OnExitPlanModeRequest);
         session.RegisterAutoModeSwitchHandler(config.OnAutoModeSwitchRequest);
         session.RegisterSkillProvider(config.SkillProvider);
+        session.RegisterMemoryStore(config.Memory?.StoreMemory);
         if (config.OnUserInputRequest != null)
         {
             session.RegisterUserInputHandler(config.OnUserInputRequest);
@@ -929,7 +960,7 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
         ConfigureSessionFsHandlers(session, config.CreateSessionFsProvider);
         session.SetCanvasHandler(config.CanvasHandler);
         session.RegisterBearerTokenProviders(BuildBearerTokenCallbacks(config));
-        RegisterSession(session, rpc);
+        RegisterSession(session, rpc, replacedSession);
         session.StartProcessingEvents();
         LoggingHelpers.LogTiming(_logger, LogLevel.Debug, null,
             callerName + " local setup complete. Elapsed={Elapsed}, SessionId={SessionId}, Tools={ToolsCount}, Commands={CommandsCount}, Hooks={HasHooks}",
@@ -1207,10 +1238,19 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
     public async Task<CopilotSession> CreateSessionAsync(SessionConfig config, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(config);
+        if (config.AutoModeRecovery && config.OnAutoModeSwitchRequest is null)
+        {
+            throw new ArgumentException("AutoModeRecovery requires OnAutoModeSwitchRequest", nameof(config));
+        }
         ValidateGitHubTokenConfig(config);
+        ValidateMemoryConfig(config);
         if (config.Cloud is not null && config.SkillProvider is not null)
         {
             throw new ArgumentException("Skill providers are not supported for cloud sessions.");
+        }
+        if (config.Cloud is not null && config.Memory?.StoreMemory is not null)
+        {
+            throw new ArgumentException("Memory stores are not supported for cloud sessions.");
         }
 
         var connection = await EnsureConnectedAsync(cancellationToken);
@@ -1251,11 +1291,13 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
         var registrationId = RegisterGitHubTokenProvider(config.GitHubTokenProvider);
         var registrationTransferred = false;
         CopilotSession? session = null;
+        SessionOperation? operation = null;
         string? serverAssignedSessionId = null;
         try
         {
             if (localSessionId != null)
             {
+                operation = BeginSessionOperation(localSessionId, connection.Rpc, config.AutoModeRecovery, initializeSession: true);
                 session = InitializeSession(
                     localSessionId,
                     connection.Rpc,
@@ -1273,6 +1315,7 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
                 config.Name,
                 config.ClientName,
                 config.ReasoningEffort,
+                config.AllowMultipleToolCalls,
                 config.ReasoningSummary,
                 config.ContextTier,
                 config.Tools?.Select(ToolDefinition.FromAIFunction).ToList(),
@@ -1322,6 +1365,7 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
                 config.Autopilot,
                 Commands: config.Commands?.Select(c => new CommandWireDefinition(c.Name, c.Description ?? string.Empty)).ToList(),
                 RequestElicitation: config.OnElicitationRequest != null,
+                RequestAutoModeRecovery: config.AutoModeRecovery ? true : null,
                 RequestMcpApps: config.EnableMcpApps ? true : null,
                 Traceparent: traceparent,
                 Tracestate: tracestate,
@@ -1362,11 +1406,13 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
                 ExcludedManagedSettings: config.ExcludedManagedSettings,
                 EnforceManagedModelDefaults: config.EnforceManagedModelDefaults,
                 InteractiveUser: config.InteractiveUser,
+                PermissionMode: config.PermissionMode,
                 GitHubMcpToolConfig: config.GitHubMcpToolConfig,
                 ManagedSettings: config.ManagedSettings,
                 EnableGitHubTelemetryForwarding: _options.OnGitHubTelemetry != null ? true : null,
                 AdditionalDirectories: config.AdditionalDirectories,
-                HasSkillProvider: config.SkillProvider is not null ? true : null);
+                HasSkillProvider: config.SkillProvider is not null ? true : null,
+                HasMemoryStore: config.Memory?.StoreMemory is not null ? true : null);
 
             var rpcTimestamp = Stopwatch.GetTimestamp();
 
@@ -1386,6 +1432,7 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
                     && !string.IsNullOrEmpty(sessionId))
                 {
                     serverAssignedSessionId = sessionId;
+                    operation = BeginSessionOperation(sessionId, connection.Rpc, config.AutoModeRecovery, initializeSession: true);
                     session = InitializeSession(
                         sessionId,
                         connection.Rpc,
@@ -1393,7 +1440,6 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
                         transformCallbacks,
                         hasHooks,
                         "CopilotClient.CreateSessionAsync");
-                    serverAssignedSessionId = null;
                 }
             };
 
@@ -1415,13 +1461,23 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
                     $"session.create returned sessionId {response.SessionId} but the caller requested {localSessionId}.");
             }
 
+            session.SetCapabilities(response.Capabilities);
+            if (config.AutoModeRecovery)
+            {
+                if (registrationId is not null)
+                {
+                    session.SetGitHubTokenProviderRegistration(registrationId);
+                    registrationTransferred = true;
+                }
+                await RequireAutoModeRecoveryAsync(session, cancellationToken, deleteOnFailure: localSessionId is null).ConfigureAwait(false);
+            }
             if (config.OnMcpAuthRequest is not null)
             {
                 await session.Rpc.EventLog.RegisterInterestAsync("mcp.oauth_required", cancellationToken);
             }
 
             session.WorkspacePath = response.WorkspacePath;
-            session.SetCapabilities(response.Capabilities);
+            session.PermissionModeResult = response.PermissionModeResult;
             session.SetOpenCanvases(response.OpenCanvases);
 
             await UpdateSessionOptionsForModeAsync(session, config, cancellationToken).ConfigureAwait(false);
@@ -1431,11 +1487,15 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
                 session.SetGitHubTokenProviderRegistration(registrationId);
                 registrationTransferred = true;
             }
+            serverAssignedSessionId = null;
         }
         catch (Exception ex)
         {
-            session?.Unregister();
-            if (localSessionId is null && serverAssignedSessionId is not null)
+            if (session?.AutoModeRecoveryCleanupTask is null)
+            {
+                session?.Retire();
+            }
+            if (localSessionId is null && serverAssignedSessionId is not null && session?.AutoModeRecoveryCleanupTask is null)
             {
                 try
                 {
@@ -1445,19 +1505,17 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
                         cleanupTimeout.Token).ConfigureAwait(false);
                     if (!deletion.Success)
                     {
-                        throw new InvalidOperationException($"Failed to delete session {serverAssignedSessionId}: {deletion.Error}");
+                        throw new InvalidOperationException($"Failed to delete session {serverAssignedSessionId}: {deletion.Error ?? "unknown error"}");
                     }
                 }
-                catch (Exception cleanupError) when (cleanupError is OperationCanceledException
-                    or IOException
-                    or SocketException
-                    or InvalidOperationException
-                    or ObjectDisposedException)
+                catch (Exception cleanupError) when (IsRecoverableConnectionCleanupFailure(cleanupError))
                 {
-                    if (_logger.IsEnabled(LogLevel.Warning))
-                        _logger.LogWarning(cleanupError, "Failed to delete cloud session {SessionId} after creation failed", serverAssignedSessionId);
+                    session?.Unregister(cleanupFailed: true);
+                    throw new AggregateException(
+                        $"Failed to initialize and delete cloud session {serverAssignedSessionId}", ex, cleanupError);
                 }
             }
+            session?.Unregister();
 
             if (ex is not OperationCanceledException)
             {
@@ -1471,6 +1529,7 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
         }
         finally
         {
+            operation?.Dispose();
             if (!registrationTransferred && registrationId is not null)
             {
                 UnregisterGitHubTokenProvider(registrationId);
@@ -1513,7 +1572,12 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
     {
         ArgumentNullException.ThrowIfNull(sessionId);
         ArgumentNullException.ThrowIfNull(config);
+        if (config.AutoModeRecovery && config.OnAutoModeSwitchRequest is null)
+        {
+            throw new ArgumentException("AutoModeRecovery requires OnAutoModeSwitchRequest", nameof(config));
+        }
         ValidateGitHubTokenConfig(config);
+        ValidateMemoryConfig(config);
 
         var connection = await EnsureConnectedAsync(cancellationToken);
         var totalTimestamp = Stopwatch.GetTimestamp();
@@ -1538,28 +1602,46 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
 
         var (wireSystemMessage, transformCallbacks) = ExtractTransformCallbacks(config.SystemMessage);
 
+        using var operation = BeginSessionOperation(sessionId, connection.Rpc, config.AutoModeRecovery, initializeSession: true);
         var registrationId = RegisterGitHubTokenProvider(config.GitHubTokenProvider);
         var registrationTransferred = false;
         CopilotSession? session = null;
+        CopilotSession? previousSession = null;
+        var keepAcceptedOwner = false;
         try
         {
-            // Create and register the session before issuing the RPC so that
-            // events emitted by the CLI (e.g. session.start) are not dropped.
-            session = InitializeSession(
-                sessionId,
-                connection.Rpc,
-                config,
-                transformCallbacks,
-                hasHooks,
-                "CopilotClient.ResumeSessionAsync");
-
+            lock (_sessionAdmissionLock)
+            {
+                // Preserve the public rejection of an exact already-tracked ID,
+                // even when that ID also looks like an abbreviated UUID.
+                if (_sessions.ContainsKey(sessionId))
+                {
+                    throw new InvalidOperationException($"Session '{sessionId}' is already tracked by this client.");
+                }
+            }
+            var resolvedSessionId = sessionId;
+            var uuidPrefix = config.AutoModeRecovery && _options.SessionFs is null && IsAbbreviatedUuidPrefix(sessionId);
+            if (uuidPrefix)
+            {
+                var match = await connection.Server.Sessions.FindByPrefixWithOptionsAsync(
+                    new SessionsFindByPrefixRequest { Prefix = sessionId, ConfigDir = config.ConfigDirectory },
+                    cancellationToken);
+                var canonicalId = match?.SessionId;
+                if (canonicalId is not { Length: > 0 }
+                    || !canonicalId.StartsWith(sessionId, StringComparison.OrdinalIgnoreCase))
+                {
+                    throw new InvalidOperationException($"Session prefix '{sessionId}' does not match a unique persisted session.");
+                }
+                resolvedSessionId = canonicalId;
+            }
             var (traceparent, tracestate) = TelemetryHelpers.GetTraceContext();
 
             var request = new ResumeSessionRequest(
-                sessionId,
+                resolvedSessionId,
                 config.ClientName,
                 config.Model,
                 config.ReasoningEffort,
+                config.AllowMultipleToolCalls,
                 config.ReasoningSummary,
                 config.ContextTier,
                 config.Tools?.Select(ToolDefinition.FromAIFunction).ToList(),
@@ -1610,6 +1692,7 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
                 config.Autopilot,
                 Commands: config.Commands?.Select(c => new CommandWireDefinition(c.Name, c.Description ?? string.Empty)).ToList(),
                 RequestElicitation: config.OnElicitationRequest != null,
+                RequestAutoModeRecovery: config.AutoModeRecovery ? true : null,
                 RequestMcpApps: config.EnableMcpApps ? true : null,
                 Traceparent: traceparent,
                 Tracestate: tracestate,
@@ -1643,16 +1726,45 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
                 ExcludedManagedSettings: config.ExcludedManagedSettings,
                 EnforceManagedModelDefaults: config.EnforceManagedModelDefaults,
                 InteractiveUser: config.InteractiveUser,
+                PermissionMode: config.PermissionMode,
                 GitHubMcpToolConfig: config.GitHubMcpToolConfig,
                 ManagedSettings: config.ManagedSettings,
                 EnableGitHubTelemetryForwarding: _options.OnGitHubTelemetry != null ? true : null,
                 AdditionalDirectories: config.AdditionalDirectories,
                 AllowTranscriptRecovery: config.AllowTranscriptRecovery,
-                HasSkillProvider: config.SkillProvider is not null ? true : null);
+                HasSkillProvider: config.SkillProvider is not null ? true : null,
+                HasMemoryStore: config.Memory?.StoreMemory is not null ? true : null);
 
+            cancellationToken.ThrowIfCancellationRequested();
+            lock (_sessionAdmissionLock)
+            {
+                previousSession = uuidPrefix
+                    ? _sessions.Values.FirstOrDefault(resident => string.Equals(resident.SessionId, resolvedSessionId, StringComparison.OrdinalIgnoreCase))
+                    : FindResidentSession(sessionId);
+            }
+            // Resolve persisted identity and prepare the request before replacing
+            // callbacks, then publish the owner before the RPC can emit events.
+            session = InitializeSession(
+                previousSession?.SessionId ?? resolvedSessionId,
+                connection.Rpc,
+                config,
+                transformCallbacks,
+                hasHooks,
+                "CopilotClient.ResumeSessionAsync",
+                previousSession);
+            lock (_sessionAdmissionLock)
+            {
+                operation.Session = session;
+            }
             var rpcTimestamp = Stopwatch.GetTimestamp();
             var response = await InvokeRpcAsync<ResumeSessionResponse>(
-                connection.Rpc, "session.resume", [request], cancellationToken);
+                connection.Rpc, "session.resume", [request], null, cancellationToken, raw =>
+                {
+                    if (raw.TryGetProperty("sessionId", out var id) && id.GetString() is { Length: > 0 } canonicalId)
+                    {
+                        BindResumedSession(operation, session, canonicalId, uuidPrefix, ref previousSession);
+                    }
+                });
             LoggingHelpers.LogTiming(_logger, LogLevel.Debug, null,
                 "CopilotClient.ResumeSessionAsync session resume request completed successfully. Elapsed={Elapsed}, SessionId={SessionId}",
                 rpcTimestamp,
@@ -1660,7 +1772,21 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
 
             session.WorkspacePath = response.WorkspacePath;
             session.TranscriptRecovery = response.TranscriptRecovery;
+            session.PermissionModeResult = response.PermissionModeResult;
             session.SetCapabilities(response.Capabilities);
+            if (config.AutoModeRecovery)
+            {
+                if (registrationId is not null)
+                {
+                    session.SetGitHubTokenProviderRegistration(registrationId);
+                    registrationTransferred = true;
+                }
+                // A successful resident resume has already installed these callbacks.
+                // Missing recovery support must not detach that accepted attachment.
+                keepAcceptedOwner = previousSession is not null;
+                await RequireAutoModeRecoveryAsync(session, cancellationToken, detachOnFailure: previousSession is null).ConfigureAwait(false);
+                keepAcceptedOwner = false;
+            }
             session.SetOpenCanvases(response.OpenCanvases);
 
             if (config.OnMcpAuthRequest is not null)
@@ -1675,10 +1801,22 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
                 session.SetGitHubTokenProviderRegistration(registrationId);
                 registrationTransferred = true;
             }
+            previousSession?.Retire();
         }
         catch (Exception ex)
         {
-            session?.Unregister();
+            if (keepAcceptedOwner)
+            {
+                previousSession?.Retire();
+            }
+            else if (session is not null)
+            {
+                if (session.AutoModeRecoveryCleanupTask is null)
+                {
+                    RestoreResumedSession(operation, session, previousSession);
+                }
+                session.Unregister();
+            }
             if (ex is not OperationCanceledException)
             {
                 LoggingHelpers.LogTiming(_logger, LogLevel.Warning, ex,
@@ -1701,6 +1839,93 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
             totalTimestamp,
             sessionId);
         return session!;
+    }
+
+    private async Task RequireAutoModeRecoveryAsync(CopilotSession session, CancellationToken cancellationToken, bool deleteOnFailure = false, bool detachOnFailure = true)
+    {
+        if (session.Capabilities.Ui?.AutoModeRecovery == true)
+        {
+            return;
+        }
+        var error = new NotSupportedException("The runtime does not support AutoModeRecovery");
+        if (!detachOnFailure)
+        {
+            throw error;
+        }
+        // Caller cancellation stops waiting, but must not prevent detach from being sent.
+        var cleanup = DisconnectUnsupportedSessionAsync(session, deleteOnFailure);
+        session.AutoModeRecoveryCleanupTask = cleanup;
+        try
+        {
+            await cleanup.WaitAsync(Timeout.InfiniteTimeSpan, cancellationToken).ConfigureAwait(false);
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+            _ = cleanup.ContinueWith(
+                completed =>
+                {
+                    var cleanupError = completed.Exception;
+                    if (_logger.IsEnabled(LogLevel.Warning))
+                    {
+                        _logger.LogWarning(cleanupError,
+                            "Failed to detach unsupported AutoModeRecovery session {SessionId}. Status={Status}",
+                            session.SessionId, completed.Status);
+                    }
+                },
+                CancellationToken.None,
+                TaskContinuationOptions.ExecuteSynchronously | TaskContinuationOptions.NotOnRanToCompletion,
+                TaskScheduler.Default);
+            throw;
+        }
+        // Fatal runtime errors propagate unwrapped.
+        catch (Exception cleanupError) when (IsRecoverableConnectionCleanupFailure(cleanupError))
+        {
+            throw new AggregateException(error, cleanupError);
+        }
+        throw error;
+    }
+
+    private static async Task DisconnectUnsupportedSessionAsync(CopilotSession session, bool deleteOnFailure)
+    {
+        try
+        {
+            Exception? detachError = null;
+            try
+            {
+                using var cleanupCancellation = new CancellationTokenSource(TimeSpan.FromSeconds(10));
+                await session.DisconnectAsync(cleanupCancellation.Token, requireAcknowledgement: true, retainCallbacks: true).ConfigureAwait(false);
+            }
+            catch (Exception error) when (IsRecoverableConnectionCleanupFailure(error))
+            {
+                detachError = error;
+            }
+            if (deleteOnFailure)
+            {
+                try
+                {
+                    using var deletionCancellation = new CancellationTokenSource(TimeSpan.FromSeconds(10));
+                    var deletion = await InvokeRpcAsync<DeleteSessionResponse>(
+                        session.JsonRpc, "session.delete", [new DeleteSessionRequest(session.SessionId)],
+                        deletionCancellation.Token).ConfigureAwait(false);
+                    if (!deletion.Success)
+                    {
+                        throw new InvalidOperationException($"Failed to delete session {session.SessionId}: {deletion.Error ?? "unknown error"}");
+                    }
+                }
+                catch (Exception error) when (detachError is not null && IsRecoverableConnectionCleanupFailure(error))
+                {
+                    throw new AggregateException(detachError, error);
+                }
+            }
+            if (detachError is not null)
+            {
+                ExceptionDispatchInfo.Capture(detachError).Throw();
+            }
+        }
+        finally
+        {
+            session.Retire();
+        }
     }
 
     /// <summary>
@@ -1848,6 +2073,7 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
 
         var connection = await EnsureConnectedAsync(cancellationToken);
 
+        using var operation = BeginSessionOperation(sessionId, connection.Rpc);
         var response = await InvokeRpcAsync<DeleteSessionResponse>(
             connection.Rpc, "session.delete", [new DeleteSessionRequest(sessionId)], cancellationToken);
 
@@ -1859,6 +2085,7 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
         if (_sessions.TryRemove(sessionId, out var session))
         {
             session.ClearSkillProvider();
+            session.ClearMemoryStore();
             session.ReleaseGitHubTokenProviderRegistration();
         }
     }
@@ -2151,11 +2378,13 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
         var handler = _options.RequestHandler;
         var onGitHubTelemetry = _options.OnGitHubTelemetry;
         var installationConfirmationHandler = _options.InstallationConfirmationHandler;
-        var kerberosAuth = _options.KerberosAuth;
+        var network = _options.Network;
         return new ClientGlobalApiHandlers
         {
             ExtensionLaunchProvider = _options.ExtensionLaunchProvider,
-            KerberosAuth = kerberosAuth is null ? null : new KerberosAuthAdapter(kerberosAuth),
+            Network = network is { ResolveProxy: not null } or { AuthenticateNegotiate: not null }
+                ? new NetworkAdapter(network)
+                : null,
             LlmInference = handler is null ? null : new LlmInferenceAdapter(handler, () => _serverRpc),
             GitHubTelemetry = onGitHubTelemetry is null ? null : new GitHubTelemetryAdapter(onGitHubTelemetry, _logger),
             GitHubToken = new GitHubTokenAdapter(this),
@@ -2175,6 +2404,16 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
         {
             throw new ArgumentException(
                 $"{nameof(SessionConfigBase.GitHubToken)} and {nameof(SessionConfigBase.GitHubTokenProvider)} cannot be used together.",
+                nameof(config));
+        }
+    }
+
+    private static void ValidateMemoryConfig(SessionConfigBase config)
+    {
+        if (config.Memory is { StoreMemory: not null, Enabled: not true })
+        {
+            throw new ArgumentException(
+                $"{nameof(SessionConfigBase.Memory)}.{nameof(MemoryConfiguration.StoreMemory)} requires {nameof(SessionConfigBase.Memory)}.{nameof(MemoryConfiguration.Enabled)} to be true.",
                 nameof(config));
         }
     }
@@ -2911,6 +3150,7 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
             rpc.SetLocalRpcMethod("systemMessage.transform", handler.OnSystemMessageTransform);
             rpc.SetLocalRpcMethod("skillProvider.list", handler.OnSkillProviderList, singleObjectParam: true);
             rpc.SetLocalRpcMethod("skillProvider.read", handler.OnSkillProviderRead, singleObjectParam: true);
+            rpc.SetLocalRpcMethod("memoryStore.store", handler.OnMemoryStore, singleObjectParam: true);
             ClientSessionApiRegistration.RegisterClientSessionApiHandlers(rpc, sessionId =>
             {
                 var session = GetSession(sessionId) ?? throw new ArgumentException($"Unknown session {sessionId}");
@@ -3029,6 +3269,7 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
         foreach (var session in sessions ?? _sessions.Values)
         {
             session.ClearSkillProvider();
+            session.ClearMemoryStore();
             session.CancelPendingExternalTools();
         }
     }
@@ -3072,11 +3313,139 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
 
     internal CopilotSession? GetSession(string sessionId)
     {
-        _sessions.TryGetValue(sessionId, out var session);
-        return session;
+        lock (_sessionAdmissionLock)
+        {
+            // UUID prefixes are resolved against persisted sessions before publication.
+            foreach (var operation in _sessionOperations.OrderByDescending(operation => operation.SessionId.Length))
+            {
+                if (operation.Session is { } pending
+                    && _connectionTask?.Status == System.Threading.Tasks.TaskStatus.RanToCompletion
+                    && ReferenceEquals(_connectionTask.Result.Rpc, operation.Rpc)
+                    && (string.Equals(sessionId, pending.SessionId, StringComparison.Ordinal)
+                        || (IsUuidSessionId(sessionId) && IsUuidSessionId(pending.SessionId)
+                            && string.Equals(sessionId, pending.SessionId, StringComparison.OrdinalIgnoreCase))))
+                {
+                    return pending;
+                }
+            }
+            _sessions.TryGetValue(sessionId, out var session);
+            return session;
+        }
     }
 
-    private void RegisterSession(CopilotSession session, JsonRpc rpc)
+    private static bool SessionIdsOverlap(string left, string right) =>
+        string.Equals(left, right, StringComparison.Ordinal)
+        || (IsUuidSessionId(left) && IsUuidSessionId(right)
+            && (left.StartsWith(right, StringComparison.OrdinalIgnoreCase) || right.StartsWith(left, StringComparison.OrdinalIgnoreCase)));
+
+    private static bool IsUuidSessionId(string sessionId) =>
+        IsAbbreviatedUuidPrefix(sessionId) || Guid.TryParseExact(sessionId, "D", out _);
+
+    private static bool IsAbbreviatedUuidPrefix(string sessionId)
+    {
+        if (sessionId.Length is < 7 or >= 36)
+        {
+            return false;
+        }
+        for (var index = 0; index < sessionId.Length; index++)
+        {
+            if (!Uri.IsHexDigit(sessionId[index]) && !(index >= 7 && sessionId[index] == '-'))
+            {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    private SessionOperation BeginSessionOperation(string sessionId, JsonRpc rpc, bool recoveryInitialization = false, bool initializeSession = false)
+    {
+        lock (_sessionAdmissionLock)
+        {
+            // Session initialization still builds and retires its callbacks through
+            // RegisterSession when shutdown has already closed admission.
+            if (!initializeSession && (_sessionAdmissionClosed
+                || _connectionTask?.Status != System.Threading.Tasks.TaskStatus.RanToCompletion
+                || !ReferenceEquals(_connectionTask.Result.Rpc, rpc)))
+            {
+                throw new IOException("Cannot operate on a session on a stopped connection.");
+            }
+            if (_sessionOperations.Any(operation => (recoveryInitialization || operation.RecoveryInitialization)
+                    && ReferenceEquals(operation.Rpc, rpc) && SessionIdsOverlap(operation.SessionId, sessionId))
+                || _sessions.Values.Any(session => session.AutoModeRecoveryCleanupTask is not null
+                    && ReferenceEquals(session.JsonRpc, rpc) && SessionIdsOverlap(session.SessionId, sessionId)))
+            {
+                // Admission is fail-fast, including callback reentry. Waiting here
+                // could depend on the very callback the runtime is waiting for.
+                throw new InvalidOperationException($"Session '{sessionId}' has a pending operation or rejected AutoModeRecovery cleanup.");
+            }
+            var operation = new SessionOperation(this, sessionId, rpc, recoveryInitialization);
+            _sessionOperations.Add(operation);
+            return operation;
+        }
+    }
+
+    private CopilotSession? FindResidentSession(string sessionId)
+    {
+        var matches = _sessions.Values.Where(session =>
+            string.Equals(session.SessionId, sessionId, StringComparison.Ordinal)
+            || (IsUuidSessionId(sessionId) && IsUuidSessionId(session.SessionId)
+                && string.Equals(session.SessionId, sessionId, StringComparison.OrdinalIgnoreCase))).Take(2).ToArray();
+        return matches.Length == 1 ? matches[0] : null;
+    }
+
+    private void BindResumedSession(SessionOperation operation, CopilotSession session, string canonicalId, bool resolvedPrefix, ref CopilotSession? previousSession)
+    {
+        lock (_sessionAdmissionLock)
+        {
+            if (!SessionIdsOverlap(operation.SessionId, canonicalId)
+                || (resolvedPrefix
+                    && !string.Equals(session.SessionId, canonicalId, StringComparison.OrdinalIgnoreCase)))
+            {
+                throw new InvalidOperationException($"session.resume returned unrelated sessionId {canonicalId} for {operation.SessionId}.");
+            }
+            if (session.SessionId == canonicalId)
+            {
+                return;
+            }
+            if (_sessionAdmissionClosed
+                || _connectionTask?.Status != System.Threading.Tasks.TaskStatus.RanToCompletion
+                || !ReferenceEquals(_connectionTask.Result.Rpc, operation.Rpc))
+            {
+                throw new IOException("Cannot register a session on a stopped connection.");
+            }
+            session.RemoveFromClient();
+            if (previousSession is not null)
+            {
+                _sessions[previousSession.SessionId] = previousSession;
+            }
+            previousSession = _sessions.Values.FirstOrDefault(resident => string.Equals(resident.SessionId, canonicalId, StringComparison.OrdinalIgnoreCase));
+            previousSession?.RemoveFromClient();
+            session.SessionId = canonicalId;
+            _sessions[canonicalId] = session;
+        }
+    }
+
+    private void RestoreResumedSession(SessionOperation operation, CopilotSession session, CopilotSession? previousSession)
+    {
+        var restored = false;
+        lock (_sessionAdmissionLock)
+        {
+            operation.Session = null;
+            var removed = ((ICollection<KeyValuePair<string, CopilotSession>>)_sessions).Remove(new(session.SessionId, session));
+            if (previousSession is not null && removed && !_sessionAdmissionClosed
+                && _connectionTask?.Status == System.Threading.Tasks.TaskStatus.RanToCompletion
+                && ReferenceEquals(_connectionTask.Result.Rpc, session.JsonRpc))
+            {
+                restored = _sessions.TryAdd(previousSession.SessionId, previousSession);
+            }
+        }
+        if (!restored)
+        {
+            previousSession?.Retire();
+        }
+    }
+
+    private void RegisterSession(CopilotSession session, JsonRpc rpc, CopilotSession? replacedSession = null)
     {
         Exception error;
         lock (_sessionAdmissionLock)
@@ -3086,7 +3455,9 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
                 && _connectionTask?.Status == System.Threading.Tasks.TaskStatus.RanToCompletion
                 && ReferenceEquals(_connectionTask.Result.Rpc, rpc))
             {
-                if (_sessions.TryAdd(session.SessionId, session))
+                if (replacedSession is not null
+                    ? _sessions.TryUpdate(session.SessionId, session, replacedSession)
+                    : _sessions.TryAdd(session.SessionId, session))
                 {
                     return;
                 }
@@ -3200,13 +3571,15 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
         public async ValueTask<AutoModeSwitchRequestResponse> OnAutoModeSwitchRequest(
             string sessionId,
             string? errorCode = null,
-            double? retryAfterSeconds = null)
+            double? retryAfterSeconds = null,
+            AutoModeRecoveryContext? autoModeRecovery = null)
         {
             var session = client.GetSession(sessionId) ?? throw new ArgumentException($"Unknown session {sessionId}");
             var response = await session.HandleAutoModeSwitchRequestAsync(new AutoModeSwitchRequest
             {
                 ErrorCode = errorCode,
-                RetryAfterSeconds = retryAfterSeconds
+                RetryAfterSeconds = retryAfterSeconds,
+                AutoModeRecovery = autoModeRecovery
             });
             return new AutoModeSwitchRequestResponse(response);
         }
@@ -3249,6 +3622,16 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
                 ?? throw new InvalidOperationException($"No skill provider for session: {request.SessionId}");
             return await session.HandleSkillProviderReadAsync(request.Name, cancellationToken);
         }
+
+#pragma warning disable GHCP001
+        public async ValueTask OnMemoryStore(StoredMemory request, CancellationToken cancellationToken)
+        {
+            ArgumentNullException.ThrowIfNull(request);
+            var session = (string.IsNullOrEmpty(request.SessionId) ? null : client.GetSession(request.SessionId))
+                ?? throw new InvalidOperationException("Memory store owner is unavailable");
+            await session.HandleMemoryStoreAsync(request, cancellationToken);
+        }
+#pragma warning restore GHCP001
 
     }
 
@@ -3331,6 +3714,7 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
         string? Name,
         string? ClientName,
         string? ReasoningEffort,
+        bool? AllowMultipleToolCalls,
         ReasoningSummary? ReasoningSummary,
         ContextTier? ContextTier,
         IList<ToolDefinition>? Tools,
@@ -3416,11 +3800,14 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
         [property: JsonPropertyName("excludedManagedSettings")] IList<string>? ExcludedManagedSettings = null,
         [property: JsonPropertyName("enforceManagedModelDefaults")] bool? EnforceManagedModelDefaults = null,
         [property: JsonPropertyName("interactiveUser")] bool? InteractiveUser = null,
+        [property: JsonPropertyName("permissionMode")] PermissionMode? PermissionMode = null,
         [property: JsonPropertyName("managedSettings")] ManagedSettings? ManagedSettings = null,
         bool? EnableGitHubTelemetryForwarding = null,
         [property: JsonPropertyName("githubMcpToolConfig")] GitHubMcpToolConfig? GitHubMcpToolConfig = null,
         IList<string>? AdditionalDirectories = null,
-        bool? HasSkillProvider = null);
+        bool? HasSkillProvider = null,
+        bool? RequestAutoModeRecovery = null,
+        bool? HasMemoryStore = null);
 #pragma warning restore GHCP001
 
     internal record ToolDefinition(
@@ -3459,7 +3846,8 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
         string? WorkspacePath,
         SessionCapabilities? Capabilities = null,
 #pragma warning disable GHCP001
-        IList<OpenCanvasInstance>? OpenCanvases = null);
+        IList<OpenCanvasInstance>? OpenCanvases = null,
+        PermissionsSetModeResult? PermissionModeResult = null);
 #pragma warning restore GHCP001
 
     internal record ResumeSessionRequest(
@@ -3467,6 +3855,7 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
         string? ClientName,
         string? Model,
         string? ReasoningEffort,
+        bool? AllowMultipleToolCalls,
         ReasoningSummary? ReasoningSummary,
         ContextTier? ContextTier,
         IList<ToolDefinition>? Tools,
@@ -3552,12 +3941,15 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
         [property: JsonPropertyName("excludedManagedSettings")] IList<string>? ExcludedManagedSettings = null,
         [property: JsonPropertyName("enforceManagedModelDefaults")] bool? EnforceManagedModelDefaults = null,
         [property: JsonPropertyName("interactiveUser")] bool? InteractiveUser = null,
+        [property: JsonPropertyName("permissionMode")] PermissionMode? PermissionMode = null,
         [property: JsonPropertyName("managedSettings")] ManagedSettings? ManagedSettings = null,
         bool? EnableGitHubTelemetryForwarding = null,
         [property: JsonPropertyName("githubMcpToolConfig")] GitHubMcpToolConfig? GitHubMcpToolConfig = null,
         IList<string>? AdditionalDirectories = null,
         bool? AllowTranscriptRecovery = null,
-        bool? HasSkillProvider = null);
+        bool? HasSkillProvider = null,
+        bool? RequestAutoModeRecovery = null,
+        bool? HasMemoryStore = null);
 #pragma warning restore GHCP001
 
     internal record ResumeSessionResponse(
@@ -3566,7 +3958,8 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
         SessionCapabilities? Capabilities = null,
 #pragma warning disable GHCP001
         IList<OpenCanvasInstance>? OpenCanvases = null,
-        TranscriptRecoveryReport? TranscriptRecovery = null);
+        TranscriptRecoveryReport? TranscriptRecovery = null,
+        PermissionsSetModeResult? PermissionModeResult = null);
 #pragma warning restore GHCP001
 
     internal record CommandWireDefinition(
@@ -3684,6 +4077,7 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
     [JsonSerializable(typeof(AhpAuthenticationResult))]
     [JsonSerializable(typeof(CreateSessionResponse))]
     [JsonSerializable(typeof(AutoModeSwitchRequest))]
+    [JsonSerializable(typeof(AutoModeRecoveryContext))]
     [JsonSerializable(typeof(AutoModeSwitchRequestResponse))]
     [JsonSerializable(typeof(AutoModeSwitchResponse))]
     [JsonSerializable(typeof(CustomAgentConfig))]
@@ -3699,6 +4093,9 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
 #pragma warning restore GHCP001
     [JsonSerializable(typeof(SkillProviderReadRequest))]
     [JsonSerializable(typeof(SkillProviderReadResult))]
+#pragma warning disable GHCP001
+    [JsonSerializable(typeof(StoredMemory))]
+#pragma warning restore GHCP001
     [JsonSerializable(typeof(ListSessionsRequest))]
     [JsonSerializable(typeof(ListSessionsResponse))]
     [JsonSerializable(typeof(GetSessionMetadataRequest))]

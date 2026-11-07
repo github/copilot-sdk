@@ -13,6 +13,7 @@ import types
 from collections.abc import Awaitable, Callable
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
+from enum import Enum
 from typing import (
     TYPE_CHECKING,
     Any,
@@ -257,6 +258,8 @@ def _config_value(value: Any, annotation: Any) -> Any:
         for variant in variants:
             if value is not None and variant is not type(None):
                 return _config_value(value, variant)
+    if isinstance(annotation, type) and issubclass(annotation, Enum):
+        return annotation(value)
     if isinstance(value, dict):
         if is_typeddict(annotation):
             hints = get_type_hints(annotation)

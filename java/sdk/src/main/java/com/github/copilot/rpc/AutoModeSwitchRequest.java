@@ -8,10 +8,7 @@ import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.annotation.JsonProperty;
 
 /**
- * Request to switch to auto mode after an eligible rate limit.
- * <p>
- * This is sent by the server when the agent encounters a rate limit and wants
- * to switch to an alternative model automatically.
+ * Request for a legacy Auto switch or eligible active-request recovery.
  *
  * @since 1.0.8
  */
@@ -24,8 +21,32 @@ public class AutoModeSwitchRequest {
     @JsonProperty("retryAfterSeconds")
     private Double retryAfterSeconds;
 
+    @JsonProperty("autoModeRecovery")
+    private AutoModeRecoveryContext autoModeRecovery;
+
     /**
-     * Gets the rate-limit error code that triggered the request.
+     * Gets the context for active-request recovery.
+     *
+     * @return the context, or {@code null} for a legacy future-message switch
+     */
+    public AutoModeRecoveryContext getAutoModeRecovery() {
+        return autoModeRecovery;
+    }
+
+    /**
+     * Sets the active-request recovery context.
+     *
+     * @param autoModeRecovery
+     *            the context, or {@code null}
+     * @return this instance for method chaining
+     */
+    public AutoModeSwitchRequest setAutoModeRecovery(AutoModeRecoveryContext autoModeRecovery) {
+        this.autoModeRecovery = autoModeRecovery;
+        return this;
+    }
+
+    /**
+     * Gets the upstream error code that triggered the request.
      *
      * @return the error code, or {@code null}
      */
@@ -34,7 +55,7 @@ public class AutoModeSwitchRequest {
     }
 
     /**
-     * Sets the rate-limit error code.
+     * Sets the upstream error code.
      *
      * @param errorCode
      *            the error code

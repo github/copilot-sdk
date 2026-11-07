@@ -1,7 +1,10 @@
 //! Demonstrates manually resolving permission and external tool requests across resumes.
 
+use std::sync::Arc;
 use std::time::Duration;
 
+use async_trait::async_trait;
+use github_copilot_sdk::handler::{PermissionHandler, PermissionResult};
 use github_copilot_sdk::rpc::{
     HandlePendingToolCallRequest, PermissionDecision, PermissionDecisionApproveOnce,
     PermissionDecisionApproveOnceKind, PermissionDecisionRequest,
@@ -10,6 +13,7 @@ use github_copilot_sdk::session_events::{
     AssistantMessageData, ExternalToolRequestedData, PermissionRequestedData, SessionEventType,
 };
 use github_copilot_sdk::subscription::RecvError;
+use github_copilot_sdk::types::{PermissionRequestData, RequestId, SessionId};
 use github_copilot_sdk::{
     Client, ClientOptions, EventSubscription, ResumeSessionConfig, SessionConfig,
 };
@@ -31,6 +35,23 @@ fn manual_tool() -> github_copilot_sdk::Tool {
             },
             "required": ["id"]
         }))
+}
+
+/// Without a permission handler the runtime denies the tool instead of emitting
+/// `permission.requested`. Answering `NoResult` leaves each request pending so a
+/// resumed session can resolve it.
+struct LeavePermissionPending;
+
+#[async_trait]
+impl PermissionHandler for LeavePermissionPending {
+    async fn handle(
+        &self,
+        _session_id: SessionId,
+        _request_id: RequestId,
+        _data: PermissionRequestData,
+    ) -> PermissionResult {
+        PermissionResult::no_result()
+    }
 }
 
 async fn wait_for_permission(
@@ -83,7 +104,11 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     // 1. Create a session with a declaration-only tool, then stop after the permission prompt.
     let client1 = Client::start(ClientOptions::default()).await?;
     let session1 = client1
-        .create_session(SessionConfig::default().with_tools([tool.clone()]))
+        .create_session(
+            SessionConfig::default()
+                .with_tools([tool.clone()])
+                .with_permission_handler(Arc::new(LeavePermissionPending)),
+        )
         .await?;
     let session_id = session1.id().clone();
 
@@ -94,7 +119,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .await?;
 
     let permission = wait_for_permission(&mut permission_events).await?;
-    client1.force_stop();
+    // Stop gracefully so the session is saved; force_stop() can kill the runtime before it is.
+    client1.stop().await?;
     pause().await;
 
     // 2. Resume pending work and grant permission to invoke the tool.
@@ -103,6 +129,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .resume_session(
             ResumeSessionConfig::new(session_id.clone())
                 .with_tools([tool.clone()])
+                .with_permission_handler(Arc::new(LeavePermissionPending))
                 .with_continue_pending_work(true),
         )
         .await?;
@@ -123,7 +150,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .await?;
 
     let tool_request = wait_for_tool(&mut tool_events).await?;
-    client2.force_stop();
+    client2.stop().await?;
     pause().await;
 
     // 3. Resume again and manually provide the pending tool result.
@@ -132,6 +159,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .resume_session(
             ResumeSessionConfig::new(session_id)
                 .with_tools([tool])
+                .with_permission_handler(Arc::new(LeavePermissionPending))
                 .with_continue_pending_work(true),
         )
         .await?;

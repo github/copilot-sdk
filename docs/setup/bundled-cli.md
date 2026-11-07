@@ -201,6 +201,8 @@ flowchart TB
 The user signs in to the CLI once, and your app uses those credentials. No extra code needed—this is the default behavior.
 
 ```typescript
+import { CopilotClient } from "@github/copilot-sdk";
+
 const client = new CopilotClient();
 // Default: uses signed-in user credentials
 ```
@@ -210,6 +212,11 @@ const client = new CopilotClient();
 Ship your app with instructions to set a token, or set it programmatically:
 
 ```typescript
+import { CopilotClient } from "@github/copilot-sdk";
+
+// Your application's own way of getting the user's token
+declare function getUserToken(): string;
+
 const client = new CopilotClient({
     env: {
         COPILOT_GITHUB_TOKEN: getUserToken(),  // Your app provides the token
@@ -222,6 +229,8 @@ const client = new CopilotClient({
 If you manage your own model provider keys, users don't need GitHub accounts at all:
 
 ```typescript
+import { CopilotClient } from "@github/copilot-sdk";
+
 const client = new CopilotClient();
 
 const session = await client.createSession({
@@ -241,6 +250,11 @@ See the **[BYOK guide](../auth/byok.md)** for full details.
 Apps typically want named sessions so users can resume conversations:
 
 ```typescript
+import { CopilotClient } from "@github/copilot-sdk";
+
+// The project the user has open in your app
+declare const projectName: string;
+
 const client = new CopilotClient();
 
 // Create a session tied to the user's project

@@ -1328,8 +1328,10 @@ macro_rules! host_settings {
             "enableMcpApps" => enable_mcp_apps,
             "model" => model,
             "reasoningEffort" => reasoning_effort,
+            "allowMultipleToolCalls" => allow_multiple_tool_calls,
             "contextTier" => context_tier,
             "autopilot" => autopilot,
+            "permissionMode" => permission_mode,
         }
     };
 }

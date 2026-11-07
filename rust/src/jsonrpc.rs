@@ -1,9 +1,11 @@
 use std::collections::HashMap;
 use std::collections::hash_map::Entry;
+use std::panic::AssertUnwindSafe;
 use std::sync::Arc;
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::time::Instant;
 
+use futures_util::FutureExt;
 use parking_lot::{Mutex, RwLock};
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
@@ -599,9 +601,11 @@ impl CancellableRequests {
             method,
             crate::installation_confirmation::CONFIRM_METHOD
                 | crate::entra::ACQUIRE_METHOD
-                | crate::kerberos_auth::ACQUIRE_METHOD
+                | crate::network::RESOLVE_PROXY_METHOD
+                | crate::network::AUTHENTICATE_NEGOTIATE_METHOD
                 | rpc_methods::SKILLPROVIDER_LIST
                 | rpc_methods::SKILLPROVIDER_READ
+                | rpc_methods::MEMORYSTORE_STORE
                 | rpc_methods::SESSIONMANAGEMENT_CREATE
         )
     }
@@ -827,6 +831,10 @@ impl JsonRpcClient {
         Ok(())
     }
 
+    pub(crate) fn unregister_request_handler(&self, method: &str) {
+        self.request_handlers.write().remove(method);
+    }
+
     /// Writer-actor task. Owns the `AsyncWrite`, drains the command queue,
     /// and writes each frame atomically (header + body + flush) before
     /// signaling the ack.
@@ -1018,9 +1026,9 @@ impl JsonRpcClient {
                                             data: None,
                                         }),
                                     ),
-                                    result = response => match result {
-                                        Ok(value) => (Some(value), None),
-                                        Err(error) => (
+                                    result = AssertUnwindSafe(response).catch_unwind() => match result {
+                                        Ok(Ok(value)) => (Some(value), None),
+                                        Ok(Err(error)) => (
                                             None,
                                             Some(JsonRpcError {
                                                 code: error_codes::INTERNAL_ERROR.into(),
@@ -1028,6 +1036,19 @@ impl JsonRpcClient {
                                                 data: None,
                                             }),
                                         ),
+                                        Err(_) => {
+                                            // Tokio isolates the panic to this task, so without a
+                                            // reply the runtime waits out its own timeout on this id.
+                                            error!(method = %request.method, "request handler panicked");
+                                            (
+                                                None,
+                                                Some(JsonRpcError {
+                                                    code: error_codes::INTERNAL_ERROR.into(),
+                                                    message: "request handler panicked".into(),
+                                                    data: None,
+                                                }),
+                                            )
+                                        }
                                     },
                                 };
                                 let mut response = JsonRpcResponse {

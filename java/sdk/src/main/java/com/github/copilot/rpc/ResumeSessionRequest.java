@@ -13,6 +13,7 @@ import com.fasterxml.jackson.annotation.JsonProperty;
 
 import com.github.copilot.CopilotExperimental;
 import com.github.copilot.generated.rpc.DiagnosticsConfiguration;
+import com.github.copilot.generated.rpc.PermissionMode;
 import com.github.copilot.generated.rpc.SandboxConfig;
 import com.github.copilot.generated.rpc.SessionLimitsConfig;
 import com.github.copilot.generated.rpc.AutopilotOptions;
@@ -52,6 +53,9 @@ public final class ResumeSessionRequest {
 
     @JsonProperty("reasoningSummary")
     private String reasoningSummary;
+
+    @JsonProperty("allowMultipleToolCalls")
+    private Boolean allowMultipleToolCalls;
 
     @JsonProperty("contextTier")
     private String contextTier;
@@ -155,6 +159,10 @@ public final class ResumeSessionRequest {
     @JsonProperty("hasSkillProvider")
     @JsonInclude(JsonInclude.Include.NON_NULL)
     private Boolean hasSkillProvider;
+
+    @JsonProperty("hasMemoryStore")
+    @JsonInclude(JsonInclude.Include.NON_NULL)
+    private Boolean hasMemoryStore;
 
     @JsonProperty("embeddingCacheStorage")
     @JsonInclude(JsonInclude.Include.NON_NULL)
@@ -260,6 +268,9 @@ public final class ResumeSessionRequest {
     @JsonProperty("requestAutoModeSwitch")
     private Boolean requestAutoModeSwitch;
 
+    @JsonProperty("requestAutoModeRecovery")
+    private Boolean requestAutoModeRecovery;
+
     @JsonProperty("modelCapabilities")
     private ModelCapabilitiesOverride modelCapabilities;
 
@@ -292,6 +303,10 @@ public final class ResumeSessionRequest {
     @JsonProperty("interactiveUser")
     @JsonInclude(JsonInclude.Include.NON_NULL)
     private Boolean interactiveUser;
+
+    @JsonProperty("permissionMode")
+    @JsonInclude(JsonInclude.Include.NON_NULL)
+    private PermissionMode permissionMode;
 
     @JsonProperty("managedSettings")
     @JsonInclude(JsonInclude.Include.NON_NULL)
@@ -389,6 +404,19 @@ public final class ResumeSessionRequest {
      */
     public void setReasoningSummary(String reasoningSummary) {
         this.reasoningSummary = reasoningSummary;
+    }
+
+    /** Gets the model multiple-tool-call preference. @return the preference */
+    public Boolean getAllowMultipleToolCalls() {
+        return allowMultipleToolCalls;
+    }
+
+    /**
+     * Sets the model multiple-tool-call preference. @param allowMultipleToolCalls
+     * the preference
+     */
+    public void setAllowMultipleToolCalls(boolean allowMultipleToolCalls) {
+        this.allowMultipleToolCalls = allowMultipleToolCalls;
     }
 
     /** Gets the context window tier. @return the context window tier */
@@ -825,6 +853,21 @@ public final class ResumeSessionRequest {
      */
     public void clearHasSkillProvider() {
         this.hasSkillProvider = null;
+    }
+
+    /** Gets memory-store availability flag. @return the flag */
+    public Boolean getHasMemoryStore() {
+        return hasMemoryStore;
+    }
+
+    /** Sets memory-store availability flag. @param hasMemoryStore the flag */
+    public void setHasMemoryStore(boolean hasMemoryStore) {
+        this.hasMemoryStore = hasMemoryStore;
+    }
+
+    /** Clears the hasMemoryStore setting, reverting to the default behavior. */
+    public void clearHasMemoryStore() {
+        this.hasMemoryStore = null;
     }
 
     /** Gets embedding cache storage mode. @return the mode */
@@ -1268,6 +1311,16 @@ public final class ResumeSessionRequest {
         this.requestAutoModeSwitch = requestAutoModeSwitch;
     }
 
+    /** Gets the recovery enrollment flag. @return the flag, or {@code null} */
+    public Boolean getRequestAutoModeRecovery() {
+        return requestAutoModeRecovery;
+    }
+
+    /** Sets recovery enrollment. @param requestAutoModeRecovery the flag */
+    public void setRequestAutoModeRecovery(Boolean requestAutoModeRecovery) {
+        this.requestAutoModeRecovery = requestAutoModeRecovery;
+    }
+
     /** Gets the model capabilities override. @return the override */
     public ModelCapabilitiesOverride getModelCapabilities() {
         return modelCapabilities;
@@ -1406,6 +1459,21 @@ public final class ResumeSessionRequest {
     /** Clears the interactiveUser setting, reverting to the default behavior. */
     public void clearInteractiveUser() {
         this.interactiveUser = null;
+    }
+
+    /** @return the initial permission mode, or {@code null} when unset */
+    @CopilotExperimental
+    public PermissionMode getPermissionMode() {
+        return permissionMode;
+    }
+
+    /**
+     * @param permissionMode
+     *            the permission mode to apply before resumed pending work continues
+     */
+    @CopilotExperimental
+    public void setPermissionMode(PermissionMode permissionMode) {
+        this.permissionMode = permissionMode;
     }
 
     /** @return host-injected managed settings, or {@code null} when unset */

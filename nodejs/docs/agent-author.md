@@ -184,7 +184,7 @@ object sent with the request; to allow, deny or change the call itself, use
 **Output (all fields optional):**
 | Field | Type | Effect |
 |-------|------|--------|
-| `metaToUse` | `Record<string, unknown> \| null` | An object becomes the request's `_meta`; `null` omits it; leaving it out keeps the current `_meta` |
+| `metaToUse` | `Record<string, unknown> \| null` | An object becomes the request's `_meta`; `null` omits it, except for the runtime's `com.github.copilot/toolCallId` and `com.github.copilot/turnId` keys; leaving it out keeps the current `_meta` |
 
 ### onPostToolUse
 

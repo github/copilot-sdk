@@ -43,6 +43,7 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.github.copilot.generated.SessionEvent;
 import com.github.copilot.generated.SessionIdleEvent;
+import com.github.copilot.rpc.AutoModeSwitchResponse;
 import com.github.copilot.rpc.CopilotClientOptions;
 import com.github.copilot.rpc.GitHubTokenProviderResult;
 import com.github.copilot.rpc.MessageOptions;
@@ -82,6 +83,81 @@ class ForceStopSessionTest {
                 assertThrows(IllegalStateException.class, () -> session.on(event -> fail("Retired handler")));
                 session.close();
                 assertEquals(1, server.detaches.get(), "Repeated close must not detach again");
+            }
+        }
+    }
+
+    @ParameterizedTest
+    @ValueSource(booleans = {false, true})
+    void resumeSettlementPreservesTheRuntimeCallbackOwnerWhileResidentCloses(boolean unsupportedRecovery)
+            throws Exception {
+        var events = new AtomicInteger();
+        var hooks = new AtomicInteger();
+        var resumedEvents = new AtomicInteger();
+        var resumedHooks = new AtomicInteger();
+        try (var server = new Server(); var client = server.createClient()) {
+            var resident = client
+                    .createSession(new SessionConfig().setOnPermissionRequest(PermissionHandler.APPROVE_ALL)
+                            .setHooks(new SessionHooks().setOnSessionEnd((input, invocation) -> {
+                                assertEquals("user_exit", input.reason());
+                                hooks.incrementAndGet();
+                                return CompletableFuture.completedFuture(null);
+                            })))
+                    .get(5, TimeUnit.SECONDS);
+            String sessionId = resident.getSessionId();
+            try (var subscription = resident.on(event -> events.incrementAndGet())) {
+                server.holdResumeResponse = true;
+                server.holdDetachResponse = true;
+                var resuming = client.resumeSession(sessionId,
+                        new ResumeSessionConfig().setOnPermissionRequest(PermissionHandler.APPROVE_ALL)
+                                .setAutoModeRecovery(unsupportedRecovery)
+                                .setOnEvent(event -> resumedEvents.incrementAndGet())
+                                .setHooks(new SessionHooks().setOnSessionEnd((input, invocation) -> {
+                                    resumedHooks.incrementAndGet();
+                                    return CompletableFuture.completedFuture(null);
+                                })).setOnAutoModeSwitch((request, invocation) -> CompletableFuture
+                                        .completedFuture(AutoModeSwitchResponse.NO)));
+                var resumeRequest = server.resumes.poll(5, TimeUnit.SECONDS);
+                assertNotNull(resumeRequest, "Resume must be pending before the resident closes");
+                var closing = CompletableFuture.runAsync(resident::close);
+                try (var finishDetach = (AutoCloseable) () -> {
+                    var detachRequest = server.heldDetaches.poll(5, TimeUnit.SECONDS);
+                    assertNotNull(detachRequest, "Graceful close must send detach");
+                    server.completeDetach(detachRequest, "success");
+                    closing.get(5, TimeUnit.SECONDS);
+                }) {
+                    assertTrue(server.detachEntered.await(5, TimeUnit.SECONDS), "Graceful close must await detach");
+                    assertFalse(closing.isDone());
+                    if (unsupportedRecovery) {
+                        server.writeMessage(Map.of("jsonrpc", "2.0", "id", resumeRequest.get("id"), "result",
+                                Map.of("sessionId", sessionId)));
+                    } else {
+                        server.writeMessage(Map.of("jsonrpc", "2.0", "id", resumeRequest.get("id"), "error",
+                                Map.of("code", -32000, "message", "resume failed")));
+                    }
+                    var error = assertThrows(ExecutionException.class, () -> resuming.get(5, TimeUnit.SECONDS));
+                    if (unsupportedRecovery) {
+                        assertInstanceOf(UnsupportedOperationException.class, error.getCause());
+                    } else {
+                        assertTrue(error.getCause().getMessage().contains("resume failed"));
+                    }
+
+                    server.emitIdle(sessionId);
+                    server.invokeSessionEnd(sessionId);
+                    assertEquals(unsupportedRecovery ? 0 : 1, hooks.get());
+                    assertEquals(unsupportedRecovery ? 0 : 1, events.get());
+                    assertEquals(unsupportedRecovery ? 1 : 0, resumedHooks.get());
+                    assertEquals(unsupportedRecovery ? 1 : 0, resumedEvents.get(),
+                            "An accepted resume must keep its callbacks even without recovery support");
+                    assertFalse(closing.isDone(), "Callbacks must complete before detach is acknowledged");
+                }
+                server.emitIdle(sessionId);
+                client.ping("restored resident callback retirement barrier").get(5, TimeUnit.SECONDS);
+                assertEquals(unsupportedRecovery ? 0 : 1, events.get(),
+                        "Detach acknowledgement must still retire the resident callbacks");
+                assertEquals(unsupportedRecovery ? 2 : 0, resumedEvents.get(),
+                        "The retired resident must not remove an accepted resume's callback owner");
+                assertEquals(1, server.detaches.get(), "Rejected resume must not detach the resident a second time");
             }
         }
     }
@@ -950,6 +1026,59 @@ class ForceStopSessionTest {
         }
     }
 
+    @Test
+    void toolResultFailureIsAnsweredWhileAnotherSessionToolOccupiesExecutor() throws Exception {
+        var executor = Executors.newSingleThreadExecutor();
+        var toolEntered = new CountDownLatch(1);
+        var releaseTool = new CountDownLatch(1);
+        try (var server = new Server(); var client = server.createClient(executor)) {
+            server.holdToolReplies = true;
+            var first = client
+                    .createSession(
+                            new SessionConfig().setOnPermissionRequest(PermissionHandler.APPROVE_ALL)
+                                    .setTools(List.of(ToolDefinition.create("delivers", "Returns a result", Map.of(),
+                                            invocation -> CompletableFuture.completedFuture("ok")))))
+                    .get(5, TimeUnit.SECONDS);
+            var second = client.createSession(
+                    new SessionConfig().setOnPermissionRequest(PermissionHandler.APPROVE_ALL).setTools(List
+                            .of(ToolDefinition.create("blocks", "Waits for the first session", Map.of(), invocation -> {
+                                toolEntered.countDown();
+                                awaitRelease(releaseTool);
+                                return new CompletableFuture<>();
+                            }))))
+                    .get(5, TimeUnit.SECONDS);
+            try {
+                server.emitEvent(first.getSessionId(), "external_tool.requested",
+                        Map.of("requestId", "request-delivers", "sessionId", first.getSessionId(), "toolCallId",
+                                "call-delivers", "toolName", "delivers", "arguments", Map.of()));
+                var delivery = server.toolReplies.poll(5, TimeUnit.SECONDS);
+                assertNotNull(delivery, "The first tool result must reach the transport");
+                assertEquals("ok", delivery.path("params").path("result").path("textResultForLlm").asText());
+
+                server.emitEvent(second.getSessionId(), "external_tool.requested",
+                        Map.of("requestId", "request-blocks", "sessionId", second.getSessionId(), "toolCallId",
+                                "call-blocks", "toolName", "blocks", "arguments", Map.of()));
+                assertTrue(toolEntered.await(5, TimeUnit.SECONDS), "The second tool must occupy the sole worker");
+                server.writeMessage(Map.of("jsonrpc", "2.0", "id", delivery.get("id"), "error",
+                        Map.of("code", -32603, "message", "tool result rejected")));
+
+                var answer = server.toolReplies.poll(5, TimeUnit.SECONDS);
+                assertNotNull(answer, "The failed result must be answered without waiting for the blocked handler");
+                var params = answer.path("params");
+                assertEquals(first.getSessionId(), params.path("sessionId").asText());
+                assertEquals("request-delivers", params.path("requestId").asText());
+                assertEquals("tool result rejected", params.path("error").asText());
+                assertTrue(params.path("result").isMissingNode() || params.path("result").isNull(), params.toString());
+                server.writeMessage(Map.of("jsonrpc", "2.0", "id", answer.get("id"), "result", Map.of()));
+            } finally {
+                releaseTool.countDown();
+            }
+        } finally {
+            executor.shutdownNow();
+            assertTrue(executor.awaitTermination(5, TimeUnit.SECONDS), "The owned handler executor must stop");
+        }
+    }
+
     private static final class Server implements AutoCloseable {
 
         private static final ObjectMapper MAPPER = new ObjectMapper();
@@ -963,15 +1092,19 @@ class ForceStopSessionTest {
         private final java.util.concurrent.BlockingQueue<JsonNode> creates = new java.util.concurrent.LinkedBlockingQueue<>();
         private final java.util.concurrent.BlockingQueue<JsonNode> heldPings = new java.util.concurrent.LinkedBlockingQueue<>();
         private final java.util.concurrent.BlockingQueue<JsonNode> heldResumes = new java.util.concurrent.LinkedBlockingQueue<>();
+        private final java.util.concurrent.BlockingQueue<JsonNode> toolReplies = new java.util.concurrent.LinkedBlockingQueue<>();
         private volatile Socket socket;
         private volatile boolean closed;
         private volatile boolean emitDetachCallbacks;
         private volatile boolean holdDetachResponse;
+        private volatile boolean holdResumeResponse;
         private volatile boolean completionSupported;
         private volatile boolean holdPing;
         private volatile boolean holdResume;
+        private volatile boolean holdToolReplies;
         private final java.util.concurrent.BlockingQueue<JsonNode> completions = new java.util.concurrent.LinkedBlockingQueue<>();
         private final java.util.concurrent.BlockingQueue<JsonNode> cancellations = new java.util.concurrent.LinkedBlockingQueue<>();
+        private final java.util.concurrent.BlockingQueue<JsonNode> resumes = new java.util.concurrent.LinkedBlockingQueue<>();
         private final java.util.concurrent.BlockingQueue<String> sends = new java.util.concurrent.LinkedBlockingQueue<>();
         private volatile Exception failure;
 
@@ -1075,12 +1208,21 @@ class ForceStopSessionTest {
                         cancellations.add(params.get("id"));
                         continue;
                     }
+                    if (holdResumeResponse && request.path("method").asText().equals("session.resume")) {
+                        resumes.add(request);
+                        continue;
+                    }
                     if (holdResume && request.path("method").asText().equals("session.resume")) {
                         heldResumes.add(request);
                         continue;
                     }
                     if (holdPing && request.path("method").asText().equals("ping")) {
                         heldPings.add(request);
+                        continue;
+                    }
+                    if (holdToolReplies
+                            && request.path("method").asText().equals("session.tools.handlePendingToolCall")) {
+                        toolReplies.add(request);
                         continue;
                     }
                     if (holdDetachResponse && request.path("method").asText().equals("session.detach")) {

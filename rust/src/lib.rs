@@ -59,8 +59,10 @@ pub mod hooks;
 /// Connection-global human confirmation for experimental installation operations.
 pub mod installation_confirmation;
 mod jsonrpc;
-/// Kerberos credentials supplied by the SDK host.
-pub mod kerberos_auth;
+/// Host-owned storage for the runtime memory feature.
+pub mod memory_store;
+/// Network callbacks supplied by the SDK host (experimental).
+pub mod network;
 /// Permission-policy helpers that produce a [`handler::PermissionHandler`].
 pub mod permission;
 #[allow(dead_code)]
@@ -108,6 +110,12 @@ struct SessionDetachResponse {
     error: Option<String>,
 }
 
+#[derive(serde::Deserialize)]
+struct SessionDeleteResponse {
+    success: Option<bool>,
+    error: Option<String>,
+}
+
 // Auto-generated protocol-type modules. Crate-private so the only public
 // access path is via the `session_events` and `rpc` facade modules above —
 // callers can never depend on the implementation-detail layout under
@@ -141,6 +149,7 @@ pub use indexmap::IndexMap;
 pub(crate) use jsonrpc::{
     JsonRpcClient, JsonRpcError, JsonRpcNotification, JsonRpcRequest, JsonRpcResponse, error_codes,
 };
+pub use memory_store::{MemoryStore, StoredMemory};
 pub use mode::{BUILTIN_TOOLS_ISOLATED, ClientMode, ToolSet};
 pub use provider_token::{BearerTokenError, BearerTokenProvider, ProviderTokenArgs};
 pub use skill_provider::{SkillProvider, SkillProviderDescriptor};
@@ -158,7 +167,7 @@ pub mod test_support {
 pub use generated::api_types::EntraAuthConfig;
 use serde::{Deserialize, Serialize};
 #[cfg(feature = "runtime")]
-use tokio::io::{AsyncBufReadExt, BufReader};
+use tokio::io::{AsyncBufReadExt, AsyncReadExt, BufReader};
 use tokio::io::{AsyncRead, AsyncWrite};
 #[cfg(feature = "runtime")]
 use tokio::net::TcpStream;
@@ -466,12 +475,16 @@ pub struct ClientOptions {
     /// of sessions.
     pub extension_launch_provider:
         Option<Arc<dyn crate::extension_launch_provider::ExtensionLaunchProvider>>,
-    /// Kerberos credentials supplied by the SDK host.
+    /// Network callbacks through which the SDK host decides the runtime's
+    /// proxies and supplies its Kerberos tokens.
     ///
-    /// When set, the SDK handles `kerberosAuth.acquire` requests and registers
-    /// with the runtime via `kerberosAuth.setProvider` during [`Client::start`],
-    /// before any session can be created.
-    pub kerberos_auth: Option<crate::kerberos_auth::KerberosAuthConfig>,
+    /// When set with at least one callback, the SDK handles the configured
+    /// `network.resolveProxy` and `network.authenticateNegotiate` requests and
+    /// registers with the runtime via `network.setProvider` during
+    /// [`Client::start`], before any session can be created.
+    ///
+    /// **Experimental.** May change or be removed in future releases.
+    pub network: Option<crate::network::NetworkConfig>,
     /// Connection-global human review handler for `installations.confirm` (experimental).
     ///
     /// This receives requests without session routing or inferred operation authority.
@@ -695,7 +708,7 @@ impl std::fmt::Debug for ClientOptions {
                 "extension_launch_provider",
                 &self.extension_launch_provider.as_ref().map(|_| "<set>"),
             )
-            .field("kerberos_auth", &self.kerberos_auth)
+            .field("network", &self.network)
             .field(
                 "installation_confirmation_handler",
                 &self
@@ -992,7 +1005,7 @@ impl Default for ClientOptions {
             session_fs: None,
             request_handler: None,
             extension_launch_provider: None,
-            kerberos_auth: None,
+            network: None,
             installation_confirmation_handler: None,
             on_github_telemetry: None,
             on_get_trace_context: None,
@@ -1182,30 +1195,20 @@ impl ClientOptions {
         self
     }
 
-    /// Supply Kerberos credentials from the SDK host.
+    /// Take over parts of the runtime's networking from the SDK host; see
+    /// [`NetworkConfig`](crate::network::NetworkConfig).
     ///
-    /// [`KerberosAuthMode::Fallback`](crate::kerberos_auth::KerberosAuthMode::Fallback)
-    /// uses the provider only when the runtime's native lookup fails;
-    /// [`KerberosAuthMode::Always`](crate::kerberos_auth::KerberosAuthMode::Always)
-    /// never attempts native lookup. The provider is registered with the runtime
-    /// before [`Client::start`] returns.
+    /// The configured callbacks are registered with the runtime before
+    /// [`Client::start`] returns. By default they serve only requests made for
+    /// sessions this client creates or resumes; use
+    /// [`NetworkConfig::with_scope`](crate::network::NetworkConfig::with_scope)
+    /// with [`NetworkScope::Runtime`](crate::network::NetworkScope::Runtime) to
+    /// also serve the runtime's shared background traffic. A client created with
+    /// [`Client::from_streams`] registers them with [`Client::register_network`].
     ///
-    /// The provider authenticates only requests made for sessions this client
-    /// creates or resumes. To also authenticate the runtime's shared background
-    /// traffic, set [`ClientOptions::kerberos_auth`] to a
-    /// [`KerberosAuthConfig`](crate::kerberos_auth::KerberosAuthConfig) with
-    /// [`KerberosAuthScope::Runtime`](crate::kerberos_auth::KerberosAuthScope::Runtime).
-    pub fn with_kerberos_auth<P>(
-        mut self,
-        mode: crate::kerberos_auth::KerberosAuthMode,
-        provider: P,
-    ) -> Self
-    where
-        P: crate::kerberos_auth::KerberosAuthProvider,
-    {
-        self.kerberos_auth = Some(crate::kerberos_auth::KerberosAuthConfig::new(
-            mode, provider,
-        ));
+    /// **Experimental.** May change or be removed in future releases.
+    pub fn with_network(mut self, config: crate::network::NetworkConfig) -> Self {
+        self.network = Some(config);
         self
     }
 
@@ -1623,8 +1626,8 @@ impl Client {
     ///
     /// After establishing the connection, calls [`verify_protocol_version`](Self::verify_protocol_version)
     /// to ensure the CLI server speaks a compatible protocol version.
-    /// When [`ClientOptions::kerberos_auth`] is set, next registers the SDK as
-    /// the Kerberos credential provider via `kerberosAuth.setProvider`.
+    /// When [`ClientOptions::network`] configures a callback, next registers
+    /// the configured network callbacks via `network.setProvider`.
     /// When [`ClientOptions::session_fs`] is set, also calls
     /// `sessionFs.setProvider` to register the SDK as the filesystem
     /// backend.
@@ -1755,7 +1758,7 @@ impl Client {
         let session_fs_config = options.session_fs.clone();
         let request_handler = options.request_handler.clone();
         let extension_launch_provider = options.extension_launch_provider.clone();
-        let kerberos_auth_config = options.kerberos_auth.clone();
+        let network_config = options.network.clone();
         let installation_confirmation_handler = options.installation_confirmation_handler.clone();
         let session_fs_sqlite_declared = session_fs_config
             .as_ref()
@@ -1855,7 +1858,7 @@ impl Client {
                 port,
                 connection_token: _,
             } => {
-                let (mut child, tree, actual_port, spawn_elapsed, port_wait_elapsed) =
+                let (child, tree, actual_port, spawn_elapsed, port_wait_elapsed) =
                     Self::spawn_tcp(&program, &options, &working_directory, port).await?;
                 timings.process_spawn_ms = Some(StartupTimings::millis(spawn_elapsed));
                 timings.port_wait_ms = Some(StartupTimings::millis(port_wait_elapsed));
@@ -1867,7 +1870,6 @@ impl Client {
                     "Client::start TCP connect complete"
                 );
                 let (reader, writer) = tokio::io::split(stream);
-                Self::drain_stderr(&mut child);
                 Self::from_transport(
                     reader,
                     jsonrpc::MessageWriter::stream(writer),
@@ -2044,8 +2046,8 @@ impl Client {
             dispatcher
         });
         client.inner.router.ensure_started(&client.inner);
-        if let Some(config) = kerberos_auth_config {
-            kerberos_auth::register(&client, config).await?;
+        if let Some(config) = network_config {
+            client.register_network(config).await?;
         }
         if client.inner.extension_launch_provider.is_configured() {
             client.rpc().register_extension_launch_provider().await?;
@@ -2170,9 +2172,24 @@ impl Client {
         )
     }
 
+    /// Register `config`'s network callbacks with the runtime, for a client created with
+    /// [`Self::from_streams`], which takes no [`ClientOptions`]; [`Self::start`] does this for
+    /// [`ClientOptions::with_network`]. Call it once, after [`Self::verify_protocol_version`] and
+    /// before creating sessions, so their requests use the callbacks. A rejected registration,
+    /// for example while another client holds the runtime scope, can be retried. If this future is
+    /// dropped, the registration still completes in the background, and is rolled back if the
+    /// runtime rejects it.
+    ///
+    /// **Experimental.** May change or be removed in future releases.
+    pub async fn register_network(&self, config: network::NetworkConfig) -> Result<()> {
+        self.inner.router.ensure_started(&self.inner);
+        network::register(self, config).await
+    }
+
     /// Create a Client from raw async streams (no child process).
     ///
     /// Useful for testing or connecting to a server over a custom transport.
+    /// Register network callbacks for it with [`Self::register_network`].
     pub fn from_streams(
         reader: impl AsyncRead + Unpin + Send + 'static,
         writer: impl AsyncWrite + Unpin + Send + 'static,
@@ -2894,6 +2911,7 @@ impl Client {
             elapsed_ms = spawn_elapsed.as_millis(),
             "Client::spawn_tcp subprocess spawned"
         );
+        Self::drain_stderr(&mut child);
         let stdout = child.stdout.take().expect("stdout is piped");
 
         let (port_tx, port_rx) = oneshot::channel::<u16>();
@@ -2944,13 +2962,56 @@ impl Client {
             let span = tracing::error_span!("copilot_cli");
             tokio::spawn(
                 async move {
-                    let mut reader = BufReader::new(stderr).lines();
-                    while let Ok(Some(line)) = reader.next_line().await {
-                        warn!(line = %line, "CLI stderr");
+                    if let Err(error) =
+                        Self::drain_stderr_stream(stderr, |line| warn!(line = %line, "CLI stderr"))
+                            .await
+                    {
+                        warn!(%error, "Error reading CLI stderr");
                     }
                 }
                 .instrument(span),
             );
+        }
+    }
+
+    #[cfg(feature = "runtime")]
+    async fn drain_stderr_stream(
+        mut stderr: impl AsyncRead + Unpin,
+        mut log: impl FnMut(&str),
+    ) -> std::io::Result<()> {
+        const CHUNK_SIZE: usize = 4096;
+        let mut chunk = [0; CHUNK_SIZE];
+        let mut pending = Vec::with_capacity(2 * CHUNK_SIZE);
+        loop {
+            let count = stderr.read(&mut chunk).await?;
+            if count == 0 {
+                if !pending.is_empty() {
+                    log(&String::from_utf8_lossy(&pending));
+                }
+                return Ok(());
+            }
+            pending.extend_from_slice(&chunk[..count]);
+            loop {
+                if let Some(newline) = pending.iter().position(|&byte| byte == b'\n')
+                    && newline < CHUNK_SIZE
+                {
+                    let line = pending[..newline]
+                        .strip_suffix(b"\r")
+                        .unwrap_or(&pending[..newline]);
+                    log(&String::from_utf8_lossy(line));
+                    pending.drain(..=newline);
+                } else if pending.len() >= CHUNK_SIZE {
+                    // Stream long lines without splitting a valid UTF-8 character.
+                    let end = match std::str::from_utf8(&pending[..CHUNK_SIZE]) {
+                        Err(error) if error.error_len().is_none() => error.valid_up_to(),
+                        _ => CHUNK_SIZE,
+                    };
+                    log(&String::from_utf8_lossy(&pending[..end]));
+                    pending.drain(..end);
+                } else {
+                    break;
+                }
+            }
         }
     }
 
@@ -3478,6 +3539,26 @@ impl Client {
             Some(serde_json::json!({ "sessionId": session_id })),
         )
         .await?;
+        self.retire_github_token_provider(session_id);
+        Ok(())
+    }
+
+    pub(crate) async fn delete_session_checked(&self, session_id: &SessionId) -> Result<()> {
+        let value = self
+            .call(
+                "session.delete",
+                Some(serde_json::json!({ "sessionId": session_id })),
+            )
+            .await?;
+        let response: SessionDeleteResponse = serde_json::from_value(value)?;
+        if response.success == Some(false) {
+            return Err(Error::with_message(
+                ErrorKind::Session(SessionErrorKind::DeleteFailed),
+                response
+                    .error
+                    .unwrap_or_else(|| "unknown error".to_string()),
+            ));
+        }
         self.retire_github_token_provider(session_id);
         Ok(())
     }

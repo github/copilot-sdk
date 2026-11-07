@@ -91,5 +91,4 @@
  * @see com.github.copilot.CopilotClient
  * @see com.github.copilot.CopilotSession
  */
-@edu.umd.cs.findbugs.annotations.SuppressFBWarnings(value = "EI_EXPOSE_REP2", justification = "DTOs for JSON deserialization - low risk")
 package com.github.copilot.rpc;

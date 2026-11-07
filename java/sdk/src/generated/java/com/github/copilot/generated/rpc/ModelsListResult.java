@@ -31,6 +31,24 @@ public record ModelsListResult(
 when CAPI returned Auto metadata; same shape and semantics as `SessionModelList.auto`. */
     @JsonProperty("auto") AutoTierMetadata auto,
     /** The runtime's default image model, separate from conversation models, with its availability for the resolved account. The default is reported even when unavailable; clients choose whether to display it. These entries must not be selected as chat models. Absent on runtimes that do not expose this catalog. */
-    @JsonProperty("imageModels") List<ImageToolModel> imageModels
+    @JsonProperty("imageModels") List<ImageToolModel> imageModels,
+    /** Decision models the resolved account can call with `decisions.ask`, separate from conversation models, with each model's effective limits. Absent when the `DECISIONS_API` feature flag is off or the runtime does not expose this catalog; empty when the account has none. These entries must not be selected as chat models. */
+    @CopilotExperimental
+    @JsonProperty("decisionModels") List<DecisionModelInfo> decisionModels
 ) {
+
+    /**
+     * Creates a record with the components it had before later optional fields were added.
+     *
+     * @param models List of available models with full metadata
+     * @param auto Ordered Auto routing preferences discovered for the resolved account. Present only when CAPI returned Auto metadata; same shape and semantics as `SessionModelList.auto`.
+     * @param imageModels The runtime's default image model, separate from conversation models, with its availability for the resolved account. The default is reported even when unavailable; clients choose whether to display it. These entries must not be selected as chat models. Absent on runtimes that do not expose this catalog.
+     */
+    public ModelsListResult(
+        List<Model> models,
+        AutoTierMetadata auto,
+        List<ImageToolModel> imageModels
+    ) {
+        this(models, auto, imageModels, null);
+    }
 }

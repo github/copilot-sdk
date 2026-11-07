@@ -16,6 +16,7 @@ These guides cover the capabilities you can add to your Copilot SDK application.
 | [MCP Servers](./mcp.md) | Integrate Model Context Protocol servers for external tool access |
 | [Skills](./skills.md) | Load reusable prompt modules from directories |
 | [Plugin Directories](./plugin-directories.md) | Bundle skills, hooks, MCP servers, and agents as a single loadable plugin |
+| [Customization Locations](./customization-locations.md) | Discover skills, agents, instructions, and file hooks from packages, submodules, and vendored directories |
 | [Session limits](./session-limits.md) | Set an AI Credits budget for a session and observe budget events |
 | [Citations](./citations.md) | Link assistant responses back to their supporting sources |
 | [Image Input](./image-input.md) | Send images to sessions as attachments |
@@ -25,6 +26,7 @@ These guides cover the capabilities you can add to your Copilot SDK application.
 | [Steering & Queueing](./steering-and-queueing.md) | Control message delivery—immediate steering vs. sequential queueing |
 | [Context Clearing](./context-management.md) | Replace conversation context safely with terminal tools |
 | [Session Persistence](./session-persistence.md) | Resume sessions across restarts, manage session storage |
+| [Auto Mode Recovery](./auto-mode-recovery.md) | Offer to retry a request on Auto after an explicit model is degraded, overloaded, or rate limited |
 | [Remote Sessions](./remote-sessions.md) | Share locally hosted sessions to GitHub web and mobile via Mission Control |
 | [Cloud Sessions](./cloud-sessions.md) | Run sessions on GitHub-hosted compute through Mission Control |
 

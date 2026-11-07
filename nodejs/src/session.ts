@@ -25,6 +25,7 @@ import type {
     WorkflowLogLine,
     WorkflowRunResult as WireWorkflowRunResult,
     ModelSwitchAutoTierResult,
+    PermissionsSetModeResult,
     SendAndWaitResult,
     SessionManagementCreateHostRequest,
     SessionManagementCreateResult,
@@ -86,6 +87,8 @@ import type {
     UserInputHandler,
     UserInputRequest,
     UserInputResponse,
+    MemoryConfiguration,
+    StoredMemory,
 } from "./types.js";
 import {
     WORKFLOW_AGENT_OPTION_KEYS,
@@ -510,6 +513,7 @@ const TOOL_SEARCH_TOOL_NAME = "tool_search_tool";
 
 export class CopilotSession {
     private _transcriptRecovery?: TranscriptRecovery;
+    private _permissionModeResult?: PermissionsSetModeResult;
     private eventHandlers: Set<SessionEventHandler> = new Set();
     private typedEventHandlers: Map<SessionEventType, Set<(event: SessionEvent) => void>> =
         new Map();
@@ -531,6 +535,7 @@ export class CopilotSession {
     private autoModeSwitchHandler?: AutoModeSwitchHandler;
     private skillProvider?: SkillProvider;
     private sessionCreationHandler?: SessionCreationHandler;
+    private memoryStoreHandler?: MemoryConfiguration["storeMemory"];
     private hooks?: SessionHooks;
     private transformCallbacks?: Map<string, SectionTransformFn>;
     private _rpc: ReturnType<typeof createSessionRpc> | null = null;
@@ -719,7 +724,7 @@ export class CopilotSession {
      * @internal This constructor is internal. Use {@link CopilotClient.createSession} to create sessions.
      */
     constructor(
-        public readonly sessionId: string,
+        private _sessionId: string,
         private connection: MessageConnection,
         private _workspacePath?: string,
         traceContextProvider?: TraceContextProvider,
@@ -733,6 +738,17 @@ export class CopilotSession {
         this.mcpAuthHandler = options?.mcpAuthHandler;
         this.managedSettingsEnabled = options?.managedSettingsEnabled === true;
         this.onDisconnected = options?.onDisconnected;
+    }
+
+    get sessionId(): string {
+        return this._sessionId;
+    }
+
+    /** @internal */
+    _setSessionId(sessionId: string): void {
+        this._sessionId = sessionId;
+        this._rpc = null;
+        this._internalRpc = null;
     }
 
     /**
@@ -770,6 +786,20 @@ export class CopilotSession {
     /** @internal */
     setTranscriptRecovery(recovery: TranscriptRecovery | undefined): void {
         this._transcriptRecovery = recovery;
+    }
+
+    /**
+     * Outcome of the `permissionMode` requested when this session was created
+     * or resumed: whether it was applied, and the authoritative mode the
+     * session started in. Undefined when no mode was requested.
+     */
+    get permissionModeResult(): PermissionsSetModeResult | undefined {
+        return this._permissionModeResult;
+    }
+
+    /** @internal */
+    setPermissionModeResult(result: PermissionsSetModeResult | undefined): void {
+        this._permissionModeResult = result;
     }
 
     /**
@@ -847,6 +877,7 @@ export class CopilotSession {
             prompt: options.prompt,
             source: options.source,
             displayPrompt: options.displayPrompt,
+            clientTurnId: options.clientTurnId,
             attachments: options.attachments,
             mode: options.mode,
             agentMode: options.agentMode,
@@ -1346,6 +1377,7 @@ export class CopilotSession {
             controller.abort();
         }
         this.pendingSessionCreations.clear();
+        this._clearMemoryStore();
         this.eventHandlers.clear();
         this.typedEventHandlers.clear();
         this.toolHandlers.clear();
@@ -1357,6 +1389,7 @@ export class CopilotSession {
         this.autoModeSwitchHandler = undefined;
         this.skillProvider = undefined;
         this.sessionCreationHandler = undefined;
+        this.memoryStoreHandler = undefined;
         this.hooks = undefined;
         this.traceContextProvider = undefined;
         this.bearerTokenProviders.clear();
@@ -1675,6 +1708,7 @@ export class CopilotSession {
         }
         this.pendingExternalTools.set(requestId, controller);
 
+        let claimed = false;
         try {
             // The built-in tool-search tool receives a snapshot of the session's
             // currently initialized tools so an override can filter the live
@@ -1739,9 +1773,23 @@ export class CopilotSession {
             if (!this._claimExternalTool(requestId, controller)) {
                 return;
             }
+            claimed = true;
             await this.rpc.tools.handlePendingToolCall({ requestId, result });
         } catch (error) {
-            if (!this._claimExternalTool(requestId, controller)) {
+            if (claimed) {
+                // The handler finished but its result never reached the runtime, which
+                // is still waiting on the call. This invocation already owns the
+                // request, so report the failure and answer the call with it.
+                if (this.disconnected) {
+                    return;
+                }
+                console.error("External tool result delivery failed", {
+                    sessionId: this.sessionId,
+                    requestId,
+                    toolName,
+                    error,
+                });
+            } else if (!this._claimExternalTool(requestId, controller)) {
                 return;
             }
             let message = error instanceof Error ? error.message : String(error);
@@ -1749,13 +1797,38 @@ export class CopilotSession {
                 // An empty error reads as no error, so the call would count as a success.
                 message = (error instanceof Error && error.name) || "Error";
             }
-            try {
-                await this.rpc.tools.handlePendingToolCall({ requestId, error: message });
-            } catch (rpcError) {
-                if (!(rpcError instanceof ConnectionError || rpcError instanceof ResponseError)) {
-                    throw rpcError;
+            // Handler errors are initial replies too; retry failed delivery once,
+            // but never recursively retry a fallback error response.
+            for (let attempt = 0; attempt < (claimed ? 1 : 2); attempt++) {
+                try {
+                    await this.rpc.tools.handlePendingToolCall({ requestId, error: message });
+                    return;
+                } catch (rpcError) {
+                    const retryable = !claimed && attempt === 0 && !this.disconnected;
+                    if (!retryable) {
+                        if (
+                            !(
+                                rpcError instanceof ConnectionError ||
+                                rpcError instanceof ResponseError
+                            )
+                        ) {
+                            throw rpcError;
+                        }
+                        return;
+                    }
+                    // A transport can also fail with a plain Error (for example a write
+                    // EPIPE), so retry the initial reply once whatever the failure is.
+                    console.error("External tool error delivery failed", {
+                        sessionId: this.sessionId,
+                        requestId,
+                        toolName,
+                        error: rpcError,
+                    });
+                    message =
+                        (rpcError instanceof Error ? rpcError.message || rpcError.name : "") ||
+                        String(rpcError) ||
+                        "Error";
                 }
-                // Connection lost or RPC error — nothing we can do
             }
         } finally {
             if (this.pendingExternalTools.get(requestId) === controller) {
@@ -2559,6 +2632,47 @@ export class CopilotSession {
         } catch (error) {
             if (this.sessionCreationHandler === handler) this.sessionCreationHandler = previous;
             throw error;
+        }
+    }
+
+    /**
+     * Registers the callback the runtime calls through `memoryStore.store`.
+     * Registered before create or resume declares `hasMemoryStore`.
+     * @internal
+     */
+    _registerMemoryStore(handler: MemoryConfiguration["storeMemory"]): void {
+        this.assertConnected();
+        this.memoryStoreHandler = handler;
+    }
+
+    /** @internal */
+    _clearMemoryStore(): void {
+        this.memoryStoreHandler = undefined;
+    }
+
+    /** @internal */
+    async _handleMemoryStore(memory: StoredMemory, signal: AbortSignal): Promise<void> {
+        this.assertConnected();
+        const handler = this.memoryStoreHandler;
+        if (!handler) throw new Error("No memory store is registered");
+        try {
+            await handler(
+                {
+                    sessionId: memory.sessionId,
+                    subject: memory.subject,
+                    fact: memory.fact,
+                    citations: memory.citations,
+                    reason: memory.reason,
+                },
+                { signal }
+            );
+        } catch (error) {
+            if (signal.aborted) {
+                throw new ResponseError(-32800, "Memory store call cancelled");
+            }
+            // The runtime reports a generic failure to the model; keep the cause visible to the app.
+            console.warn("Memory store callback failed", error);
+            throw new Error("Memory store callback failed");
         }
     }
 

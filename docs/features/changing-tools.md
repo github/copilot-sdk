@@ -61,10 +61,9 @@ await session.setTools([]);
 
 <!-- docs-validate: hidden -->
 ```python
-from pydantic import BaseModel, Field
-
 from copilot import CopilotClient
 from copilot.session import PermissionHandler
+from pydantic import BaseModel, Field
 from copilot.tools import define_tool
 
 
@@ -317,7 +316,35 @@ session.setTools(List.of()).get();
 <details>
 <summary><strong>Rust</strong></summary>
 
-<!-- docs-validate: skip -->
+<!-- docs-validate: hidden -->
+```rust
+use serde::Deserialize;
+
+async fn find_issues(query: &str) -> String {
+    query.to_owned()
+}
+
+#[derive(Deserialize, JsonSchema)]
+struct SearchIssuesParams {
+    /// Search text
+    query: String,
+}
+
+let search_issues = define_tool(
+    "search_issues",
+    "Search the issues shown on the current page",
+    |_inv, params: SearchIssuesParams| async move {
+        Ok(ToolResult::Text(find_issues(&params.query).await))
+    },
+);
+
+// Supply only the tools the current page provides.
+session.set_tools(vec![search_issues]).await?;
+
+// Remove all of this client's tools.
+session.set_tools(Vec::new()).await?;
+```
+<!-- /docs-validate: hidden -->
 
 ```rust
 #[derive(Deserialize, JsonSchema)]

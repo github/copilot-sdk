@@ -5,7 +5,13 @@ from unittest.mock import AsyncMock, Mock
 
 import pytest
 
-from copilot import AhpHostAuthentication, AhpHostOptions, CopilotClient, RuntimeConnection
+from copilot import (
+    AhpHostAuthentication,
+    AhpHostOptions,
+    CopilotClient,
+    PermissionMode,
+    RuntimeConnection,
+)
 from copilot._jsonrpc import JsonRpcClient
 from copilot.generated.rpc import ServerRpc
 from copilot.rpc import HostGitHubEnvironmentOptions, HostLocalServerOptions
@@ -212,12 +218,14 @@ async def test_factories_preserve_configuration_and_release_exact_original_once(
 
     async def create(request):
         cancellations.append(request.cancellation_event)
+        assert request.config["permission_mode"] is PermissionMode.ALLOW_ALL
         original = await client.create_session(**request.config)
         originals.append(original)
         return original
 
     async def restore(request):
         cancellations.append(request.cancellation_event)
+        assert request.config["permission_mode"] is PermissionMode.ALLOW_ALL
         original = await client.resume_session(request.session_id, **request.config)
         originals.append(original)
         return original
@@ -249,6 +257,7 @@ async def test_factories_preserve_configuration_and_release_exact_original_once(
             enableExperimentalMode=False,
             infiniteSessions={"enabled": False, "backgroundCompactionThreshold": 0.7},
             featureFlags={"Arbitrary.MixedCase": True},
+            permissionMode="allow-all",
             **config,
         )
     )

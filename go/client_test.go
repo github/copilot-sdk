@@ -148,12 +148,29 @@ func TestClient_URLParsing(t *testing.T) {
 		NewClient(&ClientOptions{Connection: URIConnection{URL: "[not-ipv6]:1234"}})
 	})
 
-	t.Run("should parse https://host:port URL format", func(t *testing.T) {
-		client := NewClient(&ClientOptions{
-			Connection: URIConnection{URL: "https://example.com:443"},
+	for _, url := range []string{
+		"https://example.com:443",
+		"HtTpS://example.com:443",
+		"https://[::1]:9000",
+		"https://localhost:9000",
+	} {
+		t.Run("should reject HTTPS URL "+url, func(t *testing.T) {
+			defer func() {
+				want := "HTTPS runtime connections are not supported: this transport uses plaintext TCP, not TLS"
+				if r := recover(); r != want {
+					t.Errorf("Expected panic %q, got %v", want, r)
+				}
+			}()
+			NewClient(&ClientOptions{
+				Connection: URIConnection{URL: url, ConnectionToken: "connection-secret"},
+			})
 		})
-		if client.actualPort != 443 || client.actualHost != "example.com" {
-			t.Errorf("Expected example.com:443, got %s:%d", client.actualHost, client.actualPort)
+	}
+
+	t.Run("should parse a host named https", func(t *testing.T) {
+		client := NewClient(&ClientOptions{Connection: URIConnection{URL: "https:9000"}})
+		if client.actualPort != 9000 || client.actualHost != "https" {
+			t.Errorf("Expected https:9000, got %s:%d", client.actualHost, client.actualPort)
 		}
 	})
 
@@ -839,6 +856,7 @@ func TestClient_ConnectionCloseCancelsPendingExternalTools(t *testing.T) {
 	session.pendingExternalTools = map[string]*pendingExternalTool{
 		"request-1": {ctx: ctx, cancel: cancel},
 	}
+	session.registerMemoryStore(func(context.Context, StoredMemory) error { return nil })
 	client := &Client{
 		client:           rpcClient,
 		RPC:              rpc.NewServerRPC(rpcClient),
@@ -855,6 +873,9 @@ func TestClient_ConnectionCloseCancelsPendingExternalTools(t *testing.T) {
 	case <-ctx.Done():
 	case <-time.After(time.Second):
 		t.Fatal("connection close did not cancel the pending external tool")
+	}
+	if session.getMemoryStore() != nil {
+		t.Fatal("connection close did not clear the memory store")
 	}
 
 	if err := client.Stop(); err != nil {
@@ -1099,6 +1120,12 @@ func TestClient_CallAdmittedDuringStopFailsInsteadOfPanicking(t *testing.T) {
 
 func newRuntimeShutdownRpcPair(t *testing.T) (*jsonrpc2.Client, *jsonrpc2.Client, chan struct{}) {
 	t.Helper()
+	client, server, shutdown, _ := newRuntimeShutdownRpcPairWithPeer(t)
+	return client, server, shutdown
+}
+
+func newRuntimeShutdownRpcPairWithPeer(t *testing.T) (*jsonrpc2.Client, *jsonrpc2.Client, chan struct{}, net.Conn) {
+	t.Helper()
 
 	clientConn, serverConn := net.Pipe()
 	t.Cleanup(func() {
@@ -1115,7 +1142,7 @@ func newRuntimeShutdownRpcPair(t *testing.T) (*jsonrpc2.Client, *jsonrpc2.Client
 	})
 	rpcClient.Start()
 	server.Start()
-	return rpcClient, server, shutdownCalled
+	return rpcClient, server, shutdownCalled, serverConn
 }
 
 func TestClient_ForwardsCapiOptionsToSessionRequests(t *testing.T) {
@@ -1225,6 +1252,98 @@ func TestClient_ForwardsInteractiveUserToSessionRequests(t *testing.T) {
 			}
 			assertOptionalBoolJSONField(t, <-resumeParams, "interactiveUser", tt.value)
 		})
+	}
+}
+
+func TestClient_ForwardsPermissionModeToSessionRequests(t *testing.T) {
+	for _, mode := range []rpc.PermissionMode{
+		rpc.PermissionModeManual,
+		rpc.PermissionModeAssisted,
+		rpc.PermissionModeAllowAll,
+		"",
+	} {
+		name := string(mode)
+		if name == "" {
+			name = "omitted"
+		}
+		t.Run(name, func(t *testing.T) {
+			rpcClient, server, _ := newRuntimeShutdownRpcPair(t)
+			t.Cleanup(server.Stop)
+			client := &Client{
+				client:   rpcClient,
+				RPC:      rpc.NewServerRPC(rpcClient),
+				sessions: make(map[string]*Session),
+			}
+
+			createParams := make(chan json.RawMessage, 1)
+			server.SetRequestHandler("session.create", func(params json.RawMessage) (json.RawMessage, *jsonrpc2.Error) {
+				createParams <- append(json.RawMessage(nil), params...)
+				sessionID := sessionIDFromParams(t, params)
+				return []byte(`{"sessionId":"` + sessionID + `","workspacePath":"/workspace"` + permissionModeResultJSON(mode) + `}`), nil
+			})
+
+			created, err := client.CreateSession(t.Context(), &SessionConfig{PermissionMode: mode})
+			if err != nil {
+				t.Fatalf("CreateSession failed: %v", err)
+			}
+			assertOptionalStringJSONField(t, <-createParams, "permissionMode", string(mode))
+			assertPermissionModeResult(t, created.PermissionModeResult(), mode)
+
+			resumeParams := make(chan json.RawMessage, 1)
+			server.SetRequestHandler("session.resume", func(params json.RawMessage) (json.RawMessage, *jsonrpc2.Error) {
+				resumeParams <- append(json.RawMessage(nil), params...)
+				return []byte(`{"sessionId":"permission-mode-resume","workspacePath":"/workspace"` + permissionModeResultJSON(mode) + `}`), nil
+			})
+
+			resumed, err := client.ResumeSessionWithOptions(t.Context(), "permission-mode-resume", &ResumeSessionConfig{PermissionMode: mode})
+			if err != nil {
+				t.Fatalf("ResumeSessionWithOptions failed: %v", err)
+			}
+			assertOptionalStringJSONField(t, <-resumeParams, "permissionMode", string(mode))
+			assertPermissionModeResult(t, resumed.PermissionModeResult(), mode)
+		})
+	}
+}
+
+// permissionModeResultJSON echoes a requested mode as a refused result, so the
+// test proves the SDK surfaces the runtime's outcome rather than the request.
+func permissionModeResultJSON(mode rpc.PermissionMode) string {
+	if mode == "" {
+		return ""
+	}
+	return `,"permissionModeResult":{"success":false,"mode":"manual"}`
+}
+
+func assertPermissionModeResult(t *testing.T, got *rpc.PermissionsSetModeResult, requested rpc.PermissionMode) {
+	t.Helper()
+	if requested == "" {
+		if got != nil {
+			t.Fatalf("PermissionModeResult() = %+v, want nil", *got)
+		}
+		return
+	}
+	if got == nil || got.Success || got.Mode != rpc.PermissionModeManual {
+		t.Fatalf("PermissionModeResult() = %+v, want refused manual", got)
+	}
+}
+
+// assertOptionalStringJSONField treats an empty want as "field omitted".
+func assertOptionalStringJSONField(t *testing.T, raw json.RawMessage, field string, want string) {
+	t.Helper()
+
+	var params map[string]any
+	if err := json.Unmarshal(raw, &params); err != nil {
+		t.Fatal(err)
+	}
+	got, present := params[field]
+	if want == "" {
+		if present {
+			t.Fatalf("%s = %v, want omitted", field, got)
+		}
+		return
+	}
+	if got != want {
+		t.Fatalf("%s = %v, want %v", field, got, want)
 	}
 }
 
@@ -1705,6 +1824,7 @@ func TestClient_ForwardsNewSessionOptionsToSessionRequests(t *testing.T) {
 
 	_, err := client.CreateSession(t.Context(), &SessionConfig{
 		ExcludedBuiltInAgents:    []string{"explore"},
+		AllowMultipleToolCalls:   Bool(false),
 		EnableCitations:          Bool(true),
 		EnableFileChangeTracking: Bool(true),
 		SessionLimits:            &rpc.SessionLimitsConfig{MaxAiCredits: float64Ptr(30)},
@@ -1718,7 +1838,7 @@ func TestClient_ForwardsNewSessionOptionsToSessionRequests(t *testing.T) {
 	if err != nil {
 		t.Fatalf("CreateSession failed: %v", err)
 	}
-	assertNewSessionOptions(t, <-createParams, true, true, "explore", 30, true,
+	assertNewSessionOptions(t, <-createParams, false, true, true, "explore", 30, true,
 		map[string]any{"continuationEnabled": false, "maxContinues": float64(0)})
 
 	resumeParams := make(chan json.RawMessage, 1)
@@ -1729,6 +1849,7 @@ func TestClient_ForwardsNewSessionOptionsToSessionRequests(t *testing.T) {
 
 	_, err = client.ResumeSessionWithOptions(t.Context(), "resumed-options", &ResumeSessionConfig{
 		ExcludedBuiltInAgents:    []string{"task"},
+		AllowMultipleToolCalls:   Bool(true),
 		EnableCitations:          Bool(false),
 		EnableFileChangeTracking: Bool(false),
 		SessionLimits:            &rpc.SessionLimitsConfig{MaxAiCredits: float64Ptr(15)},
@@ -1742,7 +1863,7 @@ func TestClient_ForwardsNewSessionOptionsToSessionRequests(t *testing.T) {
 	if err != nil {
 		t.Fatalf("ResumeSessionWithOptions failed: %v", err)
 	}
-	assertNewSessionOptions(t, <-resumeParams, false, false, "task", 15, false,
+	assertNewSessionOptions(t, <-resumeParams, true, false, false, "task", 15, false,
 		map[string]any{"maxContinues": float64(2)})
 }
 
@@ -1772,6 +1893,7 @@ func assertCapiOptions(t *testing.T, params json.RawMessage, want map[string]any
 func assertNewSessionOptions(
 	t *testing.T,
 	params json.RawMessage,
+	expectedMultipleToolCalls bool,
 	expectedCitations bool,
 	expectedFileChangeTracking bool,
 	expectedAgent string,
@@ -1784,6 +1906,9 @@ func assertNewSessionOptions(
 	var decoded map[string]any
 	if err := json.Unmarshal(params, &decoded); err != nil {
 		t.Fatalf("failed to unmarshal request params: %v", err)
+	}
+	if decoded["allowMultipleToolCalls"] != expectedMultipleToolCalls {
+		t.Fatalf("expected allowMultipleToolCalls=%v, got %v", expectedMultipleToolCalls, decoded["allowMultipleToolCalls"])
 	}
 	if decoded["enableCitations"] != expectedCitations {
 		t.Fatalf("expected enableCitations=%v, got %v", expectedCitations, decoded["enableCitations"])

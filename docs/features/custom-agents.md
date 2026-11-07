@@ -786,6 +786,9 @@ interface AgentNode {
 
 const agentTree = new Map<string, AgentNode>();
 
+// Your application's UI rendering function
+declare function renderAgentTree(tree: Map<string, AgentNode>): void;
+
 session.on((event) => {
     if (event.type === "subagent.started") {
         agentTree.set(event.data.toolCallId, {
@@ -1125,7 +1128,7 @@ Sub-agents can fail. Always listen for `subagent.failed` events and handle them 
 ```typescript
 session.on((event) => {
     if (event.type === "subagent.failed") {
-        logger.error(`Agent ${event.data.agentName} failed: ${event.data.error}`);
+        console.error(`Agent ${event.data.agentName} failed: ${event.data.error}`);
         // Show error in UI, retry, or fall back to parent agent
     }
 });

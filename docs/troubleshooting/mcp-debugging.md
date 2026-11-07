@@ -274,7 +274,7 @@ public static class McpDotnetConfigExample
     Args = new List<string>(),
     WorkingDirectory = @"C:\Tools\MyServer",  // Set working directory
     Tools = new List<string> { "*" },
-}
+},
 
 // For dotnet tool (DLL)
 ["my-dotnet-tool"] = new McpStdioServerConfig

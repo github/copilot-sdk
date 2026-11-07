@@ -1,6 +1,6 @@
 # Backend services setup
 
-Run the Copilot SDK in server-side applications—APIs, web backends, microservices, and background workers. The CLI runs as a headless server that your backend code connects to over the network.
+Run the SDK in backends, APIs, microservices and workers. Connect to an independent headless CLI over plaintext TCP JSON-RPC. Node.js, Python, Go, .NET and Java reject `https://`; `http://` is only an address alias.
 
 **Best for:** Web app backends, API services, internal tools, CI/CD integrations, any server-side workload.
 
@@ -124,6 +124,32 @@ Restart=always
 <details open>
 <summary><strong>Node.js / TypeScript</strong></summary>
 
+<!-- docs-validate: hidden -->
+```typescript
+import { CopilotClient, RuntimeConnection } from "@github/copilot-sdk";
+
+// Provided by your web framework and auth layer
+declare const userId: string;
+declare const user: { githubToken: string };
+declare const req: { body: { message: string } };
+declare const res: { json(body: unknown): void };
+
+const client = new CopilotClient({
+    connection: RuntimeConnection.forUri("localhost:4321"),
+    mode: "empty",
+});
+
+const session = await client.createSession({
+    sessionId: `user-${userId}-${Date.now()}`,
+    model: "auto",
+    availableTools: ["custom:*"],
+    gitHubToken: user.githubToken,
+});
+
+const response = await session.sendAndWait({ prompt: req.body.message });
+res.json({ content: response?.data.content });
+```
+<!-- /docs-validate: hidden -->
 ```typescript
 import { CopilotClient, RuntimeConnection } from "@github/copilot-sdk";
 
@@ -326,6 +352,46 @@ copilot --headless --port 4321
 
 Pass individual user tokens when creating sessions. See [GitHub OAuth](./github-oauth.md) for the full flow.
 
+<!-- docs-validate: hidden -->
+```typescript
+import { CopilotClient, RuntimeConnection } from "@github/copilot-sdk";
+
+// Provided by your web framework and auth layer
+interface AuthenticatedRequest {
+    user: { id: string; githubToken: string };
+    body: { message: string };
+}
+declare const app: {
+    post(
+        path: string,
+        middleware: unknown,
+        handler: (req: AuthenticatedRequest, res: { json(body: unknown): void }) => Promise<void>,
+    ): void;
+};
+declare const authMiddleware: unknown;
+
+const client = new CopilotClient({
+    connection: RuntimeConnection.forUri("localhost:4321"),
+    mode: "empty",
+});
+
+// Your API receives user tokens from your auth layer
+app.post("/chat", authMiddleware, async (req, res) => {
+    const session = await client.createSession({
+        sessionId: `user-${req.user.id}-chat`,
+        model: "auto",
+        availableTools: ["custom:*"],
+        gitHubToken: req.user.githubToken,
+    });
+
+    const response = await session.sendAndWait({
+        prompt: req.body.message,
+    });
+
+    res.json({ content: response?.data.content });
+});
+```
+<!-- /docs-validate: hidden -->
 ```typescript
 const client = new CopilotClient({
     connection: RuntimeConnection.forUri("localhost:4321"),
@@ -455,6 +521,13 @@ app.listen(3000);
 
 ```typescript
 import { CopilotClient, RuntimeConnection } from "@github/copilot-sdk";
+
+// Provided by your application's job queue and result store
+interface Job {
+    id: string;
+    prompt: string;
+}
+declare function saveResult(jobId: string, content: string | undefined): Promise<void>;
 
 const client = new CopilotClient({
     connection: RuntimeConnection.forUri(process.env.CLI_URL || "localhost:4321"),

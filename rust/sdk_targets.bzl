@@ -144,9 +144,12 @@ def sdk_targets(name = "platform_dirs_srcs"):
         )
 
     rust_test(
-        name = "sdk_kerberos_auth_test",
-        srcs = ["tests/kerberos_auth_test.rs"],
-        crate_root = "tests/kerberos_auth_test.rs",
+        name = "sdk_network_test",
+        srcs = [
+            "tests/network_test.rs",
+            "tests/support/fake_runtime.rs",
+        ],
+        crate_root = "tests/network_test.rs",
         edition = "2024",
         deps = [
             ":github-copilot-sdk-local-runtime",

@@ -264,6 +264,161 @@ func TestToolResultWithEmptyTextIsSentAsEmptyText(t *testing.T) {
 	}
 }
 
+func TestToolResultThatFailsToSendIsReportedAndAnsweredWithError(t *testing.T) {
+	logs := captureSkillProviderLog(t)
+	session, server := newSetToolsTestSession(t)
+	session.registerTools([]Tool{{Name: "record_note", Handler: func(ToolInvocation) (ToolResult, error) {
+		return ToolResult{TextResultForLLM: "ok"}, nil
+	}}})
+	session.startExternalTool(&ExternalToolRequestedData{
+		RequestID:  "request-1",
+		SessionID:  "session-1",
+		ToolCallID: "tool-call-1",
+		ToolName:   "record_note",
+		Arguments:  map[string]any{},
+	}, "")
+
+	delivery := server.expectRequest(t, "session.tools.handlePendingToolCall")
+	if _, ok := delivery.Params["result"].(map[string]any); !ok {
+		t.Fatalf("first params = %#v, want the tool result", delivery.Params)
+	}
+	server.respondError(t, delivery.ID, -32603, "tool result rejected")
+
+	answer := server.expectRequest(t, "session.tools.handlePendingToolCall")
+	if answer.Params["requestId"] != "request-1" {
+		t.Errorf("requestId = %#v, want request-1", answer.Params["requestId"])
+	}
+	if result, ok := answer.Params["result"]; ok {
+		t.Errorf("result = %#v, want none", result)
+	}
+	if want := "JSON-RPC Error -32603: tool result rejected"; answer.Params["error"] != want {
+		t.Errorf("error = %#v, want %q", answer.Params["error"], want)
+	}
+	server.respond(t, answer.ID, map[string]any{})
+	if want := "external tool result delivery failed: session_id=session-1 request_id=request-1 tool=record_note error=JSON-RPC Error -32603: tool result rejected"; !strings.Contains(logs.text(), want) {
+		t.Errorf("log = %q, want it to contain %q", logs.text(), want)
+	}
+}
+
+func TestToolResultThatFailsToSendAfterDisconnectIsNotAnswered(t *testing.T) {
+	logs := captureSkillProviderLog(t)
+	session, server := newSetToolsTestSession(t)
+	session.registerTools([]Tool{{Name: "record_note", Handler: func(ToolInvocation) (ToolResult, error) {
+		return ToolResult{TextResultForLLM: "ok"}, nil
+	}}})
+	session.startExternalTool(&ExternalToolRequestedData{
+		RequestID:  "request-1",
+		SessionID:  "session-1",
+		ToolCallID: "tool-call-1",
+		ToolName:   "record_note",
+		Arguments:  map[string]any{},
+	}, "")
+
+	delivery := server.expectRequest(t, "session.tools.handlePendingToolCall")
+	// The request is already claimed, so disconnecting cannot cancel it.
+	session.cancelPendingExternalTools()
+	server.respondError(t, delivery.ID, -32603, "tool result rejected")
+
+	server.expectNoRequest(t)
+	if strings.Contains(logs.text(), "external tool result delivery failed") {
+		t.Errorf("log = %q, want no delivery failure after disconnect", logs.text())
+	}
+}
+
+func TestSetToolsTestSessionCleanupRetiresInFlightToolResult(t *testing.T) {
+	logs := captureSkillProviderLog(t)
+	invocations := make(chan context.Context, 1)
+	if !t.Run("fixture", func(t *testing.T) {
+		session, server := newSetToolsTestSession(t)
+		session.registerTools([]Tool{{Name: "record_note", Handler: func(invocation ToolInvocation) (ToolResult, error) {
+			invocations <- invocation.TraceContext
+			return ToolResult{TextResultForLLM: "ok"}, nil
+		}}})
+		session.startExternalTool(&ExternalToolRequestedData{
+			RequestID:  "request-1",
+			SessionID:  "session-1",
+			ToolCallID: "tool-call-1",
+			ToolName:   "record_note",
+			Arguments:  map[string]any{},
+		}, "")
+
+		// Leave the claimed result unanswered so fixture cleanup interrupts delivery.
+		server.expectRequest(t, "session.tools.handlePendingToolCall")
+	}) {
+		return
+	}
+
+	// A claimed call is no longer pending; its context closes when the sender exits.
+	ctx := <-invocations
+	select {
+	case <-ctx.Done():
+	case <-time.After(2 * time.Second):
+		t.Fatal("tool result sender did not finish after fixture cleanup")
+	}
+	if strings.Contains(logs.text(), "external tool result delivery failed") {
+		t.Errorf("log = %q, want no delivery failure from fixture cleanup", logs.text())
+	}
+}
+
+func TestToolErrorThatFailsToSendIsAnsweredOnceWithDeliveryError(t *testing.T) {
+	tests := []struct {
+		name    string
+		handler ToolHandler
+		wantErr string
+	}{
+		{
+			name: "handler error",
+			handler: func(ToolInvocation) (ToolResult, error) {
+				return ToolResult{}, errors.New("handler failed")
+			},
+			wantErr: "handler failed",
+		},
+		{
+			name: "handler panic",
+			handler: func(ToolInvocation) (ToolResult, error) {
+				panic("handler failed")
+			},
+			wantErr: "tool panic: handler failed",
+		},
+		{
+			name: "invalid telemetry",
+			handler: func(ToolInvocation) (ToolResult, error) {
+				return ToolResult{ToolTelemetry: map[string]any{"invalid": math.NaN()}}, nil
+			},
+			wantErr: "failed to serialize tool telemetry: json: unsupported value: NaN",
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			session, server := newSetToolsTestSession(t)
+			session.registerTools([]Tool{{Name: "record_note", Handler: tt.handler}})
+			session.startExternalTool(&ExternalToolRequestedData{
+				RequestID:  "request-1",
+				SessionID:  "session-1",
+				ToolCallID: "tool-call-1",
+				ToolName:   "record_note",
+				Arguments:  map[string]any{},
+			}, "")
+
+			delivery := server.expectRequest(t, "session.tools.handlePendingToolCall")
+			if delivery.Params["error"] != tt.wantErr {
+				t.Fatalf("initial error = %#v, want %q", delivery.Params["error"], tt.wantErr)
+			}
+			server.respondError(t, delivery.ID, -32603, "tool error rejected")
+
+			answer := server.expectRequest(t, "session.tools.handlePendingToolCall")
+			if answer.Params["requestId"] != "request-1" || answer.Params["error"] != "JSON-RPC Error -32603: tool error rejected" {
+				t.Fatalf("fallback params = %#v, want the same request with its delivery error", answer.Params)
+			}
+			if result, ok := answer.Params["result"]; ok {
+				t.Errorf("result = %#v, want none", result)
+			}
+			server.respondError(t, answer.ID, -32603, "fallback rejected")
+			server.expectNoRequest(t)
+		})
+	}
+}
+
 func TestToolResultWithUnencodableTelemetryIsAnsweredWithError(t *testing.T) {
 	type noArgs struct{}
 	tests := []struct {
@@ -1527,20 +1682,20 @@ func newSetToolsTestSession(t *testing.T) (*Session, *setToolsTestServer) {
 		errs:    make(chan error, 1),
 	}
 	go server.readRequests()
-	t.Cleanup(func() {
-		client.Stop()
-		stdinR.Close()
-		stdinW.Close()
-		stdoutR.Close()
-		stdoutW.Close()
-	})
-
 	session := &Session{
 		SessionID:    "session-1",
 		client:       client,
 		toolHandlers: make(map[string]ToolHandler),
 		RPC:          rpc.NewSessionRPC(client, "session-1"),
 	}
+	t.Cleanup(func() {
+		session.cancelPendingExternalTools()
+		client.Stop()
+		stdinR.Close()
+		stdinW.Close()
+		stdoutR.Close()
+		stdoutW.Close()
+	})
 	return session, server
 }
 
@@ -2246,9 +2401,7 @@ func TestSession_Capabilities(t *testing.T) {
 		session, cleanup := newTestSession()
 		defer cleanup()
 
-		session.setCapabilities(&SessionCapabilities{
-			UI: &UICapabilities{Elicitation: true},
-		})
+		session.setCapabilities(withRecoveryAwareSessionCapabilities(UICapabilities{Elicitation: true}))
 		caps := session.Capabilities()
 		if caps.UI == nil || !caps.UI.Elicitation {
 			t.Errorf("Expected UI.Elicitation to be true")
@@ -2259,9 +2412,7 @@ func TestSession_Capabilities(t *testing.T) {
 		session, cleanup := newTestSession()
 		defer cleanup()
 
-		session.setCapabilities(&SessionCapabilities{
-			UI: &UICapabilities{Elicitation: true},
-		})
+		session.setCapabilities(withRecoveryAwareSessionCapabilities(UICapabilities{Elicitation: true}))
 		session.setCapabilities(nil)
 		caps := session.Capabilities()
 		if caps.UI != nil {
@@ -2483,14 +2634,18 @@ func TestSession_ElicitationCapabilityGating(t *testing.T) {
 		session, cleanup := newTestSession()
 		defer cleanup()
 
-		session.setCapabilities(&SessionCapabilities{
-			UI: &UICapabilities{Elicitation: true},
-		})
+		session.setCapabilities(withRecoveryAwareSessionCapabilities(UICapabilities{Elicitation: true}))
 		err := session.assertElicitation()
 		if err != nil {
 			t.Errorf("Expected no error when elicitation capability is present, got %v", err)
 		}
 	})
+}
+
+func withRecoveryAwareSessionCapabilities(ui UICapabilities) *SessionCapabilitiesWithAutoModeRecovery {
+	return &SessionCapabilitiesWithAutoModeRecovery{
+		UI: &UICapabilitiesWithAutoModeRecovery{UICapabilities: ui},
+	}
 }
 
 func TestSession_CapabilitiesChangedKeepsCapabilitiesItDoesNotName(t *testing.T) {
@@ -2501,7 +2656,7 @@ func TestSession_CapabilitiesChangedKeepsCapabilitiesItDoesNotName(t *testing.T)
 	t.Run("an elicitation change keeps mcpApps", func(t *testing.T) {
 		session, cleanup := newTestSession()
 		defer cleanup()
-		session.setCapabilities(&SessionCapabilities{UI: &UICapabilities{MCPApps: true}})
+		session.setCapabilities(withRecoveryAwareSessionCapabilities(UICapabilities{MCPApps: true}))
 		before := session.Capabilities()
 
 		changed(session, CapabilitiesChangedUI{Elicitation: Bool(true)})
@@ -2520,7 +2675,7 @@ func TestSession_CapabilitiesChangedKeepsCapabilitiesItDoesNotName(t *testing.T)
 	t.Run("an mcpApps change is applied and keeps elicitation", func(t *testing.T) {
 		session, cleanup := newTestSession()
 		defer cleanup()
-		session.setCapabilities(&SessionCapabilities{UI: &UICapabilities{Elicitation: true}})
+		session.setCapabilities(withRecoveryAwareSessionCapabilities(UICapabilities{Elicitation: true}))
 
 		changed(session, CapabilitiesChangedUI{MCPApps: Bool(true)})
 
@@ -2535,7 +2690,7 @@ func TestSession_CapabilitiesChangedKeepsCapabilitiesItDoesNotName(t *testing.T)
 	t.Run("a change to false keeps the other capability", func(t *testing.T) {
 		session, cleanup := newTestSession()
 		defer cleanup()
-		session.setCapabilities(&SessionCapabilities{UI: &UICapabilities{Elicitation: true, MCPApps: true}})
+		session.setCapabilities(withRecoveryAwareSessionCapabilities(UICapabilities{Elicitation: true, MCPApps: true}))
 
 		changed(session, CapabilitiesChangedUI{Elicitation: Bool(false)})
 
@@ -2551,7 +2706,7 @@ func TestSession_CapabilitiesChangedKeepsCapabilitiesItDoesNotName(t *testing.T)
 func TestSession_CapabilitiesChangedAppliesInNotificationOrder(t *testing.T) {
 	session, cleanup := newTestSession()
 	defer cleanup()
-	session.setCapabilities(&SessionCapabilities{UI: &UICapabilities{Elicitation: true}})
+	session.setCapabilities(withRecoveryAwareSessionCapabilities(UICapabilities{Elicitation: true}))
 
 	for _, enabled := range []bool{true, false, true, false} {
 		session.dispatchEvent(SessionEvent{

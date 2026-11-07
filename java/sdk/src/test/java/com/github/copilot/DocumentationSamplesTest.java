@@ -15,14 +15,51 @@ class DocumentationSamplesTest {
     @Test
     void docsAndJbangSamplesUseRequiredPermissionHandler() throws IOException {
         for (Path path : documentationFiles()) {
-            String content = stripStringsAndComments(Files.readString(path));
-            assertFalse(hasConfigWithoutPermissionHandler(content, "SessionConfig"),
-                    () -> path + " contains SessionConfig sample without setOnPermissionRequest");
-            assertFalse(hasConfigWithoutPermissionHandler(content, "ResumeSessionConfig"),
-                    () -> path + " contains ResumeSessionConfig sample without setOnPermissionRequest");
-            assertFalse(hasSingleArgumentResumeSessionCall(content),
-                    () -> path + " contains removed resumeSession(String) overload");
+            for (CodeSample sample : codeSamples(path)) {
+                String content = stripStringsAndComments(sample.code());
+                assertFalse(hasConfigWithoutPermissionHandler(content, "SessionConfig"),
+                        () -> sample.location() + " contains SessionConfig sample without setOnPermissionRequest");
+                assertFalse(hasConfigWithoutPermissionHandler(content, "ResumeSessionConfig"), () -> sample.location()
+                        + " contains ResumeSessionConfig sample without setOnPermissionRequest");
+                assertFalse(hasSingleArgumentResumeSessionCall(content),
+                        () -> sample.location() + " contains removed resumeSession(String) overload");
+            }
         }
+    }
+
+    private record CodeSample(String location, String code) {
+    }
+
+    /**
+     * Returns the fenced code blocks of a Markdown file, each on its own, or the
+     * whole content of any other file. Prose is skipped because
+     * {@link #stripStringsAndComments} would treat its apostrophes as quotes and
+     * hide or expose samples by chance.
+     */
+    private static List<CodeSample> codeSamples(Path path) throws IOException {
+        String content = Files.readString(path);
+        if (!path.getFileName().toString().endsWith(".md")) {
+            return List.of(new CodeSample(path.toString(), content));
+        }
+        List<CodeSample> samples = new ArrayList<>();
+        List<String> lines = content.lines().toList();
+        StringBuilder block = null;
+        int blockStart = 0;
+        for (int i = 0; i < lines.size(); i++) {
+            String line = lines.get(i);
+            if (line.strip().startsWith("```")) {
+                if (block == null) {
+                    block = new StringBuilder();
+                    blockStart = i + 2;
+                } else {
+                    samples.add(new CodeSample(path + ":" + blockStart, block.toString()));
+                    block = null;
+                }
+            } else if (block != null) {
+                block.append(line).append('\n');
+            }
+        }
+        return samples;
     }
 
     private static boolean hasConfigWithoutPermissionHandler(String content, String configType) {

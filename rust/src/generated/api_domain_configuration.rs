@@ -2118,6 +2118,32 @@ pub struct UserSettingsWriteAllRequest {
     pub settings: serde_json::Value,
 }
 
+/// A raw top-level setting edit with explicit read-failure behavior.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct UserSettingsWriteKeyRequest {
+    /// Optional host paths and environment. Omit to use the server's settings home.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub context: Option<UserSettingsHostContext>,
+    /// Remove the key instead of writing it. Defaults to false.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub delete: Option<bool>,
+    /// The top-level setting to write without canonicalizing legacy siblings.
+    pub key: String,
+    /// Refuse to replace an unreadable or invalid file. Defaults to false.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub refuse_on_read_failure: Option<bool>,
+    /// The value to store. Explicit null is retained. Pass null when deleting.
+    pub value: Option<serde_json::Value>,
+}
+
 /// The on-disk location of the user's settings document.
 ///
 /// <div class="warning">

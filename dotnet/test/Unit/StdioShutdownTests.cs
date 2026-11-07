@@ -38,8 +38,8 @@ public sealed class StdioShutdownTests
             });
             if (operation == "start-failure")
             {
-                var error = await Assert.ThrowsAsync<InvalidOperationException>(() =>
-                    client.StartAsync().WaitAsync(TimeSpan.FromSeconds(5)));
+                // Failed startup includes owned-process cleanup, which has its own longer budgets.
+                var error = await Assert.ThrowsAsync<InvalidOperationException>(() => client.StartAsync());
                 Assert.Contains("protocol version mismatch", error.Message);
                 Assert.True(observer!.Process.HasExited, "Failed startup retained the runtime process.");
                 Assert.False(File.Exists(marker));
