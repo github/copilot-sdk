@@ -58,6 +58,7 @@ public record SessionMetadataSnapshotResult(
     /** Live indexed-search state for this session activation. Omitted by runtimes that do not expose indexed-search status; absence does not indicate enablement. */
     @JsonProperty("indexedSearch") IndexedSearchState indexedSearch,
     /** Public-facing workspace metadata for this session, or null if the session has no associated workspace. Excludes runtime-internal fields (GitHub IDs, summary count, internal flags). */
+    @JsonInclude(JsonInclude.Include.ALWAYS)
     @JsonProperty("workspace") SessionMetadataSnapshotResultWorkspace workspace
 ) {
 
@@ -86,5 +87,398 @@ public record SessionMetadataSnapshotResult(
         /** ISO 8601 timestamp when the workspace was last updated */
         @JsonProperty("updated_at") OffsetDateTime updatedAt
     ) {
+
+        /**
+         * Creates a record positionally.
+         * @deprecated Use {@link #builder()} for named construction.
+         */
+        @Deprecated(since = "2.0.0", forRemoval = false)
+        public SessionMetadataSnapshotResultWorkspace {}
+
+        /**
+         * Returns a named builder.
+         * @return a new builder
+         * @since 2.0.0
+         */
+        public static Builder builder() { return new Builder(); }
+
+        /**
+         * Named construction for this record.
+         * @since 2.0.0
+         */
+        public static final class Builder {
+            private Builder() {}
+            private String id;
+            private String cwd;
+            private String gitRoot;
+            private String repository;
+            private WorkspaceSummaryHostType hostType;
+            private String branch;
+            private String name;
+            private Boolean userNamed;
+            private OffsetDateTime createdAt;
+            private OffsetDateTime updatedAt;
+
+            /**
+             * Sets the {@code id} property.
+             * @param value the property value
+             * @return this builder
+             * @since 2.0.0
+             */
+            public Builder id(String value) {
+                this.id = value;
+                return this;
+            }
+
+            /**
+             * Sets the {@code cwd} property.
+             * @param value the property value
+             * @return this builder
+             * @since 2.0.0
+             */
+            public Builder cwd(String value) {
+                this.cwd = value;
+                return this;
+            }
+
+            /**
+             * Sets the {@code git_root} property.
+             * @param value the property value
+             * @return this builder
+             * @since 2.0.0
+             */
+            public Builder gitRoot(String value) {
+                this.gitRoot = value;
+                return this;
+            }
+
+            /**
+             * Sets the {@code repository} property.
+             * @param value the property value
+             * @return this builder
+             * @since 2.0.0
+             */
+            public Builder repository(String value) {
+                this.repository = value;
+                return this;
+            }
+
+            /**
+             * Sets the {@code host_type} property.
+             * @param value the property value
+             * @return this builder
+             * @since 2.0.0
+             */
+            public Builder hostType(WorkspaceSummaryHostType value) {
+                this.hostType = value;
+                return this;
+            }
+
+            /**
+             * Sets the {@code branch} property.
+             * @param value the property value
+             * @return this builder
+             * @since 2.0.0
+             */
+            public Builder branch(String value) {
+                this.branch = value;
+                return this;
+            }
+
+            /**
+             * Sets the {@code name} property.
+             * @param value the property value
+             * @return this builder
+             * @since 2.0.0
+             */
+            public Builder name(String value) {
+                this.name = value;
+                return this;
+            }
+
+            /**
+             * Sets the {@code user_named} property.
+             * @param value the property value
+             * @return this builder
+             * @since 2.0.0
+             */
+            public Builder userNamed(Boolean value) {
+                this.userNamed = value;
+                return this;
+            }
+
+            /**
+             * Sets the {@code created_at} property.
+             * @param value the property value
+             * @return this builder
+             * @since 2.0.0
+             */
+            public Builder createdAt(OffsetDateTime value) {
+                this.createdAt = value;
+                return this;
+            }
+
+            /**
+             * Sets the {@code updated_at} property.
+             * @param value the property value
+             * @return this builder
+             * @since 2.0.0
+             */
+            public Builder updatedAt(OffsetDateTime value) {
+                this.updatedAt = value;
+                return this;
+            }
+
+            /**
+             * Builds a record after checking required property presence.
+             * @return a new record
+             * @throws IllegalStateException if a required property is missing
+             * @since 2.0.0
+             */
+            public SessionMetadataSnapshotResultWorkspace build() {
+                if (id == null) throw new IllegalStateException("Missing required property: id");
+                return new SessionMetadataSnapshotResultWorkspace(id, cwd, gitRoot, repository, hostType, branch, name, userNamed, createdAt, updatedAt);
+            }
+        }
+    }
+
+    /**
+     * Creates a record positionally.
+     * @deprecated Use {@link #builder()} for named construction.
+     */
+    @Deprecated(since = "2.0.0", forRemoval = false)
+    public SessionMetadataSnapshotResult {}
+
+    /**
+     * Returns a named builder.
+     * @return a new builder
+     * @since 2.0.0
+     */
+    public static Builder builder() { return new Builder(); }
+
+    /**
+     * Named construction for this record.
+     * @since 2.0.0
+     */
+    public static final class Builder {
+        private Builder() {}
+        private String sessionId;
+        private OffsetDateTime startTime;
+        private OffsetDateTime modifiedTime;
+        private Boolean isRemote;
+        private Boolean alreadyInUse;
+        private String workspacePath;
+        private boolean $presence5;
+        private String initialName;
+        private String clientName;
+        private MetadataSnapshotRemoteMetadata remoteMetadata;
+        private String summary;
+        private String workingDirectory;
+        private MetadataSnapshotCurrentMode currentMode;
+        private String selectedModel;
+        private SessionLimitsConfig sessionLimits;
+        private boolean $presence13;
+        private IndexedSearchState indexedSearch;
+        private SessionMetadataSnapshotResultWorkspace workspace;
+        private boolean $presence15;
+
+        /**
+         * Sets the {@code sessionId} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder sessionId(String value) {
+            this.sessionId = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code startTime} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder startTime(OffsetDateTime value) {
+            this.startTime = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code modifiedTime} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder modifiedTime(OffsetDateTime value) {
+            this.modifiedTime = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code isRemote} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder isRemote(Boolean value) {
+            this.isRemote = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code alreadyInUse} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder alreadyInUse(Boolean value) {
+            this.alreadyInUse = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code workspacePath} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder workspacePath(String value) {
+            this.workspacePath = value;
+            this.$presence5 = true;
+            return this;
+        }
+
+        /**
+         * Sets the {@code initialName} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder initialName(String value) {
+            this.initialName = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code clientName} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder clientName(String value) {
+            this.clientName = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code remoteMetadata} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder remoteMetadata(MetadataSnapshotRemoteMetadata value) {
+            this.remoteMetadata = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code summary} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder summary(String value) {
+            this.summary = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code workingDirectory} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder workingDirectory(String value) {
+            this.workingDirectory = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code currentMode} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder currentMode(MetadataSnapshotCurrentMode value) {
+            this.currentMode = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code selectedModel} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder selectedModel(String value) {
+            this.selectedModel = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code sessionLimits} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder sessionLimits(SessionLimitsConfig value) {
+            this.sessionLimits = value;
+            this.$presence13 = true;
+            return this;
+        }
+
+        /**
+         * Sets the {@code indexedSearch} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder indexedSearch(IndexedSearchState value) {
+            this.indexedSearch = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code workspace} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder workspace(SessionMetadataSnapshotResultWorkspace value) {
+            this.workspace = value;
+            this.$presence15 = true;
+            return this;
+        }
+
+        /**
+         * Builds a record after checking required property presence.
+         * @return a new record
+         * @throws IllegalStateException if a required property is missing
+         * @since 2.0.0
+         */
+        public SessionMetadataSnapshotResult build() {
+            if (sessionId == null) throw new IllegalStateException("Missing required property: sessionId");
+            if (startTime == null) throw new IllegalStateException("Missing required property: startTime");
+            if (modifiedTime == null) throw new IllegalStateException("Missing required property: modifiedTime");
+            if (isRemote == null) throw new IllegalStateException("Missing required property: isRemote");
+            if (alreadyInUse == null) throw new IllegalStateException("Missing required property: alreadyInUse");
+            if (!$presence5) throw new IllegalStateException("Missing required property: workspacePath");
+            if (workingDirectory == null) throw new IllegalStateException("Missing required property: workingDirectory");
+            if (currentMode == null) throw new IllegalStateException("Missing required property: currentMode");
+            if (!$presence13) throw new IllegalStateException("Missing required property: sessionLimits");
+            if (!$presence15) throw new IllegalStateException("Missing required property: workspace");
+            return new SessionMetadataSnapshotResult(sessionId, startTime, modifiedTime, isRemote, alreadyInUse, workspacePath, initialName, clientName, remoteMetadata, summary, workingDirectory, currentMode, selectedModel, sessionLimits, indexedSearch, workspace);
+        }
     }
 }

@@ -48,5 +48,111 @@ public final class SystemMessageEvent extends SessionEvent {
         /** Metadata about the prompt template and its construction */
         @JsonProperty("metadata") SystemMessageMetadata metadata
     ) {
+
+        /**
+         * Creates a record positionally.
+         * @deprecated Use {@link #builder()} for named construction.
+         */
+        @Deprecated(since = "2.0.0", forRemoval = false)
+        public SystemMessageEventData {}
+
+        /**
+         * Returns a named builder.
+         * @return a new builder
+         * @since 2.0.0
+         */
+        public static Builder builder() { return new Builder(); }
+
+        /**
+         * Named construction for this record.
+         * @since 2.0.0
+         */
+        public static final class Builder {
+            private Builder() {}
+            private String content;
+            private List<SystemMessageContentBlock> contentBlocks;
+            private String interactionId;
+            private SystemMessageRole role;
+            private String name;
+            private SystemMessageMetadata metadata;
+
+            /**
+             * Sets the {@code content} property.
+             * @param value the property value
+             * @return this builder
+             * @since 2.0.0
+             */
+            public Builder content(String value) {
+                this.content = value;
+                return this;
+            }
+
+            /**
+             * Sets the {@code contentBlocks} property.
+             * @param value the property value
+             * @return this builder
+             * @since 2.0.0
+             */
+            public Builder contentBlocks(List<SystemMessageContentBlock> value) {
+                this.contentBlocks = value;
+                return this;
+            }
+
+            /**
+             * Sets the {@code interactionId} property.
+             * @param value the property value
+             * @return this builder
+             * @since 2.0.0
+             */
+            public Builder interactionId(String value) {
+                this.interactionId = value;
+                return this;
+            }
+
+            /**
+             * Sets the {@code role} property.
+             * @param value the property value
+             * @return this builder
+             * @since 2.0.0
+             */
+            public Builder role(SystemMessageRole value) {
+                this.role = value;
+                return this;
+            }
+
+            /**
+             * Sets the {@code name} property.
+             * @param value the property value
+             * @return this builder
+             * @since 2.0.0
+             */
+            public Builder name(String value) {
+                this.name = value;
+                return this;
+            }
+
+            /**
+             * Sets the {@code metadata} property.
+             * @param value the property value
+             * @return this builder
+             * @since 2.0.0
+             */
+            public Builder metadata(SystemMessageMetadata value) {
+                this.metadata = value;
+                return this;
+            }
+
+            /**
+             * Builds a record after checking required property presence.
+             * @return a new record
+             * @throws IllegalStateException if a required property is missing
+             * @since 2.0.0
+             */
+            public SystemMessageEventData build() {
+                if (content == null) throw new IllegalStateException("Missing required property: content");
+                if (role == null) throw new IllegalStateException("Missing required property: role");
+                return new SystemMessageEventData(content, contentBlocks, interactionId, role, name, metadata);
+            }
+        }
     }
 }

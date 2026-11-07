@@ -30,4 +30,65 @@ record GitHubReleaseDownloadProgressResult(
     /** Size the server announced for the body. Omitted when it announced none. */
     @JsonProperty("totalBytes") Long totalBytes
 ) {
+
+    /**
+     * Creates a record positionally.
+     * @deprecated Use {@link #builder()} for named construction.
+     */
+    @Deprecated(since = "2.0.0", forRemoval = false)
+    GitHubReleaseDownloadProgressResult {}
+
+    /**
+     * Returns a named builder.
+     * @return a new builder
+     * @since 2.0.0
+     */
+    @com.github.copilot.CopilotExperimental
+    public static Builder builder() { return new Builder(); }
+
+    /**
+     * Named construction for this record.
+     * @since 2.0.0
+     */
+    @com.github.copilot.CopilotExperimental
+    public static final class Builder {
+        private Builder() {}
+        private Long receivedBytes;
+        private Long totalBytes;
+
+        /**
+         * Sets the {@code receivedBytes} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        @com.github.copilot.CopilotExperimental
+        public Builder receivedBytes(Long value) {
+            this.receivedBytes = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code totalBytes} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        @com.github.copilot.CopilotExperimental
+        public Builder totalBytes(Long value) {
+            this.totalBytes = value;
+            return this;
+        }
+
+        /**
+         * Builds a record after checking required property presence.
+         * @return a new record
+         * @throws IllegalStateException if a required property is missing
+         * @since 2.0.0
+         */
+        public GitHubReleaseDownloadProgressResult build() {
+            if (receivedBytes == null) throw new IllegalStateException("Missing required property: receivedBytes");
+            return new GitHubReleaseDownloadProgressResult(receivedBytes, totalBytes);
+        }
+    }
 }

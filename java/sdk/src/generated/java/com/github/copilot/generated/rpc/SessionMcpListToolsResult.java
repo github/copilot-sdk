@@ -28,4 +28,49 @@ public record SessionMcpListToolsResult(
     /** Tools exposed by the server. */
     @JsonProperty("tools") List<McpTools> tools
 ) {
+
+    /**
+     * Creates a record positionally.
+     * @deprecated Use {@link #builder()} for named construction.
+     */
+    @Deprecated(since = "2.0.0", forRemoval = false)
+    public SessionMcpListToolsResult {}
+
+    /**
+     * Returns a named builder.
+     * @return a new builder
+     * @since 2.0.0
+     */
+    public static Builder builder() { return new Builder(); }
+
+    /**
+     * Named construction for this record.
+     * @since 2.0.0
+     */
+    public static final class Builder {
+        private Builder() {}
+        private List<McpTools> tools;
+
+        /**
+         * Sets the {@code tools} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder tools(List<McpTools> value) {
+            this.tools = value;
+            return this;
+        }
+
+        /**
+         * Builds a record after checking required property presence.
+         * @return a new record
+         * @throws IllegalStateException if a required property is missing
+         * @since 2.0.0
+         */
+        public SessionMcpListToolsResult build() {
+            if (tools == null) throw new IllegalStateException("Missing required property: tools");
+            return new SessionMcpListToolsResult(tools);
+        }
+    }
 }

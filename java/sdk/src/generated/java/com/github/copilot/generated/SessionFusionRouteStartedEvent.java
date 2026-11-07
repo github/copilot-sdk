@@ -48,5 +48,93 @@ public final class SessionFusionRouteStartedEvent extends SessionEvent {
         /** HydraFusion routing policy requested for the turn. */
         @JsonProperty("policy") String policy
     ) {
+
+        /**
+         * Creates a record positionally.
+         * @deprecated Use {@link #builder()} for named construction.
+         */
+        @Deprecated(since = "2.0.0", forRemoval = false)
+        public SessionFusionRouteStartedEventData {}
+
+        /**
+         * Returns a named builder.
+         * @return a new builder
+         * @since 2.0.0
+         */
+        @com.github.copilot.CopilotExperimental
+        public static Builder builder() { return new Builder(); }
+
+        /**
+         * Named construction for this record.
+         * @since 2.0.0
+         */
+        @com.github.copilot.CopilotExperimental
+        public static final class Builder {
+            private Builder() {}
+            private String attemptId;
+            private FusionTurnKind turnKind;
+            private String syntheticModel;
+            private String policy;
+
+            /**
+             * Sets the {@code attemptId} property.
+             * @param value the property value
+             * @return this builder
+             * @since 2.0.0
+             */
+            @com.github.copilot.CopilotExperimental
+            public Builder attemptId(String value) {
+                this.attemptId = value;
+                return this;
+            }
+
+            /**
+             * Sets the {@code turnKind} property.
+             * @param value the property value
+             * @return this builder
+             * @since 2.0.0
+             */
+            @com.github.copilot.CopilotExperimental
+            public Builder turnKind(FusionTurnKind value) {
+                this.turnKind = value;
+                return this;
+            }
+
+            /**
+             * Sets the {@code syntheticModel} property.
+             * @param value the property value
+             * @return this builder
+             * @since 2.0.0
+             */
+            @com.github.copilot.CopilotExperimental
+            public Builder syntheticModel(String value) {
+                this.syntheticModel = value;
+                return this;
+            }
+
+            /**
+             * Sets the {@code policy} property.
+             * @param value the property value
+             * @return this builder
+             * @since 2.0.0
+             */
+            @com.github.copilot.CopilotExperimental
+            public Builder policy(String value) {
+                this.policy = value;
+                return this;
+            }
+
+            /**
+             * Builds a record after checking required property presence.
+             * @return a new record
+             * @throws IllegalStateException if a required property is missing
+             * @since 2.0.0
+             */
+            public SessionFusionRouteStartedEventData build() {
+                if (attemptId == null) throw new IllegalStateException("Missing required property: attemptId");
+                if (turnKind == null) throw new IllegalStateException("Missing required property: turnKind");
+                return new SessionFusionRouteStartedEventData(attemptId, turnKind, syntheticModel, policy);
+            }
+        }
     }
 }

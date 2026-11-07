@@ -31,4 +31,80 @@ public record AzureMlResolveParams(
     /** Exact published version. */
     @JsonProperty("version") String version
 ) {
+
+    /**
+     * Creates a record positionally.
+     * @deprecated Use {@link #builder()} for named construction.
+     */
+    @Deprecated(since = "2.0.0", forRemoval = false)
+    public AzureMlResolveParams {}
+
+    /**
+     * Returns a named builder.
+     * @return a new builder
+     * @since 2.0.0
+     */
+    @com.github.copilot.CopilotExperimental
+    public static Builder builder() { return new Builder(); }
+
+    /**
+     * Named construction for this record.
+     * @since 2.0.0
+     */
+    @com.github.copilot.CopilotExperimental
+    public static final class Builder {
+        private Builder() {}
+        private AzureMlRegistry registry;
+        private String name;
+        private String version;
+
+        /**
+         * Sets the {@code registry} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        @com.github.copilot.CopilotExperimental
+        public Builder registry(AzureMlRegistry value) {
+            this.registry = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code name} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        @com.github.copilot.CopilotExperimental
+        public Builder name(String value) {
+            this.name = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code version} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        @com.github.copilot.CopilotExperimental
+        public Builder version(String value) {
+            this.version = value;
+            return this;
+        }
+
+        /**
+         * Builds a record after checking required property presence.
+         * @return a new record
+         * @throws IllegalStateException if a required property is missing
+         * @since 2.0.0
+         */
+        public AzureMlResolveParams build() {
+            if (registry == null) throw new IllegalStateException("Missing required property: registry");
+            if (name == null) throw new IllegalStateException("Missing required property: name");
+            if (version == null) throw new IllegalStateException("Missing required property: version");
+            return new AzureMlResolveParams(registry, name, version);
+        }
+    }
 }

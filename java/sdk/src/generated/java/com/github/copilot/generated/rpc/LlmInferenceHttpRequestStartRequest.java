@@ -44,4 +44,160 @@ public record LlmInferenceHttpRequestStartRequest(
     /** Coarse classification of the interaction that produced this request. Open string for forward-compatibility; known values include `conversation-agent`, `conversation-subagent`, `conversation-sampling`, `conversation-background`, `conversation-compaction`, and `conversation-user`. Absent when the runtime did not classify the request. Comes from the runtime's per-request agent context independently of transport; on the CAPI transport the runtime derives the upstream `X-Interaction-Type` header from this same context. */
     @JsonProperty("interactionType") String interactionType
 ) {
+
+    /**
+     * Creates a record positionally.
+     * @deprecated Use {@link #builder()} for named construction.
+     */
+    @Deprecated(since = "2.0.0", forRemoval = false)
+    public LlmInferenceHttpRequestStartRequest {}
+
+    /**
+     * Returns a named builder.
+     * @return a new builder
+     * @since 2.0.0
+     */
+    public static Builder builder() { return new Builder(); }
+
+    /**
+     * Named construction for this record.
+     * @since 2.0.0
+     */
+    public static final class Builder {
+        private Builder() {}
+        private String requestId;
+        private String sessionId;
+        private String method;
+        private String url;
+        private Map<String, List<String>> headers;
+        private LlmInferenceHttpRequestStartTransport transport;
+        private String agentId;
+        private String parentAgentId;
+        private String agentInvocationId;
+        private String interactionType;
+
+        /**
+         * Sets the {@code requestId} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder requestId(String value) {
+            this.requestId = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code sessionId} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder sessionId(String value) {
+            this.sessionId = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code method} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder method(String value) {
+            this.method = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code url} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder url(String value) {
+            this.url = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code headers} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder headers(Map<String, List<String>> value) {
+            this.headers = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code transport} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder transport(LlmInferenceHttpRequestStartTransport value) {
+            this.transport = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code agentId} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder agentId(String value) {
+            this.agentId = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code parentAgentId} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder parentAgentId(String value) {
+            this.parentAgentId = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code agentInvocationId} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder agentInvocationId(String value) {
+            this.agentInvocationId = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code interactionType} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder interactionType(String value) {
+            this.interactionType = value;
+            return this;
+        }
+
+        /**
+         * Builds a record after checking required property presence.
+         * @return a new record
+         * @throws IllegalStateException if a required property is missing
+         * @since 2.0.0
+         */
+        public LlmInferenceHttpRequestStartRequest build() {
+            if (requestId == null) throw new IllegalStateException("Missing required property: requestId");
+            if (method == null) throw new IllegalStateException("Missing required property: method");
+            if (url == null) throw new IllegalStateException("Missing required property: url");
+            if (headers == null) throw new IllegalStateException("Missing required property: headers");
+            return new LlmInferenceHttpRequestStartRequest(requestId, sessionId, method, url, headers, transport, agentId, parentAgentId, agentInvocationId, interactionType);
+        }
+    }
 }

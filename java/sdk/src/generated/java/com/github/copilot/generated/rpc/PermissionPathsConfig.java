@@ -31,4 +31,84 @@ public record PermissionPathsConfig(
     /** Workspace root path (special-cased to be allowed even before the directory exists). Ignored when `unrestricted` is true. */
     @JsonProperty("workspacePath") String workspacePath
 ) {
+
+    /**
+     * Creates a record positionally.
+     * @deprecated Use {@link #builder()} for named construction.
+     */
+    @Deprecated(since = "2.0.0", forRemoval = false)
+    public PermissionPathsConfig {}
+
+    /**
+     * Returns a named builder.
+     * @return a new builder
+     * @since 2.0.0
+     */
+    public static Builder builder() { return new Builder(); }
+
+    /**
+     * Named construction for this record.
+     * @since 2.0.0
+     */
+    public static final class Builder {
+        private Builder() {}
+        private Boolean unrestricted;
+        private List<String> additionalDirectories;
+        private Boolean includeTempDirectory;
+        private String workspacePath;
+
+        /**
+         * Sets the {@code unrestricted} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder unrestricted(Boolean value) {
+            this.unrestricted = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code additionalDirectories} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder additionalDirectories(List<String> value) {
+            this.additionalDirectories = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code includeTempDirectory} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder includeTempDirectory(Boolean value) {
+            this.includeTempDirectory = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code workspacePath} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder workspacePath(String value) {
+            this.workspacePath = value;
+            return this;
+        }
+
+        /**
+         * Builds a record after checking required property presence.
+         * @return a new record
+         * @throws IllegalStateException if a required property is missing
+         * @since 2.0.0
+         */
+        public PermissionPathsConfig build() {
+            return new PermissionPathsConfig(unrestricted, additionalDirectories, includeTempDirectory, workspacePath);
+        }
+    }
 }

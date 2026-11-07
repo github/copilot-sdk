@@ -29,4 +29,65 @@ public record SessionRemoteNotifySteerableChangedParams(
     /** Whether the session now supports remote steering via GitHub. The runtime persists this as a `session.remote_steerable_changed` event so resume/replay sees the up-to-date capability. */
     @JsonProperty("remoteSteerable") Boolean remoteSteerable
 ) {
+
+    /**
+     * Creates a record positionally.
+     * @deprecated Use {@link #builder()} for named construction.
+     */
+    @Deprecated(since = "2.0.0", forRemoval = false)
+    public SessionRemoteNotifySteerableChangedParams {}
+
+    /**
+     * Returns a named builder.
+     * @return a new builder
+     * @since 2.0.0
+     */
+    @com.github.copilot.CopilotExperimental
+    public static Builder builder() { return new Builder(); }
+
+    /**
+     * Named construction for this record.
+     * @since 2.0.0
+     */
+    @com.github.copilot.CopilotExperimental
+    public static final class Builder {
+        private Builder() {}
+        private String sessionId;
+        private Boolean remoteSteerable;
+
+        /**
+         * Sets the {@code sessionId} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        @com.github.copilot.CopilotExperimental
+        public Builder sessionId(String value) {
+            this.sessionId = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code remoteSteerable} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        @com.github.copilot.CopilotExperimental
+        public Builder remoteSteerable(Boolean value) {
+            this.remoteSteerable = value;
+            return this;
+        }
+
+        /**
+         * Builds a record after checking required property presence.
+         * @return a new record
+         * @throws IllegalStateException if a required property is missing
+         * @since 2.0.0
+         */
+        public SessionRemoteNotifySteerableChangedParams build() {
+            if (remoteSteerable == null) throw new IllegalStateException("Missing required property: remoteSteerable");
+            return new SessionRemoteNotifySteerableChangedParams(sessionId, remoteSteerable);
+        }
+    }
 }

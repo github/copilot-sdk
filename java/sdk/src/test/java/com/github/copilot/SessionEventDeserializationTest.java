@@ -53,6 +53,29 @@ public class SessionEventDeserializationTest {
     }
 
     @ParameterizedTest
+    @ValueSource(strings = {"{\"newModel\":\"auto\"}", "{\"newModel\":\"auto\",\"contextTier\":null}",
+            "{\"newModel\":\"auto\",\"contextTier\":\"long_context\"}"})
+    void testModelChangeContextTierPresence(String payload) throws Exception {
+        var expected = MAPPER.readTree(payload);
+        var builder = SessionModelChangeEvent.SessionModelChangeEventData.builder().newModel("auto");
+        if (expected.has("contextTier")) {
+            builder.contextTier(expected.get("contextTier").isNull()
+                    ? null
+                    : ContextTier.fromValue(expected.get("contextTier").asText()));
+        }
+        var built = builder.build();
+        assertEquals(expected, MAPPER.valueToTree(built));
+
+        try (var parser = new com.fasterxml.jackson.core.JsonFactory().createParser(payload)) {
+            assertEquals(built, MAPPER.readValue(parser, SessionModelChangeEvent.SessionModelChangeEventData.class));
+        }
+        var envelope = eventEnvelope("session.model_change", payload);
+        var event = assertInstanceOf(SessionModelChangeEvent.class, parseJson(envelope));
+        assertEquals(built, event.getData());
+        assertEquals(MAPPER.readTree(envelope), MAPPER.valueToTree(event));
+    }
+
+    @ParameterizedTest
     @ValueSource(strings = {"session.info", "future.event"})
     void testCheckpointMarkerRoundTrip(String type) throws Exception {
         for (Boolean checkpoint : new Boolean[]{null, false, true}) {
@@ -255,7 +278,7 @@ public class SessionEventDeserializationTest {
         String json = eventEnvelope("session.todos_changed", "{}");
         var event = assertInstanceOf(SessionTodosChangedEvent.class, parseJson(json));
         var data = assertInstanceOf(SessionTodosChangedEvent.SessionTodosChangedEventData.class, event.getData());
-        assertEquals(new SessionTodosChangedEvent.SessionTodosChangedEventData(), data);
+        assertEquals(SessionTodosChangedEvent.SessionTodosChangedEventData.builder().build(), data);
         assertEquals("{}", MAPPER.writeValueAsString(data));
         var serialized = MAPPER.writeValueAsString(event);
         assertEquals(MAPPER.readTree(json), MAPPER.readTree(serialized));
@@ -2659,8 +2682,8 @@ public class SessionEventDeserializationTest {
         assertTrue(castedEvent.getData().ui().elicitation());
 
         // Verify setData round-trip
-        var newData = new CapabilitiesChangedEvent.CapabilitiesChangedEventData(
-                new CapabilitiesChangedUI(false, null, null, null));
+        var newData = CapabilitiesChangedEvent.CapabilitiesChangedEventData.builder()
+                .ui(CapabilitiesChangedUI.builder().elicitation(false).mcpApps(null).canvases(null).build()).build();
         castedEvent.setData(newData);
         assertFalse(castedEvent.getData().ui().elicitation());
         assertNull(castedEvent.getData().ui().autoModeRecovery());
@@ -2693,8 +2716,10 @@ public class SessionEventDeserializationTest {
         assertEquals("production", castedEvent.getData().args());
 
         // Verify setData round-trip
-        castedEvent.setData(new CommandExecuteEvent.CommandExecuteEventData("req-002", "/rollback", "rollback", null));
+        castedEvent.setData(CommandExecuteEvent.CommandExecuteEventData.builder().requestId("req-002")
+                .command("/rollback").commandName("rollback").args("").build());
         assertEquals("req-002", castedEvent.getData().requestId());
+        assertEquals("", castedEvent.getData().args());
     }
 
     @Test
@@ -2739,8 +2764,9 @@ public class SessionEventDeserializationTest {
         assertTrue(castedEvent.getData().requestedSchema().required().contains("name"));
 
         // Verify setData round-trip
-        castedEvent.setData(new ElicitationRequestedEvent.ElicitationRequestedEventData("elix-002", null, null, null,
-                "Enter URL", ElicitationRequestedMode.URL, null, "https://example.com"));
+        castedEvent.setData(ElicitationRequestedEvent.ElicitationRequestedEventData.builder().requestId("elix-002")
+                .toolCallId(null).elicitationSource(null).elicitationSourceDisplayName(null).message("Enter URL")
+                .mode(ElicitationRequestedMode.URL).requestedSchema(null).url("https://example.com").build());
         assertEquals("elix-002", castedEvent.getData().requestId());
         assertEquals(ElicitationRequestedMode.URL, castedEvent.getData().mode());
     }
@@ -2795,8 +2821,9 @@ public class SessionEventDeserializationTest {
         assertNull(castedEvent.getData().blocker());
 
         // Verify setData round-trip
-        castedEvent.setData(new SessionTaskCompleteEvent.SessionTaskCompleteEventData("New summary", true,
-                TaskCompletionOutcome.COMPLETED, null, 42L, null));
+        castedEvent.setData(
+                SessionTaskCompleteEvent.SessionTaskCompleteEventData.builder().summary("New summary").success(true)
+                        .outcome(TaskCompletionOutcome.COMPLETED).reason(null).objectiveId(42L).blocker(null).build());
         assertEquals("New summary", castedEvent.getData().summary());
         assertTrue(castedEvent.getData().success());
         assertEquals(TaskCompletionOutcome.COMPLETED, castedEvent.getData().outcome());
@@ -2822,7 +2849,7 @@ public class SessionEventDeserializationTest {
         assertNotNull(castedEvent.getData());
 
         // Verify setData round-trip
-        castedEvent.setData(new SubagentDeselectedEvent.SubagentDeselectedEventData());
+        castedEvent.setData(SubagentDeselectedEvent.SubagentDeselectedEventData.builder().build());
         assertNotNull(castedEvent.getData());
     }
 }

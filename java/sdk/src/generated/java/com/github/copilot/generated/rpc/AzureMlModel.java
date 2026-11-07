@@ -37,4 +37,110 @@ public record AzureMlModel(
     @JsonInclude(JsonInclude.Include.ALWAYS)
     @JsonProperty("metadata") Object metadata
 ) {
+
+    /**
+     * Creates a record positionally.
+     * @deprecated Use {@link #builder()} for named construction.
+     */
+    @Deprecated(since = "2.0.0", forRemoval = false)
+    public AzureMlModel {}
+
+    /**
+     * Returns a named builder.
+     * @return a new builder
+     * @since 2.0.0
+     */
+    @com.github.copilot.CopilotExperimental
+    public static Builder builder() { return new Builder(); }
+
+    /**
+     * Named construction for this record.
+     * @since 2.0.0
+     */
+    @com.github.copilot.CopilotExperimental
+    public static final class Builder {
+        private Builder() {}
+        private AzureMlRegistry registry;
+        private String name;
+        private String version;
+        private AzureMlProfile profile;
+        private Object metadata;
+        private boolean $presence4;
+
+        /**
+         * Sets the {@code registry} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        @com.github.copilot.CopilotExperimental
+        public Builder registry(AzureMlRegistry value) {
+            this.registry = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code name} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        @com.github.copilot.CopilotExperimental
+        public Builder name(String value) {
+            this.name = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code version} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        @com.github.copilot.CopilotExperimental
+        public Builder version(String value) {
+            this.version = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code profile} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        @com.github.copilot.CopilotExperimental
+        public Builder profile(AzureMlProfile value) {
+            this.profile = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code metadata} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        @com.github.copilot.CopilotExperimental
+        public Builder metadata(Object value) {
+            this.metadata = value;
+            this.$presence4 = true;
+            return this;
+        }
+
+        /**
+         * Builds a record after checking required property presence.
+         * @return a new record
+         * @throws IllegalStateException if a required property is missing
+         * @since 2.0.0
+         */
+        public AzureMlModel build() {
+            if (registry == null) throw new IllegalStateException("Missing required property: registry");
+            if (name == null) throw new IllegalStateException("Missing required property: name");
+            if (version == null) throw new IllegalStateException("Missing required property: version");
+            if (profile == null) throw new IllegalStateException("Missing required property: profile");
+            if (!$presence4) throw new IllegalStateException("Missing required property: metadata");
+            return new AzureMlModel(registry, name, version, profile, metadata);
+        }
+    }
 }

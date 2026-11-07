@@ -26,4 +26,62 @@ public record UsageMetricsModelMetricRequests(
     /** User-initiated premium request cost (with multiplier applied) */
     @JsonProperty("cost") Double cost
 ) {
+
+    /**
+     * Creates a record positionally.
+     * @deprecated Use {@link #builder()} for named construction.
+     */
+    @Deprecated(since = "2.0.0", forRemoval = false)
+    public UsageMetricsModelMetricRequests {}
+
+    /**
+     * Returns a named builder.
+     * @return a new builder
+     * @since 2.0.0
+     */
+    public static Builder builder() { return new Builder(); }
+
+    /**
+     * Named construction for this record.
+     * @since 2.0.0
+     */
+    public static final class Builder {
+        private Builder() {}
+        private Long count;
+        private Double cost;
+
+        /**
+         * Sets the {@code count} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder count(Long value) {
+            this.count = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code cost} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder cost(Double value) {
+            this.cost = value;
+            return this;
+        }
+
+        /**
+         * Builds a record after checking required property presence.
+         * @return a new record
+         * @throws IllegalStateException if a required property is missing
+         * @since 2.0.0
+         */
+        public UsageMetricsModelMetricRequests build() {
+            if (count == null) throw new IllegalStateException("Missing required property: count");
+            if (cost == null) throw new IllegalStateException("Missing required property: cost");
+            return new UsageMetricsModelMetricRequests(count, cost);
+        }
+    }
 }

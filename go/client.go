@@ -191,6 +191,7 @@ type Client struct {
 	state                              connectionState
 	sessions                           map[string]*Session
 	sessionsMux                        sync.Mutex
+	sessionsGeneration                 uint64
 	autoModeRecoveryCleanups           map[*jsonrpc2.Client]map[string]<-chan struct{}
 	ahp                                ahpHostState
 	gitHubTokenProviders               map[string]GitHubTokenProvider
@@ -675,7 +676,7 @@ func (c *Client) Stop() error {
 	c.disconnectAhpHosts()
 	var errs []error
 
-	// Disconnect all active sessions
+	// Failed resumes may restore the resident's callbacks until detach finishes.
 	c.sessionsMux.Lock()
 	sessions := make([]*Session, 0, len(c.sessions))
 	for _, session := range c.sessions {
@@ -694,8 +695,18 @@ func (c *Client) Stop() error {
 	cancelDetach()
 
 	c.sessionsMux.Lock()
+	// Fence later rollback and retire residents restored during graceful detach.
+	c.sessionsGeneration++
+	remainingSessions := make([]*Session, 0, len(c.sessions))
+	for _, session := range c.sessions {
+		remainingSessions = append(remainingSessions, session)
+	}
 	c.sessions = make(map[string]*Session)
 	c.sessionsMux.Unlock()
+	for _, session := range remainingSessions {
+		session.cancelPendingExternalTools()
+		session.retireEventProcessing(true)
+	}
 	c.clearGitHubTokenProviders()
 	c.closeCopilotRequestAdapter()
 	c.closeInstallationConfirmationAdapter()
@@ -842,6 +853,7 @@ func (c *Client) ForceStop() {
 
 	// Clear sessions immediately without trying to destroy them
 	c.sessionsMux.Lock()
+	c.sessionsGeneration++
 	sessions := make([]*Session, 0, len(c.sessions))
 	for _, session := range c.sessions {
 		sessions = append(sessions, session)
@@ -1386,6 +1398,7 @@ func (c *Client) createSession(ctx context.Context, config *SessionConfig, runti
 			s.clientSessionAPIs.SessionFS = c.sessionFSAdapter(sessionID, provider)
 		}
 
+		s.releaseFromClient = func() { c.forgetSession(s) }
 		c.sessionsMux.Lock()
 		if c.autoModeRecoveryCleanups[transport][sessionID] != nil {
 			c.sessionsMux.Unlock()
@@ -1934,6 +1947,7 @@ func (c *Client) resumeSession(ctx context.Context, sessionID string, config *Re
 
 	// Publish only fully initialized handlers: the runtime may still be issuing
 	// SessionFS callbacks for the previous session while its replacement is built.
+	session.releaseFromClient = func() { c.forgetSession(session) }
 	c.sessionsMux.Lock()
 	if c.autoModeRecoveryCleanups[transport][sessionID] != nil {
 		c.sessionsMux.Unlock()
@@ -1941,19 +1955,29 @@ func (c *Client) resumeSession(ctx context.Context, sessionID string, config *Re
 		return nil, fmt.Errorf("session %s is still detaching after rejected AutoModeRecovery enrollment", sessionID)
 	}
 	replacedSession := c.sessions[sessionID]
+	sessionsGeneration := c.sessionsGeneration
 	c.sessions[sessionID] = session
 	c.sessionsMux.Unlock()
 
 	restoreReplacedSession := func() {
 		c.sessionsMux.Lock()
-		if current := c.sessions[sessionID]; current == nil || current == session {
-			if replacedSession != nil {
+		retired := c.sessionsGeneration != sessionsGeneration
+		restored := false
+		if current := c.sessions[sessionID]; !retired && (current == nil || current == session) {
+			if replacedSession != nil && !replacedSession.detached.Load() {
 				c.sessions[sessionID] = replacedSession
+				restored = true
 			} else {
 				delete(c.sessions, sessionID)
 			}
 		}
 		c.sessionsMux.Unlock()
+		// Resumes for an ID are serialized. A different owner is a create,
+		// which cannot roll back to this displaced resident.
+		if !restored && replacedSession != nil {
+			replacedSession.cancelPendingExternalTools()
+			replacedSession.stopEventProcessing()
+		}
 		session.cancelPendingExternalTools()
 		// newSession starts processEvents eagerly, before the RPC confirms the
 		// resume; every failure path here restores the previously-registered
@@ -2194,6 +2218,16 @@ func (c *Client) DeleteSession(ctx context.Context, sessionID string) error {
 	}
 
 	return nil
+}
+
+// forgetSession stops tracking a disconnected session unless a later create or
+// resume replaced it under the same ID.
+func (c *Client) forgetSession(s *Session) {
+	c.sessionsMux.Lock()
+	if c.sessions[s.SessionID] == s {
+		delete(c.sessions, s.SessionID)
+	}
+	c.sessionsMux.Unlock()
 }
 
 func requestSessionDeletion(ctx context.Context, transport *jsonrpc2.Client, sessionID string) error {
@@ -2670,7 +2704,11 @@ func (c *Client) startCLIServer(ctx context.Context) error {
 
 	bundledRuntimePath := ""
 	if c.cliPath == "" {
-		bundledRuntimePath = embeddedcli.RuntimePath()
+		var err error
+		bundledRuntimePath, err = embeddedcli.RuntimePath()
+		if err != nil {
+			return fmt.Errorf("embedded runtime installation failed: %w", err)
+		}
 	}
 	cliPath, err := resolveRuntimeExecutable(c.cliPath, bundledRuntimePath)
 	if err != nil {
@@ -2888,7 +2926,11 @@ func (c *Client) startInProcess(ctx context.Context) error {
 	}
 	runtimePath := cliEntrypoint
 	if runtimePath == "" {
-		runtimePath = embeddedcli.RuntimePath()
+		var err error
+		runtimePath, err = embeddedcli.RuntimePath()
+		if err != nil {
+			return fmt.Errorf("in-process runtime installation failed: %w", err)
+		}
 	}
 	if runtimePath == "" {
 		return errors.New("in-process runtime unavailable: build with the bundled embedded runtime or set COPILOT_CLI_PATH to a compatible runtime package")

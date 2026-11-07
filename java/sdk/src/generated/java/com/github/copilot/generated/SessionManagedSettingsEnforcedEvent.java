@@ -50,5 +50,108 @@ public final class SessionManagedSettingsEnforcedEvent extends SessionEvent {
         /** A human-readable explanation of why the action was governed, suitable for surfacing to the user. */
         @JsonProperty("message") String message
     ) {
+
+        /**
+         * Creates a record positionally.
+         * @deprecated Use {@link #builder()} for named construction.
+         */
+        @Deprecated(since = "2.0.0", forRemoval = false)
+        public SessionManagedSettingsEnforcedEventData {}
+
+        /**
+         * Returns a named builder.
+         * @return a new builder
+         * @since 2.0.0
+         */
+        @com.github.copilot.CopilotExperimental
+        public static Builder builder() { return new Builder(); }
+
+        /**
+         * Named construction for this record.
+         * @since 2.0.0
+         */
+        @com.github.copilot.CopilotExperimental
+        public static final class Builder {
+            private Builder() {}
+            private ManagedSettingsEnforcedAction action;
+            private ManagedSettingsEnforcedEscalation escalation;
+            private String setting;
+            private Boolean failClosed;
+            private String message;
+
+            /**
+             * Sets the {@code action} property.
+             * @param value the property value
+             * @return this builder
+             * @since 2.0.0
+             */
+            @com.github.copilot.CopilotExperimental
+            public Builder action(ManagedSettingsEnforcedAction value) {
+                this.action = value;
+                return this;
+            }
+
+            /**
+             * Sets the {@code escalation} property.
+             * @param value the property value
+             * @return this builder
+             * @since 2.0.0
+             */
+            @com.github.copilot.CopilotExperimental
+            public Builder escalation(ManagedSettingsEnforcedEscalation value) {
+                this.escalation = value;
+                return this;
+            }
+
+            /**
+             * Sets the {@code setting} property.
+             * @param value the property value
+             * @return this builder
+             * @since 2.0.0
+             */
+            @com.github.copilot.CopilotExperimental
+            public Builder setting(String value) {
+                this.setting = value;
+                return this;
+            }
+
+            /**
+             * Sets the {@code failClosed} property.
+             * @param value the property value
+             * @return this builder
+             * @since 2.0.0
+             */
+            @com.github.copilot.CopilotExperimental
+            public Builder failClosed(Boolean value) {
+                this.failClosed = value;
+                return this;
+            }
+
+            /**
+             * Sets the {@code message} property.
+             * @param value the property value
+             * @return this builder
+             * @since 2.0.0
+             */
+            @com.github.copilot.CopilotExperimental
+            public Builder message(String value) {
+                this.message = value;
+                return this;
+            }
+
+            /**
+             * Builds a record after checking required property presence.
+             * @return a new record
+             * @throws IllegalStateException if a required property is missing
+             * @since 2.0.0
+             */
+            public SessionManagedSettingsEnforcedEventData build() {
+                if (action == null) throw new IllegalStateException("Missing required property: action");
+                if (setting == null) throw new IllegalStateException("Missing required property: setting");
+                if (failClosed == null) throw new IllegalStateException("Missing required property: failClosed");
+                if (message == null) throw new IllegalStateException("Missing required property: message");
+                return new SessionManagedSettingsEnforcedEventData(action, escalation, setting, failClosed, message);
+            }
+        }
     }
 }

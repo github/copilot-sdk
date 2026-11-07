@@ -26,4 +26,62 @@ public record CompletionReceiptEventRange(
     /** Identifier of the assistant turn-end event that ends the covered exchange. Always equals the receipt's sourceEventId, so either field is a valid join key. */
     @JsonProperty("endEventId") String endEventId
 ) {
+
+    /**
+     * Creates a record positionally.
+     * @deprecated Use {@link #builder()} for named construction.
+     */
+    @Deprecated(since = "2.0.0", forRemoval = false)
+    public CompletionReceiptEventRange {}
+
+    /**
+     * Returns a named builder.
+     * @return a new builder
+     * @since 2.0.0
+     */
+    public static Builder builder() { return new Builder(); }
+
+    /**
+     * Named construction for this record.
+     * @since 2.0.0
+     */
+    public static final class Builder {
+        private Builder() {}
+        private String startEventId;
+        private String endEventId;
+
+        /**
+         * Sets the {@code startEventId} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder startEventId(String value) {
+            this.startEventId = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code endEventId} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder endEventId(String value) {
+            this.endEventId = value;
+            return this;
+        }
+
+        /**
+         * Builds a record after checking required property presence.
+         * @return a new record
+         * @throws IllegalStateException if a required property is missing
+         * @since 2.0.0
+         */
+        public CompletionReceiptEventRange build() {
+            if (startEventId == null) throw new IllegalStateException("Missing required property: startEventId");
+            if (endEventId == null) throw new IllegalStateException("Missing required property: endEventId");
+            return new CompletionReceiptEventRange(startEventId, endEventId);
+        }
+    }
 }

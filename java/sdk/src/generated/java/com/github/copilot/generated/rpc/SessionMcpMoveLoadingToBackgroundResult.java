@@ -27,4 +27,49 @@ public record SessionMcpMoveLoadingToBackgroundResult(
     /** Whether an in-flight MCP load was moved to the background, releasing turns that were waiting on it. False when no MCP load was in flight or the waiting turns had already been released. */
     @JsonProperty("movedToBackground") Boolean movedToBackground
 ) {
+
+    /**
+     * Creates a record positionally.
+     * @deprecated Use {@link #builder()} for named construction.
+     */
+    @Deprecated(since = "2.0.0", forRemoval = false)
+    public SessionMcpMoveLoadingToBackgroundResult {}
+
+    /**
+     * Returns a named builder.
+     * @return a new builder
+     * @since 2.0.0
+     */
+    public static Builder builder() { return new Builder(); }
+
+    /**
+     * Named construction for this record.
+     * @since 2.0.0
+     */
+    public static final class Builder {
+        private Builder() {}
+        private Boolean movedToBackground;
+
+        /**
+         * Sets the {@code movedToBackground} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder movedToBackground(Boolean value) {
+            this.movedToBackground = value;
+            return this;
+        }
+
+        /**
+         * Builds a record after checking required property presence.
+         * @return a new record
+         * @throws IllegalStateException if a required property is missing
+         * @since 2.0.0
+         */
+        public SessionMcpMoveLoadingToBackgroundResult build() {
+            if (movedToBackground == null) throw new IllegalStateException("Missing required property: movedToBackground");
+            return new SessionMcpMoveLoadingToBackgroundResult(movedToBackground);
+        }
+    }
 }

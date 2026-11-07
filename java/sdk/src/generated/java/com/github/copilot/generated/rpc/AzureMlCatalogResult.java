@@ -30,4 +30,66 @@ public record AzureMlCatalogResult(
     /** Skipped model and catalog errors without sensitive access details. */
     @JsonProperty("warnings") List<AzureMlCatalogWarning> warnings
 ) {
+
+    /**
+     * Creates a record positionally.
+     * @deprecated Use {@link #builder()} for named construction.
+     */
+    @Deprecated(since = "2.0.0", forRemoval = false)
+    public AzureMlCatalogResult {}
+
+    /**
+     * Returns a named builder.
+     * @return a new builder
+     * @since 2.0.0
+     */
+    @com.github.copilot.CopilotExperimental
+    public static Builder builder() { return new Builder(); }
+
+    /**
+     * Named construction for this record.
+     * @since 2.0.0
+     */
+    @com.github.copilot.CopilotExperimental
+    public static final class Builder {
+        private Builder() {}
+        private List<AzureMlModel> models;
+        private List<AzureMlCatalogWarning> warnings;
+
+        /**
+         * Sets the {@code models} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        @com.github.copilot.CopilotExperimental
+        public Builder models(List<AzureMlModel> value) {
+            this.models = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code warnings} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        @com.github.copilot.CopilotExperimental
+        public Builder warnings(List<AzureMlCatalogWarning> value) {
+            this.warnings = value;
+            return this;
+        }
+
+        /**
+         * Builds a record after checking required property presence.
+         * @return a new record
+         * @throws IllegalStateException if a required property is missing
+         * @since 2.0.0
+         */
+        public AzureMlCatalogResult build() {
+            if (models == null) throw new IllegalStateException("Missing required property: models");
+            if (warnings == null) throw new IllegalStateException("Missing required property: warnings");
+            return new AzureMlCatalogResult(models, warnings);
+        }
+    }
 }

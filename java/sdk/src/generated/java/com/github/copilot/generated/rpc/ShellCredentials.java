@@ -58,4 +58,64 @@ unauthenticated; its `git` commands are unaffected, because `http.<host>.extrahe
 to one host by construction. Default: false (opt-in). */
     @JsonProperty("gh") Boolean gh
 ) {
+
+    /**
+     * Creates a record positionally.
+     * @deprecated Use {@link #builder()} for named construction.
+     */
+    @Deprecated(since = "2.0.0", forRemoval = false)
+    public ShellCredentials {}
+
+    /**
+     * Returns a named builder.
+     * @return a new builder
+     * @since 2.0.0
+     */
+    @com.github.copilot.CopilotExperimental
+    public static Builder builder() { return new Builder(); }
+
+    /**
+     * Named construction for this record.
+     * @since 2.0.0
+     */
+    @com.github.copilot.CopilotExperimental
+    public static final class Builder {
+        private Builder() {}
+        private Boolean git;
+        private Boolean gh;
+
+        /**
+         * Sets the {@code git} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        @com.github.copilot.CopilotExperimental
+        public Builder git(Boolean value) {
+            this.git = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code gh} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        @com.github.copilot.CopilotExperimental
+        public Builder gh(Boolean value) {
+            this.gh = value;
+            return this;
+        }
+
+        /**
+         * Builds a record after checking required property presence.
+         * @return a new record
+         * @throws IllegalStateException if a required property is missing
+         * @since 2.0.0
+         */
+        public ShellCredentials build() {
+            return new ShellCredentials(git, gh);
+        }
+    }
 }

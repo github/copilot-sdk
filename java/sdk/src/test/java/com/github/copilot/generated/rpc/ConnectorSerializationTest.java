@@ -74,7 +74,8 @@ class ConnectorSerializationTest {
 
     @Test
     void connectorGeneratedRecords_preserve_wire_names_and_null_omission() throws Exception {
-        var params = new SessionConnectorsContinueConnectionParams(null, "continuation-1", 4L, 500L, 10_000L);
+        var params = SessionConnectorsContinueConnectionParams.builder().sessionId(null)
+                .continuationId("continuation-1").maxAttempts(4L).pollIntervalMs(500L).deadlineMs(10_000L).build();
 
         var json = MAPPER.readTree(MAPPER.writeValueAsString(params));
 
@@ -128,7 +129,8 @@ class ConnectorSerializationTest {
                 {"accountId":"account-1","refreshCatalog":false,"forceConnectorName":"outlook"}
                 """), json);
 
-        var legacy = new SessionConnectorsReconcileParams(null, "account-1", null);
+        var legacy = SessionConnectorsReconcileParams.builder().sessionId(null).accountId("account-1")
+                .refreshCatalog(null).build();
         var legacyJson = MAPPER.readTree(MAPPER.writeValueAsString(legacy));
         assertEquals(MAPPER.readTree("""
                 {"accountId":"account-1"}

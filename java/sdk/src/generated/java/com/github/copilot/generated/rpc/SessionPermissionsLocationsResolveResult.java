@@ -29,4 +29,62 @@ public record SessionPermissionsLocationsResolveResult(
     /** Whether the location is a git repo or directory */
     @JsonProperty("locationType") PermissionLocationType locationType
 ) {
+
+    /**
+     * Creates a record positionally.
+     * @deprecated Use {@link #builder()} for named construction.
+     */
+    @Deprecated(since = "2.0.0", forRemoval = false)
+    public SessionPermissionsLocationsResolveResult {}
+
+    /**
+     * Returns a named builder.
+     * @return a new builder
+     * @since 2.0.0
+     */
+    public static Builder builder() { return new Builder(); }
+
+    /**
+     * Named construction for this record.
+     * @since 2.0.0
+     */
+    public static final class Builder {
+        private Builder() {}
+        private String locationKey;
+        private PermissionLocationType locationType;
+
+        /**
+         * Sets the {@code locationKey} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder locationKey(String value) {
+            this.locationKey = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code locationType} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder locationType(PermissionLocationType value) {
+            this.locationType = value;
+            return this;
+        }
+
+        /**
+         * Builds a record after checking required property presence.
+         * @return a new record
+         * @throws IllegalStateException if a required property is missing
+         * @since 2.0.0
+         */
+        public SessionPermissionsLocationsResolveResult build() {
+            if (locationKey == null) throw new IllegalStateException("Missing required property: locationKey");
+            if (locationType == null) throw new IllegalStateException("Missing required property: locationType");
+            return new SessionPermissionsLocationsResolveResult(locationKey, locationType);
+        }
+    }
 }

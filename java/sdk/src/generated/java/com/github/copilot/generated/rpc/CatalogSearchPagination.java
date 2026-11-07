@@ -38,4 +38,140 @@ public record CatalogSearchPagination(
     /** Whether the authority token advertises a valid next target within the navigation window. Not inferred from token presence, truncated, or currentPage being less than pageCount. */
     @JsonProperty("hasNextPage") Boolean hasNextPage
 ) {
+
+    /**
+     * Creates a record positionally.
+     * @deprecated Use {@link #builder()} for named construction.
+     */
+    @Deprecated(since = "2.0.0", forRemoval = false)
+    public CatalogSearchPagination {}
+
+    /**
+     * Returns a named builder.
+     * @return a new builder
+     * @since 2.0.0
+     */
+    public static Builder builder() { return new Builder(); }
+
+    /**
+     * Named construction for this record.
+     * @since 2.0.0
+     */
+    public static final class Builder {
+        private Builder() {}
+        private String token;
+        private Long currentPage;
+        private Long pageSize;
+        private Long totalCount;
+        private CatalogSearchTotalCountRelation totalCountRelation;
+        private Long pageCount;
+        private Long maxPage;
+        private Boolean hasNextPage;
+
+        /**
+         * Sets the {@code token} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder token(String value) {
+            this.token = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code currentPage} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder currentPage(Long value) {
+            this.currentPage = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code pageSize} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder pageSize(Long value) {
+            this.pageSize = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code totalCount} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder totalCount(Long value) {
+            this.totalCount = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code totalCountRelation} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder totalCountRelation(CatalogSearchTotalCountRelation value) {
+            this.totalCountRelation = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code pageCount} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder pageCount(Long value) {
+            this.pageCount = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code maxPage} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder maxPage(Long value) {
+            this.maxPage = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code hasNextPage} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder hasNextPage(Boolean value) {
+            this.hasNextPage = value;
+            return this;
+        }
+
+        /**
+         * Builds a record after checking required property presence.
+         * @return a new record
+         * @throws IllegalStateException if a required property is missing
+         * @since 2.0.0
+         */
+        public CatalogSearchPagination build() {
+            if (token == null) throw new IllegalStateException("Missing required property: token");
+            if (currentPage == null) throw new IllegalStateException("Missing required property: currentPage");
+            if (pageSize == null) throw new IllegalStateException("Missing required property: pageSize");
+            if (totalCount == null) throw new IllegalStateException("Missing required property: totalCount");
+            if (totalCountRelation == null) throw new IllegalStateException("Missing required property: totalCountRelation");
+            if (pageCount == null) throw new IllegalStateException("Missing required property: pageCount");
+            if (maxPage == null) throw new IllegalStateException("Missing required property: maxPage");
+            if (hasNextPage == null) throw new IllegalStateException("Missing required property: hasNextPage");
+            return new CatalogSearchPagination(token, currentPage, pageSize, totalCount, totalCountRelation, pageCount, maxPage, hasNextPage);
+        }
+    }
 }

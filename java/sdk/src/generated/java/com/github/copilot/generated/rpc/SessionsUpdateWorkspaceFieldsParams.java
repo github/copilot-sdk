@@ -31,4 +31,75 @@ record SessionsUpdateWorkspaceFieldsParams(
     /** Workspace-schema fields to merge into the record, as a JSON object. Fields the object omits keep their stored values, except stored keys outside the schema are not preserved and a stored `fork_count` is never replaced. */
     @JsonProperty("fieldsJson") String fieldsJson
 ) {
+
+    /**
+     * Creates a record positionally.
+     * @deprecated Use {@link #builder()} for named construction.
+     */
+    @Deprecated(since = "2.0.0", forRemoval = false)
+    SessionsUpdateWorkspaceFieldsParams {}
+
+    /**
+     * Returns a named builder.
+     * @return a new builder
+     * @since 2.0.0
+     */
+    public static Builder builder() { return new Builder(); }
+
+    /**
+     * Named construction for this record.
+     * @since 2.0.0
+     */
+    public static final class Builder {
+        private Builder() {}
+        private String sessionsHome;
+        private String sessionId;
+        private String fieldsJson;
+
+        /**
+         * Sets the {@code sessionsHome} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder sessionsHome(String value) {
+            this.sessionsHome = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code sessionId} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder sessionId(String value) {
+            this.sessionId = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code fieldsJson} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder fieldsJson(String value) {
+            this.fieldsJson = value;
+            return this;
+        }
+
+        /**
+         * Builds a record after checking required property presence.
+         * @return a new record
+         * @throws IllegalStateException if a required property is missing
+         * @since 2.0.0
+         */
+        public SessionsUpdateWorkspaceFieldsParams build() {
+            if (sessionsHome == null) throw new IllegalStateException("Missing required property: sessionsHome");
+            if (sessionId == null) throw new IllegalStateException("Missing required property: sessionId");
+            if (fieldsJson == null) throw new IllegalStateException("Missing required property: fieldsJson");
+            return new SessionsUpdateWorkspaceFieldsParams(sessionsHome, sessionId, fieldsJson);
+        }
+    }
 }

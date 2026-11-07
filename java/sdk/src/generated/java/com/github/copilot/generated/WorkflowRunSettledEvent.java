@@ -52,5 +52,122 @@ public final class WorkflowRunSettledEvent extends SessionEvent {
         /** Typed failure class recorded on the run, when it failed with one (e.g. `workflow_limit_reached`). */
         @JsonProperty("failureType") String failureType
     ) {
+
+        /**
+         * Creates a record positionally.
+         * @deprecated Use {@link #builder()} for named construction.
+         */
+        @Deprecated(since = "2.0.0", forRemoval = false)
+        public WorkflowRunSettledEventData {}
+
+        /**
+         * Returns a named builder.
+         * @return a new builder
+         * @since 2.0.0
+         */
+        @com.github.copilot.CopilotExperimental
+        public static Builder builder() { return new Builder(); }
+
+        /**
+         * Named construction for this record.
+         * @since 2.0.0
+         */
+        @com.github.copilot.CopilotExperimental
+        public static final class Builder {
+            private Builder() {}
+            private String runId;
+            private WorkflowRunSettledStatus status;
+            private Long consumedSubagents;
+            private Long consumedNanoAiu;
+            private Long elapsedMs;
+            private String failureType;
+
+            /**
+             * Sets the {@code runId} property.
+             * @param value the property value
+             * @return this builder
+             * @since 2.0.0
+             */
+            @com.github.copilot.CopilotExperimental
+            public Builder runId(String value) {
+                this.runId = value;
+                return this;
+            }
+
+            /**
+             * Sets the {@code status} property.
+             * @param value the property value
+             * @return this builder
+             * @since 2.0.0
+             */
+            @com.github.copilot.CopilotExperimental
+            public Builder status(WorkflowRunSettledStatus value) {
+                this.status = value;
+                return this;
+            }
+
+            /**
+             * Sets the {@code consumedSubagents} property.
+             * @param value the property value
+             * @return this builder
+             * @since 2.0.0
+             */
+            @com.github.copilot.CopilotExperimental
+            public Builder consumedSubagents(Long value) {
+                this.consumedSubagents = value;
+                return this;
+            }
+
+            /**
+             * Sets the {@code consumedNanoAiu} property.
+             * @param value the property value
+             * @return this builder
+             * @since 2.0.0
+             */
+            @com.github.copilot.CopilotExperimental
+            public Builder consumedNanoAiu(Long value) {
+                this.consumedNanoAiu = value;
+                return this;
+            }
+
+            /**
+             * Sets the {@code elapsedMs} property.
+             * @param value the property value
+             * @return this builder
+             * @since 2.0.0
+             */
+            @com.github.copilot.CopilotExperimental
+            public Builder elapsedMs(Long value) {
+                this.elapsedMs = value;
+                return this;
+            }
+
+            /**
+             * Sets the {@code failureType} property.
+             * @param value the property value
+             * @return this builder
+             * @since 2.0.0
+             */
+            @com.github.copilot.CopilotExperimental
+            public Builder failureType(String value) {
+                this.failureType = value;
+                return this;
+            }
+
+            /**
+             * Builds a record after checking required property presence.
+             * @return a new record
+             * @throws IllegalStateException if a required property is missing
+             * @since 2.0.0
+             */
+            public WorkflowRunSettledEventData build() {
+                if (runId == null) throw new IllegalStateException("Missing required property: runId");
+                if (status == null) throw new IllegalStateException("Missing required property: status");
+                if (consumedSubagents == null) throw new IllegalStateException("Missing required property: consumedSubagents");
+                if (consumedNanoAiu == null) throw new IllegalStateException("Missing required property: consumedNanoAiu");
+                if (elapsedMs == null) throw new IllegalStateException("Missing required property: elapsedMs");
+                return new WorkflowRunSettledEventData(runId, status, consumedSubagents, consumedNanoAiu, elapsedMs, failureType);
+            }
+        }
     }
 }

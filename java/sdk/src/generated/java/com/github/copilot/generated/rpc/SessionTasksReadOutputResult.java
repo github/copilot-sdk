@@ -31,4 +31,74 @@ public record SessionTasksReadOutputResult(
     /** Present once the shell has finished and this read reaches the end of its output. Later reads with the returned cursor return no new text and the same exit details. */
     @JsonProperty("exit") TaskShellOutputExit exit
 ) {
+
+    /**
+     * Creates a record positionally.
+     * @deprecated Use {@link #builder()} for named construction.
+     */
+    @Deprecated(since = "2.0.0", forRemoval = false)
+    public SessionTasksReadOutputResult {}
+
+    /**
+     * Returns a named builder.
+     * @return a new builder
+     * @since 2.0.0
+     */
+    public static Builder builder() { return new Builder(); }
+
+    /**
+     * Named construction for this record.
+     * @since 2.0.0
+     */
+    public static final class Builder {
+        private Builder() {}
+        private String text;
+        private String cursor;
+        private TaskShellOutputExit exit;
+
+        /**
+         * Sets the {@code text} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder text(String value) {
+            this.text = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code cursor} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder cursor(String value) {
+            this.cursor = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code exit} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder exit(TaskShellOutputExit value) {
+            this.exit = value;
+            return this;
+        }
+
+        /**
+         * Builds a record after checking required property presence.
+         * @return a new record
+         * @throws IllegalStateException if a required property is missing
+         * @since 2.0.0
+         */
+        public SessionTasksReadOutputResult build() {
+            if (text == null) throw new IllegalStateException("Missing required property: text");
+            if (cursor == null) throw new IllegalStateException("Missing required property: cursor");
+            return new SessionTasksReadOutputResult(text, cursor, exit);
+        }
+    }
 }

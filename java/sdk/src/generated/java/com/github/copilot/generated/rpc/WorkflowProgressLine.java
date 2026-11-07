@@ -39,4 +39,124 @@ public record WorkflowProgressLine(
     /** Prompt-safe progress text. */
     @JsonProperty("text") String text
 ) {
+
+    /**
+     * Creates a record positionally.
+     * @deprecated Use {@link #builder()} for named construction.
+     */
+    @Deprecated(since = "2.0.0", forRemoval = false)
+    public WorkflowProgressLine {}
+
+    /**
+     * Returns a named builder.
+     * @return a new builder
+     * @since 2.0.0
+     */
+    @com.github.copilot.CopilotExperimental
+    public static Builder builder() { return new Builder(); }
+
+    /**
+     * Named construction for this record.
+     * @since 2.0.0
+     */
+    @com.github.copilot.CopilotExperimental
+    public static final class Builder {
+        private Builder() {}
+        private Long seq;
+        private Long attempt;
+        private String phaseId;
+        private boolean $presence2;
+        private Long recordedAt;
+        private WorkflowLogLineKind kind;
+        private String text;
+
+        /**
+         * Sets the {@code seq} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        @com.github.copilot.CopilotExperimental
+        public Builder seq(Long value) {
+            this.seq = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code attempt} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        @com.github.copilot.CopilotExperimental
+        public Builder attempt(Long value) {
+            this.attempt = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code phaseId} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        @com.github.copilot.CopilotExperimental
+        public Builder phaseId(String value) {
+            this.phaseId = value;
+            this.$presence2 = true;
+            return this;
+        }
+
+        /**
+         * Sets the {@code recordedAt} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        @com.github.copilot.CopilotExperimental
+        public Builder recordedAt(Long value) {
+            this.recordedAt = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code kind} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        @com.github.copilot.CopilotExperimental
+        public Builder kind(WorkflowLogLineKind value) {
+            this.kind = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code text} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        @com.github.copilot.CopilotExperimental
+        public Builder text(String value) {
+            this.text = value;
+            return this;
+        }
+
+        /**
+         * Builds a record after checking required property presence.
+         * @return a new record
+         * @throws IllegalStateException if a required property is missing
+         * @since 2.0.0
+         */
+        public WorkflowProgressLine build() {
+            if (seq == null) throw new IllegalStateException("Missing required property: seq");
+            if (attempt == null) throw new IllegalStateException("Missing required property: attempt");
+            if (!$presence2) throw new IllegalStateException("Missing required property: phaseId");
+            if (recordedAt == null) throw new IllegalStateException("Missing required property: recordedAt");
+            if (kind == null) throw new IllegalStateException("Missing required property: kind");
+            if (text == null) throw new IllegalStateException("Missing required property: text");
+            return new WorkflowProgressLine(seq, attempt, phaseId, recordedAt, kind, text);
+        }
+    }
 }

@@ -2439,7 +2439,7 @@ pub struct ProviderConfig {
     /// Well-known model ID used for capability lookup. When set, agent behavior config and token limits are inferred from this model.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub model_id: Option<String>,
-    /// The product serving the model, reported in telemetry as `model_provider`. Set it when `type` alone cannot identify the product, such as Ollama or LM Studio behind an OpenAI-compatible endpoint, or a proxy or custom domain in front of Azure OpenAI. Besides telemetry, `azure_openai` makes OpenAI Responses requests omit explicit `prompt_cache_breakpoint` markers, which limit cross-turn cache reuse on Azure.
+    /// The product serving the model, reported in telemetry as `model_provider`. Set it when `type` alone cannot identify the product, such as Ollama or LM Studio behind an OpenAI-compatible endpoint. Only affects telemetry.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub model_provider: Option<ProviderConfigModelProvider>,
     /// Provider name used for model and telemetry attribution.
@@ -10481,7 +10481,7 @@ pub struct SessionAgentGetCurrentParams {
 #[serde(rename_all = "camelCase")]
 pub struct SessionAgentGetCurrentResult {
     /// Currently selected custom agent, or null if using the default agent
-    pub agent: AgentInfo,
+    pub agent: Option<AgentInfo>,
 }
 
 /// The newly selected custom agent.

@@ -27,6 +27,67 @@ public record McpConfigAddParams(
     /** Unique name for the MCP server */
     @JsonProperty("name") String name,
     /** MCP server configuration (stdio process or remote HTTP/SSE) */
+    @JsonInclude(JsonInclude.Include.ALWAYS)
     @JsonProperty("config") Object config
 ) {
+
+    /**
+     * Creates a record positionally.
+     * @deprecated Use {@link #builder()} for named construction.
+     */
+    @Deprecated(since = "2.0.0", forRemoval = false)
+    public McpConfigAddParams {}
+
+    /**
+     * Returns a named builder.
+     * @return a new builder
+     * @since 2.0.0
+     */
+    public static Builder builder() { return new Builder(); }
+
+    /**
+     * Named construction for this record.
+     * @since 2.0.0
+     */
+    public static final class Builder {
+        private Builder() {}
+        private String name;
+        private Object config;
+        private boolean $presence1;
+
+        /**
+         * Sets the {@code name} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder name(String value) {
+            this.name = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code config} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder config(Object value) {
+            this.config = value;
+            this.$presence1 = true;
+            return this;
+        }
+
+        /**
+         * Builds a record after checking required property presence.
+         * @return a new record
+         * @throws IllegalStateException if a required property is missing
+         * @since 2.0.0
+         */
+        public McpConfigAddParams build() {
+            if (name == null) throw new IllegalStateException("Missing required property: name");
+            if (!$presence1) throw new IllegalStateException("Missing required property: config");
+            return new McpConfigAddParams(name, config);
+        }
+    }
 }

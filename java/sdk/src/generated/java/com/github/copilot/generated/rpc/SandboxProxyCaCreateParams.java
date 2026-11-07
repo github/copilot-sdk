@@ -27,4 +27,51 @@ public record SandboxProxyCaCreateParams(
     /** The sandbox configuration that the host gives its sessions. The runtime reads the credential hosts from `auth` and `credentials`; it ignores `enabled` and the other fields. */
     @JsonProperty("sandboxConfig") SandboxConfig sandboxConfig
 ) {
+
+    /**
+     * Creates a record positionally.
+     * @deprecated Use {@link #builder()} for named construction.
+     */
+    @Deprecated(since = "2.0.0", forRemoval = false)
+    public SandboxProxyCaCreateParams {}
+
+    /**
+     * Returns a named builder.
+     * @return a new builder
+     * @since 2.0.0
+     */
+    @com.github.copilot.CopilotExperimental
+    public static Builder builder() { return new Builder(); }
+
+    /**
+     * Named construction for this record.
+     * @since 2.0.0
+     */
+    @com.github.copilot.CopilotExperimental
+    public static final class Builder {
+        private Builder() {}
+        private SandboxConfig sandboxConfig;
+
+        /**
+         * Sets the {@code sandboxConfig} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        @com.github.copilot.CopilotExperimental
+        public Builder sandboxConfig(SandboxConfig value) {
+            this.sandboxConfig = value;
+            return this;
+        }
+
+        /**
+         * Builds a record after checking required property presence.
+         * @return a new record
+         * @throws IllegalStateException if a required property is missing
+         * @since 2.0.0
+         */
+        public SandboxProxyCaCreateParams build() {
+            return new SandboxProxyCaCreateParams(sandboxConfig);
+        }
+    }
 }

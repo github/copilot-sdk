@@ -48,4 +48,198 @@ public record ModelCallFailureRequestFingerprint(
     /** Role of the final message in the request */
     @JsonProperty("lastMessageRole") String lastMessageRole
 ) {
+
+    /**
+     * Creates a record positionally.
+     * @deprecated Use {@link #builder()} for named construction.
+     */
+    @Deprecated(since = "2.0.0", forRemoval = false)
+    public ModelCallFailureRequestFingerprint {}
+
+    /**
+     * Returns a named builder.
+     * @return a new builder
+     * @since 2.0.0
+     */
+    public static Builder builder() { return new Builder(); }
+
+    /**
+     * Named construction for this record.
+     * @since 2.0.0
+     */
+    public static final class Builder {
+        private Builder() {}
+        private Long messageCount;
+        private Long toolResultMessageCount;
+        private Long toolCallCount;
+        private Long namelessToolCallCount;
+        private Long customToolCallCount;
+        private Long unmatchedToolResultCount;
+        private Long orphanToolCallCount;
+        private Long imagePartCount;
+        private Long imagePartsMissingMediaType;
+        private Long imageBytes;
+        private Long reasoningItemCount;
+        private Long encryptedContentBytes;
+        private String lastMessageRole;
+
+        /**
+         * Sets the {@code messageCount} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder messageCount(Long value) {
+            this.messageCount = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code toolResultMessageCount} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder toolResultMessageCount(Long value) {
+            this.toolResultMessageCount = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code toolCallCount} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder toolCallCount(Long value) {
+            this.toolCallCount = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code namelessToolCallCount} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder namelessToolCallCount(Long value) {
+            this.namelessToolCallCount = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code customToolCallCount} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder customToolCallCount(Long value) {
+            this.customToolCallCount = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code unmatchedToolResultCount} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder unmatchedToolResultCount(Long value) {
+            this.unmatchedToolResultCount = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code orphanToolCallCount} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder orphanToolCallCount(Long value) {
+            this.orphanToolCallCount = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code imagePartCount} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder imagePartCount(Long value) {
+            this.imagePartCount = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code imagePartsMissingMediaType} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder imagePartsMissingMediaType(Long value) {
+            this.imagePartsMissingMediaType = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code imageBytes} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder imageBytes(Long value) {
+            this.imageBytes = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code reasoningItemCount} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder reasoningItemCount(Long value) {
+            this.reasoningItemCount = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code encryptedContentBytes} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder encryptedContentBytes(Long value) {
+            this.encryptedContentBytes = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code lastMessageRole} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder lastMessageRole(String value) {
+            this.lastMessageRole = value;
+            return this;
+        }
+
+        /**
+         * Builds a record after checking required property presence.
+         * @return a new record
+         * @throws IllegalStateException if a required property is missing
+         * @since 2.0.0
+         */
+        public ModelCallFailureRequestFingerprint build() {
+            if (messageCount == null) throw new IllegalStateException("Missing required property: messageCount");
+            if (toolResultMessageCount == null) throw new IllegalStateException("Missing required property: toolResultMessageCount");
+            if (toolCallCount == null) throw new IllegalStateException("Missing required property: toolCallCount");
+            if (namelessToolCallCount == null) throw new IllegalStateException("Missing required property: namelessToolCallCount");
+            if (imagePartCount == null) throw new IllegalStateException("Missing required property: imagePartCount");
+            if (imagePartsMissingMediaType == null) throw new IllegalStateException("Missing required property: imagePartsMissingMediaType");
+            return new ModelCallFailureRequestFingerprint(messageCount, toolResultMessageCount, toolCallCount, namelessToolCallCount, customToolCallCount, unmatchedToolResultCount, orphanToolCallCount, imagePartCount, imagePartsMissingMediaType, imageBytes, reasoningItemCount, encryptedContentBytes, lastMessageRole);
+        }
+    }
 }

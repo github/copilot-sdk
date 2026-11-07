@@ -29,4 +29,61 @@ record AccountGetWebUrlParams(
     /** Identity whose host the path resolves against. Omit to resolve against the public github.com host. */
     @JsonProperty("identity") AuthIdentity identity
 ) {
+
+    /**
+     * Creates a record positionally.
+     * @deprecated Use {@link #builder()} for named construction.
+     */
+    @Deprecated(since = "2.0.0", forRemoval = false)
+    AccountGetWebUrlParams {}
+
+    /**
+     * Returns a named builder.
+     * @return a new builder
+     * @since 2.0.0
+     */
+    public static Builder builder() { return new Builder(); }
+
+    /**
+     * Named construction for this record.
+     * @since 2.0.0
+     */
+    public static final class Builder {
+        private Builder() {}
+        private String path;
+        private AuthIdentity identity;
+
+        /**
+         * Sets the {@code path} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder path(String value) {
+            this.path = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code identity} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder identity(AuthIdentity value) {
+            this.identity = value;
+            return this;
+        }
+
+        /**
+         * Builds a record after checking required property presence.
+         * @return a new record
+         * @throws IllegalStateException if a required property is missing
+         * @since 2.0.0
+         */
+        public AccountGetWebUrlParams build() {
+            if (path == null) throw new IllegalStateException("Missing required property: path");
+            return new AccountGetWebUrlParams(path, identity);
+        }
+    }
 }

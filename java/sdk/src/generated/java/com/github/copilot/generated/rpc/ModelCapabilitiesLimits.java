@@ -30,4 +30,84 @@ public record ModelCapabilitiesLimits(
     /** Vision-specific limits */
     @JsonProperty("vision") ModelCapabilitiesLimitsVision vision
 ) {
+
+    /**
+     * Creates a record positionally.
+     * @deprecated Use {@link #builder()} for named construction.
+     */
+    @Deprecated(since = "2.0.0", forRemoval = false)
+    public ModelCapabilitiesLimits {}
+
+    /**
+     * Returns a named builder.
+     * @return a new builder
+     * @since 2.0.0
+     */
+    public static Builder builder() { return new Builder(); }
+
+    /**
+     * Named construction for this record.
+     * @since 2.0.0
+     */
+    public static final class Builder {
+        private Builder() {}
+        private Long maxPromptTokens;
+        private Long maxOutputTokens;
+        private Long maxContextWindowTokens;
+        private ModelCapabilitiesLimitsVision vision;
+
+        /**
+         * Sets the {@code max_prompt_tokens} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder maxPromptTokens(Long value) {
+            this.maxPromptTokens = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code max_output_tokens} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder maxOutputTokens(Long value) {
+            this.maxOutputTokens = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code max_context_window_tokens} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder maxContextWindowTokens(Long value) {
+            this.maxContextWindowTokens = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code vision} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder vision(ModelCapabilitiesLimitsVision value) {
+            this.vision = value;
+            return this;
+        }
+
+        /**
+         * Builds a record after checking required property presence.
+         * @return a new record
+         * @throws IllegalStateException if a required property is missing
+         * @since 2.0.0
+         */
+        public ModelCapabilitiesLimits build() {
+            return new ModelCapabilitiesLimits(maxPromptTokens, maxOutputTokens, maxContextWindowTokens, vision);
+        }
+    }
 }

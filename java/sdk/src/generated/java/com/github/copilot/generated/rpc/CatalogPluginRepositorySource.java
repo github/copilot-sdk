@@ -26,4 +26,61 @@ public record CatalogPluginRepositorySource(
     /** Case-preserving safe relative POSIX path derived from metadata.repoPath. Absent when the catalog declared sourceSet without repoPath, meaning the plugin is at the repository root; only callers that require agent-plugin-confirmed-installation receive such a source. */
     @JsonProperty("path") String path
 ) {
+
+    /**
+     * Creates a record positionally.
+     * @deprecated Use {@link #builder()} for named construction.
+     */
+    @Deprecated(since = "2.0.0", forRemoval = false)
+    public CatalogPluginRepositorySource {}
+
+    /**
+     * Returns a named builder.
+     * @return a new builder
+     * @since 2.0.0
+     */
+    public static Builder builder() { return new Builder(); }
+
+    /**
+     * Named construction for this record.
+     * @since 2.0.0
+     */
+    public static final class Builder {
+        private Builder() {}
+        private String repository;
+        private String path;
+
+        /**
+         * Sets the {@code repository} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder repository(String value) {
+            this.repository = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code path} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder path(String value) {
+            this.path = value;
+            return this;
+        }
+
+        /**
+         * Builds a record after checking required property presence.
+         * @return a new record
+         * @throws IllegalStateException if a required property is missing
+         * @since 2.0.0
+         */
+        public CatalogPluginRepositorySource build() {
+            if (repository == null) throw new IllegalStateException("Missing required property: repository");
+            return new CatalogPluginRepositorySource(repository, path);
+        }
+    }
 }

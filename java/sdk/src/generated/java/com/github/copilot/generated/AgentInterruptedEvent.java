@@ -62,5 +62,196 @@ public final class AgentInterruptedEvent extends SessionEvent {
         /** For an interrupted background-agent batch: how many background sub-agents the stop swept. Counts accepted cancellations, so an agent cancelled as a cascade of its interrupted parent is covered by that parent rather than counted again. */
         @JsonProperty("interruptedAgentCount") Long interruptedAgentCount
     ) {
+
+        /**
+         * Creates a record positionally.
+         * @deprecated Use {@link #builder()} for named construction.
+         */
+        @Deprecated(since = "2.0.0", forRemoval = false)
+        public AgentInterruptedEventData {}
+
+        /**
+         * Returns a named builder.
+         * @return a new builder
+         * @since 2.0.0
+         */
+        public static Builder builder() { return new Builder(); }
+
+        /**
+         * Named construction for this record.
+         * @since 2.0.0
+         */
+        public static final class Builder {
+            private Builder() {}
+            private AgentInterruptedActivity activity;
+            private Double elapsedMs;
+            private Long turn;
+            private String model;
+            private String apiEndpoint;
+            private ModelCallFailureTransport transport;
+            private String reasoningEffort;
+            private AgentInterruptedCancelPhase cancelPhase;
+            private Double outputTtftMs;
+            private List<String> toolNames;
+            private List<String> toolCallIds;
+            private List<String> safeToolNames;
+            private Long interruptedAgentCount;
+
+            /**
+             * Sets the {@code activity} property.
+             * @param value the property value
+             * @return this builder
+             * @since 2.0.0
+             */
+            public Builder activity(AgentInterruptedActivity value) {
+                this.activity = value;
+                return this;
+            }
+
+            /**
+             * Sets the {@code elapsedMs} property.
+             * @param value the property value
+             * @return this builder
+             * @since 2.0.0
+             */
+            public Builder elapsedMs(Double value) {
+                this.elapsedMs = value;
+                return this;
+            }
+
+            /**
+             * Sets the {@code turn} property.
+             * @param value the property value
+             * @return this builder
+             * @since 2.0.0
+             */
+            public Builder turn(Long value) {
+                this.turn = value;
+                return this;
+            }
+
+            /**
+             * Sets the {@code model} property.
+             * @param value the property value
+             * @return this builder
+             * @since 2.0.0
+             */
+            public Builder model(String value) {
+                this.model = value;
+                return this;
+            }
+
+            /**
+             * Sets the {@code apiEndpoint} property.
+             * @param value the property value
+             * @return this builder
+             * @since 2.0.0
+             */
+            public Builder apiEndpoint(String value) {
+                this.apiEndpoint = value;
+                return this;
+            }
+
+            /**
+             * Sets the {@code transport} property.
+             * @param value the property value
+             * @return this builder
+             * @since 2.0.0
+             */
+            public Builder transport(ModelCallFailureTransport value) {
+                this.transport = value;
+                return this;
+            }
+
+            /**
+             * Sets the {@code reasoningEffort} property.
+             * @param value the property value
+             * @return this builder
+             * @since 2.0.0
+             */
+            public Builder reasoningEffort(String value) {
+                this.reasoningEffort = value;
+                return this;
+            }
+
+            /**
+             * Sets the {@code cancelPhase} property.
+             * @param value the property value
+             * @return this builder
+             * @since 2.0.0
+             */
+            public Builder cancelPhase(AgentInterruptedCancelPhase value) {
+                this.cancelPhase = value;
+                return this;
+            }
+
+            /**
+             * Sets the {@code outputTtftMs} property.
+             * @param value the property value
+             * @return this builder
+             * @since 2.0.0
+             */
+            public Builder outputTtftMs(Double value) {
+                this.outputTtftMs = value;
+                return this;
+            }
+
+            /**
+             * Sets the {@code toolNames} property.
+             * @param value the property value
+             * @return this builder
+             * @since 2.0.0
+             */
+            public Builder toolNames(List<String> value) {
+                this.toolNames = value;
+                return this;
+            }
+
+            /**
+             * Sets the {@code toolCallIds} property.
+             * @param value the property value
+             * @return this builder
+             * @since 2.0.0
+             */
+            public Builder toolCallIds(List<String> value) {
+                this.toolCallIds = value;
+                return this;
+            }
+
+            /**
+             * Sets the {@code safeToolNames} property.
+             * @param value the property value
+             * @return this builder
+             * @since 2.0.0
+             */
+            public Builder safeToolNames(List<String> value) {
+                this.safeToolNames = value;
+                return this;
+            }
+
+            /**
+             * Sets the {@code interruptedAgentCount} property.
+             * @param value the property value
+             * @return this builder
+             * @since 2.0.0
+             */
+            public Builder interruptedAgentCount(Long value) {
+                this.interruptedAgentCount = value;
+                return this;
+            }
+
+            /**
+             * Builds a record after checking required property presence.
+             * @return a new record
+             * @throws IllegalStateException if a required property is missing
+             * @since 2.0.0
+             */
+            public AgentInterruptedEventData build() {
+                if (activity == null) throw new IllegalStateException("Missing required property: activity");
+                if (elapsedMs == null) throw new IllegalStateException("Missing required property: elapsedMs");
+                if (turn == null) throw new IllegalStateException("Missing required property: turn");
+                return new AgentInterruptedEventData(activity, elapsedMs, turn, model, apiEndpoint, transport, reasoningEffort, cancelPhase, outputTtftMs, toolNames, toolCallIds, safeToolNames, interruptedAgentCount);
+            }
+        }
     }
 }

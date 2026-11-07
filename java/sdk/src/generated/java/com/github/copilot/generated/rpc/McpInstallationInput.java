@@ -28,4 +28,75 @@ public record McpInstallationInput(
     /** Explicit non-secret value. Secret placeholders use a separate input channel. */
     @JsonProperty("value") String value
 ) {
+
+    /**
+     * Creates a record positionally.
+     * @deprecated Use {@link #builder()} for named construction.
+     */
+    @Deprecated(since = "2.0.0", forRemoval = false)
+    public McpInstallationInput {}
+
+    /**
+     * Returns a named builder.
+     * @return a new builder
+     * @since 2.0.0
+     */
+    public static Builder builder() { return new Builder(); }
+
+    /**
+     * Named construction for this record.
+     * @since 2.0.0
+     */
+    public static final class Builder {
+        private Builder() {}
+        private McpPlanValueCategory category;
+        private String key;
+        private String value;
+
+        /**
+         * Sets the {@code category} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder category(McpPlanValueCategory value) {
+            this.category = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code key} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder key(String value) {
+            this.key = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code value} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder value(String value) {
+            this.value = value;
+            return this;
+        }
+
+        /**
+         * Builds a record after checking required property presence.
+         * @return a new record
+         * @throws IllegalStateException if a required property is missing
+         * @since 2.0.0
+         */
+        public McpInstallationInput build() {
+            if (category == null) throw new IllegalStateException("Missing required property: category");
+            if (key == null) throw new IllegalStateException("Missing required property: key");
+            if (value == null) throw new IllegalStateException("Missing required property: value");
+            return new McpInstallationInput(category, key, value);
+        }
+    }
 }

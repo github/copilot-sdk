@@ -32,4 +32,77 @@ public record SessionProviderAddParams(
     /** BYOK model definitions to register. Each must reference a provider that is already registered or included in this same call. Selection ids (`provider/id`) must be unique across the registry. */
     @JsonProperty("models") List<ProviderModelConfig> models
 ) {
+
+    /**
+     * Creates a record positionally.
+     * @deprecated Use {@link #builder()} for named construction.
+     */
+    @Deprecated(since = "2.0.0", forRemoval = false)
+    public SessionProviderAddParams {}
+
+    /**
+     * Returns a named builder.
+     * @return a new builder
+     * @since 2.0.0
+     */
+    @com.github.copilot.CopilotExperimental
+    public static Builder builder() { return new Builder(); }
+
+    /**
+     * Named construction for this record.
+     * @since 2.0.0
+     */
+    @com.github.copilot.CopilotExperimental
+    public static final class Builder {
+        private Builder() {}
+        private String sessionId;
+        private List<NamedProviderConfig> providers;
+        private List<ProviderModelConfig> models;
+
+        /**
+         * Sets the {@code sessionId} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        @com.github.copilot.CopilotExperimental
+        public Builder sessionId(String value) {
+            this.sessionId = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code providers} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        @com.github.copilot.CopilotExperimental
+        public Builder providers(List<NamedProviderConfig> value) {
+            this.providers = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code models} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        @com.github.copilot.CopilotExperimental
+        public Builder models(List<ProviderModelConfig> value) {
+            this.models = value;
+            return this;
+        }
+
+        /**
+         * Builds a record after checking required property presence.
+         * @return a new record
+         * @throws IllegalStateException if a required property is missing
+         * @since 2.0.0
+         */
+        public SessionProviderAddParams build() {
+            return new SessionProviderAddParams(sessionId, providers, models);
+        }
+    }
 }

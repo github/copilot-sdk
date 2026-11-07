@@ -32,4 +32,74 @@ public record SessionPermissionsPathsListResult(
     /** The primary working directory for this session. */
     @JsonProperty("primary") String primary
 ) {
+
+    /**
+     * Creates a record positionally.
+     * @deprecated Use {@link #builder()} for named construction.
+     */
+    @Deprecated(since = "2.0.0", forRemoval = false)
+    public SessionPermissionsPathsListResult {}
+
+    /**
+     * Returns a named builder.
+     * @return a new builder
+     * @since 2.0.0
+     */
+    public static Builder builder() { return new Builder(); }
+
+    /**
+     * Named construction for this record.
+     * @since 2.0.0
+     */
+    public static final class Builder {
+        private Builder() {}
+        private List<String> directories;
+        private List<String> sessionApprovedPaths;
+        private String primary;
+
+        /**
+         * Sets the {@code directories} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder directories(List<String> value) {
+            this.directories = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code sessionApprovedPaths} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder sessionApprovedPaths(List<String> value) {
+            this.sessionApprovedPaths = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code primary} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder primary(String value) {
+            this.primary = value;
+            return this;
+        }
+
+        /**
+         * Builds a record after checking required property presence.
+         * @return a new record
+         * @throws IllegalStateException if a required property is missing
+         * @since 2.0.0
+         */
+        public SessionPermissionsPathsListResult build() {
+            if (directories == null) throw new IllegalStateException("Missing required property: directories");
+            if (primary == null) throw new IllegalStateException("Missing required property: primary");
+            return new SessionPermissionsPathsListResult(directories, sessionApprovedPaths, primary);
+        }
+    }
 }

@@ -41,4 +41,149 @@ record RuntimeLifecycleBlocker(
     /** Timing of this dependency wait. */
     @JsonProperty("timing") RuntimeLifecycleBlockerTiming timing
 ) {
+
+    /**
+     * Creates a record positionally.
+     * @deprecated Use {@link #builder()} for named construction.
+     */
+    @Deprecated(since = "2.0.0", forRemoval = false)
+    RuntimeLifecycleBlocker {}
+
+    /**
+     * Returns a named builder.
+     * @return a new builder
+     * @since 2.0.0
+     */
+    @com.github.copilot.CopilotExperimental
+    public static Builder builder() { return new Builder(); }
+
+    /**
+     * Named construction for this record.
+     * @since 2.0.0
+     */
+    @com.github.copilot.CopilotExperimental
+    public static final class Builder {
+        private Builder() {}
+        private String requirement;
+        private String system;
+        private String operationId;
+        private Long operationRevision;
+        private String currentPhase;
+        private String currentStep;
+        private RuntimeLifecycleDisposition operationDisposition;
+        private RuntimeLifecycleBlockerTiming timing;
+
+        /**
+         * Sets the {@code requirement} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        @com.github.copilot.CopilotExperimental
+        public Builder requirement(String value) {
+            this.requirement = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code system} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        @com.github.copilot.CopilotExperimental
+        public Builder system(String value) {
+            this.system = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code operationId} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        @com.github.copilot.CopilotExperimental
+        public Builder operationId(String value) {
+            this.operationId = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code operationRevision} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        @com.github.copilot.CopilotExperimental
+        public Builder operationRevision(Long value) {
+            this.operationRevision = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code currentPhase} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        @com.github.copilot.CopilotExperimental
+        public Builder currentPhase(String value) {
+            this.currentPhase = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code currentStep} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        @com.github.copilot.CopilotExperimental
+        public Builder currentStep(String value) {
+            this.currentStep = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code operationDisposition} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        @com.github.copilot.CopilotExperimental
+        public Builder operationDisposition(RuntimeLifecycleDisposition value) {
+            this.operationDisposition = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code timing} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        @com.github.copilot.CopilotExperimental
+        public Builder timing(RuntimeLifecycleBlockerTiming value) {
+            this.timing = value;
+            return this;
+        }
+
+        /**
+         * Builds a record after checking required property presence.
+         * @return a new record
+         * @throws IllegalStateException if a required property is missing
+         * @since 2.0.0
+         */
+        public RuntimeLifecycleBlocker build() {
+            if (requirement == null) throw new IllegalStateException("Missing required property: requirement");
+            if (system == null) throw new IllegalStateException("Missing required property: system");
+            if (operationId == null) throw new IllegalStateException("Missing required property: operationId");
+            if (operationRevision == null) throw new IllegalStateException("Missing required property: operationRevision");
+            if (currentPhase == null) throw new IllegalStateException("Missing required property: currentPhase");
+            if (currentStep == null) throw new IllegalStateException("Missing required property: currentStep");
+            if (timing == null) throw new IllegalStateException("Missing required property: timing");
+            return new RuntimeLifecycleBlocker(requirement, system, operationId, operationRevision, currentPhase, currentStep, operationDisposition, timing);
+        }
+    }
 }

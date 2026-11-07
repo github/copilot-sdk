@@ -45,6 +45,7 @@ use std::io::Read;
 #[cfg(any(has_bundled_cli, test))]
 use std::io::Write;
 use std::path::{Path, PathBuf};
+#[cfg(any(has_bundled_cli, test))]
 use std::sync::OnceLock;
 #[cfg(any(has_bundled_cli, test))]
 use std::sync::atomic::{AtomicU64, Ordering};
@@ -87,10 +88,23 @@ const RUNTIME_NODE_NAME: &str = "runtime.node";
 #[cfg(has_bundled_cli)]
 const RUNTIME_VERSION_MARKER: &str = ".copilot-runtime-version";
 
-#[cfg(feature = "bundled-cli")]
+#[cfg(has_bundled_cli)]
 static INSTALLED_PATH: OnceLock<Option<PathBuf>> = OnceLock::new();
-#[cfg(feature = "bundled-cli")]
+#[cfg(has_bundled_cli)]
 static INSTALLED_RUNTIME_PATH: OnceLock<Option<PathBuf>> = OnceLock::new();
+
+#[cfg(any(has_bundled_cli, test))]
+fn cached_install(
+    cache: &OnceLock<Option<PathBuf>>,
+    select_dir: impl FnOnce() -> Result<PathBuf, crate::ErrorKind>,
+    install: impl FnOnce(&Path) -> Option<PathBuf>,
+) -> Result<Option<PathBuf>, crate::Error> {
+    if let Some(path) = cache.get() {
+        return Ok(path.clone());
+    }
+    let dir = select_dir()?;
+    Ok(cache.get_or_init(|| install(&dir)).clone())
+}
 
 /// Returns the path to the installed CLI binary, lazily extracting the
 /// embedded archive on first call.
@@ -100,7 +114,9 @@ static INSTALLED_RUNTIME_PATH: OnceLock<Option<PathBuf>> = OnceLock::new();
 /// and returns the resulting path. The cache dir comes from
 /// the OS's LocalAppData known folder on Windows,
 /// `~/Library/Caches/` on macOS, `$XDG_CACHE_HOME` (or `~/.cache/`) on
-/// Linux. Subsequent calls return the cached result. Extraction
+/// Linux. If unavailable, Unix uses an owner-only cache under the trusted
+/// temporary base; other platforms use their existing temporary directory.
+/// Subsequent calls return the cached result. Extraction
 /// is skipped when a previously-published binary is still present and
 /// passes a cheap integrity re-check (size marker + executable-image
 /// header); a truncated, empty, or quarantined binary is re-extracted
@@ -108,29 +124,35 @@ static INSTALLED_RUNTIME_PATH: OnceLock<Option<PathBuf>> = OnceLock::new();
 ///
 /// Returns `None` if no CLI was embedded at build time.
 #[cfg(feature = "bundled-cli")]
-pub(crate) fn path() -> Option<PathBuf> {
-    INSTALLED_PATH
-        .get_or_init(|| {
-            #[cfg(has_bundled_cli)]
-            {
-                let dir = default_install_dir(CLI_CACHE_ID);
-                match install_cli(
-                    &dir,
-                    build_time::CLI_ARCHIVE,
-                    build_time::CLI_BINARY_SIZE,
-                ) {
-                    Ok(path) => {
-                        info!(path = %path.display(), version = CLI_VERSION, "embedded CLI installed");
-                        return Some(path);
+pub(crate) fn path() -> Result<Option<PathBuf>, crate::Error> {
+    #[cfg(has_bundled_cli)]
+    {
+        cached_install(
+            &INSTALLED_PATH,
+            || {
+                default_install_dir(CLI_CACHE_ID).map_err(|error| {
+                    crate::ErrorKind::BinaryNotFound {
+                        name: CLI_BINARY_NAME.into(),
+                        hint: Some(error.to_string()),
                     }
-                    Err(e) => {
-                        warn!(error = %e, "embedded CLI installation failed");
-                    }
+                })
+            },
+            |dir| match install_cli(dir, build_time::CLI_ARCHIVE, build_time::CLI_BINARY_SIZE) {
+                Ok(path) => {
+                    info!(path = %path.display(), version = CLI_VERSION, "embedded CLI installed");
+                    Some(path)
                 }
-            }
-            None
-        })
-        .clone()
+                Err(e) => {
+                    warn!(error = %e, "embedded CLI installation failed");
+                    None
+                }
+            },
+        )
+    }
+    #[cfg(not(has_bundled_cli))]
+    {
+        Ok(None)
+    }
 }
 
 /// Install the embedded CLI binary into the given directory instead of the
@@ -170,25 +192,35 @@ pub(crate) fn install_at(extract_dir: &Path) -> Option<PathBuf> {
 /// Returns the path to the bundled runtime wrapper, extracting the wrapper and
 /// adjacent `runtime.node` on first call.
 #[cfg(feature = "bundled-cli")]
-pub(crate) fn runtime_path() -> Option<PathBuf> {
-    INSTALLED_RUNTIME_PATH
-        .get_or_init(|| {
-            #[cfg(has_bundled_cli)]
-            {
-                let dir = default_install_dir(CLI_CACHE_ID);
-                match install_runtime(&dir, build_time::RUNTIME_ARCHIVE) {
-                    Ok(path) => {
-                        info!(path = %path.display(), version = CLI_VERSION, "embedded runtime installed");
-                        return Some(path);
+pub(crate) fn runtime_path() -> Result<Option<PathBuf>, crate::Error> {
+    #[cfg(has_bundled_cli)]
+    {
+        cached_install(
+            &INSTALLED_RUNTIME_PATH,
+            || {
+                default_install_dir(CLI_CACHE_ID).map_err(|error| {
+                    crate::ErrorKind::BinaryNotFound {
+                        name: RUNTIME_BINARY_NAME.into(),
+                        hint: Some(error.to_string()),
                     }
-                    Err(e) => {
-                        warn!(error = %e, "embedded runtime installation failed");
-                    }
+                })
+            },
+            |dir| match install_runtime(dir, build_time::RUNTIME_ARCHIVE) {
+                Ok(path) => {
+                    info!(path = %path.display(), version = CLI_VERSION, "embedded runtime installed");
+                    Some(path)
                 }
-            }
-            None
-        })
-        .clone()
+                Err(e) => {
+                    warn!(error = %e, "embedded runtime installation failed");
+                    None
+                }
+            },
+        )
+    }
+    #[cfg(not(has_bundled_cli))]
+    {
+        Ok(None)
+    }
 }
 
 /// Installs the bundled runtime wrapper and adjacent `runtime.node` into a
@@ -255,14 +287,16 @@ fn runtime_install_dir(base_dir: &Path, version: &str) -> Result<PathBuf, Embedd
 }
 
 #[cfg(has_bundled_cli)]
-fn default_install_dir(version: &str) -> PathBuf {
-    let cache = crate::platform_dirs::cache_dir().unwrap_or_else(std::env::temp_dir);
-    let root = cache.join("github-copilot-sdk").join("cli");
-    if version.is_empty() {
-        root.join("unversioned")
-    } else {
-        root.join(sanitize_version(version))
-    }
+fn default_install_dir(version: &str) -> std::io::Result<PathBuf> {
+    Ok(crate::cache_paths::cache_install_dir(
+        &crate::cache_paths::platform_cache_root()?,
+        "cli",
+        if version.is_empty() {
+            "unversioned"
+        } else {
+            version
+        },
+    ))
 }
 
 /// Number of times we re-extract + re-publish the binary before giving up.
@@ -1079,17 +1113,6 @@ fn extract_binary(archive: &[u8], binary_name: &str) -> Result<Vec<u8>, Embedded
         }
     }
     Err(EmbeddedCliErrorKind::BinaryNotFoundInArchive.into())
-}
-
-#[cfg(has_bundled_cli)]
-fn sanitize_version(version: &str) -> String {
-    version
-        .chars()
-        .map(|c| match c {
-            'a'..='z' | 'A'..='Z' | '0'..='9' | '.' | '-' | '_' => c,
-            _ => '_',
-        })
-        .collect()
 }
 
 #[cfg(any(has_bundled_cli, test))]

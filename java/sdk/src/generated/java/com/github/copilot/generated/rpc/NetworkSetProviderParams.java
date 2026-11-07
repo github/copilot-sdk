@@ -31,4 +31,72 @@ public record NetworkSetProviderParams(
     /** Present when the client answers `network.authenticateNegotiate`. */
     @JsonProperty("authenticateNegotiate") NetworkAuthenticateNegotiateOptions authenticateNegotiate
 ) {
+
+    /**
+     * Creates a record positionally.
+     * @deprecated Use {@link #builder()} for named construction.
+     */
+    @Deprecated(since = "2.0.0", forRemoval = false)
+    public NetworkSetProviderParams {}
+
+    /**
+     * Returns a named builder.
+     * @return a new builder
+     * @since 2.0.0
+     */
+    public static Builder builder() { return new Builder(); }
+
+    /**
+     * Named construction for this record.
+     * @since 2.0.0
+     */
+    public static final class Builder {
+        private Builder() {}
+        private NetworkScope scope;
+        private NetworkResolveProxyOptions resolveProxy;
+        private NetworkAuthenticateNegotiateOptions authenticateNegotiate;
+
+        /**
+         * Sets the {@code scope} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder scope(NetworkScope value) {
+            this.scope = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code resolveProxy} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder resolveProxy(NetworkResolveProxyOptions value) {
+            this.resolveProxy = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code authenticateNegotiate} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder authenticateNegotiate(NetworkAuthenticateNegotiateOptions value) {
+            this.authenticateNegotiate = value;
+            return this;
+        }
+
+        /**
+         * Builds a record after checking required property presence.
+         * @return a new record
+         * @throws IllegalStateException if a required property is missing
+         * @since 2.0.0
+         */
+        public NetworkSetProviderParams build() {
+            return new NetworkSetProviderParams(scope, resolveProxy, authenticateNegotiate);
+        }
+    }
 }

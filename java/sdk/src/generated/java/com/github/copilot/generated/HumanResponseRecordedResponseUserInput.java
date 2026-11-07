@@ -63,4 +63,99 @@ public final class HumanResponseRecordedResponseUserInput extends HumanResponseR
 
     public Boolean getWasFreeform() { return wasFreeform; }
     public void setWasFreeform(Boolean wasFreeform) { this.wasFreeform = wasFreeform; }
+
+
+    /**
+     * Returns a named builder.
+     * @return a new builder
+     * @since 2.0.0
+     */
+    public static Builder builder() { return new Builder(); }
+
+    /**
+     * Named construction for this record.
+     * @since 2.0.0
+     */
+    public static final class Builder {
+        private Builder() {}
+        private String question;
+        private List<String> choices;
+        private Boolean allowFreeform;
+        private String answer;
+        private Boolean wasFreeform;
+
+        /**
+         * Sets the {@code question} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder question(String value) {
+            this.question = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code choices} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder choices(List<String> value) {
+            this.choices = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code allowFreeform} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder allowFreeform(Boolean value) {
+            this.allowFreeform = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code answer} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder answer(String value) {
+            this.answer = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code wasFreeform} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder wasFreeform(Boolean value) {
+            this.wasFreeform = value;
+            return this;
+        }
+
+        /**
+         * Builds a variant after checking required property presence.
+         * @return a new variant
+         * @throws IllegalStateException if a required property is missing
+         * @since 2.0.0
+         */
+        public HumanResponseRecordedResponseUserInput build() {
+            if (question == null) throw new IllegalStateException("Missing required property: question");
+            if (answer == null) throw new IllegalStateException("Missing required property: answer");
+            if (wasFreeform == null) throw new IllegalStateException("Missing required property: wasFreeform");
+            HumanResponseRecordedResponseUserInput instance = new HumanResponseRecordedResponseUserInput();
+            instance.setQuestion(question);
+            instance.setChoices(choices);
+            instance.setAllowFreeform(allowFreeform);
+            instance.setAnswer(answer);
+            instance.setWasFreeform(wasFreeform);
+            return instance;
+        }
+    }
 }

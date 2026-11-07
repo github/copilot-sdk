@@ -246,7 +246,7 @@ public final class SessionUiApi {
      */
     @CopilotExperimental
     public CompletableFuture<SessionUiRegisterDirectAutoModeSwitchHandlerResult> registerDirectAutoModeSwitchHandler(boolean autoModeRecovery) {
-        return registerDirectAutoModeSwitchHandler(new SessionUiRegisterDirectAutoModeSwitchHandlerParams(this.sessionId, autoModeRecovery));
+        return registerDirectAutoModeSwitchHandler(SessionUiRegisterDirectAutoModeSwitchHandlerParams.builder().sessionId(this.sessionId).autoModeRecovery(autoModeRecovery).build());
     }
 
     /**

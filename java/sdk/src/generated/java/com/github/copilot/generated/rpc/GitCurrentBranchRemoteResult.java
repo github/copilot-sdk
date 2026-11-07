@@ -24,4 +24,49 @@ record GitCurrentBranchRemoteResult(
     /** Name of the tracked remote. Reports `origin` whenever the working tree has no tracking configuration to read, including on a detached HEAD, so this is never null and never empty. */
     @JsonProperty("remote") String remote
 ) {
+
+    /**
+     * Creates a record positionally.
+     * @deprecated Use {@link #builder()} for named construction.
+     */
+    @Deprecated(since = "2.0.0", forRemoval = false)
+    GitCurrentBranchRemoteResult {}
+
+    /**
+     * Returns a named builder.
+     * @return a new builder
+     * @since 2.0.0
+     */
+    public static Builder builder() { return new Builder(); }
+
+    /**
+     * Named construction for this record.
+     * @since 2.0.0
+     */
+    public static final class Builder {
+        private Builder() {}
+        private String remote;
+
+        /**
+         * Sets the {@code remote} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder remote(String value) {
+            this.remote = value;
+            return this;
+        }
+
+        /**
+         * Builds a record after checking required property presence.
+         * @return a new record
+         * @throws IllegalStateException if a required property is missing
+         * @since 2.0.0
+         */
+        public GitCurrentBranchRemoteResult build() {
+            if (remote == null) throw new IllegalStateException("Missing required property: remote");
+            return new GitCurrentBranchRemoteResult(remote);
+        }
+    }
 }

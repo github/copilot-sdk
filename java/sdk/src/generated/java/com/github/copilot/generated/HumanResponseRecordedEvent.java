@@ -43,5 +43,88 @@ public final class HumanResponseRecordedEvent extends SessionEvent {
         /** Typed request and response payload. */
         @JsonProperty("response") HumanResponseRecordedResponse response
     ) {
+
+        /**
+         * Creates a record positionally.
+         * @deprecated Use {@link #builder()} for named construction.
+         */
+        @Deprecated(since = "2.0.0", forRemoval = false)
+        public HumanResponseRecordedEventData {}
+
+        /**
+         * Returns a named builder.
+         * @return a new builder
+         * @since 2.0.0
+         */
+        public static Builder builder() { return new Builder(); }
+
+        /**
+         * Named construction for this record.
+         * @since 2.0.0
+         */
+        public static final class Builder {
+            private Builder() {}
+            private String requestId;
+            private String toolCallId;
+            private HumanResponseActor actor;
+            private HumanResponseRecordedResponse response;
+
+            /**
+             * Sets the {@code requestId} property.
+             * @param value the property value
+             * @return this builder
+             * @since 2.0.0
+             */
+            public Builder requestId(String value) {
+                this.requestId = value;
+                return this;
+            }
+
+            /**
+             * Sets the {@code toolCallId} property.
+             * @param value the property value
+             * @return this builder
+             * @since 2.0.0
+             */
+            public Builder toolCallId(String value) {
+                this.toolCallId = value;
+                return this;
+            }
+
+            /**
+             * Sets the {@code actor} property.
+             * @param value the property value
+             * @return this builder
+             * @since 2.0.0
+             */
+            public Builder actor(HumanResponseActor value) {
+                this.actor = value;
+                return this;
+            }
+
+            /**
+             * Sets the {@code response} property.
+             * @param value the property value
+             * @return this builder
+             * @since 2.0.0
+             */
+            public Builder response(HumanResponseRecordedResponse value) {
+                this.response = value;
+                return this;
+            }
+
+            /**
+             * Builds a record after checking required property presence.
+             * @return a new record
+             * @throws IllegalStateException if a required property is missing
+             * @since 2.0.0
+             */
+            public HumanResponseRecordedEventData build() {
+                if (requestId == null) throw new IllegalStateException("Missing required property: requestId");
+                if (actor == null) throw new IllegalStateException("Missing required property: actor");
+                if (response == null) throw new IllegalStateException("Missing required property: response");
+                return new HumanResponseRecordedEventData(requestId, toolCallId, actor, response);
+            }
+        }
     }
 }

@@ -40,4 +40,135 @@ public record SessionQueueAppendSteeringParams(
     /** Attachments to add after the message's existing attachments. An empty list preserves the existing attachments. */
     @JsonProperty("attachments") List<Object> attachments
 ) {
+
+    /**
+     * Creates a record positionally.
+     * @deprecated Use {@link #builder()} for named construction.
+     */
+    @Deprecated(since = "2.0.0", forRemoval = false)
+    public SessionQueueAppendSteeringParams {}
+
+    /**
+     * Returns a named builder.
+     * @return a new builder
+     * @since 2.0.0
+     */
+    @com.github.copilot.CopilotExperimental
+    public static Builder builder() { return new Builder(); }
+
+    /**
+     * Named construction for this record.
+     * @since 2.0.0
+     */
+    @com.github.copilot.CopilotExperimental
+    public static final class Builder {
+        private Builder() {}
+        private String sessionId;
+        private String messageId;
+        private String expectedPrompt;
+        private SendAgentMode agentMode;
+        private String prompt;
+        private String displayPrompt;
+        private List<Object> attachments;
+
+        /**
+         * Sets the {@code sessionId} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        @com.github.copilot.CopilotExperimental
+        public Builder sessionId(String value) {
+            this.sessionId = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code messageId} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        @com.github.copilot.CopilotExperimental
+        public Builder messageId(String value) {
+            this.messageId = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code expectedPrompt} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        @com.github.copilot.CopilotExperimental
+        public Builder expectedPrompt(String value) {
+            this.expectedPrompt = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code agentMode} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        @com.github.copilot.CopilotExperimental
+        public Builder agentMode(SendAgentMode value) {
+            this.agentMode = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code prompt} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        @com.github.copilot.CopilotExperimental
+        public Builder prompt(String value) {
+            this.prompt = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code displayPrompt} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        @com.github.copilot.CopilotExperimental
+        public Builder displayPrompt(String value) {
+            this.displayPrompt = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code attachments} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        @com.github.copilot.CopilotExperimental
+        public Builder attachments(List<Object> value) {
+            this.attachments = value;
+            return this;
+        }
+
+        /**
+         * Builds a record after checking required property presence.
+         * @return a new record
+         * @throws IllegalStateException if a required property is missing
+         * @since 2.0.0
+         */
+        public SessionQueueAppendSteeringParams build() {
+            if (messageId == null) throw new IllegalStateException("Missing required property: messageId");
+            if (expectedPrompt == null) throw new IllegalStateException("Missing required property: expectedPrompt");
+            if (agentMode == null) throw new IllegalStateException("Missing required property: agentMode");
+            if (prompt == null) throw new IllegalStateException("Missing required property: prompt");
+            if (displayPrompt == null) throw new IllegalStateException("Missing required property: displayPrompt");
+            if (attachments == null) throw new IllegalStateException("Missing required property: attachments");
+            return new SessionQueueAppendSteeringParams(sessionId, messageId, expectedPrompt, agentMode, prompt, displayPrompt, attachments);
+        }
+    }
 }

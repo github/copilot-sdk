@@ -30,14 +30,75 @@ public record SkillInstallationManagementOutcomeRolledBack(
     /** Skill installation management outcome discriminator. */
     @JsonProperty("kind") String kind
 ) implements SkillInstallationManagementOutcome {
+    /**
+     * Creates this variant positionally and normalizes its discriminator.
+     * @deprecated Use {@link #builder()} for named construction.
+     */
+    @Deprecated(since = "2.0.0", forRemoval = false)
     public SkillInstallationManagementOutcomeRolledBack {
         kind = "rolled-back";
     }
 
+    /**
+     * Creates this variant without explicitly supplying its discriminator.
+     * @deprecated Use {@link #builder()} for named construction.
+     */
+    @Deprecated(since = "2.0.0", forRemoval = false)
     public SkillInstallationManagementOutcomeRolledBack(
         SkillInstallationFailureReason reason,
         String operationId
     ) {
         this(reason, operationId, "rolled-back");
+    }
+
+    /**
+     * Returns a named builder.
+     * @return a new builder
+     * @since 2.0.0
+     */
+    public static Builder builder() { return new Builder(); }
+
+    /**
+     * Named construction for this record.
+     * @since 2.0.0
+     */
+    public static final class Builder {
+        private Builder() {}
+        private SkillInstallationFailureReason reason;
+        private String operationId;
+
+        /**
+         * Sets the {@code reason} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder reason(SkillInstallationFailureReason value) {
+            this.reason = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code operation_id} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder operationId(String value) {
+            this.operationId = value;
+            return this;
+        }
+
+        /**
+         * Builds a record after checking required property presence.
+         * @return a new record
+         * @throws IllegalStateException if a required property is missing
+         * @since 2.0.0
+         */
+        public SkillInstallationManagementOutcomeRolledBack build() {
+            if (reason == null) throw new IllegalStateException("Missing required property: reason");
+            if (operationId == null) throw new IllegalStateException("Missing required property: operation_id");
+            return new SkillInstallationManagementOutcomeRolledBack(reason, operationId, "rolled-back");
+        }
     }
 }

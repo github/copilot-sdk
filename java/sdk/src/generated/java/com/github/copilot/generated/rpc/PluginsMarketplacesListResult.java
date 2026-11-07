@@ -28,4 +28,49 @@ public record PluginsMarketplacesListResult(
     /** Registered marketplaces */
     @JsonProperty("marketplaces") List<MarketplaceInfo> marketplaces
 ) {
+
+    /**
+     * Creates a record positionally.
+     * @deprecated Use {@link #builder()} for named construction.
+     */
+    @Deprecated(since = "2.0.0", forRemoval = false)
+    public PluginsMarketplacesListResult {}
+
+    /**
+     * Returns a named builder.
+     * @return a new builder
+     * @since 2.0.0
+     */
+    public static Builder builder() { return new Builder(); }
+
+    /**
+     * Named construction for this record.
+     * @since 2.0.0
+     */
+    public static final class Builder {
+        private Builder() {}
+        private List<MarketplaceInfo> marketplaces;
+
+        /**
+         * Sets the {@code marketplaces} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder marketplaces(List<MarketplaceInfo> value) {
+            this.marketplaces = value;
+            return this;
+        }
+
+        /**
+         * Builds a record after checking required property presence.
+         * @return a new record
+         * @throws IllegalStateException if a required property is missing
+         * @since 2.0.0
+         */
+        public PluginsMarketplacesListResult build() {
+            if (marketplaces == null) throw new IllegalStateException("Missing required property: marketplaces");
+            return new PluginsMarketplacesListResult(marketplaces);
+        }
+    }
 }

@@ -26,4 +26,62 @@ public record CardDigest(
     /** SHA-256 digest of the RFC 8785 canonical UTF-8 bytes, encoded as exactly 64 lowercase hexadecimal characters. */
     @JsonProperty("value") String value
 ) {
+
+    /**
+     * Creates a record positionally.
+     * @deprecated Use {@link #builder()} for named construction.
+     */
+    @Deprecated(since = "2.0.0", forRemoval = false)
+    public CardDigest {}
+
+    /**
+     * Returns a named builder.
+     * @return a new builder
+     * @since 2.0.0
+     */
+    public static Builder builder() { return new Builder(); }
+
+    /**
+     * Named construction for this record.
+     * @since 2.0.0
+     */
+    public static final class Builder {
+        private Builder() {}
+        private CardDigestAlgorithm algorithm;
+        private String value;
+
+        /**
+         * Sets the {@code algorithm} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder algorithm(CardDigestAlgorithm value) {
+            this.algorithm = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code value} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder value(String value) {
+            this.value = value;
+            return this;
+        }
+
+        /**
+         * Builds a record after checking required property presence.
+         * @return a new record
+         * @throws IllegalStateException if a required property is missing
+         * @since 2.0.0
+         */
+        public CardDigest build() {
+            if (algorithm == null) throw new IllegalStateException("Missing required property: algorithm");
+            if (value == null) throw new IllegalStateException("Missing required property: value");
+            return new CardDigest(algorithm, value);
+        }
+    }
 }

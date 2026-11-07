@@ -38,4 +38,121 @@ public record HostSessionSummary(
     /** Optional activity description advertised by the host. */
     @JsonProperty("activity") String activity
 ) {
+
+    /**
+     * Creates a record positionally.
+     * @deprecated Use {@link #builder()} for named construction.
+     */
+    @Deprecated(since = "2.0.0", forRemoval = false)
+    public HostSessionSummary {}
+
+    /**
+     * Returns a named builder.
+     * @return a new builder
+     * @since 2.0.0
+     */
+    @com.github.copilot.CopilotExperimental
+    public static Builder builder() { return new Builder(); }
+
+    /**
+     * Named construction for this record.
+     * @since 2.0.0
+     */
+    @com.github.copilot.CopilotExperimental
+    public static final class Builder {
+        private Builder() {}
+        private String resource;
+        private String title;
+        private String createdAt;
+        private String modifiedAt;
+        private Long status;
+        private String activity;
+
+        /**
+         * Sets the {@code resource} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        @com.github.copilot.CopilotExperimental
+        public Builder resource(String value) {
+            this.resource = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code title} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        @com.github.copilot.CopilotExperimental
+        public Builder title(String value) {
+            this.title = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code createdAt} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        @com.github.copilot.CopilotExperimental
+        public Builder createdAt(String value) {
+            this.createdAt = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code modifiedAt} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        @com.github.copilot.CopilotExperimental
+        public Builder modifiedAt(String value) {
+            this.modifiedAt = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code status} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        @com.github.copilot.CopilotExperimental
+        public Builder status(Long value) {
+            this.status = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code activity} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        @com.github.copilot.CopilotExperimental
+        public Builder activity(String value) {
+            this.activity = value;
+            return this;
+        }
+
+        /**
+         * Builds a record after checking required property presence.
+         * @return a new record
+         * @throws IllegalStateException if a required property is missing
+         * @since 2.0.0
+         */
+        public HostSessionSummary build() {
+            if (resource == null) throw new IllegalStateException("Missing required property: resource");
+            if (title == null) throw new IllegalStateException("Missing required property: title");
+            if (createdAt == null) throw new IllegalStateException("Missing required property: createdAt");
+            if (modifiedAt == null) throw new IllegalStateException("Missing required property: modifiedAt");
+            if (status == null) throw new IllegalStateException("Missing required property: status");
+            return new HostSessionSummary(resource, title, createdAt, modifiedAt, status, activity);
+        }
+    }
 }

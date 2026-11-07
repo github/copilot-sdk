@@ -35,4 +35,105 @@ public record SessionMetadataContextInfoParams(
     /** Provider owning selectedModel. Omit to use the current provider for the current model, or deterministic legacy lookup for a different model. */
     @JsonProperty("providerId") String providerId
 ) {
+
+    /**
+     * Creates a record positionally.
+     * @deprecated Use {@link #builder()} for named construction.
+     */
+    @Deprecated(since = "2.0.0", forRemoval = false)
+    public SessionMetadataContextInfoParams {}
+
+    /**
+     * Returns a named builder.
+     * @return a new builder
+     * @since 2.0.0
+     */
+    @com.github.copilot.CopilotExperimental
+    public static Builder builder() { return new Builder(); }
+
+    /**
+     * Named construction for this record.
+     * @since 2.0.0
+     */
+    @com.github.copilot.CopilotExperimental
+    public static final class Builder {
+        private Builder() {}
+        private String sessionId;
+        private Long promptTokenLimit;
+        private Long outputTokenLimit;
+        private String selectedModel;
+        private String providerId;
+
+        /**
+         * Sets the {@code sessionId} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        @com.github.copilot.CopilotExperimental
+        public Builder sessionId(String value) {
+            this.sessionId = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code promptTokenLimit} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        @com.github.copilot.CopilotExperimental
+        public Builder promptTokenLimit(Long value) {
+            this.promptTokenLimit = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code outputTokenLimit} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        @com.github.copilot.CopilotExperimental
+        public Builder outputTokenLimit(Long value) {
+            this.outputTokenLimit = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code selectedModel} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        @com.github.copilot.CopilotExperimental
+        public Builder selectedModel(String value) {
+            this.selectedModel = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code providerId} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        @com.github.copilot.CopilotExperimental
+        public Builder providerId(String value) {
+            this.providerId = value;
+            return this;
+        }
+
+        /**
+         * Builds a record after checking required property presence.
+         * @return a new record
+         * @throws IllegalStateException if a required property is missing
+         * @since 2.0.0
+         */
+        public SessionMetadataContextInfoParams build() {
+            if (promptTokenLimit == null) throw new IllegalStateException("Missing required property: promptTokenLimit");
+            if (outputTokenLimit == null) throw new IllegalStateException("Missing required property: outputTokenLimit");
+            return new SessionMetadataContextInfoParams(sessionId, promptTokenLimit, outputTokenLimit, selectedModel, providerId);
+        }
+    }
 }

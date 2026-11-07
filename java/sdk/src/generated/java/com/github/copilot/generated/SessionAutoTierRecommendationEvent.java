@@ -42,5 +42,53 @@ public final class SessionAutoTierRecommendationEvent extends SessionEvent {
         /** Recommended Auto preference. */
         @JsonProperty("recommendedAutoTier") RecommendedAutoTier recommendedAutoTier
     ) {
+
+        /**
+         * Creates a record positionally.
+         * @deprecated Use {@link #builder()} for named construction.
+         */
+        @Deprecated(since = "2.0.0", forRemoval = false)
+        public SessionAutoTierRecommendationEventData {}
+
+        /**
+         * Returns a named builder.
+         * @return a new builder
+         * @since 2.0.0
+         */
+        @com.github.copilot.CopilotExperimental
+        public static Builder builder() { return new Builder(); }
+
+        /**
+         * Named construction for this record.
+         * @since 2.0.0
+         */
+        @com.github.copilot.CopilotExperimental
+        public static final class Builder {
+            private Builder() {}
+            private RecommendedAutoTier recommendedAutoTier;
+
+            /**
+             * Sets the {@code recommendedAutoTier} property.
+             * @param value the property value
+             * @return this builder
+             * @since 2.0.0
+             */
+            @com.github.copilot.CopilotExperimental
+            public Builder recommendedAutoTier(RecommendedAutoTier value) {
+                this.recommendedAutoTier = value;
+                return this;
+            }
+
+            /**
+             * Builds a record after checking required property presence.
+             * @return a new record
+             * @throws IllegalStateException if a required property is missing
+             * @since 2.0.0
+             */
+            public SessionAutoTierRecommendationEventData build() {
+                if (recommendedAutoTier == null) throw new IllegalStateException("Missing required property: recommendedAutoTier");
+                return new SessionAutoTierRecommendationEventData(recommendedAutoTier);
+            }
+        }
     }
 }

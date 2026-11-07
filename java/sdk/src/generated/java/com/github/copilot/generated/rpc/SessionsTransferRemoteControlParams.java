@@ -29,4 +29,61 @@ public record SessionsTransferRemoteControlParams(
     /** When provided, the transfer is rejected unless the singleton currently points at this session id (compare-and-swap semantics to avoid clobbering newer state). */
     @JsonProperty("expectedFromSessionId") String expectedFromSessionId
 ) {
+
+    /**
+     * Creates a record positionally.
+     * @deprecated Use {@link #builder()} for named construction.
+     */
+    @Deprecated(since = "2.0.0", forRemoval = false)
+    public SessionsTransferRemoteControlParams {}
+
+    /**
+     * Returns a named builder.
+     * @return a new builder
+     * @since 2.0.0
+     */
+    public static Builder builder() { return new Builder(); }
+
+    /**
+     * Named construction for this record.
+     * @since 2.0.0
+     */
+    public static final class Builder {
+        private Builder() {}
+        private String toSessionId;
+        private String expectedFromSessionId;
+
+        /**
+         * Sets the {@code toSessionId} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder toSessionId(String value) {
+            this.toSessionId = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code expectedFromSessionId} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder expectedFromSessionId(String value) {
+            this.expectedFromSessionId = value;
+            return this;
+        }
+
+        /**
+         * Builds a record after checking required property presence.
+         * @return a new record
+         * @throws IllegalStateException if a required property is missing
+         * @since 2.0.0
+         */
+        public SessionsTransferRemoteControlParams build() {
+            if (toSessionId == null) throw new IllegalStateException("Missing required property: toSessionId");
+            return new SessionsTransferRemoteControlParams(toSessionId, expectedFromSessionId);
+        }
+    }
 }

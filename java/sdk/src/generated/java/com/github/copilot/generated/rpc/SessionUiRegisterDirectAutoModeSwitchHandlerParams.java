@@ -31,10 +31,67 @@ public record SessionUiRegisterDirectAutoModeSwitchHandlerParams(
 ) {
 
     /**
+     * Creates a record positionally.
+     * @deprecated Use {@link #builder()} for named construction.
+     */
+    @Deprecated(since = "2.0.0", forRemoval = false)
+    public SessionUiRegisterDirectAutoModeSwitchHandlerParams {}
+
+    /**
+     * Returns a named builder.
+     * @return a new builder
+     * @since 2.0.0
+     */
+    public static Builder builder() { return new Builder(); }
+
+    /**
+     * Named construction for this record.
+     * @since 2.0.0
+     */
+    public static final class Builder {
+        private Builder() {}
+        private String sessionId;
+        private Boolean autoModeRecovery;
+
+        /**
+         * Sets the {@code sessionId} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder sessionId(String value) {
+            this.sessionId = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code autoModeRecovery} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder autoModeRecovery(Boolean value) {
+            this.autoModeRecovery = value;
+            return this;
+        }
+
+        /**
+         * Builds a record after checking required property presence.
+         * @return a new record
+         * @throws IllegalStateException if a required property is missing
+         * @since 2.0.0
+         */
+        public SessionUiRegisterDirectAutoModeSwitchHandlerParams build() {
+            return new SessionUiRegisterDirectAutoModeSwitchHandlerParams(sessionId, autoModeRecovery);
+        }
+    }
+
+    /**
      * Creates a direct Auto-switch registration without recovery enrollment.
-     *
+     * @deprecated Use named construction via {@link #builder()}.
      * @param sessionId Target session identifier
      */
+    @Deprecated(since = "2.0.0", forRemoval = false)
     public SessionUiRegisterDirectAutoModeSwitchHandlerParams(
         String sessionId
     ) {

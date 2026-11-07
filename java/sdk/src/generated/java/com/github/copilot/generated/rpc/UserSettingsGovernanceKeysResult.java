@@ -29,4 +29,75 @@ record UserSettingsGovernanceKeysResult(
     /** Top-level keys an enterprise policy may fix through managed settings. */
     @JsonProperty("managed") List<String> managed
 ) {
+
+    /**
+     * Creates a record positionally.
+     * @deprecated Use {@link #builder()} for named construction.
+     */
+    @Deprecated(since = "2.0.0", forRemoval = false)
+    UserSettingsGovernanceKeysResult {}
+
+    /**
+     * Returns a named builder.
+     * @return a new builder
+     * @since 2.0.0
+     */
+    public static Builder builder() { return new Builder(); }
+
+    /**
+     * Named construction for this record.
+     * @since 2.0.0
+     */
+    public static final class Builder {
+        private Builder() {}
+        private List<String> repo;
+        private List<String> claudeRepo;
+        private List<String> managed;
+
+        /**
+         * Sets the {@code repo} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder repo(List<String> value) {
+            this.repo = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code claudeRepo} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder claudeRepo(List<String> value) {
+            this.claudeRepo = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code managed} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder managed(List<String> value) {
+            this.managed = value;
+            return this;
+        }
+
+        /**
+         * Builds a record after checking required property presence.
+         * @return a new record
+         * @throws IllegalStateException if a required property is missing
+         * @since 2.0.0
+         */
+        public UserSettingsGovernanceKeysResult build() {
+            if (repo == null) throw new IllegalStateException("Missing required property: repo");
+            if (claudeRepo == null) throw new IllegalStateException("Missing required property: claudeRepo");
+            if (managed == null) throw new IllegalStateException("Missing required property: managed");
+            return new UserSettingsGovernanceKeysResult(repo, claudeRepo, managed);
+        }
+    }
 }

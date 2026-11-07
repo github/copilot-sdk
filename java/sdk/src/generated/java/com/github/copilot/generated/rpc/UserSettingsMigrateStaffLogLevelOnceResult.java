@@ -29,4 +29,73 @@ record UserSettingsMigrateStaffLogLevelOnceResult(
     /** The settings document as it stands after the migration, keyed by setting name. Present only for `refreshed`, and only when the document could be re-read cleanly. */
     @JsonProperty("settings") Map<String, Object> settings
 ) {
+
+    /**
+     * Creates a record positionally.
+     * @deprecated Use {@link #builder()} for named construction.
+     */
+    @Deprecated(since = "2.0.0", forRemoval = false)
+    UserSettingsMigrateStaffLogLevelOnceResult {}
+
+    /**
+     * Returns a named builder.
+     * @return a new builder
+     * @since 2.0.0
+     */
+    public static Builder builder() { return new Builder(); }
+
+    /**
+     * Named construction for this record.
+     * @since 2.0.0
+     */
+    public static final class Builder {
+        private Builder() {}
+        private StaffLogLevelMigrationStatus status;
+        private String completedAt;
+        private Map<String, Object> settings;
+
+        /**
+         * Sets the {@code status} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder status(StaffLogLevelMigrationStatus value) {
+            this.status = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code completedAt} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder completedAt(String value) {
+            this.completedAt = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code settings} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder settings(Map<String, Object> value) {
+            this.settings = value;
+            return this;
+        }
+
+        /**
+         * Builds a record after checking required property presence.
+         * @return a new record
+         * @throws IllegalStateException if a required property is missing
+         * @since 2.0.0
+         */
+        public UserSettingsMigrateStaffLogLevelOnceResult build() {
+            if (status == null) throw new IllegalStateException("Missing required property: status");
+            return new UserSettingsMigrateStaffLogLevelOnceResult(status, completedAt, settings);
+        }
+    }
 }

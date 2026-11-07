@@ -34,4 +34,87 @@ public record SessionHistoryPreviewRewindResult(
     /** Files ordered by path. */
     @JsonProperty("files") List<HistoryRewindFilePreview> files
 ) {
+
+    /**
+     * Creates a record positionally.
+     * @deprecated Use {@link #builder()} for named construction.
+     */
+    @Deprecated(since = "2.0.0", forRemoval = false)
+    public SessionHistoryPreviewRewindResult {}
+
+    /**
+     * Returns a named builder.
+     * @return a new builder
+     * @since 2.0.0
+     */
+    public static Builder builder() { return new Builder(); }
+
+    /**
+     * Named construction for this record.
+     * @since 2.0.0
+     */
+    public static final class Builder {
+        private Builder() {}
+        private Boolean available;
+        private HistoryRewindUnavailableReason reason;
+        private Long fileCount;
+        private List<HistoryRewindFilePreview> files;
+
+        /**
+         * Sets the {@code available} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder available(Boolean value) {
+            this.available = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code reason} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder reason(HistoryRewindUnavailableReason value) {
+            this.reason = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code fileCount} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder fileCount(Long value) {
+            this.fileCount = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code files} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder files(List<HistoryRewindFilePreview> value) {
+            this.files = value;
+            return this;
+        }
+
+        /**
+         * Builds a record after checking required property presence.
+         * @return a new record
+         * @throws IllegalStateException if a required property is missing
+         * @since 2.0.0
+         */
+        public SessionHistoryPreviewRewindResult build() {
+            if (available == null) throw new IllegalStateException("Missing required property: available");
+            if (fileCount == null) throw new IllegalStateException("Missing required property: fileCount");
+            if (files == null) throw new IllegalStateException("Missing required property: files");
+            return new SessionHistoryPreviewRewindResult(available, reason, fileCount, files);
+        }
+    }
 }

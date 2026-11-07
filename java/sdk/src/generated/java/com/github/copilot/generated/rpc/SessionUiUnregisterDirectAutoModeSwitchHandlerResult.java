@@ -27,4 +27,49 @@ public record SessionUiUnregisterDirectAutoModeSwitchHandlerResult(
     /** True if the handle was active and decremented the counter; false if the handle was unknown. */
     @JsonProperty("unregistered") Boolean unregistered
 ) {
+
+    /**
+     * Creates a record positionally.
+     * @deprecated Use {@link #builder()} for named construction.
+     */
+    @Deprecated(since = "2.0.0", forRemoval = false)
+    public SessionUiUnregisterDirectAutoModeSwitchHandlerResult {}
+
+    /**
+     * Returns a named builder.
+     * @return a new builder
+     * @since 2.0.0
+     */
+    public static Builder builder() { return new Builder(); }
+
+    /**
+     * Named construction for this record.
+     * @since 2.0.0
+     */
+    public static final class Builder {
+        private Builder() {}
+        private Boolean unregistered;
+
+        /**
+         * Sets the {@code unregistered} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder unregistered(Boolean value) {
+            this.unregistered = value;
+            return this;
+        }
+
+        /**
+         * Builds a record after checking required property presence.
+         * @return a new record
+         * @throws IllegalStateException if a required property is missing
+         * @since 2.0.0
+         */
+        public SessionUiUnregisterDirectAutoModeSwitchHandlerResult build() {
+            if (unregistered == null) throw new IllegalStateException("Missing required property: unregistered");
+            return new SessionUiUnregisterDirectAutoModeSwitchHandlerResult(unregistered);
+        }
+    }
 }

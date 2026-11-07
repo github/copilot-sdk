@@ -28,4 +28,75 @@ public record DebugCollectLogsCollectedEntry(
     /** Redacted output size in bytes. */
     @JsonProperty("sizeBytes") Long sizeBytes
 ) {
+
+    /**
+     * Creates a record positionally.
+     * @deprecated Use {@link #builder()} for named construction.
+     */
+    @Deprecated(since = "2.0.0", forRemoval = false)
+    public DebugCollectLogsCollectedEntry {}
+
+    /**
+     * Returns a named builder.
+     * @return a new builder
+     * @since 2.0.0
+     */
+    public static Builder builder() { return new Builder(); }
+
+    /**
+     * Named construction for this record.
+     * @since 2.0.0
+     */
+    public static final class Builder {
+        private Builder() {}
+        private String bundlePath;
+        private DebugCollectLogsSource source;
+        private Long sizeBytes;
+
+        /**
+         * Sets the {@code bundlePath} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder bundlePath(String value) {
+            this.bundlePath = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code source} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder source(DebugCollectLogsSource value) {
+            this.source = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code sizeBytes} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder sizeBytes(Long value) {
+            this.sizeBytes = value;
+            return this;
+        }
+
+        /**
+         * Builds a record after checking required property presence.
+         * @return a new record
+         * @throws IllegalStateException if a required property is missing
+         * @since 2.0.0
+         */
+        public DebugCollectLogsCollectedEntry build() {
+            if (bundlePath == null) throw new IllegalStateException("Missing required property: bundlePath");
+            if (source == null) throw new IllegalStateException("Missing required property: source");
+            if (sizeBytes == null) throw new IllegalStateException("Missing required property: sizeBytes");
+            return new DebugCollectLogsCollectedEntry(bundlePath, source, sizeBytes);
+        }
+    }
 }

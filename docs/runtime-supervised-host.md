@@ -325,7 +325,7 @@ class HostingExample {
     static CompletableFuture<AhpHost> startApplicationHost(CopilotClient client) {
         return client.startAhpHost(new AhpHostOptions()
                 .setAuthentication(AhpHostAuthentication.github())
-                .setLocalServer(new HostLocalServerOptions(null, null, null, null))
+                .setLocalServer(HostLocalServerOptions.builder().build())
                 .setCreateSession(request -> client.createSession(request.config()
                         .setOnPermissionRequest(PermissionHandler.APPROVE_ALL)))
                 .setOnSessionReleased(session -> {

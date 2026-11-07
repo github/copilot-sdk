@@ -29,4 +29,60 @@ record AccountGetHostUrlParams(
     /** Host from the general GitHub CLI setting, used when the Copilot-specific one is absent. */
     @JsonProperty("ghHost") String ghHost
 ) {
+
+    /**
+     * Creates a record positionally.
+     * @deprecated Use {@link #builder()} for named construction.
+     */
+    @Deprecated(since = "2.0.0", forRemoval = false)
+    AccountGetHostUrlParams {}
+
+    /**
+     * Returns a named builder.
+     * @return a new builder
+     * @since 2.0.0
+     */
+    public static Builder builder() { return new Builder(); }
+
+    /**
+     * Named construction for this record.
+     * @since 2.0.0
+     */
+    public static final class Builder {
+        private Builder() {}
+        private String copilotGhHost;
+        private String ghHost;
+
+        /**
+         * Sets the {@code copilotGhHost} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder copilotGhHost(String value) {
+            this.copilotGhHost = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code ghHost} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder ghHost(String value) {
+            this.ghHost = value;
+            return this;
+        }
+
+        /**
+         * Builds a record after checking required property presence.
+         * @return a new record
+         * @throws IllegalStateException if a required property is missing
+         * @since 2.0.0
+         */
+        public AccountGetHostUrlParams build() {
+            return new AccountGetHostUrlParams(copilotGhHost, ghHost);
+        }
+    }
 }

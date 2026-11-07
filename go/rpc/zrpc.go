@@ -355,7 +355,7 @@ type AgentDiscoveryPathList struct {
 // removed.
 type AgentGetCurrentResult struct {
 	// Currently selected custom agent, or null if using the default agent
-	Agent *AgentInfo `json:"agent,omitempty"`
+	Agent *AgentInfo `json:"agent"`
 }
 
 // Agent metadata, including identifiers, display details, source, tools, model, models,
@@ -16703,8 +16703,7 @@ type NamedProviderConfig struct {
 	// Additional HTTP headers included with provider requests.
 	Headers map[string]string `json:"headers,omitzero"`
 	// The product serving the provider's models, reported in telemetry as `model_provider`.
-	// Besides telemetry, `azure_openai` makes OpenAI Responses requests omit explicit
-	// `prompt_cache_breakpoint` markers, which limit cross-turn cache reuse on Azure.
+	// Only affects telemetry.
 	ModelProvider *ProviderConfigModelProvider `json:"modelProvider,omitempty"`
 	// Unique provider name used to qualify model selection IDs.
 	Name string `json:"name"`
@@ -19450,9 +19449,7 @@ type ProviderConfig struct {
 	ModelID *string `json:"modelId,omitempty"`
 	// The product serving the model, reported in telemetry as `model_provider`. Set it when
 	// `type` alone cannot identify the product, such as Ollama or LM Studio behind an
-	// OpenAI-compatible endpoint, or a proxy or custom domain in front of Azure OpenAI. Besides
-	// telemetry, `azure_openai` makes OpenAI Responses requests omit explicit
-	// `prompt_cache_breakpoint` markers, which limit cross-turn cache reuse on Azure.
+	// OpenAI-compatible endpoint. Only affects telemetry.
 	ModelProvider *ProviderConfigModelProvider `json:"modelProvider,omitempty"`
 	// Provider name used for model and telemetry attribution.
 	ProviderName *string `json:"providerName,omitempty"`

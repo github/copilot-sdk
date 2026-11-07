@@ -30,4 +30,87 @@ public record SkillInstallationLocation(
     /** Diagnostics-only absolute host path. Hosts must not display it by default. */
     @JsonProperty("diagnosticsAbsolutePath") String diagnosticsAbsolutePath
 ) {
+
+    /**
+     * Creates a record positionally.
+     * @deprecated Use {@link #builder()} for named construction.
+     */
+    @Deprecated(since = "2.0.0", forRemoval = false)
+    public SkillInstallationLocation {}
+
+    /**
+     * Returns a named builder.
+     * @return a new builder
+     * @since 2.0.0
+     */
+    public static Builder builder() { return new Builder(); }
+
+    /**
+     * Named construction for this record.
+     * @since 2.0.0
+     */
+    public static final class Builder {
+        private Builder() {}
+        private SkillInstallationScope scope;
+        private String relativePath;
+        private String displayLabel;
+        private String diagnosticsAbsolutePath;
+
+        /**
+         * Sets the {@code scope} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder scope(SkillInstallationScope value) {
+            this.scope = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code relativePath} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder relativePath(String value) {
+            this.relativePath = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code displayLabel} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder displayLabel(String value) {
+            this.displayLabel = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code diagnosticsAbsolutePath} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder diagnosticsAbsolutePath(String value) {
+            this.diagnosticsAbsolutePath = value;
+            return this;
+        }
+
+        /**
+         * Builds a record after checking required property presence.
+         * @return a new record
+         * @throws IllegalStateException if a required property is missing
+         * @since 2.0.0
+         */
+        public SkillInstallationLocation build() {
+            if (scope == null) throw new IllegalStateException("Missing required property: scope");
+            if (relativePath == null) throw new IllegalStateException("Missing required property: relativePath");
+            if (displayLabel == null) throw new IllegalStateException("Missing required property: displayLabel");
+            return new SkillInstallationLocation(scope, relativePath, displayLabel, diagnosticsAbsolutePath);
+        }
+    }
 }

@@ -41,5 +41,74 @@ public final class UserInputCompletedEvent extends SessionEvent {
         /** Whether the answer was typed as free-form text rather than selected from choices */
         @JsonProperty("wasFreeform") Boolean wasFreeform
     ) {
+
+        /**
+         * Creates a record positionally.
+         * @deprecated Use {@link #builder()} for named construction.
+         */
+        @Deprecated(since = "2.0.0", forRemoval = false)
+        public UserInputCompletedEventData {}
+
+        /**
+         * Returns a named builder.
+         * @return a new builder
+         * @since 2.0.0
+         */
+        public static Builder builder() { return new Builder(); }
+
+        /**
+         * Named construction for this record.
+         * @since 2.0.0
+         */
+        public static final class Builder {
+            private Builder() {}
+            private String requestId;
+            private String answer;
+            private Boolean wasFreeform;
+
+            /**
+             * Sets the {@code requestId} property.
+             * @param value the property value
+             * @return this builder
+             * @since 2.0.0
+             */
+            public Builder requestId(String value) {
+                this.requestId = value;
+                return this;
+            }
+
+            /**
+             * Sets the {@code answer} property.
+             * @param value the property value
+             * @return this builder
+             * @since 2.0.0
+             */
+            public Builder answer(String value) {
+                this.answer = value;
+                return this;
+            }
+
+            /**
+             * Sets the {@code wasFreeform} property.
+             * @param value the property value
+             * @return this builder
+             * @since 2.0.0
+             */
+            public Builder wasFreeform(Boolean value) {
+                this.wasFreeform = value;
+                return this;
+            }
+
+            /**
+             * Builds a record after checking required property presence.
+             * @return a new record
+             * @throws IllegalStateException if a required property is missing
+             * @since 2.0.0
+             */
+            public UserInputCompletedEventData build() {
+                if (requestId == null) throw new IllegalStateException("Missing required property: requestId");
+                return new UserInputCompletedEventData(requestId, answer, wasFreeform);
+            }
+        }
     }
 }

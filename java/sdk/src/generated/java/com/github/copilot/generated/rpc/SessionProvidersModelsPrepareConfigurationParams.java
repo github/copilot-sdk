@@ -31,4 +31,79 @@ public record SessionProvidersModelsPrepareConfigurationParams(
     /** The discovered model to configure. */
     @JsonProperty("model") DiscoveredModel model
 ) {
+
+    /**
+     * Creates a record positionally.
+     * @deprecated Use {@link #builder()} for named construction.
+     */
+    @Deprecated(since = "2.0.0", forRemoval = false)
+    public SessionProvidersModelsPrepareConfigurationParams {}
+
+    /**
+     * Returns a named builder.
+     * @return a new builder
+     * @since 2.0.0
+     */
+    @com.github.copilot.CopilotExperimental
+    public static Builder builder() { return new Builder(); }
+
+    /**
+     * Named construction for this record.
+     * @since 2.0.0
+     */
+    @com.github.copilot.CopilotExperimental
+    public static final class Builder {
+        private Builder() {}
+        private String sessionId;
+        private ModelProviderInstance instance;
+        private DiscoveredModel model;
+
+        /**
+         * Sets the {@code sessionId} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        @com.github.copilot.CopilotExperimental
+        public Builder sessionId(String value) {
+            this.sessionId = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code instance} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        @com.github.copilot.CopilotExperimental
+        public Builder instance(ModelProviderInstance value) {
+            this.instance = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code model} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        @com.github.copilot.CopilotExperimental
+        public Builder model(DiscoveredModel value) {
+            this.model = value;
+            return this;
+        }
+
+        /**
+         * Builds a record after checking required property presence.
+         * @return a new record
+         * @throws IllegalStateException if a required property is missing
+         * @since 2.0.0
+         */
+        public SessionProvidersModelsPrepareConfigurationParams build() {
+            if (instance == null) throw new IllegalStateException("Missing required property: instance");
+            if (model == null) throw new IllegalStateException("Missing required property: model");
+            return new SessionProvidersModelsPrepareConfigurationParams(sessionId, instance, model);
+        }
+    }
 }

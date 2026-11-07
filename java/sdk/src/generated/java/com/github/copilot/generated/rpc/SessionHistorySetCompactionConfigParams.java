@@ -45,4 +45,90 @@ Takes precedence over any runtime experiment that adjusts compaction
 reasoning effort. Any other value is rejected. */
     @JsonProperty("reasoningEffort") String reasoningEffort
 ) {
+
+    /**
+     * Creates a record positionally.
+     * @deprecated Use {@link #builder()} for named construction.
+     */
+    @Deprecated(since = "2.0.0", forRemoval = false)
+    public SessionHistorySetCompactionConfigParams {}
+
+    /**
+     * Returns a named builder.
+     * @return a new builder
+     * @since 2.0.0
+     */
+    @com.github.copilot.CopilotExperimental
+    public static Builder builder() { return new Builder(); }
+
+    /**
+     * Named construction for this record.
+     * @since 2.0.0
+     */
+    @com.github.copilot.CopilotExperimental
+    public static final class Builder {
+        private Builder() {}
+        private String sessionId;
+        private String model;
+        private String prompt;
+        private String reasoningEffort;
+
+        /**
+         * Sets the {@code sessionId} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        @com.github.copilot.CopilotExperimental
+        public Builder sessionId(String value) {
+            this.sessionId = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code model} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        @com.github.copilot.CopilotExperimental
+        public Builder model(String value) {
+            this.model = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code prompt} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        @com.github.copilot.CopilotExperimental
+        public Builder prompt(String value) {
+            this.prompt = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code reasoningEffort} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        @com.github.copilot.CopilotExperimental
+        public Builder reasoningEffort(String value) {
+            this.reasoningEffort = value;
+            return this;
+        }
+
+        /**
+         * Builds a record after checking required property presence.
+         * @return a new record
+         * @throws IllegalStateException if a required property is missing
+         * @since 2.0.0
+         */
+        public SessionHistorySetCompactionConfigParams build() {
+            return new SessionHistorySetCompactionConfigParams(sessionId, model, prompt, reasoningEffort);
+        }
+    }
 }

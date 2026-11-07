@@ -609,16 +609,28 @@ if (info is not null)
 <details>
 <summary><strong>Java</strong></summary>
 
-<!-- docs-validate: skip -->
 ```java
-var result = session.getRpc().metadata
-    .contextInfo(new SessionMetadataContextInfoParams(null, 0L, 0L, null))
-    .join();
-var info = result.contextInfo();
+import com.github.copilot.AllowCopilotExperimental;
+import com.github.copilot.CopilotSession;
+import com.github.copilot.generated.rpc.SessionMetadataContextInfoParams;
 
-if (info != null) {
-    System.out.printf("Total %d/%d (system=%d, conversation=%d)%n",
-        info.totalTokens(), info.promptTokenLimit(), info.systemTokens(), info.conversationTokens());
+@AllowCopilotExperimental
+class ContextInfoExample {
+    static void printContextInfo(CopilotSession session) {
+        var result = session.getRpc().metadata
+            .contextInfo(SessionMetadataContextInfoParams.builder()
+                .sessionId(session.getSessionId())
+                .promptTokenLimit(0L)
+                .outputTokenLimit(0L)
+                .build())
+            .join();
+        var info = result.contextInfo();
+
+        if (info != null) {
+            System.out.printf("Total %d/%d (system=%d, conversation=%d)%n",
+                info.totalTokens(), info.promptTokenLimit(), info.systemTokens(), info.conversationTokens());
+        }
+    }
 }
 ```
 

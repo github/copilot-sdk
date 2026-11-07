@@ -33,4 +33,79 @@ public record SessionPlanReadResult(
     @JsonInclude(JsonInclude.Include.ALWAYS)
     @JsonProperty("path") String path
 ) {
+
+    /**
+     * Creates a record positionally.
+     * @deprecated Use {@link #builder()} for named construction.
+     */
+    @Deprecated(since = "2.0.0", forRemoval = false)
+    public SessionPlanReadResult {}
+
+    /**
+     * Returns a named builder.
+     * @return a new builder
+     * @since 2.0.0
+     */
+    public static Builder builder() { return new Builder(); }
+
+    /**
+     * Named construction for this record.
+     * @since 2.0.0
+     */
+    public static final class Builder {
+        private Builder() {}
+        private Boolean exists;
+        private String content;
+        private boolean $presence1;
+        private String path;
+        private boolean $presence2;
+
+        /**
+         * Sets the {@code exists} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder exists(Boolean value) {
+            this.exists = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code content} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder content(String value) {
+            this.content = value;
+            this.$presence1 = true;
+            return this;
+        }
+
+        /**
+         * Sets the {@code path} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder path(String value) {
+            this.path = value;
+            this.$presence2 = true;
+            return this;
+        }
+
+        /**
+         * Builds a record after checking required property presence.
+         * @return a new record
+         * @throws IllegalStateException if a required property is missing
+         * @since 2.0.0
+         */
+        public SessionPlanReadResult build() {
+            if (exists == null) throw new IllegalStateException("Missing required property: exists");
+            if (!$presence1) throw new IllegalStateException("Missing required property: content");
+            if (!$presence2) throw new IllegalStateException("Missing required property: path");
+            return new SessionPlanReadResult(exists, content, path);
+        }
+    }
 }

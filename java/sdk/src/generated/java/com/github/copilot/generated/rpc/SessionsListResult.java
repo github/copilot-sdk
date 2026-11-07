@@ -28,4 +28,49 @@ public record SessionsListResult(
     /** Sessions ordered most-recently-modified first. Discriminated by `isRemote`. */
     @JsonProperty("sessions") List<Object> sessions
 ) {
+
+    /**
+     * Creates a record positionally.
+     * @deprecated Use {@link #builder()} for named construction.
+     */
+    @Deprecated(since = "2.0.0", forRemoval = false)
+    public SessionsListResult {}
+
+    /**
+     * Returns a named builder.
+     * @return a new builder
+     * @since 2.0.0
+     */
+    public static Builder builder() { return new Builder(); }
+
+    /**
+     * Named construction for this record.
+     * @since 2.0.0
+     */
+    public static final class Builder {
+        private Builder() {}
+        private List<Object> sessions;
+
+        /**
+         * Sets the {@code sessions} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder sessions(List<Object> value) {
+            this.sessions = value;
+            return this;
+        }
+
+        /**
+         * Builds a record after checking required property presence.
+         * @return a new record
+         * @throws IllegalStateException if a required property is missing
+         * @since 2.0.0
+         */
+        public SessionsListResult build() {
+            if (sessions == null) throw new IllegalStateException("Missing required property: sessions");
+            return new SessionsListResult(sessions);
+        }
+    }
 }

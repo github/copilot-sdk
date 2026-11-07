@@ -3825,9 +3825,7 @@ export interface ProviderConfig {
 
     /**
      * Product serving the model, such as "ollama" or "lm_studio", reported in
-     * telemetry as `model_provider`. "azure_openai" also omits explicit
-     * prompt-cache breakpoints, which limit cross-turn cache reuse on Azure; set
-     * it for a proxy or custom domain in front of Azure OpenAI.
+     * telemetry as `model_provider`. Only affects telemetry.
      */
     modelProvider?: ProviderConfigModelProvider;
 
@@ -3946,9 +3944,7 @@ export interface NamedProviderConfig {
 
     /**
      * Product serving this provider's models, such as "ollama" or "lm_studio",
-     * reported in telemetry as `model_provider`. "azure_openai" also omits
-     * explicit prompt-cache breakpoints, which limit cross-turn cache reuse on
-     * Azure; set it for a proxy or custom domain in front of Azure OpenAI.
+     * reported in telemetry as `model_provider`. Only affects telemetry.
      */
     modelProvider?: ProviderConfigModelProvider;
 

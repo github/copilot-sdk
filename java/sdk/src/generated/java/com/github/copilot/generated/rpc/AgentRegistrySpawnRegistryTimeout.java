@@ -41,4 +41,58 @@ public final class AgentRegistrySpawnRegistryTimeout extends AgentRegistrySpawnR
 
     public AgentRegistryLogCapture getLogCapture() { return logCapture; }
     public void setLogCapture(AgentRegistryLogCapture logCapture) { this.logCapture = logCapture; }
+
+
+    /**
+     * Returns a named builder.
+     * @return a new builder
+     * @since 2.0.0
+     */
+    public static Builder builder() { return new Builder(); }
+
+    /**
+     * Named construction for this record.
+     * @since 2.0.0
+     */
+    public static final class Builder {
+        private Builder() {}
+        private Long childPid;
+        private AgentRegistryLogCapture logCapture;
+
+        /**
+         * Sets the {@code childPid} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder childPid(Long value) {
+            this.childPid = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code logCapture} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder logCapture(AgentRegistryLogCapture value) {
+            this.logCapture = value;
+            return this;
+        }
+
+        /**
+         * Builds a variant after checking required property presence.
+         * @return a new variant
+         * @throws IllegalStateException if a required property is missing
+         * @since 2.0.0
+         */
+        public AgentRegistrySpawnRegistryTimeout build() {
+            if (childPid == null) throw new IllegalStateException("Missing required property: childPid");
+            AgentRegistrySpawnRegistryTimeout instance = new AgentRegistrySpawnRegistryTimeout();
+            instance.setChildPid(childPid);
+            instance.setLogCapture(logCapture);
+            return instance;
+        }
+    }
 }

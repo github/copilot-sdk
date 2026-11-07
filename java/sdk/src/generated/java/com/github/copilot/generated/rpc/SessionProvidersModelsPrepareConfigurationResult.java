@@ -38,4 +38,122 @@ public record SessionProvidersModelsPrepareConfigurationResult(
     /** Non-fatal warnings carried over from the discovered model, such as capabilities the provider did not report. */
     @JsonProperty("warnings") List<ModelProviderWarning> warnings
 ) {
+
+    /**
+     * Creates a record positionally.
+     * @deprecated Use {@link #builder()} for named construction.
+     */
+    @Deprecated(since = "2.0.0", forRemoval = false)
+    public SessionProvidersModelsPrepareConfigurationResult {}
+
+    /**
+     * Returns a named builder.
+     * @return a new builder
+     * @since 2.0.0
+     */
+    @com.github.copilot.CopilotExperimental
+    public static Builder builder() { return new Builder(); }
+
+    /**
+     * Named construction for this record.
+     * @since 2.0.0
+     */
+    @com.github.copilot.CopilotExperimental
+    public static final class Builder {
+        private Builder() {}
+        private NamedProviderConfig provider;
+        private ProviderModelConfig model;
+        private String selectionId;
+        private ModelProviderConfigurationDisposition providerDisposition;
+        private ModelProviderConfigurationDisposition modelDisposition;
+        private List<ModelProviderWarning> warnings;
+
+        /**
+         * Sets the {@code provider} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        @com.github.copilot.CopilotExperimental
+        public Builder provider(NamedProviderConfig value) {
+            this.provider = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code model} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        @com.github.copilot.CopilotExperimental
+        public Builder model(ProviderModelConfig value) {
+            this.model = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code selectionId} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        @com.github.copilot.CopilotExperimental
+        public Builder selectionId(String value) {
+            this.selectionId = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code providerDisposition} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        @com.github.copilot.CopilotExperimental
+        public Builder providerDisposition(ModelProviderConfigurationDisposition value) {
+            this.providerDisposition = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code modelDisposition} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        @com.github.copilot.CopilotExperimental
+        public Builder modelDisposition(ModelProviderConfigurationDisposition value) {
+            this.modelDisposition = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code warnings} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        @com.github.copilot.CopilotExperimental
+        public Builder warnings(List<ModelProviderWarning> value) {
+            this.warnings = value;
+            return this;
+        }
+
+        /**
+         * Builds a record after checking required property presence.
+         * @return a new record
+         * @throws IllegalStateException if a required property is missing
+         * @since 2.0.0
+         */
+        public SessionProvidersModelsPrepareConfigurationResult build() {
+            if (provider == null) throw new IllegalStateException("Missing required property: provider");
+            if (model == null) throw new IllegalStateException("Missing required property: model");
+            if (selectionId == null) throw new IllegalStateException("Missing required property: selectionId");
+            if (providerDisposition == null) throw new IllegalStateException("Missing required property: providerDisposition");
+            if (modelDisposition == null) throw new IllegalStateException("Missing required property: modelDisposition");
+            if (warnings == null) throw new IllegalStateException("Missing required property: warnings");
+            return new SessionProvidersModelsPrepareConfigurationResult(provider, model, selectionId, providerDisposition, modelDisposition, warnings);
+        }
+    }
 }

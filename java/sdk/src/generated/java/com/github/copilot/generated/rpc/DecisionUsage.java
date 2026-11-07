@@ -36,4 +36,105 @@ public record DecisionUsage(
     /** Reasoning tokens, when reported. */
     @JsonProperty("reasoningTokens") Long reasoningTokens
 ) {
+
+    /**
+     * Creates a record positionally.
+     * @deprecated Use {@link #builder()} for named construction.
+     */
+    @Deprecated(since = "2.0.0", forRemoval = false)
+    public DecisionUsage {}
+
+    /**
+     * Returns a named builder.
+     * @return a new builder
+     * @since 2.0.0
+     */
+    @com.github.copilot.CopilotExperimental
+    public static Builder builder() { return new Builder(); }
+
+    /**
+     * Named construction for this record.
+     * @since 2.0.0
+     */
+    @com.github.copilot.CopilotExperimental
+    public static final class Builder {
+        private Builder() {}
+        private Long inputTokens;
+        private Long cachedInputTokens;
+        private Long cacheWriteTokens;
+        private Long outputTokens;
+        private Long reasoningTokens;
+
+        /**
+         * Sets the {@code inputTokens} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        @com.github.copilot.CopilotExperimental
+        public Builder inputTokens(Long value) {
+            this.inputTokens = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code cachedInputTokens} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        @com.github.copilot.CopilotExperimental
+        public Builder cachedInputTokens(Long value) {
+            this.cachedInputTokens = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code cacheWriteTokens} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        @com.github.copilot.CopilotExperimental
+        public Builder cacheWriteTokens(Long value) {
+            this.cacheWriteTokens = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code outputTokens} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        @com.github.copilot.CopilotExperimental
+        public Builder outputTokens(Long value) {
+            this.outputTokens = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code reasoningTokens} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        @com.github.copilot.CopilotExperimental
+        public Builder reasoningTokens(Long value) {
+            this.reasoningTokens = value;
+            return this;
+        }
+
+        /**
+         * Builds a record after checking required property presence.
+         * @return a new record
+         * @throws IllegalStateException if a required property is missing
+         * @since 2.0.0
+         */
+        public DecisionUsage build() {
+            if (inputTokens == null) throw new IllegalStateException("Missing required property: inputTokens");
+            if (outputTokens == null) throw new IllegalStateException("Missing required property: outputTokens");
+            return new DecisionUsage(inputTokens, cachedInputTokens, cacheWriteTokens, outputTokens, reasoningTokens);
+        }
+    }
 }

@@ -34,4 +34,88 @@ record UserSettingsUpdateParams(
     /** Single-component name for the settings document at `<configDir>/settings/<subDir>.json`; path separators, `.` and `..` are rejected. Omit it, or pass an empty string, to use the main settings document. */
     @JsonProperty("subDir") String subDir
 ) {
+
+    /**
+     * Creates a record positionally.
+     * @deprecated Use {@link #builder()} for named construction.
+     */
+    @Deprecated(since = "2.0.0", forRemoval = false)
+    UserSettingsUpdateParams {}
+
+    /**
+     * Returns a named builder.
+     * @return a new builder
+     * @since 2.0.0
+     */
+    public static Builder builder() { return new Builder(); }
+
+    /**
+     * Named construction for this record.
+     * @since 2.0.0
+     */
+    public static final class Builder {
+        private Builder() {}
+        private String key;
+        private Object value;
+        private boolean $presence1;
+        private String configDir;
+        private String subDir;
+
+        /**
+         * Sets the {@code key} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder key(String value) {
+            this.key = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code value} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder value(Object value) {
+            this.value = value;
+            this.$presence1 = true;
+            return this;
+        }
+
+        /**
+         * Sets the {@code configDir} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder configDir(String value) {
+            this.configDir = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code subDir} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder subDir(String value) {
+            this.subDir = value;
+            return this;
+        }
+
+        /**
+         * Builds a record after checking required property presence.
+         * @return a new record
+         * @throws IllegalStateException if a required property is missing
+         * @since 2.0.0
+         */
+        public UserSettingsUpdateParams build() {
+            if (key == null) throw new IllegalStateException("Missing required property: key");
+            if (!$presence1) throw new IllegalStateException("Missing required property: value");
+            return new UserSettingsUpdateParams(key, value, configDir, subDir);
+        }
+    }
 }

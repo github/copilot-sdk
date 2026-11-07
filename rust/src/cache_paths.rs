@@ -1,4 +1,5 @@
 use std::ffi::OsStr;
+use std::io;
 use std::path::{Path, PathBuf};
 
 const SDK_CACHE_DIR: &str = "github-copilot-sdk";
@@ -6,30 +7,68 @@ const SDK_CACHE_DIR: &str = "github-copilot-sdk";
 const CLI_CACHE_DIR: &str = "cli";
 const RUNTIME_CACHE_DIR: &str = "runtime";
 
-pub(crate) fn extracted_runtime_install_dir(version: &str) -> PathBuf {
+#[cfg(unix)]
+#[path = "cache_paths/unix.rs"]
+mod unix;
+
+// Shared by build.rs and the extracted-runtime resolver; unused by bundled builds and unit tests.
+#[cfg_attr(any(test, feature = "bundled-cli"), allow(dead_code))]
+pub(crate) fn extracted_runtime_install_dir(version: &str) -> io::Result<PathBuf> {
     runtime_install_dir(
         std::env::var_os("COPILOT_CLI_EXTRACT_DIR").as_deref(),
-        &platform_cache_dir(),
+        platform_cache_root,
         version,
     )
 }
 
-fn runtime_install_dir(custom_dir: Option<&OsStr>, cache_root: &Path, version: &str) -> PathBuf {
+fn runtime_install_dir(
+    custom_dir: Option<&OsStr>,
+    cache_dir: impl FnOnce() -> io::Result<PathBuf>,
+    version: &str,
+) -> io::Result<PathBuf> {
     match custom_dir {
-        Some(custom_dir) => PathBuf::from(custom_dir),
-        None => cache_install_dir(cache_root, RUNTIME_CACHE_DIR, version),
+        Some(custom_dir) => Ok(PathBuf::from(custom_dir)),
+        None => Ok(cache_install_dir(&cache_dir()?, RUNTIME_CACHE_DIR, version)),
     }
 }
 
-fn cache_install_dir(cache_root: &Path, namespace: &str, version: &str) -> PathBuf {
+pub(crate) fn cache_install_dir(cache_root: &Path, namespace: &str, version: &str) -> PathBuf {
     cache_root
         .join(SDK_CACHE_DIR)
         .join(namespace)
         .join(version_component(version))
 }
 
-fn platform_cache_dir() -> PathBuf {
-    crate::platform_dirs::cache_dir().unwrap_or_else(std::env::temp_dir)
+pub(crate) fn platform_cache_root() -> io::Result<PathBuf> {
+    if let Some(cache) = crate::platform_dirs::cache_dir() {
+        return Ok(cache);
+    }
+    fallback_cache_root().map_err(|error| {
+        io::Error::new(
+            error.kind(),
+            format!(
+                "user cache unavailable; configure the platform user cache or an explicit \
+                 extraction directory (`bundled_cli_extract_dir` for bundled artifacts, \
+                 `COPILOT_CLI_EXTRACT_DIR` for non-bundled artifacts): {error}"
+            ),
+        )
+    })
+}
+
+fn fallback_cache_root() -> io::Result<PathBuf> {
+    #[cfg(unix)]
+    {
+        unix::private_temporary_cache_dir(&std::env::temp_dir())
+    }
+    #[cfg(not(unix))]
+    {
+        Ok(std::env::temp_dir())
+    }
+}
+
+#[cfg(any(unix, test))]
+fn private_temporary_cache(owner: u32, mode: u32, is_directory: bool, uid: u32) -> bool {
+    is_directory && owner == uid && mode & 0o077 == 0
 }
 
 fn version_component(version: &str) -> String {

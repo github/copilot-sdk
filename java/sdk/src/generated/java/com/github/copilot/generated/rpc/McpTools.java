@@ -28,4 +28,73 @@ public record McpTools(
     /** Normalized MCP Apps discovery metadata. An empty object indicates that a valid `_meta.ui` block was present without recognized fields. */
     @JsonProperty("ui") McpToolUi ui
 ) {
+
+    /**
+     * Creates a record positionally.
+     * @deprecated Use {@link #builder()} for named construction.
+     */
+    @Deprecated(since = "2.0.0", forRemoval = false)
+    public McpTools {}
+
+    /**
+     * Returns a named builder.
+     * @return a new builder
+     * @since 2.0.0
+     */
+    public static Builder builder() { return new Builder(); }
+
+    /**
+     * Named construction for this record.
+     * @since 2.0.0
+     */
+    public static final class Builder {
+        private Builder() {}
+        private String name;
+        private String description;
+        private McpToolUi ui;
+
+        /**
+         * Sets the {@code name} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder name(String value) {
+            this.name = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code description} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder description(String value) {
+            this.description = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code ui} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder ui(McpToolUi value) {
+            this.ui = value;
+            return this;
+        }
+
+        /**
+         * Builds a record after checking required property presence.
+         * @return a new record
+         * @throws IllegalStateException if a required property is missing
+         * @since 2.0.0
+         */
+        public McpTools build() {
+            if (name == null) throw new IllegalStateException("Missing required property: name");
+            return new McpTools(name, description, ui);
+        }
+    }
 }

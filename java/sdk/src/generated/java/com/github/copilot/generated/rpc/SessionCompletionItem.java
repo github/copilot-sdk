@@ -32,4 +32,97 @@ public record SessionCompletionItem(
     /** Render-kind hint for the picker row (e.g. `"document"`, `"directory"`), derived from the host's display kind. */
     @JsonProperty("kind") String kind
 ) {
+
+    /**
+     * Creates a record positionally.
+     * @deprecated Use {@link #builder()} for named construction.
+     */
+    @Deprecated(since = "2.0.0", forRemoval = false)
+    public SessionCompletionItem {}
+
+    /**
+     * Returns a named builder.
+     * @return a new builder
+     * @since 2.0.0
+     */
+    public static Builder builder() { return new Builder(); }
+
+    /**
+     * Named construction for this record.
+     * @since 2.0.0
+     */
+    public static final class Builder {
+        private Builder() {}
+        private String insertText;
+        private Long rangeStart;
+        private Long rangeEnd;
+        private String label;
+        private String kind;
+
+        /**
+         * Sets the {@code insertText} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder insertText(String value) {
+            this.insertText = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code rangeStart} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder rangeStart(Long value) {
+            this.rangeStart = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code rangeEnd} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder rangeEnd(Long value) {
+            this.rangeEnd = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code label} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder label(String value) {
+            this.label = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code kind} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder kind(String value) {
+            this.kind = value;
+            return this;
+        }
+
+        /**
+         * Builds a record after checking required property presence.
+         * @return a new record
+         * @throws IllegalStateException if a required property is missing
+         * @since 2.0.0
+         */
+        public SessionCompletionItem build() {
+            if (insertText == null) throw new IllegalStateException("Missing required property: insertText");
+            return new SessionCompletionItem(insertText, rangeStart, rangeEnd, label, kind);
+        }
+    }
 }

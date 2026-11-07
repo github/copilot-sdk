@@ -32,4 +32,79 @@ public record SessionProviderSyncResult(
     /** True when synchronization withdrew the selected host-managed model, leaving the session with no explicit selection, so ordinary model resolution picks the session default. Synchronization never promotes a surviving host model in its place: publishing a model offers it, and the choice of which model to use stays with the user. */
     @JsonProperty("modelDeselected") Boolean modelDeselected
 ) {
+
+    /**
+     * Creates a record positionally.
+     * @deprecated Use {@link #builder()} for named construction.
+     */
+    @Deprecated(since = "2.0.0", forRemoval = false)
+    public SessionProviderSyncResult {}
+
+    /**
+     * Returns a named builder.
+     * @return a new builder
+     * @since 2.0.0
+     */
+    @com.github.copilot.CopilotExperimental
+    public static Builder builder() { return new Builder(); }
+
+    /**
+     * Named construction for this record.
+     * @since 2.0.0
+     */
+    @com.github.copilot.CopilotExperimental
+    public static final class Builder {
+        private Builder() {}
+        private List<Object> models;
+        private List<String> selectionIds;
+        private Boolean modelDeselected;
+
+        /**
+         * Sets the {@code models} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        @com.github.copilot.CopilotExperimental
+        public Builder models(List<Object> value) {
+            this.models = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code selectionIds} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        @com.github.copilot.CopilotExperimental
+        public Builder selectionIds(List<String> value) {
+            this.selectionIds = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code modelDeselected} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        @com.github.copilot.CopilotExperimental
+        public Builder modelDeselected(Boolean value) {
+            this.modelDeselected = value;
+            return this;
+        }
+
+        /**
+         * Builds a record after checking required property presence.
+         * @return a new record
+         * @throws IllegalStateException if a required property is missing
+         * @since 2.0.0
+         */
+        public SessionProviderSyncResult build() {
+            if (models == null) throw new IllegalStateException("Missing required property: models");
+            if (selectionIds == null) throw new IllegalStateException("Missing required property: selectionIds");
+            return new SessionProviderSyncResult(models, selectionIds, modelDeselected);
+        }
+    }
 }

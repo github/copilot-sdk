@@ -26,6 +26,8 @@ import javax.annotation.processing.Generated;
 @javax.annotation.processing.Generated("copilot-sdk-codegen")
 @JsonInclude(JsonInclude.Include.NON_NULL)
 public final class SessionEventLogReadRequest {
+    @com.fasterxml.jackson.annotation.JsonIgnore
+    private final java.util.Set<String> $explicitNulls = new java.util.LinkedHashSet<>();
 
     /** Opaque cursor returned by a previous read in the same view. Omit on the first call to start from the beginning of the selected view. */
     @JsonProperty("cursor")
@@ -191,6 +193,8 @@ public final class SessionEventLogReadRequest {
      */
     public SessionEventLogReadRequest setTypes(Object value) {
         this.types = value;
+        if (value == null) $explicitNulls.add("types");
+        else $explicitNulls.remove("types");
         return this;
     }
 
@@ -247,5 +251,13 @@ public final class SessionEventLogReadRequest {
     public SessionEventLogReadRequest setView(EventsReadView value) {
         this.view = value;
         return this;
+    }
+
+    @com.fasterxml.jackson.annotation.JsonAnyGetter
+    @JsonInclude(value = JsonInclude.Include.ALWAYS, content = JsonInclude.Include.ALWAYS)
+    public java.util.Map<String, Object> $nullableProperties() {
+        java.util.Map<String, Object> values = new java.util.LinkedHashMap<>();
+        if ($explicitNulls.contains("types") && types == null) values.put("types", null);
+        return values;
     }
 }

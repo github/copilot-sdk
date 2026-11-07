@@ -41,5 +41,63 @@ public final class ToolExecutionPartialResultEvent extends SessionEvent {
         /** Merged replacement snapshot from the running shell, not an append-only chunk */
         @JsonProperty("partialOutput") String partialOutput
     ) {
+
+        /**
+         * Creates a record positionally.
+         * @deprecated Use {@link #builder()} for named construction.
+         */
+        @Deprecated(since = "2.0.0", forRemoval = false)
+        public ToolExecutionPartialResultEventData {}
+
+        /**
+         * Returns a named builder.
+         * @return a new builder
+         * @since 2.0.0
+         */
+        public static Builder builder() { return new Builder(); }
+
+        /**
+         * Named construction for this record.
+         * @since 2.0.0
+         */
+        public static final class Builder {
+            private Builder() {}
+            private String toolCallId;
+            private String partialOutput;
+
+            /**
+             * Sets the {@code toolCallId} property.
+             * @param value the property value
+             * @return this builder
+             * @since 2.0.0
+             */
+            public Builder toolCallId(String value) {
+                this.toolCallId = value;
+                return this;
+            }
+
+            /**
+             * Sets the {@code partialOutput} property.
+             * @param value the property value
+             * @return this builder
+             * @since 2.0.0
+             */
+            public Builder partialOutput(String value) {
+                this.partialOutput = value;
+                return this;
+            }
+
+            /**
+             * Builds a record after checking required property presence.
+             * @return a new record
+             * @throws IllegalStateException if a required property is missing
+             * @since 2.0.0
+             */
+            public ToolExecutionPartialResultEventData build() {
+                if (toolCallId == null) throw new IllegalStateException("Missing required property: toolCallId");
+                if (partialOutput == null) throw new IllegalStateException("Missing required property: partialOutput");
+                return new ToolExecutionPartialResultEventData(toolCallId, partialOutput);
+            }
+        }
     }
 }

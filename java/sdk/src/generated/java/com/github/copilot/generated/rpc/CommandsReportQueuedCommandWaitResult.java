@@ -28,4 +28,52 @@ record CommandsReportQueuedCommandWaitResult(
     /** False when the queued command is no longer pending or the awaited state is not observed. */
     @JsonProperty("recorded") Boolean recorded
 ) {
+
+    /**
+     * Creates a record positionally.
+     * @deprecated Use {@link #builder()} for named construction.
+     */
+    @Deprecated(since = "2.0.0", forRemoval = false)
+    CommandsReportQueuedCommandWaitResult {}
+
+    /**
+     * Returns a named builder.
+     * @return a new builder
+     * @since 2.0.0
+     */
+    @com.github.copilot.CopilotExperimental
+    public static Builder builder() { return new Builder(); }
+
+    /**
+     * Named construction for this record.
+     * @since 2.0.0
+     */
+    @com.github.copilot.CopilotExperimental
+    public static final class Builder {
+        private Builder() {}
+        private Boolean recorded;
+
+        /**
+         * Sets the {@code recorded} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        @com.github.copilot.CopilotExperimental
+        public Builder recorded(Boolean value) {
+            this.recorded = value;
+            return this;
+        }
+
+        /**
+         * Builds a record after checking required property presence.
+         * @return a new record
+         * @throws IllegalStateException if a required property is missing
+         * @since 2.0.0
+         */
+        public CommandsReportQueuedCommandWaitResult build() {
+            if (recorded == null) throw new IllegalStateException("Missing required property: recorded");
+            return new CommandsReportQueuedCommandWaitResult(recorded);
+        }
+    }
 }

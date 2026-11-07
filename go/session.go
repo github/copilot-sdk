@@ -107,6 +107,7 @@ type Session struct {
 	bearerTokenProviders          map[string]BearerTokenProvider
 	bearerTokenMu                 sync.RWMutex
 	releaseGitHubTokenProvider    func()
+	releaseFromClient             func()
 	gitHubTokenProviderMu         sync.Mutex
 	gitHubTokenProviderReleased   bool
 	openCanvases                  []rpc.OpenCanvasInstance
@@ -127,6 +128,7 @@ type Session struct {
 	eventBacklog             []SessionEvent
 	eventBacklogActive       bool
 	closeOnce                sync.Once
+	detached                 atomic.Bool
 	completionRPCUnsupported atomic.Bool
 
 	// RPC provides typed session-scoped RPC methods.
@@ -2702,6 +2704,12 @@ func (s *Session) detachRuntime(ctx context.Context) error {
 
 	if err != nil {
 		return fmt.Errorf("failed to disconnect session: %w", err)
+	}
+	// A detached session needs no further routing, so the client stops
+	// tracking it. A failed detach stays tracked so [Client.Stop] retries it.
+	s.detached.Store(true)
+	if s.releaseFromClient != nil {
+		s.releaseFromClient()
 	}
 	return nil
 }

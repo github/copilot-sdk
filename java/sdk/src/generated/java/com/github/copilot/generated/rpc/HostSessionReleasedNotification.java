@@ -30,4 +30,66 @@ record HostSessionReleasedNotification(
     /** Identity of the handoff retaining the original application session object. */
     @JsonProperty("handoffId") String handoffId
 ) {
+
+    /**
+     * Creates a record positionally.
+     * @deprecated Use {@link #builder()} for named construction.
+     */
+    @Deprecated(since = "2.0.0", forRemoval = false)
+    HostSessionReleasedNotification {}
+
+    /**
+     * Returns a named builder.
+     * @return a new builder
+     * @since 2.0.0
+     */
+    @com.github.copilot.CopilotExperimental
+    public static Builder builder() { return new Builder(); }
+
+    /**
+     * Named construction for this record.
+     * @since 2.0.0
+     */
+    @com.github.copilot.CopilotExperimental
+    public static final class Builder {
+        private Builder() {}
+        private String hostId;
+        private String handoffId;
+
+        /**
+         * Sets the {@code hostId} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        @com.github.copilot.CopilotExperimental
+        public Builder hostId(String value) {
+            this.hostId = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code handoffId} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        @com.github.copilot.CopilotExperimental
+        public Builder handoffId(String value) {
+            this.handoffId = value;
+            return this;
+        }
+
+        /**
+         * Builds a record after checking required property presence.
+         * @return a new record
+         * @throws IllegalStateException if a required property is missing
+         * @since 2.0.0
+         */
+        public HostSessionReleasedNotification build() {
+            if (hostId == null) throw new IllegalStateException("Missing required property: hostId");
+            if (handoffId == null) throw new IllegalStateException("Missing required property: handoffId");
+            return new HostSessionReleasedNotification(hostId, handoffId);
+        }
+    }
 }

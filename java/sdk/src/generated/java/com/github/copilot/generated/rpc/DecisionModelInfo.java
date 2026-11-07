@@ -36,4 +36,108 @@ public record DecisionModelInfo(
     /** Whether the backend can refuse individual questions. */
     @JsonProperty("supportsRefusals") Boolean supportsRefusals
 ) {
+
+    /**
+     * Creates a record positionally.
+     * @deprecated Use {@link #builder()} for named construction.
+     */
+    @Deprecated(since = "2.0.0", forRemoval = false)
+    public DecisionModelInfo {}
+
+    /**
+     * Returns a named builder.
+     * @return a new builder
+     * @since 2.0.0
+     */
+    @com.github.copilot.CopilotExperimental
+    public static Builder builder() { return new Builder(); }
+
+    /**
+     * Named construction for this record.
+     * @since 2.0.0
+     */
+    @com.github.copilot.CopilotExperimental
+    public static final class Builder {
+        private Builder() {}
+        private String id;
+        private String name;
+        private Boolean isDefault;
+        private DecisionModelLimits limits;
+        private Boolean supportsRefusals;
+
+        /**
+         * Sets the {@code id} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        @com.github.copilot.CopilotExperimental
+        public Builder id(String value) {
+            this.id = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code name} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        @com.github.copilot.CopilotExperimental
+        public Builder name(String value) {
+            this.name = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code isDefault} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        @com.github.copilot.CopilotExperimental
+        public Builder isDefault(Boolean value) {
+            this.isDefault = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code limits} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        @com.github.copilot.CopilotExperimental
+        public Builder limits(DecisionModelLimits value) {
+            this.limits = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code supportsRefusals} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        @com.github.copilot.CopilotExperimental
+        public Builder supportsRefusals(Boolean value) {
+            this.supportsRefusals = value;
+            return this;
+        }
+
+        /**
+         * Builds a record after checking required property presence.
+         * @return a new record
+         * @throws IllegalStateException if a required property is missing
+         * @since 2.0.0
+         */
+        public DecisionModelInfo build() {
+            if (id == null) throw new IllegalStateException("Missing required property: id");
+            if (name == null) throw new IllegalStateException("Missing required property: name");
+            if (isDefault == null) throw new IllegalStateException("Missing required property: isDefault");
+            if (limits == null) throw new IllegalStateException("Missing required property: limits");
+            if (supportsRefusals == null) throw new IllegalStateException("Missing required property: supportsRefusals");
+            return new DecisionModelInfo(id, name, isDefault, limits, supportsRefusals);
+        }
+    }
 }

@@ -6,6 +6,7 @@ import (
 	"compress/gzip"
 	"crypto/sha256"
 	"errors"
+	"fmt"
 	"io"
 	"os"
 	"path/filepath"
@@ -21,10 +22,116 @@ func resetGlobals() {
 	config = Config{}
 	setupDone = false
 	pathInitialized = false
+	cliPath = ""
+	cliPathCached = false
 	runtimeLibPath = ""
 	runtimePath = ""
 	runtimeAssetsInstalled = false
 	linuxMuslBundle = false
+}
+
+func TestInstallFallback(t *testing.T) {
+	for name, installBundle := range map[string]func() (string, error){
+		"cli":     func() (string, error) { return Path(), nil },
+		"runtime": RuntimePath,
+	} {
+		t.Run(name, func(t *testing.T) {
+			resetGlobals()
+			t.Cleanup(resetGlobals)
+			fallback := withoutUserCache(t)
+			cli, wrapper, node := []byte("cli"), []byte("wrapper"), []byte("node")
+			cliHash, wrapperHash, nodeHash := sha256.Sum256(cli), sha256.Sum256(wrapper), sha256.Sum256(node)
+			Setup(Config{
+				Cli:                   bytes.NewReader(cli),
+				CliHash:               cliHash[:],
+				RuntimeExecutable:     bytes.NewReader(wrapper),
+				RuntimeExecutableHash: wrapperHash[:],
+				RuntimeNode:           bytes.NewReader(node),
+				RuntimeNodeHash:       nodeHash[:],
+				Version:               "cache-trust-test",
+			})
+			binaryName, content := binaryNameForOS(), cli
+			if name == "runtime" {
+				binaryName, content = runtimeExecutableName(), wrapper
+			}
+			legacyDir := filepath.Join(os.TempDir(), "copilot-sdk", config.Version)
+			if err := os.MkdirAll(legacyDir, 0755); err != nil {
+				t.Fatal(err)
+			}
+			for artifact, data := range map[string][]byte{
+				binaryNameForOS(): cli, runtimeExecutableName(): wrapper, "runtime.node": node,
+			} {
+				if runtime.GOOS != "windows" {
+					data = []byte("legacy")
+				}
+				if err := os.WriteFile(filepath.Join(legacyDir, artifact), data, 0755); err != nil {
+					t.Fatal(err)
+				}
+			}
+
+			path, err := installBundle()
+			want := filepath.Join(fallback, "copilot-sdk", config.Version, binaryName)
+			if err != nil || path != want {
+				t.Fatalf("cache-unavailable startup: path=%q want=%q err=%v", path, want, err)
+			}
+			if got, err := os.ReadFile(path); err != nil || !bytes.Equal(got, content) {
+				t.Fatalf("fallback artifact: content=%q err=%v", got, err)
+			}
+		})
+	}
+}
+
+func TestConfiguredInstallDirPreservesOverridesWithoutUserCache(t *testing.T) {
+	resetGlobals()
+	t.Cleanup(resetGlobals)
+	fallback := withoutUserCache(t)
+	if dir, err := configuredInstallDir(); dir != filepath.Join(fallback, "copilot-sdk") || err != nil {
+		t.Fatalf("protected fallback: dir=%q err=%v", dir, err)
+	}
+	home := t.TempDir()
+	t.Setenv("COPILOT_HOME", home)
+	if dir, err := configuredInstallDir(); dir != filepath.Join(home, "cache", "copilot-sdk") || err != nil {
+		t.Fatalf("COPILOT_HOME override: dir=%q err=%v", dir, err)
+	}
+	config.Dir = t.TempDir()
+	if dir, err := configuredInstallDir(); dir != config.Dir || err != nil {
+		t.Fatalf("explicit directory override: dir=%q err=%v", dir, err)
+	}
+	config.Dir = ""
+	t.Setenv("COPILOT_HOME", "")
+	for _, key := range []string{"HOME", "XDG_CACHE_HOME", "LocalAppData"} {
+		t.Setenv(key, home)
+	}
+	cacheDir, err := os.UserCacheDir()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if dir, err := configuredInstallDir(); dir != filepath.Join(cacheDir, "copilot-sdk") || err != nil {
+		t.Fatalf("available user cache: dir=%q err=%v", dir, err)
+	}
+}
+
+// withoutUserCache makes os.UserCacheDir fail and returns the expected fallback cache root.
+func withoutUserCache(t *testing.T) string {
+	t.Helper()
+	tempDir := t.TempDir()
+	for _, key := range []string{"TMP", "TEMP", "TMPDIR"} {
+		t.Setenv(key, tempDir)
+	}
+	for _, key := range []string{"HOME", "XDG_CACHE_HOME", "LocalAppData", "USERPROFILE", "COPILOT_HOME"} {
+		t.Setenv(key, "")
+	}
+	if _, err := os.UserCacheDir(); err == nil {
+		t.Fatal("test requires unavailable user cache")
+	}
+	if runtime.GOOS == "windows" {
+		return tempDir
+	}
+	parent, err := filepath.EvalSymlinks(tempDir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return filepath.Join(parent, fmt.Sprintf("copilot-sdk-cache-%d", os.Geteuid()))
 }
 
 func TestInstallRuntimeWritesRetainedAssets(t *testing.T) {

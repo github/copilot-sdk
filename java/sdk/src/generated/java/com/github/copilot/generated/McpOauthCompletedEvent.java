@@ -39,5 +39,63 @@ public final class McpOauthCompletedEvent extends SessionEvent {
         /** How the pending OAuth request was completed. An accepted runtimeRefresh handoff completes once at its authorization terminal: token when recovery succeeded, cancelled when it was cancelled or failed; see mcp.oauth_recovery_completed for the exact outcome. */
         @JsonProperty("outcome") McpOauthCompletionOutcome outcome
     ) {
+
+        /**
+         * Creates a record positionally.
+         * @deprecated Use {@link #builder()} for named construction.
+         */
+        @Deprecated(since = "2.0.0", forRemoval = false)
+        public McpOauthCompletedEventData {}
+
+        /**
+         * Returns a named builder.
+         * @return a new builder
+         * @since 2.0.0
+         */
+        public static Builder builder() { return new Builder(); }
+
+        /**
+         * Named construction for this record.
+         * @since 2.0.0
+         */
+        public static final class Builder {
+            private Builder() {}
+            private String requestId;
+            private McpOauthCompletionOutcome outcome;
+
+            /**
+             * Sets the {@code requestId} property.
+             * @param value the property value
+             * @return this builder
+             * @since 2.0.0
+             */
+            public Builder requestId(String value) {
+                this.requestId = value;
+                return this;
+            }
+
+            /**
+             * Sets the {@code outcome} property.
+             * @param value the property value
+             * @return this builder
+             * @since 2.0.0
+             */
+            public Builder outcome(McpOauthCompletionOutcome value) {
+                this.outcome = value;
+                return this;
+            }
+
+            /**
+             * Builds a record after checking required property presence.
+             * @return a new record
+             * @throws IllegalStateException if a required property is missing
+             * @since 2.0.0
+             */
+            public McpOauthCompletedEventData build() {
+                if (requestId == null) throw new IllegalStateException("Missing required property: requestId");
+                if (outcome == null) throw new IllegalStateException("Missing required property: outcome");
+                return new McpOauthCompletedEventData(requestId, outcome);
+            }
+        }
     }
 }

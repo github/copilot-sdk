@@ -53,4 +53,221 @@ public record SessionModeSetParams(
     /** Action to perform when leaving plan mode. */
     @JsonProperty("planExitAction") String planExitAction
 ) {
+
+    /**
+     * Creates a record positionally.
+     * @deprecated Use {@link #builder()} for named construction.
+     */
+    @Deprecated(since = "2.0.0", forRemoval = false)
+    public SessionModeSetParams {}
+
+    /**
+     * Returns a named builder.
+     * @return a new builder
+     * @since 2.0.0
+     */
+    @com.github.copilot.CopilotExperimental
+    public static Builder builder() { return new Builder(); }
+
+    /**
+     * Named construction for this record.
+     * @since 2.0.0
+     */
+    @com.github.copilot.CopilotExperimental
+    public static final class Builder {
+        private Builder() {}
+        private String sessionId;
+        private SessionMode mode;
+        private SessionMode expectedMode;
+        private String inheritPlanBaseFromSessionId;
+        private Boolean planModelConfigured;
+        private String planModel;
+        private String planModelProviderId;
+        private String planReasoningEffort;
+        private String planContextTier;
+        private String compactionDecision;
+        private Boolean restorePlanModel;
+        private Boolean persistPlanSelection;
+        private ModelPickerSettingsContext pickerSettingsContext;
+        private String planExitAction;
+
+        /**
+         * Sets the {@code sessionId} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        @com.github.copilot.CopilotExperimental
+        public Builder sessionId(String value) {
+            this.sessionId = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code mode} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        @com.github.copilot.CopilotExperimental
+        public Builder mode(SessionMode value) {
+            this.mode = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code expectedMode} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        @com.github.copilot.CopilotExperimental
+        public Builder expectedMode(SessionMode value) {
+            this.expectedMode = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code inheritPlanBaseFromSessionId} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        @com.github.copilot.CopilotExperimental
+        public Builder inheritPlanBaseFromSessionId(String value) {
+            this.inheritPlanBaseFromSessionId = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code planModelConfigured} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        @com.github.copilot.CopilotExperimental
+        public Builder planModelConfigured(Boolean value) {
+            this.planModelConfigured = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code planModel} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        @com.github.copilot.CopilotExperimental
+        public Builder planModel(String value) {
+            this.planModel = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code planModelProviderId} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        @com.github.copilot.CopilotExperimental
+        public Builder planModelProviderId(String value) {
+            this.planModelProviderId = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code planReasoningEffort} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        @com.github.copilot.CopilotExperimental
+        public Builder planReasoningEffort(String value) {
+            this.planReasoningEffort = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code planContextTier} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        @com.github.copilot.CopilotExperimental
+        public Builder planContextTier(String value) {
+            this.planContextTier = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code compactionDecision} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        @com.github.copilot.CopilotExperimental
+        public Builder compactionDecision(String value) {
+            this.compactionDecision = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code restorePlanModel} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        @com.github.copilot.CopilotExperimental
+        public Builder restorePlanModel(Boolean value) {
+            this.restorePlanModel = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code persistPlanSelection} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        @com.github.copilot.CopilotExperimental
+        public Builder persistPlanSelection(Boolean value) {
+            this.persistPlanSelection = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code pickerSettingsContext} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        @com.github.copilot.CopilotExperimental
+        public Builder pickerSettingsContext(ModelPickerSettingsContext value) {
+            this.pickerSettingsContext = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code planExitAction} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        @com.github.copilot.CopilotExperimental
+        public Builder planExitAction(String value) {
+            this.planExitAction = value;
+            return this;
+        }
+
+        /**
+         * Builds a record after checking required property presence.
+         * @return a new record
+         * @throws IllegalStateException if a required property is missing
+         * @since 2.0.0
+         */
+        public SessionModeSetParams build() {
+            if (mode == null) throw new IllegalStateException("Missing required property: mode");
+            return new SessionModeSetParams(sessionId, mode, expectedMode, inheritPlanBaseFromSessionId, planModelConfigured, planModel, planModelProviderId, planReasoningEffort, planContextTier, compactionDecision, restorePlanModel, persistPlanSelection, pickerSettingsContext, planExitAction);
+        }
+    }
 }

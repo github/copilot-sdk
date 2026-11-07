@@ -20,6 +20,7 @@ import com.github.copilot.generated.rpc.DiagnosticsConfiguration;
 import com.github.copilot.generated.rpc.McpDiagnosticSourceConfiguration;
 import com.github.copilot.generated.rpc.PermissionMode;
 import com.github.copilot.generated.rpc.SessionPermissionsSetModeResult;
+import com.github.copilot.generated.rpc.SessionOpenOptions;
 import com.github.copilot.generated.rpc.SandboxConfig;
 import com.github.copilot.generated.rpc.SessionLimitsConfig;
 import com.github.copilot.generated.rpc.AutopilotOptions;
@@ -56,6 +57,22 @@ import com.github.copilot.rpc.UserInputResponse;
  * configureSession that are not reached by E2E tests.
  */
 public class SessionRequestBuilderTest {
+
+    @Test
+    void sessionOpenOptionsBuilderPreservesParallelToolChoiceOnTheWire() throws Exception {
+        var mapper = JsonRpcClient.getObjectMapper();
+        for (Boolean choice : new Boolean[]{null, false, true}) {
+            var options = SessionOpenOptions.builder().allowMultipleToolCalls(choice).build();
+            var wire = mapper.readTree(mapper.writeValueAsBytes(options));
+            if (choice == null) {
+                assertFalse(wire.has("allowMultipleToolCalls"), wire.toString());
+            } else {
+                assertEquals(choice.booleanValue(), wire.path("allowMultipleToolCalls").asBoolean(), wire.toString());
+                assertTrue(wire.has("allowMultipleToolCalls"), wire.toString());
+            }
+            assertEquals(choice, mapper.treeToValue(wire, SessionOpenOptions.class).allowMultipleToolCalls());
+        }
+    }
 
     @Test
     void toolFilterPrecedenceIsExcludedInAllModes() throws Exception {
@@ -320,8 +337,8 @@ public class SessionRequestBuilderTest {
     }
 
     private static DiagnosticsConfiguration diagnostics(DiagnosticLogLevel level) {
-        return new DiagnosticsConfiguration(
-                new DiagnosticSourcesConfiguration(new McpDiagnosticSourceConfiguration(level)));
+        return DiagnosticsConfiguration.builder().sources(DiagnosticSourcesConfiguration.builder()
+                .mcp(McpDiagnosticSourceConfiguration.builder().level(level).build()).build()).build();
     }
 
     @Test
@@ -462,7 +479,9 @@ public class SessionRequestBuilderTest {
     void testBuildRequestsForwardSandboxConfig() throws Exception {
         var mapper = JsonRpcClient.getObjectMapper();
         for (boolean enabled : new boolean[]{true, false}) {
-            var sandbox = new SandboxConfig(enabled, null, false, true, null, null, null, null, null, null, null);
+            var sandbox = SandboxConfig.builder().enabled(enabled).userPolicy(null).addCurrentWorkingDirectory(false)
+                    .sandboxMcpServers(true).sandboxLspServers(null).allowBypass(null).managedMcpRoutingLocked(null)
+                    .managedLspRoutingLocked(null).auth(null).credentials(null).allowDevToolAccess(null).build();
             var create = SessionRequestBuilder.buildCreateRequest(new SessionConfig().setSandboxConfig(sandbox));
             var resume = SessionRequestBuilder.buildResumeRequest("sid-sandbox",
                     new ResumeSessionConfig().setSandboxConfig(sandbox));
@@ -530,8 +549,8 @@ public class SessionRequestBuilderTest {
 
     @Test
     void testBuildCreateRequestForwardsSessionPolicyOptions() {
-        var sessionLimits = new SessionLimitsConfig(30.0);
-        var autopilot = new AutopilotOptions(false, 0L);
+        var sessionLimits = SessionLimitsConfig.builder().maxAiCredits(30.0).build();
+        var autopilot = AutopilotOptions.builder().continuationEnabled(false).maxContinues(0L).build();
         var config = new SessionConfig().setExcludedBuiltInAgents(List.of("explore")).setEnableCitations(true)
                 .setEnableFileChangeTracking(true).setSessionLimits(sessionLimits).setAutopilot(autopilot);
 
@@ -803,8 +822,8 @@ public class SessionRequestBuilderTest {
 
     @Test
     void testBuildResumeRequestForwardsSessionPolicyOptions() {
-        var sessionLimits = new SessionLimitsConfig(30.0);
-        var autopilot = new AutopilotOptions(null, 2L);
+        var sessionLimits = SessionLimitsConfig.builder().maxAiCredits(30.0).build();
+        var autopilot = AutopilotOptions.builder().continuationEnabled(null).maxContinues(2L).build();
         var config = new ResumeSessionConfig().setExcludedBuiltInAgents(List.of("explore")).setEnableCitations(true)
                 .setEnableFileChangeTracking(true).setSessionLimits(sessionLimits).setAutopilot(autopilot);
 

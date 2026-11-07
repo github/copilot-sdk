@@ -29,4 +29,75 @@ record AgentsGetBuiltinsResult(
     /** The subset of `names` defined by a shipped YAML definition. The remainder are special-cased in code and have no definition to load. */
     @JsonProperty("yamlBasedNames") List<String> yamlBasedNames
 ) {
+
+    /**
+     * Creates a record positionally.
+     * @deprecated Use {@link #builder()} for named construction.
+     */
+    @Deprecated(since = "2.0.0", forRemoval = false)
+    AgentsGetBuiltinsResult {}
+
+    /**
+     * Returns a named builder.
+     * @return a new builder
+     * @since 2.0.0
+     */
+    public static Builder builder() { return new Builder(); }
+
+    /**
+     * Named construction for this record.
+     * @since 2.0.0
+     */
+    public static final class Builder {
+        private Builder() {}
+        private List<String> names;
+        private List<String> disableableNames;
+        private List<String> yamlBasedNames;
+
+        /**
+         * Sets the {@code names} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder names(List<String> value) {
+            this.names = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code disableableNames} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder disableableNames(List<String> value) {
+            this.disableableNames = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code yamlBasedNames} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder yamlBasedNames(List<String> value) {
+            this.yamlBasedNames = value;
+            return this;
+        }
+
+        /**
+         * Builds a record after checking required property presence.
+         * @return a new record
+         * @throws IllegalStateException if a required property is missing
+         * @since 2.0.0
+         */
+        public AgentsGetBuiltinsResult build() {
+            if (names == null) throw new IllegalStateException("Missing required property: names");
+            if (disableableNames == null) throw new IllegalStateException("Missing required property: disableableNames");
+            if (yamlBasedNames == null) throw new IllegalStateException("Missing required property: yamlBasedNames");
+            return new AgentsGetBuiltinsResult(names, disableableNames, yamlBasedNames);
+        }
+    }
 }

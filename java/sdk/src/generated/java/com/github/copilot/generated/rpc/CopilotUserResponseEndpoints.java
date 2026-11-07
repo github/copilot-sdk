@@ -32,4 +32,96 @@ public record CopilotUserResponseEndpoints(
     /** Experimental-service endpoint URL. */
     @JsonProperty("exp") String exp
 ) {
+
+    /**
+     * Creates a record positionally.
+     * @deprecated Use {@link #builder()} for named construction.
+     */
+    @Deprecated(since = "2.0.0", forRemoval = false)
+    public CopilotUserResponseEndpoints {}
+
+    /**
+     * Returns a named builder.
+     * @return a new builder
+     * @since 2.0.0
+     */
+    public static Builder builder() { return new Builder(); }
+
+    /**
+     * Named construction for this record.
+     * @since 2.0.0
+     */
+    public static final class Builder {
+        private Builder() {}
+        private String api;
+        private String originTracker;
+        private String proxy;
+        private String telemetry;
+        private String exp;
+
+        /**
+         * Sets the {@code api} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder api(String value) {
+            this.api = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code origin-tracker} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder originTracker(String value) {
+            this.originTracker = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code proxy} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder proxy(String value) {
+            this.proxy = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code telemetry} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder telemetry(String value) {
+            this.telemetry = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code exp} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder exp(String value) {
+            this.exp = value;
+            return this;
+        }
+
+        /**
+         * Builds a record after checking required property presence.
+         * @return a new record
+         * @throws IllegalStateException if a required property is missing
+         * @since 2.0.0
+         */
+        public CopilotUserResponseEndpoints build() {
+            return new CopilotUserResponseEndpoints(api, originTracker, proxy, telemetry, exp);
+        }
+    }
 }

@@ -35,4 +35,101 @@ public record SessionWorkspacesStatFileResult(
     /** Creation time in Unix epoch milliseconds */
     @JsonProperty("birthtimeMs") Double birthtimeMs
 ) {
+
+    /**
+     * Creates a record positionally.
+     * @deprecated Use {@link #builder()} for named construction.
+     */
+    @Deprecated(since = "2.0.0", forRemoval = false)
+    public SessionWorkspacesStatFileResult {}
+
+    /**
+     * Returns a named builder.
+     * @return a new builder
+     * @since 2.0.0
+     */
+    public static Builder builder() { return new Builder(); }
+
+    /**
+     * Named construction for this record.
+     * @since 2.0.0
+     */
+    public static final class Builder {
+        private Builder() {}
+        private Boolean isFile;
+        private Boolean isDirectory;
+        private Double size;
+        private Double mtimeMs;
+        private Double birthtimeMs;
+
+        /**
+         * Sets the {@code isFile} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder isFile(Boolean value) {
+            this.isFile = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code isDirectory} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder isDirectory(Boolean value) {
+            this.isDirectory = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code size} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder size(Double value) {
+            this.size = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code mtimeMs} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder mtimeMs(Double value) {
+            this.mtimeMs = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code birthtimeMs} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder birthtimeMs(Double value) {
+            this.birthtimeMs = value;
+            return this;
+        }
+
+        /**
+         * Builds a record after checking required property presence.
+         * @return a new record
+         * @throws IllegalStateException if a required property is missing
+         * @since 2.0.0
+         */
+        public SessionWorkspacesStatFileResult build() {
+            if (isFile == null) throw new IllegalStateException("Missing required property: isFile");
+            if (isDirectory == null) throw new IllegalStateException("Missing required property: isDirectory");
+            if (size == null) throw new IllegalStateException("Missing required property: size");
+            if (mtimeMs == null) throw new IllegalStateException("Missing required property: mtimeMs");
+            if (birthtimeMs == null) throw new IllegalStateException("Missing required property: birthtimeMs");
+            return new SessionWorkspacesStatFileResult(isFile, isDirectory, size, mtimeMs, birthtimeMs);
+        }
+    }
 }

@@ -31,4 +31,86 @@ record SendAndWaitResult(
     /** Existing event at the completion boundary. SDK helpers drain its synchronous subscriber delivery before returning. Absent for quiet queue removal. */
     @JsonProperty("completionEventId") String completionEventId
 ) {
+
+    /**
+     * Creates a record positionally.
+     * @deprecated Use {@link #builder()} for named construction.
+     */
+    @Deprecated(since = "2.0.0", forRemoval = false)
+    SendAndWaitResult {}
+
+    /**
+     * Returns a named builder.
+     * @return a new builder
+     * @since 2.0.0
+     */
+    public static Builder builder() { return new Builder(); }
+
+    /**
+     * Named construction for this record.
+     * @since 2.0.0
+     */
+    public static final class Builder {
+        private Builder() {}
+        private String messageId;
+        private SessionEvent response;
+        private Boolean aborted;
+        private String completionEventId;
+
+        /**
+         * Sets the {@code messageId} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder messageId(String value) {
+            this.messageId = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code response} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder response(SessionEvent value) {
+            this.response = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code aborted} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder aborted(Boolean value) {
+            this.aborted = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code completionEventId} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder completionEventId(String value) {
+            this.completionEventId = value;
+            return this;
+        }
+
+        /**
+         * Builds a record after checking required property presence.
+         * @return a new record
+         * @throws IllegalStateException if a required property is missing
+         * @since 2.0.0
+         */
+        public SendAndWaitResult build() {
+            if (messageId == null) throw new IllegalStateException("Missing required property: messageId");
+            if (aborted == null) throw new IllegalStateException("Missing required property: aborted");
+            return new SendAndWaitResult(messageId, response, aborted, completionEventId);
+        }
+    }
 }

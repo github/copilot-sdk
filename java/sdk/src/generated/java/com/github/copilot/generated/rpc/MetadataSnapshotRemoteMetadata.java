@@ -30,4 +30,85 @@ public record MetadataSnapshotRemoteMetadata(
     /** Whether the remote task originated from Copilot Coding Agent (cca) or a CLI `--remote` invocation. */
     @JsonProperty("taskType") MetadataSnapshotRemoteMetadataTaskType taskType
 ) {
+
+    /**
+     * Creates a record positionally.
+     * @deprecated Use {@link #builder()} for named construction.
+     */
+    @Deprecated(since = "2.0.0", forRemoval = false)
+    public MetadataSnapshotRemoteMetadata {}
+
+    /**
+     * Returns a named builder.
+     * @return a new builder
+     * @since 2.0.0
+     */
+    public static Builder builder() { return new Builder(); }
+
+    /**
+     * Named construction for this record.
+     * @since 2.0.0
+     */
+    public static final class Builder {
+        private Builder() {}
+        private String resourceId;
+        private MetadataSnapshotRemoteMetadataRepository repository;
+        private Long pullRequestNumber;
+        private MetadataSnapshotRemoteMetadataTaskType taskType;
+
+        /**
+         * Sets the {@code resourceId} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder resourceId(String value) {
+            this.resourceId = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code repository} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder repository(MetadataSnapshotRemoteMetadataRepository value) {
+            this.repository = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code pullRequestNumber} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder pullRequestNumber(Long value) {
+            this.pullRequestNumber = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code taskType} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder taskType(MetadataSnapshotRemoteMetadataTaskType value) {
+            this.taskType = value;
+            return this;
+        }
+
+        /**
+         * Builds a record after checking required property presence.
+         * @return a new record
+         * @throws IllegalStateException if a required property is missing
+         * @since 2.0.0
+         */
+        public MetadataSnapshotRemoteMetadata build() {
+            if (repository == null) throw new IllegalStateException("Missing required property: repository");
+            return new MetadataSnapshotRemoteMetadata(resourceId, repository, pullRequestNumber, taskType);
+        }
+    }
 }

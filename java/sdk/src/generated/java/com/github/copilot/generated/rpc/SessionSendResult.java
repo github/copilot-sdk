@@ -27,4 +27,49 @@ public record SessionSendResult(
     /** Unique identifier assigned to the message */
     @JsonProperty("messageId") String messageId
 ) {
+
+    /**
+     * Creates a record positionally.
+     * @deprecated Use {@link #builder()} for named construction.
+     */
+    @Deprecated(since = "2.0.0", forRemoval = false)
+    public SessionSendResult {}
+
+    /**
+     * Returns a named builder.
+     * @return a new builder
+     * @since 2.0.0
+     */
+    public static Builder builder() { return new Builder(); }
+
+    /**
+     * Named construction for this record.
+     * @since 2.0.0
+     */
+    public static final class Builder {
+        private Builder() {}
+        private String messageId;
+
+        /**
+         * Sets the {@code messageId} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder messageId(String value) {
+            this.messageId = value;
+            return this;
+        }
+
+        /**
+         * Builds a record after checking required property presence.
+         * @return a new record
+         * @throws IllegalStateException if a required property is missing
+         * @since 2.0.0
+         */
+        public SessionSendResult build() {
+            if (messageId == null) throw new IllegalStateException("Missing required property: messageId");
+            return new SessionSendResult(messageId);
+        }
+    }
 }

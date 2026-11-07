@@ -30,4 +30,61 @@ public record PluginsDisableParams(
     /** Working directory whose repository `enabledPlugins` overlay decides whether this mutation is repository-controlled. Hosts that serve sessions across several repositories (the SDK server) should pass the session's directory; otherwise the guard is evaluated against the server process's own working directory, which may belong to a different repository. Defaults to the server's current working directory. */
     @JsonProperty("workingDirectory") String workingDirectory
 ) {
+
+    /**
+     * Creates a record positionally.
+     * @deprecated Use {@link #builder()} for named construction.
+     */
+    @Deprecated(since = "2.0.0", forRemoval = false)
+    public PluginsDisableParams {}
+
+    /**
+     * Returns a named builder.
+     * @return a new builder
+     * @since 2.0.0
+     */
+    public static Builder builder() { return new Builder(); }
+
+    /**
+     * Named construction for this record.
+     * @since 2.0.0
+     */
+    public static final class Builder {
+        private Builder() {}
+        private List<String> names;
+        private String workingDirectory;
+
+        /**
+         * Sets the {@code names} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder names(List<String> value) {
+            this.names = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code workingDirectory} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder workingDirectory(String value) {
+            this.workingDirectory = value;
+            return this;
+        }
+
+        /**
+         * Builds a record after checking required property presence.
+         * @return a new record
+         * @throws IllegalStateException if a required property is missing
+         * @since 2.0.0
+         */
+        public PluginsDisableParams build() {
+            if (names == null) throw new IllegalStateException("Missing required property: names");
+            return new PluginsDisableParams(names, workingDirectory);
+        }
+    }
 }

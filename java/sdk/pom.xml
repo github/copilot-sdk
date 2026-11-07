@@ -46,15 +46,19 @@
         <skip.test.harness>false</skip.test.harness>
         <!--
             Whether to skip the install-nodejs-cli-dependencies execution
-            (npm ci for the Node.js runtime preparation tooling). Defaults to ${skip.test.harness}
-            so it tracks the rest of the test-harness setup, but is also
-            forced to true when Maven tests are skipped (-DskipTests or
+            (npm ci for the Node.js runtime preparation tooling and Java
+            compatibility fixtures). Also required by ordinary runtime-backed
+            tests, independently of compatibility fixture generation. Forced
+            to true when Maven tests are skipped (-DskipTests or
             -Dmaven.test.skip) via the skip-cli-install-when-tests-skipped
             and skip-cli-install-when-maven-test-skip profiles below, so that
             non-test builds (e.g. package/deploy with tests skipped) do not
             require npm or network access.
         -->
-        <skip.cli.install>${skip.test.harness}</skip.cli.install>
+        <skip.cli.install>false</skip.cli.install>
+        <!-- Compiler-driven checks and fixtures opt in with -Pjava-compatibility. -->
+        <skip.java.compat.fixtures>true</skip.java.compat.fixtures>
+        <java.test.excluded.groups>java-compatibility</java.test.excluded.groups>
         <!-- Override with -Dnpm.loglevel=verbose when troubleshooting npm. -->
         <npm.loglevel>notice</npm.loglevel>
         <!-- Extra JVM args for Surefire; overridden by the jdk21+ profile -->
@@ -230,6 +234,25 @@
                             </arguments>
                         </configuration>
                     </execution>
+                    <execution>
+                        <id>generate-java-compatibility-fixtures</id>
+                        <phase>generate-test-resources</phase>
+                        <goals>
+                            <goal>exec</goal>
+                        </goals>
+                        <configuration>
+                            <skip>${skip.java.compat.fixtures}</skip>
+                            <executable>npm</executable>
+                            <workingDirectory>${copilot.sdk.root}/nodejs</workingDirectory>
+                            <arguments>
+                                <argument>run</argument>
+                                <argument>generate:java-compat-fixtures</argument>
+                                <argument>--</argument>
+                                <argument>--output</argument>
+                                <argument>${project.build.directory}/generated-test-resources/java-compatibility</argument>
+                            </arguments>
+                        </configuration>
+                    </execution>
                 </executions>
             </plugin>
             <plugin>
@@ -298,6 +321,7 @@
                 <artifactId>maven-surefire-plugin</artifactId>
                 <configuration>
                     <runOrder>alphabetical</runOrder>
+                    <excludedGroups>${java.test.excluded.groups}</excludedGroups>
                     <forkNode implementation="org.apache.maven.plugin.surefire.extensions.SurefireForkNodeFactory" />
                     <!-- Inject JaCoCo agent + any JDK-version-specific flags -->
                     <argLine>${testExecutionAgentArgs} ${surefire.jvm.args} --add-opens com.github.copilot.java/com.github.copilot.e2e=ALL-UNNAMED</argLine>
@@ -305,6 +329,7 @@
                     <systemPropertyVariables>
                         <copilot.tests.dir>${copilot.tests.dir}</copilot.tests.dir>
                         <copilot.sdk.dir>${copilot.sdk.root}</copilot.sdk.dir>
+                        <copilot.java.compat.fixtures.dir>${project.build.directory}/generated-test-resources/java-compatibility</copilot.java.compat.fixtures.dir>
                     </systemPropertyVariables>
                     <!--
                         Set COPILOT_CLI_PATH for the forked test JVM so the SDK
@@ -342,7 +367,7 @@
                     <execution>
                         <id>default-test</id>
                         <configuration>
-                            <excludedGroups>isolated-resume | e2e</excludedGroups>
+                            <excludedGroups>isolated-resume | e2e | ${java.test.excluded.groups}</excludedGroups>
                         </configuration>
                     </execution>
                     <!-- Keep unit tests with global mocks outside the parallel E2E run. -->
@@ -528,6 +553,74 @@
     </build>
 
     <profiles>
+        <profile>
+            <id>java-compatibility</id>
+            <properties>
+                <skip.java.compat.fixtures>false</skip.java.compat.fixtures>
+                <skip.test.harness>true</skip.test.harness>
+                <java.test.excluded.groups>isolated-resume</java.test.excluded.groups>
+            </properties>
+            <build>
+                <plugins>
+                    <plugin>
+                        <groupId>org.apache.maven.plugins</groupId>
+                        <artifactId>maven-surefire-plugin</artifactId>
+                        <configuration>
+                            <groups>java-compatibility</groups>
+                            <failIfNoTests>true</failIfNoTests>
+                            <systemPropertyVariables>
+                                <copilot.java.compat.baseline.dir>${project.build.directory}/release-baseline</copilot.java.compat.baseline.dir>
+                            </systemPropertyVariables>
+                        </configuration>
+                        <executions>
+                            <execution>
+                                <id>isolated-resume-tests</id>
+                                <configuration>
+                                    <skipTests>true</skipTests>
+                                </configuration>
+                            </execution>
+                            <execution>
+                                <id>e2e-tests</id>
+                                <configuration>
+                                    <skipTests>true</skipTests>
+                                </configuration>
+                            </execution>
+                        </executions>
+                    </plugin>
+                    <plugin>
+                        <groupId>org.apache.maven.plugins</groupId>
+                        <artifactId>maven-dependency-plugin</artifactId>
+                        <executions>
+                            <execution>
+                                <id>prepare-java-release-baseline</id>
+                                <phase>generate-test-resources</phase>
+                                <goals>
+                                    <goal>copy</goal>
+                                </goals>
+                                <configuration>
+                                    <skip>${skip.java.compat.fixtures}</skip>
+                                    <artifactItems>
+                                        <artifactItem>
+                                            <groupId>com.github</groupId>
+                                            <artifactId>copilot-sdk-java</artifactId>
+                                            <version>1.0.28</version>
+                                            <type>jar</type>
+                                        </artifactItem>
+                                        <artifactItem>
+                                            <groupId>com.github</groupId>
+                                            <artifactId>copilot-sdk-java</artifactId>
+                                            <version>1.0.28</version>
+                                            <type>pom</type>
+                                        </artifactItem>
+                                    </artifactItems>
+                                    <outputDirectory>${project.build.directory}/release-baseline</outputDirectory>
+                                </configuration>
+                            </execution>
+                        </executions>
+                    </plugin>
+                </plugins>
+            </build>
+        </profile>
         <!-- Enable dynamic agent loading on JDK 21+ so Mockito/ByteBuddy
              can attach at runtime (JEP 451). The flag does not exist on
              earlier JDKs, so it must be conditional. -->
@@ -795,6 +888,7 @@ did not produce the multi-release output. Re-build on JDK 25+ and verify the
             </activation>
             <properties>
                 <skip.cli.install>true</skip.cli.install>
+                <skip.java.compat.fixtures>true</skip.java.compat.fixtures>
             </properties>
         </profile>
         <!--
@@ -810,6 +904,7 @@ did not produce the multi-release output. Re-build on JDK 25+ and verify the
             </activation>
             <properties>
                 <skip.cli.install>true</skip.cli.install>
+                <skip.java.compat.fixtures>true</skip.java.compat.fixtures>
             </properties>
         </profile>
         <!-- Debug profile for FINE logging during tests -->

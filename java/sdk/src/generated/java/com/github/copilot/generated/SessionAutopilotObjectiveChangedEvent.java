@@ -41,5 +41,74 @@ public final class SessionAutopilotObjectiveChangedEvent extends SessionEvent {
         /** Current autopilot objective status, if one exists */
         @JsonProperty("status") AutopilotObjectiveChangedStatus status
     ) {
+
+        /**
+         * Creates a record positionally.
+         * @deprecated Use {@link #builder()} for named construction.
+         */
+        @Deprecated(since = "2.0.0", forRemoval = false)
+        public SessionAutopilotObjectiveChangedEventData {}
+
+        /**
+         * Returns a named builder.
+         * @return a new builder
+         * @since 2.0.0
+         */
+        public static Builder builder() { return new Builder(); }
+
+        /**
+         * Named construction for this record.
+         * @since 2.0.0
+         */
+        public static final class Builder {
+            private Builder() {}
+            private AutopilotObjectiveChangedOperation operation;
+            private Long id;
+            private AutopilotObjectiveChangedStatus status;
+
+            /**
+             * Sets the {@code operation} property.
+             * @param value the property value
+             * @return this builder
+             * @since 2.0.0
+             */
+            public Builder operation(AutopilotObjectiveChangedOperation value) {
+                this.operation = value;
+                return this;
+            }
+
+            /**
+             * Sets the {@code id} property.
+             * @param value the property value
+             * @return this builder
+             * @since 2.0.0
+             */
+            public Builder id(Long value) {
+                this.id = value;
+                return this;
+            }
+
+            /**
+             * Sets the {@code status} property.
+             * @param value the property value
+             * @return this builder
+             * @since 2.0.0
+             */
+            public Builder status(AutopilotObjectiveChangedStatus value) {
+                this.status = value;
+                return this;
+            }
+
+            /**
+             * Builds a record after checking required property presence.
+             * @return a new record
+             * @throws IllegalStateException if a required property is missing
+             * @since 2.0.0
+             */
+            public SessionAutopilotObjectiveChangedEventData build() {
+                if (operation == null) throw new IllegalStateException("Missing required property: operation");
+                return new SessionAutopilotObjectiveChangedEventData(operation, id, status);
+            }
+        }
     }
 }

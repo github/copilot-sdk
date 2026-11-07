@@ -34,4 +34,45 @@ public final class InstallationReviewSkill extends InstallationReview {
 
     public SkillInstallationReview getReview() { return review; }
     public void setReview(SkillInstallationReview review) { this.review = review; }
+
+
+    /**
+     * Returns a named builder.
+     * @return a new builder
+     * @since 2.0.0
+     */
+    public static Builder builder() { return new Builder(); }
+
+    /**
+     * Named construction for this record.
+     * @since 2.0.0
+     */
+    public static final class Builder {
+        private Builder() {}
+        private SkillInstallationReview review;
+
+        /**
+         * Sets the {@code review} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder review(SkillInstallationReview value) {
+            this.review = value;
+            return this;
+        }
+
+        /**
+         * Builds a variant after checking required property presence.
+         * @return a new variant
+         * @throws IllegalStateException if a required property is missing
+         * @since 2.0.0
+         */
+        public InstallationReviewSkill build() {
+            if (review == null) throw new IllegalStateException("Missing required property: review");
+            InstallationReviewSkill instance = new InstallationReviewSkill();
+            instance.setReview(review);
+            return instance;
+        }
+    }
 }

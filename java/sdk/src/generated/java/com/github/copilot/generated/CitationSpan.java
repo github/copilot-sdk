@@ -33,4 +33,80 @@ public record CitationSpan(
     /** The sources that support this span of generated text. */
     @JsonProperty("references") List<CitationReference> references
 ) {
+
+    /**
+     * Creates a record positionally.
+     * @deprecated Use {@link #builder()} for named construction.
+     */
+    @Deprecated(since = "2.0.0", forRemoval = false)
+    public CitationSpan {}
+
+    /**
+     * Returns a named builder.
+     * @return a new builder
+     * @since 2.0.0
+     */
+    @com.github.copilot.CopilotExperimental
+    public static Builder builder() { return new Builder(); }
+
+    /**
+     * Named construction for this record.
+     * @since 2.0.0
+     */
+    @com.github.copilot.CopilotExperimental
+    public static final class Builder {
+        private Builder() {}
+        private Long startIndex;
+        private Long endIndex;
+        private List<CitationReference> references;
+
+        /**
+         * Sets the {@code startIndex} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        @com.github.copilot.CopilotExperimental
+        public Builder startIndex(Long value) {
+            this.startIndex = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code endIndex} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        @com.github.copilot.CopilotExperimental
+        public Builder endIndex(Long value) {
+            this.endIndex = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code references} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        @com.github.copilot.CopilotExperimental
+        public Builder references(List<CitationReference> value) {
+            this.references = value;
+            return this;
+        }
+
+        /**
+         * Builds a record after checking required property presence.
+         * @return a new record
+         * @throws IllegalStateException if a required property is missing
+         * @since 2.0.0
+         */
+        public CitationSpan build() {
+            if (startIndex == null) throw new IllegalStateException("Missing required property: startIndex");
+            if (endIndex == null) throw new IllegalStateException("Missing required property: endIndex");
+            if (references == null) throw new IllegalStateException("Missing required property: references");
+            return new CitationSpan(startIndex, endIndex, references);
+        }
+    }
 }

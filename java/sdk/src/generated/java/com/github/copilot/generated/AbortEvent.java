@@ -37,5 +37,50 @@ public final class AbortEvent extends SessionEvent {
         /** Finite reason code describing why the current turn was aborted */
         @JsonProperty("reason") AbortReason reason
     ) {
+
+        /**
+         * Creates a record positionally.
+         * @deprecated Use {@link #builder()} for named construction.
+         */
+        @Deprecated(since = "2.0.0", forRemoval = false)
+        public AbortEventData {}
+
+        /**
+         * Returns a named builder.
+         * @return a new builder
+         * @since 2.0.0
+         */
+        public static Builder builder() { return new Builder(); }
+
+        /**
+         * Named construction for this record.
+         * @since 2.0.0
+         */
+        public static final class Builder {
+            private Builder() {}
+            private AbortReason reason;
+
+            /**
+             * Sets the {@code reason} property.
+             * @param value the property value
+             * @return this builder
+             * @since 2.0.0
+             */
+            public Builder reason(AbortReason value) {
+                this.reason = value;
+                return this;
+            }
+
+            /**
+             * Builds a record after checking required property presence.
+             * @return a new record
+             * @throws IllegalStateException if a required property is missing
+             * @since 2.0.0
+             */
+            public AbortEventData build() {
+                if (reason == null) throw new IllegalStateException("Missing required property: reason");
+                return new AbortEventData(reason);
+            }
+        }
     }
 }

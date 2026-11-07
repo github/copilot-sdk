@@ -27,4 +27,49 @@ public record SessionsFindByTaskIdParams(
     /** GitHub task ID to look up */
     @JsonProperty("taskId") String taskId
 ) {
+
+    /**
+     * Creates a record positionally.
+     * @deprecated Use {@link #builder()} for named construction.
+     */
+    @Deprecated(since = "2.0.0", forRemoval = false)
+    public SessionsFindByTaskIdParams {}
+
+    /**
+     * Returns a named builder.
+     * @return a new builder
+     * @since 2.0.0
+     */
+    public static Builder builder() { return new Builder(); }
+
+    /**
+     * Named construction for this record.
+     * @since 2.0.0
+     */
+    public static final class Builder {
+        private Builder() {}
+        private String taskId;
+
+        /**
+         * Sets the {@code taskId} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder taskId(String value) {
+            this.taskId = value;
+            return this;
+        }
+
+        /**
+         * Builds a record after checking required property presence.
+         * @return a new record
+         * @throws IllegalStateException if a required property is missing
+         * @since 2.0.0
+         */
+        public SessionsFindByTaskIdParams build() {
+            if (taskId == null) throw new IllegalStateException("Missing required property: taskId");
+            return new SessionsFindByTaskIdParams(taskId);
+        }
+    }
 }

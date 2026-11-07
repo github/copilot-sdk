@@ -36,4 +36,120 @@ public record DebugCollectLogsInclude(
     /** Maximum number of previous process logs to include. Defaults to 5. */
     @JsonProperty("previousProcessLogLimit") Long previousProcessLogLimit
 ) {
+
+    /**
+     * Creates a record positionally.
+     * @deprecated Use {@link #builder()} for named construction.
+     */
+    @Deprecated(since = "2.0.0", forRemoval = false)
+    public DebugCollectLogsInclude {}
+
+    /**
+     * Returns a named builder.
+     * @return a new builder
+     * @since 2.0.0
+     */
+    public static Builder builder() { return new Builder(); }
+
+    /**
+     * Named construction for this record.
+     * @since 2.0.0
+     */
+    public static final class Builder {
+        private Builder() {}
+        private Boolean events;
+        private Boolean processLogs;
+        private Boolean shellLogs;
+        private String eventsPath;
+        private String currentProcessLogPath;
+        private String processLogDirectory;
+        private Long previousProcessLogLimit;
+
+        /**
+         * Sets the {@code events} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder events(Boolean value) {
+            this.events = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code processLogs} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder processLogs(Boolean value) {
+            this.processLogs = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code shellLogs} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder shellLogs(Boolean value) {
+            this.shellLogs = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code eventsPath} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder eventsPath(String value) {
+            this.eventsPath = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code currentProcessLogPath} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder currentProcessLogPath(String value) {
+            this.currentProcessLogPath = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code processLogDirectory} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder processLogDirectory(String value) {
+            this.processLogDirectory = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code previousProcessLogLimit} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder previousProcessLogLimit(Long value) {
+            this.previousProcessLogLimit = value;
+            return this;
+        }
+
+        /**
+         * Builds a record after checking required property presence.
+         * @return a new record
+         * @throws IllegalStateException if a required property is missing
+         * @since 2.0.0
+         */
+        public DebugCollectLogsInclude build() {
+            return new DebugCollectLogsInclude(events, processLogs, shellLogs, eventsPath, currentProcessLogPath, processLogDirectory, previousProcessLogLimit);
+        }
+    }
 }

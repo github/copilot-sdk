@@ -377,13 +377,11 @@ final class RpcHandlerDispatcher {
                 return;
             }
             if (result.isCancelled()) {
-                rpc.sendResponse(requestId, new GitHubTokenAcquireResultCancelled());
+                rpc.sendResponse(requestId, GitHubTokenAcquireResultCancelled.builder().build());
                 return;
             }
-            var wireResult = new GitHubTokenAcquireResultToken();
-            wireResult.setAccessToken(result.getAccessToken());
-            wireResult.setExpiresIn(result.getExpiresIn());
-            wireResult.setTokenType(result.getTokenType());
+            var wireResult = GitHubTokenAcquireResultToken.builder().accessToken(result.getAccessToken())
+                    .expiresIn(result.getExpiresIn()).tokenType(result.getTokenType()).build();
             rpc.sendResponse(requestId, wireResult);
         } catch (IOException error) {
             LOG.log(Level.SEVERE, "Error sending GitHub token provider result", error);

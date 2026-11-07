@@ -50,5 +50,123 @@ public final class SessionHandoffEvent extends SessionEvent {
         /** GitHub host URL for the source session (e.g., https://github.com or https://tenant.ghe.com) */
         @JsonProperty("host") String host
     ) {
+
+        /**
+         * Creates a record positionally.
+         * @deprecated Use {@link #builder()} for named construction.
+         */
+        @Deprecated(since = "2.0.0", forRemoval = false)
+        public SessionHandoffEventData {}
+
+        /**
+         * Returns a named builder.
+         * @return a new builder
+         * @since 2.0.0
+         */
+        public static Builder builder() { return new Builder(); }
+
+        /**
+         * Named construction for this record.
+         * @since 2.0.0
+         */
+        public static final class Builder {
+            private Builder() {}
+            private OffsetDateTime handoffTime;
+            private HandoffSourceType sourceType;
+            private HandoffRepository repository;
+            private String context;
+            private String summary;
+            private String remoteSessionId;
+            private String host;
+
+            /**
+             * Sets the {@code handoffTime} property.
+             * @param value the property value
+             * @return this builder
+             * @since 2.0.0
+             */
+            public Builder handoffTime(OffsetDateTime value) {
+                this.handoffTime = value;
+                return this;
+            }
+
+            /**
+             * Sets the {@code sourceType} property.
+             * @param value the property value
+             * @return this builder
+             * @since 2.0.0
+             */
+            public Builder sourceType(HandoffSourceType value) {
+                this.sourceType = value;
+                return this;
+            }
+
+            /**
+             * Sets the {@code repository} property.
+             * @param value the property value
+             * @return this builder
+             * @since 2.0.0
+             */
+            public Builder repository(HandoffRepository value) {
+                this.repository = value;
+                return this;
+            }
+
+            /**
+             * Sets the {@code context} property.
+             * @param value the property value
+             * @return this builder
+             * @since 2.0.0
+             */
+            public Builder context(String value) {
+                this.context = value;
+                return this;
+            }
+
+            /**
+             * Sets the {@code summary} property.
+             * @param value the property value
+             * @return this builder
+             * @since 2.0.0
+             */
+            public Builder summary(String value) {
+                this.summary = value;
+                return this;
+            }
+
+            /**
+             * Sets the {@code remoteSessionId} property.
+             * @param value the property value
+             * @return this builder
+             * @since 2.0.0
+             */
+            public Builder remoteSessionId(String value) {
+                this.remoteSessionId = value;
+                return this;
+            }
+
+            /**
+             * Sets the {@code host} property.
+             * @param value the property value
+             * @return this builder
+             * @since 2.0.0
+             */
+            public Builder host(String value) {
+                this.host = value;
+                return this;
+            }
+
+            /**
+             * Builds a record after checking required property presence.
+             * @return a new record
+             * @throws IllegalStateException if a required property is missing
+             * @since 2.0.0
+             */
+            public SessionHandoffEventData build() {
+                if (handoffTime == null) throw new IllegalStateException("Missing required property: handoffTime");
+                if (sourceType == null) throw new IllegalStateException("Missing required property: sourceType");
+                return new SessionHandoffEventData(handoffTime, sourceType, repository, context, summary, remoteSessionId, host);
+            }
+        }
     }
 }

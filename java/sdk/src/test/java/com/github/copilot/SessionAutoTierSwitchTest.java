@@ -5,6 +5,7 @@
 package com.github.copilot;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
@@ -15,11 +16,16 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.github.copilot.generated.rpc.ModelSwitchAutoTierStatus;
 import com.github.copilot.generated.rpc.SessionModelSwitchAutoTierResult;
 import com.github.copilot.rpc.AutoTier;
+import com.github.copilot.rpc.ElicitationParams;
+import com.github.copilot.rpc.ElicitationSchema;
+import com.github.copilot.rpc.SessionCapabilities;
+import com.github.copilot.rpc.SessionUiCapabilities;
 import com.github.copilot.rpc.SetModelOptions;
 import java.io.InputStream;
 import java.net.InetAddress;
 import java.net.ServerSocket;
 import java.net.Socket;
+import java.util.Map;
 import org.junit.jupiter.api.Test;
 
 /**
@@ -27,11 +33,39 @@ import org.junit.jupiter.api.Test;
  * <p>
  * The runtime treats an explicit {@code null} {@code autoTier} (return to
  * provider-default routing) differently from an absent one (leave the
- * preference unchanged), so these tests assert on the raw JSON rather than on
- * the generated params records, which drop null properties.
+ * preference unchanged), so these tests assert on the raw JSON.
  */
 @AllowCopilotExperimental
 class SessionAutoTierSwitchTest {
+
+    @Test
+    void nullRequiredValuesPreserveOmittedWireFields() throws Exception {
+        try (var sockets = new SocketPair()) {
+            var session = new CopilotSession("sess-validation", sockets.client());
+            session.setCapabilities(new SessionCapabilities().setUi(new SessionUiCapabilities().setElicitation(true)));
+            var stub = sockets.stubServer();
+
+            assertDoesNotThrow(() -> session.getUi().elicitation(
+                    new ElicitationParams().setRequestedSchema(new ElicitationSchema().setProperties(Map.of()))));
+            assertFalse(stub.readOneMessage().path("params").has("message"));
+
+            assertDoesNotThrow(() -> session.getUi().elicitation(
+                    new ElicitationParams().setMessage("Choose").setRequestedSchema(new ElicitationSchema())));
+            assertFalse(stub.readOneMessage().path("params").path("requestedSchema").has("properties"));
+
+            assertDoesNotThrow(() -> session.getUi().confirm(null));
+            assertFalse(stub.readOneMessage().path("params").has("message"));
+
+            assertDoesNotThrow(() -> session.getUi().select(null, new String[]{"one"}));
+            assertFalse(stub.readOneMessage().path("params").has("message"));
+
+            assertDoesNotThrow(() -> session.getUi().input(null, null));
+            assertFalse(stub.readOneMessage().path("params").has("message"));
+
+            assertDoesNotThrow(() -> session.log(null, null, null, null));
+            assertFalse(stub.readOneMessage().path("params").has("message"));
+        }
+    }
 
     @Test
     void customTierRoundTripsAcrossConvenienceAndGeneratedApis() throws Exception {
@@ -73,6 +107,49 @@ class SessionAutoTierSwitchTest {
     }
 
     @Test
+    void positional_model_switch_overloads_accept_null_model_and_omit_it() throws Exception {
+        try (var sockets = new SocketPair()) {
+            var session = new CopilotSession("sess-null-model", sockets.client());
+            var stub = sockets.stubServer();
+
+            session.setModel((String) null);
+            assertNullModelWasOmitted(stub.readOneMessage().get("params"));
+            session.setModel((String) null, (String) null);
+            assertNullModelWasOmitted(stub.readOneMessage().get("params"));
+            session.setModel((String) null, (String) null, (com.github.copilot.rpc.ModelCapabilitiesOverride) null);
+            assertNullModelWasOmitted(stub.readOneMessage().get("params"));
+            session.setModel((String) null, (String) null, (String) null,
+                    (com.github.copilot.rpc.ModelCapabilitiesOverride) null);
+            assertNullModelWasOmitted(stub.readOneMessage().get("params"));
+        }
+    }
+
+    @Test
+    void setModel_preserves_open_auto_tiers_and_capability_values() throws Exception {
+        try (var sockets = new SocketPair()) {
+            var session = new CopilotSession("sess-capabilities", sockets.client());
+            var stub = sockets.stubServer();
+            var capabilities = new com.github.copilot.rpc.ModelCapabilitiesOverride()
+                    .setSupports(new com.github.copilot.rpc.ModelCapabilitiesOverride.Supports().setVision(false)
+                            .setReasoningEffort(true))
+                    .setLimits(new com.github.copilot.rpc.ModelCapabilitiesOverride.Limits().setMaxPromptTokens(0));
+
+            session.setModel(new SetModelOptions().setModel("auto")
+                    .setAutoTier(AutoTier.fromValue("provider-future-tier")).setReasoningEffort("xhigh")
+                    .setReasoningSummary("detailed").setModelCapabilities(capabilities));
+
+            var params = stub.readOneMessage().get("params");
+            assertEquals("sess-capabilities", params.path("sessionId").asText());
+            assertEquals("provider-future-tier", params.path("autoTier").asText());
+            assertEquals("xhigh", params.path("reasoningEffort").asText());
+            assertEquals("detailed", params.path("reasoningSummary").asText());
+            assertFalse(params.path("modelCapabilities").path("supports").path("vision").asBoolean());
+            assertTrue(params.path("modelCapabilities").path("supports").path("reasoningEffort").asBoolean());
+            assertEquals(0, params.path("modelCapabilities").path("limits").path("max_prompt_tokens").asInt());
+        }
+    }
+
+    @Test
     void setModel_omits_autoTier_when_no_preference_is_requested() throws Exception {
         try (var sockets = new SocketPair()) {
             var session = new CopilotSession("sess-1", sockets.client());
@@ -83,6 +160,47 @@ class SessionAutoTierSwitchTest {
             var params = stub.readOneMessage().get("params");
             assertEquals("auto", params.get("modelId").asText());
             assertFalse(params.has("autoTier"), "an unset preference must not appear on the wire");
+
+            session.setModel(new SetModelOptions().setModel("auto").setAutoTier(null));
+            assertFalse(stub.readOneMessage().path("params").has("autoTier"),
+                    "a null convenience option must leave the preference unchanged");
+        }
+    }
+
+    @Test
+    void setModel_omits_reasoningEffort_when_unset() throws Exception {
+        try (var sockets = new SocketPair()) {
+            var session = new CopilotSession("sess-unset-effort", sockets.client());
+
+            session.setModel(new SetModelOptions().setModel("auto").setAutoTier(AutoTier.FAST));
+
+            var params = sockets.stubServer().readOneMessage().get("params");
+            assertEquals("fast", params.path("autoTier").asText());
+            assertFalse(params.has("reasoningEffort"), "an unset effort must not reset the current override");
+        }
+    }
+
+    @Test
+    void setModel_sends_explicit_null_reasoningEffort_when_resetting() throws Exception {
+        try (var sockets = new SocketPair()) {
+            var session = new CopilotSession("sess-reset-effort", sockets.client());
+            var options = new SetModelOptions().setModel("auto").setReasoningEffort(null);
+
+            session.setModel(options);
+            var reset = sockets.stubServer().readOneMessage().get("params");
+            assertTrue(reset.has("reasoningEffort"), "an explicit reset must be present: " + reset);
+            assertTrue(reset.get("reasoningEffort").isNull(), "an explicit reset must send JSON null: " + reset);
+
+            options.setReasoningEffort("high");
+            session.setModel(options);
+            assertEquals("high", sockets.stubServer().readOneMessage().path("params").path("reasoningEffort").asText());
+
+            options.setReasoningEffort(null);
+            session.setModel(options);
+            var reusedReset = sockets.stubServer().readOneMessage().get("params");
+            assertTrue(reusedReset.has("reasoningEffort"),
+                    "a reused option must preserve an explicit reset: " + reusedReset);
+            assertTrue(reusedReset.get("reasoningEffort").isNull());
         }
     }
 
@@ -139,7 +257,13 @@ class SessionAutoTierSwitchTest {
 
             assertThrows(IllegalArgumentException.class, () -> session.setModel(new SetModelOptions()));
             assertThrows(IllegalArgumentException.class, () -> session.setModel((SetModelOptions) null));
+            assertEquals(0, sockets.serverSocket.getInputStream().available(), "Invalid options must not send an RPC");
         }
+    }
+
+    private static void assertNullModelWasOmitted(JsonNode params) {
+        assertEquals("sess-null-model", params.path("sessionId").asText());
+        assertFalse(params.has("modelId"));
     }
 
     @Test

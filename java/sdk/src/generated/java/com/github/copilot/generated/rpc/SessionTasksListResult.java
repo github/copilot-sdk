@@ -28,4 +28,49 @@ public record SessionTasksListResult(
     /** Currently tracked tasks */
     @JsonProperty("tasks") List<Object> tasks
 ) {
+
+    /**
+     * Creates a record positionally.
+     * @deprecated Use {@link #builder()} for named construction.
+     */
+    @Deprecated(since = "2.0.0", forRemoval = false)
+    public SessionTasksListResult {}
+
+    /**
+     * Returns a named builder.
+     * @return a new builder
+     * @since 2.0.0
+     */
+    public static Builder builder() { return new Builder(); }
+
+    /**
+     * Named construction for this record.
+     * @since 2.0.0
+     */
+    public static final class Builder {
+        private Builder() {}
+        private List<Object> tasks;
+
+        /**
+         * Sets the {@code tasks} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder tasks(List<Object> value) {
+            this.tasks = value;
+            return this;
+        }
+
+        /**
+         * Builds a record after checking required property presence.
+         * @return a new record
+         * @throws IllegalStateException if a required property is missing
+         * @since 2.0.0
+         */
+        public SessionTasksListResult build() {
+            if (tasks == null) throw new IllegalStateException("Missing required property: tasks");
+            return new SessionTasksListResult(tasks);
+        }
+    }
 }

@@ -32,4 +32,79 @@ public record SessionProviderWithdrawResult(
     /** True when withdrawal removed the selected host-managed model, leaving the session with no explicit selection, so ordinary model resolution picks the session default. Withdrawal never promotes a surviving model in its place: the choice of which model to use stays with the user. */
     @JsonProperty("modelDeselected") Boolean modelDeselected
 ) {
+
+    /**
+     * Creates a record positionally.
+     * @deprecated Use {@link #builder()} for named construction.
+     */
+    @Deprecated(since = "2.0.0", forRemoval = false)
+    public SessionProviderWithdrawResult {}
+
+    /**
+     * Returns a named builder.
+     * @return a new builder
+     * @since 2.0.0
+     */
+    @com.github.copilot.CopilotExperimental
+    public static Builder builder() { return new Builder(); }
+
+    /**
+     * Named construction for this record.
+     * @since 2.0.0
+     */
+    @com.github.copilot.CopilotExperimental
+    public static final class Builder {
+        private Builder() {}
+        private List<String> withdrawn;
+        private List<String> providersRemoved;
+        private Boolean modelDeselected;
+
+        /**
+         * Sets the {@code withdrawn} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        @com.github.copilot.CopilotExperimental
+        public Builder withdrawn(List<String> value) {
+            this.withdrawn = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code providersRemoved} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        @com.github.copilot.CopilotExperimental
+        public Builder providersRemoved(List<String> value) {
+            this.providersRemoved = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code modelDeselected} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        @com.github.copilot.CopilotExperimental
+        public Builder modelDeselected(Boolean value) {
+            this.modelDeselected = value;
+            return this;
+        }
+
+        /**
+         * Builds a record after checking required property presence.
+         * @return a new record
+         * @throws IllegalStateException if a required property is missing
+         * @since 2.0.0
+         */
+        public SessionProviderWithdrawResult build() {
+            if (withdrawn == null) throw new IllegalStateException("Missing required property: withdrawn");
+            if (providersRemoved == null) throw new IllegalStateException("Missing required property: providersRemoved");
+            return new SessionProviderWithdrawResult(withdrawn, providersRemoved, modelDeselected);
+        }
+    }
 }

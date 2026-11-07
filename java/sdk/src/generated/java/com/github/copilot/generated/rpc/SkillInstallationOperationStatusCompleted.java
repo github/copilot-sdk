@@ -31,15 +31,89 @@ public record SkillInstallationOperationStatusCompleted(
     @JsonProperty("outcome") Object outcome,
     @JsonProperty("phase") String phase
 ) implements SkillInstallationOperationStatus {
+    /**
+     * Creates this variant positionally and normalizes its discriminator.
+     * @deprecated Use {@link #builder()} for named construction.
+     */
+    @Deprecated(since = "2.0.0", forRemoval = false)
     public SkillInstallationOperationStatusCompleted {
         phase = "completed";
     }
 
+    /**
+     * Creates this variant without explicitly supplying its discriminator.
+     * @deprecated Use {@link #builder()} for named construction.
+     */
+    @Deprecated(since = "2.0.0", forRemoval = false)
     public SkillInstallationOperationStatusCompleted(
         String operationId,
         Boolean cancellationRequested,
         Object outcome
     ) {
         this(operationId, cancellationRequested, outcome, "completed");
+    }
+
+    /**
+     * Returns a named builder.
+     * @return a new builder
+     * @since 2.0.0
+     */
+    public static Builder builder() { return new Builder(); }
+
+    /**
+     * Named construction for this record.
+     * @since 2.0.0
+     */
+    public static final class Builder {
+        private Builder() {}
+        private String operationId;
+        private Boolean cancellationRequested;
+        private Object outcome;
+
+        /**
+         * Sets the {@code operationId} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder operationId(String value) {
+            this.operationId = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code cancellationRequested} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder cancellationRequested(Boolean value) {
+            this.cancellationRequested = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code outcome} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder outcome(Object value) {
+            this.outcome = value;
+            return this;
+        }
+
+        /**
+         * Builds a record after checking required property presence.
+         * @return a new record
+         * @throws IllegalStateException if a required property is missing
+         * @since 2.0.0
+         */
+        public SkillInstallationOperationStatusCompleted build() {
+            if (operationId == null) throw new IllegalStateException("Missing required property: operationId");
+            if (cancellationRequested == null) throw new IllegalStateException("Missing required property: cancellationRequested");
+            if (outcome == null) throw new IllegalStateException("Missing required property: outcome");
+            return new SkillInstallationOperationStatusCompleted(operationId, cancellationRequested, outcome, "completed");
+        }
     }
 }

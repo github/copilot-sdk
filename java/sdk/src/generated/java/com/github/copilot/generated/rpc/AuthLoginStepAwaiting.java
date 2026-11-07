@@ -31,4 +31,33 @@ public final class AuthLoginStepAwaiting extends AuthLoginStep {
 
     @Override
     public String getKind() { return kind; }
+
+
+    /**
+     * Returns a named builder.
+     * @return a new builder
+     * @since 2.0.0
+     */
+    @com.github.copilot.CopilotExperimental
+    public static Builder builder() { return new Builder(); }
+
+    /**
+     * Named construction for this record.
+     * @since 2.0.0
+     */
+    @com.github.copilot.CopilotExperimental
+    public static final class Builder {
+        private Builder() {}
+
+        /**
+         * Builds a variant after checking required property presence.
+         * @return a new variant
+         * @throws IllegalStateException if a required property is missing
+         * @since 2.0.0
+         */
+        public AuthLoginStepAwaiting build() {
+            AuthLoginStepAwaiting instance = new AuthLoginStepAwaiting();
+            return instance;
+        }
+    }
 }

@@ -29,4 +29,61 @@ record UserSettingsMigrateStaffLogLevelOnceParams(
     /** When the caller last recorded this migration, as an ISO-8601 timestamp. Supplying it lets the runtime answer `current` without re-running the evaluation. */
     @JsonProperty("cachedCompletedAt") String cachedCompletedAt
 ) {
+
+    /**
+     * Creates a record positionally.
+     * @deprecated Use {@link #builder()} for named construction.
+     */
+    @Deprecated(since = "2.0.0", forRemoval = false)
+    UserSettingsMigrateStaffLogLevelOnceParams {}
+
+    /**
+     * Returns a named builder.
+     * @return a new builder
+     * @since 2.0.0
+     */
+    public static Builder builder() { return new Builder(); }
+
+    /**
+     * Named construction for this record.
+     * @since 2.0.0
+     */
+    public static final class Builder {
+        private Builder() {}
+        private UserSettingsHostContext context;
+        private String cachedCompletedAt;
+
+        /**
+         * Sets the {@code context} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder context(UserSettingsHostContext value) {
+            this.context = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code cachedCompletedAt} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder cachedCompletedAt(String value) {
+            this.cachedCompletedAt = value;
+            return this;
+        }
+
+        /**
+         * Builds a record after checking required property presence.
+         * @return a new record
+         * @throws IllegalStateException if a required property is missing
+         * @since 2.0.0
+         */
+        public UserSettingsMigrateStaffLogLevelOnceParams build() {
+            if (context == null) throw new IllegalStateException("Missing required property: context");
+            return new UserSettingsMigrateStaffLogLevelOnceParams(context, cachedCompletedAt);
+        }
+    }
 }

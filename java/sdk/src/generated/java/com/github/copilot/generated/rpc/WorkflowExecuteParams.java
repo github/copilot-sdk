@@ -36,4 +36,110 @@ public record WorkflowExecuteParams(
     @JsonInclude(JsonInclude.Include.ALWAYS)
     @JsonProperty("args") Object args
 ) {
+
+    /**
+     * Creates a record positionally.
+     * @deprecated Use {@link #builder()} for named construction.
+     */
+    @Deprecated(since = "2.0.0", forRemoval = false)
+    public WorkflowExecuteParams {}
+
+    /**
+     * Returns a named builder.
+     * @return a new builder
+     * @since 2.0.0
+     */
+    @com.github.copilot.CopilotExperimental
+    public static Builder builder() { return new Builder(); }
+
+    /**
+     * Named construction for this record.
+     * @since 2.0.0
+     */
+    @com.github.copilot.CopilotExperimental
+    public static final class Builder {
+        private Builder() {}
+        private String sessionId;
+        private String name;
+        private String runId;
+        private String executionToken;
+        private Object args;
+        private boolean $presence4;
+
+        /**
+         * Sets the {@code sessionId} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        @com.github.copilot.CopilotExperimental
+        public Builder sessionId(String value) {
+            this.sessionId = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code name} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        @com.github.copilot.CopilotExperimental
+        public Builder name(String value) {
+            this.name = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code runId} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        @com.github.copilot.CopilotExperimental
+        public Builder runId(String value) {
+            this.runId = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code executionToken} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        @com.github.copilot.CopilotExperimental
+        public Builder executionToken(String value) {
+            this.executionToken = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code args} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        @com.github.copilot.CopilotExperimental
+        public Builder args(Object value) {
+            this.args = value;
+            this.$presence4 = true;
+            return this;
+        }
+
+        /**
+         * Builds a record after checking required property presence.
+         * @return a new record
+         * @throws IllegalStateException if a required property is missing
+         * @since 2.0.0
+         */
+        public WorkflowExecuteParams build() {
+            if (sessionId == null) throw new IllegalStateException("Missing required property: sessionId");
+            if (name == null) throw new IllegalStateException("Missing required property: name");
+            if (runId == null) throw new IllegalStateException("Missing required property: runId");
+            if (executionToken == null) throw new IllegalStateException("Missing required property: executionToken");
+            if (!$presence4) throw new IllegalStateException("Missing required property: args");
+            return new WorkflowExecuteParams(sessionId, name, runId, executionToken, args);
+        }
+    }
 }

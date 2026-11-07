@@ -31,4 +31,78 @@ record SessionSettingsEvaluatePredicateParams(
     /** Tool name for tool-scoped predicates such as trivial-change handling. */
     @JsonProperty("toolName") String toolName
 ) {
+
+    /**
+     * Creates a record positionally.
+     * @deprecated Use {@link #builder()} for named construction.
+     */
+    @Deprecated(since = "2.0.0", forRemoval = false)
+    SessionSettingsEvaluatePredicateParams {}
+
+    /**
+     * Returns a named builder.
+     * @return a new builder
+     * @since 2.0.0
+     */
+    @com.github.copilot.CopilotExperimental
+    public static Builder builder() { return new Builder(); }
+
+    /**
+     * Named construction for this record.
+     * @since 2.0.0
+     */
+    @com.github.copilot.CopilotExperimental
+    public static final class Builder {
+        private Builder() {}
+        private String sessionId;
+        private SessionSettingsPredicateName name;
+        private String toolName;
+
+        /**
+         * Sets the {@code sessionId} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        @com.github.copilot.CopilotExperimental
+        public Builder sessionId(String value) {
+            this.sessionId = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code name} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        @com.github.copilot.CopilotExperimental
+        public Builder name(SessionSettingsPredicateName value) {
+            this.name = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code toolName} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        @com.github.copilot.CopilotExperimental
+        public Builder toolName(String value) {
+            this.toolName = value;
+            return this;
+        }
+
+        /**
+         * Builds a record after checking required property presence.
+         * @return a new record
+         * @throws IllegalStateException if a required property is missing
+         * @since 2.0.0
+         */
+        public SessionSettingsEvaluatePredicateParams build() {
+            if (name == null) throw new IllegalStateException("Missing required property: name");
+            return new SessionSettingsEvaluatePredicateParams(sessionId, name, toolName);
+        }
+    }
 }

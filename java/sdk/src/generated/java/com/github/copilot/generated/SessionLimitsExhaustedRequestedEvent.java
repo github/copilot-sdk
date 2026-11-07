@@ -41,5 +41,76 @@ public final class SessionLimitsExhaustedRequestedEvent extends SessionEvent {
         /** Configured max AI Credits for the current accounting window. */
         @JsonProperty("maxAiCredits") Double maxAiCredits
     ) {
+
+        /**
+         * Creates a record positionally.
+         * @deprecated Use {@link #builder()} for named construction.
+         */
+        @Deprecated(since = "2.0.0", forRemoval = false)
+        public SessionLimitsExhaustedRequestedEventData {}
+
+        /**
+         * Returns a named builder.
+         * @return a new builder
+         * @since 2.0.0
+         */
+        public static Builder builder() { return new Builder(); }
+
+        /**
+         * Named construction for this record.
+         * @since 2.0.0
+         */
+        public static final class Builder {
+            private Builder() {}
+            private String requestId;
+            private Double usedAiCredits;
+            private Double maxAiCredits;
+
+            /**
+             * Sets the {@code requestId} property.
+             * @param value the property value
+             * @return this builder
+             * @since 2.0.0
+             */
+            public Builder requestId(String value) {
+                this.requestId = value;
+                return this;
+            }
+
+            /**
+             * Sets the {@code usedAiCredits} property.
+             * @param value the property value
+             * @return this builder
+             * @since 2.0.0
+             */
+            public Builder usedAiCredits(Double value) {
+                this.usedAiCredits = value;
+                return this;
+            }
+
+            /**
+             * Sets the {@code maxAiCredits} property.
+             * @param value the property value
+             * @return this builder
+             * @since 2.0.0
+             */
+            public Builder maxAiCredits(Double value) {
+                this.maxAiCredits = value;
+                return this;
+            }
+
+            /**
+             * Builds a record after checking required property presence.
+             * @return a new record
+             * @throws IllegalStateException if a required property is missing
+             * @since 2.0.0
+             */
+            public SessionLimitsExhaustedRequestedEventData build() {
+                if (requestId == null) throw new IllegalStateException("Missing required property: requestId");
+                if (usedAiCredits == null) throw new IllegalStateException("Missing required property: usedAiCredits");
+                if (maxAiCredits == null) throw new IllegalStateException("Missing required property: maxAiCredits");
+                return new SessionLimitsExhaustedRequestedEventData(requestId, usedAiCredits, maxAiCredits);
+            }
+        }
     }
 }

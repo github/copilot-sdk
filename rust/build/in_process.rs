@@ -171,7 +171,8 @@ pub(crate) fn main() {
         // recomputes this same path from `COPILOT_SDK_CLI_CACHE_ID` + the
         // OS-derived binary name + optional `COPILOT_CLI_EXTRACT_DIR`,
         // so we don't bake an absolute path into the crate.
-        let install_dir = cache_paths::extracted_runtime_install_dir(&cache_identity);
+        let install_dir = cache_paths::extracted_runtime_install_dir(&cache_identity)
+            .unwrap_or_else(|error| panic!("cannot select runtime extraction directory: {error}"));
         let required_paths = [
             install_dir.join(platform.runtime_wrapper_name()),
             install_dir.join("runtime.node"),

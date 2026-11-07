@@ -63,4 +63,101 @@ public final class SkillInstallationReviewUninstall extends SkillInstallationRev
 
     public InstallationCatalogueIdentity getCatalogue() { return catalogue; }
     public void setCatalogue(InstallationCatalogueIdentity catalogue) { this.catalogue = catalogue; }
+
+
+    /**
+     * Returns a named builder.
+     * @return a new builder
+     * @since 2.0.0
+     */
+    public static Builder builder() { return new Builder(); }
+
+    /**
+     * Named construction for this record.
+     * @since 2.0.0
+     */
+    public static final class Builder {
+        private Builder() {}
+        private SkillInstallationSummary installation;
+        private Boolean filesModified;
+        private List<SkillInstallationFileReview> files;
+        private Long totalBytes;
+        private InstallationCatalogueIdentity catalogue;
+
+        /**
+         * Sets the {@code installation} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder installation(SkillInstallationSummary value) {
+            this.installation = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code filesModified} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder filesModified(Boolean value) {
+            this.filesModified = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code files} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder files(List<SkillInstallationFileReview> value) {
+            this.files = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code totalBytes} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder totalBytes(Long value) {
+            this.totalBytes = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code catalogue} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder catalogue(InstallationCatalogueIdentity value) {
+            this.catalogue = value;
+            return this;
+        }
+
+        /**
+         * Builds a variant after checking required property presence.
+         * @return a new variant
+         * @throws IllegalStateException if a required property is missing
+         * @since 2.0.0
+         */
+        public SkillInstallationReviewUninstall build() {
+            if (installation == null) throw new IllegalStateException("Missing required property: installation");
+            if (filesModified == null) throw new IllegalStateException("Missing required property: filesModified");
+            if (files == null) throw new IllegalStateException("Missing required property: files");
+            if (totalBytes == null) throw new IllegalStateException("Missing required property: totalBytes");
+            if (catalogue == null) throw new IllegalStateException("Missing required property: catalogue");
+            SkillInstallationReviewUninstall instance = new SkillInstallationReviewUninstall();
+            instance.setInstallation(installation);
+            instance.setFilesModified(filesModified);
+            instance.setFiles(files);
+            instance.setTotalBytes(totalBytes);
+            instance.setCatalogue(catalogue);
+            return instance;
+        }
+    }
 }

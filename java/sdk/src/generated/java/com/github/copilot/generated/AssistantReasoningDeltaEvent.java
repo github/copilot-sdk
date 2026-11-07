@@ -39,5 +39,63 @@ public final class AssistantReasoningDeltaEvent extends SessionEvent {
         /** Incremental text chunk to append to the reasoning content */
         @JsonProperty("deltaContent") String deltaContent
     ) {
+
+        /**
+         * Creates a record positionally.
+         * @deprecated Use {@link #builder()} for named construction.
+         */
+        @Deprecated(since = "2.0.0", forRemoval = false)
+        public AssistantReasoningDeltaEventData {}
+
+        /**
+         * Returns a named builder.
+         * @return a new builder
+         * @since 2.0.0
+         */
+        public static Builder builder() { return new Builder(); }
+
+        /**
+         * Named construction for this record.
+         * @since 2.0.0
+         */
+        public static final class Builder {
+            private Builder() {}
+            private String reasoningId;
+            private String deltaContent;
+
+            /**
+             * Sets the {@code reasoningId} property.
+             * @param value the property value
+             * @return this builder
+             * @since 2.0.0
+             */
+            public Builder reasoningId(String value) {
+                this.reasoningId = value;
+                return this;
+            }
+
+            /**
+             * Sets the {@code deltaContent} property.
+             * @param value the property value
+             * @return this builder
+             * @since 2.0.0
+             */
+            public Builder deltaContent(String value) {
+                this.deltaContent = value;
+                return this;
+            }
+
+            /**
+             * Builds a record after checking required property presence.
+             * @return a new record
+             * @throws IllegalStateException if a required property is missing
+             * @since 2.0.0
+             */
+            public AssistantReasoningDeltaEventData build() {
+                if (reasoningId == null) throw new IllegalStateException("Missing required property: reasoningId");
+                if (deltaContent == null) throw new IllegalStateException("Missing required property: deltaContent");
+                return new AssistantReasoningDeltaEventData(reasoningId, deltaContent);
+            }
+        }
     }
 }

@@ -26,4 +26,62 @@ public record LspConfigurationProblem(
     /** Configuration read or validation failure. */
     @JsonProperty("error") String error
 ) {
+
+    /**
+     * Creates a record positionally.
+     * @deprecated Use {@link #builder()} for named construction.
+     */
+    @Deprecated(since = "2.0.0", forRemoval = false)
+    public LspConfigurationProblem {}
+
+    /**
+     * Returns a named builder.
+     * @return a new builder
+     * @since 2.0.0
+     */
+    public static Builder builder() { return new Builder(); }
+
+    /**
+     * Named construction for this record.
+     * @since 2.0.0
+     */
+    public static final class Builder {
+        private Builder() {}
+        private String path;
+        private String error;
+
+        /**
+         * Sets the {@code path} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder path(String value) {
+            this.path = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code error} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder error(String value) {
+            this.error = value;
+            return this;
+        }
+
+        /**
+         * Builds a record after checking required property presence.
+         * @return a new record
+         * @throws IllegalStateException if a required property is missing
+         * @since 2.0.0
+         */
+        public LspConfigurationProblem build() {
+            if (path == null) throw new IllegalStateException("Missing required property: path");
+            if (error == null) throw new IllegalStateException("Missing required property: error");
+            return new LspConfigurationProblem(path, error);
+        }
+    }
 }

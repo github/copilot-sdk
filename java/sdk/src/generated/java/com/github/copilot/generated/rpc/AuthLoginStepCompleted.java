@@ -38,4 +38,48 @@ public final class AuthLoginStepCompleted extends AuthLoginStep {
 
     public AuthLoginResultDto getResult() { return result; }
     public void setResult(AuthLoginResultDto result) { this.result = result; }
+
+
+    /**
+     * Returns a named builder.
+     * @return a new builder
+     * @since 2.0.0
+     */
+    @com.github.copilot.CopilotExperimental
+    public static Builder builder() { return new Builder(); }
+
+    /**
+     * Named construction for this record.
+     * @since 2.0.0
+     */
+    @com.github.copilot.CopilotExperimental
+    public static final class Builder {
+        private Builder() {}
+        private AuthLoginResultDto result;
+
+        /**
+         * Sets the {@code result} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        @com.github.copilot.CopilotExperimental
+        public Builder result(AuthLoginResultDto value) {
+            this.result = value;
+            return this;
+        }
+
+        /**
+         * Builds a variant after checking required property presence.
+         * @return a new variant
+         * @throws IllegalStateException if a required property is missing
+         * @since 2.0.0
+         */
+        public AuthLoginStepCompleted build() {
+            if (result == null) throw new IllegalStateException("Missing required property: result");
+            AuthLoginStepCompleted instance = new AuthLoginStepCompleted();
+            instance.setResult(result);
+            return instance;
+        }
+    }
 }

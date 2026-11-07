@@ -30,4 +30,61 @@ public record SessionMcpListResult(
     /** Host-level state, omitted when no MCP host is initialized. */
     @JsonProperty("host") McpHostState host
 ) {
+
+    /**
+     * Creates a record positionally.
+     * @deprecated Use {@link #builder()} for named construction.
+     */
+    @Deprecated(since = "2.0.0", forRemoval = false)
+    public SessionMcpListResult {}
+
+    /**
+     * Returns a named builder.
+     * @return a new builder
+     * @since 2.0.0
+     */
+    public static Builder builder() { return new Builder(); }
+
+    /**
+     * Named construction for this record.
+     * @since 2.0.0
+     */
+    public static final class Builder {
+        private Builder() {}
+        private List<McpServer> servers;
+        private McpHostState host;
+
+        /**
+         * Sets the {@code servers} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder servers(List<McpServer> value) {
+            this.servers = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code host} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder host(McpHostState value) {
+            this.host = value;
+            return this;
+        }
+
+        /**
+         * Builds a record after checking required property presence.
+         * @return a new record
+         * @throws IllegalStateException if a required property is missing
+         * @since 2.0.0
+         */
+        public SessionMcpListResult build() {
+            if (servers == null) throw new IllegalStateException("Missing required property: servers");
+            return new SessionMcpListResult(servers, host);
+        }
+    }
 }

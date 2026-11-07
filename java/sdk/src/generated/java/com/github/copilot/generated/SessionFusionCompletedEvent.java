@@ -79,5 +79,309 @@ public final class SessionFusionCompletedEvent extends SessionEvent {
         @CopilotExperimental
         @JsonProperty("awaitingBackgroundWork") Boolean awaitingBackgroundWork
     ) {
+
+        /**
+         * Creates a record positionally.
+         * @deprecated Use {@link #builder()} for named construction.
+         */
+        @Deprecated(since = "2.0.0", forRemoval = false)
+        public SessionFusionCompletedEventData {}
+
+        /**
+         * Returns a named builder.
+         * @return a new builder
+         * @since 2.0.0
+         */
+        @com.github.copilot.CopilotExperimental
+        public static Builder builder() { return new Builder(); }
+
+        /**
+         * Named construction for this record.
+         * @since 2.0.0
+         */
+        @com.github.copilot.CopilotExperimental
+        public static final class Builder {
+            private Builder() {}
+            private String fusionId;
+            private String commitId;
+            private String turnId;
+            private String syntheticModel;
+            private FusionPattern pattern;
+            private String outcome;
+            private String finalSourcePhaseId;
+            private boolean $presence6;
+            private String finalSourceModel;
+            private boolean $presence7;
+            private String followUpModel;
+            private String degradedReason;
+            private boolean $presence9;
+            private Long phaseCount;
+            private Long requestCount;
+            private Long inputTokens;
+            private Long outputTokens;
+            private Long cachedTokens;
+            private Long cacheWriteTokens;
+            private Double totalNanoAiu;
+            private Double durationMs;
+            private Boolean awaitingBackgroundWork;
+
+            /**
+             * Sets the {@code fusionId} property.
+             * @param value the property value
+             * @return this builder
+             * @since 2.0.0
+             */
+            @com.github.copilot.CopilotExperimental
+            public Builder fusionId(String value) {
+                this.fusionId = value;
+                return this;
+            }
+
+            /**
+             * Sets the {@code commitId} property.
+             * @param value the property value
+             * @return this builder
+             * @since 2.0.0
+             */
+            @com.github.copilot.CopilotExperimental
+            public Builder commitId(String value) {
+                this.commitId = value;
+                return this;
+            }
+
+            /**
+             * Sets the {@code turnId} property.
+             * @param value the property value
+             * @return this builder
+             * @since 2.0.0
+             */
+            @com.github.copilot.CopilotExperimental
+            public Builder turnId(String value) {
+                this.turnId = value;
+                return this;
+            }
+
+            /**
+             * Sets the {@code syntheticModel} property.
+             * @param value the property value
+             * @return this builder
+             * @since 2.0.0
+             */
+            @com.github.copilot.CopilotExperimental
+            public Builder syntheticModel(String value) {
+                this.syntheticModel = value;
+                return this;
+            }
+
+            /**
+             * Sets the {@code pattern} property.
+             * @param value the property value
+             * @return this builder
+             * @since 2.0.0
+             */
+            @com.github.copilot.CopilotExperimental
+            public Builder pattern(FusionPattern value) {
+                this.pattern = value;
+                return this;
+            }
+
+            /**
+             * Sets the {@code outcome} property.
+             * @param value the property value
+             * @return this builder
+             * @since 2.0.0
+             */
+            @com.github.copilot.CopilotExperimental
+            public Builder outcome(String value) {
+                this.outcome = value;
+                return this;
+            }
+
+            /**
+             * Sets the {@code finalSourcePhaseId} property.
+             * @param value the property value
+             * @return this builder
+             * @since 2.0.0
+             */
+            @com.github.copilot.CopilotExperimental
+            public Builder finalSourcePhaseId(String value) {
+                this.finalSourcePhaseId = value;
+                this.$presence6 = true;
+                return this;
+            }
+
+            /**
+             * Sets the {@code finalSourceModel} property.
+             * @param value the property value
+             * @return this builder
+             * @since 2.0.0
+             */
+            @com.github.copilot.CopilotExperimental
+            public Builder finalSourceModel(String value) {
+                this.finalSourceModel = value;
+                this.$presence7 = true;
+                return this;
+            }
+
+            /**
+             * Sets the {@code followUpModel} property.
+             * @param value the property value
+             * @return this builder
+             * @since 2.0.0
+             */
+            @com.github.copilot.CopilotExperimental
+            public Builder followUpModel(String value) {
+                this.followUpModel = value;
+                return this;
+            }
+
+            /**
+             * Sets the {@code degradedReason} property.
+             * @param value the property value
+             * @return this builder
+             * @since 2.0.0
+             */
+            @com.github.copilot.CopilotExperimental
+            public Builder degradedReason(String value) {
+                this.degradedReason = value;
+                this.$presence9 = true;
+                return this;
+            }
+
+            /**
+             * Sets the {@code phaseCount} property.
+             * @param value the property value
+             * @return this builder
+             * @since 2.0.0
+             */
+            @com.github.copilot.CopilotExperimental
+            public Builder phaseCount(Long value) {
+                this.phaseCount = value;
+                return this;
+            }
+
+            /**
+             * Sets the {@code requestCount} property.
+             * @param value the property value
+             * @return this builder
+             * @since 2.0.0
+             */
+            @com.github.copilot.CopilotExperimental
+            public Builder requestCount(Long value) {
+                this.requestCount = value;
+                return this;
+            }
+
+            /**
+             * Sets the {@code inputTokens} property.
+             * @param value the property value
+             * @return this builder
+             * @since 2.0.0
+             */
+            @com.github.copilot.CopilotExperimental
+            public Builder inputTokens(Long value) {
+                this.inputTokens = value;
+                return this;
+            }
+
+            /**
+             * Sets the {@code outputTokens} property.
+             * @param value the property value
+             * @return this builder
+             * @since 2.0.0
+             */
+            @com.github.copilot.CopilotExperimental
+            public Builder outputTokens(Long value) {
+                this.outputTokens = value;
+                return this;
+            }
+
+            /**
+             * Sets the {@code cachedTokens} property.
+             * @param value the property value
+             * @return this builder
+             * @since 2.0.0
+             */
+            @com.github.copilot.CopilotExperimental
+            public Builder cachedTokens(Long value) {
+                this.cachedTokens = value;
+                return this;
+            }
+
+            /**
+             * Sets the {@code cacheWriteTokens} property.
+             * @param value the property value
+             * @return this builder
+             * @since 2.0.0
+             */
+            @com.github.copilot.CopilotExperimental
+            public Builder cacheWriteTokens(Long value) {
+                this.cacheWriteTokens = value;
+                return this;
+            }
+
+            /**
+             * Sets the {@code totalNanoAiu} property.
+             * @param value the property value
+             * @return this builder
+             * @since 2.0.0
+             */
+            @com.github.copilot.CopilotExperimental
+            public Builder totalNanoAiu(Double value) {
+                this.totalNanoAiu = value;
+                return this;
+            }
+
+            /**
+             * Sets the {@code durationMs} property.
+             * @param value the property value
+             * @return this builder
+             * @since 2.0.0
+             */
+            @com.github.copilot.CopilotExperimental
+            public Builder durationMs(Double value) {
+                this.durationMs = value;
+                return this;
+            }
+
+            /**
+             * Sets the {@code awaitingBackgroundWork} property.
+             * @param value the property value
+             * @return this builder
+             * @since 2.0.0
+             */
+            @com.github.copilot.CopilotExperimental
+            public Builder awaitingBackgroundWork(Boolean value) {
+                this.awaitingBackgroundWork = value;
+                return this;
+            }
+
+            /**
+             * Builds a record after checking required property presence.
+             * @return a new record
+             * @throws IllegalStateException if a required property is missing
+             * @since 2.0.0
+             */
+            public SessionFusionCompletedEventData build() {
+                if (fusionId == null) throw new IllegalStateException("Missing required property: fusionId");
+                if (commitId == null) throw new IllegalStateException("Missing required property: commitId");
+                if (turnId == null) throw new IllegalStateException("Missing required property: turnId");
+                if (syntheticModel == null) throw new IllegalStateException("Missing required property: syntheticModel");
+                if (pattern == null) throw new IllegalStateException("Missing required property: pattern");
+                if (outcome == null) throw new IllegalStateException("Missing required property: outcome");
+                if (!$presence6) throw new IllegalStateException("Missing required property: finalSourcePhaseId");
+                if (!$presence7) throw new IllegalStateException("Missing required property: finalSourceModel");
+                if (followUpModel == null) throw new IllegalStateException("Missing required property: followUpModel");
+                if (!$presence9) throw new IllegalStateException("Missing required property: degradedReason");
+                if (phaseCount == null) throw new IllegalStateException("Missing required property: phaseCount");
+                if (requestCount == null) throw new IllegalStateException("Missing required property: requestCount");
+                if (inputTokens == null) throw new IllegalStateException("Missing required property: inputTokens");
+                if (outputTokens == null) throw new IllegalStateException("Missing required property: outputTokens");
+                if (cachedTokens == null) throw new IllegalStateException("Missing required property: cachedTokens");
+                if (totalNanoAiu == null) throw new IllegalStateException("Missing required property: totalNanoAiu");
+                if (durationMs == null) throw new IllegalStateException("Missing required property: durationMs");
+                return new SessionFusionCompletedEventData(fusionId, commitId, turnId, syntheticModel, pattern, outcome, finalSourcePhaseId, finalSourceModel, followUpModel, degradedReason, phaseCount, requestCount, inputTokens, outputTokens, cachedTokens, cacheWriteTokens, totalNanoAiu, durationMs, awaitingBackgroundWork);
+            }
+        }
     }
 }

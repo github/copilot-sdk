@@ -31,4 +31,80 @@ record UserSettingsSetHookDisabledParams(
     /** True adds the key to `disabledHooks`, false removes it. */
     @JsonProperty("disabled") Boolean disabled
 ) {
+
+    /**
+     * Creates a record positionally.
+     * @deprecated Use {@link #builder()} for named construction.
+     */
+    @Deprecated(since = "2.0.0", forRemoval = false)
+    UserSettingsSetHookDisabledParams {}
+
+    /**
+     * Returns a named builder.
+     * @return a new builder
+     * @since 2.0.0
+     */
+    @com.github.copilot.CopilotExperimental
+    public static Builder builder() { return new Builder(); }
+
+    /**
+     * Named construction for this record.
+     * @since 2.0.0
+     */
+    @com.github.copilot.CopilotExperimental
+    public static final class Builder {
+        private Builder() {}
+        private String settingsPath;
+        private String disableKey;
+        private Boolean disabled;
+
+        /**
+         * Sets the {@code settingsPath} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        @com.github.copilot.CopilotExperimental
+        public Builder settingsPath(String value) {
+            this.settingsPath = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code disableKey} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        @com.github.copilot.CopilotExperimental
+        public Builder disableKey(String value) {
+            this.disableKey = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code disabled} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        @com.github.copilot.CopilotExperimental
+        public Builder disabled(Boolean value) {
+            this.disabled = value;
+            return this;
+        }
+
+        /**
+         * Builds a record after checking required property presence.
+         * @return a new record
+         * @throws IllegalStateException if a required property is missing
+         * @since 2.0.0
+         */
+        public UserSettingsSetHookDisabledParams build() {
+            if (settingsPath == null) throw new IllegalStateException("Missing required property: settingsPath");
+            if (disableKey == null) throw new IllegalStateException("Missing required property: disableKey");
+            if (disabled == null) throw new IllegalStateException("Missing required property: disabled");
+            return new UserSettingsSetHookDisabledParams(settingsPath, disableKey, disabled);
+        }
+    }
 }

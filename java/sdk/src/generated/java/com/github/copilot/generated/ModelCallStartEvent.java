@@ -47,5 +47,99 @@ public final class ModelCallStartEvent extends SessionEvent {
         /** Parent task tool call ID when this model call belongs to a sub-agent */
         @JsonProperty("parentToolCallId") String parentToolCallId
     ) {
+
+        /**
+         * Creates a record positionally.
+         * @deprecated Use {@link #builder()} for named construction.
+         */
+        @Deprecated(since = "2.0.0", forRemoval = false)
+        public ModelCallStartEventData {}
+
+        /**
+         * Returns a named builder.
+         * @return a new builder
+         * @since 2.0.0
+         */
+        public static Builder builder() { return new Builder(); }
+
+        /**
+         * Named construction for this record.
+         * @since 2.0.0
+         */
+        public static final class Builder {
+            private Builder() {}
+            private String turnId;
+            private String model;
+            private String previousResponseId;
+            private FusionAttribution fusion;
+            private String parentToolCallId;
+
+            /**
+             * Sets the {@code turnId} property.
+             * @param value the property value
+             * @return this builder
+             * @since 2.0.0
+             */
+            public Builder turnId(String value) {
+                this.turnId = value;
+                return this;
+            }
+
+            /**
+             * Sets the {@code model} property.
+             * @param value the property value
+             * @return this builder
+             * @since 2.0.0
+             */
+            public Builder model(String value) {
+                this.model = value;
+                return this;
+            }
+
+            /**
+             * Sets the {@code previousResponseId} property.
+             * @param value the property value
+             * @return this builder
+             * @since 2.0.0
+             */
+            public Builder previousResponseId(String value) {
+                this.previousResponseId = value;
+                return this;
+            }
+
+            /**
+             * Sets the {@code fusion} property.
+             * @param value the property value
+             * @return this builder
+             * @since 2.0.0
+             */
+            @com.github.copilot.CopilotExperimental
+            public Builder fusion(FusionAttribution value) {
+                this.fusion = value;
+                return this;
+            }
+
+            /**
+             * Sets the {@code parentToolCallId} property.
+             * @param value the property value
+             * @return this builder
+             * @since 2.0.0
+             */
+            public Builder parentToolCallId(String value) {
+                this.parentToolCallId = value;
+                return this;
+            }
+
+            /**
+             * Builds a record after checking required property presence.
+             * @return a new record
+             * @throws IllegalStateException if a required property is missing
+             * @since 2.0.0
+             */
+            public ModelCallStartEventData build() {
+                if (turnId == null) throw new IllegalStateException("Missing required property: turnId");
+                return new ModelCallStartEventData(turnId, model, previousResponseId, fusion, parentToolCallId);
+            }
+        }
     }
 }

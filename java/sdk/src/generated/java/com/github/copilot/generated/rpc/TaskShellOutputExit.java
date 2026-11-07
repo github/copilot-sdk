@@ -30,4 +30,65 @@ public record TaskShellOutputExit(
     /** Process exit code, when the runtime recorded one. Absent when the shell was stopped before reporting an exit code. */
     @JsonProperty("exitCode") Long exitCode
 ) {
+
+    /**
+     * Creates a record positionally.
+     * @deprecated Use {@link #builder()} for named construction.
+     */
+    @Deprecated(since = "2.0.0", forRemoval = false)
+    public TaskShellOutputExit {}
+
+    /**
+     * Returns a named builder.
+     * @return a new builder
+     * @since 2.0.0
+     */
+    @com.github.copilot.CopilotExperimental
+    public static Builder builder() { return new Builder(); }
+
+    /**
+     * Named construction for this record.
+     * @since 2.0.0
+     */
+    @com.github.copilot.CopilotExperimental
+    public static final class Builder {
+        private Builder() {}
+        private TaskStatus status;
+        private Long exitCode;
+
+        /**
+         * Sets the {@code status} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        @com.github.copilot.CopilotExperimental
+        public Builder status(TaskStatus value) {
+            this.status = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code exitCode} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        @com.github.copilot.CopilotExperimental
+        public Builder exitCode(Long value) {
+            this.exitCode = value;
+            return this;
+        }
+
+        /**
+         * Builds a record after checking required property presence.
+         * @return a new record
+         * @throws IllegalStateException if a required property is missing
+         * @since 2.0.0
+         */
+        public TaskShellOutputExit build() {
+            if (status == null) throw new IllegalStateException("Missing required property: status");
+            return new TaskShellOutputExit(status, exitCode);
+        }
+    }
 }

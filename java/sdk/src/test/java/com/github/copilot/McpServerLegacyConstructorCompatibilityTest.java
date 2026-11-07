@@ -21,7 +21,7 @@ class McpServerLegacyConstructorCompatibilityTest {
 
     @Test
     void releasedConstructorOmitsTheOwnedMarker() {
-        var metadata = new McpServerMetadata("use it");
+        var metadata = McpServerMetadata.builder().instructions("use it").build();
         var server = new McpServer("server", McpServerStatus.CONNECTED, McpServerSource.USER, "plugin", "1.0.0",
                 "Server", "failed", metadata);
 

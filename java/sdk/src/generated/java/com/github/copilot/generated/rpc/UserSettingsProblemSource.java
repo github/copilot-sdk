@@ -33,4 +33,99 @@ record UserSettingsProblemSource(
     /** True when the file itself failed to parse, so its keys could not be read at all. */
     @JsonProperty("invalid") Boolean invalid
 ) {
+
+    /**
+     * Creates a record positionally.
+     * @deprecated Use {@link #builder()} for named construction.
+     */
+    @Deprecated(since = "2.0.0", forRemoval = false)
+    UserSettingsProblemSource {}
+
+    /**
+     * Returns a named builder.
+     * @return a new builder
+     * @since 2.0.0
+     */
+    public static Builder builder() { return new Builder(); }
+
+    /**
+     * Named construction for this record.
+     * @since 2.0.0
+     */
+    public static final class Builder {
+        private Builder() {}
+        private String kind;
+        private String label;
+        private String filePath;
+        private Map<String, Object> config;
+        private Boolean invalid;
+
+        /**
+         * Sets the {@code kind} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder kind(String value) {
+            this.kind = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code label} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder label(String value) {
+            this.label = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code filePath} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder filePath(String value) {
+            this.filePath = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code config} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder config(Map<String, Object> value) {
+            this.config = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code invalid} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder invalid(Boolean value) {
+            this.invalid = value;
+            return this;
+        }
+
+        /**
+         * Builds a record after checking required property presence.
+         * @return a new record
+         * @throws IllegalStateException if a required property is missing
+         * @since 2.0.0
+         */
+        public UserSettingsProblemSource build() {
+            if (kind == null) throw new IllegalStateException("Missing required property: kind");
+            if (label == null) throw new IllegalStateException("Missing required property: label");
+            if (filePath == null) throw new IllegalStateException("Missing required property: filePath");
+            return new UserSettingsProblemSource(kind, label, filePath, config, invalid);
+        }
+    }
 }

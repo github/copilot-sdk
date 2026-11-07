@@ -28,4 +28,54 @@ public record SessionAutopilotObjectiveGetStateResult(
     @JsonInclude(JsonInclude.Include.ALWAYS)
     @JsonProperty("state") AutopilotObjectiveState state
 ) {
+
+    /**
+     * Creates a record positionally.
+     * @deprecated Use {@link #builder()} for named construction.
+     */
+    @Deprecated(since = "2.0.0", forRemoval = false)
+    public SessionAutopilotObjectiveGetStateResult {}
+
+    /**
+     * Returns a named builder.
+     * @return a new builder
+     * @since 2.0.0
+     */
+    @com.github.copilot.CopilotExperimental
+    public static Builder builder() { return new Builder(); }
+
+    /**
+     * Named construction for this record.
+     * @since 2.0.0
+     */
+    @com.github.copilot.CopilotExperimental
+    public static final class Builder {
+        private Builder() {}
+        private AutopilotObjectiveState state;
+        private boolean $presence0;
+
+        /**
+         * Sets the {@code state} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        @com.github.copilot.CopilotExperimental
+        public Builder state(AutopilotObjectiveState value) {
+            this.state = value;
+            this.$presence0 = true;
+            return this;
+        }
+
+        /**
+         * Builds a record after checking required property presence.
+         * @return a new record
+         * @throws IllegalStateException if a required property is missing
+         * @since 2.0.0
+         */
+        public SessionAutopilotObjectiveGetStateResult build() {
+            if (!$presence0) throw new IllegalStateException("Missing required property: state");
+            return new SessionAutopilotObjectiveGetStateResult(state);
+        }
+    }
 }

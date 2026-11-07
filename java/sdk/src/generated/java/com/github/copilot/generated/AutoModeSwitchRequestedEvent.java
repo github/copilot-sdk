@@ -41,5 +41,74 @@ public final class AutoModeSwitchRequestedEvent extends SessionEvent {
         /** Seconds until the rate limit resets, when known. Lets clients render a humanized reset time alongside the prompt. */
         @JsonProperty("retryAfterSeconds") Long retryAfterSeconds
     ) {
+
+        /**
+         * Creates a record positionally.
+         * @deprecated Use {@link #builder()} for named construction.
+         */
+        @Deprecated(since = "2.0.0", forRemoval = false)
+        public AutoModeSwitchRequestedEventData {}
+
+        /**
+         * Returns a named builder.
+         * @return a new builder
+         * @since 2.0.0
+         */
+        public static Builder builder() { return new Builder(); }
+
+        /**
+         * Named construction for this record.
+         * @since 2.0.0
+         */
+        public static final class Builder {
+            private Builder() {}
+            private String requestId;
+            private String errorCode;
+            private Long retryAfterSeconds;
+
+            /**
+             * Sets the {@code requestId} property.
+             * @param value the property value
+             * @return this builder
+             * @since 2.0.0
+             */
+            public Builder requestId(String value) {
+                this.requestId = value;
+                return this;
+            }
+
+            /**
+             * Sets the {@code errorCode} property.
+             * @param value the property value
+             * @return this builder
+             * @since 2.0.0
+             */
+            public Builder errorCode(String value) {
+                this.errorCode = value;
+                return this;
+            }
+
+            /**
+             * Sets the {@code retryAfterSeconds} property.
+             * @param value the property value
+             * @return this builder
+             * @since 2.0.0
+             */
+            public Builder retryAfterSeconds(Long value) {
+                this.retryAfterSeconds = value;
+                return this;
+            }
+
+            /**
+             * Builds a record after checking required property presence.
+             * @return a new record
+             * @throws IllegalStateException if a required property is missing
+             * @since 2.0.0
+             */
+            public AutoModeSwitchRequestedEventData build() {
+                if (requestId == null) throw new IllegalStateException("Missing required property: requestId");
+                return new AutoModeSwitchRequestedEventData(requestId, errorCode, retryAfterSeconds);
+            }
+        }
     }
 }

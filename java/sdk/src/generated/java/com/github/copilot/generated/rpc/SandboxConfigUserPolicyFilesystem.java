@@ -33,17 +33,116 @@ public record SandboxConfigUserPolicyFilesystem(
 ) {
 
     /**
+     * Creates a record positionally.
+     * @deprecated Use {@link #builder()} for named construction.
+     */
+    @Deprecated(since = "2.0.0", forRemoval = false)
+    public SandboxConfigUserPolicyFilesystem {}
+
+    /**
+     * Returns a named builder.
+     * @return a new builder
+     * @since 2.0.0
+     */
+    public static Builder builder() { return new Builder(); }
+
+    /**
+     * Named construction for this record.
+     * @since 2.0.0
+     */
+    public static final class Builder {
+        private Builder() {}
+        private List<String> readwritePaths;
+        private List<String> readonlyPaths;
+        private List<String> deniedPaths;
+        private List<String> enumeratePaths;
+
+        /**
+         * Sets the {@code readwritePaths} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder readwritePaths(List<String> value) {
+            this.readwritePaths = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code readonlyPaths} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder readonlyPaths(List<String> value) {
+            this.readonlyPaths = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code deniedPaths} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder deniedPaths(List<String> value) {
+            this.deniedPaths = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code enumeratePaths} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder enumeratePaths(List<String> value) {
+            this.enumeratePaths = value;
+            return this;
+        }
+
+        /**
+         * Builds a record after checking required property presence.
+         * @return a new record
+         * @throws IllegalStateException if a required property is missing
+         * @since 2.0.0
+         */
+        public SandboxConfigUserPolicyFilesystem build() {
+            return new SandboxConfigUserPolicyFilesystem(readwritePaths, readonlyPaths, deniedPaths, enumeratePaths);
+        }
+    }
+
+    /**
      * Creates filesystem rules without enumerate-only paths.
-     *
+     * @deprecated Use named construction via {@link #builder()}.
      * @param readwritePaths Paths granted read/write access.
      * @param readonlyPaths Paths granted read-only access.
      * @param deniedPaths Paths explicitly denied.
      */
+    @Deprecated(since = "2.0.0", forRemoval = false)
     public SandboxConfigUserPolicyFilesystem(
         List<String> readwritePaths,
         List<String> readonlyPaths,
         List<String> deniedPaths
     ) {
-        this(readwritePaths, readonlyPaths, deniedPaths, null);
+        this(readwritePaths, readonlyPaths, deniedPaths, (List<String>) null);
+    }
+
+    /**
+     * Retains the 1.0.28 constructor; clearPolicyOnExit is ignored, as it is by the runtime.
+     * @deprecated Use named construction via {@link #builder()}.
+     * @param readwritePaths Paths granted read/write access.
+     * @param readonlyPaths Paths granted read-only access.
+     * @param deniedPaths Paths explicitly denied.
+     * @param clearPolicyOnExit clearPolicyOnExit
+     */
+    @Deprecated(since = "2.0.0", forRemoval = false)
+    public SandboxConfigUserPolicyFilesystem(
+        List<String> readwritePaths,
+        List<String> readonlyPaths,
+        List<String> deniedPaths,
+        java.lang.Boolean clearPolicyOnExit
+    ) {
+        this(readwritePaths, readonlyPaths, deniedPaths, (List<String>) null);
     }
 }

@@ -36,14 +36,122 @@ public record WorkspaceDiffFileChange(
 ) {
 
     /**
+     * Creates a record positionally.
+     * @deprecated Use {@link #builder()} for named construction.
+     */
+    @Deprecated(since = "2.0.0", forRemoval = false)
+    public WorkspaceDiffFileChange {}
+
+    /**
+     * Returns a named builder.
+     * @return a new builder
+     * @since 2.0.0
+     */
+    public static Builder builder() { return new Builder(); }
+
+    /**
+     * Named construction for this record.
+     * @since 2.0.0
+     */
+    public static final class Builder {
+        private Builder() {}
+        private String path;
+        private String diff;
+        private WorkspaceDiffFileChangeType changeType;
+        private String oldPath;
+        private Boolean isTruncated;
+        private WorkspaceDiffContents contents;
+
+        /**
+         * Sets the {@code path} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder path(String value) {
+            this.path = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code diff} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder diff(String value) {
+            this.diff = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code changeType} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder changeType(WorkspaceDiffFileChangeType value) {
+            this.changeType = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code oldPath} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder oldPath(String value) {
+            this.oldPath = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code isTruncated} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder isTruncated(Boolean value) {
+            this.isTruncated = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code contents} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder contents(WorkspaceDiffContents value) {
+            this.contents = value;
+            return this;
+        }
+
+        /**
+         * Builds a record after checking required property presence.
+         * @return a new record
+         * @throws IllegalStateException if a required property is missing
+         * @since 2.0.0
+         */
+        public WorkspaceDiffFileChange build() {
+            if (path == null) throw new IllegalStateException("Missing required property: path");
+            if (diff == null) throw new IllegalStateException("Missing required property: diff");
+            if (changeType == null) throw new IllegalStateException("Missing required property: changeType");
+            return new WorkspaceDiffFileChange(path, diff, changeType, oldPath, isTruncated, contents);
+        }
+    }
+
+    /**
      * Creates a record with the components it had before later optional fields were added.
-     *
+     * @deprecated Use named construction via {@link #builder()}.
      * @param path Path to the changed file, relative to the workspace root when the file lives under it. A file changed outside the workspace root keeps a `../`-relative path, or an absolute path when no relative path exists (for example a different Windows drive).
      * @param diff Unified diff content for the file. Empty when the diff was truncated.
      * @param changeType Type of change represented by this file diff.
      * @param oldPath Original file path for renamed files.
      * @param isTruncated Whether the diff content was omitted because it exceeded the per-file size limit.
      */
+    @Deprecated(since = "2.0.0", forRemoval = false)
     public WorkspaceDiffFileChange(
         String path,
         String diff,

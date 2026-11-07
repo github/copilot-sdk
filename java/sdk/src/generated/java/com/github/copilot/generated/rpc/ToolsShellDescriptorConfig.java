@@ -37,4 +37,127 @@ public record ToolsShellDescriptorConfig(
     /** Additional model-facing shell description lines. */
     @JsonProperty("descriptionLines") List<String> descriptionLines
 ) {
+
+    /**
+     * Creates a record positionally.
+     * @deprecated Use {@link #builder()} for named construction.
+     */
+    @Deprecated(since = "2.0.0", forRemoval = false)
+    public ToolsShellDescriptorConfig {}
+
+    /**
+     * Returns a named builder.
+     * @return a new builder
+     * @since 2.0.0
+     */
+    public static Builder builder() { return new Builder(); }
+
+    /**
+     * Named construction for this record.
+     * @since 2.0.0
+     */
+    public static final class Builder {
+        private Builder() {}
+        private String shellType;
+        private String displayName;
+        private String shellToolName;
+        private String readShellToolName;
+        private String stopShellToolName;
+        private String listShellsToolName;
+        private List<String> descriptionLines;
+
+        /**
+         * Sets the {@code shellType} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder shellType(String value) {
+            this.shellType = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code displayName} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder displayName(String value) {
+            this.displayName = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code shellToolName} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder shellToolName(String value) {
+            this.shellToolName = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code readShellToolName} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder readShellToolName(String value) {
+            this.readShellToolName = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code stopShellToolName} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder stopShellToolName(String value) {
+            this.stopShellToolName = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code listShellsToolName} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder listShellsToolName(String value) {
+            this.listShellsToolName = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code descriptionLines} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder descriptionLines(List<String> value) {
+            this.descriptionLines = value;
+            return this;
+        }
+
+        /**
+         * Builds a record after checking required property presence.
+         * @return a new record
+         * @throws IllegalStateException if a required property is missing
+         * @since 2.0.0
+         */
+        public ToolsShellDescriptorConfig build() {
+            if (shellType == null) throw new IllegalStateException("Missing required property: shellType");
+            if (displayName == null) throw new IllegalStateException("Missing required property: displayName");
+            if (shellToolName == null) throw new IllegalStateException("Missing required property: shellToolName");
+            if (readShellToolName == null) throw new IllegalStateException("Missing required property: readShellToolName");
+            if (stopShellToolName == null) throw new IllegalStateException("Missing required property: stopShellToolName");
+            if (listShellsToolName == null) throw new IllegalStateException("Missing required property: listShellsToolName");
+            if (descriptionLines == null) throw new IllegalStateException("Missing required property: descriptionLines");
+            return new ToolsShellDescriptorConfig(shellType, displayName, shellToolName, readShellToolName, stopShellToolName, listShellsToolName, descriptionLines);
+        }
+    }
 }

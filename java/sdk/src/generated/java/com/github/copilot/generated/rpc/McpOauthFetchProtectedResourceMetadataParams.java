@@ -37,4 +37,117 @@ record McpOauthFetchProtectedResourceMetadataParams(
     /** Locally owned session whose egress policy and sandbox proxy constrain the request. Omitted or nonlocal session IDs provide no local session egress state. */
     @JsonProperty("sessionId") String sessionId
 ) {
+
+    /**
+     * Creates a record positionally.
+     * @deprecated Use {@link #builder()} for named construction.
+     */
+    @Deprecated(since = "2.0.0", forRemoval = false)
+    McpOauthFetchProtectedResourceMetadataParams {}
+
+    /**
+     * Returns a named builder.
+     * @return a new builder
+     * @since 2.0.0
+     */
+    @com.github.copilot.CopilotExperimental
+    public static Builder builder() { return new Builder(); }
+
+    /**
+     * Named construction for this record.
+     * @since 2.0.0
+     */
+    @com.github.copilot.CopilotExperimental
+    public static final class Builder {
+        private Builder() {}
+        private String requestUrl;
+        private String headersJson;
+        private String resourceMetadataUrl;
+        private String userAgent;
+        private String sandboxProxy;
+        private String sessionId;
+
+        /**
+         * Sets the {@code requestUrl} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        @com.github.copilot.CopilotExperimental
+        public Builder requestUrl(String value) {
+            this.requestUrl = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code headersJson} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        @com.github.copilot.CopilotExperimental
+        public Builder headersJson(String value) {
+            this.headersJson = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code resourceMetadataUrl} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        @com.github.copilot.CopilotExperimental
+        public Builder resourceMetadataUrl(String value) {
+            this.resourceMetadataUrl = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code userAgent} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        @com.github.copilot.CopilotExperimental
+        public Builder userAgent(String value) {
+            this.userAgent = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code sandboxProxy} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        @com.github.copilot.CopilotExperimental
+        public Builder sandboxProxy(String value) {
+            this.sandboxProxy = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code sessionId} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        @com.github.copilot.CopilotExperimental
+        public Builder sessionId(String value) {
+            this.sessionId = value;
+            return this;
+        }
+
+        /**
+         * Builds a record after checking required property presence.
+         * @return a new record
+         * @throws IllegalStateException if a required property is missing
+         * @since 2.0.0
+         */
+        public McpOauthFetchProtectedResourceMetadataParams build() {
+            if (requestUrl == null) throw new IllegalStateException("Missing required property: requestUrl");
+            return new McpOauthFetchProtectedResourceMetadataParams(requestUrl, headersJson, resourceMetadataUrl, userAgent, sandboxProxy, sessionId);
+        }
+    }
 }

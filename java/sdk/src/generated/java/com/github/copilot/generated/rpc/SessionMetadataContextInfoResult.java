@@ -25,6 +25,7 @@ import javax.annotation.processing.Generated;
 @JsonIgnoreProperties(ignoreUnknown = true)
 public record SessionMetadataContextInfoResult(
     /** Token breakdown for the current context window, or null if the session has not yet been initialized (no system prompt or tool metadata cached). */
+    @JsonInclude(JsonInclude.Include.ALWAYS)
     @JsonProperty("contextInfo") SessionMetadataContextInfoResultContextInfo contextInfo
 ) {
 
@@ -57,5 +58,238 @@ public record SessionMetadataContextInfoResult(
         /** Output reservation overlapping the displayed prompt allowance plus tokens after the effective input budget's buffer-exhaustion blocking threshold (default 95%). */
         @JsonProperty("bufferTokens") Long bufferTokens
     ) {
+
+        /**
+         * Creates a record positionally.
+         * @deprecated Use {@link #builder()} for named construction.
+         */
+        @Deprecated(since = "2.0.0", forRemoval = false)
+        public SessionMetadataContextInfoResultContextInfo {}
+
+        /**
+         * Returns a named builder.
+         * @return a new builder
+         * @since 2.0.0
+         */
+        public static Builder builder() { return new Builder(); }
+
+        /**
+         * Named construction for this record.
+         * @since 2.0.0
+         */
+        public static final class Builder {
+            private Builder() {}
+            private String modelName;
+            private ModelProviderRef provider;
+            private String displayModelName;
+            private Long systemTokens;
+            private Long conversationTokens;
+            private Long toolDefinitionsTokens;
+            private Long mcpToolsTokens;
+            private Long totalTokens;
+            private Long promptTokenLimit;
+            private Long compactionThreshold;
+            private Long limit;
+            private Long bufferTokens;
+
+            /**
+             * Sets the {@code modelName} property.
+             * @param value the property value
+             * @return this builder
+             * @since 2.0.0
+             */
+            public Builder modelName(String value) {
+                this.modelName = value;
+                return this;
+            }
+
+            /**
+             * Sets the {@code provider} property.
+             * @param value the property value
+             * @return this builder
+             * @since 2.0.0
+             */
+            public Builder provider(ModelProviderRef value) {
+                this.provider = value;
+                return this;
+            }
+
+            /**
+             * Sets the {@code displayModelName} property.
+             * @param value the property value
+             * @return this builder
+             * @since 2.0.0
+             */
+            public Builder displayModelName(String value) {
+                this.displayModelName = value;
+                return this;
+            }
+
+            /**
+             * Sets the {@code systemTokens} property.
+             * @param value the property value
+             * @return this builder
+             * @since 2.0.0
+             */
+            public Builder systemTokens(Long value) {
+                this.systemTokens = value;
+                return this;
+            }
+
+            /**
+             * Sets the {@code conversationTokens} property.
+             * @param value the property value
+             * @return this builder
+             * @since 2.0.0
+             */
+            public Builder conversationTokens(Long value) {
+                this.conversationTokens = value;
+                return this;
+            }
+
+            /**
+             * Sets the {@code toolDefinitionsTokens} property.
+             * @param value the property value
+             * @return this builder
+             * @since 2.0.0
+             */
+            public Builder toolDefinitionsTokens(Long value) {
+                this.toolDefinitionsTokens = value;
+                return this;
+            }
+
+            /**
+             * Sets the {@code mcpToolsTokens} property.
+             * @param value the property value
+             * @return this builder
+             * @since 2.0.0
+             */
+            public Builder mcpToolsTokens(Long value) {
+                this.mcpToolsTokens = value;
+                return this;
+            }
+
+            /**
+             * Sets the {@code totalTokens} property.
+             * @param value the property value
+             * @return this builder
+             * @since 2.0.0
+             */
+            public Builder totalTokens(Long value) {
+                this.totalTokens = value;
+                return this;
+            }
+
+            /**
+             * Sets the {@code promptTokenLimit} property.
+             * @param value the property value
+             * @return this builder
+             * @since 2.0.0
+             */
+            public Builder promptTokenLimit(Long value) {
+                this.promptTokenLimit = value;
+                return this;
+            }
+
+            /**
+             * Sets the {@code compactionThreshold} property.
+             * @param value the property value
+             * @return this builder
+             * @since 2.0.0
+             */
+            public Builder compactionThreshold(Long value) {
+                this.compactionThreshold = value;
+                return this;
+            }
+
+            /**
+             * Sets the {@code limit} property.
+             * @param value the property value
+             * @return this builder
+             * @since 2.0.0
+             */
+            public Builder limit(Long value) {
+                this.limit = value;
+                return this;
+            }
+
+            /**
+             * Sets the {@code bufferTokens} property.
+             * @param value the property value
+             * @return this builder
+             * @since 2.0.0
+             */
+            public Builder bufferTokens(Long value) {
+                this.bufferTokens = value;
+                return this;
+            }
+
+            /**
+             * Builds a record after checking required property presence.
+             * @return a new record
+             * @throws IllegalStateException if a required property is missing
+             * @since 2.0.0
+             */
+            public SessionMetadataContextInfoResultContextInfo build() {
+                if (modelName == null) throw new IllegalStateException("Missing required property: modelName");
+                if (systemTokens == null) throw new IllegalStateException("Missing required property: systemTokens");
+                if (conversationTokens == null) throw new IllegalStateException("Missing required property: conversationTokens");
+                if (toolDefinitionsTokens == null) throw new IllegalStateException("Missing required property: toolDefinitionsTokens");
+                if (mcpToolsTokens == null) throw new IllegalStateException("Missing required property: mcpToolsTokens");
+                if (totalTokens == null) throw new IllegalStateException("Missing required property: totalTokens");
+                if (promptTokenLimit == null) throw new IllegalStateException("Missing required property: promptTokenLimit");
+                if (compactionThreshold == null) throw new IllegalStateException("Missing required property: compactionThreshold");
+                if (limit == null) throw new IllegalStateException("Missing required property: limit");
+                if (bufferTokens == null) throw new IllegalStateException("Missing required property: bufferTokens");
+                return new SessionMetadataContextInfoResultContextInfo(modelName, provider, displayModelName, systemTokens, conversationTokens, toolDefinitionsTokens, mcpToolsTokens, totalTokens, promptTokenLimit, compactionThreshold, limit, bufferTokens);
+            }
+        }
+    }
+
+    /**
+     * Creates a record positionally.
+     * @deprecated Use {@link #builder()} for named construction.
+     */
+    @Deprecated(since = "2.0.0", forRemoval = false)
+    public SessionMetadataContextInfoResult {}
+
+    /**
+     * Returns a named builder.
+     * @return a new builder
+     * @since 2.0.0
+     */
+    public static Builder builder() { return new Builder(); }
+
+    /**
+     * Named construction for this record.
+     * @since 2.0.0
+     */
+    public static final class Builder {
+        private Builder() {}
+        private SessionMetadataContextInfoResultContextInfo contextInfo;
+        private boolean $presence0;
+
+        /**
+         * Sets the {@code contextInfo} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder contextInfo(SessionMetadataContextInfoResultContextInfo value) {
+            this.contextInfo = value;
+            this.$presence0 = true;
+            return this;
+        }
+
+        /**
+         * Builds a record after checking required property presence.
+         * @return a new record
+         * @throws IllegalStateException if a required property is missing
+         * @since 2.0.0
+         */
+        public SessionMetadataContextInfoResult build() {
+            if (!$presence0) throw new IllegalStateException("Missing required property: contextInfo");
+            return new SessionMetadataContextInfoResult(contextInfo);
+        }
     }
 }

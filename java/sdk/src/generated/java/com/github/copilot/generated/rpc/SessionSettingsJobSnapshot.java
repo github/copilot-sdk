@@ -28,4 +28,72 @@ record SessionSettingsJobSnapshot(
     /** Availability of job-specific built-in tools. */
     @JsonProperty("builtInToolAvailability") SessionSettingsBuiltInToolAvailabilitySnapshot builtInToolAvailability
 ) {
+
+    /**
+     * Creates a record positionally.
+     * @deprecated Use {@link #builder()} for named construction.
+     */
+    @Deprecated(since = "2.0.0", forRemoval = false)
+    SessionSettingsJobSnapshot {}
+
+    /**
+     * Returns a named builder.
+     * @return a new builder
+     * @since 2.0.0
+     */
+    public static Builder builder() { return new Builder(); }
+
+    /**
+     * Named construction for this record.
+     * @since 2.0.0
+     */
+    public static final class Builder {
+        private Builder() {}
+        private String eventType;
+        private Boolean isTriggerJob;
+        private SessionSettingsBuiltInToolAvailabilitySnapshot builtInToolAvailability;
+
+        /**
+         * Sets the {@code eventType} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder eventType(String value) {
+            this.eventType = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code isTriggerJob} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder isTriggerJob(Boolean value) {
+            this.isTriggerJob = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code builtInToolAvailability} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder builtInToolAvailability(SessionSettingsBuiltInToolAvailabilitySnapshot value) {
+            this.builtInToolAvailability = value;
+            return this;
+        }
+
+        /**
+         * Builds a record after checking required property presence.
+         * @return a new record
+         * @throws IllegalStateException if a required property is missing
+         * @since 2.0.0
+         */
+        public SessionSettingsJobSnapshot build() {
+            return new SessionSettingsJobSnapshot(eventType, isTriggerJob, builtInToolAvailability);
+        }
+    }
 }

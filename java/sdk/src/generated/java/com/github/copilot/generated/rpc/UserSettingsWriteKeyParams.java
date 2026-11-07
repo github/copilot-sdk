@@ -36,4 +36,100 @@ record UserSettingsWriteKeyParams(
     /** Refuse to replace an unreadable or invalid file. Defaults to false. */
     @JsonProperty("refuseOnReadFailure") Boolean refuseOnReadFailure
 ) {
+
+    /**
+     * Creates a record positionally.
+     * @deprecated Use {@link #builder()} for named construction.
+     */
+    @Deprecated(since = "2.0.0", forRemoval = false)
+    UserSettingsWriteKeyParams {}
+
+    /**
+     * Returns a named builder.
+     * @return a new builder
+     * @since 2.0.0
+     */
+    public static Builder builder() { return new Builder(); }
+
+    /**
+     * Named construction for this record.
+     * @since 2.0.0
+     */
+    public static final class Builder {
+        private Builder() {}
+        private String key;
+        private UserSettingsHostContext context;
+        private Object value;
+        private boolean $presence2;
+        private Boolean delete;
+        private Boolean refuseOnReadFailure;
+
+        /**
+         * Sets the {@code key} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder key(String value) {
+            this.key = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code context} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder context(UserSettingsHostContext value) {
+            this.context = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code value} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder value(Object value) {
+            this.value = value;
+            this.$presence2 = true;
+            return this;
+        }
+
+        /**
+         * Sets the {@code delete} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder delete(Boolean value) {
+            this.delete = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code refuseOnReadFailure} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder refuseOnReadFailure(Boolean value) {
+            this.refuseOnReadFailure = value;
+            return this;
+        }
+
+        /**
+         * Builds a record after checking required property presence.
+         * @return a new record
+         * @throws IllegalStateException if a required property is missing
+         * @since 2.0.0
+         */
+        public UserSettingsWriteKeyParams build() {
+            if (key == null) throw new IllegalStateException("Missing required property: key");
+            if (!$presence2) throw new IllegalStateException("Missing required property: value");
+            return new UserSettingsWriteKeyParams(key, context, value, delete, refuseOnReadFailure);
+        }
+    }
 }

@@ -28,4 +28,74 @@ public record McpPlanPolicyResult(
     /** Human-readable explanation, safe to surface. Never contains a query, URL, handle, or secret. */
     @JsonProperty("reason") String reason
 ) {
+
+    /**
+     * Creates a record positionally.
+     * @deprecated Use {@link #builder()} for named construction.
+     */
+    @Deprecated(since = "2.0.0", forRemoval = false)
+    public McpPlanPolicyResult {}
+
+    /**
+     * Returns a named builder.
+     * @return a new builder
+     * @since 2.0.0
+     */
+    public static Builder builder() { return new Builder(); }
+
+    /**
+     * Named construction for this record.
+     * @since 2.0.0
+     */
+    public static final class Builder {
+        private Builder() {}
+        private McpPlanPolicyDecision decision;
+        private McpPlanPolicySource source;
+        private String reason;
+
+        /**
+         * Sets the {@code decision} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder decision(McpPlanPolicyDecision value) {
+            this.decision = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code source} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder source(McpPlanPolicySource value) {
+            this.source = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code reason} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder reason(String value) {
+            this.reason = value;
+            return this;
+        }
+
+        /**
+         * Builds a record after checking required property presence.
+         * @return a new record
+         * @throws IllegalStateException if a required property is missing
+         * @since 2.0.0
+         */
+        public McpPlanPolicyResult build() {
+            if (decision == null) throw new IllegalStateException("Missing required property: decision");
+            if (source == null) throw new IllegalStateException("Missing required property: source");
+            return new McpPlanPolicyResult(decision, source, reason);
+        }
+    }
 }

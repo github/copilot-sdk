@@ -47,8 +47,8 @@ class HostingAuthenticationIT {
     }
 
     private static AhpHostOptions options(AhpHostAuthentication policy) {
-        return new AhpHostOptions().setAuthentication(policy)
-                .setLocalServer(new HostLocalServerOptions(null, null, "independent-websocket-secret", null));
+        return new AhpHostOptions().setAuthentication(policy).setLocalServer(HostLocalServerOptions.builder()
+                .hostname(null).port(null).token("independent-websocket-secret").requireConnectionToken(null).build());
     }
 
     private static AhpHostAuthentication custom(

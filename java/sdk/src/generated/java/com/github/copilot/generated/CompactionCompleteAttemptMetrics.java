@@ -60,4 +60,265 @@ public record CompactionCompleteAttemptMetrics(
     /** Step whose failure ended the compaction before or after its summarizer request: "session_read", "auth_hydration", "model_resolution", "context_breakdown", "token_limit", "start_publication", "pre_compact_hook", "output_hydration", "auth_missing", "agent_context_missing", "summarizer_setup", "summary_parse", "plan_read", "history_write" or "background_apply". Absent when the summarizer request itself failed, or nothing failed. */
     @JsonProperty("failureOperation") String failureOperation
 ) {
+
+    /**
+     * Creates a record positionally.
+     * @deprecated Use {@link #builder()} for named construction.
+     */
+    @Deprecated(since = "2.0.0", forRemoval = false)
+    public CompactionCompleteAttemptMetrics {}
+
+    /**
+     * Returns a named builder.
+     * @return a new builder
+     * @since 2.0.0
+     */
+    public static Builder builder() { return new Builder(); }
+
+    /**
+     * Named construction for this record.
+     * @since 2.0.0
+     */
+    public static final class Builder {
+        private Builder() {}
+        private Long durationMs;
+        private Long blockingWaitMs;
+        private Long applyDelayMs;
+        private Long suspendedMs;
+        private String summarizerReasoningEffort;
+        private String requestedReasoningEffort;
+        private String deadlinePolicy;
+        private Long deadlineLimitMs;
+        private Long deadlineOvershootMs;
+        private Double triggerThreshold;
+        private Double maxOutputTokens;
+        private Long failedRequestCount;
+        private Long failedRequestInputTokensEstimate;
+        private Long cancelledRequestCount;
+        private Long retryWaitMs;
+        private Long lastRetryAfterMs;
+        private Long shrinkRemovedAttachments;
+        private Long shrinkStrippedReasoning;
+        private String failureOperation;
+
+        /**
+         * Sets the {@code durationMs} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder durationMs(Long value) {
+            this.durationMs = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code blockingWaitMs} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder blockingWaitMs(Long value) {
+            this.blockingWaitMs = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code applyDelayMs} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder applyDelayMs(Long value) {
+            this.applyDelayMs = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code suspendedMs} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder suspendedMs(Long value) {
+            this.suspendedMs = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code summarizerReasoningEffort} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder summarizerReasoningEffort(String value) {
+            this.summarizerReasoningEffort = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code requestedReasoningEffort} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder requestedReasoningEffort(String value) {
+            this.requestedReasoningEffort = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code deadlinePolicy} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder deadlinePolicy(String value) {
+            this.deadlinePolicy = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code deadlineLimitMs} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder deadlineLimitMs(Long value) {
+            this.deadlineLimitMs = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code deadlineOvershootMs} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder deadlineOvershootMs(Long value) {
+            this.deadlineOvershootMs = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code triggerThreshold} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder triggerThreshold(Double value) {
+            this.triggerThreshold = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code maxOutputTokens} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder maxOutputTokens(Double value) {
+            this.maxOutputTokens = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code failedRequestCount} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder failedRequestCount(Long value) {
+            this.failedRequestCount = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code failedRequestInputTokensEstimate} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder failedRequestInputTokensEstimate(Long value) {
+            this.failedRequestInputTokensEstimate = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code cancelledRequestCount} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder cancelledRequestCount(Long value) {
+            this.cancelledRequestCount = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code retryWaitMs} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder retryWaitMs(Long value) {
+            this.retryWaitMs = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code lastRetryAfterMs} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder lastRetryAfterMs(Long value) {
+            this.lastRetryAfterMs = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code shrinkRemovedAttachments} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder shrinkRemovedAttachments(Long value) {
+            this.shrinkRemovedAttachments = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code shrinkStrippedReasoning} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder shrinkStrippedReasoning(Long value) {
+            this.shrinkStrippedReasoning = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code failureOperation} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder failureOperation(String value) {
+            this.failureOperation = value;
+            return this;
+        }
+
+        /**
+         * Builds a record after checking required property presence.
+         * @return a new record
+         * @throws IllegalStateException if a required property is missing
+         * @since 2.0.0
+         */
+        public CompactionCompleteAttemptMetrics build() {
+            if (durationMs == null) throw new IllegalStateException("Missing required property: durationMs");
+            return new CompactionCompleteAttemptMetrics(durationMs, blockingWaitMs, applyDelayMs, suspendedMs, summarizerReasoningEffort, requestedReasoningEffort, deadlinePolicy, deadlineLimitMs, deadlineOvershootMs, triggerThreshold, maxOutputTokens, failedRequestCount, failedRequestInputTokensEstimate, cancelledRequestCount, retryWaitMs, lastRetryAfterMs, shrinkRemovedAttachments, shrinkStrippedReasoning, failureOperation);
+        }
+    }
 }

@@ -55,7 +55,7 @@ class AgentRegistrySerializationTest {
     @Test
     void nestedDiscoveredEntryPreservesMetadataWithoutCredentials() throws Exception {
         var entry = MAPPER.readValue(ENTRY, AgentRegistryLiveTargetEntry.class);
-        var result = new AgentRegistryListEntriesResult(java.util.List.of(entry), null);
+        var result = AgentRegistryListEntriesResult.builder().entries(java.util.List.of(entry)).error(null).build();
         var serialized = MAPPER.readTree(MAPPER.writeValueAsString(result));
 
         var nested = serialized.get("entries").get(0);
@@ -68,7 +68,8 @@ class AgentRegistrySerializationTest {
 
     @Test
     void removeEntryOmitsOptionalHomeWithoutChangingRequiredFields() throws Exception {
-        var request = new AgentRegistryRemoveEntryParams(null, "fixture-home", 77L);
+        var request = AgentRegistryRemoveEntryParams.builder().copilotHome(null).homeDir("fixture-home").pid(77L)
+                .build();
         var serialized = MAPPER.readTree(MAPPER.writeValueAsString(request));
 
         assertFalse(serialized.has("copilotHome"));
@@ -86,6 +87,7 @@ class AgentRegistrySerializationTest {
      *             if serialization fails
      */
     public static void main(String[] args) throws Exception {
-        System.out.println(MAPPER.writeValueAsString(new AgentRegistryRemoveEntryParams(null, args[0], 77L)));
+        System.out.println(MAPPER.writeValueAsString(
+                AgentRegistryRemoveEntryParams.builder().copilotHome(null).homeDir(args[0]).pid(77L).build()));
     }
 }

@@ -41,4 +41,142 @@ public record SessionToolsGetBuiltinDescriptorsParams(
     /** Whether background task completion notifications are enabled. */
     @JsonProperty("backgroundTaskNotificationsEnabled") Boolean backgroundTaskNotificationsEnabled
 ) {
+
+    /**
+     * Creates a record positionally.
+     * @deprecated Use {@link #builder()} for named construction.
+     */
+    @Deprecated(since = "2.0.0", forRemoval = false)
+    public SessionToolsGetBuiltinDescriptorsParams {}
+
+    /**
+     * Returns a named builder.
+     * @return a new builder
+     * @since 2.0.0
+     */
+    @com.github.copilot.CopilotExperimental
+    public static Builder builder() { return new Builder(); }
+
+    /**
+     * Named construction for this record.
+     * @since 2.0.0
+     */
+    @com.github.copilot.CopilotExperimental
+    public static final class Builder {
+        private Builder() {}
+        private String sessionId;
+        private Boolean reduceUserIntervention;
+        private Boolean includeAuthor;
+        private Boolean skillEmbeddingEnabled;
+        private ToolsShellDescriptorConfig shellConfig;
+        private Boolean shellSupportsPowerShell7Syntax;
+        private Double shellTimeoutMs;
+        private Boolean backgroundTaskNotificationsEnabled;
+
+        /**
+         * Sets the {@code sessionId} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        @com.github.copilot.CopilotExperimental
+        public Builder sessionId(String value) {
+            this.sessionId = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code reduceUserIntervention} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        @com.github.copilot.CopilotExperimental
+        public Builder reduceUserIntervention(Boolean value) {
+            this.reduceUserIntervention = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code includeAuthor} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        @com.github.copilot.CopilotExperimental
+        public Builder includeAuthor(Boolean value) {
+            this.includeAuthor = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code skillEmbeddingEnabled} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        @com.github.copilot.CopilotExperimental
+        public Builder skillEmbeddingEnabled(Boolean value) {
+            this.skillEmbeddingEnabled = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code shellConfig} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        @com.github.copilot.CopilotExperimental
+        public Builder shellConfig(ToolsShellDescriptorConfig value) {
+            this.shellConfig = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code shellSupportsPowerShell7Syntax} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        @com.github.copilot.CopilotExperimental
+        public Builder shellSupportsPowerShell7Syntax(Boolean value) {
+            this.shellSupportsPowerShell7Syntax = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code shellTimeoutMs} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        @com.github.copilot.CopilotExperimental
+        public Builder shellTimeoutMs(Double value) {
+            this.shellTimeoutMs = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code backgroundTaskNotificationsEnabled} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        @com.github.copilot.CopilotExperimental
+        public Builder backgroundTaskNotificationsEnabled(Boolean value) {
+            this.backgroundTaskNotificationsEnabled = value;
+            return this;
+        }
+
+        /**
+         * Builds a record after checking required property presence.
+         * @return a new record
+         * @throws IllegalStateException if a required property is missing
+         * @since 2.0.0
+         */
+        public SessionToolsGetBuiltinDescriptorsParams build() {
+            return new SessionToolsGetBuiltinDescriptorsParams(sessionId, reduceUserIntervention, includeAuthor, skillEmbeddingEnabled, shellConfig, shellSupportsPowerShell7Syntax, shellTimeoutMs, backgroundTaskNotificationsEnabled);
+        }
+    }
 }

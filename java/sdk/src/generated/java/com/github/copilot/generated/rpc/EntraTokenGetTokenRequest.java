@@ -28,4 +28,52 @@ public record EntraTokenGetTokenRequest(
     /** Typed identity or resource-token acquisition request. */
     @JsonProperty("request") EntraTokenAcquireRequest request
 ) {
+
+    /**
+     * Creates a record positionally.
+     * @deprecated Use {@link #builder()} for named construction.
+     */
+    @Deprecated(since = "2.0.0", forRemoval = false)
+    public EntraTokenGetTokenRequest {}
+
+    /**
+     * Returns a named builder.
+     * @return a new builder
+     * @since 2.0.0
+     */
+    @com.github.copilot.CopilotExperimental
+    public static Builder builder() { return new Builder(); }
+
+    /**
+     * Named construction for this record.
+     * @since 2.0.0
+     */
+    @com.github.copilot.CopilotExperimental
+    public static final class Builder {
+        private Builder() {}
+        private EntraTokenAcquireRequest request;
+
+        /**
+         * Sets the {@code request} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        @com.github.copilot.CopilotExperimental
+        public Builder request(EntraTokenAcquireRequest value) {
+            this.request = value;
+            return this;
+        }
+
+        /**
+         * Builds a record after checking required property presence.
+         * @return a new record
+         * @throws IllegalStateException if a required property is missing
+         * @since 2.0.0
+         */
+        public EntraTokenGetTokenRequest build() {
+            if (request == null) throw new IllegalStateException("Missing required property: request");
+            return new EntraTokenGetTokenRequest(request);
+        }
+    }
 }

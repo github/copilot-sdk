@@ -25,4 +25,49 @@ record SandboxFilterPickerCandidatesResult(
     /** One decision per candidate, in the same order. Always the same length as the request's `candidates`. */
     @JsonProperty("allowed") List<Boolean> allowed
 ) {
+
+    /**
+     * Creates a record positionally.
+     * @deprecated Use {@link #builder()} for named construction.
+     */
+    @Deprecated(since = "2.0.0", forRemoval = false)
+    SandboxFilterPickerCandidatesResult {}
+
+    /**
+     * Returns a named builder.
+     * @return a new builder
+     * @since 2.0.0
+     */
+    public static Builder builder() { return new Builder(); }
+
+    /**
+     * Named construction for this record.
+     * @since 2.0.0
+     */
+    public static final class Builder {
+        private Builder() {}
+        private List<Boolean> allowed;
+
+        /**
+         * Sets the {@code allowed} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder allowed(List<Boolean> value) {
+            this.allowed = value;
+            return this;
+        }
+
+        /**
+         * Builds a record after checking required property presence.
+         * @return a new record
+         * @throws IllegalStateException if a required property is missing
+         * @since 2.0.0
+         */
+        public SandboxFilterPickerCandidatesResult build() {
+            if (allowed == null) throw new IllegalStateException("Missing required property: allowed");
+            return new SandboxFilterPickerCandidatesResult(allowed);
+        }
+    }
 }

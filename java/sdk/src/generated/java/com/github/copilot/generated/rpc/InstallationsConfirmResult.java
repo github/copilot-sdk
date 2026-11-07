@@ -31,4 +31,75 @@ public record InstallationsConfirmResult(
     /** Fresh explicit user decision. There is no default. */
     @JsonProperty("decision") InstallationDecision decision
 ) {
+
+    /**
+     * Creates a record positionally.
+     * @deprecated Use {@link #builder()} for named construction.
+     */
+    @Deprecated(since = "2.0.0", forRemoval = false)
+    public InstallationsConfirmResult {}
+
+    /**
+     * Returns a named builder.
+     * @return a new builder
+     * @since 2.0.0
+     */
+    public static Builder builder() { return new Builder(); }
+
+    /**
+     * Named construction for this record.
+     * @since 2.0.0
+     */
+    public static final class Builder {
+        private Builder() {}
+        private String confirmationId;
+        private String reviewFingerprint;
+        private InstallationDecision decision;
+
+        /**
+         * Sets the {@code confirmationId} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder confirmationId(String value) {
+            this.confirmationId = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code reviewFingerprint} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder reviewFingerprint(String value) {
+            this.reviewFingerprint = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code decision} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder decision(InstallationDecision value) {
+            this.decision = value;
+            return this;
+        }
+
+        /**
+         * Builds a record after checking required property presence.
+         * @return a new record
+         * @throws IllegalStateException if a required property is missing
+         * @since 2.0.0
+         */
+        public InstallationsConfirmResult build() {
+            if (confirmationId == null) throw new IllegalStateException("Missing required property: confirmationId");
+            if (reviewFingerprint == null) throw new IllegalStateException("Missing required property: reviewFingerprint");
+            if (decision == null) throw new IllegalStateException("Missing required property: decision");
+            return new InstallationsConfirmResult(confirmationId, reviewFingerprint, decision);
+        }
+    }
 }

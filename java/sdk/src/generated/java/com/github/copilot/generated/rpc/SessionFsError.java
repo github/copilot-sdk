@@ -28,4 +28,73 @@ public record SessionFsError(
     /** For failed writeFile requests only: true if the provider changed the target before failing. Omit when unknown or unchanged. */
     @JsonProperty("writeChanged") Boolean writeChanged
 ) {
+
+    /**
+     * Creates a record positionally.
+     * @deprecated Use {@link #builder()} for named construction.
+     */
+    @Deprecated(since = "2.0.0", forRemoval = false)
+    public SessionFsError {}
+
+    /**
+     * Returns a named builder.
+     * @return a new builder
+     * @since 2.0.0
+     */
+    public static Builder builder() { return new Builder(); }
+
+    /**
+     * Named construction for this record.
+     * @since 2.0.0
+     */
+    public static final class Builder {
+        private Builder() {}
+        private SessionFsErrorCode code;
+        private String message;
+        private Boolean writeChanged;
+
+        /**
+         * Sets the {@code code} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder code(SessionFsErrorCode value) {
+            this.code = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code message} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder message(String value) {
+            this.message = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code writeChanged} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder writeChanged(Boolean value) {
+            this.writeChanged = value;
+            return this;
+        }
+
+        /**
+         * Builds a record after checking required property presence.
+         * @return a new record
+         * @throws IllegalStateException if a required property is missing
+         * @since 2.0.0
+         */
+        public SessionFsError build() {
+            if (code == null) throw new IllegalStateException("Missing required property: code");
+            return new SessionFsError(code, message, writeChanged);
+        }
+    }
 }

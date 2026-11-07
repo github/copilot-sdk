@@ -27,4 +27,49 @@ public record SecretsAddFilterValuesResult(
     /** Whether the values were successfully registered */
     @JsonProperty("ok") Boolean ok
 ) {
+
+    /**
+     * Creates a record positionally.
+     * @deprecated Use {@link #builder()} for named construction.
+     */
+    @Deprecated(since = "2.0.0", forRemoval = false)
+    public SecretsAddFilterValuesResult {}
+
+    /**
+     * Returns a named builder.
+     * @return a new builder
+     * @since 2.0.0
+     */
+    public static Builder builder() { return new Builder(); }
+
+    /**
+     * Named construction for this record.
+     * @since 2.0.0
+     */
+    public static final class Builder {
+        private Builder() {}
+        private Boolean ok;
+
+        /**
+         * Sets the {@code ok} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder ok(Boolean value) {
+            this.ok = value;
+            return this;
+        }
+
+        /**
+         * Builds a record after checking required property presence.
+         * @return a new record
+         * @throws IllegalStateException if a required property is missing
+         * @since 2.0.0
+         */
+        public SecretsAddFilterValuesResult build() {
+            if (ok == null) throw new IllegalStateException("Missing required property: ok");
+            return new SecretsAddFilterValuesResult(ok);
+        }
+    }
 }

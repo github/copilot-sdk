@@ -233,7 +233,8 @@ class GitHubTelemetryTest {
         for (boolean generated : new boolean[]{false, true}) {
             var options = new CopilotClientOptions();
             if (generated) {
-                options.setEntra(new com.github.copilot.generated.rpc.EntraAuthConfig("host-entra-client", "TestHost"));
+                options.setEntra(com.github.copilot.generated.rpc.EntraAuthConfig.builder()
+                        .clientId("host-entra-client").matsAppName("TestHost").build());
             } else {
                 options.setEntra(new com.github.copilot.rpc.EntraAuthOptions().setClientId("host-entra-client")
                         .setMatsAppName("TestHost"));

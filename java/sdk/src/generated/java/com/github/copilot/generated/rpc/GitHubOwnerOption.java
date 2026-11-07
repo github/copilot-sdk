@@ -26,4 +26,62 @@ record GitHubOwnerOption(
     /** Which kind of owner this is. The authenticated user's own account is always reported as `user`. */
     @JsonProperty("type") String type
 ) {
+
+    /**
+     * Creates a record positionally.
+     * @deprecated Use {@link #builder()} for named construction.
+     */
+    @Deprecated(since = "2.0.0", forRemoval = false)
+    GitHubOwnerOption {}
+
+    /**
+     * Returns a named builder.
+     * @return a new builder
+     * @since 2.0.0
+     */
+    public static Builder builder() { return new Builder(); }
+
+    /**
+     * Named construction for this record.
+     * @since 2.0.0
+     */
+    public static final class Builder {
+        private Builder() {}
+        private String login;
+        private String type;
+
+        /**
+         * Sets the {@code login} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder login(String value) {
+            this.login = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code type} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder type(String value) {
+            this.type = value;
+            return this;
+        }
+
+        /**
+         * Builds a record after checking required property presence.
+         * @return a new record
+         * @throws IllegalStateException if a required property is missing
+         * @since 2.0.0
+         */
+        public GitHubOwnerOption build() {
+            if (login == null) throw new IllegalStateException("Missing required property: login");
+            if (type == null) throw new IllegalStateException("Missing required property: type");
+            return new GitHubOwnerOption(login, type);
+        }
+    }
 }

@@ -46,5 +46,81 @@ public final class WorkflowRunStartedEvent extends SessionEvent {
         /** Attempt number this start committed; a resumed run increments it. */
         @JsonProperty("attempt") Long attempt
     ) {
+
+        /**
+         * Creates a record positionally.
+         * @deprecated Use {@link #builder()} for named construction.
+         */
+        @Deprecated(since = "2.0.0", forRemoval = false)
+        public WorkflowRunStartedEventData {}
+
+        /**
+         * Returns a named builder.
+         * @return a new builder
+         * @since 2.0.0
+         */
+        @com.github.copilot.CopilotExperimental
+        public static Builder builder() { return new Builder(); }
+
+        /**
+         * Named construction for this record.
+         * @since 2.0.0
+         */
+        @com.github.copilot.CopilotExperimental
+        public static final class Builder {
+            private Builder() {}
+            private String runId;
+            private String workflowName;
+            private Long attempt;
+
+            /**
+             * Sets the {@code runId} property.
+             * @param value the property value
+             * @return this builder
+             * @since 2.0.0
+             */
+            @com.github.copilot.CopilotExperimental
+            public Builder runId(String value) {
+                this.runId = value;
+                return this;
+            }
+
+            /**
+             * Sets the {@code workflowName} property.
+             * @param value the property value
+             * @return this builder
+             * @since 2.0.0
+             */
+            @com.github.copilot.CopilotExperimental
+            public Builder workflowName(String value) {
+                this.workflowName = value;
+                return this;
+            }
+
+            /**
+             * Sets the {@code attempt} property.
+             * @param value the property value
+             * @return this builder
+             * @since 2.0.0
+             */
+            @com.github.copilot.CopilotExperimental
+            public Builder attempt(Long value) {
+                this.attempt = value;
+                return this;
+            }
+
+            /**
+             * Builds a record after checking required property presence.
+             * @return a new record
+             * @throws IllegalStateException if a required property is missing
+             * @since 2.0.0
+             */
+            public WorkflowRunStartedEventData build() {
+                if (runId == null) throw new IllegalStateException("Missing required property: runId");
+                if (workflowName == null) throw new IllegalStateException("Missing required property: workflowName");
+                if (attempt == null) throw new IllegalStateException("Missing required property: attempt");
+                return new WorkflowRunStartedEventData(runId, workflowName, attempt);
+            }
+        }
     }
 }

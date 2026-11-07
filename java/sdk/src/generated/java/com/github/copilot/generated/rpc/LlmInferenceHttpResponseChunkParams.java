@@ -35,4 +35,98 @@ public record LlmInferenceHttpResponseChunkParams(
     /** Set to terminate the response with a transport-level failure. Implies end-of-stream; any further chunks for this requestId are ignored. */
     @JsonProperty("error") LlmInferenceHttpResponseChunkError error
 ) {
+
+    /**
+     * Creates a record positionally.
+     * @deprecated Use {@link #builder()} for named construction.
+     */
+    @Deprecated(since = "2.0.0", forRemoval = false)
+    public LlmInferenceHttpResponseChunkParams {}
+
+    /**
+     * Returns a named builder.
+     * @return a new builder
+     * @since 2.0.0
+     */
+    public static Builder builder() { return new Builder(); }
+
+    /**
+     * Named construction for this record.
+     * @since 2.0.0
+     */
+    public static final class Builder {
+        private Builder() {}
+        private String requestId;
+        private String data;
+        private Boolean binary;
+        private Boolean end;
+        private LlmInferenceHttpResponseChunkError error;
+
+        /**
+         * Sets the {@code requestId} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder requestId(String value) {
+            this.requestId = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code data} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder data(String value) {
+            this.data = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code binary} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder binary(Boolean value) {
+            this.binary = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code end} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder end(Boolean value) {
+            this.end = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code error} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder error(LlmInferenceHttpResponseChunkError value) {
+            this.error = value;
+            return this;
+        }
+
+        /**
+         * Builds a record after checking required property presence.
+         * @return a new record
+         * @throws IllegalStateException if a required property is missing
+         * @since 2.0.0
+         */
+        public LlmInferenceHttpResponseChunkParams build() {
+            if (requestId == null) throw new IllegalStateException("Missing required property: requestId");
+            if (data == null) throw new IllegalStateException("Missing required property: data");
+            return new LlmInferenceHttpResponseChunkParams(requestId, data, binary, end, error);
+        }
+    }
 }

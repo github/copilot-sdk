@@ -6,6 +6,42 @@
 
 use super::*;
 
+#[test]
+fn cache_selection_failure_can_be_retried() {
+    let fixture = tempfile::tempdir().expect("temporary fixture");
+    let root = fixture.path().join("cache");
+    fs::write(&root, b"blocked cache").expect("block cache selection");
+    let cache = OnceLock::new();
+    let select_dir = || {
+        fs::create_dir_all(&root).map_err(|error| crate::ErrorKind::BinaryNotFound {
+            name: "copilot".into(),
+            hint: Some(error.to_string()),
+        })?;
+        Ok(root.clone())
+    };
+    let install = |dir: &Path| {
+        let path = dir.join("copilot");
+        fs::write(&path, b"installed").expect("install into selected cache");
+        Some(path)
+    };
+
+    cached_install(&cache, select_dir, install).expect_err("blocked cache must fail");
+    fs::remove_file(&root).expect("correct cache location");
+    let path = cached_install(&cache, select_dir, install)
+        .expect("retry after correcting cache")
+        .expect("installed path");
+    assert_eq!(fs::read(&path).expect("installed bytes"), b"installed");
+    assert_eq!(
+        cached_install(
+            &cache,
+            || panic!("warm cache must not repeat directory selection"),
+            |_| panic!("warm cache must not repeat installation"),
+        )
+        .expect("warm installation"),
+        Some(path)
+    );
+}
+
 #[cfg(all(has_bundled_cli, feature = "in-process"))]
 #[test]
 fn embedded_runtime_archive_contains_runtime_assets_and_excludes_cli() {

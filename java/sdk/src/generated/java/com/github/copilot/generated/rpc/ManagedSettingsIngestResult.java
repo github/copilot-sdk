@@ -22,6 +22,7 @@ import javax.annotation.processing.Generated;
 @javax.annotation.processing.Generated("copilot-sdk-codegen")
 @JsonInclude(JsonInclude.Include.NON_NULL)
 @JsonIgnoreProperties(ignoreUnknown = true)
+@com.fasterxml.jackson.databind.annotation.JsonDeserialize(using = ManagedSettingsIngestResult.$NullableDeserializer.class)
 record ManagedSettingsIngestResult(
     /** The effective managed settings composed from every resolved layer. Omitted when no layer set anything, so an unmanaged host locks nothing. */
     @JsonProperty("settings") Object settings,
@@ -76,6 +77,452 @@ record ManagedSettingsIngestResult(
     /** The policy helper's failure must be treated as fail-closed rather than ignored. */
     @JsonProperty("policyHelperFailClosed") Boolean policyHelperFailClosed,
     /** Diagnostics emitted while resolving the layers, in the order they occurred. */
-    @JsonProperty("logMessages") List<ManagedSettingsLogMessage> logMessages
+    @JsonProperty("logMessages") List<ManagedSettingsLogMessage> logMessages,
+    @com.fasterxml.jackson.annotation.JsonIgnore java.util.Set<String> $explicitNulls
 ) {
+
+    /**
+     * Creates a record positionally.
+     * @deprecated Use {@link #builder()} for named construction.
+     */
+    @Deprecated(since = "2.0.0", forRemoval = false)
+    ManagedSettingsIngestResult { $explicitNulls = $explicitNulls == null ? java.util.Set.of() : java.util.Set.copyOf($explicitNulls); }
+
+    /**
+     * Creates a record with legacy null-as-omission semantics.
+     * @deprecated Use {@link #builder()} for named construction.
+     */
+    @Deprecated(since = "2.0.0", forRemoval = false)
+    ManagedSettingsIngestResult(Object settings, Object permissions, Boolean serverFetchFailed, Boolean serverTokenUnavailable, String serverFetchError, ManagedSettingsServerPolicyResolution serverResolution, Boolean serverRetryableFailure, Boolean serverCacheFallback, Boolean serverSourceFound, Object serverResponse, Object serverSandboxFloor, Boolean serverForcedRefreshFailure, String serverClientUpdateRequired, String serverClientUpdateRequested, Object serverPermissionsFloor, Object deviceResponse, Boolean deviceLoadFailed, Object deviceSandboxFloor, Boolean deviceSourceFound, Boolean deviceSandboxUndetermined, Object policyHelperResponse, ManagedSettingsPolicyHelperAuthority policyHelperAuthority, Boolean policyHelperLoadFailed, PolicyHelperFailure policyHelperFailure, Boolean policyHelperConfigured, Boolean policyHelperFailClosed, List<ManagedSettingsLogMessage> logMessages) {
+        this(settings, permissions, serverFetchFailed, serverTokenUnavailable, serverFetchError, serverResolution, serverRetryableFailure, serverCacheFallback, serverSourceFound, serverResponse, serverSandboxFloor, serverForcedRefreshFailure, serverClientUpdateRequired, serverClientUpdateRequested, serverPermissionsFloor, deviceResponse, deviceLoadFailed, deviceSandboxFloor, deviceSourceFound, deviceSandboxUndetermined, policyHelperResponse, policyHelperAuthority, policyHelperLoadFailed, policyHelperFailure, policyHelperConfigured, policyHelperFailClosed, logMessages, java.util.Set.of());
+    }
+
+    /**
+     * Returns a named builder.
+     * @return a new builder
+     * @since 2.0.0
+     */
+    public static Builder builder() { return new Builder(); }
+
+    /**
+     * Named construction for this record.
+     * @since 2.0.0
+     */
+    public static final class Builder {
+        private Builder() {}
+        private Object settings;
+        private boolean $presence0;
+        private Object permissions;
+        private boolean $presence1;
+        private Boolean serverFetchFailed;
+        private Boolean serverTokenUnavailable;
+        private String serverFetchError;
+        private ManagedSettingsServerPolicyResolution serverResolution;
+        private Boolean serverRetryableFailure;
+        private Boolean serverCacheFallback;
+        private Boolean serverSourceFound;
+        private Object serverResponse;
+        private boolean $presence9;
+        private Object serverSandboxFloor;
+        private boolean $presence10;
+        private Boolean serverForcedRefreshFailure;
+        private String serverClientUpdateRequired;
+        private String serverClientUpdateRequested;
+        private Object serverPermissionsFloor;
+        private boolean $presence14;
+        private Object deviceResponse;
+        private boolean $presence15;
+        private Boolean deviceLoadFailed;
+        private Object deviceSandboxFloor;
+        private boolean $presence17;
+        private Boolean deviceSourceFound;
+        private Boolean deviceSandboxUndetermined;
+        private Object policyHelperResponse;
+        private boolean $presence20;
+        private ManagedSettingsPolicyHelperAuthority policyHelperAuthority;
+        private Boolean policyHelperLoadFailed;
+        private PolicyHelperFailure policyHelperFailure;
+        private Boolean policyHelperConfigured;
+        private Boolean policyHelperFailClosed;
+        private List<ManagedSettingsLogMessage> logMessages;
+
+        /**
+         * Sets the {@code settings} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder settings(Object value) {
+            this.settings = value;
+            this.$presence0 = true;
+            return this;
+        }
+
+        /**
+         * Sets the {@code permissions} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder permissions(Object value) {
+            this.permissions = value;
+            this.$presence1 = true;
+            return this;
+        }
+
+        /**
+         * Sets the {@code serverFetchFailed} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder serverFetchFailed(Boolean value) {
+            this.serverFetchFailed = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code serverTokenUnavailable} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder serverTokenUnavailable(Boolean value) {
+            this.serverTokenUnavailable = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code serverFetchError} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder serverFetchError(String value) {
+            this.serverFetchError = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code serverResolution} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder serverResolution(ManagedSettingsServerPolicyResolution value) {
+            this.serverResolution = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code serverRetryableFailure} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder serverRetryableFailure(Boolean value) {
+            this.serverRetryableFailure = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code serverCacheFallback} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder serverCacheFallback(Boolean value) {
+            this.serverCacheFallback = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code serverSourceFound} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder serverSourceFound(Boolean value) {
+            this.serverSourceFound = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code serverResponse} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder serverResponse(Object value) {
+            this.serverResponse = value;
+            this.$presence9 = true;
+            return this;
+        }
+
+        /**
+         * Sets the {@code serverSandboxFloor} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder serverSandboxFloor(Object value) {
+            this.serverSandboxFloor = value;
+            this.$presence10 = true;
+            return this;
+        }
+
+        /**
+         * Sets the {@code serverForcedRefreshFailure} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder serverForcedRefreshFailure(Boolean value) {
+            this.serverForcedRefreshFailure = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code serverClientUpdateRequired} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder serverClientUpdateRequired(String value) {
+            this.serverClientUpdateRequired = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code serverClientUpdateRequested} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder serverClientUpdateRequested(String value) {
+            this.serverClientUpdateRequested = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code serverPermissionsFloor} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder serverPermissionsFloor(Object value) {
+            this.serverPermissionsFloor = value;
+            this.$presence14 = true;
+            return this;
+        }
+
+        /**
+         * Sets the {@code deviceResponse} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder deviceResponse(Object value) {
+            this.deviceResponse = value;
+            this.$presence15 = true;
+            return this;
+        }
+
+        /**
+         * Sets the {@code deviceLoadFailed} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder deviceLoadFailed(Boolean value) {
+            this.deviceLoadFailed = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code deviceSandboxFloor} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder deviceSandboxFloor(Object value) {
+            this.deviceSandboxFloor = value;
+            this.$presence17 = true;
+            return this;
+        }
+
+        /**
+         * Sets the {@code deviceSourceFound} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder deviceSourceFound(Boolean value) {
+            this.deviceSourceFound = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code deviceSandboxUndetermined} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder deviceSandboxUndetermined(Boolean value) {
+            this.deviceSandboxUndetermined = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code policyHelperResponse} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder policyHelperResponse(Object value) {
+            this.policyHelperResponse = value;
+            this.$presence20 = true;
+            return this;
+        }
+
+        /**
+         * Sets the {@code policyHelperAuthority} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder policyHelperAuthority(ManagedSettingsPolicyHelperAuthority value) {
+            this.policyHelperAuthority = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code policyHelperLoadFailed} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder policyHelperLoadFailed(Boolean value) {
+            this.policyHelperLoadFailed = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code policyHelperFailure} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder policyHelperFailure(PolicyHelperFailure value) {
+            this.policyHelperFailure = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code policyHelperConfigured} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder policyHelperConfigured(Boolean value) {
+            this.policyHelperConfigured = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code policyHelperFailClosed} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder policyHelperFailClosed(Boolean value) {
+            this.policyHelperFailClosed = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code logMessages} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder logMessages(List<ManagedSettingsLogMessage> value) {
+            this.logMessages = value;
+            return this;
+        }
+
+        /**
+         * Builds a record after checking required property presence.
+         * @return a new record
+         * @throws IllegalStateException if a required property is missing
+         * @since 2.0.0
+         */
+        public ManagedSettingsIngestResult build() {
+            if (serverFetchFailed == null) throw new IllegalStateException("Missing required property: serverFetchFailed");
+            if (serverTokenUnavailable == null) throw new IllegalStateException("Missing required property: serverTokenUnavailable");
+            if (serverResolution == null) throw new IllegalStateException("Missing required property: serverResolution");
+            if (serverRetryableFailure == null) throw new IllegalStateException("Missing required property: serverRetryableFailure");
+            if (serverCacheFallback == null) throw new IllegalStateException("Missing required property: serverCacheFallback");
+            if (serverSourceFound == null) throw new IllegalStateException("Missing required property: serverSourceFound");
+            if (serverForcedRefreshFailure == null) throw new IllegalStateException("Missing required property: serverForcedRefreshFailure");
+            if (deviceLoadFailed == null) throw new IllegalStateException("Missing required property: deviceLoadFailed");
+            if (deviceSourceFound == null) throw new IllegalStateException("Missing required property: deviceSourceFound");
+            if (deviceSandboxUndetermined == null) throw new IllegalStateException("Missing required property: deviceSandboxUndetermined");
+            if (policyHelperLoadFailed == null) throw new IllegalStateException("Missing required property: policyHelperLoadFailed");
+            if (policyHelperConfigured == null) throw new IllegalStateException("Missing required property: policyHelperConfigured");
+            if (policyHelperFailClosed == null) throw new IllegalStateException("Missing required property: policyHelperFailClosed");
+            if (logMessages == null) throw new IllegalStateException("Missing required property: logMessages");
+            java.util.Set<String> $explicitNulls = new java.util.LinkedHashSet<>();
+            if ($presence0 && settings == null) $explicitNulls.add("settings");
+            if ($presence1 && permissions == null) $explicitNulls.add("permissions");
+            if ($presence9 && serverResponse == null) $explicitNulls.add("serverResponse");
+            if ($presence10 && serverSandboxFloor == null) $explicitNulls.add("serverSandboxFloor");
+            if ($presence14 && serverPermissionsFloor == null) $explicitNulls.add("serverPermissionsFloor");
+            if ($presence15 && deviceResponse == null) $explicitNulls.add("deviceResponse");
+            if ($presence17 && deviceSandboxFloor == null) $explicitNulls.add("deviceSandboxFloor");
+            if ($presence20 && policyHelperResponse == null) $explicitNulls.add("policyHelperResponse");
+            return new ManagedSettingsIngestResult(settings, permissions, serverFetchFailed, serverTokenUnavailable, serverFetchError, serverResolution, serverRetryableFailure, serverCacheFallback, serverSourceFound, serverResponse, serverSandboxFloor, serverForcedRefreshFailure, serverClientUpdateRequired, serverClientUpdateRequested, serverPermissionsFloor, deviceResponse, deviceLoadFailed, deviceSandboxFloor, deviceSourceFound, deviceSandboxUndetermined, policyHelperResponse, policyHelperAuthority, policyHelperLoadFailed, policyHelperFailure, policyHelperConfigured, policyHelperFailClosed, logMessages, $explicitNulls);
+        }
+    }
+
+    @com.fasterxml.jackson.annotation.JsonAnyGetter
+    @JsonInclude(value = JsonInclude.Include.ALWAYS, content = JsonInclude.Include.ALWAYS)
+    public java.util.Map<String, Object> $nullableProperties() {
+        java.util.Map<String, Object> values = new java.util.LinkedHashMap<>();
+        if ($explicitNulls.contains("settings") && settings == null) values.put("settings", null);
+        if ($explicitNulls.contains("permissions") && permissions == null) values.put("permissions", null);
+        if ($explicitNulls.contains("serverResponse") && serverResponse == null) values.put("serverResponse", null);
+        if ($explicitNulls.contains("serverSandboxFloor") && serverSandboxFloor == null) values.put("serverSandboxFloor", null);
+        if ($explicitNulls.contains("serverPermissionsFloor") && serverPermissionsFloor == null) values.put("serverPermissionsFloor", null);
+        if ($explicitNulls.contains("deviceResponse") && deviceResponse == null) values.put("deviceResponse", null);
+        if ($explicitNulls.contains("deviceSandboxFloor") && deviceSandboxFloor == null) values.put("deviceSandboxFloor", null);
+        if ($explicitNulls.contains("policyHelperResponse") && policyHelperResponse == null) values.put("policyHelperResponse", null);
+        return values;
+    }
+
+    public static final class $NullableDeserializer extends com.fasterxml.jackson.databind.JsonDeserializer<ManagedSettingsIngestResult> {
+        @Override
+        public ManagedSettingsIngestResult deserialize(com.fasterxml.jackson.core.JsonParser parser,
+                com.fasterxml.jackson.databind.DeserializationContext context) throws java.io.IOException {
+            com.fasterxml.jackson.databind.JsonNode tree = context.readTree(parser);
+            if (!tree.isObject()) return context.reportInputMismatch(ManagedSettingsIngestResult.class, "Expected a JSON object");
+            java.util.Set<String> $explicitNulls = new java.util.LinkedHashSet<>();
+            if (tree.has("settings") && tree.get("settings").isNull()) $explicitNulls.add("settings");
+            if (tree.has("permissions") && tree.get("permissions").isNull()) $explicitNulls.add("permissions");
+            if (tree.has("serverResponse") && tree.get("serverResponse").isNull()) $explicitNulls.add("serverResponse");
+            if (tree.has("serverSandboxFloor") && tree.get("serverSandboxFloor").isNull()) $explicitNulls.add("serverSandboxFloor");
+            if (tree.has("serverPermissionsFloor") && tree.get("serverPermissionsFloor").isNull()) $explicitNulls.add("serverPermissionsFloor");
+            if (tree.has("deviceResponse") && tree.get("deviceResponse").isNull()) $explicitNulls.add("deviceResponse");
+            if (tree.has("deviceSandboxFloor") && tree.get("deviceSandboxFloor").isNull()) $explicitNulls.add("deviceSandboxFloor");
+            if (tree.has("policyHelperResponse") && tree.get("policyHelperResponse").isNull()) $explicitNulls.add("policyHelperResponse");
+            return new ManagedSettingsIngestResult(readProperty(context, tree, "settings", new com.fasterxml.jackson.core.type.TypeReference<Object>() {}), readProperty(context, tree, "permissions", new com.fasterxml.jackson.core.type.TypeReference<Object>() {}), readProperty(context, tree, "serverFetchFailed", new com.fasterxml.jackson.core.type.TypeReference<Boolean>() {}), readProperty(context, tree, "serverTokenUnavailable", new com.fasterxml.jackson.core.type.TypeReference<Boolean>() {}), readProperty(context, tree, "serverFetchError", new com.fasterxml.jackson.core.type.TypeReference<String>() {}), readProperty(context, tree, "serverResolution", new com.fasterxml.jackson.core.type.TypeReference<ManagedSettingsServerPolicyResolution>() {}), readProperty(context, tree, "serverRetryableFailure", new com.fasterxml.jackson.core.type.TypeReference<Boolean>() {}), readProperty(context, tree, "serverCacheFallback", new com.fasterxml.jackson.core.type.TypeReference<Boolean>() {}), readProperty(context, tree, "serverSourceFound", new com.fasterxml.jackson.core.type.TypeReference<Boolean>() {}), readProperty(context, tree, "serverResponse", new com.fasterxml.jackson.core.type.TypeReference<Object>() {}), readProperty(context, tree, "serverSandboxFloor", new com.fasterxml.jackson.core.type.TypeReference<Object>() {}), readProperty(context, tree, "serverForcedRefreshFailure", new com.fasterxml.jackson.core.type.TypeReference<Boolean>() {}), readProperty(context, tree, "serverClientUpdateRequired", new com.fasterxml.jackson.core.type.TypeReference<String>() {}), readProperty(context, tree, "serverClientUpdateRequested", new com.fasterxml.jackson.core.type.TypeReference<String>() {}), readProperty(context, tree, "serverPermissionsFloor", new com.fasterxml.jackson.core.type.TypeReference<Object>() {}), readProperty(context, tree, "deviceResponse", new com.fasterxml.jackson.core.type.TypeReference<Object>() {}), readProperty(context, tree, "deviceLoadFailed", new com.fasterxml.jackson.core.type.TypeReference<Boolean>() {}), readProperty(context, tree, "deviceSandboxFloor", new com.fasterxml.jackson.core.type.TypeReference<Object>() {}), readProperty(context, tree, "deviceSourceFound", new com.fasterxml.jackson.core.type.TypeReference<Boolean>() {}), readProperty(context, tree, "deviceSandboxUndetermined", new com.fasterxml.jackson.core.type.TypeReference<Boolean>() {}), readProperty(context, tree, "policyHelperResponse", new com.fasterxml.jackson.core.type.TypeReference<Object>() {}), readProperty(context, tree, "policyHelperAuthority", new com.fasterxml.jackson.core.type.TypeReference<ManagedSettingsPolicyHelperAuthority>() {}), readProperty(context, tree, "policyHelperLoadFailed", new com.fasterxml.jackson.core.type.TypeReference<Boolean>() {}), readProperty(context, tree, "policyHelperFailure", new com.fasterxml.jackson.core.type.TypeReference<PolicyHelperFailure>() {}), readProperty(context, tree, "policyHelperConfigured", new com.fasterxml.jackson.core.type.TypeReference<Boolean>() {}), readProperty(context, tree, "policyHelperFailClosed", new com.fasterxml.jackson.core.type.TypeReference<Boolean>() {}), readProperty(context, tree, "logMessages", new com.fasterxml.jackson.core.type.TypeReference<List<ManagedSettingsLogMessage>>() {}), $explicitNulls);
+        }
+
+        private static <T> T readProperty(com.fasterxml.jackson.databind.DeserializationContext context,
+                com.fasterxml.jackson.databind.JsonNode tree, String name,
+                com.fasterxml.jackson.core.type.TypeReference<T> type) throws java.io.IOException {
+            if (!tree.has(name)) return null;
+            return context.readTreeAsValue(tree.get(name), context.getTypeFactory().constructType(type));
+        }
+    }
 }

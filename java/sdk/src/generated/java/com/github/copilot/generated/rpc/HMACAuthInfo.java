@@ -48,4 +48,72 @@ public final class HMACAuthInfo extends AuthInfo {
 
     public CopilotUserResponse getCopilotUser() { return copilotUser; }
     public void setCopilotUser(CopilotUserResponse copilotUser) { this.copilotUser = copilotUser; }
+
+
+    /**
+     * Returns a named builder.
+     * @return a new builder
+     * @since 2.0.0
+     */
+    public static Builder builder() { return new Builder(); }
+
+    /**
+     * Named construction for this record.
+     * @since 2.0.0
+     */
+    public static final class Builder {
+        private Builder() {}
+        private String host;
+        private String hmac;
+        private CopilotUserResponse copilotUser;
+
+        /**
+         * Sets the {@code host} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder host(String value) {
+            this.host = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code hmac} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder hmac(String value) {
+            this.hmac = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code copilotUser} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder copilotUser(CopilotUserResponse value) {
+            this.copilotUser = value;
+            return this;
+        }
+
+        /**
+         * Builds a variant after checking required property presence.
+         * @return a new variant
+         * @throws IllegalStateException if a required property is missing
+         * @since 2.0.0
+         */
+        public HMACAuthInfo build() {
+            if (host == null) throw new IllegalStateException("Missing required property: host");
+            if (hmac == null) throw new IllegalStateException("Missing required property: hmac");
+            HMACAuthInfo instance = new HMACAuthInfo();
+            instance.setHost(host);
+            instance.setHmac(hmac);
+            instance.setCopilotUser(copilotUser);
+            return instance;
+        }
+    }
 }

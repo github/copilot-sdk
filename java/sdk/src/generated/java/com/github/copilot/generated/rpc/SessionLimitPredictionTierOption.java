@@ -26,4 +26,62 @@ public record SessionLimitPredictionTierOption(
     /** AI-credit cap for this tier. */
     @JsonProperty("cap") Double cap
 ) {
+
+    /**
+     * Creates a record positionally.
+     * @deprecated Use {@link #builder()} for named construction.
+     */
+    @Deprecated(since = "2.0.0", forRemoval = false)
+    public SessionLimitPredictionTierOption {}
+
+    /**
+     * Returns a named builder.
+     * @return a new builder
+     * @since 2.0.0
+     */
+    public static Builder builder() { return new Builder(); }
+
+    /**
+     * Named construction for this record.
+     * @since 2.0.0
+     */
+    public static final class Builder {
+        private Builder() {}
+        private SessionLimitPredictionTier tier;
+        private Double cap;
+
+        /**
+         * Sets the {@code tier} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder tier(SessionLimitPredictionTier value) {
+            this.tier = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code cap} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder cap(Double value) {
+            this.cap = value;
+            return this;
+        }
+
+        /**
+         * Builds a record after checking required property presence.
+         * @return a new record
+         * @throws IllegalStateException if a required property is missing
+         * @since 2.0.0
+         */
+        public SessionLimitPredictionTierOption build() {
+            if (tier == null) throw new IllegalStateException("Missing required property: tier");
+            if (cap == null) throw new IllegalStateException("Missing required property: cap");
+            return new SessionLimitPredictionTierOption(tier, cap);
+        }
+    }
 }

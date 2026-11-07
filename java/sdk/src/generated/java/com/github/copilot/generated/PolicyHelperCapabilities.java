@@ -26,4 +26,62 @@ public record PolicyHelperCapabilities(
     /** The runtime supports session.managedSettings.recheckPolicyHelper for a fresh scoped helper evaluation. */
     @JsonProperty("recheck") Boolean recheck
 ) {
+
+    /**
+     * Creates a record positionally.
+     * @deprecated Use {@link #builder()} for named construction.
+     */
+    @Deprecated(since = "2.0.0", forRemoval = false)
+    public PolicyHelperCapabilities {}
+
+    /**
+     * Returns a named builder.
+     * @return a new builder
+     * @since 2.0.0
+     */
+    public static Builder builder() { return new Builder(); }
+
+    /**
+     * Named construction for this record.
+     * @since 2.0.0
+     */
+    public static final class Builder {
+        private Builder() {}
+        private Boolean structuredFailure;
+        private Boolean recheck;
+
+        /**
+         * Sets the {@code structuredFailure} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder structuredFailure(Boolean value) {
+            this.structuredFailure = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code recheck} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder recheck(Boolean value) {
+            this.recheck = value;
+            return this;
+        }
+
+        /**
+         * Builds a record after checking required property presence.
+         * @return a new record
+         * @throws IllegalStateException if a required property is missing
+         * @since 2.0.0
+         */
+        public PolicyHelperCapabilities build() {
+            if (structuredFailure == null) throw new IllegalStateException("Missing required property: structuredFailure");
+            if (recheck == null) throw new IllegalStateException("Missing required property: recheck");
+            return new PolicyHelperCapabilities(structuredFailure, recheck);
+        }
+    }
 }

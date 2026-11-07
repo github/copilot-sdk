@@ -29,4 +29,60 @@ public record McpDiscoverParams(
     /** Whether to include canonical effectiveSource metadata for each discovered server. Callers must opt in so protocol-3 clients retain the legacy closed response shape. */
     @JsonProperty("includeEffectiveSource") Boolean includeEffectiveSource
 ) {
+
+    /**
+     * Creates a record positionally.
+     * @deprecated Use {@link #builder()} for named construction.
+     */
+    @Deprecated(since = "2.0.0", forRemoval = false)
+    public McpDiscoverParams {}
+
+    /**
+     * Returns a named builder.
+     * @return a new builder
+     * @since 2.0.0
+     */
+    public static Builder builder() { return new Builder(); }
+
+    /**
+     * Named construction for this record.
+     * @since 2.0.0
+     */
+    public static final class Builder {
+        private Builder() {}
+        private String workingDirectory;
+        private Boolean includeEffectiveSource;
+
+        /**
+         * Sets the {@code workingDirectory} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder workingDirectory(String value) {
+            this.workingDirectory = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code includeEffectiveSource} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder includeEffectiveSource(Boolean value) {
+            this.includeEffectiveSource = value;
+            return this;
+        }
+
+        /**
+         * Builds a record after checking required property presence.
+         * @return a new record
+         * @throws IllegalStateException if a required property is missing
+         * @since 2.0.0
+         */
+        public McpDiscoverParams build() {
+            return new McpDiscoverParams(workingDirectory, includeEffectiveSource);
+        }
+    }
 }

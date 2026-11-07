@@ -31,4 +31,80 @@ public record AzureMlReleaseFamilyParams(
     /** Exact model-family name. */
     @JsonProperty("name") String name
 ) {
+
+    /**
+     * Creates a record positionally.
+     * @deprecated Use {@link #builder()} for named construction.
+     */
+    @Deprecated(since = "2.0.0", forRemoval = false)
+    public AzureMlReleaseFamilyParams {}
+
+    /**
+     * Returns a named builder.
+     * @return a new builder
+     * @since 2.0.0
+     */
+    @com.github.copilot.CopilotExperimental
+    public static Builder builder() { return new Builder(); }
+
+    /**
+     * Named construction for this record.
+     * @since 2.0.0
+     */
+    @com.github.copilot.CopilotExperimental
+    public static final class Builder {
+        private Builder() {}
+        private String leaseId;
+        private AzureMlRegistry registry;
+        private String name;
+
+        /**
+         * Sets the {@code leaseId} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        @com.github.copilot.CopilotExperimental
+        public Builder leaseId(String value) {
+            this.leaseId = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code registry} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        @com.github.copilot.CopilotExperimental
+        public Builder registry(AzureMlRegistry value) {
+            this.registry = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code name} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        @com.github.copilot.CopilotExperimental
+        public Builder name(String value) {
+            this.name = value;
+            return this;
+        }
+
+        /**
+         * Builds a record after checking required property presence.
+         * @return a new record
+         * @throws IllegalStateException if a required property is missing
+         * @since 2.0.0
+         */
+        public AzureMlReleaseFamilyParams build() {
+            if (leaseId == null) throw new IllegalStateException("Missing required property: leaseId");
+            if (registry == null) throw new IllegalStateException("Missing required property: registry");
+            if (name == null) throw new IllegalStateException("Missing required property: name");
+            return new AzureMlReleaseFamilyParams(leaseId, registry, name);
+        }
+    }
 }

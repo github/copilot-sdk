@@ -28,4 +28,49 @@ public record SessionWorkspacesListCheckpointsResult(
     /** Workspace checkpoints in chronological order. Empty when workspace is not enabled. */
     @JsonProperty("checkpoints") List<WorkspacesCheckpoints> checkpoints
 ) {
+
+    /**
+     * Creates a record positionally.
+     * @deprecated Use {@link #builder()} for named construction.
+     */
+    @Deprecated(since = "2.0.0", forRemoval = false)
+    public SessionWorkspacesListCheckpointsResult {}
+
+    /**
+     * Returns a named builder.
+     * @return a new builder
+     * @since 2.0.0
+     */
+    public static Builder builder() { return new Builder(); }
+
+    /**
+     * Named construction for this record.
+     * @since 2.0.0
+     */
+    public static final class Builder {
+        private Builder() {}
+        private List<WorkspacesCheckpoints> checkpoints;
+
+        /**
+         * Sets the {@code checkpoints} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder checkpoints(List<WorkspacesCheckpoints> value) {
+            this.checkpoints = value;
+            return this;
+        }
+
+        /**
+         * Builds a record after checking required property presence.
+         * @return a new record
+         * @throws IllegalStateException if a required property is missing
+         * @since 2.0.0
+         */
+        public SessionWorkspacesListCheckpointsResult build() {
+            if (checkpoints == null) throw new IllegalStateException("Missing required property: checkpoints");
+            return new SessionWorkspacesListCheckpointsResult(checkpoints);
+        }
+    }
 }

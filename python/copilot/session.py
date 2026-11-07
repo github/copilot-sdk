@@ -1858,9 +1858,7 @@ class ProviderConfig(TypedDict, total=False):
     # wire_api "responses".
     transport: Literal["http", "websockets"]
     # Product serving the model, such as "ollama" or "lm_studio", reported in
-    # telemetry as model_provider. "azure_openai" also omits explicit
-    # prompt-cache breakpoints, which limit cross-turn cache reuse on Azure; set
-    # it for a proxy or custom domain in front of Azure OpenAI.
+    # telemetry as model_provider. Only affects telemetry.
     model_provider: ProviderConfigModelProvider
     base_url: str
     api_key: str
@@ -1922,9 +1920,7 @@ class NamedProviderConfig(TypedDict, total=False):
     type: Literal["openai", "azure", "anthropic"]
     wire_api: Literal["completions", "responses"]
     # Product serving this provider's models, such as "ollama" or "lm_studio",
-    # reported in telemetry as model_provider. "azure_openai" also omits
-    # explicit prompt-cache breakpoints, which limit cross-turn cache reuse on
-    # Azure; set it for a proxy or custom domain in front of Azure OpenAI.
+    # reported in telemetry as model_provider. Only affects telemetry.
     model_provider: ProviderConfigModelProvider
     base_url: str
     api_key: str
@@ -2154,10 +2150,15 @@ class CopilotSession:
         self._completion_rpc_unsupported = False
         self._disconnect_lock = asyncio.Lock()
         self._on_disconnect = on_disconnect
+        self._release_from_client: Callable[[CopilotSession], None] | None = None
 
     def _set_disconnect_callback(self, callback: Callable[[], None]) -> None:
         """Set the client-owned cleanup callback before the session becomes active."""
         self._on_disconnect = callback
+
+    def _set_release_from_client(self, release: Callable[[CopilotSession], None]) -> None:
+        """Set how the owning client stops tracking this session after :meth:`disconnect`."""
+        self._release_from_client = release
 
     def _run_disconnect_callback(self) -> None:
         callback = self._on_disconnect
@@ -4285,6 +4286,10 @@ class CopilotSession:
 
             await self._detach_runtime()
             self._mark_disconnected()
+            release = self._release_from_client
+            self._release_from_client = None
+            if release is not None:
+                release(self)
 
     async def _detach_runtime(self) -> None:
         response = await self._client.request("session.detach", {"sessionId": self.session_id})

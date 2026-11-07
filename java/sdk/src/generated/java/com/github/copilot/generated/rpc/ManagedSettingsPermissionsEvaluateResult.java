@@ -30,4 +30,62 @@ public record ManagedSettingsPermissionsEvaluateResult(
     /** Managed permission policy could not be determined; every operation is denied. */
     @JsonProperty("failClosed") Boolean failClosed
 ) {
+
+    /**
+     * Creates a record positionally.
+     * @deprecated Use {@link #builder()} for named construction.
+     */
+    @Deprecated(since = "2.0.0", forRemoval = false)
+    public ManagedSettingsPermissionsEvaluateResult {}
+
+    /**
+     * Returns a named builder.
+     * @return a new builder
+     * @since 2.0.0
+     */
+    public static Builder builder() { return new Builder(); }
+
+    /**
+     * Named construction for this record.
+     * @since 2.0.0
+     */
+    public static final class Builder {
+        private Builder() {}
+        private List<ManagedPermissionEvaluation> results;
+        private Boolean failClosed;
+
+        /**
+         * Sets the {@code results} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder results(List<ManagedPermissionEvaluation> value) {
+            this.results = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code failClosed} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder failClosed(Boolean value) {
+            this.failClosed = value;
+            return this;
+        }
+
+        /**
+         * Builds a record after checking required property presence.
+         * @return a new record
+         * @throws IllegalStateException if a required property is missing
+         * @since 2.0.0
+         */
+        public ManagedSettingsPermissionsEvaluateResult build() {
+            if (results == null) throw new IllegalStateException("Missing required property: results");
+            if (failClosed == null) throw new IllegalStateException("Missing required property: failClosed");
+            return new ManagedSettingsPermissionsEvaluateResult(results, failClosed);
+        }
+    }
 }

@@ -25,4 +25,48 @@ record UserSettingsProblemsResult(
     /** Each setting that will not take effect, and why. Empty when every layer is healthy. */
     @JsonProperty("problems") List<UserSettingsProblem> problems
 ) {
+
+    /**
+     * Creates a record positionally.
+     * @deprecated Use {@link #builder()} for named construction.
+     */
+    @Deprecated(since = "2.0.0", forRemoval = false)
+    UserSettingsProblemsResult {}
+
+    /**
+     * Returns a named builder.
+     * @return a new builder
+     * @since 2.0.0
+     */
+    public static Builder builder() { return new Builder(); }
+
+    /**
+     * Named construction for this record.
+     * @since 2.0.0
+     */
+    public static final class Builder {
+        private Builder() {}
+        private List<UserSettingsProblem> problems;
+
+        /**
+         * Sets the {@code problems} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder problems(List<UserSettingsProblem> value) {
+            this.problems = value;
+            return this;
+        }
+
+        /**
+         * Builds a record after checking required property presence.
+         * @return a new record
+         * @throws IllegalStateException if a required property is missing
+         * @since 2.0.0
+         */
+        public UserSettingsProblemsResult build() {
+            return new UserSettingsProblemsResult(problems);
+        }
+    }
 }

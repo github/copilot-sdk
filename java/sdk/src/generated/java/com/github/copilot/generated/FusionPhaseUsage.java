@@ -38,4 +38,121 @@ public record FusionPhaseUsage(
     /** Total normalized AI-unit cost reported for the phase, in nano-AIU. */
     @JsonProperty("totalNanoAiu") Double totalNanoAiu
 ) {
+
+    /**
+     * Creates a record positionally.
+     * @deprecated Use {@link #builder()} for named construction.
+     */
+    @Deprecated(since = "2.0.0", forRemoval = false)
+    public FusionPhaseUsage {}
+
+    /**
+     * Returns a named builder.
+     * @return a new builder
+     * @since 2.0.0
+     */
+    @com.github.copilot.CopilotExperimental
+    public static Builder builder() { return new Builder(); }
+
+    /**
+     * Named construction for this record.
+     * @since 2.0.0
+     */
+    @com.github.copilot.CopilotExperimental
+    public static final class Builder {
+        private Builder() {}
+        private Long requestCount;
+        private Long inputTokens;
+        private Long outputTokens;
+        private Long cachedTokens;
+        private Long cacheWriteTokens;
+        private Double totalNanoAiu;
+
+        /**
+         * Sets the {@code requestCount} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        @com.github.copilot.CopilotExperimental
+        public Builder requestCount(Long value) {
+            this.requestCount = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code inputTokens} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        @com.github.copilot.CopilotExperimental
+        public Builder inputTokens(Long value) {
+            this.inputTokens = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code outputTokens} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        @com.github.copilot.CopilotExperimental
+        public Builder outputTokens(Long value) {
+            this.outputTokens = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code cachedTokens} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        @com.github.copilot.CopilotExperimental
+        public Builder cachedTokens(Long value) {
+            this.cachedTokens = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code cacheWriteTokens} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        @com.github.copilot.CopilotExperimental
+        public Builder cacheWriteTokens(Long value) {
+            this.cacheWriteTokens = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code totalNanoAiu} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        @com.github.copilot.CopilotExperimental
+        public Builder totalNanoAiu(Double value) {
+            this.totalNanoAiu = value;
+            return this;
+        }
+
+        /**
+         * Builds a record after checking required property presence.
+         * @return a new record
+         * @throws IllegalStateException if a required property is missing
+         * @since 2.0.0
+         */
+        public FusionPhaseUsage build() {
+            if (requestCount == null) throw new IllegalStateException("Missing required property: requestCount");
+            if (inputTokens == null) throw new IllegalStateException("Missing required property: inputTokens");
+            if (outputTokens == null) throw new IllegalStateException("Missing required property: outputTokens");
+            if (cachedTokens == null) throw new IllegalStateException("Missing required property: cachedTokens");
+            if (totalNanoAiu == null) throw new IllegalStateException("Missing required property: totalNanoAiu");
+            return new FusionPhaseUsage(requestCount, inputTokens, outputTokens, cachedTokens, cacheWriteTokens, totalNanoAiu);
+        }
+    }
 }

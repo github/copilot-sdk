@@ -28,4 +28,52 @@ public record BuiltinToolInputSchema(
     /** Root type of the tool input schema. */
     @JsonProperty("type") BuiltinToolInputSchemaType type
 ) {
+
+    /**
+     * Creates a record positionally.
+     * @deprecated Use {@link #builder()} for named construction.
+     */
+    @Deprecated(since = "2.0.0", forRemoval = false)
+    public BuiltinToolInputSchema {}
+
+    /**
+     * Returns a named builder.
+     * @return a new builder
+     * @since 2.0.0
+     */
+    @com.github.copilot.CopilotExperimental
+    public static Builder builder() { return new Builder(); }
+
+    /**
+     * Named construction for this record.
+     * @since 2.0.0
+     */
+    @com.github.copilot.CopilotExperimental
+    public static final class Builder {
+        private Builder() {}
+        private BuiltinToolInputSchemaType type;
+
+        /**
+         * Sets the {@code type} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        @com.github.copilot.CopilotExperimental
+        public Builder type(BuiltinToolInputSchemaType value) {
+            this.type = value;
+            return this;
+        }
+
+        /**
+         * Builds a record after checking required property presence.
+         * @return a new record
+         * @throws IllegalStateException if a required property is missing
+         * @since 2.0.0
+         */
+        public BuiltinToolInputSchema build() {
+            if (type == null) throw new IllegalStateException("Missing required property: type");
+            return new BuiltinToolInputSchema(type);
+        }
+    }
 }

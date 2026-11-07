@@ -2958,9 +2958,7 @@ type ProviderConfig struct {
 	Transport string `json:"transport,omitempty"`
 	// ModelProvider is the product serving the model, reported in telemetry as
 	// model_provider. Allowed values are "openai", "anthropic", "azure_openai",
-	// "ollama", "lm_studio", "foundry_local", and "llama_cpp". "azure_openai" also
-	// omits explicit prompt-cache breakpoints, which limit cross-turn cache reuse
-	// on Azure; set it for a proxy or custom domain in front of Azure OpenAI.
+	// "ollama", "lm_studio", "foundry_local", and "llama_cpp"; only affects telemetry.
 	ModelProvider string `json:"modelProvider,omitempty"`
 	// BaseURL is the API endpoint URL
 	BaseURL string `json:"baseUrl"`
@@ -3098,10 +3096,8 @@ type NamedProviderConfig struct {
 	WireAPI string `json:"wireApi,omitempty"`
 	// ModelProvider is the product serving this provider's models, reported in
 	// telemetry as model_provider. Allowed values are "openai", "anthropic",
-	// "azure_openai", "ollama", "lm_studio", "foundry_local", and "llama_cpp".
-	// "azure_openai" also omits explicit prompt-cache breakpoints, which limit
-	// cross-turn cache reuse on Azure; set it for a proxy or custom domain in
-	// front of Azure OpenAI.
+	// "azure_openai", "ollama", "lm_studio", "foundry_local", and "llama_cpp";
+	// only affects telemetry.
 	ModelProvider string `json:"modelProvider,omitempty"`
 	// BaseURL is the API endpoint URL.
 	BaseURL string `json:"baseUrl"`

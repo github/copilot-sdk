@@ -28,4 +28,72 @@ record GitHubFetchProxyEnvironment(
     /** Hosts that bypass the proxy. */
     @JsonProperty("noProxy") String noProxy
 ) {
+
+    /**
+     * Creates a record positionally.
+     * @deprecated Use {@link #builder()} for named construction.
+     */
+    @Deprecated(since = "2.0.0", forRemoval = false)
+    GitHubFetchProxyEnvironment {}
+
+    /**
+     * Returns a named builder.
+     * @return a new builder
+     * @since 2.0.0
+     */
+    public static Builder builder() { return new Builder(); }
+
+    /**
+     * Named construction for this record.
+     * @since 2.0.0
+     */
+    public static final class Builder {
+        private Builder() {}
+        private String httpProxy;
+        private String httpsProxy;
+        private String noProxy;
+
+        /**
+         * Sets the {@code httpProxy} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder httpProxy(String value) {
+            this.httpProxy = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code httpsProxy} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder httpsProxy(String value) {
+            this.httpsProxy = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code noProxy} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder noProxy(String value) {
+            this.noProxy = value;
+            return this;
+        }
+
+        /**
+         * Builds a record after checking required property presence.
+         * @return a new record
+         * @throws IllegalStateException if a required property is missing
+         * @since 2.0.0
+         */
+        public GitHubFetchProxyEnvironment build() {
+            return new GitHubFetchProxyEnvironment(httpProxy, httpsProxy, noProxy);
+        }
+    }
 }

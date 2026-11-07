@@ -28,4 +28,49 @@ public record SessionsEnrichMetadataResult(
     /** Enriched records, with summary and context backfilled. Sessions confirmed empty and unnamed may be omitted. */
     @JsonProperty("sessions") List<LocalSessionMetadataValue> sessions
 ) {
+
+    /**
+     * Creates a record positionally.
+     * @deprecated Use {@link #builder()} for named construction.
+     */
+    @Deprecated(since = "2.0.0", forRemoval = false)
+    public SessionsEnrichMetadataResult {}
+
+    /**
+     * Returns a named builder.
+     * @return a new builder
+     * @since 2.0.0
+     */
+    public static Builder builder() { return new Builder(); }
+
+    /**
+     * Named construction for this record.
+     * @since 2.0.0
+     */
+    public static final class Builder {
+        private Builder() {}
+        private List<LocalSessionMetadataValue> sessions;
+
+        /**
+         * Sets the {@code sessions} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder sessions(List<LocalSessionMetadataValue> value) {
+            this.sessions = value;
+            return this;
+        }
+
+        /**
+         * Builds a record after checking required property presence.
+         * @return a new record
+         * @throws IllegalStateException if a required property is missing
+         * @since 2.0.0
+         */
+        public SessionsEnrichMetadataResult build() {
+            if (sessions == null) throw new IllegalStateException("Missing required property: sessions");
+            return new SessionsEnrichMetadataResult(sessions);
+        }
+    }
 }

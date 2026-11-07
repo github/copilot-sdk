@@ -41,5 +41,76 @@ public final class McpOauthRecoveryCompletedEvent extends SessionEvent {
         /** Terminal outcome of the original authorization reservation, including reconnect */
         @JsonProperty("outcome") McpOauthRecoveryCompletedOutcome outcome
     ) {
+
+        /**
+         * Creates a record positionally.
+         * @deprecated Use {@link #builder()} for named construction.
+         */
+        @Deprecated(since = "2.0.0", forRemoval = false)
+        public McpOauthRecoveryCompletedEventData {}
+
+        /**
+         * Returns a named builder.
+         * @return a new builder
+         * @since 2.0.0
+         */
+        public static Builder builder() { return new Builder(); }
+
+        /**
+         * Named construction for this record.
+         * @since 2.0.0
+         */
+        public static final class Builder {
+            private Builder() {}
+            private String requestId;
+            private String serverName;
+            private McpOauthRecoveryCompletedOutcome outcome;
+
+            /**
+             * Sets the {@code requestId} property.
+             * @param value the property value
+             * @return this builder
+             * @since 2.0.0
+             */
+            public Builder requestId(String value) {
+                this.requestId = value;
+                return this;
+            }
+
+            /**
+             * Sets the {@code serverName} property.
+             * @param value the property value
+             * @return this builder
+             * @since 2.0.0
+             */
+            public Builder serverName(String value) {
+                this.serverName = value;
+                return this;
+            }
+
+            /**
+             * Sets the {@code outcome} property.
+             * @param value the property value
+             * @return this builder
+             * @since 2.0.0
+             */
+            public Builder outcome(McpOauthRecoveryCompletedOutcome value) {
+                this.outcome = value;
+                return this;
+            }
+
+            /**
+             * Builds a record after checking required property presence.
+             * @return a new record
+             * @throws IllegalStateException if a required property is missing
+             * @since 2.0.0
+             */
+            public McpOauthRecoveryCompletedEventData build() {
+                if (requestId == null) throw new IllegalStateException("Missing required property: requestId");
+                if (serverName == null) throw new IllegalStateException("Missing required property: serverName");
+                if (outcome == null) throw new IllegalStateException("Missing required property: outcome");
+                return new McpOauthRecoveryCompletedEventData(requestId, serverName, outcome);
+            }
+        }
     }
 }

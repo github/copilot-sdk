@@ -28,4 +28,72 @@ record AgentsCustomAgentInitialModelDecisionResult(
     /** What to tell the user about an unmet preference. Absent when the preference was met. A warning with no `targetModel` means the agent's models are all unavailable. */
     @JsonProperty("warning") String warning
 ) {
+
+    /**
+     * Creates a record positionally.
+     * @deprecated Use {@link #builder()} for named construction.
+     */
+    @Deprecated(since = "2.0.0", forRemoval = false)
+    AgentsCustomAgentInitialModelDecisionResult {}
+
+    /**
+     * Returns a named builder.
+     * @return a new builder
+     * @since 2.0.0
+     */
+    public static Builder builder() { return new Builder(); }
+
+    /**
+     * Named construction for this record.
+     * @since 2.0.0
+     */
+    public static final class Builder {
+        private Builder() {}
+        private String targetModel;
+        private String reasoningEffort;
+        private String warning;
+
+        /**
+         * Sets the {@code targetModel} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder targetModel(String value) {
+            this.targetModel = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code reasoningEffort} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder reasoningEffort(String value) {
+            this.reasoningEffort = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code warning} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder warning(String value) {
+            this.warning = value;
+            return this;
+        }
+
+        /**
+         * Builds a record after checking required property presence.
+         * @return a new record
+         * @throws IllegalStateException if a required property is missing
+         * @since 2.0.0
+         */
+        public AgentsCustomAgentInitialModelDecisionResult build() {
+            return new AgentsCustomAgentInitialModelDecisionResult(targetModel, reasoningEffort, warning);
+        }
+    }
 }

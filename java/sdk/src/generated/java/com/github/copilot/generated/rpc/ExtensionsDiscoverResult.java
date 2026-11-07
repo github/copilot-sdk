@@ -30,4 +30,62 @@ public record ExtensionsDiscoverResult(
     /** Effective extension loading mode. Defaults to load_and_augment when unset. */
     @JsonProperty("mode") DiscoveredExtensionMode mode
 ) {
+
+    /**
+     * Creates a record positionally.
+     * @deprecated Use {@link #builder()} for named construction.
+     */
+    @Deprecated(since = "2.0.0", forRemoval = false)
+    public ExtensionsDiscoverResult {}
+
+    /**
+     * Returns a named builder.
+     * @return a new builder
+     * @since 2.0.0
+     */
+    public static Builder builder() { return new Builder(); }
+
+    /**
+     * Named construction for this record.
+     * @since 2.0.0
+     */
+    public static final class Builder {
+        private Builder() {}
+        private List<DiscoveredExtension> extensions;
+        private DiscoveredExtensionMode mode;
+
+        /**
+         * Sets the {@code extensions} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder extensions(List<DiscoveredExtension> value) {
+            this.extensions = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code mode} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder mode(DiscoveredExtensionMode value) {
+            this.mode = value;
+            return this;
+        }
+
+        /**
+         * Builds a record after checking required property presence.
+         * @return a new record
+         * @throws IllegalStateException if a required property is missing
+         * @since 2.0.0
+         */
+        public ExtensionsDiscoverResult build() {
+            if (extensions == null) throw new IllegalStateException("Missing required property: extensions");
+            if (mode == null) throw new IllegalStateException("Missing required property: mode");
+            return new ExtensionsDiscoverResult(extensions, mode);
+        }
+    }
 }

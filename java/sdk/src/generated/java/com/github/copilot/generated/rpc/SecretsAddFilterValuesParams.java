@@ -28,4 +28,49 @@ public record SecretsAddFilterValuesParams(
     /** Raw secret values to register for redaction */
     @JsonProperty("values") List<String> values
 ) {
+
+    /**
+     * Creates a record positionally.
+     * @deprecated Use {@link #builder()} for named construction.
+     */
+    @Deprecated(since = "2.0.0", forRemoval = false)
+    public SecretsAddFilterValuesParams {}
+
+    /**
+     * Returns a named builder.
+     * @return a new builder
+     * @since 2.0.0
+     */
+    public static Builder builder() { return new Builder(); }
+
+    /**
+     * Named construction for this record.
+     * @since 2.0.0
+     */
+    public static final class Builder {
+        private Builder() {}
+        private List<String> values;
+
+        /**
+         * Sets the {@code values} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder values(List<String> value) {
+            this.values = value;
+            return this;
+        }
+
+        /**
+         * Builds a record after checking required property presence.
+         * @return a new record
+         * @throws IllegalStateException if a required property is missing
+         * @since 2.0.0
+         */
+        public SecretsAddFilterValuesParams build() {
+            if (values == null) throw new IllegalStateException("Missing required property: values");
+            return new SecretsAddFilterValuesParams(values);
+        }
+    }
 }

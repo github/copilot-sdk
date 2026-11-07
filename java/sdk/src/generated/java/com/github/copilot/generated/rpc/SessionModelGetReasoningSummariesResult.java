@@ -41,4 +41,149 @@ public record SessionModelGetReasoningSummariesResult(
     /** Whether the supplied `persistedShowReasoning` setting only restates the model default. This reports a redundancy, not a standing instruction to delete the setting: it stays true for as long as the setting and the model default agree, including for a user who later chose that value deliberately. It exists for a one-time migration of a legacy setting written before the model default made it redundant, so a host that acts on it owns the cleanup and must gate it behind its own persisted `done` marker, delete only a setting whose value still matches the one it read, and never repeat the deletion on a later launch. Under an off-by-default reasoning-summaries experiment an explicit `showReasoning: true` opt-in also reads as redundant on a summary-producing model, so an ungated host would keep deleting that opt-in and hide summaries again on every launch. */
     @JsonProperty("clearRedundantSetting") Boolean clearRedundantSetting
 ) {
+
+    /**
+     * Creates a record positionally.
+     * @deprecated Use {@link #builder()} for named construction.
+     */
+    @Deprecated(since = "2.0.0", forRemoval = false)
+    public SessionModelGetReasoningSummariesResult {}
+
+    /**
+     * Returns a named builder.
+     * @return a new builder
+     * @since 2.0.0
+     */
+    @com.github.copilot.CopilotExperimental
+    public static Builder builder() { return new Builder(); }
+
+    /**
+     * Named construction for this record.
+     * @since 2.0.0
+     */
+    @com.github.copilot.CopilotExperimental
+    public static final class Builder {
+        private Builder() {}
+        private Boolean ready;
+        private Boolean experimentSettled;
+        private Boolean sessionShowsSummaries;
+        private Boolean modelDefaultShowsSummaries;
+        private Boolean showReasoningHeaders;
+        private Boolean visibility;
+        private Boolean showHiddenHint;
+        private Boolean clearRedundantSetting;
+
+        /**
+         * Sets the {@code ready} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        @com.github.copilot.CopilotExperimental
+        public Builder ready(Boolean value) {
+            this.ready = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code experimentSettled} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        @com.github.copilot.CopilotExperimental
+        public Builder experimentSettled(Boolean value) {
+            this.experimentSettled = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code sessionShowsSummaries} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        @com.github.copilot.CopilotExperimental
+        public Builder sessionShowsSummaries(Boolean value) {
+            this.sessionShowsSummaries = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code modelDefaultShowsSummaries} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        @com.github.copilot.CopilotExperimental
+        public Builder modelDefaultShowsSummaries(Boolean value) {
+            this.modelDefaultShowsSummaries = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code showReasoningHeaders} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        @com.github.copilot.CopilotExperimental
+        public Builder showReasoningHeaders(Boolean value) {
+            this.showReasoningHeaders = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code visibility} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        @com.github.copilot.CopilotExperimental
+        public Builder visibility(Boolean value) {
+            this.visibility = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code showHiddenHint} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        @com.github.copilot.CopilotExperimental
+        public Builder showHiddenHint(Boolean value) {
+            this.showHiddenHint = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code clearRedundantSetting} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        @com.github.copilot.CopilotExperimental
+        public Builder clearRedundantSetting(Boolean value) {
+            this.clearRedundantSetting = value;
+            return this;
+        }
+
+        /**
+         * Builds a record after checking required property presence.
+         * @return a new record
+         * @throws IllegalStateException if a required property is missing
+         * @since 2.0.0
+         */
+        public SessionModelGetReasoningSummariesResult build() {
+            if (ready == null) throw new IllegalStateException("Missing required property: ready");
+            if (experimentSettled == null) throw new IllegalStateException("Missing required property: experimentSettled");
+            if (sessionShowsSummaries == null) throw new IllegalStateException("Missing required property: sessionShowsSummaries");
+            if (modelDefaultShowsSummaries == null) throw new IllegalStateException("Missing required property: modelDefaultShowsSummaries");
+            if (showReasoningHeaders == null) throw new IllegalStateException("Missing required property: showReasoningHeaders");
+            if (showHiddenHint == null) throw new IllegalStateException("Missing required property: showHiddenHint");
+            if (clearRedundantSetting == null) throw new IllegalStateException("Missing required property: clearRedundantSetting");
+            return new SessionModelGetReasoningSummariesResult(ready, experimentSettled, sessionShowsSummaries, modelDefaultShowsSummaries, showReasoningHeaders, visibility, showHiddenHint, clearRedundantSetting);
+        }
+    }
 }

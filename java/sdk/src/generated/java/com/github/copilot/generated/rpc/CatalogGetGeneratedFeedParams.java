@@ -37,4 +37,99 @@ The runtime never creates, resumes or reconfigures a session to honour this sele
     /** Accept only resources currently assessed at one of these trust tiers. Entries whose resource is in another tier, or has none, are returned as filtered in their original position. Omit for an unfiltered feed. */
     @JsonProperty("trustTiers") List<CatalogTrustTier> trustTiers
 ) {
+
+    /**
+     * Creates a record positionally.
+     * @deprecated Use {@link #builder()} for named construction.
+     */
+    @Deprecated(since = "2.0.0", forRemoval = false)
+    public CatalogGetGeneratedFeedParams {}
+
+    /**
+     * Returns a named builder.
+     * @return a new builder
+     * @since 2.0.0
+     */
+    public static Builder builder() { return new Builder(); }
+
+    /**
+     * Named construction for this record.
+     * @since 2.0.0
+     */
+    public static final class Builder {
+        private Builder() {}
+        private CatalogClientContract contract;
+        private String policySessionId;
+        private String strategy;
+        private String key;
+        private List<CatalogTrustTier> trustTiers;
+
+        /**
+         * Sets the {@code contract} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder contract(CatalogClientContract value) {
+            this.contract = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code policySessionId} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder policySessionId(String value) {
+            this.policySessionId = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code strategy} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder strategy(String value) {
+            this.strategy = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code key} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder key(String value) {
+            this.key = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code trustTiers} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder trustTiers(List<CatalogTrustTier> value) {
+            this.trustTiers = value;
+            return this;
+        }
+
+        /**
+         * Builds a record after checking required property presence.
+         * @return a new record
+         * @throws IllegalStateException if a required property is missing
+         * @since 2.0.0
+         */
+        public CatalogGetGeneratedFeedParams build() {
+            if (contract == null) throw new IllegalStateException("Missing required property: contract");
+            if (strategy == null) throw new IllegalStateException("Missing required property: strategy");
+            if (key == null) throw new IllegalStateException("Missing required property: key");
+            return new CatalogGetGeneratedFeedParams(contract, policySessionId, strategy, key, trustTiers);
+        }
+    }
 }

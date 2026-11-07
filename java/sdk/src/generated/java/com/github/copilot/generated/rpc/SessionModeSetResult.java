@@ -44,4 +44,157 @@ public record SessionModeSetResult(
     /** Whether the host should arm an interactive continuation after the mode change. */
     @JsonProperty("armInteractiveContinuation") Boolean armInteractiveContinuation
 ) {
+
+    /**
+     * Creates a record positionally.
+     * @deprecated Use {@link #builder()} for named construction.
+     */
+    @Deprecated(since = "2.0.0", forRemoval = false)
+    public SessionModeSetResult {}
+
+    /**
+     * Returns a named builder.
+     * @return a new builder
+     * @since 2.0.0
+     */
+    @com.github.copilot.CopilotExperimental
+    public static Builder builder() { return new Builder(); }
+
+    /**
+     * Named construction for this record.
+     * @since 2.0.0
+     */
+    @com.github.copilot.CopilotExperimental
+    public static final class Builder {
+        private Builder() {}
+        private String status;
+        private Boolean modelChanged;
+        private Boolean modeApplied;
+        private ModelSwitchConfirmation confirmation;
+        private String warning;
+        private String message;
+        private List<String> deprecationWarnings;
+        private Boolean deferImplementation;
+        private Boolean armInteractiveContinuation;
+
+        /**
+         * Sets the {@code status} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        @com.github.copilot.CopilotExperimental
+        public Builder status(String value) {
+            this.status = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code modelChanged} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        @com.github.copilot.CopilotExperimental
+        public Builder modelChanged(Boolean value) {
+            this.modelChanged = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code modeApplied} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        @com.github.copilot.CopilotExperimental
+        public Builder modeApplied(Boolean value) {
+            this.modeApplied = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code confirmation} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        @com.github.copilot.CopilotExperimental
+        public Builder confirmation(ModelSwitchConfirmation value) {
+            this.confirmation = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code warning} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        @com.github.copilot.CopilotExperimental
+        public Builder warning(String value) {
+            this.warning = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code message} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        @com.github.copilot.CopilotExperimental
+        public Builder message(String value) {
+            this.message = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code deprecationWarnings} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        @com.github.copilot.CopilotExperimental
+        public Builder deprecationWarnings(List<String> value) {
+            this.deprecationWarnings = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code deferImplementation} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        @com.github.copilot.CopilotExperimental
+        public Builder deferImplementation(Boolean value) {
+            this.deferImplementation = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code armInteractiveContinuation} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        @com.github.copilot.CopilotExperimental
+        public Builder armInteractiveContinuation(Boolean value) {
+            this.armInteractiveContinuation = value;
+            return this;
+        }
+
+        /**
+         * Builds a record after checking required property presence.
+         * @return a new record
+         * @throws IllegalStateException if a required property is missing
+         * @since 2.0.0
+         */
+        public SessionModeSetResult build() {
+            if (status == null) throw new IllegalStateException("Missing required property: status");
+            if (modelChanged == null) throw new IllegalStateException("Missing required property: modelChanged");
+            return new SessionModeSetResult(status, modelChanged, modeApplied, confirmation, warning, message, deprecationWarnings, deferImplementation, armInteractiveContinuation);
+        }
+    }
 }

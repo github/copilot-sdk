@@ -6,6 +6,7 @@ package com.github.copilot;
 
 import static org.junit.jupiter.api.Assertions.*;
 
+import java.lang.reflect.InvocationTargetException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
@@ -16,6 +17,7 @@ import org.junit.jupiter.api.Test;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.github.copilot.generated.rpc.AuthWriteLogout;
 import com.github.copilot.generated.rpc.CatalogClientContract;
 import com.github.copilot.generated.rpc.CatalogSearchParams;
 import com.github.copilot.generated.rpc.CatalogSearchRequest;
@@ -24,6 +26,7 @@ import com.github.copilot.generated.rpc.McpPlanInstallRequest;
 import com.github.copilot.generated.rpc.McpPlanScope;
 import com.github.copilot.generated.rpc.RpcCaller;
 import com.github.copilot.generated.rpc.ServerRpc;
+import com.github.copilot.generated.rpc.SessionAccountsSetParams;
 
 /**
  * Existing callers of requests that gained fields keep their records, while new
@@ -47,11 +50,32 @@ class LegacyRequestCompatibilityTest {
     }
 
     private static CatalogClientContract contract() {
-        return new CatalogClientContract(3L, List.of("mcp-install-planning"));
+        return CatalogClientContract.builder().protocolVersion(3L).requiredCapabilities(List.of("mcp-install-planning"))
+                .build();
     }
 
     private static Map<String, String> candidate() {
         return Map.of("kind", "candidate", "candidateHandle", "candidate", "searchId", "search");
+    }
+
+    @Test
+    void legacyAccountCommandsConvertJsonAndPreserveTypedValues() throws ReflectiveOperationException {
+        var constructor = SessionAccountsSetParams.class.getConstructor(String.class, Object.class);
+        var command = Map.of("kind", "logout", "accountId", "account");
+        for (Object legacy : List.<Object>of(command, MAPPER.valueToTree(command))) {
+            var params = constructor.newInstance("session", legacy);
+
+            assertEquals("account", assertInstanceOf(AuthWriteLogout.class, params.command()).getAccountId());
+            assertEquals(MAPPER.valueToTree(Map.of("sessionId", "session", "command", command)),
+                    MAPPER.valueToTree(params));
+        }
+
+        var typed = AuthWriteLogout.builder().accountId("account").build();
+        assertSame(typed, constructor.newInstance("session", typed).command());
+        assertNull(constructor.newInstance("session", (Object) null).command());
+        var failure = assertThrows(InvocationTargetException.class,
+                () -> constructor.newInstance("session", Map.of("kind", "unknown")));
+        assertInstanceOf(IllegalArgumentException.class, failure.getCause());
     }
 
     @Test

@@ -24,4 +24,49 @@ record SandboxProxySecretSaveResult(
     /** Whether the OS keychain accepted the value. False means it was written to the on-disk fallback store instead, which is still readable by `sandbox.proxySecret.get`. */
     @JsonProperty("storedInKeychain") Boolean storedInKeychain
 ) {
+
+    /**
+     * Creates a record positionally.
+     * @deprecated Use {@link #builder()} for named construction.
+     */
+    @Deprecated(since = "2.0.0", forRemoval = false)
+    SandboxProxySecretSaveResult {}
+
+    /**
+     * Returns a named builder.
+     * @return a new builder
+     * @since 2.0.0
+     */
+    public static Builder builder() { return new Builder(); }
+
+    /**
+     * Named construction for this record.
+     * @since 2.0.0
+     */
+    public static final class Builder {
+        private Builder() {}
+        private Boolean storedInKeychain;
+
+        /**
+         * Sets the {@code storedInKeychain} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder storedInKeychain(Boolean value) {
+            this.storedInKeychain = value;
+            return this;
+        }
+
+        /**
+         * Builds a record after checking required property presence.
+         * @return a new record
+         * @throws IllegalStateException if a required property is missing
+         * @since 2.0.0
+         */
+        public SandboxProxySecretSaveResult build() {
+            if (storedInKeychain == null) throw new IllegalStateException("Missing required property: storedInKeychain");
+            return new SandboxProxySecretSaveResult(storedInKeychain);
+        }
+    }
 }

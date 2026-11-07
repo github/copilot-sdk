@@ -34,4 +34,44 @@ public final class AuthEnumerateQueryProviders extends AuthEnumerateQuery {
 
     public Boolean getBrokerAvailable() { return brokerAvailable; }
     public void setBrokerAvailable(Boolean brokerAvailable) { this.brokerAvailable = brokerAvailable; }
+
+
+    /**
+     * Returns a named builder.
+     * @return a new builder
+     * @since 2.0.0
+     */
+    public static Builder builder() { return new Builder(); }
+
+    /**
+     * Named construction for this record.
+     * @since 2.0.0
+     */
+    public static final class Builder {
+        private Builder() {}
+        private Boolean brokerAvailable;
+
+        /**
+         * Sets the {@code brokerAvailable} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder brokerAvailable(Boolean value) {
+            this.brokerAvailable = value;
+            return this;
+        }
+
+        /**
+         * Builds a variant after checking required property presence.
+         * @return a new variant
+         * @throws IllegalStateException if a required property is missing
+         * @since 2.0.0
+         */
+        public AuthEnumerateQueryProviders build() {
+            AuthEnumerateQueryProviders instance = new AuthEnumerateQueryProviders();
+            instance.setBrokerAvailable(brokerAvailable);
+            return instance;
+        }
+    }
 }

@@ -36,4 +36,103 @@ public record SessionFleetStartParams(
     /** If true, await completion of the agentic loop for this fleet request before returning. Defaults to false. */
     @JsonProperty("wait") Boolean wait_
 ) {
+
+    /**
+     * Creates a record positionally.
+     * @deprecated Use {@link #builder()} for named construction.
+     */
+    @Deprecated(since = "2.0.0", forRemoval = false)
+    public SessionFleetStartParams {}
+
+    /**
+     * Returns a named builder.
+     * @return a new builder
+     * @since 2.0.0
+     */
+    @com.github.copilot.CopilotExperimental
+    public static Builder builder() { return new Builder(); }
+
+    /**
+     * Named construction for this record.
+     * @since 2.0.0
+     */
+    @com.github.copilot.CopilotExperimental
+    public static final class Builder {
+        private Builder() {}
+        private String sessionId;
+        private String prompt;
+        private List<Object> attachments;
+        private Boolean billable;
+        private Boolean wait_;
+
+        /**
+         * Sets the {@code sessionId} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        @com.github.copilot.CopilotExperimental
+        public Builder sessionId(String value) {
+            this.sessionId = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code prompt} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        @com.github.copilot.CopilotExperimental
+        public Builder prompt(String value) {
+            this.prompt = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code attachments} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        @com.github.copilot.CopilotExperimental
+        public Builder attachments(List<Object> value) {
+            this.attachments = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code billable} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        @com.github.copilot.CopilotExperimental
+        public Builder billable(Boolean value) {
+            this.billable = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code wait} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        @com.github.copilot.CopilotExperimental
+        public Builder wait_(Boolean value) {
+            this.wait_ = value;
+            return this;
+        }
+
+        /**
+         * Builds a record after checking required property presence.
+         * @return a new record
+         * @throws IllegalStateException if a required property is missing
+         * @since 2.0.0
+         */
+        public SessionFleetStartParams build() {
+            return new SessionFleetStartParams(sessionId, prompt, attachments, billable, wait_);
+        }
+    }
 }

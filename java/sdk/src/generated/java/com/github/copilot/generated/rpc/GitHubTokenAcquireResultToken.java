@@ -48,4 +48,72 @@ public final class GitHubTokenAcquireResultToken extends GitHubTokenAcquireResul
 
     public Long getExpiresIn() { return expiresIn; }
     public void setExpiresIn(Long expiresIn) { this.expiresIn = expiresIn; }
+
+
+    /**
+     * Returns a named builder.
+     * @return a new builder
+     * @since 2.0.0
+     */
+    public static Builder builder() { return new Builder(); }
+
+    /**
+     * Named construction for this record.
+     * @since 2.0.0
+     */
+    public static final class Builder {
+        private Builder() {}
+        private String accessToken;
+        private String tokenType;
+        private Long expiresIn;
+
+        /**
+         * Sets the {@code accessToken} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder accessToken(String value) {
+            this.accessToken = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code tokenType} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder tokenType(String value) {
+            this.tokenType = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code expiresIn} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder expiresIn(Long value) {
+            this.expiresIn = value;
+            return this;
+        }
+
+        /**
+         * Builds a variant after checking required property presence.
+         * @return a new variant
+         * @throws IllegalStateException if a required property is missing
+         * @since 2.0.0
+         */
+        public GitHubTokenAcquireResultToken build() {
+            if (accessToken == null) throw new IllegalStateException("Missing required property: accessToken");
+            if (expiresIn == null) throw new IllegalStateException("Missing required property: expiresIn");
+            GitHubTokenAcquireResultToken instance = new GitHubTokenAcquireResultToken();
+            instance.setAccessToken(accessToken);
+            instance.setTokenType(tokenType);
+            instance.setExpiresIn(expiresIn);
+            return instance;
+        }
+    }
 }

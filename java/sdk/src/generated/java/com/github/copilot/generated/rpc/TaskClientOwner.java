@@ -37,4 +37,124 @@ public record TaskClientOwner(
     /** ISO 8601 timestamp when the bound join disconnected */
     @JsonProperty("disconnectedAt") OffsetDateTime disconnectedAt
 ) {
+
+    /**
+     * Creates a record positionally.
+     * @deprecated Use {@link #builder()} for named construction.
+     */
+    @Deprecated(since = "2.0.0", forRemoval = false)
+    public TaskClientOwner {}
+
+    /**
+     * Returns a named builder.
+     * @return a new builder
+     * @since 2.0.0
+     */
+    public static Builder builder() { return new Builder(); }
+
+    /**
+     * Named construction for this record.
+     * @since 2.0.0
+     */
+    public static final class Builder {
+        private Builder() {}
+        private String participantId;
+        private String joinId;
+        private TaskClientOwnerKind kind;
+        private String displayName;
+        private String source;
+        private TaskClientOwnerPresence presence;
+        private OffsetDateTime disconnectedAt;
+
+        /**
+         * Sets the {@code participantId} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder participantId(String value) {
+            this.participantId = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code joinId} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder joinId(String value) {
+            this.joinId = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code kind} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder kind(TaskClientOwnerKind value) {
+            this.kind = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code displayName} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder displayName(String value) {
+            this.displayName = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code source} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder source(String value) {
+            this.source = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code presence} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder presence(TaskClientOwnerPresence value) {
+            this.presence = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code disconnectedAt} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder disconnectedAt(OffsetDateTime value) {
+            this.disconnectedAt = value;
+            return this;
+        }
+
+        /**
+         * Builds a record after checking required property presence.
+         * @return a new record
+         * @throws IllegalStateException if a required property is missing
+         * @since 2.0.0
+         */
+        public TaskClientOwner build() {
+            if (participantId == null) throw new IllegalStateException("Missing required property: participantId");
+            if (joinId == null) throw new IllegalStateException("Missing required property: joinId");
+            if (kind == null) throw new IllegalStateException("Missing required property: kind");
+            if (presence == null) throw new IllegalStateException("Missing required property: presence");
+            return new TaskClientOwner(participantId, joinId, kind, displayName, source, presence, disconnectedAt);
+        }
+    }
 }

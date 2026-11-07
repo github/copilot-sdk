@@ -196,7 +196,7 @@ pub struct AgentDiscoveryPathList {
 #[serde(rename_all = "camelCase")]
 pub struct AgentGetCurrentResult {
     /// Currently selected custom agent, or null if using the default agent
-    pub agent: AgentInfo,
+    pub agent: Option<AgentInfo>,
 }
 
 /// Agents available to the session.

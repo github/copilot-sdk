@@ -33,4 +33,97 @@ public record SlashCommandInput(
     /** When true, clients should pass the full text after the command name as a single argument rather than splitting on whitespace */
     @JsonProperty("preserveMultilineInput") Boolean preserveMultilineInput
 ) {
+
+    /**
+     * Creates a record positionally.
+     * @deprecated Use {@link #builder()} for named construction.
+     */
+    @Deprecated(since = "2.0.0", forRemoval = false)
+    public SlashCommandInput {}
+
+    /**
+     * Returns a named builder.
+     * @return a new builder
+     * @since 2.0.0
+     */
+    public static Builder builder() { return new Builder(); }
+
+    /**
+     * Named construction for this record.
+     * @since 2.0.0
+     */
+    public static final class Builder {
+        private Builder() {}
+        private String hint;
+        private List<SlashCommandInputChoice> choices;
+        private Boolean required;
+        private SlashCommandInputCompletion completion;
+        private Boolean preserveMultilineInput;
+
+        /**
+         * Sets the {@code hint} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder hint(String value) {
+            this.hint = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code choices} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder choices(List<SlashCommandInputChoice> value) {
+            this.choices = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code required} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder required(Boolean value) {
+            this.required = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code completion} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder completion(SlashCommandInputCompletion value) {
+            this.completion = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code preserveMultilineInput} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder preserveMultilineInput(Boolean value) {
+            this.preserveMultilineInput = value;
+            return this;
+        }
+
+        /**
+         * Builds a record after checking required property presence.
+         * @return a new record
+         * @throws IllegalStateException if a required property is missing
+         * @since 2.0.0
+         */
+        public SlashCommandInput build() {
+            if (hint == null) throw new IllegalStateException("Missing required property: hint");
+            return new SlashCommandInput(hint, choices, required, completion, preserveMultilineInput);
+        }
+    }
 }

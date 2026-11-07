@@ -56,5 +56,148 @@ public final class SessionFusionRouteFailedEvent extends SessionEvent {
         /** Elapsed routing time in milliseconds before the failure. */
         @JsonProperty("routingLatencyMs") Double routingLatencyMs
     ) {
+
+        /**
+         * Creates a record positionally.
+         * @deprecated Use {@link #builder()} for named construction.
+         */
+        @Deprecated(since = "2.0.0", forRemoval = false)
+        public SessionFusionRouteFailedEventData {}
+
+        /**
+         * Returns a named builder.
+         * @return a new builder
+         * @since 2.0.0
+         */
+        @com.github.copilot.CopilotExperimental
+        public static Builder builder() { return new Builder(); }
+
+        /**
+         * Named construction for this record.
+         * @since 2.0.0
+         */
+        @com.github.copilot.CopilotExperimental
+        public static final class Builder {
+            private Builder() {}
+            private String attemptId;
+            private String fusionId;
+            private String syntheticModel;
+            private String policy;
+            private String reason;
+            private String errorMessage;
+            private String fallbackModel;
+            private Double routingLatencyMs;
+
+            /**
+             * Sets the {@code attemptId} property.
+             * @param value the property value
+             * @return this builder
+             * @since 2.0.0
+             */
+            @com.github.copilot.CopilotExperimental
+            public Builder attemptId(String value) {
+                this.attemptId = value;
+                return this;
+            }
+
+            /**
+             * Sets the {@code fusionId} property.
+             * @param value the property value
+             * @return this builder
+             * @since 2.0.0
+             */
+            @com.github.copilot.CopilotExperimental
+            public Builder fusionId(String value) {
+                this.fusionId = value;
+                return this;
+            }
+
+            /**
+             * Sets the {@code syntheticModel} property.
+             * @param value the property value
+             * @return this builder
+             * @since 2.0.0
+             */
+            @com.github.copilot.CopilotExperimental
+            public Builder syntheticModel(String value) {
+                this.syntheticModel = value;
+                return this;
+            }
+
+            /**
+             * Sets the {@code policy} property.
+             * @param value the property value
+             * @return this builder
+             * @since 2.0.0
+             */
+            @com.github.copilot.CopilotExperimental
+            public Builder policy(String value) {
+                this.policy = value;
+                return this;
+            }
+
+            /**
+             * Sets the {@code reason} property.
+             * @param value the property value
+             * @return this builder
+             * @since 2.0.0
+             */
+            @com.github.copilot.CopilotExperimental
+            public Builder reason(String value) {
+                this.reason = value;
+                return this;
+            }
+
+            /**
+             * Sets the {@code errorMessage} property.
+             * @param value the property value
+             * @return this builder
+             * @since 2.0.0
+             */
+            @com.github.copilot.CopilotExperimental
+            public Builder errorMessage(String value) {
+                this.errorMessage = value;
+                return this;
+            }
+
+            /**
+             * Sets the {@code fallbackModel} property.
+             * @param value the property value
+             * @return this builder
+             * @since 2.0.0
+             */
+            @com.github.copilot.CopilotExperimental
+            public Builder fallbackModel(String value) {
+                this.fallbackModel = value;
+                return this;
+            }
+
+            /**
+             * Sets the {@code routingLatencyMs} property.
+             * @param value the property value
+             * @return this builder
+             * @since 2.0.0
+             */
+            @com.github.copilot.CopilotExperimental
+            public Builder routingLatencyMs(Double value) {
+                this.routingLatencyMs = value;
+                return this;
+            }
+
+            /**
+             * Builds a record after checking required property presence.
+             * @return a new record
+             * @throws IllegalStateException if a required property is missing
+             * @since 2.0.0
+             */
+            public SessionFusionRouteFailedEventData build() {
+                if (attemptId == null) throw new IllegalStateException("Missing required property: attemptId");
+                if (syntheticModel == null) throw new IllegalStateException("Missing required property: syntheticModel");
+                if (policy == null) throw new IllegalStateException("Missing required property: policy");
+                if (reason == null) throw new IllegalStateException("Missing required property: reason");
+                if (fallbackModel == null) throw new IllegalStateException("Missing required property: fallbackModel");
+                return new SessionFusionRouteFailedEventData(attemptId, fusionId, syntheticModel, policy, reason, errorMessage, fallbackModel, routingLatencyMs);
+            }
+        }
     }
 }

@@ -28,13 +28,61 @@ public record McpInstallationManagementOutcomeOperation(
     /** Installation management outcome discriminator. */
     @JsonProperty("kind") String kind
 ) implements McpInstallationManagementOutcome {
+    /**
+     * Creates this variant positionally and normalizes its discriminator.
+     * @deprecated Use {@link #builder()} for named construction.
+     */
+    @Deprecated(since = "2.0.0", forRemoval = false)
     public McpInstallationManagementOutcomeOperation {
         kind = "operation";
     }
 
+    /**
+     * Creates this variant without explicitly supplying its discriminator.
+     * @deprecated Use {@link #builder()} for named construction.
+     */
+    @Deprecated(since = "2.0.0", forRemoval = false)
     public McpInstallationManagementOutcomeOperation(
         McpInstallationOperationStatus operation
     ) {
         this(operation, "operation");
+    }
+
+    /**
+     * Returns a named builder.
+     * @return a new builder
+     * @since 2.0.0
+     */
+    public static Builder builder() { return new Builder(); }
+
+    /**
+     * Named construction for this record.
+     * @since 2.0.0
+     */
+    public static final class Builder {
+        private Builder() {}
+        private McpInstallationOperationStatus operation;
+
+        /**
+         * Sets the {@code operation} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder operation(McpInstallationOperationStatus value) {
+            this.operation = value;
+            return this;
+        }
+
+        /**
+         * Builds a record after checking required property presence.
+         * @return a new record
+         * @throws IllegalStateException if a required property is missing
+         * @since 2.0.0
+         */
+        public McpInstallationManagementOutcomeOperation build() {
+            if (operation == null) throw new IllegalStateException("Missing required property: operation");
+            return new McpInstallationManagementOutcomeOperation(operation, "operation");
+        }
     }
 }

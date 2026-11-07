@@ -30,4 +30,61 @@ public record SessionMcpResourcesListResult(
     /** Opaque cursor for the next page, if the server has more resources */
     @JsonProperty("nextCursor") String nextCursor
 ) {
+
+    /**
+     * Creates a record positionally.
+     * @deprecated Use {@link #builder()} for named construction.
+     */
+    @Deprecated(since = "2.0.0", forRemoval = false)
+    public SessionMcpResourcesListResult {}
+
+    /**
+     * Returns a named builder.
+     * @return a new builder
+     * @since 2.0.0
+     */
+    public static Builder builder() { return new Builder(); }
+
+    /**
+     * Named construction for this record.
+     * @since 2.0.0
+     */
+    public static final class Builder {
+        private Builder() {}
+        private List<McpResource> resources;
+        private String nextCursor;
+
+        /**
+         * Sets the {@code resources} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder resources(List<McpResource> value) {
+            this.resources = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code nextCursor} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder nextCursor(String value) {
+            this.nextCursor = value;
+            return this;
+        }
+
+        /**
+         * Builds a record after checking required property presence.
+         * @return a new record
+         * @throws IllegalStateException if a required property is missing
+         * @since 2.0.0
+         */
+        public SessionMcpResourcesListResult build() {
+            if (resources == null) throw new IllegalStateException("Missing required property: resources");
+            return new SessionMcpResourcesListResult(resources, nextCursor);
+        }
+    }
 }

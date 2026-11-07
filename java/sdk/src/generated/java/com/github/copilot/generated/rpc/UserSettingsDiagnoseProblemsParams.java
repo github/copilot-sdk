@@ -28,4 +28,48 @@ record UserSettingsDiagnoseProblemsParams(
     /** Layers to diagnose, in the precedence order the caller applies them. */
     @JsonProperty("sources") List<UserSettingsProblemSource> sources
 ) {
+
+    /**
+     * Creates a record positionally.
+     * @deprecated Use {@link #builder()} for named construction.
+     */
+    @Deprecated(since = "2.0.0", forRemoval = false)
+    UserSettingsDiagnoseProblemsParams {}
+
+    /**
+     * Returns a named builder.
+     * @return a new builder
+     * @since 2.0.0
+     */
+    public static Builder builder() { return new Builder(); }
+
+    /**
+     * Named construction for this record.
+     * @since 2.0.0
+     */
+    public static final class Builder {
+        private Builder() {}
+        private List<UserSettingsProblemSource> sources;
+
+        /**
+         * Sets the {@code sources} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder sources(List<UserSettingsProblemSource> value) {
+            this.sources = value;
+            return this;
+        }
+
+        /**
+         * Builds a record after checking required property presence.
+         * @return a new record
+         * @throws IllegalStateException if a required property is missing
+         * @since 2.0.0
+         */
+        public UserSettingsDiagnoseProblemsParams build() {
+            return new UserSettingsDiagnoseProblemsParams(sources);
+        }
+    }
 }

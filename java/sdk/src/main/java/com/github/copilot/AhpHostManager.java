@@ -12,6 +12,7 @@ import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.github.copilot.generated.rpc.HostExitReason;
 import com.github.copilot.generated.rpc.HostExitedNotification;
 import com.github.copilot.generated.rpc.HostStartRequest;
+import com.github.copilot.generated.rpc.RpcCaller;
 import com.github.copilot.generated.rpc.ServerHostApi;
 import com.github.copilot.rpc.ResumeSessionConfig;
 import com.github.copilot.rpc.SessionConfig;
@@ -115,7 +116,7 @@ final class AhpHostManager {
         this.executor = executor;
     }
 
-    CompletableFuture<AhpHost> start(ServerHostApi rpc, AhpHostOptions options) {
+    CompletableFuture<AhpHost> start(ServerHostApi rpc, RpcCaller rpcCaller, AhpHostOptions options) {
         var host = new Host(rpc, options);
         synchronized (gate) {
             hosts.put(host.id, host);
@@ -132,7 +133,7 @@ final class AhpHostManager {
                         .setLocalServer(snapshot.getLocalServer()).setGitHubEnvironment(snapshot.getGithubEnvironment())
                         .setSessionFactory(snapshot.getCreateSession() != null)
                         .setResumeFactory(snapshot.getResumeSession() != null))
-                .thenApply(info -> new AhpHost(info, rpc)).whenComplete((result, error) -> {
+                .thenApply(info -> new AhpHost(info, rpc, rpcCaller)).whenComplete((result, error) -> {
                     if (error != null) {
                         endHost(host, null);
                     }

@@ -29,4 +29,72 @@ public record ModelCapabilitiesOverrideLimitsVision(
     /** Maximum image size in bytes */
     @JsonProperty("max_prompt_image_size") Long maxPromptImageSize
 ) {
+
+    /**
+     * Creates a record positionally.
+     * @deprecated Use {@link #builder()} for named construction.
+     */
+    @Deprecated(since = "2.0.0", forRemoval = false)
+    public ModelCapabilitiesOverrideLimitsVision {}
+
+    /**
+     * Returns a named builder.
+     * @return a new builder
+     * @since 2.0.0
+     */
+    public static Builder builder() { return new Builder(); }
+
+    /**
+     * Named construction for this record.
+     * @since 2.0.0
+     */
+    public static final class Builder {
+        private Builder() {}
+        private List<String> supportedMediaTypes;
+        private Long maxPromptImages;
+        private Long maxPromptImageSize;
+
+        /**
+         * Sets the {@code supported_media_types} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder supportedMediaTypes(List<String> value) {
+            this.supportedMediaTypes = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code max_prompt_images} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder maxPromptImages(Long value) {
+            this.maxPromptImages = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code max_prompt_image_size} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder maxPromptImageSize(Long value) {
+            this.maxPromptImageSize = value;
+            return this;
+        }
+
+        /**
+         * Builds a record after checking required property presence.
+         * @return a new record
+         * @throws IllegalStateException if a required property is missing
+         * @since 2.0.0
+         */
+        public ModelCapabilitiesOverrideLimitsVision build() {
+            return new ModelCapabilitiesOverrideLimitsVision(supportedMediaTypes, maxPromptImages, maxPromptImageSize);
+        }
+    }
 }

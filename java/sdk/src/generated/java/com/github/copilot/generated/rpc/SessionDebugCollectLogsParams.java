@@ -34,4 +34,91 @@ public record SessionDebugCollectLogsParams(
     /** Caller-provided server-local files or directories to include in addition to the runtime's built-in session diagnostics. This lets host applications add their own diagnostics without changing the API shape. */
     @JsonProperty("additionalEntries") List<DebugCollectLogsEntry> additionalEntries
 ) {
+
+    /**
+     * Creates a record positionally.
+     * @deprecated Use {@link #builder()} for named construction.
+     */
+    @Deprecated(since = "2.0.0", forRemoval = false)
+    public SessionDebugCollectLogsParams {}
+
+    /**
+     * Returns a named builder.
+     * @return a new builder
+     * @since 2.0.0
+     */
+    @com.github.copilot.CopilotExperimental
+    public static Builder builder() { return new Builder(); }
+
+    /**
+     * Named construction for this record.
+     * @since 2.0.0
+     */
+    @com.github.copilot.CopilotExperimental
+    public static final class Builder {
+        private Builder() {}
+        private String sessionId;
+        private Object destination;
+        private DebugCollectLogsInclude include;
+        private List<DebugCollectLogsEntry> additionalEntries;
+
+        /**
+         * Sets the {@code sessionId} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        @com.github.copilot.CopilotExperimental
+        public Builder sessionId(String value) {
+            this.sessionId = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code destination} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        @com.github.copilot.CopilotExperimental
+        public Builder destination(Object value) {
+            this.destination = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code include} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        @com.github.copilot.CopilotExperimental
+        public Builder include(DebugCollectLogsInclude value) {
+            this.include = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code additionalEntries} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        @com.github.copilot.CopilotExperimental
+        public Builder additionalEntries(List<DebugCollectLogsEntry> value) {
+            this.additionalEntries = value;
+            return this;
+        }
+
+        /**
+         * Builds a record after checking required property presence.
+         * @return a new record
+         * @throws IllegalStateException if a required property is missing
+         * @since 2.0.0
+         */
+        public SessionDebugCollectLogsParams build() {
+            if (destination == null) throw new IllegalStateException("Missing required property: destination");
+            return new SessionDebugCollectLogsParams(sessionId, destination, include, additionalEntries);
+        }
+    }
 }

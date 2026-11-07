@@ -38,4 +38,127 @@ public record McpHostState(
     /** Map of server name to recorded pending-auth state. */
     @JsonProperty("needsAuthServers") Map<String, McpServerNeedsAuthInfo> needsAuthServers
 ) {
+
+    /**
+     * Creates a record positionally.
+     * @deprecated Use {@link #builder()} for named construction.
+     */
+    @Deprecated(since = "2.0.0", forRemoval = false)
+    public McpHostState {}
+
+    /**
+     * Returns a named builder.
+     * @return a new builder
+     * @since 2.0.0
+     */
+    public static Builder builder() { return new Builder(); }
+
+    /**
+     * Named construction for this record.
+     * @since 2.0.0
+     */
+    public static final class Builder {
+        private Builder() {}
+        private Boolean mcp3pEnabled;
+        private List<String> disabledServers;
+        private List<String> filteredServers;
+        private List<String> clients;
+        private List<String> pendingConnections;
+        private Map<String, McpServerFailureInfo> failedServers;
+        private Map<String, McpServerNeedsAuthInfo> needsAuthServers;
+
+        /**
+         * Sets the {@code mcp3pEnabled} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder mcp3pEnabled(Boolean value) {
+            this.mcp3pEnabled = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code disabledServers} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder disabledServers(List<String> value) {
+            this.disabledServers = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code filteredServers} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder filteredServers(List<String> value) {
+            this.filteredServers = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code clients} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder clients(List<String> value) {
+            this.clients = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code pendingConnections} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder pendingConnections(List<String> value) {
+            this.pendingConnections = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code failedServers} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder failedServers(Map<String, McpServerFailureInfo> value) {
+            this.failedServers = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code needsAuthServers} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder needsAuthServers(Map<String, McpServerNeedsAuthInfo> value) {
+            this.needsAuthServers = value;
+            return this;
+        }
+
+        /**
+         * Builds a record after checking required property presence.
+         * @return a new record
+         * @throws IllegalStateException if a required property is missing
+         * @since 2.0.0
+         */
+        public McpHostState build() {
+            if (mcp3pEnabled == null) throw new IllegalStateException("Missing required property: mcp3pEnabled");
+            if (disabledServers == null) throw new IllegalStateException("Missing required property: disabledServers");
+            if (filteredServers == null) throw new IllegalStateException("Missing required property: filteredServers");
+            if (clients == null) throw new IllegalStateException("Missing required property: clients");
+            if (pendingConnections == null) throw new IllegalStateException("Missing required property: pendingConnections");
+            if (failedServers == null) throw new IllegalStateException("Missing required property: failedServers");
+            if (needsAuthServers == null) throw new IllegalStateException("Missing required property: needsAuthServers");
+            return new McpHostState(mcp3pEnabled, disabledServers, filteredServers, clients, pendingConnections, failedServers, needsAuthServers);
+        }
+    }
 }

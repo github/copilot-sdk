@@ -46,4 +46,160 @@ public record DiscoveredModel(
     /** Non-fatal warnings encountered while enriching this model. */
     @JsonProperty("warnings") List<ModelProviderWarning> warnings
 ) {
+
+    /**
+     * Creates a record positionally.
+     * @deprecated Use {@link #builder()} for named construction.
+     */
+    @Deprecated(since = "2.0.0", forRemoval = false)
+    public DiscoveredModel {}
+
+    /**
+     * Returns a named builder.
+     * @return a new builder
+     * @since 2.0.0
+     */
+    @com.github.copilot.CopilotExperimental
+    public static Builder builder() { return new Builder(); }
+
+    /**
+     * Named construction for this record.
+     * @since 2.0.0
+     */
+    @com.github.copilot.CopilotExperimental
+    public static final class Builder {
+        private Builder() {}
+        private String id;
+        private String name;
+        private ModelProviderProvenance provenance;
+        private String digest;
+        private OffsetDateTime modifiedAt;
+        private Long sizeBytes;
+        private ModelArtifactDetails details;
+        private ModelCapabilities capabilities;
+        private List<ModelProviderWarning> warnings;
+
+        /**
+         * Sets the {@code id} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        @com.github.copilot.CopilotExperimental
+        public Builder id(String value) {
+            this.id = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code name} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        @com.github.copilot.CopilotExperimental
+        public Builder name(String value) {
+            this.name = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code provenance} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        @com.github.copilot.CopilotExperimental
+        public Builder provenance(ModelProviderProvenance value) {
+            this.provenance = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code digest} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        @com.github.copilot.CopilotExperimental
+        public Builder digest(String value) {
+            this.digest = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code modifiedAt} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        @com.github.copilot.CopilotExperimental
+        public Builder modifiedAt(OffsetDateTime value) {
+            this.modifiedAt = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code sizeBytes} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        @com.github.copilot.CopilotExperimental
+        public Builder sizeBytes(Long value) {
+            this.sizeBytes = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code details} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        @com.github.copilot.CopilotExperimental
+        public Builder details(ModelArtifactDetails value) {
+            this.details = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code capabilities} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        @com.github.copilot.CopilotExperimental
+        public Builder capabilities(ModelCapabilities value) {
+            this.capabilities = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code warnings} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        @com.github.copilot.CopilotExperimental
+        public Builder warnings(List<ModelProviderWarning> value) {
+            this.warnings = value;
+            return this;
+        }
+
+        /**
+         * Builds a record after checking required property presence.
+         * @return a new record
+         * @throws IllegalStateException if a required property is missing
+         * @since 2.0.0
+         */
+        public DiscoveredModel build() {
+            if (id == null) throw new IllegalStateException("Missing required property: id");
+            if (provenance == null) throw new IllegalStateException("Missing required property: provenance");
+            if (details == null) throw new IllegalStateException("Missing required property: details");
+            if (capabilities == null) throw new IllegalStateException("Missing required property: capabilities");
+            if (warnings == null) throw new IllegalStateException("Missing required property: warnings");
+            return new DiscoveredModel(id, name, provenance, digest, modifiedAt, sizeBytes, details, capabilities, warnings);
+        }
+    }
 }

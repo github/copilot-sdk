@@ -36,4 +36,88 @@ contain owned secret references, never secret values. */
     /** Configured tool selection, not permission to invoke those tools. */
     @JsonProperty("tools") List<String> tools
 ) {
+
+    /**
+     * Creates a record positionally.
+     * @deprecated Use {@link #builder()} for named construction.
+     */
+    @Deprecated(since = "2.0.0", forRemoval = false)
+    public McpInstallationRemoteConfiguration {}
+
+    /**
+     * Returns a named builder.
+     * @return a new builder
+     * @since 2.0.0
+     */
+    public static Builder builder() { return new Builder(); }
+
+    /**
+     * Named construction for this record.
+     * @since 2.0.0
+     */
+    public static final class Builder {
+        private Builder() {}
+        private McpPlanRemoteTransport transport;
+        private String url;
+        private Map<String, String> headers;
+        private List<String> tools;
+
+        /**
+         * Sets the {@code transport} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder transport(McpPlanRemoteTransport value) {
+            this.transport = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code url} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder url(String value) {
+            this.url = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code headers} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder headers(Map<String, String> value) {
+            this.headers = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code tools} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder tools(List<String> value) {
+            this.tools = value;
+            return this;
+        }
+
+        /**
+         * Builds a record after checking required property presence.
+         * @return a new record
+         * @throws IllegalStateException if a required property is missing
+         * @since 2.0.0
+         */
+        public McpInstallationRemoteConfiguration build() {
+            if (transport == null) throw new IllegalStateException("Missing required property: transport");
+            if (url == null) throw new IllegalStateException("Missing required property: url");
+            if (headers == null) throw new IllegalStateException("Missing required property: headers");
+            if (tools == null) throw new IllegalStateException("Missing required property: tools");
+            return new McpInstallationRemoteConfiguration(transport, url, headers, tools);
+        }
+    }
 }

@@ -24,4 +24,49 @@ record SettingsRemoveRawKeyResult(
     /** `ok` when the edit completed, including an absent key. `invalid` means the existing file could not be parsed and remained unchanged. */
     @JsonProperty("status") String status
 ) {
+
+    /**
+     * Creates a record positionally.
+     * @deprecated Use {@link #builder()} for named construction.
+     */
+    @Deprecated(since = "2.0.0", forRemoval = false)
+    SettingsRemoveRawKeyResult {}
+
+    /**
+     * Returns a named builder.
+     * @return a new builder
+     * @since 2.0.0
+     */
+    public static Builder builder() { return new Builder(); }
+
+    /**
+     * Named construction for this record.
+     * @since 2.0.0
+     */
+    public static final class Builder {
+        private Builder() {}
+        private String status;
+
+        /**
+         * Sets the {@code status} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder status(String value) {
+            this.status = value;
+            return this;
+        }
+
+        /**
+         * Builds a record after checking required property presence.
+         * @return a new record
+         * @throws IllegalStateException if a required property is missing
+         * @since 2.0.0
+         */
+        public SettingsRemoveRawKeyResult build() {
+            if (status == null) throw new IllegalStateException("Missing required property: status");
+            return new SettingsRemoveRawKeyResult(status);
+        }
+    }
 }

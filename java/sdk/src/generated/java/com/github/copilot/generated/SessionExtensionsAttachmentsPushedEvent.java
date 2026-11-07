@@ -38,5 +38,50 @@ public final class SessionExtensionsAttachmentsPushedEvent extends SessionEvent 
         /** Attachments contributed by an extension; the host should surface these as composer pills and forward them via the next session.send call. */
         @JsonProperty("attachments") List<Object> attachments
     ) {
+
+        /**
+         * Creates a record positionally.
+         * @deprecated Use {@link #builder()} for named construction.
+         */
+        @Deprecated(since = "2.0.0", forRemoval = false)
+        public SessionExtensionsAttachmentsPushedEventData {}
+
+        /**
+         * Returns a named builder.
+         * @return a new builder
+         * @since 2.0.0
+         */
+        public static Builder builder() { return new Builder(); }
+
+        /**
+         * Named construction for this record.
+         * @since 2.0.0
+         */
+        public static final class Builder {
+            private Builder() {}
+            private List<Object> attachments;
+
+            /**
+             * Sets the {@code attachments} property.
+             * @param value the property value
+             * @return this builder
+             * @since 2.0.0
+             */
+            public Builder attachments(List<Object> value) {
+                this.attachments = value;
+                return this;
+            }
+
+            /**
+             * Builds a record after checking required property presence.
+             * @return a new record
+             * @throws IllegalStateException if a required property is missing
+             * @since 2.0.0
+             */
+            public SessionExtensionsAttachmentsPushedEventData build() {
+                if (attachments == null) throw new IllegalStateException("Missing required property: attachments");
+                return new SessionExtensionsAttachmentsPushedEventData(attachments);
+            }
+        }
     }
 }

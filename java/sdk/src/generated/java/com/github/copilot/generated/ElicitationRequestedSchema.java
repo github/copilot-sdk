@@ -30,4 +30,74 @@ public record ElicitationRequestedSchema(
     /** List of required field names */
     @JsonProperty("required") List<String> required
 ) {
+
+    /**
+     * Creates a record positionally.
+     * @deprecated Use {@link #builder()} for named construction.
+     */
+    @Deprecated(since = "2.0.0", forRemoval = false)
+    public ElicitationRequestedSchema {}
+
+    /**
+     * Returns a named builder.
+     * @return a new builder
+     * @since 2.0.0
+     */
+    public static Builder builder() { return new Builder(); }
+
+    /**
+     * Named construction for this record.
+     * @since 2.0.0
+     */
+    public static final class Builder {
+        private Builder() {}
+        private String type;
+        private Map<String, Object> properties;
+        private List<String> required;
+
+        /**
+         * Sets the {@code type} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder type(String value) {
+            this.type = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code properties} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder properties(Map<String, Object> value) {
+            this.properties = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code required} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder required(List<String> value) {
+            this.required = value;
+            return this;
+        }
+
+        /**
+         * Builds a record after checking required property presence.
+         * @return a new record
+         * @throws IllegalStateException if a required property is missing
+         * @since 2.0.0
+         */
+        public ElicitationRequestedSchema build() {
+            if (type == null) throw new IllegalStateException("Missing required property: type");
+            if (properties == null) throw new IllegalStateException("Missing required property: properties");
+            return new ElicitationRequestedSchema(type, properties, required);
+        }
+    }
 }

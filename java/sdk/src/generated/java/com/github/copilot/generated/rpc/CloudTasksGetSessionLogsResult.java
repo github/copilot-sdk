@@ -45,4 +45,157 @@ record CloudTasksGetSessionLogsResult(
     /** The error body the API returned, preserved verbatim so a host can surface the service's own message. */
     @JsonProperty("errorPayloadJson") String errorPayloadJson
 ) {
+
+    /**
+     * Creates a record positionally.
+     * @deprecated Use {@link #builder()} for named construction.
+     */
+    @Deprecated(since = "2.0.0", forRemoval = false)
+    CloudTasksGetSessionLogsResult {}
+
+    /**
+     * Returns a named builder.
+     * @return a new builder
+     * @since 2.0.0
+     */
+    @com.github.copilot.CopilotExperimental
+    public static Builder builder() { return new Builder(); }
+
+    /**
+     * Named construction for this record.
+     * @since 2.0.0
+     */
+    @com.github.copilot.CopilotExperimental
+    public static final class Builder {
+        private Builder() {}
+        private Boolean resolved;
+        private Boolean ok;
+        private String logsJson;
+        private List<String> debugMessages;
+        private String errorString;
+        private Long statusCode;
+        private String errorMessage;
+        private String errorKind;
+        private String errorPayloadJson;
+
+        /**
+         * Sets the {@code resolved} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        @com.github.copilot.CopilotExperimental
+        public Builder resolved(Boolean value) {
+            this.resolved = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code ok} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        @com.github.copilot.CopilotExperimental
+        public Builder ok(Boolean value) {
+            this.ok = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code logsJson} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        @com.github.copilot.CopilotExperimental
+        public Builder logsJson(String value) {
+            this.logsJson = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code debugMessages} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        @com.github.copilot.CopilotExperimental
+        public Builder debugMessages(List<String> value) {
+            this.debugMessages = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code errorString} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        @com.github.copilot.CopilotExperimental
+        public Builder errorString(String value) {
+            this.errorString = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code statusCode} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        @com.github.copilot.CopilotExperimental
+        public Builder statusCode(Long value) {
+            this.statusCode = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code errorMessage} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        @com.github.copilot.CopilotExperimental
+        public Builder errorMessage(String value) {
+            this.errorMessage = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code errorKind} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        @com.github.copilot.CopilotExperimental
+        public Builder errorKind(String value) {
+            this.errorKind = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code errorPayloadJson} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        @com.github.copilot.CopilotExperimental
+        public Builder errorPayloadJson(String value) {
+            this.errorPayloadJson = value;
+            return this;
+        }
+
+        /**
+         * Builds a record after checking required property presence.
+         * @return a new record
+         * @throws IllegalStateException if a required property is missing
+         * @since 2.0.0
+         */
+        public CloudTasksGetSessionLogsResult build() {
+            if (resolved == null) throw new IllegalStateException("Missing required property: resolved");
+            if (ok == null) throw new IllegalStateException("Missing required property: ok");
+            return new CloudTasksGetSessionLogsResult(resolved, ok, logsJson, debugMessages, errorString, statusCode, errorMessage, errorKind, errorPayloadJson);
+        }
+    }
 }

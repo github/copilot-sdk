@@ -35,4 +35,113 @@ Bound MCP confirmation always includes it; correlate it with the original pendin
     /** Resource-specific review to present before collecting the user's decision. */
     @JsonProperty("review") InstallationReview review
 ) {
+
+    /**
+     * Creates a record positionally.
+     * @deprecated Use {@link #builder()} for named construction.
+     */
+    @Deprecated(since = "2.0.0", forRemoval = false)
+    public InstallationConfirmationRequest {}
+
+    /**
+     * Returns a named builder.
+     * @return a new builder
+     * @since 2.0.0
+     */
+    public static Builder builder() { return new Builder(); }
+
+    /**
+     * Named construction for this record.
+     * @since 2.0.0
+     */
+    public static final class Builder {
+        private Builder() {}
+        private String policySessionId;
+        private String confirmationId;
+        private String operationId;
+        private String expiresAt;
+        private String reviewFingerprint;
+        private InstallationReview review;
+
+        /**
+         * Sets the {@code policySessionId} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder policySessionId(String value) {
+            this.policySessionId = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code confirmationId} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder confirmationId(String value) {
+            this.confirmationId = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code operationId} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder operationId(String value) {
+            this.operationId = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code expiresAt} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder expiresAt(String value) {
+            this.expiresAt = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code reviewFingerprint} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder reviewFingerprint(String value) {
+            this.reviewFingerprint = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code review} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder review(InstallationReview value) {
+            this.review = value;
+            return this;
+        }
+
+        /**
+         * Builds a record after checking required property presence.
+         * @return a new record
+         * @throws IllegalStateException if a required property is missing
+         * @since 2.0.0
+         */
+        public InstallationConfirmationRequest build() {
+            if (confirmationId == null) throw new IllegalStateException("Missing required property: confirmationId");
+            if (operationId == null) throw new IllegalStateException("Missing required property: operationId");
+            if (expiresAt == null) throw new IllegalStateException("Missing required property: expiresAt");
+            if (reviewFingerprint == null) throw new IllegalStateException("Missing required property: reviewFingerprint");
+            if (review == null) throw new IllegalStateException("Missing required property: review");
+            return new InstallationConfirmationRequest(policySessionId, confirmationId, operationId, expiresAt, reviewFingerprint, review);
+        }
+    }
 }

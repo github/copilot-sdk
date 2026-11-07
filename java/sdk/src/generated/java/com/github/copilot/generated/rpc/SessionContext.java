@@ -32,4 +32,97 @@ public record SessionContext(
     /** Active git branch */
     @JsonProperty("branch") String branch
 ) {
+
+    /**
+     * Creates a record positionally.
+     * @deprecated Use {@link #builder()} for named construction.
+     */
+    @Deprecated(since = "2.0.0", forRemoval = false)
+    public SessionContext {}
+
+    /**
+     * Returns a named builder.
+     * @return a new builder
+     * @since 2.0.0
+     */
+    public static Builder builder() { return new Builder(); }
+
+    /**
+     * Named construction for this record.
+     * @since 2.0.0
+     */
+    public static final class Builder {
+        private Builder() {}
+        private String cwd;
+        private String gitRoot;
+        private String repository;
+        private SessionContextHostType hostType;
+        private String branch;
+
+        /**
+         * Sets the {@code cwd} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder cwd(String value) {
+            this.cwd = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code gitRoot} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder gitRoot(String value) {
+            this.gitRoot = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code repository} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder repository(String value) {
+            this.repository = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code hostType} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder hostType(SessionContextHostType value) {
+            this.hostType = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code branch} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder branch(String value) {
+            this.branch = value;
+            return this;
+        }
+
+        /**
+         * Builds a record after checking required property presence.
+         * @return a new record
+         * @throws IllegalStateException if a required property is missing
+         * @since 2.0.0
+         */
+        public SessionContext build() {
+            if (cwd == null) throw new IllegalStateException("Missing required property: cwd");
+            return new SessionContext(cwd, gitRoot, repository, hostType, branch);
+        }
+    }
 }

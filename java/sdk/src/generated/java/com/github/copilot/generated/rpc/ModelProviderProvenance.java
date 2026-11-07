@@ -36,4 +36,106 @@ public record ModelProviderProvenance(
     /** Human-readable contributor name, not the adapter display name. */
     @JsonProperty("ownerDisplayName") String ownerDisplayName
 ) {
+
+    /**
+     * Creates a record positionally.
+     * @deprecated Use {@link #builder()} for named construction.
+     */
+    @Deprecated(since = "2.0.0", forRemoval = false)
+    public ModelProviderProvenance {}
+
+    /**
+     * Returns a named builder.
+     * @return a new builder
+     * @since 2.0.0
+     */
+    @com.github.copilot.CopilotExperimental
+    public static Builder builder() { return new Builder(); }
+
+    /**
+     * Named construction for this record.
+     * @since 2.0.0
+     */
+    @com.github.copilot.CopilotExperimental
+    public static final class Builder {
+        private Builder() {}
+        private String adapterId;
+        private String providerKind;
+        private ModelProviderProvenanceSource source;
+        private String ownerId;
+        private String ownerDisplayName;
+
+        /**
+         * Sets the {@code adapterId} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        @com.github.copilot.CopilotExperimental
+        public Builder adapterId(String value) {
+            this.adapterId = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code providerKind} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        @com.github.copilot.CopilotExperimental
+        public Builder providerKind(String value) {
+            this.providerKind = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code source} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        @com.github.copilot.CopilotExperimental
+        public Builder source(ModelProviderProvenanceSource value) {
+            this.source = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code ownerId} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        @com.github.copilot.CopilotExperimental
+        public Builder ownerId(String value) {
+            this.ownerId = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code ownerDisplayName} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        @com.github.copilot.CopilotExperimental
+        public Builder ownerDisplayName(String value) {
+            this.ownerDisplayName = value;
+            return this;
+        }
+
+        /**
+         * Builds a record after checking required property presence.
+         * @return a new record
+         * @throws IllegalStateException if a required property is missing
+         * @since 2.0.0
+         */
+        public ModelProviderProvenance build() {
+            if (adapterId == null) throw new IllegalStateException("Missing required property: adapterId");
+            if (providerKind == null) throw new IllegalStateException("Missing required property: providerKind");
+            if (source == null) throw new IllegalStateException("Missing required property: source");
+            return new ModelProviderProvenance(adapterId, providerKind, source, ownerId, ownerDisplayName);
+        }
+    }
 }

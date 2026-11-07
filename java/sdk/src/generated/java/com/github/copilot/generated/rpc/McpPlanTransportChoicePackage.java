@@ -39,10 +39,20 @@ public record McpPlanTransportChoicePackage(
     /** Secrets this choice requires, referenced by placeholder only. */
     @JsonProperty("secretPlaceholders") List<McpPlanSecretPlaceholder> secretPlaceholders
 ) implements McpPlanTransportChoice {
+    /**
+     * Creates this variant positionally and normalizes its discriminator.
+     * @deprecated Use {@link #builder()} for named construction.
+     */
+    @Deprecated(since = "2.0.0", forRemoval = false)
     public McpPlanTransportChoicePackage {
         installMethod = "package";
     }
 
+    /**
+     * Creates this variant without explicitly supplying its discriminator.
+     * @deprecated Use {@link #builder()} for named construction.
+     */
+    @Deprecated(since = "2.0.0", forRemoval = false)
     public McpPlanTransportChoicePackage(
         String choiceId,
         McpPlanPackageTransport transport,
@@ -52,5 +62,108 @@ public record McpPlanTransportChoicePackage(
         List<McpPlanSecretPlaceholder> secretPlaceholders
     ) {
         this(choiceId, transport, "package", packageType, packageIdentifier, requiredValues, secretPlaceholders);
+    }
+
+    /**
+     * Returns a named builder.
+     * @return a new builder
+     * @since 2.0.0
+     */
+    public static Builder builder() { return new Builder(); }
+
+    /**
+     * Named construction for this record.
+     * @since 2.0.0
+     */
+    public static final class Builder {
+        private Builder() {}
+        private String choiceId;
+        private McpPlanPackageTransport transport;
+        private String packageType;
+        private String packageIdentifier;
+        private List<Object> requiredValues;
+        private List<McpPlanSecretPlaceholder> secretPlaceholders;
+
+        /**
+         * Sets the {@code choiceId} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder choiceId(String value) {
+            this.choiceId = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code transport} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder transport(McpPlanPackageTransport value) {
+            this.transport = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code packageType} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder packageType(String value) {
+            this.packageType = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code packageIdentifier} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder packageIdentifier(String value) {
+            this.packageIdentifier = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code requiredValues} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder requiredValues(List<Object> value) {
+            this.requiredValues = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code secretPlaceholders} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder secretPlaceholders(List<McpPlanSecretPlaceholder> value) {
+            this.secretPlaceholders = value;
+            return this;
+        }
+
+        /**
+         * Builds a record after checking required property presence.
+         * @return a new record
+         * @throws IllegalStateException if a required property is missing
+         * @since 2.0.0
+         */
+        public McpPlanTransportChoicePackage build() {
+            if (choiceId == null) throw new IllegalStateException("Missing required property: choiceId");
+            if (transport == null) throw new IllegalStateException("Missing required property: transport");
+            if (packageType == null) throw new IllegalStateException("Missing required property: packageType");
+            if (packageIdentifier == null) throw new IllegalStateException("Missing required property: packageIdentifier");
+            if (requiredValues == null) throw new IllegalStateException("Missing required property: requiredValues");
+            if (secretPlaceholders == null) throw new IllegalStateException("Missing required property: secretPlaceholders");
+            return new McpPlanTransportChoicePackage(choiceId, transport, "package", packageType, packageIdentifier, requiredValues, secretPlaceholders);
+        }
     }
 }

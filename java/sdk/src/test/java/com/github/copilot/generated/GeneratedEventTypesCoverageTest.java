@@ -14,6 +14,7 @@ import com.fasterxml.jackson.databind.DeserializationFeature;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.SerializationFeature;
 import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
+import java.util.Map;
 
 /**
  * Deserialization tests for generated session event types that are not covered
@@ -35,6 +36,31 @@ public class GeneratedEventTypesCoverageTest {
 
     private static SessionEvent parse(String json) throws Exception {
         return MAPPER.readValue(json, SessionEvent.class);
+    }
+
+    @Test
+    void permissionRequestedPayloadBuilderRoutesBothFusionShapesWithoutPositionalPadding() throws Exception {
+        var withoutFusion = PermissionRequestedEvent.PermissionRequestedEventData.builder().requestId("permission-1")
+                .permissionRequest(Map.of("kind", "read")).build();
+        assertNull(withoutFusion.fusion());
+        var withoutFusionEvent = new PermissionRequestedEvent();
+        withoutFusionEvent.setData(withoutFusion);
+        var parsedWithoutFusion = parse(MAPPER.writeValueAsString(withoutFusionEvent));
+        assertInstanceOf(PermissionRequestedEvent.class, parsedWithoutFusion);
+        assertNull(((PermissionRequestedEvent) parsedWithoutFusion).getData().fusion());
+
+        var withFusion = PermissionRequestedEvent.PermissionRequestedEventData.builder().requestId("permission-2")
+                .permissionRequest(Map.of("kind", "write"))
+                .fusion(FusionAttribution.builder().fusionId("fusion-1").syntheticModel("fusion-model")
+                        .policy("parallel").pattern("fan-out").phaseId("phase-1").build())
+                .build();
+        var withFusionEvent = new PermissionRequestedEvent();
+        withFusionEvent.setData(withFusion);
+        var parsedWithFusion = parse(MAPPER.writeValueAsString(withFusionEvent));
+        assertInstanceOf(PermissionRequestedEvent.class, parsedWithFusion);
+        var routedData = ((PermissionRequestedEvent) parsedWithFusion).getData();
+        assertEquals("fusion-1", routedData.fusion().fusionId());
+        assertEquals("phase-1", routedData.fusion().phaseId());
     }
 
     // ── AssistantStreamingDeltaEvent ───────────────────────────────────────

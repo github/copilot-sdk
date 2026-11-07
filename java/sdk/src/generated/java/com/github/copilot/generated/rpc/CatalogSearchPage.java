@@ -26,4 +26,62 @@ public record CatalogSearchPage(
     /** Requested one-based page. Must not exceed either the token's signed pageCount or the navigation window ceil(1000 / pageSize). Repeat the search without page to discover newly available pages beyond that signed pageCount. */
     @JsonProperty("number") Long number
 ) {
+
+    /**
+     * Creates a record positionally.
+     * @deprecated Use {@link #builder()} for named construction.
+     */
+    @Deprecated(since = "2.0.0", forRemoval = false)
+    public CatalogSearchPage {}
+
+    /**
+     * Returns a named builder.
+     * @return a new builder
+     * @since 2.0.0
+     */
+    public static Builder builder() { return new Builder(); }
+
+    /**
+     * Named construction for this record.
+     * @since 2.0.0
+     */
+    public static final class Builder {
+        private Builder() {}
+        private String token;
+        private Long number;
+
+        /**
+         * Sets the {@code token} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder token(String value) {
+            this.token = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code number} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder number(Long value) {
+            this.number = value;
+            return this;
+        }
+
+        /**
+         * Builds a record after checking required property presence.
+         * @return a new record
+         * @throws IllegalStateException if a required property is missing
+         * @since 2.0.0
+         */
+        public CatalogSearchPage build() {
+            if (token == null) throw new IllegalStateException("Missing required property: token");
+            if (number == null) throw new IllegalStateException("Missing required property: number");
+            return new CatalogSearchPage(token, number);
+        }
+    }
 }

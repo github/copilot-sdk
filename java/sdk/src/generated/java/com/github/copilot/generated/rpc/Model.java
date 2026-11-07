@@ -56,4 +56,231 @@ public record Model(
     /** The native model provider that produced this model, as a neutral reference (opaque id, human-readable label, and provider kind). Preserved by `session.model.list` and `server.models.list` when supplied by the catalog producer; omitted for unattributed and configured BYOK models. This identifies the model source, not an account or agent harness. */
     @JsonProperty("provider") ModelProviderRef provider
 ) {
+
+    /**
+     * Creates a record positionally.
+     * @deprecated Use {@link #builder()} for named construction.
+     */
+    @Deprecated(since = "2.0.0", forRemoval = false)
+    public Model {}
+
+    /**
+     * Returns a named builder.
+     * @return a new builder
+     * @since 2.0.0
+     */
+    public static Builder builder() { return new Builder(); }
+
+    /**
+     * Named construction for this record.
+     * @since 2.0.0
+     */
+    public static final class Builder {
+        private Builder() {}
+        private String id;
+        private String name;
+        private ModelCapabilities capabilities;
+        private Map<String, Object> metadata;
+        private String vendor;
+        private ModelPolicy policy;
+        private ModelBilling billing;
+        private List<String> supportedReasoningEfforts;
+        private String defaultReasoningEffort;
+        private List<String> supportedContextTiers;
+        private ModelPickerCategory modelPickerCategory;
+        private ModelPickerPriceCategory modelPickerPriceCategory;
+        private ModelWarningText warningText;
+        private List<ModelMessage> infoMessages;
+        private List<ModelMessage> warningMessages;
+        private ModelProviderRef provider;
+
+        /**
+         * Sets the {@code id} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder id(String value) {
+            this.id = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code name} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder name(String value) {
+            this.name = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code capabilities} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder capabilities(ModelCapabilities value) {
+            this.capabilities = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code metadata} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder metadata(Map<String, Object> value) {
+            this.metadata = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code vendor} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder vendor(String value) {
+            this.vendor = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code policy} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder policy(ModelPolicy value) {
+            this.policy = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code billing} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder billing(ModelBilling value) {
+            this.billing = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code supportedReasoningEfforts} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder supportedReasoningEfforts(List<String> value) {
+            this.supportedReasoningEfforts = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code defaultReasoningEffort} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder defaultReasoningEffort(String value) {
+            this.defaultReasoningEffort = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code supportedContextTiers} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder supportedContextTiers(List<String> value) {
+            this.supportedContextTiers = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code modelPickerCategory} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder modelPickerCategory(ModelPickerCategory value) {
+            this.modelPickerCategory = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code modelPickerPriceCategory} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder modelPickerPriceCategory(ModelPickerPriceCategory value) {
+            this.modelPickerPriceCategory = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code warningText} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder warningText(ModelWarningText value) {
+            this.warningText = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code infoMessages} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder infoMessages(List<ModelMessage> value) {
+            this.infoMessages = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code warningMessages} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder warningMessages(List<ModelMessage> value) {
+            this.warningMessages = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code provider} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder provider(ModelProviderRef value) {
+            this.provider = value;
+            return this;
+        }
+
+        /**
+         * Builds a record after checking required property presence.
+         * @return a new record
+         * @throws IllegalStateException if a required property is missing
+         * @since 2.0.0
+         */
+        public Model build() {
+            if (id == null) throw new IllegalStateException("Missing required property: id");
+            if (name == null) throw new IllegalStateException("Missing required property: name");
+            if (capabilities == null) throw new IllegalStateException("Missing required property: capabilities");
+            return new Model(id, name, capabilities, metadata, vendor, policy, billing, supportedReasoningEfforts, defaultReasoningEffort, supportedContextTiers, modelPickerCategory, modelPickerPriceCategory, warningText, infoMessages, warningMessages, provider);
+        }
+    }
 }

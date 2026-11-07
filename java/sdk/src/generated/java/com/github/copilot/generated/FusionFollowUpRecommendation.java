@@ -30,4 +30,66 @@ public record FusionFollowUpRecommendation(
     /** Recommended routing action for the next compaction turn. */
     @JsonProperty("compactionTurn") FusionFollowUpAction compactionTurn
 ) {
+
+    /**
+     * Creates a record positionally.
+     * @deprecated Use {@link #builder()} for named construction.
+     */
+    @Deprecated(since = "2.0.0", forRemoval = false)
+    public FusionFollowUpRecommendation {}
+
+    /**
+     * Returns a named builder.
+     * @return a new builder
+     * @since 2.0.0
+     */
+    @com.github.copilot.CopilotExperimental
+    public static Builder builder() { return new Builder(); }
+
+    /**
+     * Named construction for this record.
+     * @since 2.0.0
+     */
+    @com.github.copilot.CopilotExperimental
+    public static final class Builder {
+        private Builder() {}
+        private FusionFollowUpAction userTurn;
+        private FusionFollowUpAction compactionTurn;
+
+        /**
+         * Sets the {@code userTurn} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        @com.github.copilot.CopilotExperimental
+        public Builder userTurn(FusionFollowUpAction value) {
+            this.userTurn = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code compactionTurn} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        @com.github.copilot.CopilotExperimental
+        public Builder compactionTurn(FusionFollowUpAction value) {
+            this.compactionTurn = value;
+            return this;
+        }
+
+        /**
+         * Builds a record after checking required property presence.
+         * @return a new record
+         * @throws IllegalStateException if a required property is missing
+         * @since 2.0.0
+         */
+        public FusionFollowUpRecommendation build() {
+            if (userTurn == null) throw new IllegalStateException("Missing required property: userTurn");
+            if (compactionTurn == null) throw new IllegalStateException("Missing required property: compactionTurn");
+            return new FusionFollowUpRecommendation(userTurn, compactionTurn);
+        }
+    }
 }

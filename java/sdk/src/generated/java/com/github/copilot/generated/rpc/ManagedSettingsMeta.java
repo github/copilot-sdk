@@ -38,4 +38,136 @@ public record ManagedSettingsMeta(
     /** Provenance of `values.communication`. Always reported as not overridable: users cannot replace the organization's information. */
     @JsonProperty("communication") ManagedSettingMeta communication
 ) {
+
+    /**
+     * Creates a record positionally.
+     * @deprecated Use {@link #builder()} for named construction.
+     */
+    @Deprecated(since = "2.0.0", forRemoval = false)
+    public ManagedSettingsMeta {}
+
+    /**
+     * Returns a named builder.
+     * @return a new builder
+     * @since 2.0.0
+     */
+    @com.github.copilot.CopilotExperimental
+    public static Builder builder() { return new Builder(); }
+
+    /**
+     * Named construction for this record.
+     * @since 2.0.0
+     */
+    @com.github.copilot.CopilotExperimental
+    public static final class Builder {
+        private Builder() {}
+        private ManagedSettingMeta model;
+        private ManagedSettingMeta autoTier;
+        private ManagedSettingMeta fusionTier;
+        private ManagedSettingMeta effortLevel;
+        private ManagedSettingMeta contextTier;
+        private ManagedSettingMeta communication;
+
+        /**
+         * Sets the {@code model} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        @com.github.copilot.CopilotExperimental
+        public Builder model(ManagedSettingMeta value) {
+            this.model = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code autoTier} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        @com.github.copilot.CopilotExperimental
+        public Builder autoTier(ManagedSettingMeta value) {
+            this.autoTier = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code fusionTier} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        @com.github.copilot.CopilotExperimental
+        public Builder fusionTier(ManagedSettingMeta value) {
+            this.fusionTier = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code effortLevel} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        @com.github.copilot.CopilotExperimental
+        public Builder effortLevel(ManagedSettingMeta value) {
+            this.effortLevel = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code contextTier} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        @com.github.copilot.CopilotExperimental
+        public Builder contextTier(ManagedSettingMeta value) {
+            this.contextTier = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code communication} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        @com.github.copilot.CopilotExperimental
+        public Builder communication(ManagedSettingMeta value) {
+            this.communication = value;
+            return this;
+        }
+
+        /**
+         * Builds a record after checking required property presence.
+         * @return a new record
+         * @throws IllegalStateException if a required property is missing
+         * @since 2.0.0
+         */
+        public ManagedSettingsMeta build() {
+            return new ManagedSettingsMeta(model, autoTier, fusionTier, effortLevel, contextTier, communication);
+        }
+    }
+
+    /**
+     * Retains the constructor published in Java SDK 1.0.28.
+     * @deprecated Use named construction via {@link #builder()}.
+     * @param model Lock state and provenance of `values.model`.
+     * @param autoTier Lock state and provenance of `values.autoTier`.
+     * @param fusionTier Lock state and provenance of values.fusionTier, including a legacy alias's original source. An unmanaged value imposes no tier lock.
+     * @param effortLevel Lock state and provenance of `values.effortLevel`.
+     * @param contextTier Lock state and provenance of `values.contextTier`.
+     */
+    @Deprecated(since = "2.0.0", forRemoval = false)
+    public ManagedSettingsMeta(
+        ManagedSettingMeta model,
+        ManagedSettingMeta autoTier,
+        ManagedSettingMeta fusionTier,
+        ManagedSettingMeta effortLevel,
+        ManagedSettingMeta contextTier
+    ) {
+        this(model, autoTier, fusionTier, effortLevel, contextTier, null);
+    }
 }

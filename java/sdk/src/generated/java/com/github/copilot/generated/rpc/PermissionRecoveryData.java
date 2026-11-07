@@ -43,8 +43,154 @@ public record PermissionRecoveryData(
 ) {
 
     /**
+     * Creates a record positionally.
+     * @deprecated Use {@link #builder()} for named construction.
+     */
+    @Deprecated(since = "2.0.0", forRemoval = false)
+    public PermissionRecoveryData {}
+
+    /**
+     * Returns a named builder.
+     * @return a new builder
+     * @since 2.0.0
+     */
+    public static Builder builder() { return new Builder(); }
+
+    /**
+     * Named construction for this record.
+     * @since 2.0.0
+     */
+    public static final class Builder {
+        private Builder() {}
+        private String episodeId;
+        private String ownerSessionId;
+        private String ownerAgentId;
+        private PermissionRecoveryStatus status;
+        private PermissionRecoveryOnBlocked onBlocked;
+        private PermissionRecoveryReason reason;
+        private Long maxAttempts;
+        private List<PermissionRecoveryAttempt> attempts;
+        private PermissionRecoveryRunState runState;
+
+        /**
+         * Sets the {@code episodeId} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder episodeId(String value) {
+            this.episodeId = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code ownerSessionId} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder ownerSessionId(String value) {
+            this.ownerSessionId = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code ownerAgentId} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder ownerAgentId(String value) {
+            this.ownerAgentId = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code status} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder status(PermissionRecoveryStatus value) {
+            this.status = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code onBlocked} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder onBlocked(PermissionRecoveryOnBlocked value) {
+            this.onBlocked = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code reason} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder reason(PermissionRecoveryReason value) {
+            this.reason = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code maxAttempts} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder maxAttempts(Long value) {
+            this.maxAttempts = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code attempts} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder attempts(List<PermissionRecoveryAttempt> value) {
+            this.attempts = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code runState} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder runState(PermissionRecoveryRunState value) {
+            this.runState = value;
+            return this;
+        }
+
+        /**
+         * Builds a record after checking required property presence.
+         * @return a new record
+         * @throws IllegalStateException if a required property is missing
+         * @since 2.0.0
+         */
+        public PermissionRecoveryData build() {
+            if (episodeId == null) throw new IllegalStateException("Missing required property: episodeId");
+            if (status == null) throw new IllegalStateException("Missing required property: status");
+            if (onBlocked == null) throw new IllegalStateException("Missing required property: onBlocked");
+            if (reason == null) throw new IllegalStateException("Missing required property: reason");
+            if (maxAttempts == null) throw new IllegalStateException("Missing required property: maxAttempts");
+            if (attempts == null) throw new IllegalStateException("Missing required property: attempts");
+            return new PermissionRecoveryData(episodeId, ownerSessionId, ownerAgentId, status, onBlocked, reason, maxAttempts, attempts, runState);
+        }
+    }
+
+    /**
      * Creates a record with the components it had before later optional fields were added.
-     *
+     * @deprecated Use named construction via {@link #builder()}.
      * @param episodeId Stable identifier shared by every transition in this recovery episode
      * @param ownerSessionId Root or child execution-session identifier that owns this recovery episode; omitted for legacy snapshots
      * @param ownerAgentId Subagent identifier that owns this recovery episode when the request was delegated through a parent permission service
@@ -54,6 +200,7 @@ public record PermissionRecoveryData(
      * @param maxAttempts Maximum number of distinct autonomous permission attempts allowed before escalation
      * @param attempts Ordered privacy-safe record of permission attempts and the successful alternative, when any
      */
+    @Deprecated(since = "2.0.0", forRemoval = false)
     public PermissionRecoveryData(
         String episodeId,
         String ownerSessionId,

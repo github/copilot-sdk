@@ -28,4 +28,52 @@ record GitHubReleaseAbandonRequestResult(
     /** True only when this connection owned an unclaimed allocation with no active guard. False for active, foreign, unknown or previously retired ids. A successful abandonment prevents any later use of that id. */
     @JsonProperty("abandoned") Boolean abandoned
 ) {
+
+    /**
+     * Creates a record positionally.
+     * @deprecated Use {@link #builder()} for named construction.
+     */
+    @Deprecated(since = "2.0.0", forRemoval = false)
+    GitHubReleaseAbandonRequestResult {}
+
+    /**
+     * Returns a named builder.
+     * @return a new builder
+     * @since 2.0.0
+     */
+    @com.github.copilot.CopilotExperimental
+    public static Builder builder() { return new Builder(); }
+
+    /**
+     * Named construction for this record.
+     * @since 2.0.0
+     */
+    @com.github.copilot.CopilotExperimental
+    public static final class Builder {
+        private Builder() {}
+        private Boolean abandoned;
+
+        /**
+         * Sets the {@code abandoned} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        @com.github.copilot.CopilotExperimental
+        public Builder abandoned(Boolean value) {
+            this.abandoned = value;
+            return this;
+        }
+
+        /**
+         * Builds a record after checking required property presence.
+         * @return a new record
+         * @throws IllegalStateException if a required property is missing
+         * @since 2.0.0
+         */
+        public GitHubReleaseAbandonRequestResult build() {
+            if (abandoned == null) throw new IllegalStateException("Missing required property: abandoned");
+            return new GitHubReleaseAbandonRequestResult(abandoned);
+        }
+    }
 }

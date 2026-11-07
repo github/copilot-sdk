@@ -34,4 +34,109 @@ public record SessionAuthStatus(
     /** Copilot plan tier (e.g., individual_pro, business) */
     @JsonProperty("copilotPlan") String copilotPlan
 ) {
+
+    /**
+     * Creates a record positionally.
+     * @deprecated Use {@link #builder()} for named construction.
+     */
+    @Deprecated(since = "2.0.0", forRemoval = false)
+    public SessionAuthStatus {}
+
+    /**
+     * Returns a named builder.
+     * @return a new builder
+     * @since 2.0.0
+     */
+    public static Builder builder() { return new Builder(); }
+
+    /**
+     * Named construction for this record.
+     * @since 2.0.0
+     */
+    public static final class Builder {
+        private Builder() {}
+        private Boolean isAuthenticated;
+        private AuthInfoType authType;
+        private String host;
+        private String login;
+        private String statusMessage;
+        private String copilotPlan;
+
+        /**
+         * Sets the {@code isAuthenticated} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder isAuthenticated(Boolean value) {
+            this.isAuthenticated = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code authType} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder authType(AuthInfoType value) {
+            this.authType = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code host} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder host(String value) {
+            this.host = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code login} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder login(String value) {
+            this.login = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code statusMessage} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder statusMessage(String value) {
+            this.statusMessage = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code copilotPlan} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder copilotPlan(String value) {
+            this.copilotPlan = value;
+            return this;
+        }
+
+        /**
+         * Builds a record after checking required property presence.
+         * @return a new record
+         * @throws IllegalStateException if a required property is missing
+         * @since 2.0.0
+         */
+        public SessionAuthStatus build() {
+            if (isAuthenticated == null) throw new IllegalStateException("Missing required property: isAuthenticated");
+            return new SessionAuthStatus(isAuthenticated, authType, host, login, statusMessage, copilotPlan);
+        }
+    }
 }

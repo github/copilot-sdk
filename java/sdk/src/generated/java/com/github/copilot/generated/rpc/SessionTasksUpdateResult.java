@@ -31,4 +31,75 @@ public record SessionTasksUpdateResult(
     /** Whether this invocation repeated the latest accepted update */
     @JsonProperty("duplicate") Boolean duplicate
 ) {
+
+    /**
+     * Creates a record positionally.
+     * @deprecated Use {@link #builder()} for named construction.
+     */
+    @Deprecated(since = "2.0.0", forRemoval = false)
+    public SessionTasksUpdateResult {}
+
+    /**
+     * Returns a named builder.
+     * @return a new builder
+     * @since 2.0.0
+     */
+    public static Builder builder() { return new Builder(); }
+
+    /**
+     * Named construction for this record.
+     * @since 2.0.0
+     */
+    public static final class Builder {
+        private Builder() {}
+        private TaskClientInfo task;
+        private Boolean applied;
+        private Boolean duplicate;
+
+        /**
+         * Sets the {@code task} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder task(TaskClientInfo value) {
+            this.task = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code applied} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder applied(Boolean value) {
+            this.applied = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code duplicate} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder duplicate(Boolean value) {
+            this.duplicate = value;
+            return this;
+        }
+
+        /**
+         * Builds a record after checking required property presence.
+         * @return a new record
+         * @throws IllegalStateException if a required property is missing
+         * @since 2.0.0
+         */
+        public SessionTasksUpdateResult build() {
+            if (task == null) throw new IllegalStateException("Missing required property: task");
+            if (applied == null) throw new IllegalStateException("Missing required property: applied");
+            if (duplicate == null) throw new IllegalStateException("Missing required property: duplicate");
+            return new SessionTasksUpdateResult(task, applied, duplicate);
+        }
+    }
 }

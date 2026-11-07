@@ -28,4 +28,51 @@ public record SessionNameGetResult(
     @JsonInclude(JsonInclude.Include.ALWAYS)
     @JsonProperty("name") String name
 ) {
+
+    /**
+     * Creates a record positionally.
+     * @deprecated Use {@link #builder()} for named construction.
+     */
+    @Deprecated(since = "2.0.0", forRemoval = false)
+    public SessionNameGetResult {}
+
+    /**
+     * Returns a named builder.
+     * @return a new builder
+     * @since 2.0.0
+     */
+    public static Builder builder() { return new Builder(); }
+
+    /**
+     * Named construction for this record.
+     * @since 2.0.0
+     */
+    public static final class Builder {
+        private Builder() {}
+        private String name;
+        private boolean $presence0;
+
+        /**
+         * Sets the {@code name} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder name(String value) {
+            this.name = value;
+            this.$presence0 = true;
+            return this;
+        }
+
+        /**
+         * Builds a record after checking required property presence.
+         * @return a new record
+         * @throws IllegalStateException if a required property is missing
+         * @since 2.0.0
+         */
+        public SessionNameGetResult build() {
+            if (!$presence0) throw new IllegalStateException("Missing required property: name");
+            return new SessionNameGetResult(name);
+        }
+    }
 }

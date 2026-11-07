@@ -28,4 +28,49 @@ public record SessionExtensionsListResult(
     /** Discovered extensions and their current status */
     @JsonProperty("extensions") List<Extension> extensions
 ) {
+
+    /**
+     * Creates a record positionally.
+     * @deprecated Use {@link #builder()} for named construction.
+     */
+    @Deprecated(since = "2.0.0", forRemoval = false)
+    public SessionExtensionsListResult {}
+
+    /**
+     * Returns a named builder.
+     * @return a new builder
+     * @since 2.0.0
+     */
+    public static Builder builder() { return new Builder(); }
+
+    /**
+     * Named construction for this record.
+     * @since 2.0.0
+     */
+    public static final class Builder {
+        private Builder() {}
+        private List<Extension> extensions;
+
+        /**
+         * Sets the {@code extensions} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder extensions(List<Extension> value) {
+            this.extensions = value;
+            return this;
+        }
+
+        /**
+         * Builds a record after checking required property presence.
+         * @return a new record
+         * @throws IllegalStateException if a required property is missing
+         * @since 2.0.0
+         */
+        public SessionExtensionsListResult build() {
+            if (extensions == null) throw new IllegalStateException("Missing required property: extensions");
+            return new SessionExtensionsListResult(extensions);
+        }
+    }
 }

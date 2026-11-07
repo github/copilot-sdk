@@ -30,4 +30,66 @@ public record ToolExecutionCompleteFileEdit(
     /** Kind of mutation committed at this path. */
     @JsonProperty("kind") ToolExecutionCompleteFileEditKind kind
 ) {
+
+    /**
+     * Creates a record positionally.
+     * @deprecated Use {@link #builder()} for named construction.
+     */
+    @Deprecated(since = "2.0.0", forRemoval = false)
+    public ToolExecutionCompleteFileEdit {}
+
+    /**
+     * Returns a named builder.
+     * @return a new builder
+     * @since 2.0.0
+     */
+    @com.github.copilot.CopilotExperimental
+    public static Builder builder() { return new Builder(); }
+
+    /**
+     * Named construction for this record.
+     * @since 2.0.0
+     */
+    @com.github.copilot.CopilotExperimental
+    public static final class Builder {
+        private Builder() {}
+        private String path;
+        private ToolExecutionCompleteFileEditKind kind;
+
+        /**
+         * Sets the {@code path} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        @com.github.copilot.CopilotExperimental
+        public Builder path(String value) {
+            this.path = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code kind} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        @com.github.copilot.CopilotExperimental
+        public Builder kind(ToolExecutionCompleteFileEditKind value) {
+            this.kind = value;
+            return this;
+        }
+
+        /**
+         * Builds a record after checking required property presence.
+         * @return a new record
+         * @throws IllegalStateException if a required property is missing
+         * @since 2.0.0
+         */
+        public ToolExecutionCompleteFileEdit build() {
+            if (path == null) throw new IllegalStateException("Missing required property: path");
+            if (kind == null) throw new IllegalStateException("Missing required property: kind");
+            return new ToolExecutionCompleteFileEdit(path, kind);
+        }
+    }
 }

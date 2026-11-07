@@ -27,4 +27,49 @@ public record SessionShellExecResult(
     /** Identifier usable with shell.kill while the process is running */
     @JsonProperty("processId") String processId
 ) {
+
+    /**
+     * Creates a record positionally.
+     * @deprecated Use {@link #builder()} for named construction.
+     */
+    @Deprecated(since = "2.0.0", forRemoval = false)
+    public SessionShellExecResult {}
+
+    /**
+     * Returns a named builder.
+     * @return a new builder
+     * @since 2.0.0
+     */
+    public static Builder builder() { return new Builder(); }
+
+    /**
+     * Named construction for this record.
+     * @since 2.0.0
+     */
+    public static final class Builder {
+        private Builder() {}
+        private String processId;
+
+        /**
+         * Sets the {@code processId} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder processId(String value) {
+            this.processId = value;
+            return this;
+        }
+
+        /**
+         * Builds a record after checking required property presence.
+         * @return a new record
+         * @throws IllegalStateException if a required property is missing
+         * @since 2.0.0
+         */
+        public SessionShellExecResult build() {
+            if (processId == null) throw new IllegalStateException("Missing required property: processId");
+            return new SessionShellExecResult(processId);
+        }
+    }
 }

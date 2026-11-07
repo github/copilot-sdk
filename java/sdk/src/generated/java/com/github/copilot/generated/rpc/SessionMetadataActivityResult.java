@@ -29,4 +29,62 @@ public record SessionMetadataActivityResult(
     /** Whether the session currently has active work, including running turns or tasks. */
     @JsonProperty("hasActiveWork") Boolean hasActiveWork
 ) {
+
+    /**
+     * Creates a record positionally.
+     * @deprecated Use {@link #builder()} for named construction.
+     */
+    @Deprecated(since = "2.0.0", forRemoval = false)
+    public SessionMetadataActivityResult {}
+
+    /**
+     * Returns a named builder.
+     * @return a new builder
+     * @since 2.0.0
+     */
+    public static Builder builder() { return new Builder(); }
+
+    /**
+     * Named construction for this record.
+     * @since 2.0.0
+     */
+    public static final class Builder {
+        private Builder() {}
+        private Boolean abortable;
+        private Boolean hasActiveWork;
+
+        /**
+         * Sets the {@code abortable} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder abortable(Boolean value) {
+            this.abortable = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code hasActiveWork} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder hasActiveWork(Boolean value) {
+            this.hasActiveWork = value;
+            return this;
+        }
+
+        /**
+         * Builds a record after checking required property presence.
+         * @return a new record
+         * @throws IllegalStateException if a required property is missing
+         * @since 2.0.0
+         */
+        public SessionMetadataActivityResult build() {
+            if (abortable == null) throw new IllegalStateException("Missing required property: abortable");
+            if (hasActiveWork == null) throw new IllegalStateException("Missing required property: hasActiveWork");
+            return new SessionMetadataActivityResult(abortable, hasActiveWork);
+        }
+    }
 }

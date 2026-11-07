@@ -42,5 +42,75 @@ public final class AssistantMessageDeltaEvent extends SessionEvent {
         @Deprecated
         @JsonProperty("parentToolCallId") String parentToolCallId
     ) {
+
+        /**
+         * Creates a record positionally.
+         * @deprecated Use {@link #builder()} for named construction.
+         */
+        @Deprecated(since = "2.0.0", forRemoval = false)
+        public AssistantMessageDeltaEventData {}
+
+        /**
+         * Returns a named builder.
+         * @return a new builder
+         * @since 2.0.0
+         */
+        public static Builder builder() { return new Builder(); }
+
+        /**
+         * Named construction for this record.
+         * @since 2.0.0
+         */
+        public static final class Builder {
+            private Builder() {}
+            private String messageId;
+            private String deltaContent;
+            private String parentToolCallId;
+
+            /**
+             * Sets the {@code messageId} property.
+             * @param value the property value
+             * @return this builder
+             * @since 2.0.0
+             */
+            public Builder messageId(String value) {
+                this.messageId = value;
+                return this;
+            }
+
+            /**
+             * Sets the {@code deltaContent} property.
+             * @param value the property value
+             * @return this builder
+             * @since 2.0.0
+             */
+            public Builder deltaContent(String value) {
+                this.deltaContent = value;
+                return this;
+            }
+
+            /**
+             * Sets the {@code parentToolCallId} property.
+             * @param value the property value
+             * @return this builder
+             * @since 2.0.0
+             */
+            public Builder parentToolCallId(String value) {
+                this.parentToolCallId = value;
+                return this;
+            }
+
+            /**
+             * Builds a record after checking required property presence.
+             * @return a new record
+             * @throws IllegalStateException if a required property is missing
+             * @since 2.0.0
+             */
+            public AssistantMessageDeltaEventData build() {
+                if (messageId == null) throw new IllegalStateException("Missing required property: messageId");
+                if (deltaContent == null) throw new IllegalStateException("Missing required property: deltaContent");
+                return new AssistantMessageDeltaEventData(messageId, deltaContent, parentToolCallId);
+            }
+        }
     }
 }

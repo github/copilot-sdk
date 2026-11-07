@@ -45,5 +45,98 @@ public final class ExitPlanModeCompletedEvent extends SessionEvent {
         /** Free-form feedback from the user if they requested changes to the plan */
         @JsonProperty("feedback") String feedback
     ) {
+
+        /**
+         * Creates a record positionally.
+         * @deprecated Use {@link #builder()} for named construction.
+         */
+        @Deprecated(since = "2.0.0", forRemoval = false)
+        public ExitPlanModeCompletedEventData {}
+
+        /**
+         * Returns a named builder.
+         * @return a new builder
+         * @since 2.0.0
+         */
+        public static Builder builder() { return new Builder(); }
+
+        /**
+         * Named construction for this record.
+         * @since 2.0.0
+         */
+        public static final class Builder {
+            private Builder() {}
+            private String requestId;
+            private Boolean approved;
+            private ExitPlanModeAction selectedAction;
+            private Boolean autoApproveEdits;
+            private String feedback;
+
+            /**
+             * Sets the {@code requestId} property.
+             * @param value the property value
+             * @return this builder
+             * @since 2.0.0
+             */
+            public Builder requestId(String value) {
+                this.requestId = value;
+                return this;
+            }
+
+            /**
+             * Sets the {@code approved} property.
+             * @param value the property value
+             * @return this builder
+             * @since 2.0.0
+             */
+            public Builder approved(Boolean value) {
+                this.approved = value;
+                return this;
+            }
+
+            /**
+             * Sets the {@code selectedAction} property.
+             * @param value the property value
+             * @return this builder
+             * @since 2.0.0
+             */
+            public Builder selectedAction(ExitPlanModeAction value) {
+                this.selectedAction = value;
+                return this;
+            }
+
+            /**
+             * Sets the {@code autoApproveEdits} property.
+             * @param value the property value
+             * @return this builder
+             * @since 2.0.0
+             */
+            public Builder autoApproveEdits(Boolean value) {
+                this.autoApproveEdits = value;
+                return this;
+            }
+
+            /**
+             * Sets the {@code feedback} property.
+             * @param value the property value
+             * @return this builder
+             * @since 2.0.0
+             */
+            public Builder feedback(String value) {
+                this.feedback = value;
+                return this;
+            }
+
+            /**
+             * Builds a record after checking required property presence.
+             * @return a new record
+             * @throws IllegalStateException if a required property is missing
+             * @since 2.0.0
+             */
+            public ExitPlanModeCompletedEventData build() {
+                if (requestId == null) throw new IllegalStateException("Missing required property: requestId");
+                return new ExitPlanModeCompletedEventData(requestId, approved, selectedAction, autoApproveEdits, feedback);
+            }
+        }
     }
 }

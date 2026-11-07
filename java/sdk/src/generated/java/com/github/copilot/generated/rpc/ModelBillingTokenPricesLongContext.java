@@ -40,4 +40,132 @@ public record ModelBillingTokenPricesLongContext(
     /** Prompt token budget for the long context tier. The total context window is this value plus the model's max_output_tokens. */
     @JsonProperty("maxPromptTokens") Long maxPromptTokens
 ) {
+
+    /**
+     * Creates a record positionally.
+     * @deprecated Use {@link #builder()} for named construction.
+     */
+    @Deprecated(since = "2.0.0", forRemoval = false)
+    public ModelBillingTokenPricesLongContext {}
+
+    /**
+     * Returns a named builder.
+     * @return a new builder
+     * @since 2.0.0
+     */
+    public static Builder builder() { return new Builder(); }
+
+    /**
+     * Named construction for this record.
+     * @since 2.0.0
+     */
+    public static final class Builder {
+        private Builder() {}
+        private Double inputPrice;
+        private Double outputPrice;
+        private Double cachePrice;
+        private Double cacheReadPrice;
+        private Double cacheWritePrice;
+        private Double cacheWrite1hPrice;
+        private Long contextMax;
+        private Long maxPromptTokens;
+
+        /**
+         * Sets the {@code inputPrice} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder inputPrice(Double value) {
+            this.inputPrice = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code outputPrice} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder outputPrice(Double value) {
+            this.outputPrice = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code cachePrice} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder cachePrice(Double value) {
+            this.cachePrice = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code cacheReadPrice} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder cacheReadPrice(Double value) {
+            this.cacheReadPrice = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code cacheWritePrice} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder cacheWritePrice(Double value) {
+            this.cacheWritePrice = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code cacheWrite1hPrice} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder cacheWrite1hPrice(Double value) {
+            this.cacheWrite1hPrice = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code contextMax} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder contextMax(Long value) {
+            this.contextMax = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code maxPromptTokens} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder maxPromptTokens(Long value) {
+            this.maxPromptTokens = value;
+            return this;
+        }
+
+        /**
+         * Builds a record after checking required property presence.
+         * @return a new record
+         * @throws IllegalStateException if a required property is missing
+         * @since 2.0.0
+         */
+        public ModelBillingTokenPricesLongContext build() {
+            return new ModelBillingTokenPricesLongContext(inputPrice, outputPrice, cachePrice, cacheReadPrice, cacheWritePrice, cacheWrite1hPrice, contextMax, maxPromptTokens);
+        }
+    }
 }

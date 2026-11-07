@@ -43,4 +43,156 @@ public record SessionMcpOauthLoginParams(
     /** Optional OAuth grant type override for this login. Defaults to the server configuration, or authorization_code when no grant type is specified. */
     @JsonProperty("grantType") McpOauthLoginGrantType grantType
 ) {
+
+    /**
+     * Creates a record positionally.
+     * @deprecated Use {@link #builder()} for named construction.
+     */
+    @Deprecated(since = "2.0.0", forRemoval = false)
+    public SessionMcpOauthLoginParams {}
+
+    /**
+     * Returns a named builder.
+     * @return a new builder
+     * @since 2.0.0
+     */
+    @com.github.copilot.CopilotExperimental
+    public static Builder builder() { return new Builder(); }
+
+    /**
+     * Named construction for this record.
+     * @since 2.0.0
+     */
+    @com.github.copilot.CopilotExperimental
+    public static final class Builder {
+        private Builder() {}
+        private String sessionId;
+        private String serverName;
+        private Boolean forceReauth;
+        private String clientName;
+        private String callbackSuccessMessage;
+        private String clientId;
+        private String clientSecret;
+        private Boolean publicClient;
+        private McpOauthLoginGrantType grantType;
+
+        /**
+         * Sets the {@code sessionId} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        @com.github.copilot.CopilotExperimental
+        public Builder sessionId(String value) {
+            this.sessionId = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code serverName} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        @com.github.copilot.CopilotExperimental
+        public Builder serverName(String value) {
+            this.serverName = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code forceReauth} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        @com.github.copilot.CopilotExperimental
+        public Builder forceReauth(Boolean value) {
+            this.forceReauth = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code clientName} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        @com.github.copilot.CopilotExperimental
+        public Builder clientName(String value) {
+            this.clientName = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code callbackSuccessMessage} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        @com.github.copilot.CopilotExperimental
+        public Builder callbackSuccessMessage(String value) {
+            this.callbackSuccessMessage = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code clientId} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        @com.github.copilot.CopilotExperimental
+        public Builder clientId(String value) {
+            this.clientId = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code clientSecret} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        @com.github.copilot.CopilotExperimental
+        public Builder clientSecret(String value) {
+            this.clientSecret = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code publicClient} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        @com.github.copilot.CopilotExperimental
+        public Builder publicClient(Boolean value) {
+            this.publicClient = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code grantType} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        @com.github.copilot.CopilotExperimental
+        public Builder grantType(McpOauthLoginGrantType value) {
+            this.grantType = value;
+            return this;
+        }
+
+        /**
+         * Builds a record after checking required property presence.
+         * @return a new record
+         * @throws IllegalStateException if a required property is missing
+         * @since 2.0.0
+         */
+        public SessionMcpOauthLoginParams build() {
+            if (serverName == null) throw new IllegalStateException("Missing required property: serverName");
+            return new SessionMcpOauthLoginParams(sessionId, serverName, forceReauth, clientName, callbackSuccessMessage, clientId, clientSecret, publicClient, grantType);
+        }
+    }
 }

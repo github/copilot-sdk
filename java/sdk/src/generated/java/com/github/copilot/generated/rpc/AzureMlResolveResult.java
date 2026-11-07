@@ -37,4 +37,110 @@ public record AzureMlResolveResult(
     /** Maximum supported local concurrency. */
     @JsonProperty("maxConcurrent") Long maxConcurrent
 ) {
+
+    /**
+     * Creates a record positionally.
+     * @deprecated Use {@link #builder()} for named construction.
+     */
+    @Deprecated(since = "2.0.0", forRemoval = false)
+    public AzureMlResolveResult {}
+
+    /**
+     * Returns a named builder.
+     * @return a new builder
+     * @since 2.0.0
+     */
+    @com.github.copilot.CopilotExperimental
+    public static Builder builder() { return new Builder(); }
+
+    /**
+     * Named construction for this record.
+     * @since 2.0.0
+     */
+    @com.github.copilot.CopilotExperimental
+    public static final class Builder {
+        private Builder() {}
+        private Long totalBytes;
+        private String primaryPath;
+        private List<String> extraFiles;
+        private Object serveOptions;
+        private boolean $presence3;
+        private Long maxConcurrent;
+
+        /**
+         * Sets the {@code totalBytes} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        @com.github.copilot.CopilotExperimental
+        public Builder totalBytes(Long value) {
+            this.totalBytes = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code primaryPath} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        @com.github.copilot.CopilotExperimental
+        public Builder primaryPath(String value) {
+            this.primaryPath = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code extraFiles} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        @com.github.copilot.CopilotExperimental
+        public Builder extraFiles(List<String> value) {
+            this.extraFiles = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code serveOptions} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        @com.github.copilot.CopilotExperimental
+        public Builder serveOptions(Object value) {
+            this.serveOptions = value;
+            this.$presence3 = true;
+            return this;
+        }
+
+        /**
+         * Sets the {@code maxConcurrent} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        @com.github.copilot.CopilotExperimental
+        public Builder maxConcurrent(Long value) {
+            this.maxConcurrent = value;
+            return this;
+        }
+
+        /**
+         * Builds a record after checking required property presence.
+         * @return a new record
+         * @throws IllegalStateException if a required property is missing
+         * @since 2.0.0
+         */
+        public AzureMlResolveResult build() {
+            if (totalBytes == null) throw new IllegalStateException("Missing required property: totalBytes");
+            if (primaryPath == null) throw new IllegalStateException("Missing required property: primaryPath");
+            if (extraFiles == null) throw new IllegalStateException("Missing required property: extraFiles");
+            if (!$presence3) throw new IllegalStateException("Missing required property: serveOptions");
+            if (maxConcurrent == null) throw new IllegalStateException("Missing required property: maxConcurrent");
+            return new AzureMlResolveResult(totalBytes, primaryPath, extraFiles, serveOptions, maxConcurrent);
+        }
+    }
 }

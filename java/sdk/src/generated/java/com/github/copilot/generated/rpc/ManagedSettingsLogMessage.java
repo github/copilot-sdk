@@ -26,4 +26,62 @@ record ManagedSettingsLogMessage(
     /** Human-readable diagnostic text. */
     @JsonProperty("message") String message
 ) {
+
+    /**
+     * Creates a record positionally.
+     * @deprecated Use {@link #builder()} for named construction.
+     */
+    @Deprecated(since = "2.0.0", forRemoval = false)
+    ManagedSettingsLogMessage {}
+
+    /**
+     * Returns a named builder.
+     * @return a new builder
+     * @since 2.0.0
+     */
+    public static Builder builder() { return new Builder(); }
+
+    /**
+     * Named construction for this record.
+     * @since 2.0.0
+     */
+    public static final class Builder {
+        private Builder() {}
+        private ManagedSettingsLogLevel level;
+        private String message;
+
+        /**
+         * Sets the {@code level} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder level(ManagedSettingsLogLevel value) {
+            this.level = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code message} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder message(String value) {
+            this.message = value;
+            return this;
+        }
+
+        /**
+         * Builds a record after checking required property presence.
+         * @return a new record
+         * @throws IllegalStateException if a required property is missing
+         * @since 2.0.0
+         */
+        public ManagedSettingsLogMessage build() {
+            if (level == null) throw new IllegalStateException("Missing required property: level");
+            if (message == null) throw new IllegalStateException("Missing required property: message");
+            return new ManagedSettingsLogMessage(level, message);
+        }
+    }
 }

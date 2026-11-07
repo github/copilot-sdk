@@ -50,8 +50,199 @@ public record Plugin(
 ) {
 
     /**
+     * Creates a record positionally.
+     * @deprecated Use {@link #builder()} for named construction.
+     */
+    @Deprecated(since = "2.0.0", forRemoval = false)
+    public Plugin {}
+
+    /**
+     * Returns a named builder.
+     * @return a new builder
+     * @since 2.0.0
+     */
+    public static Builder builder() { return new Builder(); }
+
+    /**
+     * Named construction for this record.
+     * @since 2.0.0
+     */
+    public static final class Builder {
+        private Builder() {}
+        private ManagedPluginAssignment assignment;
+        private String name;
+        private String marketplace;
+        private String version;
+        private Boolean enabled;
+        private String directSourceId;
+        private String rootPath;
+        private String installedFrom;
+        private String source;
+        private Boolean managed;
+        private Boolean managedDesiredEnabled;
+        private Boolean installed;
+        private String id;
+
+        /**
+         * Sets the {@code assignment} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder assignment(ManagedPluginAssignment value) {
+            this.assignment = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code name} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder name(String value) {
+            this.name = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code marketplace} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder marketplace(String value) {
+            this.marketplace = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code version} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder version(String value) {
+            this.version = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code enabled} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder enabled(Boolean value) {
+            this.enabled = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code directSourceId} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder directSourceId(String value) {
+            this.directSourceId = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code rootPath} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder rootPath(String value) {
+            this.rootPath = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code installedFrom} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder installedFrom(String value) {
+            this.installedFrom = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code source} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder source(String value) {
+            this.source = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code managed} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder managed(Boolean value) {
+            this.managed = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code managedDesiredEnabled} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder managedDesiredEnabled(Boolean value) {
+            this.managedDesiredEnabled = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code installed} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder installed(Boolean value) {
+            this.installed = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code id} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder id(String value) {
+            this.id = value;
+            return this;
+        }
+
+        /**
+         * Builds a record after checking required property presence.
+         * @return a new record
+         * @throws IllegalStateException if a required property is missing
+         * @since 2.0.0
+         */
+        public Plugin build() {
+            if (name == null) throw new IllegalStateException("Missing required property: name");
+            if (marketplace == null) throw new IllegalStateException("Missing required property: marketplace");
+            if (enabled == null) throw new IllegalStateException("Missing required property: enabled");
+            return new Plugin(assignment, name, marketplace, version, enabled, directSourceId, rootPath, installedFrom, source, managed, managedDesiredEnabled, installed, id);
+        }
+    }
+
+    /**
      * Creates a record with the components it had before later optional fields were added.
-     *
+     * @deprecated Use named construction via {@link #builder()}.
      * @param name Plugin name
      * @param marketplace Marketplace the plugin came from
      * @param version Installed version
@@ -63,6 +254,7 @@ public record Plugin(
      * @param managedDesiredEnabled Enabled state required by enterprise managed settings.
      * @param installed Whether this managed desired plugin has an installed or live record.
      */
+    @Deprecated(since = "2.0.0", forRemoval = false)
     public Plugin(
         String name,
         String marketplace,

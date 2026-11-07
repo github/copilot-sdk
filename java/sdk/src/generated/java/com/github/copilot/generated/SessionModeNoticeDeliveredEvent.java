@@ -41,5 +41,74 @@ public final class SessionModeNoticeDeliveredEvent extends SessionEvent {
         /** Whether the model-visible transition notice was persisted separately as an instruction.update event */
         @JsonProperty("instructionUpdatePersisted") Boolean instructionUpdatePersisted
     ) {
+
+        /**
+         * Creates a record positionally.
+         * @deprecated Use {@link #builder()} for named construction.
+         */
+        @Deprecated(since = "2.0.0", forRemoval = false)
+        public SessionModeNoticeDeliveredEventData {}
+
+        /**
+         * Returns a named builder.
+         * @return a new builder
+         * @since 2.0.0
+         */
+        public static Builder builder() { return new Builder(); }
+
+        /**
+         * Named construction for this record.
+         * @since 2.0.0
+         */
+        public static final class Builder {
+            private Builder() {}
+            private SessionMode mode;
+            private String content;
+            private Boolean instructionUpdatePersisted;
+
+            /**
+             * Sets the {@code mode} property.
+             * @param value the property value
+             * @return this builder
+             * @since 2.0.0
+             */
+            public Builder mode(SessionMode value) {
+                this.mode = value;
+                return this;
+            }
+
+            /**
+             * Sets the {@code content} property.
+             * @param value the property value
+             * @return this builder
+             * @since 2.0.0
+             */
+            public Builder content(String value) {
+                this.content = value;
+                return this;
+            }
+
+            /**
+             * Sets the {@code instructionUpdatePersisted} property.
+             * @param value the property value
+             * @return this builder
+             * @since 2.0.0
+             */
+            public Builder instructionUpdatePersisted(Boolean value) {
+                this.instructionUpdatePersisted = value;
+                return this;
+            }
+
+            /**
+             * Builds a record after checking required property presence.
+             * @return a new record
+             * @throws IllegalStateException if a required property is missing
+             * @since 2.0.0
+             */
+            public SessionModeNoticeDeliveredEventData build() {
+                if (mode == null) throw new IllegalStateException("Missing required property: mode");
+                return new SessionModeNoticeDeliveredEventData(mode, content, instructionUpdatePersisted);
+            }
+        }
     }
 }

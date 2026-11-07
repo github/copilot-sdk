@@ -33,4 +33,92 @@ record SessionUsageSetCodeChangesParams(
     /** Absolute changed-file count; omission preserves the previous count. */
     @JsonProperty("filesCount") Double filesCount
 ) {
+
+    /**
+     * Creates a record positionally.
+     * @deprecated Use {@link #builder()} for named construction.
+     */
+    @Deprecated(since = "2.0.0", forRemoval = false)
+    SessionUsageSetCodeChangesParams {}
+
+    /**
+     * Returns a named builder.
+     * @return a new builder
+     * @since 2.0.0
+     */
+    @com.github.copilot.CopilotExperimental
+    public static Builder builder() { return new Builder(); }
+
+    /**
+     * Named construction for this record.
+     * @since 2.0.0
+     */
+    @com.github.copilot.CopilotExperimental
+    public static final class Builder {
+        private Builder() {}
+        private String sessionId;
+        private Double linesAdded;
+        private Double linesRemoved;
+        private Double filesCount;
+
+        /**
+         * Sets the {@code sessionId} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        @com.github.copilot.CopilotExperimental
+        public Builder sessionId(String value) {
+            this.sessionId = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code linesAdded} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        @com.github.copilot.CopilotExperimental
+        public Builder linesAdded(Double value) {
+            this.linesAdded = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code linesRemoved} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        @com.github.copilot.CopilotExperimental
+        public Builder linesRemoved(Double value) {
+            this.linesRemoved = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code filesCount} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        @com.github.copilot.CopilotExperimental
+        public Builder filesCount(Double value) {
+            this.filesCount = value;
+            return this;
+        }
+
+        /**
+         * Builds a record after checking required property presence.
+         * @return a new record
+         * @throws IllegalStateException if a required property is missing
+         * @since 2.0.0
+         */
+        public SessionUsageSetCodeChangesParams build() {
+            if (linesAdded == null) throw new IllegalStateException("Missing required property: linesAdded");
+            if (linesRemoved == null) throw new IllegalStateException("Missing required property: linesRemoved");
+            return new SessionUsageSetCodeChangesParams(sessionId, linesAdded, linesRemoved, filesCount);
+        }
+    }
 }

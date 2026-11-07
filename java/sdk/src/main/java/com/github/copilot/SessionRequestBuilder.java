@@ -12,6 +12,8 @@ import java.util.concurrent.CompletableFuture;
 import java.util.function.Function;
 
 import com.fasterxml.jackson.core.type.TypeReference;
+import com.fasterxml.jackson.databind.node.ArrayNode;
+import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.github.copilot.rpc.CopilotClientMode;
 import com.github.copilot.rpc.CreateSessionRequest;
 import com.github.copilot.rpc.MemoryConfiguration;
@@ -119,8 +121,34 @@ final class SessionRequestBuilder {
         return tools.stream().map(SessionRequestBuilder::toProtocolExternalTool).toList();
     }
 
+    static boolean requiresNullToolNameCompatibility(List<ToolDefinition> tools) {
+        return tools != null && tools.stream()
+                .anyMatch(tool -> tool.name() == null || tool.namespace() != null && tool.namespace().name() == null);
+    }
+
+    static ArrayNode toProtocolExternalToolsPreservingNullNames(List<ToolDefinition> tools) {
+        ArrayNode result = JsonRpcClient.getObjectMapper().createArrayNode();
+        for (ToolDefinition tool : tools) {
+            ObjectNode wire = JsonRpcClient.getObjectMapper().valueToTree(toProtocolExternalTool(tool, true));
+            if (tool.name() == null) {
+                wire.remove("name");
+            }
+            if (tool.namespace() != null && tool.namespace().name() == null) {
+                ((ObjectNode) wire.path("namespace")).remove("name");
+            }
+            result.add(wire);
+        }
+        return result;
+    }
+
     @SuppressWarnings("unchecked")
     private static ProtocolExternalToolDefinition toProtocolExternalTool(ToolDefinition tool) {
+        return toProtocolExternalTool(tool, false);
+    }
+
+    @SuppressWarnings("unchecked")
+    private static ProtocolExternalToolDefinition toProtocolExternalTool(ToolDefinition tool,
+            boolean substituteRequiredNulls) {
         Map<String, Object> parameters = null;
         if (tool.parameters() instanceof Map<?, ?> map) {
             parameters = (Map<String, Object>) map;
@@ -129,13 +157,25 @@ final class SessionRequestBuilder {
                     new TypeReference<Map<String, Object>>() {
                     });
         }
-        return new ProtocolExternalToolDefinition(tool.name(), tool.description() != null ? tool.description() : "",
-                null, parameters, tool.overridesBuiltInTool(), tool.skipPermission(), toProtocolDefer(tool.defer()),
-                tool.isTerminal(), tool.metadata(), toProtocolNamespace(tool.namespace()));
+        return ProtocolExternalToolDefinition.builder()
+                .name(tool.name() != null || !substituteRequiredNulls ? tool.name() : "")
+                .description(tool.description() != null ? tool.description() : "").parameters(parameters)
+                .overridesBuiltInTool(tool.overridesBuiltInTool()).skipPermission(tool.skipPermission())
+                .defer(toProtocolDefer(tool.defer())).isTerminal(tool.isTerminal()).metadata(tool.metadata())
+                .namespace(toProtocolNamespace(tool.namespace(), substituteRequiredNulls)).build();
     }
 
     private static ProtocolExternalToolNamespace toProtocolNamespace(ToolNamespace namespace) {
-        return namespace == null ? null : new ProtocolExternalToolNamespace(namespace.name(), namespace.description());
+        return toProtocolNamespace(namespace, false);
+    }
+
+    private static ProtocolExternalToolNamespace toProtocolNamespace(ToolNamespace namespace,
+            boolean substituteRequiredNulls) {
+        return namespace == null
+                ? null
+                : ProtocolExternalToolNamespace.builder()
+                        .name(namespace.name() != null || !substituteRequiredNulls ? namespace.name() : "")
+                        .description(namespace.description()).build();
     }
 
     private static ProtocolExternalToolDefer toProtocolDefer(ToolDefer defer) {

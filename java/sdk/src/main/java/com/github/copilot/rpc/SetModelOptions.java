@@ -25,6 +25,8 @@ public class SetModelOptions {
 
     private String reasoningEffort;
 
+    private boolean reasoningEffortSet;
+
     private String reasoningSummary;
 
     private ModelCapabilitiesOverride modelCapabilities;
@@ -64,6 +66,17 @@ public class SetModelOptions {
     }
 
     /**
+     * Gets whether a reasoning effort override or reset was explicitly requested.
+     *
+     * @return {@code true} when {@link #setReasoningEffort(String)} was called,
+     *         including with {@code null} to restore the default
+     * @since 2.0.0
+     */
+    public boolean hasReasoningEffort() {
+        return reasoningEffortSet;
+    }
+
+    /**
      * Sets the reasoning effort level.
      *
      * @param reasoningEffort
@@ -74,6 +87,7 @@ public class SetModelOptions {
      */
     public SetModelOptions setReasoningEffort(String reasoningEffort) {
         this.reasoningEffort = reasoningEffort;
+        this.reasoningEffortSet = true;
         return this;
     }
 

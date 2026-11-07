@@ -34,4 +34,94 @@ public record ModelProviderAutomaticDiscoveryPolicy(
     /** True when the adapter must be enabled by a trusted owner, such as a trusted extension, before automatic discovery may run. */
     @JsonProperty("requiresTrust") Boolean requiresTrust
 ) {
+
+    /**
+     * Creates a record positionally.
+     * @deprecated Use {@link #builder()} for named construction.
+     */
+    @Deprecated(since = "2.0.0", forRemoval = false)
+    public ModelProviderAutomaticDiscoveryPolicy {}
+
+    /**
+     * Returns a named builder.
+     * @return a new builder
+     * @since 2.0.0
+     */
+    @com.github.copilot.CopilotExperimental
+    public static Builder builder() { return new Builder(); }
+
+    /**
+     * Named construction for this record.
+     * @since 2.0.0
+     */
+    @com.github.copilot.CopilotExperimental
+    public static final class Builder {
+        private Builder() {}
+        private ModelProviderAutomaticDiscoveryMode mode;
+        private ModelProviderDiscoveryNetworkScope networkScope;
+        private Boolean requiresInput;
+        private Boolean requiresTrust;
+
+        /**
+         * Sets the {@code mode} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        @com.github.copilot.CopilotExperimental
+        public Builder mode(ModelProviderAutomaticDiscoveryMode value) {
+            this.mode = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code networkScope} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        @com.github.copilot.CopilotExperimental
+        public Builder networkScope(ModelProviderDiscoveryNetworkScope value) {
+            this.networkScope = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code requiresInput} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        @com.github.copilot.CopilotExperimental
+        public Builder requiresInput(Boolean value) {
+            this.requiresInput = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code requiresTrust} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        @com.github.copilot.CopilotExperimental
+        public Builder requiresTrust(Boolean value) {
+            this.requiresTrust = value;
+            return this;
+        }
+
+        /**
+         * Builds a record after checking required property presence.
+         * @return a new record
+         * @throws IllegalStateException if a required property is missing
+         * @since 2.0.0
+         */
+        public ModelProviderAutomaticDiscoveryPolicy build() {
+            if (mode == null) throw new IllegalStateException("Missing required property: mode");
+            if (networkScope == null) throw new IllegalStateException("Missing required property: networkScope");
+            if (requiresInput == null) throw new IllegalStateException("Missing required property: requiresInput");
+            if (requiresTrust == null) throw new IllegalStateException("Missing required property: requiresTrust");
+            return new ModelProviderAutomaticDiscoveryPolicy(mode, networkScope, requiresInput, requiresTrust);
+        }
+    }
 }

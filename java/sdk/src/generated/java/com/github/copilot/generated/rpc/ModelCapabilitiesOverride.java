@@ -26,4 +26,60 @@ public record ModelCapabilitiesOverride(
     /** Token limits for prompts, outputs, and context window */
     @JsonProperty("limits") ModelCapabilitiesOverrideLimits limits
 ) {
+
+    /**
+     * Creates a record positionally.
+     * @deprecated Use {@link #builder()} for named construction.
+     */
+    @Deprecated(since = "2.0.0", forRemoval = false)
+    public ModelCapabilitiesOverride {}
+
+    /**
+     * Returns a named builder.
+     * @return a new builder
+     * @since 2.0.0
+     */
+    public static Builder builder() { return new Builder(); }
+
+    /**
+     * Named construction for this record.
+     * @since 2.0.0
+     */
+    public static final class Builder {
+        private Builder() {}
+        private ModelCapabilitiesOverrideSupports supports;
+        private ModelCapabilitiesOverrideLimits limits;
+
+        /**
+         * Sets the {@code supports} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder supports(ModelCapabilitiesOverrideSupports value) {
+            this.supports = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code limits} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder limits(ModelCapabilitiesOverrideLimits value) {
+            this.limits = value;
+            return this;
+        }
+
+        /**
+         * Builds a record after checking required property presence.
+         * @return a new record
+         * @throws IllegalStateException if a required property is missing
+         * @since 2.0.0
+         */
+        public ModelCapabilitiesOverride build() {
+            return new ModelCapabilitiesOverride(supports, limits);
+        }
+    }
 }

@@ -34,4 +34,94 @@ record HostEnvironmentCredentials(
     /** Mission Control API origin for environment registration and management. */
     @JsonProperty("missionControlUrl") String missionControlUrl
 ) {
+
+    /**
+     * Creates a record positionally.
+     * @deprecated Use {@link #builder()} for named construction.
+     */
+    @Deprecated(since = "2.0.0", forRemoval = false)
+    HostEnvironmentCredentials {}
+
+    /**
+     * Returns a named builder.
+     * @return a new builder
+     * @since 2.0.0
+     */
+    @com.github.copilot.CopilotExperimental
+    public static Builder builder() { return new Builder(); }
+
+    /**
+     * Named construction for this record.
+     * @since 2.0.0
+     */
+    @com.github.copilot.CopilotExperimental
+    public static final class Builder {
+        private Builder() {}
+        private String token;
+        private String gitHubHost;
+        private String gitHubApiUrl;
+        private String missionControlUrl;
+
+        /**
+         * Sets the {@code token} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        @com.github.copilot.CopilotExperimental
+        public Builder token(String value) {
+            this.token = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code githubHost} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        @com.github.copilot.CopilotExperimental
+        public Builder gitHubHost(String value) {
+            this.gitHubHost = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code githubApiUrl} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        @com.github.copilot.CopilotExperimental
+        public Builder gitHubApiUrl(String value) {
+            this.gitHubApiUrl = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code missionControlUrl} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        @com.github.copilot.CopilotExperimental
+        public Builder missionControlUrl(String value) {
+            this.missionControlUrl = value;
+            return this;
+        }
+
+        /**
+         * Builds a record after checking required property presence.
+         * @return a new record
+         * @throws IllegalStateException if a required property is missing
+         * @since 2.0.0
+         */
+        public HostEnvironmentCredentials build() {
+            if (token == null) throw new IllegalStateException("Missing required property: token");
+            if (gitHubHost == null) throw new IllegalStateException("Missing required property: githubHost");
+            if (gitHubApiUrl == null) throw new IllegalStateException("Missing required property: githubApiUrl");
+            if (missionControlUrl == null) throw new IllegalStateException("Missing required property: missionControlUrl");
+            return new HostEnvironmentCredentials(token, gitHubHost, gitHubApiUrl, missionControlUrl);
+        }
+    }
 }

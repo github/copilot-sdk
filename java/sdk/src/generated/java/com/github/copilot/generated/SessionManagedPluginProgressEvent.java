@@ -45,5 +45,67 @@ public final class SessionManagedPluginProgressEvent extends SessionEvent {
         /** Ordered plugin install specs affected by this phase. Empty while managed settings initialize and when preparation completes. */
         @JsonProperty("pluginSpecs") List<String> pluginSpecs
     ) {
+
+        /**
+         * Creates a record positionally.
+         * @deprecated Use {@link #builder()} for named construction.
+         */
+        @Deprecated(since = "2.0.0", forRemoval = false)
+        public SessionManagedPluginProgressEventData {}
+
+        /**
+         * Returns a named builder.
+         * @return a new builder
+         * @since 2.0.0
+         */
+        @com.github.copilot.CopilotExperimental
+        public static Builder builder() { return new Builder(); }
+
+        /**
+         * Named construction for this record.
+         * @since 2.0.0
+         */
+        @com.github.copilot.CopilotExperimental
+        public static final class Builder {
+            private Builder() {}
+            private ManagedPluginProgressPhase phase;
+            private List<String> pluginSpecs;
+
+            /**
+             * Sets the {@code phase} property.
+             * @param value the property value
+             * @return this builder
+             * @since 2.0.0
+             */
+            @com.github.copilot.CopilotExperimental
+            public Builder phase(ManagedPluginProgressPhase value) {
+                this.phase = value;
+                return this;
+            }
+
+            /**
+             * Sets the {@code pluginSpecs} property.
+             * @param value the property value
+             * @return this builder
+             * @since 2.0.0
+             */
+            @com.github.copilot.CopilotExperimental
+            public Builder pluginSpecs(List<String> value) {
+                this.pluginSpecs = value;
+                return this;
+            }
+
+            /**
+             * Builds a record after checking required property presence.
+             * @return a new record
+             * @throws IllegalStateException if a required property is missing
+             * @since 2.0.0
+             */
+            public SessionManagedPluginProgressEventData build() {
+                if (phase == null) throw new IllegalStateException("Missing required property: phase");
+                if (pluginSpecs == null) throw new IllegalStateException("Missing required property: pluginSpecs");
+                return new SessionManagedPluginProgressEventData(phase, pluginSpecs);
+            }
+        }
     }
 }

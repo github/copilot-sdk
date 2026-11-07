@@ -32,4 +32,100 @@ public record Extension(
     /** Process ID if the extension is running */
     @JsonProperty("pid") Long pid
 ) {
+
+    /**
+     * Creates a record positionally.
+     * @deprecated Use {@link #builder()} for named construction.
+     */
+    @Deprecated(since = "2.0.0", forRemoval = false)
+    public Extension {}
+
+    /**
+     * Returns a named builder.
+     * @return a new builder
+     * @since 2.0.0
+     */
+    public static Builder builder() { return new Builder(); }
+
+    /**
+     * Named construction for this record.
+     * @since 2.0.0
+     */
+    public static final class Builder {
+        private Builder() {}
+        private String id;
+        private String name;
+        private ExtensionSource source;
+        private ExtensionStatus status;
+        private Long pid;
+
+        /**
+         * Sets the {@code id} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder id(String value) {
+            this.id = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code name} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder name(String value) {
+            this.name = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code source} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder source(ExtensionSource value) {
+            this.source = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code status} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder status(ExtensionStatus value) {
+            this.status = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code pid} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder pid(Long value) {
+            this.pid = value;
+            return this;
+        }
+
+        /**
+         * Builds a record after checking required property presence.
+         * @return a new record
+         * @throws IllegalStateException if a required property is missing
+         * @since 2.0.0
+         */
+        public Extension build() {
+            if (id == null) throw new IllegalStateException("Missing required property: id");
+            if (name == null) throw new IllegalStateException("Missing required property: name");
+            if (source == null) throw new IllegalStateException("Missing required property: source");
+            if (status == null) throw new IllegalStateException("Missing required property: status");
+            return new Extension(id, name, source, status, pid);
+        }
+    }
 }

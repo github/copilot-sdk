@@ -395,5 +395,63 @@ public final class SessionSendRequest {
         /** Output format discriminator. Currently only json_schema is supported. */
         @JsonProperty("type") String type
     ) {
+
+        /**
+         * Creates a record positionally.
+         * @deprecated Use {@link #builder()} for named construction.
+         */
+        @Deprecated(since = "2.0.0", forRemoval = false)
+        public SessionSendRequestResponseFormat {}
+
+        /**
+         * Returns a named builder.
+         * @return a new builder
+         * @since 2.0.0
+         */
+        public static Builder builder() { return new Builder(); }
+
+        /**
+         * Named construction for this record.
+         * @since 2.0.0
+         */
+        public static final class Builder {
+            private Builder() {}
+            private JsonSchemaResponseFormat jsonSchema;
+            private String type;
+
+            /**
+             * Sets the {@code jsonSchema} property.
+             * @param value the property value
+             * @return this builder
+             * @since 2.0.0
+             */
+            public Builder jsonSchema(JsonSchemaResponseFormat value) {
+                this.jsonSchema = value;
+                return this;
+            }
+
+            /**
+             * Sets the {@code type} property.
+             * @param value the property value
+             * @return this builder
+             * @since 2.0.0
+             */
+            public Builder type(String value) {
+                this.type = value;
+                return this;
+            }
+
+            /**
+             * Builds a record after checking required property presence.
+             * @return a new record
+             * @throws IllegalStateException if a required property is missing
+             * @since 2.0.0
+             */
+            public SessionSendRequestResponseFormat build() {
+                if (jsonSchema == null) throw new IllegalStateException("Missing required property: jsonSchema");
+                if (type == null) throw new IllegalStateException("Missing required property: type");
+                return new SessionSendRequestResponseFormat(jsonSchema, type);
+            }
+        }
     }
 }

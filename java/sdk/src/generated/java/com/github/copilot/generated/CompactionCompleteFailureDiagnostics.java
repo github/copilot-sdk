@@ -30,4 +30,84 @@ public record CompactionCompleteFailureDiagnostics(
     /** Finish reason of the summarizer's latest successful response, such as stop, length, or content_filter */
     @JsonProperty("finishReason") String finishReason
 ) {
+
+    /**
+     * Creates a record positionally.
+     * @deprecated Use {@link #builder()} for named construction.
+     */
+    @Deprecated(since = "2.0.0", forRemoval = false)
+    public CompactionCompleteFailureDiagnostics {}
+
+    /**
+     * Returns a named builder.
+     * @return a new builder
+     * @since 2.0.0
+     */
+    public static Builder builder() { return new Builder(); }
+
+    /**
+     * Named construction for this record.
+     * @since 2.0.0
+     */
+    public static final class Builder {
+        private Builder() {}
+        private String lastAttemptFailureReason;
+        private String providerErrorCode;
+        private String transportErrorKind;
+        private String finishReason;
+
+        /**
+         * Sets the {@code lastAttemptFailureReason} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder lastAttemptFailureReason(String value) {
+            this.lastAttemptFailureReason = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code providerErrorCode} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder providerErrorCode(String value) {
+            this.providerErrorCode = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code transportErrorKind} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder transportErrorKind(String value) {
+            this.transportErrorKind = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code finishReason} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder finishReason(String value) {
+            this.finishReason = value;
+            return this;
+        }
+
+        /**
+         * Builds a record after checking required property presence.
+         * @return a new record
+         * @throws IllegalStateException if a required property is missing
+         * @since 2.0.0
+         */
+        public CompactionCompleteFailureDiagnostics build() {
+            return new CompactionCompleteFailureDiagnostics(lastAttemptFailureReason, providerErrorCode, transportErrorKind, finishReason);
+        }
+    }
 }

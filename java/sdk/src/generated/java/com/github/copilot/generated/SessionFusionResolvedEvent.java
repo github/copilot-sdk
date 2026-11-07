@@ -99,5 +99,389 @@ public final class SessionFusionResolvedEvent extends SessionEvent {
         /** Elapsed time in milliseconds required to resolve and validate the route. */
         @JsonProperty("routingLatencyMs") Double routingLatencyMs
     ) {
+
+        /**
+         * Creates a record positionally.
+         * @deprecated Use {@link #builder()} for named construction.
+         */
+        @Deprecated(since = "2.0.0", forRemoval = false)
+        public SessionFusionResolvedEventData {}
+
+        /**
+         * Returns a named builder.
+         * @return a new builder
+         * @since 2.0.0
+         */
+        @com.github.copilot.CopilotExperimental
+        public static Builder builder() { return new Builder(); }
+
+        /**
+         * Named construction for this record.
+         * @since 2.0.0
+         */
+        @com.github.copilot.CopilotExperimental
+        public static final class Builder {
+            private Builder() {}
+            private String fusionId;
+            private String turnId;
+            private Long contractVersion;
+            private String syntheticModel;
+            private String policy;
+            private String routeSource;
+            private String planVersion;
+            private String policyVersion;
+            private String modelUniverseVersion;
+            private String ruleId;
+            private String selectedRuleId;
+            private Long ruleIndex;
+            private String ruleName;
+            private FusionScores scores;
+            private FusionPattern pattern;
+            private String hint;
+            private List<FusionPhasePlanStep> phasePlan;
+            private String primaryModel;
+            private String secondaryModel;
+            private boolean $presence18;
+            private String judgeModel;
+            private String repairModel;
+            private List<FusionCritic> critics;
+            private String fallbackModel;
+            private String followUpModel;
+            private FusionFollowUpRecommendation followUp;
+            private Double routingLatencyMs;
+
+            /**
+             * Sets the {@code fusionId} property.
+             * @param value the property value
+             * @return this builder
+             * @since 2.0.0
+             */
+            @com.github.copilot.CopilotExperimental
+            public Builder fusionId(String value) {
+                this.fusionId = value;
+                return this;
+            }
+
+            /**
+             * Sets the {@code turnId} property.
+             * @param value the property value
+             * @return this builder
+             * @since 2.0.0
+             */
+            @com.github.copilot.CopilotExperimental
+            public Builder turnId(String value) {
+                this.turnId = value;
+                return this;
+            }
+
+            /**
+             * Sets the {@code contractVersion} property.
+             * @param value the property value
+             * @return this builder
+             * @since 2.0.0
+             */
+            @com.github.copilot.CopilotExperimental
+            public Builder contractVersion(Long value) {
+                this.contractVersion = value;
+                return this;
+            }
+
+            /**
+             * Sets the {@code syntheticModel} property.
+             * @param value the property value
+             * @return this builder
+             * @since 2.0.0
+             */
+            @com.github.copilot.CopilotExperimental
+            public Builder syntheticModel(String value) {
+                this.syntheticModel = value;
+                return this;
+            }
+
+            /**
+             * Sets the {@code policy} property.
+             * @param value the property value
+             * @return this builder
+             * @since 2.0.0
+             */
+            @com.github.copilot.CopilotExperimental
+            public Builder policy(String value) {
+                this.policy = value;
+                return this;
+            }
+
+            /**
+             * Sets the {@code routeSource} property.
+             * @param value the property value
+             * @return this builder
+             * @since 2.0.0
+             */
+            @com.github.copilot.CopilotExperimental
+            public Builder routeSource(String value) {
+                this.routeSource = value;
+                return this;
+            }
+
+            /**
+             * Sets the {@code planVersion} property.
+             * @param value the property value
+             * @return this builder
+             * @since 2.0.0
+             */
+            @com.github.copilot.CopilotExperimental
+            public Builder planVersion(String value) {
+                this.planVersion = value;
+                return this;
+            }
+
+            /**
+             * Sets the {@code policyVersion} property.
+             * @param value the property value
+             * @return this builder
+             * @since 2.0.0
+             */
+            @com.github.copilot.CopilotExperimental
+            public Builder policyVersion(String value) {
+                this.policyVersion = value;
+                return this;
+            }
+
+            /**
+             * Sets the {@code modelUniverseVersion} property.
+             * @param value the property value
+             * @return this builder
+             * @since 2.0.0
+             */
+            @com.github.copilot.CopilotExperimental
+            public Builder modelUniverseVersion(String value) {
+                this.modelUniverseVersion = value;
+                return this;
+            }
+
+            /**
+             * Sets the {@code ruleId} property.
+             * @param value the property value
+             * @return this builder
+             * @since 2.0.0
+             */
+            @com.github.copilot.CopilotExperimental
+            public Builder ruleId(String value) {
+                this.ruleId = value;
+                return this;
+            }
+
+            /**
+             * Sets the {@code selectedRuleId} property.
+             * @param value the property value
+             * @return this builder
+             * @since 2.0.0
+             */
+            @com.github.copilot.CopilotExperimental
+            public Builder selectedRuleId(String value) {
+                this.selectedRuleId = value;
+                return this;
+            }
+
+            /**
+             * Sets the {@code ruleIndex} property.
+             * @param value the property value
+             * @return this builder
+             * @since 2.0.0
+             */
+            @com.github.copilot.CopilotExperimental
+            public Builder ruleIndex(Long value) {
+                this.ruleIndex = value;
+                return this;
+            }
+
+            /**
+             * Sets the {@code ruleName} property.
+             * @param value the property value
+             * @return this builder
+             * @since 2.0.0
+             */
+            @com.github.copilot.CopilotExperimental
+            public Builder ruleName(String value) {
+                this.ruleName = value;
+                return this;
+            }
+
+            /**
+             * Sets the {@code scores} property.
+             * @param value the property value
+             * @return this builder
+             * @since 2.0.0
+             */
+            @com.github.copilot.CopilotExperimental
+            public Builder scores(FusionScores value) {
+                this.scores = value;
+                return this;
+            }
+
+            /**
+             * Sets the {@code pattern} property.
+             * @param value the property value
+             * @return this builder
+             * @since 2.0.0
+             */
+            @com.github.copilot.CopilotExperimental
+            public Builder pattern(FusionPattern value) {
+                this.pattern = value;
+                return this;
+            }
+
+            /**
+             * Sets the {@code hint} property.
+             * @param value the property value
+             * @return this builder
+             * @since 2.0.0
+             */
+            @com.github.copilot.CopilotExperimental
+            public Builder hint(String value) {
+                this.hint = value;
+                return this;
+            }
+
+            /**
+             * Sets the {@code phasePlan} property.
+             * @param value the property value
+             * @return this builder
+             * @since 2.0.0
+             */
+            @com.github.copilot.CopilotExperimental
+            public Builder phasePlan(List<FusionPhasePlanStep> value) {
+                this.phasePlan = value;
+                return this;
+            }
+
+            /**
+             * Sets the {@code primaryModel} property.
+             * @param value the property value
+             * @return this builder
+             * @since 2.0.0
+             */
+            @com.github.copilot.CopilotExperimental
+            public Builder primaryModel(String value) {
+                this.primaryModel = value;
+                return this;
+            }
+
+            /**
+             * Sets the {@code secondaryModel} property.
+             * @param value the property value
+             * @return this builder
+             * @since 2.0.0
+             */
+            @com.github.copilot.CopilotExperimental
+            public Builder secondaryModel(String value) {
+                this.secondaryModel = value;
+                this.$presence18 = true;
+                return this;
+            }
+
+            /**
+             * Sets the {@code judgeModel} property.
+             * @param value the property value
+             * @return this builder
+             * @since 2.0.0
+             */
+            @com.github.copilot.CopilotExperimental
+            public Builder judgeModel(String value) {
+                this.judgeModel = value;
+                return this;
+            }
+
+            /**
+             * Sets the {@code repairModel} property.
+             * @param value the property value
+             * @return this builder
+             * @since 2.0.0
+             */
+            @com.github.copilot.CopilotExperimental
+            public Builder repairModel(String value) {
+                this.repairModel = value;
+                return this;
+            }
+
+            /**
+             * Sets the {@code critics} property.
+             * @param value the property value
+             * @return this builder
+             * @since 2.0.0
+             */
+            @com.github.copilot.CopilotExperimental
+            public Builder critics(List<FusionCritic> value) {
+                this.critics = value;
+                return this;
+            }
+
+            /**
+             * Sets the {@code fallbackModel} property.
+             * @param value the property value
+             * @return this builder
+             * @since 2.0.0
+             */
+            @com.github.copilot.CopilotExperimental
+            public Builder fallbackModel(String value) {
+                this.fallbackModel = value;
+                return this;
+            }
+
+            /**
+             * Sets the {@code followUpModel} property.
+             * @param value the property value
+             * @return this builder
+             * @since 2.0.0
+             */
+            @com.github.copilot.CopilotExperimental
+            public Builder followUpModel(String value) {
+                this.followUpModel = value;
+                return this;
+            }
+
+            /**
+             * Sets the {@code followUp} property.
+             * @param value the property value
+             * @return this builder
+             * @since 2.0.0
+             */
+            @com.github.copilot.CopilotExperimental
+            public Builder followUp(FusionFollowUpRecommendation value) {
+                this.followUp = value;
+                return this;
+            }
+
+            /**
+             * Sets the {@code routingLatencyMs} property.
+             * @param value the property value
+             * @return this builder
+             * @since 2.0.0
+             */
+            @com.github.copilot.CopilotExperimental
+            public Builder routingLatencyMs(Double value) {
+                this.routingLatencyMs = value;
+                return this;
+            }
+
+            /**
+             * Builds a record after checking required property presence.
+             * @return a new record
+             * @throws IllegalStateException if a required property is missing
+             * @since 2.0.0
+             */
+            public SessionFusionResolvedEventData build() {
+                if (fusionId == null) throw new IllegalStateException("Missing required property: fusionId");
+                if (turnId == null) throw new IllegalStateException("Missing required property: turnId");
+                if (contractVersion == null) throw new IllegalStateException("Missing required property: contractVersion");
+                if (syntheticModel == null) throw new IllegalStateException("Missing required property: syntheticModel");
+                if (policy == null) throw new IllegalStateException("Missing required property: policy");
+                if (pattern == null) throw new IllegalStateException("Missing required property: pattern");
+                if (primaryModel == null) throw new IllegalStateException("Missing required property: primaryModel");
+                if (!$presence18) throw new IllegalStateException("Missing required property: secondaryModel");
+                if (fallbackModel == null) throw new IllegalStateException("Missing required property: fallbackModel");
+                if (followUpModel == null) throw new IllegalStateException("Missing required property: followUpModel");
+                return new SessionFusionResolvedEventData(fusionId, turnId, contractVersion, syntheticModel, policy, routeSource, planVersion, policyVersion, modelUniverseVersion, ruleId, selectedRuleId, ruleIndex, ruleName, scores, pattern, hint, phasePlan, primaryModel, secondaryModel, judgeModel, repairModel, critics, fallbackModel, followUpModel, followUp, routingLatencyMs);
+            }
+        }
     }
 }

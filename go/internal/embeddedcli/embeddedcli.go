@@ -21,7 +21,8 @@ import (
 // Config defines the inputs used to install and locate the embedded Copilot CLI.
 //
 // Cli and CliHash are required. If Dir is empty, the CLI is installed into the
-// system cache directory. When Version is set, the CLI is installed into a
+// per-user cache directory or a protected fallback cache.
+// When Version is set, the CLI is installed into a
 // version-specific child directory so multiple versions can coexist. License,
 // when provided, is written next to the installed binary.
 //
@@ -91,16 +92,28 @@ func Setup(cfg Config) {
 	setupDone = true
 }
 
-var Path = sync.OnceValue(func() string {
+func Path() string {
 	setupMu.Lock()
 	defer setupMu.Unlock()
+	if cliPathCached {
+		return cliPath
+	}
 	if !setupDone {
+		cliPathCached = true
 		return ""
 	}
 	pathInitialized = true
-	path := install()
-	return path
-})
+	installDir, err := configuredInstallDir()
+	if err != nil {
+		if os.Getenv("COPILOT_CLI_INSTALL_VERBOSE") == "1" {
+			fmt.Printf("embedded CLI installation error: selecting install directory: %v\n", err)
+		}
+		return ""
+	}
+	cliPathCached = true
+	cliPath = install(installDir)
+	return cliPath
+}
 
 // RuntimeLibPath returns the on-disk path to the installed native in-process
 // runtime library (cdylib), or "" when no runtime library was bundled or the
@@ -113,22 +126,27 @@ func RuntimeLibPath() string {
 }
 
 // RuntimePath returns the installed copilot-runtime executable, or "" when the
-// application bundle predates the out-of-process runtime pair.
-func RuntimePath() string {
+// application bundle predates the out-of-process runtime pair. Installation
+// failures are returned to the caller.
+func RuntimePath() (string, error) {
 	setupMu.Lock()
 	defer setupMu.Unlock()
 	if !setupDone {
-		return ""
+		return "", nil
 	}
 	pathInitialized = true
 	selectLinuxMuslBundle()
 	if config.RuntimeExecutable == nil {
-		return ""
+		return "", nil
 	}
 	if runtimePath == "" {
-		runtimePath = installRuntime()
+		path, err := installRuntime()
+		if err != nil {
+			return "", err
+		}
+		runtimePath = path
 	}
-	return runtimePath
+	return runtimePath, nil
 }
 
 var (
@@ -136,13 +154,15 @@ var (
 	setupMu                sync.Mutex
 	setupDone              bool
 	pathInitialized        bool
+	cliPath                string
+	cliPathCached          bool
 	runtimeLibPath         string
 	runtimePath            string
 	runtimeAssetsInstalled bool
 	linuxMuslBundle        bool
 )
 
-func install() (path string) {
+func install(installDir string) (path string) {
 	selectLinuxMuslBundle()
 
 	verbose := os.Getenv("COPILOT_CLI_INSTALL_VERBOSE") == "1"
@@ -158,7 +178,6 @@ func install() (path string) {
 			fmt.Printf("installing embedded CLI at %s installation took %s\n", path, duration)
 		}()
 	}
-	installDir := configuredInstallDir()
 	path, err := installAt(installDir)
 	if err != nil {
 		logError("installing in configured directory", err)
@@ -167,7 +186,7 @@ func install() (path string) {
 	return path
 }
 
-func installRuntime() (path string) {
+func installRuntime() (path string, err error) {
 	verbose := os.Getenv("COPILOT_CLI_INSTALL_VERBOSE") == "1"
 	logError := func(msg string, err error) {
 		if verbose {
@@ -181,29 +200,36 @@ func installRuntime() (path string) {
 		}()
 	}
 
-	path, err := installRuntimeAt(configuredInstallDir())
+	installDir, err := configuredInstallDir()
+	if err != nil {
+		logError("selecting install directory", err)
+		return "", err
+	}
+	path, err = installRuntimeAt(installDir)
 	if err != nil {
 		logError("installing in configured directory", err)
-		return ""
+		return "", err
 	}
-	return path
+	return path, nil
 }
 
-func configuredInstallDir() string {
+func configuredInstallDir() (string, error) {
 	installDir := config.Dir
 	if installDir == "" {
 		if copilotHome := os.Getenv("COPILOT_HOME"); copilotHome != "" {
 			installDir = filepath.Join(copilotHome, "cache", "copilot-sdk")
 		} else {
-			var err error
-			if installDir, err = os.UserCacheDir(); err != nil {
-				// Fall back to temp dir if UserCacheDir is unavailable
-				installDir = os.TempDir()
+			var cacheErr error
+			if installDir, cacheErr = os.UserCacheDir(); cacheErr != nil {
+				var err error
+				if installDir, err = fallbackCacheDir(); err != nil {
+					return "", fmt.Errorf("user cache unavailable (%v); configure the user cache or set COPILOT_HOME or embeddedcli.Config.Dir: %w", cacheErr, err)
+				}
 			}
 			installDir = filepath.Join(installDir, "copilot-sdk")
 		}
 	}
-	return installDir
+	return installDir, nil
 }
 
 func selectLinuxMuslBundle() {

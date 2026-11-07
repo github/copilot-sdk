@@ -31,4 +31,74 @@ public record AccountLoginParams(
     /** GitHub authentication token */
     @JsonProperty("token") String token
 ) {
+
+    /**
+     * Creates a record positionally.
+     * @deprecated Use {@link #builder()} for named construction.
+     */
+    @Deprecated(since = "2.0.0", forRemoval = false)
+    public AccountLoginParams {}
+
+    /**
+     * Returns a named builder.
+     * @return a new builder
+     * @since 2.0.0
+     */
+    public static Builder builder() { return new Builder(); }
+
+    /**
+     * Named construction for this record.
+     * @since 2.0.0
+     */
+    public static final class Builder {
+        private Builder() {}
+        private String host;
+        private String login;
+        private String token;
+
+        /**
+         * Sets the {@code host} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder host(String value) {
+            this.host = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code login} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder login(String value) {
+            this.login = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code token} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder token(String value) {
+            this.token = value;
+            return this;
+        }
+
+        /**
+         * Builds a record after checking required property presence.
+         * @return a new record
+         * @throws IllegalStateException if a required property is missing
+         * @since 2.0.0
+         */
+        public AccountLoginParams build() {
+            if (host == null) throw new IllegalStateException("Missing required property: host");
+            if (token == null) throw new IllegalStateException("Missing required property: token");
+            return new AccountLoginParams(host, login, token);
+        }
+    }
 }

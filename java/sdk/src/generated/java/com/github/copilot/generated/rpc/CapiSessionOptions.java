@@ -26,4 +26,60 @@ public record CapiSessionOptions(
     /** Whether to use WebSocket transport for the CAPI Responses API. Enabled by default when the model advertises `ws:/responses` support; set to `false` to force the HTTP Responses transport in environments where WebSockets are blocked (e.g. behind a proxy). Setting this to `false` is equivalent to the `COPILOT_CLI_DISABLE_WEBSOCKET_RESPONSES` environment variable. */
     @JsonProperty("enableWebSocketResponses") Boolean enableWebSocketResponses
 ) {
+
+    /**
+     * Creates a record positionally.
+     * @deprecated Use {@link #builder()} for named construction.
+     */
+    @Deprecated(since = "2.0.0", forRemoval = false)
+    public CapiSessionOptions {}
+
+    /**
+     * Returns a named builder.
+     * @return a new builder
+     * @since 2.0.0
+     */
+    public static Builder builder() { return new Builder(); }
+
+    /**
+     * Named construction for this record.
+     * @since 2.0.0
+     */
+    public static final class Builder {
+        private Builder() {}
+        private AutoTier autoTier;
+        private Boolean enableWebSocketResponses;
+
+        /**
+         * Sets the {@code autoTier} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder autoTier(AutoTier value) {
+            this.autoTier = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code enableWebSocketResponses} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder enableWebSocketResponses(Boolean value) {
+            this.enableWebSocketResponses = value;
+            return this;
+        }
+
+        /**
+         * Builds a record after checking required property presence.
+         * @return a new record
+         * @throws IllegalStateException if a required property is missing
+         * @since 2.0.0
+         */
+        public CapiSessionOptions build() {
+            return new CapiSessionOptions(autoTier, enableWebSocketResponses);
+        }
+    }
 }

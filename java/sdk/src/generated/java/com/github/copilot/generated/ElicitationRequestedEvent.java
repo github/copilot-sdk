@@ -51,5 +51,135 @@ public final class ElicitationRequestedEvent extends SessionEvent {
         /** URL to open in the user's browser (url mode only) */
         @JsonProperty("url") String url
     ) {
+
+        /**
+         * Creates a record positionally.
+         * @deprecated Use {@link #builder()} for named construction.
+         */
+        @Deprecated(since = "2.0.0", forRemoval = false)
+        public ElicitationRequestedEventData {}
+
+        /**
+         * Returns a named builder.
+         * @return a new builder
+         * @since 2.0.0
+         */
+        public static Builder builder() { return new Builder(); }
+
+        /**
+         * Named construction for this record.
+         * @since 2.0.0
+         */
+        public static final class Builder {
+            private Builder() {}
+            private String requestId;
+            private String toolCallId;
+            private String elicitationSource;
+            private String elicitationSourceDisplayName;
+            private String message;
+            private ElicitationRequestedMode mode;
+            private ElicitationRequestedSchema requestedSchema;
+            private String url;
+
+            /**
+             * Sets the {@code requestId} property.
+             * @param value the property value
+             * @return this builder
+             * @since 2.0.0
+             */
+            public Builder requestId(String value) {
+                this.requestId = value;
+                return this;
+            }
+
+            /**
+             * Sets the {@code toolCallId} property.
+             * @param value the property value
+             * @return this builder
+             * @since 2.0.0
+             */
+            public Builder toolCallId(String value) {
+                this.toolCallId = value;
+                return this;
+            }
+
+            /**
+             * Sets the {@code elicitationSource} property.
+             * @param value the property value
+             * @return this builder
+             * @since 2.0.0
+             */
+            public Builder elicitationSource(String value) {
+                this.elicitationSource = value;
+                return this;
+            }
+
+            /**
+             * Sets the {@code elicitationSourceDisplayName} property.
+             * @param value the property value
+             * @return this builder
+             * @since 2.0.0
+             */
+            public Builder elicitationSourceDisplayName(String value) {
+                this.elicitationSourceDisplayName = value;
+                return this;
+            }
+
+            /**
+             * Sets the {@code message} property.
+             * @param value the property value
+             * @return this builder
+             * @since 2.0.0
+             */
+            public Builder message(String value) {
+                this.message = value;
+                return this;
+            }
+
+            /**
+             * Sets the {@code mode} property.
+             * @param value the property value
+             * @return this builder
+             * @since 2.0.0
+             */
+            public Builder mode(ElicitationRequestedMode value) {
+                this.mode = value;
+                return this;
+            }
+
+            /**
+             * Sets the {@code requestedSchema} property.
+             * @param value the property value
+             * @return this builder
+             * @since 2.0.0
+             */
+            public Builder requestedSchema(ElicitationRequestedSchema value) {
+                this.requestedSchema = value;
+                return this;
+            }
+
+            /**
+             * Sets the {@code url} property.
+             * @param value the property value
+             * @return this builder
+             * @since 2.0.0
+             */
+            public Builder url(String value) {
+                this.url = value;
+                return this;
+            }
+
+            /**
+             * Builds a record after checking required property presence.
+             * @return a new record
+             * @throws IllegalStateException if a required property is missing
+             * @since 2.0.0
+             */
+            public ElicitationRequestedEventData build() {
+                if (requestId == null) throw new IllegalStateException("Missing required property: requestId");
+                if (message == null) throw new IllegalStateException("Missing required property: message");
+                return new ElicitationRequestedEventData(requestId, toolCallId, elicitationSource, elicitationSourceDisplayName, message, mode, requestedSchema, url);
+            }
+        }
     }
 }

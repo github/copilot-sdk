@@ -42,5 +42,74 @@ public final class ElicitationCompletedEvent extends SessionEvent {
         /** The submitted form data when action is 'accept'; keys match the requested schema fields */
         @JsonProperty("content") Map<String, Object> content
     ) {
+
+        /**
+         * Creates a record positionally.
+         * @deprecated Use {@link #builder()} for named construction.
+         */
+        @Deprecated(since = "2.0.0", forRemoval = false)
+        public ElicitationCompletedEventData {}
+
+        /**
+         * Returns a named builder.
+         * @return a new builder
+         * @since 2.0.0
+         */
+        public static Builder builder() { return new Builder(); }
+
+        /**
+         * Named construction for this record.
+         * @since 2.0.0
+         */
+        public static final class Builder {
+            private Builder() {}
+            private String requestId;
+            private ElicitationCompletedAction action;
+            private Map<String, Object> content;
+
+            /**
+             * Sets the {@code requestId} property.
+             * @param value the property value
+             * @return this builder
+             * @since 2.0.0
+             */
+            public Builder requestId(String value) {
+                this.requestId = value;
+                return this;
+            }
+
+            /**
+             * Sets the {@code action} property.
+             * @param value the property value
+             * @return this builder
+             * @since 2.0.0
+             */
+            public Builder action(ElicitationCompletedAction value) {
+                this.action = value;
+                return this;
+            }
+
+            /**
+             * Sets the {@code content} property.
+             * @param value the property value
+             * @return this builder
+             * @since 2.0.0
+             */
+            public Builder content(Map<String, Object> value) {
+                this.content = value;
+                return this;
+            }
+
+            /**
+             * Builds a record after checking required property presence.
+             * @return a new record
+             * @throws IllegalStateException if a required property is missing
+             * @since 2.0.0
+             */
+            public ElicitationCompletedEventData build() {
+                if (requestId == null) throw new IllegalStateException("Missing required property: requestId");
+                return new ElicitationCompletedEventData(requestId, action, content);
+            }
+        }
     }
 }

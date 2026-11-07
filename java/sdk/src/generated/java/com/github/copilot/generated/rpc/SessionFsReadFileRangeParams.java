@@ -33,4 +33,93 @@ public record SessionFsReadFileRangeParams(
     /** Maximum bytes to return. Omit to read through EOF; zero returns only the authoritative file byte length. */
     @JsonProperty("length") Long length
 ) {
+
+    /**
+     * Creates a record positionally.
+     * @deprecated Use {@link #builder()} for named construction.
+     */
+    @Deprecated(since = "2.0.0", forRemoval = false)
+    public SessionFsReadFileRangeParams {}
+
+    /**
+     * Returns a named builder.
+     * @return a new builder
+     * @since 2.0.0
+     */
+    @com.github.copilot.CopilotExperimental
+    public static Builder builder() { return new Builder(); }
+
+    /**
+     * Named construction for this record.
+     * @since 2.0.0
+     */
+    @com.github.copilot.CopilotExperimental
+    public static final class Builder {
+        private Builder() {}
+        private String sessionId;
+        private String path;
+        private Long offset;
+        private Long length;
+
+        /**
+         * Sets the {@code sessionId} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        @com.github.copilot.CopilotExperimental
+        public Builder sessionId(String value) {
+            this.sessionId = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code path} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        @com.github.copilot.CopilotExperimental
+        public Builder path(String value) {
+            this.path = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code offset} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        @com.github.copilot.CopilotExperimental
+        public Builder offset(Long value) {
+            this.offset = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code length} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        @com.github.copilot.CopilotExperimental
+        public Builder length(Long value) {
+            this.length = value;
+            return this;
+        }
+
+        /**
+         * Builds a record after checking required property presence.
+         * @return a new record
+         * @throws IllegalStateException if a required property is missing
+         * @since 2.0.0
+         */
+        public SessionFsReadFileRangeParams build() {
+            if (sessionId == null) throw new IllegalStateException("Missing required property: sessionId");
+            if (path == null) throw new IllegalStateException("Missing required property: path");
+            if (offset == null) throw new IllegalStateException("Missing required property: offset");
+            return new SessionFsReadFileRangeParams(sessionId, path, offset, length);
+        }
+    }
 }

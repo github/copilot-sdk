@@ -26,4 +26,62 @@ public record SessionModelPriceCategory(
     /** Cost category assigned to the model. */
     @JsonProperty("priceCategory") ModelPickerPriceCategory priceCategory
 ) {
+
+    /**
+     * Creates a record positionally.
+     * @deprecated Use {@link #builder()} for named construction.
+     */
+    @Deprecated(since = "2.0.0", forRemoval = false)
+    public SessionModelPriceCategory {}
+
+    /**
+     * Returns a named builder.
+     * @return a new builder
+     * @since 2.0.0
+     */
+    public static Builder builder() { return new Builder(); }
+
+    /**
+     * Named construction for this record.
+     * @since 2.0.0
+     */
+    public static final class Builder {
+        private Builder() {}
+        private String id;
+        private ModelPickerPriceCategory priceCategory;
+
+        /**
+         * Sets the {@code id} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder id(String value) {
+            this.id = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code priceCategory} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder priceCategory(ModelPickerPriceCategory value) {
+            this.priceCategory = value;
+            return this;
+        }
+
+        /**
+         * Builds a record after checking required property presence.
+         * @return a new record
+         * @throws IllegalStateException if a required property is missing
+         * @since 2.0.0
+         */
+        public SessionModelPriceCategory build() {
+            if (id == null) throw new IllegalStateException("Missing required property: id");
+            if (priceCategory == null) throw new IllegalStateException("Missing required property: priceCategory");
+            return new SessionModelPriceCategory(id, priceCategory);
+        }
+    }
 }

@@ -47,5 +47,113 @@ public final class ModelCallFinishedEvent extends SessionEvent {
         /** Version of the built-in file-edit semantic classifier used for this event */
         @JsonProperty("editClassifierVersion") Long editClassifierVersion
     ) {
+
+        /**
+         * Creates a record positionally.
+         * @deprecated Use {@link #builder()} for named construction.
+         */
+        @Deprecated(since = "2.0.0", forRemoval = false)
+        public ModelCallFinishedEventData {}
+
+        /**
+         * Returns a named builder.
+         * @return a new builder
+         * @since 2.0.0
+         */
+        public static Builder builder() { return new Builder(); }
+
+        /**
+         * Named construction for this record.
+         * @since 2.0.0
+         */
+        public static final class Builder {
+            private Builder() {}
+            private String turnId;
+            private String interactionId;
+            private Double dispatchDurationMs;
+            private ModelCallFinishedOutcome outcome;
+            private Boolean containsBuiltInFileEditRequest;
+            private Long editClassifierVersion;
+
+            /**
+             * Sets the {@code turnId} property.
+             * @param value the property value
+             * @return this builder
+             * @since 2.0.0
+             */
+            public Builder turnId(String value) {
+                this.turnId = value;
+                return this;
+            }
+
+            /**
+             * Sets the {@code interactionId} property.
+             * @param value the property value
+             * @return this builder
+             * @since 2.0.0
+             */
+            public Builder interactionId(String value) {
+                this.interactionId = value;
+                return this;
+            }
+
+            /**
+             * Sets the {@code dispatchDurationMs} property.
+             * @param value the property value
+             * @return this builder
+             * @since 2.0.0
+             */
+            public Builder dispatchDurationMs(Double value) {
+                this.dispatchDurationMs = value;
+                return this;
+            }
+
+            /**
+             * Sets the {@code outcome} property.
+             * @param value the property value
+             * @return this builder
+             * @since 2.0.0
+             */
+            public Builder outcome(ModelCallFinishedOutcome value) {
+                this.outcome = value;
+                return this;
+            }
+
+            /**
+             * Sets the {@code containsBuiltInFileEditRequest} property.
+             * @param value the property value
+             * @return this builder
+             * @since 2.0.0
+             */
+            public Builder containsBuiltInFileEditRequest(Boolean value) {
+                this.containsBuiltInFileEditRequest = value;
+                return this;
+            }
+
+            /**
+             * Sets the {@code editClassifierVersion} property.
+             * @param value the property value
+             * @return this builder
+             * @since 2.0.0
+             */
+            public Builder editClassifierVersion(Long value) {
+                this.editClassifierVersion = value;
+                return this;
+            }
+
+            /**
+             * Builds a record after checking required property presence.
+             * @return a new record
+             * @throws IllegalStateException if a required property is missing
+             * @since 2.0.0
+             */
+            public ModelCallFinishedEventData build() {
+                if (turnId == null) throw new IllegalStateException("Missing required property: turnId");
+                if (dispatchDurationMs == null) throw new IllegalStateException("Missing required property: dispatchDurationMs");
+                if (outcome == null) throw new IllegalStateException("Missing required property: outcome");
+                if (editClassifierVersion == null) throw new IllegalStateException("Missing required property: editClassifierVersion");
+                return new ModelCallFinishedEventData(turnId, interactionId, dispatchDurationMs, outcome, containsBuiltInFileEditRequest, editClassifierVersion);
+            }
+        }
     }
 }

@@ -47,8 +47,178 @@ public record InstructionSource(
 ) {
 
     /**
+     * Creates a record positionally.
+     * @deprecated Use {@link #builder()} for named construction.
+     */
+    @Deprecated(since = "2.0.0", forRemoval = false)
+    public InstructionSource {}
+
+    /**
+     * Returns a named builder.
+     * @return a new builder
+     * @since 2.0.0
+     */
+    public static Builder builder() { return new Builder(); }
+
+    /**
+     * Named construction for this record.
+     * @since 2.0.0
+     */
+    public static final class Builder {
+        private Builder() {}
+        private String pluginId;
+        private String id;
+        private String label;
+        private String sourcePath;
+        private String content;
+        private InstructionSourceType type;
+        private InstructionSourceLocation location;
+        private List<String> applyTo;
+        private String description;
+        private Boolean defaultDisabled;
+        private String projectPath;
+
+        /**
+         * Sets the {@code pluginId} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder pluginId(String value) {
+            this.pluginId = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code id} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder id(String value) {
+            this.id = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code label} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder label(String value) {
+            this.label = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code sourcePath} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder sourcePath(String value) {
+            this.sourcePath = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code content} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder content(String value) {
+            this.content = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code type} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder type(InstructionSourceType value) {
+            this.type = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code location} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder location(InstructionSourceLocation value) {
+            this.location = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code applyTo} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder applyTo(List<String> value) {
+            this.applyTo = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code description} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder description(String value) {
+            this.description = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code defaultDisabled} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder defaultDisabled(Boolean value) {
+            this.defaultDisabled = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code projectPath} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder projectPath(String value) {
+            this.projectPath = value;
+            return this;
+        }
+
+        /**
+         * Builds a record after checking required property presence.
+         * @return a new record
+         * @throws IllegalStateException if a required property is missing
+         * @since 2.0.0
+         */
+        public InstructionSource build() {
+            if (id == null) throw new IllegalStateException("Missing required property: id");
+            if (label == null) throw new IllegalStateException("Missing required property: label");
+            if (sourcePath == null) throw new IllegalStateException("Missing required property: sourcePath");
+            if (content == null) throw new IllegalStateException("Missing required property: content");
+            if (type == null) throw new IllegalStateException("Missing required property: type");
+            if (location == null) throw new IllegalStateException("Missing required property: location");
+            return new InstructionSource(pluginId, id, label, sourcePath, content, type, location, applyTo, description, defaultDisabled, projectPath);
+        }
+    }
+
+    /**
      * Creates a record without plugin ownership or content-root metadata.
-     *
+     * @deprecated Use named construction via {@link #builder()}.
      * @param id Unique identifier for this source (used for toggling)
      * @param label Human-readable label
      * @param sourcePath File path relative to repo or absolute for home
@@ -60,6 +230,7 @@ public record InstructionSource(
      * @param defaultDisabled When true, this source starts disabled and must be toggled on by the user
      * @param projectPath The project path this source was discovered from. Only set by sessionless discovery for repository, working-directory, and project-scoped plugin sources, where it disambiguates sources across multiple workspace roots. The session-scoped getSources leaves it unset.
      */
+    @Deprecated(since = "2.0.0", forRemoval = false)
     public InstructionSource(
         String id,
         String label,

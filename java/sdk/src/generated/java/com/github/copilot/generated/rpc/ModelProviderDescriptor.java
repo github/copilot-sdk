@@ -34,4 +34,94 @@ public record ModelProviderDescriptor(
     /** Stable ordering key for presenting providers in a deterministic sequence. */
     @JsonProperty("ordering") Long ordering
 ) {
+
+    /**
+     * Creates a record positionally.
+     * @deprecated Use {@link #builder()} for named construction.
+     */
+    @Deprecated(since = "2.0.0", forRemoval = false)
+    public ModelProviderDescriptor {}
+
+    /**
+     * Returns a named builder.
+     * @return a new builder
+     * @since 2.0.0
+     */
+    @com.github.copilot.CopilotExperimental
+    public static Builder builder() { return new Builder(); }
+
+    /**
+     * Named construction for this record.
+     * @since 2.0.0
+     */
+    @com.github.copilot.CopilotExperimental
+    public static final class Builder {
+        private Builder() {}
+        private ModelProviderKind kind;
+        private String id;
+        private String label;
+        private Long ordering;
+
+        /**
+         * Sets the {@code kind} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        @com.github.copilot.CopilotExperimental
+        public Builder kind(ModelProviderKind value) {
+            this.kind = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code id} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        @com.github.copilot.CopilotExperimental
+        public Builder id(String value) {
+            this.id = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code label} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        @com.github.copilot.CopilotExperimental
+        public Builder label(String value) {
+            this.label = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code ordering} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        @com.github.copilot.CopilotExperimental
+        public Builder ordering(Long value) {
+            this.ordering = value;
+            return this;
+        }
+
+        /**
+         * Builds a record after checking required property presence.
+         * @return a new record
+         * @throws IllegalStateException if a required property is missing
+         * @since 2.0.0
+         */
+        public ModelProviderDescriptor build() {
+            if (kind == null) throw new IllegalStateException("Missing required property: kind");
+            if (id == null) throw new IllegalStateException("Missing required property: id");
+            if (label == null) throw new IllegalStateException("Missing required property: label");
+            if (ordering == null) throw new IllegalStateException("Missing required property: ordering");
+            return new ModelProviderDescriptor(kind, id, label, ordering);
+        }
+    }
 }

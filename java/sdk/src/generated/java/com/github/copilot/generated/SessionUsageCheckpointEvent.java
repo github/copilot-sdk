@@ -53,5 +53,134 @@ public final class SessionUsageCheckpointEvent extends SessionEvent {
         /** Internal per-conversation prompt-cache-break detector baselines restored on resume */
         @JsonProperty("promptCacheBreakState") List<Object> promptCacheBreakState
     ) {
+
+        /**
+         * Creates a record positionally.
+         * @deprecated Use {@link #builder()} for named construction.
+         */
+        @Deprecated(since = "2.0.0", forRemoval = false)
+        public SessionUsageCheckpointEventData {}
+
+        /**
+         * Returns a named builder.
+         * @return a new builder
+         * @since 2.0.0
+         */
+        public static Builder builder() { return new Builder(); }
+
+        /**
+         * Named construction for this record.
+         * @since 2.0.0
+         */
+        public static final class Builder {
+            private Builder() {}
+            private List<String> toolUsageRequestIds;
+            private Double totalNanoAiu;
+            private UsageGetMetricsResult accountingSnapshot;
+            private List<UsageMetricsProviderModelMetric> providerModelMetrics;
+            private Map<String, Long> usageAccountingWatermarks;
+            private Double totalPremiumRequests;
+            private List<UsageCheckpointModelCacheState> modelCacheState;
+            private List<Object> promptCacheBreakState;
+
+            /**
+             * Sets the {@code toolUsageRequestIds} property.
+             * @param value the property value
+             * @return this builder
+             * @since 2.0.0
+             */
+            public Builder toolUsageRequestIds(List<String> value) {
+                this.toolUsageRequestIds = value;
+                return this;
+            }
+
+            /**
+             * Sets the {@code totalNanoAiu} property.
+             * @param value the property value
+             * @return this builder
+             * @since 2.0.0
+             */
+            public Builder totalNanoAiu(Double value) {
+                this.totalNanoAiu = value;
+                return this;
+            }
+
+            /**
+             * Sets the {@code accountingSnapshot} property.
+             * @param value the property value
+             * @return this builder
+             * @since 2.0.0
+             */
+            public Builder accountingSnapshot(UsageGetMetricsResult value) {
+                this.accountingSnapshot = value;
+                return this;
+            }
+
+            /**
+             * Sets the {@code providerModelMetrics} property.
+             * @param value the property value
+             * @return this builder
+             * @since 2.0.0
+             */
+            public Builder providerModelMetrics(List<UsageMetricsProviderModelMetric> value) {
+                this.providerModelMetrics = value;
+                return this;
+            }
+
+            /**
+             * Sets the {@code usageAccountingWatermarks} property.
+             * @param value the property value
+             * @return this builder
+             * @since 2.0.0
+             */
+            public Builder usageAccountingWatermarks(Map<String, Long> value) {
+                this.usageAccountingWatermarks = value;
+                return this;
+            }
+
+            /**
+             * Sets the {@code totalPremiumRequests} property.
+             * @param value the property value
+             * @return this builder
+             * @since 2.0.0
+             */
+            public Builder totalPremiumRequests(Double value) {
+                this.totalPremiumRequests = value;
+                return this;
+            }
+
+            /**
+             * Sets the {@code modelCacheState} property.
+             * @param value the property value
+             * @return this builder
+             * @since 2.0.0
+             */
+            public Builder modelCacheState(List<UsageCheckpointModelCacheState> value) {
+                this.modelCacheState = value;
+                return this;
+            }
+
+            /**
+             * Sets the {@code promptCacheBreakState} property.
+             * @param value the property value
+             * @return this builder
+             * @since 2.0.0
+             */
+            public Builder promptCacheBreakState(List<Object> value) {
+                this.promptCacheBreakState = value;
+                return this;
+            }
+
+            /**
+             * Builds a record after checking required property presence.
+             * @return a new record
+             * @throws IllegalStateException if a required property is missing
+             * @since 2.0.0
+             */
+            public SessionUsageCheckpointEventData build() {
+                if (totalNanoAiu == null) throw new IllegalStateException("Missing required property: totalNanoAiu");
+                return new SessionUsageCheckpointEventData(toolUsageRequestIds, totalNanoAiu, accountingSnapshot, providerModelMetrics, usageAccountingWatermarks, totalPremiumRequests, modelCacheState, promptCacheBreakState);
+            }
+        }
     }
 }

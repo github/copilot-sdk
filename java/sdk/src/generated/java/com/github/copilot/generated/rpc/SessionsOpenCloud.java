@@ -55,4 +55,83 @@ public final class SessionsOpenCloud extends SessionsOpenParams {
 
     public Object getOnTaskCreated() { return onTaskCreated; }
     public void setOnTaskCreated(Object onTaskCreated) { this.onTaskCreated = onTaskCreated; }
+
+
+    /**
+     * Returns a named builder.
+     * @return a new builder
+     * @since 2.0.0
+     */
+    public static Builder builder() { return new Builder(); }
+
+    /**
+     * Named construction for this record.
+     * @since 2.0.0
+     */
+    public static final class Builder {
+        private Builder() {}
+        private RemoteSessionRepository repository;
+        private String owner;
+        private SessionOpenOptions options;
+        private Object onTaskCreated;
+
+        /**
+         * Sets the {@code repository} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder repository(RemoteSessionRepository value) {
+            this.repository = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code owner} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder owner(String value) {
+            this.owner = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code options} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder options(SessionOpenOptions value) {
+            this.options = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code onTaskCreated} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder onTaskCreated(Object value) {
+            this.onTaskCreated = value;
+            return this;
+        }
+
+        /**
+         * Builds a variant after checking required property presence.
+         * @return a new variant
+         * @throws IllegalStateException if a required property is missing
+         * @since 2.0.0
+         */
+        public SessionsOpenCloud build() {
+            SessionsOpenCloud instance = new SessionsOpenCloud();
+            instance.setRepository(repository);
+            instance.setOwner(owner);
+            instance.setOptions(options);
+            instance.setOnTaskCreated(onTaskCreated);
+            return instance;
+        }
+    }
 }

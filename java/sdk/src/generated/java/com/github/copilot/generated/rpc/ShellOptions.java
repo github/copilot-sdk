@@ -41,4 +41,84 @@ and the built-in PowerShell shell uses `-NoProfile -NoLogo`. */
     /** Command-scoped GitHub credential injection for shell commands. */
     @JsonProperty("credentials") ShellCredentials credentials
 ) {
+
+    /**
+     * Creates a record positionally.
+     * @deprecated Use {@link #builder()} for named construction.
+     */
+    @Deprecated(since = "2.0.0", forRemoval = false)
+    public ShellOptions {}
+
+    /**
+     * Returns a named builder.
+     * @return a new builder
+     * @since 2.0.0
+     */
+    public static Builder builder() { return new Builder(); }
+
+    /**
+     * Named construction for this record.
+     * @since 2.0.0
+     */
+    public static final class Builder {
+        private Builder() {}
+        private ShellInitProfile initProfile;
+        private List<ShellInitScript> initScripts;
+        private List<String> processFlags;
+        private ShellCredentials credentials;
+
+        /**
+         * Sets the {@code initProfile} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder initProfile(ShellInitProfile value) {
+            this.initProfile = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code initScripts} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder initScripts(List<ShellInitScript> value) {
+            this.initScripts = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code processFlags} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder processFlags(List<String> value) {
+            this.processFlags = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code credentials} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder credentials(ShellCredentials value) {
+            this.credentials = value;
+            return this;
+        }
+
+        /**
+         * Builds a record after checking required property presence.
+         * @return a new record
+         * @throws IllegalStateException if a required property is missing
+         * @since 2.0.0
+         */
+        public ShellOptions build() {
+            return new ShellOptions(initProfile, initScripts, processFlags, credentials);
+        }
+    }
 }

@@ -33,5 +33,108 @@ public record TeamPluginMarketplace(
         /** GitHub repository in owner/name form. */
         @JsonProperty("repo") String repo
     ) {
+
+        /**
+         * Creates a record positionally.
+         * @deprecated Use {@link #builder()} for named construction.
+         */
+        @Deprecated(since = "2.0.0", forRemoval = false)
+        public TeamPluginMarketplaceSource {}
+
+        /**
+         * Returns a named builder.
+         * @return a new builder
+         * @since 2.0.0
+         */
+        public static Builder builder() { return new Builder(); }
+
+        /**
+         * Named construction for this record.
+         * @since 2.0.0
+         */
+        public static final class Builder {
+            private Builder() {}
+            private String source;
+            private String repo;
+
+            /**
+             * Sets the {@code source} property.
+             * @param value the property value
+             * @return this builder
+             * @since 2.0.0
+             */
+            public Builder source(String value) {
+                this.source = value;
+                return this;
+            }
+
+            /**
+             * Sets the {@code repo} property.
+             * @param value the property value
+             * @return this builder
+             * @since 2.0.0
+             */
+            public Builder repo(String value) {
+                this.repo = value;
+                return this;
+            }
+
+            /**
+             * Builds a record after checking required property presence.
+             * @return a new record
+             * @throws IllegalStateException if a required property is missing
+             * @since 2.0.0
+             */
+            public TeamPluginMarketplaceSource build() {
+                if (source == null) throw new IllegalStateException("Missing required property: source");
+                if (repo == null) throw new IllegalStateException("Missing required property: repo");
+                return new TeamPluginMarketplaceSource(source, repo);
+            }
+        }
+    }
+
+    /**
+     * Creates a record positionally.
+     * @deprecated Use {@link #builder()} for named construction.
+     */
+    @Deprecated(since = "2.0.0", forRemoval = false)
+    public TeamPluginMarketplace {}
+
+    /**
+     * Returns a named builder.
+     * @return a new builder
+     * @since 2.0.0
+     */
+    public static Builder builder() { return new Builder(); }
+
+    /**
+     * Named construction for this record.
+     * @since 2.0.0
+     */
+    public static final class Builder {
+        private Builder() {}
+        private TeamPluginMarketplaceSource source;
+
+        /**
+         * Sets the {@code source} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder source(TeamPluginMarketplaceSource value) {
+            this.source = value;
+            return this;
+        }
+
+        /**
+         * Builds a record after checking required property presence.
+         * @return a new record
+         * @throws IllegalStateException if a required property is missing
+         * @since 2.0.0
+         */
+        public TeamPluginMarketplace build() {
+            if (source == null) throw new IllegalStateException("Missing required property: source");
+            return new TeamPluginMarketplace(source);
+        }
     }
 }

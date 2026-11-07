@@ -28,4 +28,51 @@ public record ManagedCommunicationSupport(
     /** Absolute http or https URL of an organization-maintained help page, for example one that names who administers Copilot. Clients may link to it wherever they would otherwise tell users to contact their administrator. Open it only in an external browser. */
     @JsonProperty("url") String url
 ) {
+
+    /**
+     * Creates a record positionally.
+     * @deprecated Use {@link #builder()} for named construction.
+     */
+    @Deprecated(since = "2.0.0", forRemoval = false)
+    public ManagedCommunicationSupport {}
+
+    /**
+     * Returns a named builder.
+     * @return a new builder
+     * @since 2.0.0
+     */
+    @com.github.copilot.CopilotExperimental
+    public static Builder builder() { return new Builder(); }
+
+    /**
+     * Named construction for this record.
+     * @since 2.0.0
+     */
+    @com.github.copilot.CopilotExperimental
+    public static final class Builder {
+        private Builder() {}
+        private String url;
+
+        /**
+         * Sets the {@code url} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        @com.github.copilot.CopilotExperimental
+        public Builder url(String value) {
+            this.url = value;
+            return this;
+        }
+
+        /**
+         * Builds a record after checking required property presence.
+         * @return a new record
+         * @throws IllegalStateException if a required property is missing
+         * @since 2.0.0
+         */
+        public ManagedCommunicationSupport build() {
+            return new ManagedCommunicationSupport(url);
+        }
+    }
 }

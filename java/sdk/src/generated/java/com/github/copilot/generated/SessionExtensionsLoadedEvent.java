@@ -38,5 +38,50 @@ public final class SessionExtensionsLoadedEvent extends SessionEvent {
         /** Array of discovered extensions and their status */
         @JsonProperty("extensions") List<ExtensionsLoadedExtension> extensions
     ) {
+
+        /**
+         * Creates a record positionally.
+         * @deprecated Use {@link #builder()} for named construction.
+         */
+        @Deprecated(since = "2.0.0", forRemoval = false)
+        public SessionExtensionsLoadedEventData {}
+
+        /**
+         * Returns a named builder.
+         * @return a new builder
+         * @since 2.0.0
+         */
+        public static Builder builder() { return new Builder(); }
+
+        /**
+         * Named construction for this record.
+         * @since 2.0.0
+         */
+        public static final class Builder {
+            private Builder() {}
+            private List<ExtensionsLoadedExtension> extensions;
+
+            /**
+             * Sets the {@code extensions} property.
+             * @param value the property value
+             * @return this builder
+             * @since 2.0.0
+             */
+            public Builder extensions(List<ExtensionsLoadedExtension> value) {
+                this.extensions = value;
+                return this;
+            }
+
+            /**
+             * Builds a record after checking required property presence.
+             * @return a new record
+             * @throws IllegalStateException if a required property is missing
+             * @since 2.0.0
+             */
+            public SessionExtensionsLoadedEventData build() {
+                if (extensions == null) throw new IllegalStateException("Missing required property: extensions");
+                return new SessionExtensionsLoadedEventData(extensions);
+            }
+        }
     }
 }

@@ -36,4 +36,125 @@ public record McpInstallationSummary(
     /** ISO 8601 wall-clock installation time when available. */
     @JsonProperty("installedAt") String installedAt
 ) {
+
+    /**
+     * Creates a record positionally.
+     * @deprecated Use {@link #builder()} for named construction.
+     */
+    @Deprecated(since = "2.0.0", forRemoval = false)
+    public McpInstallationSummary {}
+
+    /**
+     * Returns a named builder.
+     * @return a new builder
+     * @since 2.0.0
+     */
+    public static Builder builder() { return new Builder(); }
+
+    /**
+     * Named construction for this record.
+     * @since 2.0.0
+     */
+    public static final class Builder {
+        private Builder() {}
+        private String installationId;
+        private String operationId;
+        private McpPlanResourceIdentity identity;
+        private String choiceId;
+        private McpInstallationState state;
+        private InstallationCatalogueIdentity catalogue;
+        private String installedAt;
+
+        /**
+         * Sets the {@code installationId} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder installationId(String value) {
+            this.installationId = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code operationId} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder operationId(String value) {
+            this.operationId = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code identity} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder identity(McpPlanResourceIdentity value) {
+            this.identity = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code choiceId} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder choiceId(String value) {
+            this.choiceId = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code state} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder state(McpInstallationState value) {
+            this.state = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code catalogue} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder catalogue(InstallationCatalogueIdentity value) {
+            this.catalogue = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code installedAt} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder installedAt(String value) {
+            this.installedAt = value;
+            return this;
+        }
+
+        /**
+         * Builds a record after checking required property presence.
+         * @return a new record
+         * @throws IllegalStateException if a required property is missing
+         * @since 2.0.0
+         */
+        public McpInstallationSummary build() {
+            if (installationId == null) throw new IllegalStateException("Missing required property: installationId");
+            if (operationId == null) throw new IllegalStateException("Missing required property: operationId");
+            if (identity == null) throw new IllegalStateException("Missing required property: identity");
+            if (choiceId == null) throw new IllegalStateException("Missing required property: choiceId");
+            if (state == null) throw new IllegalStateException("Missing required property: state");
+            return new McpInstallationSummary(installationId, operationId, identity, choiceId, state, catalogue, installedAt);
+        }
+    }
 }

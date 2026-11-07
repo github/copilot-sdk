@@ -29,4 +29,74 @@ public record AutoTierMetadata(
     /** Provider that supplied this metadata, when the catalog is provider-attributed. */
     @JsonProperty("providerId") String providerId
 ) {
+
+    /**
+     * Creates a record positionally.
+     * @deprecated Use {@link #builder()} for named construction.
+     */
+    @Deprecated(since = "2.0.0", forRemoval = false)
+    public AutoTierMetadata {}
+
+    /**
+     * Returns a named builder.
+     * @return a new builder
+     * @since 2.0.0
+     */
+    public static Builder builder() { return new Builder(); }
+
+    /**
+     * Named construction for this record.
+     * @since 2.0.0
+     */
+    public static final class Builder {
+        private Builder() {}
+        private String defaultTier;
+        private List<AutoTierDescriptor> tiers;
+        private String providerId;
+
+        /**
+         * Sets the {@code defaultTier} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder defaultTier(String value) {
+            this.defaultTier = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code tiers} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder tiers(List<AutoTierDescriptor> value) {
+            this.tiers = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code providerId} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder providerId(String value) {
+            this.providerId = value;
+            return this;
+        }
+
+        /**
+         * Builds a record after checking required property presence.
+         * @return a new record
+         * @throws IllegalStateException if a required property is missing
+         * @since 2.0.0
+         */
+        public AutoTierMetadata build() {
+            if (defaultTier == null) throw new IllegalStateException("Missing required property: defaultTier");
+            if (tiers == null) throw new IllegalStateException("Missing required property: tiers");
+            return new AutoTierMetadata(defaultTier, tiers, providerId);
+        }
+    }
 }

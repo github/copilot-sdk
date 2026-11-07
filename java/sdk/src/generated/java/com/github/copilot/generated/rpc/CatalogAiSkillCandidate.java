@@ -126,4 +126,220 @@ public final class CatalogAiSkillCandidate extends CatalogCandidate {
 
     public CatalogTrustSnapshot getTrust() { return trust; }
     public void setTrust(CatalogTrustSnapshot trust) { this.trust = trust; }
+
+
+    /**
+     * Returns a named builder.
+     * @return a new builder
+     * @since 2.0.0
+     */
+    public static Builder builder() { return new Builder(); }
+
+    /**
+     * Named construction for this record.
+     * @since 2.0.0
+     */
+    public static final class Builder {
+        private Builder() {}
+        private String handle;
+        private String handleExpiresAt;
+        private CatalogAiSkillMediaType mediaType;
+        private CatalogAiSkillInstallability installability;
+        private String displayName;
+        private String description;
+        private String publisher;
+        private CatalogCandidateSource source;
+        private CatalogAiSkillCandidateProvenance provenance;
+        private Long installCount;
+        private String iconUrl;
+        private List<String> connectorIds;
+        private List<String> categories;
+        private CatalogTrustSnapshot trust;
+
+        /**
+         * Sets the {@code handle} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder handle(String value) {
+            this.handle = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code handleExpiresAt} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder handleExpiresAt(String value) {
+            this.handleExpiresAt = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code mediaType} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder mediaType(CatalogAiSkillMediaType value) {
+            this.mediaType = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code installability} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder installability(CatalogAiSkillInstallability value) {
+            this.installability = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code displayName} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder displayName(String value) {
+            this.displayName = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code description} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder description(String value) {
+            this.description = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code publisher} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder publisher(String value) {
+            this.publisher = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code source} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder source(CatalogCandidateSource value) {
+            this.source = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code provenance} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder provenance(CatalogAiSkillCandidateProvenance value) {
+            this.provenance = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code installCount} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder installCount(Long value) {
+            this.installCount = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code iconUrl} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder iconUrl(String value) {
+            this.iconUrl = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code connectorIds} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder connectorIds(List<String> value) {
+            this.connectorIds = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code categories} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder categories(List<String> value) {
+            this.categories = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code trust} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder trust(CatalogTrustSnapshot value) {
+            this.trust = value;
+            return this;
+        }
+
+        /**
+         * Builds a variant after checking required property presence.
+         * @return a new variant
+         * @throws IllegalStateException if a required property is missing
+         * @since 2.0.0
+         */
+        public CatalogAiSkillCandidate build() {
+            if (handle == null) throw new IllegalStateException("Missing required property: handle");
+            if (handleExpiresAt == null) throw new IllegalStateException("Missing required property: handleExpiresAt");
+            if (mediaType == null) throw new IllegalStateException("Missing required property: mediaType");
+            if (installability == null) throw new IllegalStateException("Missing required property: installability");
+            if (displayName == null) throw new IllegalStateException("Missing required property: displayName");
+            if (source == null) throw new IllegalStateException("Missing required property: source");
+            if (provenance == null) throw new IllegalStateException("Missing required property: provenance");
+            CatalogAiSkillCandidate instance = new CatalogAiSkillCandidate();
+            instance.setHandle(handle);
+            instance.setHandleExpiresAt(handleExpiresAt);
+            instance.setMediaType(mediaType);
+            instance.setInstallability(installability);
+            instance.setDisplayName(displayName);
+            instance.setDescription(description);
+            instance.setPublisher(publisher);
+            instance.setSource(source);
+            instance.setProvenance(provenance);
+            instance.setInstallCount(installCount);
+            instance.setIconUrl(iconUrl);
+            instance.setConnectorIds(connectorIds);
+            instance.setCategories(categories);
+            instance.setTrust(trust);
+            return instance;
+        }
+    }
 }

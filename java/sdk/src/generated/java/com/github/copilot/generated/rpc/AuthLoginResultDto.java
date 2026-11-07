@@ -35,4 +35,91 @@ public record AuthLoginResultDto(
     /** Available accounts when sign-in is awaiting account selection, ordered with Microsoft 365 first. */
     @JsonProperty("accounts") List<AuthLoginAccount> accounts
 ) {
+
+    /**
+     * Creates a record positionally.
+     * @deprecated Use {@link #builder()} for named construction.
+     */
+    @Deprecated(since = "2.0.0", forRemoval = false)
+    public AuthLoginResultDto {}
+
+    /**
+     * Returns a named builder.
+     * @return a new builder
+     * @since 2.0.0
+     */
+    @com.github.copilot.CopilotExperimental
+    public static Builder builder() { return new Builder(); }
+
+    /**
+     * Named construction for this record.
+     * @since 2.0.0
+     */
+    @com.github.copilot.CopilotExperimental
+    public static final class Builder {
+        private Builder() {}
+        private AuthLoginResultStatus status;
+        private String host;
+        private String login;
+        private List<AuthLoginAccount> accounts;
+
+        /**
+         * Sets the {@code status} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        @com.github.copilot.CopilotExperimental
+        public Builder status(AuthLoginResultStatus value) {
+            this.status = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code host} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        @com.github.copilot.CopilotExperimental
+        public Builder host(String value) {
+            this.host = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code login} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        @com.github.copilot.CopilotExperimental
+        public Builder login(String value) {
+            this.login = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code accounts} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        @com.github.copilot.CopilotExperimental
+        public Builder accounts(List<AuthLoginAccount> value) {
+            this.accounts = value;
+            return this;
+        }
+
+        /**
+         * Builds a record after checking required property presence.
+         * @return a new record
+         * @throws IllegalStateException if a required property is missing
+         * @since 2.0.0
+         */
+        public AuthLoginResultDto build() {
+            if (status == null) throw new IllegalStateException("Missing required property: status");
+            return new AuthLoginResultDto(status, host, login, accounts);
+        }
+    }
 }

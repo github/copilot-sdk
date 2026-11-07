@@ -45,5 +45,99 @@ public final class SessionMcpServerStatusChangedEvent extends SessionEvent {
         /** Runtime configuration provenance for a connected or failed server, or unknown when unavailable. Additional string values may be introduced. */
         @JsonProperty("configSource") String configSource
     ) {
+
+        /**
+         * Creates a record positionally.
+         * @deprecated Use {@link #builder()} for named construction.
+         */
+        @Deprecated(since = "2.0.0", forRemoval = false)
+        public SessionMcpServerStatusChangedEventData {}
+
+        /**
+         * Returns a named builder.
+         * @return a new builder
+         * @since 2.0.0
+         */
+        public static Builder builder() { return new Builder(); }
+
+        /**
+         * Named construction for this record.
+         * @since 2.0.0
+         */
+        public static final class Builder {
+            private Builder() {}
+            private String serverName;
+            private McpServerStatus status;
+            private String error;
+            private String errorClassification;
+            private String configSource;
+
+            /**
+             * Sets the {@code serverName} property.
+             * @param value the property value
+             * @return this builder
+             * @since 2.0.0
+             */
+            public Builder serverName(String value) {
+                this.serverName = value;
+                return this;
+            }
+
+            /**
+             * Sets the {@code status} property.
+             * @param value the property value
+             * @return this builder
+             * @since 2.0.0
+             */
+            public Builder status(McpServerStatus value) {
+                this.status = value;
+                return this;
+            }
+
+            /**
+             * Sets the {@code error} property.
+             * @param value the property value
+             * @return this builder
+             * @since 2.0.0
+             */
+            public Builder error(String value) {
+                this.error = value;
+                return this;
+            }
+
+            /**
+             * Sets the {@code errorClassification} property.
+             * @param value the property value
+             * @return this builder
+             * @since 2.0.0
+             */
+            public Builder errorClassification(String value) {
+                this.errorClassification = value;
+                return this;
+            }
+
+            /**
+             * Sets the {@code configSource} property.
+             * @param value the property value
+             * @return this builder
+             * @since 2.0.0
+             */
+            public Builder configSource(String value) {
+                this.configSource = value;
+                return this;
+            }
+
+            /**
+             * Builds a record after checking required property presence.
+             * @return a new record
+             * @throws IllegalStateException if a required property is missing
+             * @since 2.0.0
+             */
+            public SessionMcpServerStatusChangedEventData build() {
+                if (serverName == null) throw new IllegalStateException("Missing required property: serverName");
+                if (status == null) throw new IllegalStateException("Missing required property: status");
+                return new SessionMcpServerStatusChangedEventData(serverName, status, error, errorClassification, configSource);
+            }
+        }
     }
 }

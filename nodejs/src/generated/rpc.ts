@@ -9883,7 +9883,7 @@ export interface AgentGetCurrentResult {
   /**
    * Currently selected custom agent, or null if using the default agent
    */
-  agent?: AgentInfo | null;
+  agent: AgentInfo | null;
 }
 /**
  * Agent metadata, including identifiers, display details, source, tools, model, models, reasoning effort, MCP servers, skills, and file path.
@@ -28089,7 +28089,7 @@ export interface NamedProviderConfig {
     [k: string]: string | undefined;
   };
   /**
-   * The product serving the provider's models, reported in telemetry as `model_provider`. Besides telemetry, `azure_openai` makes OpenAI Responses requests omit explicit `prompt_cache_breakpoint` markers, which limit cross-turn cache reuse on Azure.
+   * The product serving the provider's models, reported in telemetry as `model_provider`. Only affects telemetry.
    */
   modelProvider?: ProviderConfigModelProvider;
   /**
@@ -31664,7 +31664,7 @@ export interface ProviderConfig {
    */
   providerName?: string;
   /**
-   * The product serving the model, reported in telemetry as `model_provider`. Set it when `type` alone cannot identify the product, such as Ollama or LM Studio behind an OpenAI-compatible endpoint, or a proxy or custom domain in front of Azure OpenAI. Besides telemetry, `azure_openai` makes OpenAI Responses requests omit explicit `prompt_cache_breakpoint` markers, which limit cross-turn cache reuse on Azure.
+   * The product serving the model, reported in telemetry as `model_provider`. Set it when `type` alone cannot identify the product, such as Ollama or LM Studio behind an OpenAI-compatible endpoint. Only affects telemetry.
    */
   modelProvider?: ProviderConfigModelProvider;
   /**

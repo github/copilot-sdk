@@ -64,4 +64,290 @@ record GitHubFetchRequestParams(
     /** Optional service principal for proxy Negotiate authentication. */
     @JsonProperty("proxyNegotiateSpn") String proxyNegotiateSpn
 ) {
+
+    /**
+     * Creates a record positionally.
+     * @deprecated Use {@link #builder()} for named construction.
+     */
+    @Deprecated(since = "2.0.0", forRemoval = false)
+    GitHubFetchRequestParams {}
+
+    /**
+     * Returns a named builder.
+     * @return a new builder
+     * @since 2.0.0
+     */
+    @com.github.copilot.CopilotExperimental
+    public static Builder builder() { return new Builder(); }
+
+    /**
+     * Named construction for this record.
+     * @since 2.0.0
+     */
+    @com.github.copilot.CopilotExperimental
+    public static final class Builder {
+        private Builder() {}
+        private Long requestId;
+        private String sessionId;
+        private String authOwnerId;
+        private String method;
+        private String url;
+        private List<GitHubFetchHeader> headers;
+        private String bodyBase64;
+        private String apiName;
+        private GitHubFetchRetryConfig retryOptions;
+        private String redirect;
+        private Long timeoutMs;
+        private Long readTimeoutMs;
+        private Long bodyLimitBytes;
+        private Boolean disableConnectionReuse;
+        private GitHubFetchProxyEnvironment proxyEnv;
+        private List<GitHubFetchPinnedAddress> pinnedAddresses;
+        private Boolean allowLocalhost;
+        private Boolean proxyNegotiateAuth;
+        private String proxyNegotiateSpn;
+
+        /**
+         * Sets the {@code requestId} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        @com.github.copilot.CopilotExperimental
+        public Builder requestId(Long value) {
+            this.requestId = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code sessionId} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        @com.github.copilot.CopilotExperimental
+        public Builder sessionId(String value) {
+            this.sessionId = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code authOwnerId} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        @com.github.copilot.CopilotExperimental
+        public Builder authOwnerId(String value) {
+            this.authOwnerId = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code method} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        @com.github.copilot.CopilotExperimental
+        public Builder method(String value) {
+            this.method = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code url} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        @com.github.copilot.CopilotExperimental
+        public Builder url(String value) {
+            this.url = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code headers} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        @com.github.copilot.CopilotExperimental
+        public Builder headers(List<GitHubFetchHeader> value) {
+            this.headers = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code bodyBase64} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        @com.github.copilot.CopilotExperimental
+        public Builder bodyBase64(String value) {
+            this.bodyBase64 = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code apiName} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        @com.github.copilot.CopilotExperimental
+        public Builder apiName(String value) {
+            this.apiName = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code retryOptions} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        @com.github.copilot.CopilotExperimental
+        public Builder retryOptions(GitHubFetchRetryConfig value) {
+            this.retryOptions = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code redirect} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        @com.github.copilot.CopilotExperimental
+        public Builder redirect(String value) {
+            this.redirect = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code timeoutMs} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        @com.github.copilot.CopilotExperimental
+        public Builder timeoutMs(Long value) {
+            this.timeoutMs = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code readTimeoutMs} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        @com.github.copilot.CopilotExperimental
+        public Builder readTimeoutMs(Long value) {
+            this.readTimeoutMs = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code bodyLimitBytes} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        @com.github.copilot.CopilotExperimental
+        public Builder bodyLimitBytes(Long value) {
+            this.bodyLimitBytes = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code disableConnectionReuse} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        @com.github.copilot.CopilotExperimental
+        public Builder disableConnectionReuse(Boolean value) {
+            this.disableConnectionReuse = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code proxyEnv} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        @com.github.copilot.CopilotExperimental
+        public Builder proxyEnv(GitHubFetchProxyEnvironment value) {
+            this.proxyEnv = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code pinnedAddresses} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        @com.github.copilot.CopilotExperimental
+        public Builder pinnedAddresses(List<GitHubFetchPinnedAddress> value) {
+            this.pinnedAddresses = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code allowLocalhost} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        @com.github.copilot.CopilotExperimental
+        public Builder allowLocalhost(Boolean value) {
+            this.allowLocalhost = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code proxyNegotiateAuth} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        @com.github.copilot.CopilotExperimental
+        public Builder proxyNegotiateAuth(Boolean value) {
+            this.proxyNegotiateAuth = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code proxyNegotiateSpn} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        @com.github.copilot.CopilotExperimental
+        public Builder proxyNegotiateSpn(String value) {
+            this.proxyNegotiateSpn = value;
+            return this;
+        }
+
+        /**
+         * Builds a record after checking required property presence.
+         * @return a new record
+         * @throws IllegalStateException if a required property is missing
+         * @since 2.0.0
+         */
+        public GitHubFetchRequestParams build() {
+            if (requestId == null) throw new IllegalStateException("Missing required property: requestId");
+            if (method == null) throw new IllegalStateException("Missing required property: method");
+            if (url == null) throw new IllegalStateException("Missing required property: url");
+            if (headers == null) throw new IllegalStateException("Missing required property: headers");
+            if (apiName == null) throw new IllegalStateException("Missing required property: apiName");
+            return new GitHubFetchRequestParams(requestId, sessionId, authOwnerId, method, url, headers, bodyBase64, apiName, retryOptions, redirect, timeoutMs, readTimeoutMs, bodyLimitBytes, disableConnectionReuse, proxyEnv, pinnedAddresses, allowLocalhost, proxyNegotiateAuth, proxyNegotiateSpn);
+        }
+    }
 }

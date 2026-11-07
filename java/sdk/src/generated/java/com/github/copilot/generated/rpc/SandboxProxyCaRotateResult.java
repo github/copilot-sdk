@@ -31,4 +31,79 @@ public record SandboxProxyCaRotateResult(
     /** Whether this process can add the certificate authority to OS trust without credentials from a different user. False where OS trust is unsupported, and on Windows when the process cannot elevate itself to write the machine trust store. When false, do not offer to set up the certificate authority. */
     @JsonProperty("canInstall") Boolean canInstall
 ) {
+
+    /**
+     * Creates a record positionally.
+     * @deprecated Use {@link #builder()} for named construction.
+     */
+    @Deprecated(since = "2.0.0", forRemoval = false)
+    public SandboxProxyCaRotateResult {}
+
+    /**
+     * Returns a named builder.
+     * @return a new builder
+     * @since 2.0.0
+     */
+    @com.github.copilot.CopilotExperimental
+    public static Builder builder() { return new Builder(); }
+
+    /**
+     * Named construction for this record.
+     * @since 2.0.0
+     */
+    @com.github.copilot.CopilotExperimental
+    public static final class Builder {
+        private Builder() {}
+        private SandboxProxyCaState state;
+        private String detail;
+        private Boolean canInstall;
+
+        /**
+         * Sets the {@code state} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        @com.github.copilot.CopilotExperimental
+        public Builder state(SandboxProxyCaState value) {
+            this.state = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code detail} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        @com.github.copilot.CopilotExperimental
+        public Builder detail(String value) {
+            this.detail = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code canInstall} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        @com.github.copilot.CopilotExperimental
+        public Builder canInstall(Boolean value) {
+            this.canInstall = value;
+            return this;
+        }
+
+        /**
+         * Builds a record after checking required property presence.
+         * @return a new record
+         * @throws IllegalStateException if a required property is missing
+         * @since 2.0.0
+         */
+        public SandboxProxyCaRotateResult build() {
+            if (state == null) throw new IllegalStateException("Missing required property: state");
+            if (canInstall == null) throw new IllegalStateException("Missing required property: canInstall");
+            return new SandboxProxyCaRotateResult(state, detail, canInstall);
+        }
+    }
 }

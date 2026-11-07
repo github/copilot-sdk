@@ -43,4 +43,159 @@ public record LspServerSummary(
     /** Platform-selected launch script for a user entry. */
     @JsonProperty("launchDescription") String launchDescription
 ) {
+
+    /**
+     * Creates a record positionally.
+     * @deprecated Use {@link #builder()} for named construction.
+     */
+    @Deprecated(since = "2.0.0", forRemoval = false)
+    public LspServerSummary {}
+
+    /**
+     * Returns a named builder.
+     * @return a new builder
+     * @since 2.0.0
+     */
+    public static Builder builder() { return new Builder(); }
+
+    /**
+     * Named construction for this record.
+     * @since 2.0.0
+     */
+    public static final class Builder {
+        private Builder() {}
+        private String id;
+        private Map<String, String> fileExtensions;
+        private String rootUri;
+        private Double requestTimeoutMs;
+        private Double initializationTimeoutMs;
+        private Double spawnTimeoutMs;
+        private Double warmupTimeoutMs;
+        private String sourcePlugin;
+        private Boolean disabled;
+        private String launchDescription;
+
+        /**
+         * Sets the {@code id} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder id(String value) {
+            this.id = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code fileExtensions} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder fileExtensions(Map<String, String> value) {
+            this.fileExtensions = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code rootUri} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder rootUri(String value) {
+            this.rootUri = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code requestTimeoutMs} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder requestTimeoutMs(Double value) {
+            this.requestTimeoutMs = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code initializationTimeoutMs} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder initializationTimeoutMs(Double value) {
+            this.initializationTimeoutMs = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code spawnTimeoutMs} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder spawnTimeoutMs(Double value) {
+            this.spawnTimeoutMs = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code warmupTimeoutMs} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder warmupTimeoutMs(Double value) {
+            this.warmupTimeoutMs = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code sourcePlugin} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder sourcePlugin(String value) {
+            this.sourcePlugin = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code disabled} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder disabled(Boolean value) {
+            this.disabled = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code launchDescription} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder launchDescription(String value) {
+            this.launchDescription = value;
+            return this;
+        }
+
+        /**
+         * Builds a record after checking required property presence.
+         * @return a new record
+         * @throws IllegalStateException if a required property is missing
+         * @since 2.0.0
+         */
+        public LspServerSummary build() {
+            if (id == null) throw new IllegalStateException("Missing required property: id");
+            if (fileExtensions == null) throw new IllegalStateException("Missing required property: fileExtensions");
+            if (disabled == null) throw new IllegalStateException("Missing required property: disabled");
+            return new LspServerSummary(id, fileExtensions, rootUri, requestTimeoutMs, initializationTimeoutMs, spawnTimeoutMs, warmupTimeoutMs, sourcePlugin, disabled, launchDescription);
+        }
+    }
 }

@@ -31,4 +31,88 @@ public record McpAppsDiagnoseServer(
     /** Up to 5 tool names with `_meta.ui` for quick inspection */
     @JsonProperty("sampleToolNames") List<String> sampleToolNames
 ) {
+
+    /**
+     * Creates a record positionally.
+     * @deprecated Use {@link #builder()} for named construction.
+     */
+    @Deprecated(since = "2.0.0", forRemoval = false)
+    public McpAppsDiagnoseServer {}
+
+    /**
+     * Returns a named builder.
+     * @return a new builder
+     * @since 2.0.0
+     */
+    public static Builder builder() { return new Builder(); }
+
+    /**
+     * Named construction for this record.
+     * @since 2.0.0
+     */
+    public static final class Builder {
+        private Builder() {}
+        private Boolean connected;
+        private Double toolCount;
+        private Double toolsWithUiMeta;
+        private List<String> sampleToolNames;
+
+        /**
+         * Sets the {@code connected} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder connected(Boolean value) {
+            this.connected = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code toolCount} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder toolCount(Double value) {
+            this.toolCount = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code toolsWithUiMeta} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder toolsWithUiMeta(Double value) {
+            this.toolsWithUiMeta = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code sampleToolNames} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder sampleToolNames(List<String> value) {
+            this.sampleToolNames = value;
+            return this;
+        }
+
+        /**
+         * Builds a record after checking required property presence.
+         * @return a new record
+         * @throws IllegalStateException if a required property is missing
+         * @since 2.0.0
+         */
+        public McpAppsDiagnoseServer build() {
+            if (connected == null) throw new IllegalStateException("Missing required property: connected");
+            if (toolCount == null) throw new IllegalStateException("Missing required property: toolCount");
+            if (toolsWithUiMeta == null) throw new IllegalStateException("Missing required property: toolsWithUiMeta");
+            if (sampleToolNames == null) throw new IllegalStateException("Missing required property: sampleToolNames");
+            return new McpAppsDiagnoseServer(connected, toolCount, toolsWithUiMeta, sampleToolNames);
+        }
+    }
 }

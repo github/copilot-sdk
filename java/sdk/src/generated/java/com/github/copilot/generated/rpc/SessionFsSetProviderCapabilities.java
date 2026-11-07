@@ -30,10 +30,79 @@ public record SessionFsSetProviderCapabilities(
 ) {
 
     /**
+     * Creates a record positionally.
+     * @deprecated Use {@link #builder()} for named construction.
+     */
+    @Deprecated(since = "2.0.0", forRemoval = false)
+    public SessionFsSetProviderCapabilities {}
+
+    /**
+     * Returns a named builder.
+     * @return a new builder
+     * @since 2.0.0
+     */
+    public static Builder builder() { return new Builder(); }
+
+    /**
+     * Named construction for this record.
+     * @since 2.0.0
+     */
+    public static final class Builder {
+        private Builder() {}
+        private Boolean sqlite;
+        private Boolean binary;
+        private Boolean readFileRange;
+
+        /**
+         * Sets the {@code sqlite} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder sqlite(Boolean value) {
+            this.sqlite = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code binary} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder binary(Boolean value) {
+            this.binary = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code readFileRange} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder readFileRange(Boolean value) {
+            this.readFileRange = value;
+            return this;
+        }
+
+        /**
+         * Builds a record after checking required property presence.
+         * @return a new record
+         * @throws IllegalStateException if a required property is missing
+         * @since 2.0.0
+         */
+        public SessionFsSetProviderCapabilities build() {
+            return new SessionFsSetProviderCapabilities(sqlite, binary, readFileRange);
+        }
+    }
+
+    /**
      * Creates provider capabilities without binary or byte-range reads.
-     *
+     * @deprecated Use named construction via {@link #builder()}.
      * @param sqlite Whether the provider supports SQLite query/exists operations
      */
+    @Deprecated(since = "2.0.0", forRemoval = false)
     public SessionFsSetProviderCapabilities(
         Boolean sqlite
     ) {
@@ -42,10 +111,11 @@ public record SessionFsSetProviderCapabilities(
 
     /**
      * Creates provider capabilities without byte-range reads.
-     *
+     * @deprecated Use named construction via {@link #builder()}.
      * @param sqlite Whether the provider supports SQLite query/exists operations
      * @param binary Whether the provider supports binary reads and writes through sessionFs.readFileBytes and sessionFs.writeFileBytes
      */
+    @Deprecated(since = "2.0.0", forRemoval = false)
     public SessionFsSetProviderCapabilities(
         Boolean sqlite,
         Boolean binary

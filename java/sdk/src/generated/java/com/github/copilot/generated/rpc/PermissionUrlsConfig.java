@@ -27,4 +27,60 @@ public record PermissionUrlsConfig(
     /** Initial list of allowed URL/domain patterns. Patterns may include path components. Ignored when `unrestricted` is true. */
     @JsonProperty("initialAllowed") List<String> initialAllowed
 ) {
+
+    /**
+     * Creates a record positionally.
+     * @deprecated Use {@link #builder()} for named construction.
+     */
+    @Deprecated(since = "2.0.0", forRemoval = false)
+    public PermissionUrlsConfig {}
+
+    /**
+     * Returns a named builder.
+     * @return a new builder
+     * @since 2.0.0
+     */
+    public static Builder builder() { return new Builder(); }
+
+    /**
+     * Named construction for this record.
+     * @since 2.0.0
+     */
+    public static final class Builder {
+        private Builder() {}
+        private Boolean unrestricted;
+        private List<String> initialAllowed;
+
+        /**
+         * Sets the {@code unrestricted} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder unrestricted(Boolean value) {
+            this.unrestricted = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code initialAllowed} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder initialAllowed(List<String> value) {
+            this.initialAllowed = value;
+            return this;
+        }
+
+        /**
+         * Builds a record after checking required property presence.
+         * @return a new record
+         * @throws IllegalStateException if a required property is missing
+         * @since 2.0.0
+         */
+        public PermissionUrlsConfig build() {
+            return new PermissionUrlsConfig(unrestricted, initialAllowed);
+        }
+    }
 }

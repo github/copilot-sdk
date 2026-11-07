@@ -111,12 +111,12 @@ public class SubagentHooksE2ETest {
                 })) {
                     try {
                         // Keep the built-in agent on the capture's model, not its changing default.
-                        session.getRpc().tools
-                                .updateSubagentSettings(new SessionToolsUpdateSubagentSettingsParams(null,
-                                        new SubagentSettingsConfig(Map.of("explore",
-                                                new SubagentSettingsEntry(REPLAY_MODEL, null, null, null, null, null)),
-                                                null, null, null, null)))
-                                .get();
+                        session.getRpc().tools.updateSubagentSettings(SessionToolsUpdateSubagentSettingsParams.builder()
+                                .subagents(SubagentSettingsConfig.builder()
+                                        .agents(Map.of("explore",
+                                                SubagentSettingsEntry.builder().model(REPLAY_MODEL).build()))
+                                        .build())
+                                .build()).get();
                         Files.writeString(ctx.getWorkDir().resolve("subagent-test.txt"), "Hello from subagent test!");
                         var response = session.sendAndWait(new MessageOptions()
                                 .setPrompt("Use the task tool to spawn an explore agent that reads the file "

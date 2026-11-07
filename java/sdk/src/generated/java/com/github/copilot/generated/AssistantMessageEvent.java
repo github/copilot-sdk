@@ -92,5 +92,353 @@ public final class AssistantMessageEvent extends SessionEvent {
         @CopilotExperimental
         @JsonProperty("fusion") FusionAttribution fusion
     ) {
+
+        /**
+         * Creates a record positionally.
+         * @deprecated Use {@link #builder()} for named construction.
+         */
+        @Deprecated(since = "2.0.0", forRemoval = false)
+        public AssistantMessageEventData {}
+
+        /**
+         * Returns a named builder.
+         * @return a new builder
+         * @since 2.0.0
+         */
+        public static Builder builder() { return new Builder(); }
+
+        /**
+         * Named construction for this record.
+         * @since 2.0.0
+         */
+        public static final class Builder {
+            private Builder() {}
+            private String messageId;
+            private String originatingMessageId;
+            private String model;
+            private String providerId;
+            private String content;
+            private List<AssistantMessageToolRequest> toolRequests;
+            private String reasoningOpaque;
+            private String reasoningText;
+            private String reasoningWireField;
+            private String encryptedContent;
+            private String phase;
+            private Long chunkIndex;
+            private Long chunkCount;
+            private Long outputTokens;
+            private String interactionId;
+            private String requestId;
+            private String clientRequestId;
+            private String serviceRequestId;
+            private Boolean rte;
+            private String apiCallId;
+            private AssistantMessageServerTools serverTools;
+            private AssistantMessageReasoningBlocks reasoningBlocks;
+            private String turnId;
+            private String parentToolCallId;
+            private Citations citations;
+            private FusionAttribution fusion;
+
+            /**
+             * Sets the {@code messageId} property.
+             * @param value the property value
+             * @return this builder
+             * @since 2.0.0
+             */
+            public Builder messageId(String value) {
+                this.messageId = value;
+                return this;
+            }
+
+            /**
+             * Sets the {@code originatingMessageId} property.
+             * @param value the property value
+             * @return this builder
+             * @since 2.0.0
+             */
+            public Builder originatingMessageId(String value) {
+                this.originatingMessageId = value;
+                return this;
+            }
+
+            /**
+             * Sets the {@code model} property.
+             * @param value the property value
+             * @return this builder
+             * @since 2.0.0
+             */
+            public Builder model(String value) {
+                this.model = value;
+                return this;
+            }
+
+            /**
+             * Sets the {@code providerId} property.
+             * @param value the property value
+             * @return this builder
+             * @since 2.0.0
+             */
+            public Builder providerId(String value) {
+                this.providerId = value;
+                return this;
+            }
+
+            /**
+             * Sets the {@code content} property.
+             * @param value the property value
+             * @return this builder
+             * @since 2.0.0
+             */
+            public Builder content(String value) {
+                this.content = value;
+                return this;
+            }
+
+            /**
+             * Sets the {@code toolRequests} property.
+             * @param value the property value
+             * @return this builder
+             * @since 2.0.0
+             */
+            public Builder toolRequests(List<AssistantMessageToolRequest> value) {
+                this.toolRequests = value;
+                return this;
+            }
+
+            /**
+             * Sets the {@code reasoningOpaque} property.
+             * @param value the property value
+             * @return this builder
+             * @since 2.0.0
+             */
+            public Builder reasoningOpaque(String value) {
+                this.reasoningOpaque = value;
+                return this;
+            }
+
+            /**
+             * Sets the {@code reasoningText} property.
+             * @param value the property value
+             * @return this builder
+             * @since 2.0.0
+             */
+            public Builder reasoningText(String value) {
+                this.reasoningText = value;
+                return this;
+            }
+
+            /**
+             * Sets the {@code reasoningWireField} property.
+             * @param value the property value
+             * @return this builder
+             * @since 2.0.0
+             */
+            public Builder reasoningWireField(String value) {
+                this.reasoningWireField = value;
+                return this;
+            }
+
+            /**
+             * Sets the {@code encryptedContent} property.
+             * @param value the property value
+             * @return this builder
+             * @since 2.0.0
+             */
+            public Builder encryptedContent(String value) {
+                this.encryptedContent = value;
+                return this;
+            }
+
+            /**
+             * Sets the {@code phase} property.
+             * @param value the property value
+             * @return this builder
+             * @since 2.0.0
+             */
+            public Builder phase(String value) {
+                this.phase = value;
+                return this;
+            }
+
+            /**
+             * Sets the {@code chunkIndex} property.
+             * @param value the property value
+             * @return this builder
+             * @since 2.0.0
+             */
+            public Builder chunkIndex(Long value) {
+                this.chunkIndex = value;
+                return this;
+            }
+
+            /**
+             * Sets the {@code chunkCount} property.
+             * @param value the property value
+             * @return this builder
+             * @since 2.0.0
+             */
+            public Builder chunkCount(Long value) {
+                this.chunkCount = value;
+                return this;
+            }
+
+            /**
+             * Sets the {@code outputTokens} property.
+             * @param value the property value
+             * @return this builder
+             * @since 2.0.0
+             */
+            public Builder outputTokens(Long value) {
+                this.outputTokens = value;
+                return this;
+            }
+
+            /**
+             * Sets the {@code interactionId} property.
+             * @param value the property value
+             * @return this builder
+             * @since 2.0.0
+             */
+            public Builder interactionId(String value) {
+                this.interactionId = value;
+                return this;
+            }
+
+            /**
+             * Sets the {@code requestId} property.
+             * @param value the property value
+             * @return this builder
+             * @since 2.0.0
+             */
+            public Builder requestId(String value) {
+                this.requestId = value;
+                return this;
+            }
+
+            /**
+             * Sets the {@code clientRequestId} property.
+             * @param value the property value
+             * @return this builder
+             * @since 2.0.0
+             */
+            public Builder clientRequestId(String value) {
+                this.clientRequestId = value;
+                return this;
+            }
+
+            /**
+             * Sets the {@code serviceRequestId} property.
+             * @param value the property value
+             * @return this builder
+             * @since 2.0.0
+             */
+            public Builder serviceRequestId(String value) {
+                this.serviceRequestId = value;
+                return this;
+            }
+
+            /**
+             * Sets the {@code rte} property.
+             * @param value the property value
+             * @return this builder
+             * @since 2.0.0
+             */
+            public Builder rte(Boolean value) {
+                this.rte = value;
+                return this;
+            }
+
+            /**
+             * Sets the {@code apiCallId} property.
+             * @param value the property value
+             * @return this builder
+             * @since 2.0.0
+             */
+            public Builder apiCallId(String value) {
+                this.apiCallId = value;
+                return this;
+            }
+
+            /**
+             * Sets the {@code serverTools} property.
+             * @param value the property value
+             * @return this builder
+             * @since 2.0.0
+             */
+            public Builder serverTools(AssistantMessageServerTools value) {
+                this.serverTools = value;
+                return this;
+            }
+
+            /**
+             * Sets the {@code reasoningBlocks} property.
+             * @param value the property value
+             * @return this builder
+             * @since 2.0.0
+             */
+            public Builder reasoningBlocks(AssistantMessageReasoningBlocks value) {
+                this.reasoningBlocks = value;
+                return this;
+            }
+
+            /**
+             * Sets the {@code turnId} property.
+             * @param value the property value
+             * @return this builder
+             * @since 2.0.0
+             */
+            public Builder turnId(String value) {
+                this.turnId = value;
+                return this;
+            }
+
+            /**
+             * Sets the {@code parentToolCallId} property.
+             * @param value the property value
+             * @return this builder
+             * @since 2.0.0
+             */
+            public Builder parentToolCallId(String value) {
+                this.parentToolCallId = value;
+                return this;
+            }
+
+            /**
+             * Sets the {@code citations} property.
+             * @param value the property value
+             * @return this builder
+             * @since 2.0.0
+             */
+            @com.github.copilot.CopilotExperimental
+            public Builder citations(Citations value) {
+                this.citations = value;
+                return this;
+            }
+
+            /**
+             * Sets the {@code fusion} property.
+             * @param value the property value
+             * @return this builder
+             * @since 2.0.0
+             */
+            @com.github.copilot.CopilotExperimental
+            public Builder fusion(FusionAttribution value) {
+                this.fusion = value;
+                return this;
+            }
+
+            /**
+             * Builds a record after checking required property presence.
+             * @return a new record
+             * @throws IllegalStateException if a required property is missing
+             * @since 2.0.0
+             */
+            public AssistantMessageEventData build() {
+                if (messageId == null) throw new IllegalStateException("Missing required property: messageId");
+                if (content == null) throw new IllegalStateException("Missing required property: content");
+                return new AssistantMessageEventData(messageId, originatingMessageId, model, providerId, content, toolRequests, reasoningOpaque, reasoningText, reasoningWireField, encryptedContent, phase, chunkIndex, chunkCount, outputTokens, interactionId, requestId, clientRequestId, serviceRequestId, rte, apiCallId, serverTools, reasoningBlocks, turnId, parentToolCallId, citations, fusion);
+            }
+        }
     }
 }

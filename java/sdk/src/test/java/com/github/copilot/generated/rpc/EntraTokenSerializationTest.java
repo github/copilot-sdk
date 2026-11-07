@@ -20,13 +20,11 @@ class EntraTokenSerializationTest {
     @Test
     void callbackResultsHaveExactlyOneDiscriminator() throws Exception {
         var mapper = new ObjectMapper().enable(JsonParser.Feature.STRICT_DUPLICATE_DETECTION);
-        var identity = new EntraTokenAcquireResultIdentity();
-        identity.setAccountId("host-account");
-        var token = new EntraTokenAcquireResultToken();
-        token.setAccountId("host-account");
-        token.setAccessToken("host-token");
-        for (var result : List.<EntraTokenAcquireResult>of(identity, token, new EntraTokenAcquireResultUnavailable(),
-                new EntraTokenAcquireResultCancelled())) {
+        var identity = EntraTokenAcquireResultIdentity.builder().accountId("host-account").build();
+        var token = EntraTokenAcquireResultToken.builder().accountId("host-account").accessToken("host-token").build();
+        for (var result : List.<EntraTokenAcquireResult>of(identity, token,
+                EntraTokenAcquireResultUnavailable.builder().build(),
+                EntraTokenAcquireResultCancelled.builder().build())) {
             var wire = mapper.writeValueAsString(Map.of("jsonrpc", "2.0", "id", 1, "result", result));
             var serialized = mapper.readTree(wire).get("result");
             assertEquals(result.getKind(), serialized.get("kind").asText());

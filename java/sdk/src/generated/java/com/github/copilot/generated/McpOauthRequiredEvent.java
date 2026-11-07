@@ -53,5 +53,149 @@ public final class McpOauthRequiredEvent extends SessionEvent {
         /** Whether this Refresh request accepts kind runtimeRefresh to continue noninteractive grant renewal within its original authorization reservation. Missing or false means unsupported; the host must retain its legacy response behavior. */
         @JsonProperty("runtimeRefreshSupported") Boolean runtimeRefreshSupported
     ) {
+
+        /**
+         * Creates a record positionally.
+         * @deprecated Use {@link #builder()} for named construction.
+         */
+        @Deprecated(since = "2.0.0", forRemoval = false)
+        public McpOauthRequiredEventData {}
+
+        /**
+         * Returns a named builder.
+         * @return a new builder
+         * @since 2.0.0
+         */
+        public static Builder builder() { return new Builder(); }
+
+        /**
+         * Named construction for this record.
+         * @since 2.0.0
+         */
+        public static final class Builder {
+            private Builder() {}
+            private String requestId;
+            private String serverName;
+            private String serverUrl;
+            private McpOauthRequiredStaticClientConfig staticClientConfig;
+            private McpOauthWWWAuthenticateParams wwwAuthenticateParams;
+            private McpOauthHttpResponse httpResponse;
+            private String resourceMetadata;
+            private McpOauthRequestReason reason;
+            private Boolean runtimeRefreshSupported;
+
+            /**
+             * Sets the {@code requestId} property.
+             * @param value the property value
+             * @return this builder
+             * @since 2.0.0
+             */
+            public Builder requestId(String value) {
+                this.requestId = value;
+                return this;
+            }
+
+            /**
+             * Sets the {@code serverName} property.
+             * @param value the property value
+             * @return this builder
+             * @since 2.0.0
+             */
+            public Builder serverName(String value) {
+                this.serverName = value;
+                return this;
+            }
+
+            /**
+             * Sets the {@code serverUrl} property.
+             * @param value the property value
+             * @return this builder
+             * @since 2.0.0
+             */
+            public Builder serverUrl(String value) {
+                this.serverUrl = value;
+                return this;
+            }
+
+            /**
+             * Sets the {@code staticClientConfig} property.
+             * @param value the property value
+             * @return this builder
+             * @since 2.0.0
+             */
+            public Builder staticClientConfig(McpOauthRequiredStaticClientConfig value) {
+                this.staticClientConfig = value;
+                return this;
+            }
+
+            /**
+             * Sets the {@code wwwAuthenticateParams} property.
+             * @param value the property value
+             * @return this builder
+             * @since 2.0.0
+             */
+            public Builder wwwAuthenticateParams(McpOauthWWWAuthenticateParams value) {
+                this.wwwAuthenticateParams = value;
+                return this;
+            }
+
+            /**
+             * Sets the {@code httpResponse} property.
+             * @param value the property value
+             * @return this builder
+             * @since 2.0.0
+             */
+            public Builder httpResponse(McpOauthHttpResponse value) {
+                this.httpResponse = value;
+                return this;
+            }
+
+            /**
+             * Sets the {@code resourceMetadata} property.
+             * @param value the property value
+             * @return this builder
+             * @since 2.0.0
+             */
+            public Builder resourceMetadata(String value) {
+                this.resourceMetadata = value;
+                return this;
+            }
+
+            /**
+             * Sets the {@code reason} property.
+             * @param value the property value
+             * @return this builder
+             * @since 2.0.0
+             */
+            public Builder reason(McpOauthRequestReason value) {
+                this.reason = value;
+                return this;
+            }
+
+            /**
+             * Sets the {@code runtimeRefreshSupported} property.
+             * @param value the property value
+             * @return this builder
+             * @since 2.0.0
+             */
+            public Builder runtimeRefreshSupported(Boolean value) {
+                this.runtimeRefreshSupported = value;
+                return this;
+            }
+
+            /**
+             * Builds a record after checking required property presence.
+             * @return a new record
+             * @throws IllegalStateException if a required property is missing
+             * @since 2.0.0
+             */
+            public McpOauthRequiredEventData build() {
+                if (requestId == null) throw new IllegalStateException("Missing required property: requestId");
+                if (serverName == null) throw new IllegalStateException("Missing required property: serverName");
+                if (serverUrl == null) throw new IllegalStateException("Missing required property: serverUrl");
+                if (reason == null) throw new IllegalStateException("Missing required property: reason");
+                return new McpOauthRequiredEventData(requestId, serverName, serverUrl, staticClientConfig, wwwAuthenticateParams, httpResponse, resourceMetadata, reason, runtimeRefreshSupported);
+            }
+        }
     }
 }

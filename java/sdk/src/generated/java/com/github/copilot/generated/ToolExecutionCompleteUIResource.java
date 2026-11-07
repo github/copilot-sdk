@@ -32,4 +32,98 @@ public record ToolExecutionCompleteUIResource(
     /** Resource-level UI metadata (CSP, permissions, visual preferences) */
     @JsonProperty("_meta") ToolExecutionCompleteUIResourceMeta meta
 ) {
+
+    /**
+     * Creates a record positionally.
+     * @deprecated Use {@link #builder()} for named construction.
+     */
+    @Deprecated(since = "2.0.0", forRemoval = false)
+    public ToolExecutionCompleteUIResource {}
+
+    /**
+     * Returns a named builder.
+     * @return a new builder
+     * @since 2.0.0
+     */
+    public static Builder builder() { return new Builder(); }
+
+    /**
+     * Named construction for this record.
+     * @since 2.0.0
+     */
+    public static final class Builder {
+        private Builder() {}
+        private String uri;
+        private String mimeType;
+        private String text;
+        private String blob;
+        private ToolExecutionCompleteUIResourceMeta meta;
+
+        /**
+         * Sets the {@code uri} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder uri(String value) {
+            this.uri = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code mimeType} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder mimeType(String value) {
+            this.mimeType = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code text} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder text(String value) {
+            this.text = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code blob} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder blob(String value) {
+            this.blob = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code _meta} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder meta(ToolExecutionCompleteUIResourceMeta value) {
+            this.meta = value;
+            return this;
+        }
+
+        /**
+         * Builds a record after checking required property presence.
+         * @return a new record
+         * @throws IllegalStateException if a required property is missing
+         * @since 2.0.0
+         */
+        public ToolExecutionCompleteUIResource build() {
+            if (uri == null) throw new IllegalStateException("Missing required property: uri");
+            if (mimeType == null) throw new IllegalStateException("Missing required property: mimeType");
+            return new ToolExecutionCompleteUIResource(uri, mimeType, text, blob, meta);
+        }
+    }
 }

@@ -33,4 +33,98 @@ record QueueSnapshotResult(
     /** Insertion orders for immediate steering messages, aligned with `steeringMessages`. */
     @JsonProperty("steeringMessageOrders") List<Long> steeringMessageOrders
 ) {
+
+    /**
+     * Creates a record positionally.
+     * @deprecated Use {@link #builder()} for named construction.
+     */
+    @Deprecated(since = "2.0.0", forRemoval = false)
+    QueueSnapshotResult {}
+
+    /**
+     * Returns a named builder.
+     * @return a new builder
+     * @since 2.0.0
+     */
+    public static Builder builder() { return new Builder(); }
+
+    /**
+     * Named construction for this record.
+     * @since 2.0.0
+     */
+    public static final class Builder {
+        private Builder() {}
+        private String inFlightModelChangeId;
+        private List<QueuePendingItems> items;
+        private List<String> steeringMessages;
+        private List<Long> itemOrders;
+        private List<Long> steeringMessageOrders;
+
+        /**
+         * Sets the {@code inFlightModelChangeId} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder inFlightModelChangeId(String value) {
+            this.inFlightModelChangeId = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code items} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder items(List<QueuePendingItems> value) {
+            this.items = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code steeringMessages} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder steeringMessages(List<String> value) {
+            this.steeringMessages = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code itemOrders} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder itemOrders(List<Long> value) {
+            this.itemOrders = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code steeringMessageOrders} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder steeringMessageOrders(List<Long> value) {
+            this.steeringMessageOrders = value;
+            return this;
+        }
+
+        /**
+         * Builds a record after checking required property presence.
+         * @return a new record
+         * @throws IllegalStateException if a required property is missing
+         * @since 2.0.0
+         */
+        public QueueSnapshotResult build() {
+            if (items == null) throw new IllegalStateException("Missing required property: items");
+            if (steeringMessages == null) throw new IllegalStateException("Missing required property: steeringMessages");
+            return new QueueSnapshotResult(inFlightModelChangeId, items, steeringMessages, itemOrders, steeringMessageOrders);
+        }
+    }
 }

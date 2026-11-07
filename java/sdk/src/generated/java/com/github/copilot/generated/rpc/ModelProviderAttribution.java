@@ -32,4 +32,78 @@ public record ModelProviderAttribution(
     /** Human-readable contributor name, not the adapter display name. */
     @JsonProperty("ownerDisplayName") String ownerDisplayName
 ) {
+
+    /**
+     * Creates a record positionally.
+     * @deprecated Use {@link #builder()} for named construction.
+     */
+    @Deprecated(since = "2.0.0", forRemoval = false)
+    public ModelProviderAttribution {}
+
+    /**
+     * Returns a named builder.
+     * @return a new builder
+     * @since 2.0.0
+     */
+    @com.github.copilot.CopilotExperimental
+    public static Builder builder() { return new Builder(); }
+
+    /**
+     * Named construction for this record.
+     * @since 2.0.0
+     */
+    @com.github.copilot.CopilotExperimental
+    public static final class Builder {
+        private Builder() {}
+        private ModelProviderProvenanceSource source;
+        private String ownerId;
+        private String ownerDisplayName;
+
+        /**
+         * Sets the {@code source} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        @com.github.copilot.CopilotExperimental
+        public Builder source(ModelProviderProvenanceSource value) {
+            this.source = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code ownerId} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        @com.github.copilot.CopilotExperimental
+        public Builder ownerId(String value) {
+            this.ownerId = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code ownerDisplayName} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        @com.github.copilot.CopilotExperimental
+        public Builder ownerDisplayName(String value) {
+            this.ownerDisplayName = value;
+            return this;
+        }
+
+        /**
+         * Builds a record after checking required property presence.
+         * @return a new record
+         * @throws IllegalStateException if a required property is missing
+         * @since 2.0.0
+         */
+        public ModelProviderAttribution build() {
+            if (source == null) throw new IllegalStateException("Missing required property: source");
+            return new ModelProviderAttribution(source, ownerId, ownerDisplayName);
+        }
+    }
 }

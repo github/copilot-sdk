@@ -30,4 +30,60 @@ public record AgentsGetDiscoveryPathsParams(
     /** When true, omit the host's user-level agent directory, leaving only project directories. For multitenant deployments (mirrors `discover`'s `excludeHostAgents`). */
     @JsonProperty("excludeHostAgents") Boolean excludeHostAgents
 ) {
+
+    /**
+     * Creates a record positionally.
+     * @deprecated Use {@link #builder()} for named construction.
+     */
+    @Deprecated(since = "2.0.0", forRemoval = false)
+    public AgentsGetDiscoveryPathsParams {}
+
+    /**
+     * Returns a named builder.
+     * @return a new builder
+     * @since 2.0.0
+     */
+    public static Builder builder() { return new Builder(); }
+
+    /**
+     * Named construction for this record.
+     * @since 2.0.0
+     */
+    public static final class Builder {
+        private Builder() {}
+        private List<String> projectPaths;
+        private Boolean excludeHostAgents;
+
+        /**
+         * Sets the {@code projectPaths} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder projectPaths(List<String> value) {
+            this.projectPaths = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code excludeHostAgents} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder excludeHostAgents(Boolean value) {
+            this.excludeHostAgents = value;
+            return this;
+        }
+
+        /**
+         * Builds a record after checking required property presence.
+         * @return a new record
+         * @throws IllegalStateException if a required property is missing
+         * @since 2.0.0
+         */
+        public AgentsGetDiscoveryPathsParams build() {
+            return new AgentsGetDiscoveryPathsParams(projectPaths, excludeHostAgents);
+        }
+    }
 }

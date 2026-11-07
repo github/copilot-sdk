@@ -30,4 +30,84 @@ public record ToolExecutionCompleteUIResourceMetaUIPermissions(
     /** Marker object for clipboard-write permission on an MCP Apps UI resource. */
     @JsonProperty("clipboardWrite") ToolExecutionCompleteUIResourceMetaUIPermissionsClipboardWrite clipboardWrite
 ) {
+
+    /**
+     * Creates a record positionally.
+     * @deprecated Use {@link #builder()} for named construction.
+     */
+    @Deprecated(since = "2.0.0", forRemoval = false)
+    public ToolExecutionCompleteUIResourceMetaUIPermissions {}
+
+    /**
+     * Returns a named builder.
+     * @return a new builder
+     * @since 2.0.0
+     */
+    public static Builder builder() { return new Builder(); }
+
+    /**
+     * Named construction for this record.
+     * @since 2.0.0
+     */
+    public static final class Builder {
+        private Builder() {}
+        private ToolExecutionCompleteUIResourceMetaUIPermissionsCamera camera;
+        private ToolExecutionCompleteUIResourceMetaUIPermissionsMicrophone microphone;
+        private ToolExecutionCompleteUIResourceMetaUIPermissionsGeolocation geolocation;
+        private ToolExecutionCompleteUIResourceMetaUIPermissionsClipboardWrite clipboardWrite;
+
+        /**
+         * Sets the {@code camera} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder camera(ToolExecutionCompleteUIResourceMetaUIPermissionsCamera value) {
+            this.camera = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code microphone} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder microphone(ToolExecutionCompleteUIResourceMetaUIPermissionsMicrophone value) {
+            this.microphone = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code geolocation} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder geolocation(ToolExecutionCompleteUIResourceMetaUIPermissionsGeolocation value) {
+            this.geolocation = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code clipboardWrite} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder clipboardWrite(ToolExecutionCompleteUIResourceMetaUIPermissionsClipboardWrite value) {
+            this.clipboardWrite = value;
+            return this;
+        }
+
+        /**
+         * Builds a record after checking required property presence.
+         * @return a new record
+         * @throws IllegalStateException if a required property is missing
+         * @since 2.0.0
+         */
+        public ToolExecutionCompleteUIResourceMetaUIPermissions build() {
+            return new ToolExecutionCompleteUIResourceMetaUIPermissions(camera, microphone, geolocation, clipboardWrite);
+        }
+    }
 }

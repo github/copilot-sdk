@@ -93,8 +93,9 @@ class DeclarationOnlyToolTest {
 
     private static ExternalToolRequestedEvent externalToolRequested(String requestId, String toolName) {
         var event = new ExternalToolRequestedEvent();
-        event.setData(new ExternalToolRequestedEvent.ExternalToolRequestedEventData(requestId, "session-1",
-                "tool-call-" + requestId, toolName, null, Map.of(), null, null, null));
+        event.setData(ExternalToolRequestedEvent.ExternalToolRequestedEventData.builder().requestId(requestId)
+                .sessionId("session-1").toolCallId("tool-call-" + requestId).toolName(toolName).arguments(Map.of())
+                .build());
         return event;
     }
 }

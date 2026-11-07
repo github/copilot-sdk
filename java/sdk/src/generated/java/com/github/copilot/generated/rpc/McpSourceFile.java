@@ -26,4 +26,61 @@ public record McpSourceFile(
     /** RFC 6901 JSON Pointer to the server declaration, when known */
     @JsonProperty("jsonPointer") String jsonPointer
 ) {
+
+    /**
+     * Creates a record positionally.
+     * @deprecated Use {@link #builder()} for named construction.
+     */
+    @Deprecated(since = "2.0.0", forRemoval = false)
+    public McpSourceFile {}
+
+    /**
+     * Returns a named builder.
+     * @return a new builder
+     * @since 2.0.0
+     */
+    public static Builder builder() { return new Builder(); }
+
+    /**
+     * Named construction for this record.
+     * @since 2.0.0
+     */
+    public static final class Builder {
+        private Builder() {}
+        private String uri;
+        private String jsonPointer;
+
+        /**
+         * Sets the {@code uri} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder uri(String value) {
+            this.uri = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code jsonPointer} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder jsonPointer(String value) {
+            this.jsonPointer = value;
+            return this;
+        }
+
+        /**
+         * Builds a record after checking required property presence.
+         * @return a new record
+         * @throws IllegalStateException if a required property is missing
+         * @since 2.0.0
+         */
+        public McpSourceFile build() {
+            if (uri == null) throw new IllegalStateException("Missing required property: uri");
+            return new McpSourceFile(uri, jsonPointer);
+        }
+    }
 }

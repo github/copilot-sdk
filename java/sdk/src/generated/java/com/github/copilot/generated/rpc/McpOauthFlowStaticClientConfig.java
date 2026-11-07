@@ -32,4 +32,97 @@ record McpOauthFlowStaticClientConfig(
     /** Scope used when the server omits its challenge scope. */
     @JsonProperty("scope") String scope
 ) {
+
+    /**
+     * Creates a record positionally.
+     * @deprecated Use {@link #builder()} for named construction.
+     */
+    @Deprecated(since = "2.0.0", forRemoval = false)
+    McpOauthFlowStaticClientConfig {}
+
+    /**
+     * Returns a named builder.
+     * @return a new builder
+     * @since 2.0.0
+     */
+    public static Builder builder() { return new Builder(); }
+
+    /**
+     * Named construction for this record.
+     * @since 2.0.0
+     */
+    public static final class Builder {
+        private Builder() {}
+        private String clientId;
+        private String clientSecret;
+        private Boolean publicClient;
+        private McpOauthLoginGrantType grantType;
+        private String scope;
+
+        /**
+         * Sets the {@code clientId} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder clientId(String value) {
+            this.clientId = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code clientSecret} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder clientSecret(String value) {
+            this.clientSecret = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code publicClient} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder publicClient(Boolean value) {
+            this.publicClient = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code grantType} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder grantType(McpOauthLoginGrantType value) {
+            this.grantType = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code scope} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder scope(String value) {
+            this.scope = value;
+            return this;
+        }
+
+        /**
+         * Builds a record after checking required property presence.
+         * @return a new record
+         * @throws IllegalStateException if a required property is missing
+         * @since 2.0.0
+         */
+        public McpOauthFlowStaticClientConfig build() {
+            if (clientId == null) throw new IllegalStateException("Missing required property: clientId");
+            return new McpOauthFlowStaticClientConfig(clientId, clientSecret, publicClient, grantType, scope);
+        }
+    }
 }

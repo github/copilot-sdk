@@ -25,4 +25,49 @@ public record SandboxMaskedEnvVar(
     /** Nonempty list of HTTPS injection hostnames or *.example.com patterns. Bare * is not accepted. These grants never override the sandbox network policy. Values in plaintext HTTP requests, URLs, bodies, encoded credentials, and signed requests are not substituted. */
     @JsonProperty("injectHosts") List<String> injectHosts
 ) {
+
+    /**
+     * Creates a record positionally.
+     * @deprecated Use {@link #builder()} for named construction.
+     */
+    @Deprecated(since = "2.0.0", forRemoval = false)
+    public SandboxMaskedEnvVar {}
+
+    /**
+     * Returns a named builder.
+     * @return a new builder
+     * @since 2.0.0
+     */
+    public static Builder builder() { return new Builder(); }
+
+    /**
+     * Named construction for this record.
+     * @since 2.0.0
+     */
+    public static final class Builder {
+        private Builder() {}
+        private List<String> injectHosts;
+
+        /**
+         * Sets the {@code injectHosts} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder injectHosts(List<String> value) {
+            this.injectHosts = value;
+            return this;
+        }
+
+        /**
+         * Builds a record after checking required property presence.
+         * @return a new record
+         * @throws IllegalStateException if a required property is missing
+         * @since 2.0.0
+         */
+        public SandboxMaskedEnvVar build() {
+            if (injectHosts == null) throw new IllegalStateException("Missing required property: injectHosts");
+            return new SandboxMaskedEnvVar(injectHosts);
+        }
+    }
 }

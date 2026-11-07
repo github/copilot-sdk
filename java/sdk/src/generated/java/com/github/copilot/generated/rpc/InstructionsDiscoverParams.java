@@ -30,4 +30,60 @@ public record InstructionsDiscoverParams(
     /** When true, omit the host's instruction sources (user/home-level files and plugin rules), leaving only repository and working-directory sources. For multitenant deployments. */
     @JsonProperty("excludeHostInstructions") Boolean excludeHostInstructions
 ) {
+
+    /**
+     * Creates a record positionally.
+     * @deprecated Use {@link #builder()} for named construction.
+     */
+    @Deprecated(since = "2.0.0", forRemoval = false)
+    public InstructionsDiscoverParams {}
+
+    /**
+     * Returns a named builder.
+     * @return a new builder
+     * @since 2.0.0
+     */
+    public static Builder builder() { return new Builder(); }
+
+    /**
+     * Named construction for this record.
+     * @since 2.0.0
+     */
+    public static final class Builder {
+        private Builder() {}
+        private List<String> projectPaths;
+        private Boolean excludeHostInstructions;
+
+        /**
+         * Sets the {@code projectPaths} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder projectPaths(List<String> value) {
+            this.projectPaths = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code excludeHostInstructions} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder excludeHostInstructions(Boolean value) {
+            this.excludeHostInstructions = value;
+            return this;
+        }
+
+        /**
+         * Builds a record after checking required property presence.
+         * @return a new record
+         * @throws IllegalStateException if a required property is missing
+         * @since 2.0.0
+         */
+        public InstructionsDiscoverParams build() {
+            return new InstructionsDiscoverParams(projectPaths, excludeHostInstructions);
+        }
+    }
 }

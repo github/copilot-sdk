@@ -28,4 +28,51 @@ record McpOauthStaticClientConfigResult(
     /** The pinned client. Absent when the configuration pins no non-empty client id, so the flow should register one dynamically. */
     @JsonProperty("clientConfig") McpOauthStaticClientConfig clientConfig
 ) {
+
+    /**
+     * Creates a record positionally.
+     * @deprecated Use {@link #builder()} for named construction.
+     */
+    @Deprecated(since = "2.0.0", forRemoval = false)
+    McpOauthStaticClientConfigResult {}
+
+    /**
+     * Returns a named builder.
+     * @return a new builder
+     * @since 2.0.0
+     */
+    @com.github.copilot.CopilotExperimental
+    public static Builder builder() { return new Builder(); }
+
+    /**
+     * Named construction for this record.
+     * @since 2.0.0
+     */
+    @com.github.copilot.CopilotExperimental
+    public static final class Builder {
+        private Builder() {}
+        private McpOauthStaticClientConfig clientConfig;
+
+        /**
+         * Sets the {@code clientConfig} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        @com.github.copilot.CopilotExperimental
+        public Builder clientConfig(McpOauthStaticClientConfig value) {
+            this.clientConfig = value;
+            return this;
+        }
+
+        /**
+         * Builds a record after checking required property presence.
+         * @return a new record
+         * @throws IllegalStateException if a required property is missing
+         * @since 2.0.0
+         */
+        public McpOauthStaticClientConfigResult build() {
+            return new McpOauthStaticClientConfigResult(clientConfig);
+        }
+    }
 }

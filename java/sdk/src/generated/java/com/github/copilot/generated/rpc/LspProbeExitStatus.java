@@ -30,4 +30,78 @@ public record LspProbeExitStatus(
     /** Failure to observe the child process. */
     @JsonProperty("error") String error
 ) {
+
+    /**
+     * Creates a record positionally.
+     * @deprecated Use {@link #builder()} for named construction.
+     */
+    @Deprecated(since = "2.0.0", forRemoval = false)
+    public LspProbeExitStatus {}
+
+    /**
+     * Returns a named builder.
+     * @return a new builder
+     * @since 2.0.0
+     */
+    public static Builder builder() { return new Builder(); }
+
+    /**
+     * Named construction for this record.
+     * @since 2.0.0
+     */
+    public static final class Builder {
+        private Builder() {}
+        private Long code;
+        private boolean $presence0;
+        private String signal;
+        private boolean $presence1;
+        private String error;
+
+        /**
+         * Sets the {@code code} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder code(Long value) {
+            this.code = value;
+            this.$presence0 = true;
+            return this;
+        }
+
+        /**
+         * Sets the {@code signal} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder signal(String value) {
+            this.signal = value;
+            this.$presence1 = true;
+            return this;
+        }
+
+        /**
+         * Sets the {@code error} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder error(String value) {
+            this.error = value;
+            return this;
+        }
+
+        /**
+         * Builds a record after checking required property presence.
+         * @return a new record
+         * @throws IllegalStateException if a required property is missing
+         * @since 2.0.0
+         */
+        public LspProbeExitStatus build() {
+            if (!$presence0) throw new IllegalStateException("Missing required property: code");
+            if (!$presence1) throw new IllegalStateException("Missing required property: signal");
+            return new LspProbeExitStatus(code, signal, error);
+        }
+    }
 }

@@ -30,4 +30,85 @@ record ManagedSettingsResolveBypassDisableTransitionResult(
     /** Whether a bypass-permissions session already running must be turned off. True only when this resolution newly disables bypass mode, so a host that is already compliant is not interrupted. */
     @JsonProperty("suppressRuntimeAllowAll") Boolean suppressRuntimeAllowAll
 ) {
+
+    /**
+     * Creates a record positionally.
+     * @deprecated Use {@link #builder()} for named construction.
+     */
+    @Deprecated(since = "2.0.0", forRemoval = false)
+    ManagedSettingsResolveBypassDisableTransitionResult {}
+
+    /**
+     * Returns a named builder.
+     * @return a new builder
+     * @since 2.0.0
+     */
+    public static Builder builder() { return new Builder(); }
+
+    /**
+     * Named construction for this record.
+     * @since 2.0.0
+     */
+    public static final class Builder {
+        private Builder() {}
+        private ManagedSettingsBypassDisableSource source;
+        private String managedIdentity;
+        private Boolean setDisabledState;
+        private Boolean suppressRuntimeAllowAll;
+
+        /**
+         * Sets the {@code source} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder source(ManagedSettingsBypassDisableSource value) {
+            this.source = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code managedIdentity} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder managedIdentity(String value) {
+            this.managedIdentity = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code setDisabledState} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder setDisabledState(Boolean value) {
+            this.setDisabledState = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code suppressRuntimeAllowAll} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder suppressRuntimeAllowAll(Boolean value) {
+            this.suppressRuntimeAllowAll = value;
+            return this;
+        }
+
+        /**
+         * Builds a record after checking required property presence.
+         * @return a new record
+         * @throws IllegalStateException if a required property is missing
+         * @since 2.0.0
+         */
+        public ManagedSettingsResolveBypassDisableTransitionResult build() {
+            if (suppressRuntimeAllowAll == null) throw new IllegalStateException("Missing required property: suppressRuntimeAllowAll");
+            return new ManagedSettingsResolveBypassDisableTransitionResult(source, managedIdentity, setDisabledState, suppressRuntimeAllowAll);
+        }
+    }
 }

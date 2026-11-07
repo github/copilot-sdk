@@ -307,8 +307,9 @@ class AutoTierIT {
             assertNull(resumedCurrent.pendingAutoTier());
             assertNull(resumedCurrent.activatingAutoTier());
 
-            var persisted = resumed.getRpc().eventLog
-                    .read(new SessionEventLogReadParams(null, null, 100L, 0L, null, null, null, null, false))
+            var persisted = resumed.getRpc().eventLog.read(
+                    SessionEventLogReadParams.builder().sessionId(null).cursor(null).max(100L).waitMs(0L).types(null)
+                            .agentScope(null).agentIds(null).direction(null).includeEphemeral(false).build())
                     .get(30, TimeUnit.SECONDS);
             assertFalse(persisted.events().stream().anyMatch(SessionAutoTierSwitchFailedEvent.class::isInstance));
         }

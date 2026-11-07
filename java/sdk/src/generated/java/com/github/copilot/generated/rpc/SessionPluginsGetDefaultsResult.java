@@ -34,4 +34,94 @@ public record SessionPluginsGetDefaultsResult(
     /** Team marketplace definitions available only as best-effort installation fallbacks. */
     @JsonProperty("extraKnownMarketplaces") Map<String, TeamPluginMarketplace> extraKnownMarketplaces
 ) {
+
+    /**
+     * Creates a record positionally.
+     * @deprecated Use {@link #builder()} for named construction.
+     */
+    @Deprecated(since = "2.0.0", forRemoval = false)
+    public SessionPluginsGetDefaultsResult {}
+
+    /**
+     * Returns a named builder.
+     * @return a new builder
+     * @since 2.0.0
+     */
+    @com.github.copilot.CopilotExperimental
+    public static Builder builder() { return new Builder(); }
+
+    /**
+     * Named construction for this record.
+     * @since 2.0.0
+     */
+    @com.github.copilot.CopilotExperimental
+    public static final class Builder {
+        private Builder() {}
+        private String generation;
+        private Map<String, Boolean> defaultEnabledPlugins;
+        private Map<String, Boolean> teamDefaultEnabledPlugins;
+        private Map<String, TeamPluginMarketplace> extraKnownMarketplaces;
+
+        /**
+         * Sets the {@code generation} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        @com.github.copilot.CopilotExperimental
+        public Builder generation(String value) {
+            this.generation = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code defaultEnabledPlugins} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        @com.github.copilot.CopilotExperimental
+        public Builder defaultEnabledPlugins(Map<String, Boolean> value) {
+            this.defaultEnabledPlugins = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code teamDefaultEnabledPlugins} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        @com.github.copilot.CopilotExperimental
+        public Builder teamDefaultEnabledPlugins(Map<String, Boolean> value) {
+            this.teamDefaultEnabledPlugins = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code extraKnownMarketplaces} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        @com.github.copilot.CopilotExperimental
+        public Builder extraKnownMarketplaces(Map<String, TeamPluginMarketplace> value) {
+            this.extraKnownMarketplaces = value;
+            return this;
+        }
+
+        /**
+         * Builds a record after checking required property presence.
+         * @return a new record
+         * @throws IllegalStateException if a required property is missing
+         * @since 2.0.0
+         */
+        public SessionPluginsGetDefaultsResult build() {
+            if (generation == null) throw new IllegalStateException("Missing required property: generation");
+            if (defaultEnabledPlugins == null) throw new IllegalStateException("Missing required property: defaultEnabledPlugins");
+            if (teamDefaultEnabledPlugins == null) throw new IllegalStateException("Missing required property: teamDefaultEnabledPlugins");
+            if (extraKnownMarketplaces == null) throw new IllegalStateException("Missing required property: extraKnownMarketplaces");
+            return new SessionPluginsGetDefaultsResult(generation, defaultEnabledPlugins, teamDefaultEnabledPlugins, extraKnownMarketplaces);
+        }
+    }
 }

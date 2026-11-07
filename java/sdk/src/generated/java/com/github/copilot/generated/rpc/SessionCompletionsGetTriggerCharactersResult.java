@@ -28,4 +28,49 @@ public record SessionCompletionsGetTriggerCharactersResult(
     /** Trigger characters advertised by the host (e.g. `["@", "#"]`). Empty disables host-driven completions for the session. */
     @JsonProperty("triggerCharacters") List<String> triggerCharacters
 ) {
+
+    /**
+     * Creates a record positionally.
+     * @deprecated Use {@link #builder()} for named construction.
+     */
+    @Deprecated(since = "2.0.0", forRemoval = false)
+    public SessionCompletionsGetTriggerCharactersResult {}
+
+    /**
+     * Returns a named builder.
+     * @return a new builder
+     * @since 2.0.0
+     */
+    public static Builder builder() { return new Builder(); }
+
+    /**
+     * Named construction for this record.
+     * @since 2.0.0
+     */
+    public static final class Builder {
+        private Builder() {}
+        private List<String> triggerCharacters;
+
+        /**
+         * Sets the {@code triggerCharacters} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder triggerCharacters(List<String> value) {
+            this.triggerCharacters = value;
+            return this;
+        }
+
+        /**
+         * Builds a record after checking required property presence.
+         * @return a new record
+         * @throws IllegalStateException if a required property is missing
+         * @since 2.0.0
+         */
+        public SessionCompletionsGetTriggerCharactersResult build() {
+            if (triggerCharacters == null) throw new IllegalStateException("Missing required property: triggerCharacters");
+            return new SessionCompletionsGetTriggerCharactersResult(triggerCharacters);
+        }
+    }
 }

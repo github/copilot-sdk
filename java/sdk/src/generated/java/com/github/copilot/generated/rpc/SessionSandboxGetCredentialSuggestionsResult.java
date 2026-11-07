@@ -28,4 +28,52 @@ public record SessionSandboxGetCredentialSuggestionsResult(
     /** Candidates for user review. Empty when sandboxing is disabled or no unconfigured candidates are present. */
     @JsonProperty("suggestions") List<SandboxCredentialSuggestion> suggestions
 ) {
+
+    /**
+     * Creates a record positionally.
+     * @deprecated Use {@link #builder()} for named construction.
+     */
+    @Deprecated(since = "2.0.0", forRemoval = false)
+    public SessionSandboxGetCredentialSuggestionsResult {}
+
+    /**
+     * Returns a named builder.
+     * @return a new builder
+     * @since 2.0.0
+     */
+    @com.github.copilot.CopilotExperimental
+    public static Builder builder() { return new Builder(); }
+
+    /**
+     * Named construction for this record.
+     * @since 2.0.0
+     */
+    @com.github.copilot.CopilotExperimental
+    public static final class Builder {
+        private Builder() {}
+        private List<SandboxCredentialSuggestion> suggestions;
+
+        /**
+         * Sets the {@code suggestions} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        @com.github.copilot.CopilotExperimental
+        public Builder suggestions(List<SandboxCredentialSuggestion> value) {
+            this.suggestions = value;
+            return this;
+        }
+
+        /**
+         * Builds a record after checking required property presence.
+         * @return a new record
+         * @throws IllegalStateException if a required property is missing
+         * @since 2.0.0
+         */
+        public SessionSandboxGetCredentialSuggestionsResult build() {
+            if (suggestions == null) throw new IllegalStateException("Missing required property: suggestions");
+            return new SessionSandboxGetCredentialSuggestionsResult(suggestions);
+        }
+    }
 }

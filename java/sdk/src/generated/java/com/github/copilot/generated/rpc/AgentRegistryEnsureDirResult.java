@@ -26,4 +26,61 @@ record AgentRegistryEnsureDirResult(
     /** The creation failure, if any. */
     @JsonProperty("error") AgentRegistryError error
 ) {
+
+    /**
+     * Creates a record positionally.
+     * @deprecated Use {@link #builder()} for named construction.
+     */
+    @Deprecated(since = "2.0.0", forRemoval = false)
+    AgentRegistryEnsureDirResult {}
+
+    /**
+     * Returns a named builder.
+     * @return a new builder
+     * @since 2.0.0
+     */
+    public static Builder builder() { return new Builder(); }
+
+    /**
+     * Named construction for this record.
+     * @since 2.0.0
+     */
+    public static final class Builder {
+        private Builder() {}
+        private String path;
+        private AgentRegistryError error;
+
+        /**
+         * Sets the {@code path} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder path(String value) {
+            this.path = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code error} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder error(AgentRegistryError value) {
+            this.error = value;
+            return this;
+        }
+
+        /**
+         * Builds a record after checking required property presence.
+         * @return a new record
+         * @throws IllegalStateException if a required property is missing
+         * @since 2.0.0
+         */
+        public AgentRegistryEnsureDirResult build() {
+            if (path == null) throw new IllegalStateException("Missing required property: path");
+            return new AgentRegistryEnsureDirResult(path, error);
+        }
+    }
 }

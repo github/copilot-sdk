@@ -47,4 +47,186 @@ public record PolicyHelperFailure(
     /** Optional bounded untrusted secondary troubleshooting text, such as trimmed stderr. Do not use it as primary UI copy. */
     @JsonProperty("diagnostic") String diagnostic
 ) {
+
+    /**
+     * Creates a record positionally.
+     * @deprecated Use {@link #builder()} for named construction.
+     */
+    @Deprecated(since = "2.0.0", forRemoval = false)
+    public PolicyHelperFailure {}
+
+    /**
+     * Returns a named builder.
+     * @return a new builder
+     * @since 2.0.0
+     */
+    public static Builder builder() { return new Builder(); }
+
+    /**
+     * Named construction for this record.
+     * @since 2.0.0
+     */
+    public static final class Builder {
+        private Builder() {}
+        private String category;
+        private String failureMode;
+        private String severity;
+        private String reason;
+        private String authority;
+        private Boolean previousPolicyRetained;
+        private String code;
+        private String message;
+        private String remediation;
+        private PolicyHelperHelpLink helpLink;
+        private List<PolicyHelperFailureDetail> details;
+        private String diagnostic;
+
+        /**
+         * Sets the {@code category} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder category(String value) {
+            this.category = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code failureMode} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder failureMode(String value) {
+            this.failureMode = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code severity} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder severity(String value) {
+            this.severity = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code reason} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder reason(String value) {
+            this.reason = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code authority} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder authority(String value) {
+            this.authority = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code previousPolicyRetained} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder previousPolicyRetained(Boolean value) {
+            this.previousPolicyRetained = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code code} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder code(String value) {
+            this.code = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code message} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder message(String value) {
+            this.message = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code remediation} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder remediation(String value) {
+            this.remediation = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code helpLink} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder helpLink(PolicyHelperHelpLink value) {
+            this.helpLink = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code details} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder details(List<PolicyHelperFailureDetail> value) {
+            this.details = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code diagnostic} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder diagnostic(String value) {
+            this.diagnostic = value;
+            return this;
+        }
+
+        /**
+         * Builds a record after checking required property presence.
+         * @return a new record
+         * @throws IllegalStateException if a required property is missing
+         * @since 2.0.0
+         */
+        public PolicyHelperFailure build() {
+            if (category == null) throw new IllegalStateException("Missing required property: category");
+            if (failureMode == null) throw new IllegalStateException("Missing required property: failureMode");
+            if (severity == null) throw new IllegalStateException("Missing required property: severity");
+            if (reason == null) throw new IllegalStateException("Missing required property: reason");
+            if (previousPolicyRetained == null) throw new IllegalStateException("Missing required property: previousPolicyRetained");
+            if (message == null) throw new IllegalStateException("Missing required property: message");
+            return new PolicyHelperFailure(category, failureMode, severity, reason, authority, previousPolicyRetained, code, message, remediation, helpLink, details, diagnostic);
+        }
+    }
 }

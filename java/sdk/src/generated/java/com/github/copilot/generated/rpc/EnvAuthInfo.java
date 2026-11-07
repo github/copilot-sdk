@@ -62,4 +62,99 @@ public final class EnvAuthInfo extends AuthInfo {
 
     public CopilotUserResponse getCopilotUser() { return copilotUser; }
     public void setCopilotUser(CopilotUserResponse copilotUser) { this.copilotUser = copilotUser; }
+
+
+    /**
+     * Returns a named builder.
+     * @return a new builder
+     * @since 2.0.0
+     */
+    public static Builder builder() { return new Builder(); }
+
+    /**
+     * Named construction for this record.
+     * @since 2.0.0
+     */
+    public static final class Builder {
+        private Builder() {}
+        private String host;
+        private String login;
+        private String token;
+        private String envVar;
+        private CopilotUserResponse copilotUser;
+
+        /**
+         * Sets the {@code host} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder host(String value) {
+            this.host = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code login} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder login(String value) {
+            this.login = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code token} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder token(String value) {
+            this.token = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code envVar} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder envVar(String value) {
+            this.envVar = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code copilotUser} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder copilotUser(CopilotUserResponse value) {
+            this.copilotUser = value;
+            return this;
+        }
+
+        /**
+         * Builds a variant after checking required property presence.
+         * @return a new variant
+         * @throws IllegalStateException if a required property is missing
+         * @since 2.0.0
+         */
+        public EnvAuthInfo build() {
+            if (host == null) throw new IllegalStateException("Missing required property: host");
+            if (token == null) throw new IllegalStateException("Missing required property: token");
+            if (envVar == null) throw new IllegalStateException("Missing required property: envVar");
+            EnvAuthInfo instance = new EnvAuthInfo();
+            instance.setHost(host);
+            instance.setLogin(login);
+            instance.setToken(token);
+            instance.setEnvVar(envVar);
+            instance.setCopilotUser(copilotUser);
+            return instance;
+        }
+    }
 }

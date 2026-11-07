@@ -30,4 +30,84 @@ record ConnectClientInfo(
     /** Version of the Copilot extension within the host, e.g. `"0.54.0"`. Ignored unless it looks like a version string. */
     @JsonProperty("extensionVersion") String extensionVersion
 ) {
+
+    /**
+     * Creates a record positionally.
+     * @deprecated Use {@link #builder()} for named construction.
+     */
+    @Deprecated(since = "2.0.0", forRemoval = false)
+    ConnectClientInfo {}
+
+    /**
+     * Returns a named builder.
+     * @return a new builder
+     * @since 2.0.0
+     */
+    public static Builder builder() { return new Builder(); }
+
+    /**
+     * Named construction for this record.
+     * @since 2.0.0
+     */
+    public static final class Builder {
+        private Builder() {}
+        private String editorName;
+        private String editorVersion;
+        private String extensionName;
+        private String extensionVersion;
+
+        /**
+         * Sets the {@code editorName} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder editorName(String value) {
+            this.editorName = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code editorVersion} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder editorVersion(String value) {
+            this.editorVersion = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code extensionName} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder extensionName(String value) {
+            this.extensionName = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code extensionVersion} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder extensionVersion(String value) {
+            this.extensionVersion = value;
+            return this;
+        }
+
+        /**
+         * Builds a record after checking required property presence.
+         * @return a new record
+         * @throws IllegalStateException if a required property is missing
+         * @since 2.0.0
+         */
+        public ConnectClientInfo build() {
+            return new ConnectClientInfo(editorName, editorVersion, extensionName, extensionVersion);
+        }
+    }
 }

@@ -26,4 +26,62 @@ public record PluginInstallationLocation(
     /** Safe display label, for example ~/.copilot/installed-plugins/_direct/owner--repo--plugins-work-hub. */
     @JsonProperty("displayLabel") String displayLabel
 ) {
+
+    /**
+     * Creates a record positionally.
+     * @deprecated Use {@link #builder()} for named construction.
+     */
+    @Deprecated(since = "2.0.0", forRemoval = false)
+    public PluginInstallationLocation {}
+
+    /**
+     * Returns a named builder.
+     * @return a new builder
+     * @since 2.0.0
+     */
+    public static Builder builder() { return new Builder(); }
+
+    /**
+     * Named construction for this record.
+     * @since 2.0.0
+     */
+    public static final class Builder {
+        private Builder() {}
+        private String relativePath;
+        private String displayLabel;
+
+        /**
+         * Sets the {@code relativePath} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder relativePath(String value) {
+            this.relativePath = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code displayLabel} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder displayLabel(String value) {
+            this.displayLabel = value;
+            return this;
+        }
+
+        /**
+         * Builds a record after checking required property presence.
+         * @return a new record
+         * @throws IllegalStateException if a required property is missing
+         * @since 2.0.0
+         */
+        public PluginInstallationLocation build() {
+            if (relativePath == null) throw new IllegalStateException("Missing required property: relativePath");
+            if (displayLabel == null) throw new IllegalStateException("Missing required property: displayLabel");
+            return new PluginInstallationLocation(relativePath, displayLabel);
+        }
+    }
 }

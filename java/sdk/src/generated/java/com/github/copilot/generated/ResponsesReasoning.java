@@ -28,4 +28,75 @@ public record ResponsesReasoning(
     /** Effective effort selected before this message, independent of the response-level reasoning field */
     @JsonProperty("effort") String effort
 ) {
+
+    /**
+     * Creates a record positionally.
+     * @deprecated Use {@link #builder()} for named construction.
+     */
+    @Deprecated(since = "2.0.0", forRemoval = false)
+    public ResponsesReasoning {}
+
+    /**
+     * Returns a named builder.
+     * @return a new builder
+     * @since 2.0.0
+     */
+    public static Builder builder() { return new Builder(); }
+
+    /**
+     * Named construction for this record.
+     * @since 2.0.0
+     */
+    public static final class Builder {
+        private Builder() {}
+        private String model;
+        private String initialEffort;
+        private String effort;
+
+        /**
+         * Sets the {@code model} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder model(String value) {
+            this.model = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code initialEffort} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder initialEffort(String value) {
+            this.initialEffort = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code effort} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder effort(String value) {
+            this.effort = value;
+            return this;
+        }
+
+        /**
+         * Builds a record after checking required property presence.
+         * @return a new record
+         * @throws IllegalStateException if a required property is missing
+         * @since 2.0.0
+         */
+        public ResponsesReasoning build() {
+            if (model == null) throw new IllegalStateException("Missing required property: model");
+            if (initialEffort == null) throw new IllegalStateException("Missing required property: initialEffort");
+            if (effort == null) throw new IllegalStateException("Missing required property: effort");
+            return new ResponsesReasoning(model, initialEffort, effort);
+        }
+    }
 }

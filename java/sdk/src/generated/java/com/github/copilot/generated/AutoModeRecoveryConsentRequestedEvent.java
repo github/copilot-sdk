@@ -49,5 +49,125 @@ public final class AutoModeRecoveryConsentRequestedEvent extends SessionEvent {
         /** Rate-limit reset information when supplied by the provider. This is not a consent deadline. */
         @JsonProperty("retryAfterSeconds") Double retryAfterSeconds
     ) {
+
+        /**
+         * Creates a record positionally.
+         * @deprecated Use {@link #builder()} for named construction.
+         */
+        @Deprecated(since = "2.0.0", forRemoval = false)
+        public AutoModeRecoveryConsentRequestedEventData {}
+
+        /**
+         * Returns a named builder.
+         * @return a new builder
+         * @since 2.0.0
+         */
+        public static Builder builder() { return new Builder(); }
+
+        /**
+         * Named construction for this record.
+         * @since 2.0.0
+         */
+        public static final class Builder {
+            private Builder() {}
+            private String requestId;
+            private String originalModel;
+            private Boolean allowAlways;
+            private String interactionId;
+            private String originatingMessageId;
+            private String errorCode;
+            private Double retryAfterSeconds;
+
+            /**
+             * Sets the {@code requestId} property.
+             * @param value the property value
+             * @return this builder
+             * @since 2.0.0
+             */
+            public Builder requestId(String value) {
+                this.requestId = value;
+                return this;
+            }
+
+            /**
+             * Sets the {@code originalModel} property.
+             * @param value the property value
+             * @return this builder
+             * @since 2.0.0
+             */
+            public Builder originalModel(String value) {
+                this.originalModel = value;
+                return this;
+            }
+
+            /**
+             * Sets the {@code allowAlways} property.
+             * @param value the property value
+             * @return this builder
+             * @since 2.0.0
+             */
+            public Builder allowAlways(Boolean value) {
+                this.allowAlways = value;
+                return this;
+            }
+
+            /**
+             * Sets the {@code interactionId} property.
+             * @param value the property value
+             * @return this builder
+             * @since 2.0.0
+             */
+            public Builder interactionId(String value) {
+                this.interactionId = value;
+                return this;
+            }
+
+            /**
+             * Sets the {@code originatingMessageId} property.
+             * @param value the property value
+             * @return this builder
+             * @since 2.0.0
+             */
+            public Builder originatingMessageId(String value) {
+                this.originatingMessageId = value;
+                return this;
+            }
+
+            /**
+             * Sets the {@code errorCode} property.
+             * @param value the property value
+             * @return this builder
+             * @since 2.0.0
+             */
+            public Builder errorCode(String value) {
+                this.errorCode = value;
+                return this;
+            }
+
+            /**
+             * Sets the {@code retryAfterSeconds} property.
+             * @param value the property value
+             * @return this builder
+             * @since 2.0.0
+             */
+            public Builder retryAfterSeconds(Double value) {
+                this.retryAfterSeconds = value;
+                return this;
+            }
+
+            /**
+             * Builds a record after checking required property presence.
+             * @return a new record
+             * @throws IllegalStateException if a required property is missing
+             * @since 2.0.0
+             */
+            public AutoModeRecoveryConsentRequestedEventData build() {
+                if (requestId == null) throw new IllegalStateException("Missing required property: requestId");
+                if (originalModel == null) throw new IllegalStateException("Missing required property: originalModel");
+                if (allowAlways == null) throw new IllegalStateException("Missing required property: allowAlways");
+                if (errorCode == null) throw new IllegalStateException("Missing required property: errorCode");
+                return new AutoModeRecoveryConsentRequestedEventData(requestId, originalModel, allowAlways, interactionId, originatingMessageId, errorCode, retryAfterSeconds);
+            }
+        }
     }
 }

@@ -30,4 +30,84 @@ record SessionSettingsModelSnapshot(
     /** Agent service callback URL for job and progress updates. */
     @JsonProperty("callbackUrl") String callbackUrl
 ) {
+
+    /**
+     * Creates a record positionally.
+     * @deprecated Use {@link #builder()} for named construction.
+     */
+    @Deprecated(since = "2.0.0", forRemoval = false)
+    SessionSettingsModelSnapshot {}
+
+    /**
+     * Returns a named builder.
+     * @return a new builder
+     * @since 2.0.0
+     */
+    public static Builder builder() { return new Builder(); }
+
+    /**
+     * Named construction for this record.
+     * @since 2.0.0
+     */
+    public static final class Builder {
+        private Builder() {}
+        private String model;
+        private String defaultReasoningEffort;
+        private String instanceId;
+        private String callbackUrl;
+
+        /**
+         * Sets the {@code model} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder model(String value) {
+            this.model = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code defaultReasoningEffort} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder defaultReasoningEffort(String value) {
+            this.defaultReasoningEffort = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code instanceId} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder instanceId(String value) {
+            this.instanceId = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code callbackUrl} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder callbackUrl(String value) {
+            this.callbackUrl = value;
+            return this;
+        }
+
+        /**
+         * Builds a record after checking required property presence.
+         * @return a new record
+         * @throws IllegalStateException if a required property is missing
+         * @since 2.0.0
+         */
+        public SessionSettingsModelSnapshot build() {
+            return new SessionSettingsModelSnapshot(model, defaultReasoningEffort, instanceId, callbackUrl);
+        }
+    }
 }

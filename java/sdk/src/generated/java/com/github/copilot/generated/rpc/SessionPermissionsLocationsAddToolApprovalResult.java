@@ -27,4 +27,49 @@ public record SessionPermissionsLocationsAddToolApprovalResult(
     /** Whether the operation succeeded */
     @JsonProperty("success") Boolean success
 ) {
+
+    /**
+     * Creates a record positionally.
+     * @deprecated Use {@link #builder()} for named construction.
+     */
+    @Deprecated(since = "2.0.0", forRemoval = false)
+    public SessionPermissionsLocationsAddToolApprovalResult {}
+
+    /**
+     * Returns a named builder.
+     * @return a new builder
+     * @since 2.0.0
+     */
+    public static Builder builder() { return new Builder(); }
+
+    /**
+     * Named construction for this record.
+     * @since 2.0.0
+     */
+    public static final class Builder {
+        private Builder() {}
+        private Boolean success;
+
+        /**
+         * Sets the {@code success} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder success(Boolean value) {
+            this.success = value;
+            return this;
+        }
+
+        /**
+         * Builds a record after checking required property presence.
+         * @return a new record
+         * @throws IllegalStateException if a required property is missing
+         * @since 2.0.0
+         */
+        public SessionPermissionsLocationsAddToolApprovalResult build() {
+            if (success == null) throw new IllegalStateException("Missing required property: success");
+            return new SessionPermissionsLocationsAddToolApprovalResult(success);
+        }
+    }
 }

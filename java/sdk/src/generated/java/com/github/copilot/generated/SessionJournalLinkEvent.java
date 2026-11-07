@@ -41,5 +41,76 @@ public final class SessionJournalLinkEvent extends SessionEvent {
         /** Numbered predecessor filename in the same session directory. */
         @JsonProperty("previousFile") String previousFile
     ) {
+
+        /**
+         * Creates a record positionally.
+         * @deprecated Use {@link #builder()} for named construction.
+         */
+        @Deprecated(since = "2.0.0", forRemoval = false)
+        public SessionJournalLinkEventData {}
+
+        /**
+         * Returns a named builder.
+         * @return a new builder
+         * @since 2.0.0
+         */
+        public static Builder builder() { return new Builder(); }
+
+        /**
+         * Named construction for this record.
+         * @since 2.0.0
+         */
+        public static final class Builder {
+            private Builder() {}
+            private Long version;
+            private String sessionId;
+            private String previousFile;
+
+            /**
+             * Sets the {@code version} property.
+             * @param value the property value
+             * @return this builder
+             * @since 2.0.0
+             */
+            public Builder version(Long value) {
+                this.version = value;
+                return this;
+            }
+
+            /**
+             * Sets the {@code sessionId} property.
+             * @param value the property value
+             * @return this builder
+             * @since 2.0.0
+             */
+            public Builder sessionId(String value) {
+                this.sessionId = value;
+                return this;
+            }
+
+            /**
+             * Sets the {@code previousFile} property.
+             * @param value the property value
+             * @return this builder
+             * @since 2.0.0
+             */
+            public Builder previousFile(String value) {
+                this.previousFile = value;
+                return this;
+            }
+
+            /**
+             * Builds a record after checking required property presence.
+             * @return a new record
+             * @throws IllegalStateException if a required property is missing
+             * @since 2.0.0
+             */
+            public SessionJournalLinkEventData build() {
+                if (version == null) throw new IllegalStateException("Missing required property: version");
+                if (sessionId == null) throw new IllegalStateException("Missing required property: sessionId");
+                if (previousFile == null) throw new IllegalStateException("Missing required property: previousFile");
+                return new SessionJournalLinkEventData(version, sessionId, previousFile);
+            }
+        }
     }
 }

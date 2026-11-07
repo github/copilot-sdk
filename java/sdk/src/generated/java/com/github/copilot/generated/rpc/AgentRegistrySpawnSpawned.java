@@ -55,4 +55,84 @@ public final class AgentRegistrySpawnSpawned extends AgentRegistrySpawnResult {
 
     public AgentRegistryLogCapture getLogCapture() { return logCapture; }
     public void setLogCapture(AgentRegistryLogCapture logCapture) { this.logCapture = logCapture; }
+
+
+    /**
+     * Returns a named builder.
+     * @return a new builder
+     * @since 2.0.0
+     */
+    public static Builder builder() { return new Builder(); }
+
+    /**
+     * Named construction for this record.
+     * @since 2.0.0
+     */
+    public static final class Builder {
+        private Builder() {}
+        private AgentRegistryLiveTargetEntry entry;
+        private Boolean initialPromptSent;
+        private String initialPromptError;
+        private AgentRegistryLogCapture logCapture;
+
+        /**
+         * Sets the {@code entry} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder entry(AgentRegistryLiveTargetEntry value) {
+            this.entry = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code initialPromptSent} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder initialPromptSent(Boolean value) {
+            this.initialPromptSent = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code initialPromptError} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder initialPromptError(String value) {
+            this.initialPromptError = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code logCapture} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder logCapture(AgentRegistryLogCapture value) {
+            this.logCapture = value;
+            return this;
+        }
+
+        /**
+         * Builds a variant after checking required property presence.
+         * @return a new variant
+         * @throws IllegalStateException if a required property is missing
+         * @since 2.0.0
+         */
+        public AgentRegistrySpawnSpawned build() {
+            if (entry == null) throw new IllegalStateException("Missing required property: entry");
+            AgentRegistrySpawnSpawned instance = new AgentRegistrySpawnSpawned();
+            instance.setEntry(entry);
+            instance.setInitialPromptSent(initialPromptSent);
+            instance.setInitialPromptError(initialPromptError);
+            instance.setLogCapture(logCapture);
+            return instance;
+        }
+    }
 }

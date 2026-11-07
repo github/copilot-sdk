@@ -31,4 +31,84 @@ public record GitHubMcpToolConfig(
     /** Whether to request the GitHub MCP insiders build */
     @JsonProperty("enableInsidersMode") Boolean enableInsidersMode
 ) {
+
+    /**
+     * Creates a record positionally.
+     * @deprecated Use {@link #builder()} for named construction.
+     */
+    @Deprecated(since = "2.0.0", forRemoval = false)
+    public GitHubMcpToolConfig {}
+
+    /**
+     * Returns a named builder.
+     * @return a new builder
+     * @since 2.0.0
+     */
+    public static Builder builder() { return new Builder(); }
+
+    /**
+     * Named construction for this record.
+     * @since 2.0.0
+     */
+    public static final class Builder {
+        private Builder() {}
+        private Boolean enableAllTools;
+        private List<String> additionalToolsets;
+        private List<String> additionalTools;
+        private Boolean enableInsidersMode;
+
+        /**
+         * Sets the {@code enableAllTools} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder enableAllTools(Boolean value) {
+            this.enableAllTools = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code additionalToolsets} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder additionalToolsets(List<String> value) {
+            this.additionalToolsets = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code additionalTools} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder additionalTools(List<String> value) {
+            this.additionalTools = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code enableInsidersMode} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder enableInsidersMode(Boolean value) {
+            this.enableInsidersMode = value;
+            return this;
+        }
+
+        /**
+         * Builds a record after checking required property presence.
+         * @return a new record
+         * @throws IllegalStateException if a required property is missing
+         * @since 2.0.0
+         */
+        public GitHubMcpToolConfig build() {
+            return new GitHubMcpToolConfig(enableAllTools, additionalToolsets, additionalTools, enableInsidersMode);
+        }
+    }
 }

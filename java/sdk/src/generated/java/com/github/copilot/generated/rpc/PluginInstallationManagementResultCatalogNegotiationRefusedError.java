@@ -70,4 +70,115 @@ public final class PluginInstallationManagementResultCatalogNegotiationRefusedEr
 
     public String getMessage() { return message; }
     public void setMessage(String message) { this.message = message; }
+
+
+    /**
+     * Returns a named builder.
+     * @return a new builder
+     * @since 2.0.0
+     */
+    public static Builder builder() { return new Builder(); }
+
+    /**
+     * Named construction for this record.
+     * @since 2.0.0
+     */
+    public static final class Builder {
+        private Builder() {}
+        private CatalogNegotiationRefusedReason reason;
+        private Long runtimeProtocolVersion;
+        private Long minimumSupportedProtocolVersion;
+        private List<String> supportedCapabilities;
+        private List<String> unsupportedCapabilities;
+        private String message;
+
+        /**
+         * Sets the {@code reason} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder reason(CatalogNegotiationRefusedReason value) {
+            this.reason = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code runtimeProtocolVersion} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder runtimeProtocolVersion(Long value) {
+            this.runtimeProtocolVersion = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code minimumSupportedProtocolVersion} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder minimumSupportedProtocolVersion(Long value) {
+            this.minimumSupportedProtocolVersion = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code supportedCapabilities} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder supportedCapabilities(List<String> value) {
+            this.supportedCapabilities = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code unsupportedCapabilities} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder unsupportedCapabilities(List<String> value) {
+            this.unsupportedCapabilities = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code message} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder message(String value) {
+            this.message = value;
+            return this;
+        }
+
+        /**
+         * Builds a variant after checking required property presence.
+         * @return a new variant
+         * @throws IllegalStateException if a required property is missing
+         * @since 2.0.0
+         */
+        public PluginInstallationManagementResultCatalogNegotiationRefusedError build() {
+            if (reason == null) throw new IllegalStateException("Missing required property: reason");
+            if (runtimeProtocolVersion == null) throw new IllegalStateException("Missing required property: runtimeProtocolVersion");
+            if (minimumSupportedProtocolVersion == null) throw new IllegalStateException("Missing required property: minimumSupportedProtocolVersion");
+            if (supportedCapabilities == null) throw new IllegalStateException("Missing required property: supportedCapabilities");
+            if (unsupportedCapabilities == null) throw new IllegalStateException("Missing required property: unsupportedCapabilities");
+            if (message == null) throw new IllegalStateException("Missing required property: message");
+            PluginInstallationManagementResultCatalogNegotiationRefusedError instance = new PluginInstallationManagementResultCatalogNegotiationRefusedError();
+            instance.setReason(reason);
+            instance.setRuntimeProtocolVersion(runtimeProtocolVersion);
+            instance.setMinimumSupportedProtocolVersion(minimumSupportedProtocolVersion);
+            instance.setSupportedCapabilities(supportedCapabilities);
+            instance.setUnsupportedCapabilities(unsupportedCapabilities);
+            instance.setMessage(message);
+            return instance;
+        }
+    }
 }

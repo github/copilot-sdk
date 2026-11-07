@@ -32,4 +32,80 @@ record CloudTasksGetSessionReplayResult(
     /** True when the task has recorded events but the session has not started yet, so only queued work exists. A started session is anchored by either `session.start` or, for a resumed one, `session.resume`. */
     @JsonProperty("preStart") Boolean preStart
 ) {
+
+    /**
+     * Creates a record positionally.
+     * @deprecated Use {@link #builder()} for named construction.
+     */
+    @Deprecated(since = "2.0.0", forRemoval = false)
+    CloudTasksGetSessionReplayResult {}
+
+    /**
+     * Returns a named builder.
+     * @return a new builder
+     * @since 2.0.0
+     */
+    @com.github.copilot.CopilotExperimental
+    public static Builder builder() { return new Builder(); }
+
+    /**
+     * Named construction for this record.
+     * @since 2.0.0
+     */
+    @com.github.copilot.CopilotExperimental
+    public static final class Builder {
+        private Builder() {}
+        private String replayEventsJson;
+        private String observedEventsJson;
+        private Boolean preStart;
+
+        /**
+         * Sets the {@code replayEventsJson} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        @com.github.copilot.CopilotExperimental
+        public Builder replayEventsJson(String value) {
+            this.replayEventsJson = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code observedEventsJson} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        @com.github.copilot.CopilotExperimental
+        public Builder observedEventsJson(String value) {
+            this.observedEventsJson = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code preStart} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        @com.github.copilot.CopilotExperimental
+        public Builder preStart(Boolean value) {
+            this.preStart = value;
+            return this;
+        }
+
+        /**
+         * Builds a record after checking required property presence.
+         * @return a new record
+         * @throws IllegalStateException if a required property is missing
+         * @since 2.0.0
+         */
+        public CloudTasksGetSessionReplayResult build() {
+            if (replayEventsJson == null) throw new IllegalStateException("Missing required property: replayEventsJson");
+            if (observedEventsJson == null) throw new IllegalStateException("Missing required property: observedEventsJson");
+            if (preStart == null) throw new IllegalStateException("Missing required property: preStart");
+            return new CloudTasksGetSessionReplayResult(replayEventsJson, observedEventsJson, preStart);
+        }
+    }
 }

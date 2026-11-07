@@ -41,4 +41,150 @@ public record CatalogAgentPluginInstallPlan(
     /** Connectors the plugin depends on. */
     @JsonProperty("connectorDependencies") List<String> connectorDependencies
 ) {
+
+    /**
+     * Creates a record positionally.
+     * @deprecated Use {@link #builder()} for named construction.
+     */
+    @Deprecated(since = "2.0.0", forRemoval = false)
+    public CatalogAgentPluginInstallPlan {}
+
+    /**
+     * Returns a named builder.
+     * @return a new builder
+     * @since 2.0.0
+     */
+    public static Builder builder() { return new Builder(); }
+
+    /**
+     * Named construction for this record.
+     * @since 2.0.0
+     */
+    public static final class Builder {
+        private Builder() {}
+        private List<CatalogAgentPluginInstallSource> sources;
+        private String pluginName;
+        private String version;
+        private String commit;
+        private List<CatalogAgentPluginComponent> components;
+        private List<String> canvasIds;
+        private List<String> extensionIds;
+        private List<String> mcpDependencies;
+        private List<String> connectorDependencies;
+
+        /**
+         * Sets the {@code sources} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder sources(List<CatalogAgentPluginInstallSource> value) {
+            this.sources = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code pluginName} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder pluginName(String value) {
+            this.pluginName = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code version} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder version(String value) {
+            this.version = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code commit} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder commit(String value) {
+            this.commit = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code components} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder components(List<CatalogAgentPluginComponent> value) {
+            this.components = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code canvasIds} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder canvasIds(List<String> value) {
+            this.canvasIds = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code extensionIds} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder extensionIds(List<String> value) {
+            this.extensionIds = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code mcpDependencies} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder mcpDependencies(List<String> value) {
+            this.mcpDependencies = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code connectorDependencies} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder connectorDependencies(List<String> value) {
+            this.connectorDependencies = value;
+            return this;
+        }
+
+        /**
+         * Builds a record after checking required property presence.
+         * @return a new record
+         * @throws IllegalStateException if a required property is missing
+         * @since 2.0.0
+         */
+        public CatalogAgentPluginInstallPlan build() {
+            if (sources == null) throw new IllegalStateException("Missing required property: sources");
+            if (components == null) throw new IllegalStateException("Missing required property: components");
+            if (canvasIds == null) throw new IllegalStateException("Missing required property: canvasIds");
+            if (extensionIds == null) throw new IllegalStateException("Missing required property: extensionIds");
+            if (mcpDependencies == null) throw new IllegalStateException("Missing required property: mcpDependencies");
+            if (connectorDependencies == null) throw new IllegalStateException("Missing required property: connectorDependencies");
+            return new CatalogAgentPluginInstallPlan(sources, pluginName, version, commit, components, canvasIds, extensionIds, mcpDependencies, connectorDependencies);
+        }
+    }
 }

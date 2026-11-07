@@ -35,4 +35,108 @@ public record SessionManagedPermissions(
     /** Closed-world host boundary expressed as `Domain(hostname)`, `Domain(IP)`, or `Domain(*.example.com)` rules. Schemes, ports, paths, queries, and fragments are rejected because every network request must be enforceable at host-level egress. Multiple managed sources intersect their lists; an empty list denies all hosts. */
     @JsonProperty("limitTo") List<String> limitTo
 ) {
+
+    /**
+     * Creates a record positionally.
+     * @deprecated Use {@link #builder()} for named construction.
+     */
+    @Deprecated(since = "2.0.0", forRemoval = false)
+    public SessionManagedPermissions {}
+
+    /**
+     * Returns a named builder.
+     * @return a new builder
+     * @since 2.0.0
+     */
+    public static Builder builder() { return new Builder(); }
+
+    /**
+     * Named construction for this record.
+     * @since 2.0.0
+     */
+    public static final class Builder {
+        private Builder() {}
+        private String disableBypassPermissionsMode;
+        private Boolean disableAssistedPermissionsMode;
+        private List<String> deny;
+        private List<String> ask;
+        private List<String> allow;
+        private List<String> limitTo;
+
+        /**
+         * Sets the {@code disableBypassPermissionsMode} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder disableBypassPermissionsMode(String value) {
+            this.disableBypassPermissionsMode = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code disableAssistedPermissionsMode} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder disableAssistedPermissionsMode(Boolean value) {
+            this.disableAssistedPermissionsMode = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code deny} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder deny(List<String> value) {
+            this.deny = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code ask} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder ask(List<String> value) {
+            this.ask = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code allow} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder allow(List<String> value) {
+            this.allow = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code limitTo} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder limitTo(List<String> value) {
+            this.limitTo = value;
+            return this;
+        }
+
+        /**
+         * Builds a record after checking required property presence.
+         * @return a new record
+         * @throws IllegalStateException if a required property is missing
+         * @since 2.0.0
+         */
+        public SessionManagedPermissions build() {
+            return new SessionManagedPermissions(disableBypassPermissionsMode, disableAssistedPermissionsMode, deny, ask, allow, limitTo);
+        }
+    }
 }

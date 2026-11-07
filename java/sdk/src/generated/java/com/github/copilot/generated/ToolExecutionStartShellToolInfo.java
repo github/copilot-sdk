@@ -31,4 +31,75 @@ public record ToolExecutionStartShellToolInfo(
     @CopilotExperimental
     @JsonProperty("displayCommand") String displayCommand
 ) {
+
+    /**
+     * Creates a record positionally.
+     * @deprecated Use {@link #builder()} for named construction.
+     */
+    @Deprecated(since = "2.0.0", forRemoval = false)
+    public ToolExecutionStartShellToolInfo {}
+
+    /**
+     * Returns a named builder.
+     * @return a new builder
+     * @since 2.0.0
+     */
+    public static Builder builder() { return new Builder(); }
+
+    /**
+     * Named construction for this record.
+     * @since 2.0.0
+     */
+    public static final class Builder {
+        private Builder() {}
+        private List<String> possiblePaths;
+        private Boolean hasWriteFileRedirection;
+        private String displayCommand;
+
+        /**
+         * Sets the {@code possiblePaths} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder possiblePaths(List<String> value) {
+            this.possiblePaths = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code hasWriteFileRedirection} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder hasWriteFileRedirection(Boolean value) {
+            this.hasWriteFileRedirection = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code displayCommand} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        @com.github.copilot.CopilotExperimental
+        public Builder displayCommand(String value) {
+            this.displayCommand = value;
+            return this;
+        }
+
+        /**
+         * Builds a record after checking required property presence.
+         * @return a new record
+         * @throws IllegalStateException if a required property is missing
+         * @since 2.0.0
+         */
+        public ToolExecutionStartShellToolInfo build() {
+            if (possiblePaths == null) throw new IllegalStateException("Missing required property: possiblePaths");
+            if (hasWriteFileRedirection == null) throw new IllegalStateException("Missing required property: hasWriteFileRedirection");
+            return new ToolExecutionStartShellToolInfo(possiblePaths, hasWriteFileRedirection, displayCommand);
+        }
+    }
 }

@@ -29,4 +29,73 @@ public record UIElicitationResponse(
     /** MCP response metadata. */
     @JsonProperty("_meta") Map<String, Object> meta
 ) {
+
+    /**
+     * Creates a record positionally.
+     * @deprecated Use {@link #builder()} for named construction.
+     */
+    @Deprecated(since = "2.0.0", forRemoval = false)
+    public UIElicitationResponse {}
+
+    /**
+     * Returns a named builder.
+     * @return a new builder
+     * @since 2.0.0
+     */
+    public static Builder builder() { return new Builder(); }
+
+    /**
+     * Named construction for this record.
+     * @since 2.0.0
+     */
+    public static final class Builder {
+        private Builder() {}
+        private UIElicitationResponseAction action;
+        private Map<String, Object> content;
+        private Map<String, Object> meta;
+
+        /**
+         * Sets the {@code action} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder action(UIElicitationResponseAction value) {
+            this.action = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code content} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder content(Map<String, Object> value) {
+            this.content = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code _meta} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder meta(Map<String, Object> value) {
+            this.meta = value;
+            return this;
+        }
+
+        /**
+         * Builds a record after checking required property presence.
+         * @return a new record
+         * @throws IllegalStateException if a required property is missing
+         * @since 2.0.0
+         */
+        public UIElicitationResponse build() {
+            if (action == null) throw new IllegalStateException("Missing required property: action");
+            return new UIElicitationResponse(action, content, meta);
+        }
+    }
 }

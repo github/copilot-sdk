@@ -56,5 +56,228 @@ public record SessionSendMessagesParams(
         /** Output format discriminator. Currently only json_schema is supported. */
         @JsonProperty("type") String type
     ) {
+
+        /**
+         * Creates a record positionally.
+         * @deprecated Use {@link #builder()} for named construction.
+         */
+        @Deprecated(since = "2.0.0", forRemoval = false)
+        public SessionSendMessagesParamsResponseFormat {}
+
+        /**
+         * Returns a named builder.
+         * @return a new builder
+         * @since 2.0.0
+         */
+        public static Builder builder() { return new Builder(); }
+
+        /**
+         * Named construction for this record.
+         * @since 2.0.0
+         */
+        public static final class Builder {
+            private Builder() {}
+            private JsonSchemaResponseFormat jsonSchema;
+            private String type;
+
+            /**
+             * Sets the {@code jsonSchema} property.
+             * @param value the property value
+             * @return this builder
+             * @since 2.0.0
+             */
+            public Builder jsonSchema(JsonSchemaResponseFormat value) {
+                this.jsonSchema = value;
+                return this;
+            }
+
+            /**
+             * Sets the {@code type} property.
+             * @param value the property value
+             * @return this builder
+             * @since 2.0.0
+             */
+            public Builder type(String value) {
+                this.type = value;
+                return this;
+            }
+
+            /**
+             * Builds a record after checking required property presence.
+             * @return a new record
+             * @throws IllegalStateException if a required property is missing
+             * @since 2.0.0
+             */
+            public SessionSendMessagesParamsResponseFormat build() {
+                if (jsonSchema == null) throw new IllegalStateException("Missing required property: jsonSchema");
+                if (type == null) throw new IllegalStateException("Missing required property: type");
+                return new SessionSendMessagesParamsResponseFormat(jsonSchema, type);
+            }
+        }
+    }
+
+    /**
+     * Creates a record positionally.
+     * @deprecated Use {@link #builder()} for named construction.
+     */
+    @Deprecated(since = "2.0.0", forRemoval = false)
+    public SessionSendMessagesParams {}
+
+    /**
+     * Returns a named builder.
+     * @return a new builder
+     * @since 2.0.0
+     */
+    @com.github.copilot.CopilotExperimental
+    public static Builder builder() { return new Builder(); }
+
+    /**
+     * Named construction for this record.
+     * @since 2.0.0
+     */
+    @com.github.copilot.CopilotExperimental
+    public static final class Builder {
+        private Builder() {}
+        private String sessionId;
+        private List<SendMessageItem> messages;
+        private SendMode mode;
+        private Boolean prepend;
+        private SendAgentMode agentMode;
+        private Map<String, String> requestHeaders;
+        private SessionSendMessagesParamsResponseFormat responseFormat;
+        private String traceparent;
+        private String tracestate;
+        private Boolean wait_;
+
+        /**
+         * Sets the {@code sessionId} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        @com.github.copilot.CopilotExperimental
+        public Builder sessionId(String value) {
+            this.sessionId = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code messages} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        @com.github.copilot.CopilotExperimental
+        public Builder messages(List<SendMessageItem> value) {
+            this.messages = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code mode} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        @com.github.copilot.CopilotExperimental
+        public Builder mode(SendMode value) {
+            this.mode = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code prepend} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        @com.github.copilot.CopilotExperimental
+        public Builder prepend(Boolean value) {
+            this.prepend = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code agentMode} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        @com.github.copilot.CopilotExperimental
+        public Builder agentMode(SendAgentMode value) {
+            this.agentMode = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code requestHeaders} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        @com.github.copilot.CopilotExperimental
+        public Builder requestHeaders(Map<String, String> value) {
+            this.requestHeaders = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code responseFormat} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        @com.github.copilot.CopilotExperimental
+        public Builder responseFormat(SessionSendMessagesParamsResponseFormat value) {
+            this.responseFormat = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code traceparent} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        @com.github.copilot.CopilotExperimental
+        public Builder traceparent(String value) {
+            this.traceparent = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code tracestate} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        @com.github.copilot.CopilotExperimental
+        public Builder tracestate(String value) {
+            this.tracestate = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code wait} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        @com.github.copilot.CopilotExperimental
+        public Builder wait_(Boolean value) {
+            this.wait_ = value;
+            return this;
+        }
+
+        /**
+         * Builds a record after checking required property presence.
+         * @return a new record
+         * @throws IllegalStateException if a required property is missing
+         * @since 2.0.0
+         */
+        public SessionSendMessagesParams build() {
+            if (messages == null) throw new IllegalStateException("Missing required property: messages");
+            return new SessionSendMessagesParams(sessionId, messages, mode, prepend, agentMode, requestHeaders, responseFormat, traceparent, tracestate, wait_);
+        }
     }
 }

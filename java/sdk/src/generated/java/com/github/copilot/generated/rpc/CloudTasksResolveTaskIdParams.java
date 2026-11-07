@@ -45,4 +45,163 @@ record CloudTasksResolveTaskIdParams(
     /** Local session identifiers the caller has already rejected, so resolution skips them and returns the next candidate. Pass the identifiers accumulated across earlier calls, not only the last one. */
     @JsonProperty("ignoredLocalSessionIds") List<String> ignoredLocalSessionIds
 ) {
+
+    /**
+     * Creates a record positionally.
+     * @deprecated Use {@link #builder()} for named construction.
+     */
+    @Deprecated(since = "2.0.0", forRemoval = false)
+    CloudTasksResolveTaskIdParams {}
+
+    /**
+     * Returns a named builder.
+     * @return a new builder
+     * @since 2.0.0
+     */
+    @com.github.copilot.CopilotExperimental
+    public static Builder builder() { return new Builder(); }
+
+    /**
+     * Named construction for this record.
+     * @since 2.0.0
+     */
+    @com.github.copilot.CopilotExperimental
+    public static final class Builder {
+        private Builder() {}
+        private String taskId;
+        private Object authInfo;
+        private boolean $presence1;
+        private String authContextId;
+        private String integrationId;
+        private String debugGitHubApiUrl;
+        private String sessionsHome;
+        private Boolean allowEmptyCliTask;
+        private Boolean hasRemoteSessionManager;
+        private List<String> ignoredLocalSessionIds;
+
+        /**
+         * Sets the {@code taskId} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        @com.github.copilot.CopilotExperimental
+        public Builder taskId(String value) {
+            this.taskId = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code authInfo} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        @com.github.copilot.CopilotExperimental
+        public Builder authInfo(Object value) {
+            this.authInfo = value;
+            this.$presence1 = true;
+            return this;
+        }
+
+        /**
+         * Sets the {@code authContextId} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        @com.github.copilot.CopilotExperimental
+        public Builder authContextId(String value) {
+            this.authContextId = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code integrationId} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        @com.github.copilot.CopilotExperimental
+        public Builder integrationId(String value) {
+            this.integrationId = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code debugGithubApiUrl} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        @com.github.copilot.CopilotExperimental
+        public Builder debugGitHubApiUrl(String value) {
+            this.debugGitHubApiUrl = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code sessionsHome} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        @com.github.copilot.CopilotExperimental
+        public Builder sessionsHome(String value) {
+            this.sessionsHome = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code allowEmptyCliTask} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        @com.github.copilot.CopilotExperimental
+        public Builder allowEmptyCliTask(Boolean value) {
+            this.allowEmptyCliTask = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code hasRemoteSessionManager} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        @com.github.copilot.CopilotExperimental
+        public Builder hasRemoteSessionManager(Boolean value) {
+            this.hasRemoteSessionManager = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code ignoredLocalSessionIds} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        @com.github.copilot.CopilotExperimental
+        public Builder ignoredLocalSessionIds(List<String> value) {
+            this.ignoredLocalSessionIds = value;
+            return this;
+        }
+
+        /**
+         * Builds a record after checking required property presence.
+         * @return a new record
+         * @throws IllegalStateException if a required property is missing
+         * @since 2.0.0
+         */
+        public CloudTasksResolveTaskIdParams build() {
+            if (taskId == null) throw new IllegalStateException("Missing required property: taskId");
+            if (!$presence1) throw new IllegalStateException("Missing required property: authInfo");
+            if (integrationId == null) throw new IllegalStateException("Missing required property: integrationId");
+            if (allowEmptyCliTask == null) throw new IllegalStateException("Missing required property: allowEmptyCliTask");
+            if (hasRemoteSessionManager == null) throw new IllegalStateException("Missing required property: hasRemoteSessionManager");
+            if (ignoredLocalSessionIds == null) throw new IllegalStateException("Missing required property: ignoredLocalSessionIds");
+            return new CloudTasksResolveTaskIdParams(taskId, authInfo, authContextId, integrationId, debugGitHubApiUrl, sessionsHome, allowEmptyCliTask, hasRemoteSessionManager, ignoredLocalSessionIds);
+        }
+    }
 }

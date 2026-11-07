@@ -32,4 +32,79 @@ public record GitHubTelemetryNotification(
     /** The telemetry event, in the runtime's native GitHub-shaped telemetry format. */
     @JsonProperty("event") GitHubTelemetryEvent event
 ) {
+
+    /**
+     * Creates a record positionally.
+     * @deprecated Use {@link #builder()} for named construction.
+     */
+    @Deprecated(since = "2.0.0", forRemoval = false)
+    public GitHubTelemetryNotification {}
+
+    /**
+     * Returns a named builder.
+     * @return a new builder
+     * @since 2.0.0
+     */
+    @com.github.copilot.CopilotExperimental
+    public static Builder builder() { return new Builder(); }
+
+    /**
+     * Named construction for this record.
+     * @since 2.0.0
+     */
+    @com.github.copilot.CopilotExperimental
+    public static final class Builder {
+        private Builder() {}
+        private String sessionId;
+        private Boolean restricted;
+        private GitHubTelemetryEvent event;
+
+        /**
+         * Sets the {@code sessionId} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        @com.github.copilot.CopilotExperimental
+        public Builder sessionId(String value) {
+            this.sessionId = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code restricted} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        @com.github.copilot.CopilotExperimental
+        public Builder restricted(Boolean value) {
+            this.restricted = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code event} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        @com.github.copilot.CopilotExperimental
+        public Builder event(GitHubTelemetryEvent value) {
+            this.event = value;
+            return this;
+        }
+
+        /**
+         * Builds a record after checking required property presence.
+         * @return a new record
+         * @throws IllegalStateException if a required property is missing
+         * @since 2.0.0
+         */
+        public GitHubTelemetryNotification build() {
+            if (restricted == null) throw new IllegalStateException("Missing required property: restricted");
+            if (event == null) throw new IllegalStateException("Missing required property: event");
+            return new GitHubTelemetryNotification(sessionId, restricted, event);
+        }
+    }
 }

@@ -29,4 +29,73 @@ public record CompactionCompleteCompactionTokensUsedCopilotUsage(
     /** Total cost in nano-AI units for this request */
     @JsonProperty("totalNanoAiu") Double totalNanoAiu
 ) {
+
+    /**
+     * Creates a record positionally.
+     * @deprecated Use {@link #builder()} for named construction.
+     */
+    @Deprecated(since = "2.0.0", forRemoval = false)
+    public CompactionCompleteCompactionTokensUsedCopilotUsage {}
+
+    /**
+     * Returns a named builder.
+     * @return a new builder
+     * @since 2.0.0
+     */
+    public static Builder builder() { return new Builder(); }
+
+    /**
+     * Named construction for this record.
+     * @since 2.0.0
+     */
+    public static final class Builder {
+        private Builder() {}
+        private String model;
+        private List<CompactionCompleteCompactionTokensUsedCopilotUsageTokenDetail> tokenDetails;
+        private Double totalNanoAiu;
+
+        /**
+         * Sets the {@code model} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder model(String value) {
+            this.model = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code tokenDetails} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder tokenDetails(List<CompactionCompleteCompactionTokensUsedCopilotUsageTokenDetail> value) {
+            this.tokenDetails = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code totalNanoAiu} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder totalNanoAiu(Double value) {
+            this.totalNanoAiu = value;
+            return this;
+        }
+
+        /**
+         * Builds a record after checking required property presence.
+         * @return a new record
+         * @throws IllegalStateException if a required property is missing
+         * @since 2.0.0
+         */
+        public CompactionCompleteCompactionTokensUsedCopilotUsage build() {
+            if (totalNanoAiu == null) throw new IllegalStateException("Missing required property: totalNanoAiu");
+            return new CompactionCompleteCompactionTokensUsedCopilotUsage(model, tokenDetails, totalNanoAiu);
+        }
+    }
 }

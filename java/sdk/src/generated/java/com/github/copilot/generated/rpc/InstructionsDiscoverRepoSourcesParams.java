@@ -38,4 +38,109 @@ record InstructionsDiscoverRepoSourcesParams(
     /** When true, also discover instruction files nested below the location. */
     @JsonProperty("enableChildInstructions") Boolean enableChildInstructions
 ) {
+
+    /**
+     * Creates a record positionally.
+     * @deprecated Use {@link #builder()} for named construction.
+     */
+    @Deprecated(since = "2.0.0", forRemoval = false)
+    InstructionsDiscoverRepoSourcesParams {}
+
+    /**
+     * Returns a named builder.
+     * @return a new builder
+     * @since 2.0.0
+     */
+    public static Builder builder() { return new Builder(); }
+
+    /**
+     * Named construction for this record.
+     * @since 2.0.0
+     */
+    public static final class Builder {
+        private Builder() {}
+        private String location;
+        private Boolean isCli;
+        private String cwdPath;
+        private String configDir;
+        private List<String> additionalDirs;
+        private Boolean enableChildInstructions;
+
+        /**
+         * Sets the {@code location} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder location(String value) {
+            this.location = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code isCli} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder isCli(Boolean value) {
+            this.isCli = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code cwdPath} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder cwdPath(String value) {
+            this.cwdPath = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code configDir} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder configDir(String value) {
+            this.configDir = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code additionalDirs} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder additionalDirs(List<String> value) {
+            this.additionalDirs = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code enableChildInstructions} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder enableChildInstructions(Boolean value) {
+            this.enableChildInstructions = value;
+            return this;
+        }
+
+        /**
+         * Builds a record after checking required property presence.
+         * @return a new record
+         * @throws IllegalStateException if a required property is missing
+         * @since 2.0.0
+         */
+        public InstructionsDiscoverRepoSourcesParams build() {
+            if (location == null) throw new IllegalStateException("Missing required property: location");
+            return new InstructionsDiscoverRepoSourcesParams(location, isCli, cwdPath, configDir, additionalDirs, enableChildInstructions);
+        }
+    }
 }

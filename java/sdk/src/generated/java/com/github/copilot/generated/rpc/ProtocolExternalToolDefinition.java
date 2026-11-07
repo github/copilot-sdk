@@ -50,4 +50,170 @@ are presented to the model as one group; elsewhere the tool stays flat. The
 tool's `name` remains its unique invocation name either way. */
     @JsonProperty("namespace") ProtocolExternalToolNamespace namespace
 ) {
+
+    /**
+     * Creates a record positionally.
+     * @deprecated Use {@link #builder()} for named construction.
+     */
+    @Deprecated(since = "2.0.0", forRemoval = false)
+    public ProtocolExternalToolDefinition {}
+
+    /**
+     * Returns a named builder.
+     * @return a new builder
+     * @since 2.0.0
+     */
+    @com.github.copilot.CopilotExperimental
+    public static Builder builder() { return new Builder(); }
+
+    /**
+     * Named construction for this record.
+     * @since 2.0.0
+     */
+    @com.github.copilot.CopilotExperimental
+    public static final class Builder {
+        private Builder() {}
+        private String name;
+        private String description;
+        private String title;
+        private Map<String, Object> parameters;
+        private Boolean overridesBuiltInTool;
+        private Boolean skipPermission;
+        private ProtocolExternalToolDefer defer;
+        private Boolean isTerminal;
+        private Map<String, Object> metadata;
+        private ProtocolExternalToolNamespace namespace;
+
+        /**
+         * Sets the {@code name} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        @com.github.copilot.CopilotExperimental
+        public Builder name(String value) {
+            this.name = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code description} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        @com.github.copilot.CopilotExperimental
+        public Builder description(String value) {
+            this.description = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code title} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        @com.github.copilot.CopilotExperimental
+        public Builder title(String value) {
+            this.title = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code parameters} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        @com.github.copilot.CopilotExperimental
+        public Builder parameters(Map<String, Object> value) {
+            this.parameters = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code overridesBuiltInTool} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        @com.github.copilot.CopilotExperimental
+        public Builder overridesBuiltInTool(Boolean value) {
+            this.overridesBuiltInTool = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code skipPermission} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        @com.github.copilot.CopilotExperimental
+        public Builder skipPermission(Boolean value) {
+            this.skipPermission = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code defer} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        @com.github.copilot.CopilotExperimental
+        public Builder defer(ProtocolExternalToolDefer value) {
+            this.defer = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code isTerminal} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        @com.github.copilot.CopilotExperimental
+        public Builder isTerminal(Boolean value) {
+            this.isTerminal = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code metadata} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        @com.github.copilot.CopilotExperimental
+        public Builder metadata(Map<String, Object> value) {
+            this.metadata = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code namespace} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        @com.github.copilot.CopilotExperimental
+        public Builder namespace(ProtocolExternalToolNamespace value) {
+            this.namespace = value;
+            return this;
+        }
+
+        /**
+         * Builds a record after checking required property presence.
+         * @return a new record
+         * @throws IllegalStateException if a required property is missing
+         * @since 2.0.0
+         */
+        public ProtocolExternalToolDefinition build() {
+            if (name == null) throw new IllegalStateException("Missing required property: name");
+            if (description == null) throw new IllegalStateException("Missing required property: description");
+            return new ProtocolExternalToolDefinition(name, description, title, parameters, overridesBuiltInTool, skipPermission, defer, isTerminal, metadata, namespace);
+        }
+    }
 }

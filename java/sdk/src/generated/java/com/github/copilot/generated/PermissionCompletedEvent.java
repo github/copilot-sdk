@@ -49,5 +49,112 @@ public final class PermissionCompletedEvent extends SessionEvent {
         @CopilotExperimental
         @JsonProperty("decisionSource") PermissionDecisionSource decisionSource
     ) {
+
+        /**
+         * Creates a record positionally.
+         * @deprecated Use {@link #builder()} for named construction.
+         */
+        @Deprecated(since = "2.0.0", forRemoval = false)
+        public PermissionCompletedEventData {}
+
+        /**
+         * Returns a named builder.
+         * @return a new builder
+         * @since 2.0.0
+         */
+        public static Builder builder() { return new Builder(); }
+
+        /**
+         * Named construction for this record.
+         * @since 2.0.0
+         */
+        public static final class Builder {
+            private Builder() {}
+            private String requestId;
+            private String toolCallId;
+            private String recoveryEpisodeId;
+            private TaskBlocker blocker;
+            private Object result;
+            private PermissionDecisionSource decisionSource;
+
+            /**
+             * Sets the {@code requestId} property.
+             * @param value the property value
+             * @return this builder
+             * @since 2.0.0
+             */
+            public Builder requestId(String value) {
+                this.requestId = value;
+                return this;
+            }
+
+            /**
+             * Sets the {@code toolCallId} property.
+             * @param value the property value
+             * @return this builder
+             * @since 2.0.0
+             */
+            public Builder toolCallId(String value) {
+                this.toolCallId = value;
+                return this;
+            }
+
+            /**
+             * Sets the {@code recoveryEpisodeId} property.
+             * @param value the property value
+             * @return this builder
+             * @since 2.0.0
+             */
+            public Builder recoveryEpisodeId(String value) {
+                this.recoveryEpisodeId = value;
+                return this;
+            }
+
+            /**
+             * Sets the {@code blocker} property.
+             * @param value the property value
+             * @return this builder
+             * @since 2.0.0
+             */
+            public Builder blocker(TaskBlocker value) {
+                this.blocker = value;
+                return this;
+            }
+
+            /**
+             * Sets the {@code result} property.
+             * @param value the property value
+             * @return this builder
+             * @since 2.0.0
+             */
+            public Builder result(Object value) {
+                this.result = value;
+                return this;
+            }
+
+            /**
+             * Sets the {@code decisionSource} property.
+             * @param value the property value
+             * @return this builder
+             * @since 2.0.0
+             */
+            @com.github.copilot.CopilotExperimental
+            public Builder decisionSource(PermissionDecisionSource value) {
+                this.decisionSource = value;
+                return this;
+            }
+
+            /**
+             * Builds a record after checking required property presence.
+             * @return a new record
+             * @throws IllegalStateException if a required property is missing
+             * @since 2.0.0
+             */
+            public PermissionCompletedEventData build() {
+                if (requestId == null) throw new IllegalStateException("Missing required property: requestId");
+                if (result == null) throw new IllegalStateException("Missing required property: result");
+                return new PermissionCompletedEventData(requestId, toolCallId, recoveryEpisodeId, blocker, result, decisionSource);
+            }
+        }
     }
 }

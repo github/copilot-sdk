@@ -33,4 +33,87 @@ public record ShutdownModelMetric(
     /** Token count details per type */
     @JsonProperty("tokenDetails") Map<String, ShutdownModelMetricTokenDetail> tokenDetails
 ) {
+
+    /**
+     * Creates a record positionally.
+     * @deprecated Use {@link #builder()} for named construction.
+     */
+    @Deprecated(since = "2.0.0", forRemoval = false)
+    public ShutdownModelMetric {}
+
+    /**
+     * Returns a named builder.
+     * @return a new builder
+     * @since 2.0.0
+     */
+    public static Builder builder() { return new Builder(); }
+
+    /**
+     * Named construction for this record.
+     * @since 2.0.0
+     */
+    public static final class Builder {
+        private Builder() {}
+        private ShutdownModelMetricRequests requests;
+        private ShutdownModelMetricUsage usage;
+        private Double totalNanoAiu;
+        private Map<String, ShutdownModelMetricTokenDetail> tokenDetails;
+
+        /**
+         * Sets the {@code requests} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder requests(ShutdownModelMetricRequests value) {
+            this.requests = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code usage} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder usage(ShutdownModelMetricUsage value) {
+            this.usage = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code totalNanoAiu} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        @com.github.copilot.CopilotExperimental
+        public Builder totalNanoAiu(Double value) {
+            this.totalNanoAiu = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code tokenDetails} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder tokenDetails(Map<String, ShutdownModelMetricTokenDetail> value) {
+            this.tokenDetails = value;
+            return this;
+        }
+
+        /**
+         * Builds a record after checking required property presence.
+         * @return a new record
+         * @throws IllegalStateException if a required property is missing
+         * @since 2.0.0
+         */
+        public ShutdownModelMetric build() {
+            if (requests == null) throw new IllegalStateException("Missing required property: requests");
+            if (usage == null) throw new IllegalStateException("Missing required property: usage");
+            return new ShutdownModelMetric(requests, usage, totalNanoAiu, tokenDetails);
+        }
+    }
 }

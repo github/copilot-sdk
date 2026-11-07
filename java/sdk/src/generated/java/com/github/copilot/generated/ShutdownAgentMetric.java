@@ -33,4 +33,99 @@ public record ShutdownAgentMetric(
     /** Per-model usage for this agent, keyed by model identifier */
     @JsonProperty("modelMetrics") Map<String, ShutdownModelMetric> modelMetrics
 ) {
+
+    /**
+     * Creates a record positionally.
+     * @deprecated Use {@link #builder()} for named construction.
+     */
+    @Deprecated(since = "2.0.0", forRemoval = false)
+    public ShutdownAgentMetric {}
+
+    /**
+     * Returns a named builder.
+     * @return a new builder
+     * @since 2.0.0
+     */
+    public static Builder builder() { return new Builder(); }
+
+    /**
+     * Named construction for this record.
+     * @since 2.0.0
+     */
+    public static final class Builder {
+        private Builder() {}
+        private String agentName;
+        private String agentDisplayName;
+        private Long totalApiDurationMs;
+        private Double totalNanoAiu;
+        private Map<String, ShutdownModelMetric> modelMetrics;
+
+        /**
+         * Sets the {@code agentName} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder agentName(String value) {
+            this.agentName = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code agentDisplayName} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder agentDisplayName(String value) {
+            this.agentDisplayName = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code totalApiDurationMs} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder totalApiDurationMs(Long value) {
+            this.totalApiDurationMs = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code totalNanoAiu} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder totalNanoAiu(Double value) {
+            this.totalNanoAiu = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code modelMetrics} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder modelMetrics(Map<String, ShutdownModelMetric> value) {
+            this.modelMetrics = value;
+            return this;
+        }
+
+        /**
+         * Builds a record after checking required property presence.
+         * @return a new record
+         * @throws IllegalStateException if a required property is missing
+         * @since 2.0.0
+         */
+        public ShutdownAgentMetric build() {
+            if (totalApiDurationMs == null) throw new IllegalStateException("Missing required property: totalApiDurationMs");
+            if (totalNanoAiu == null) throw new IllegalStateException("Missing required property: totalNanoAiu");
+            if (modelMetrics == null) throw new IllegalStateException("Missing required property: modelMetrics");
+            return new ShutdownAgentMetric(agentName, agentDisplayName, totalApiDurationMs, totalNanoAiu, modelMetrics);
+        }
+    }
 }

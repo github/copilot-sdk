@@ -27,4 +27,62 @@ public record CatalogClientContract(
     /** Wire features the caller requires the runtime to understand. Identifiers are bounded but extensible so a newer caller can negotiate with an older runtime. Requiring an unknown feature yields a typed refusal listing what is understood, never a partial grant. A grant does not promise that a deployment has enabled the operation; typed unavailable results report that separately. */
     @JsonProperty("requiredCapabilities") List<String> requiredCapabilities
 ) {
+
+    /**
+     * Creates a record positionally.
+     * @deprecated Use {@link #builder()} for named construction.
+     */
+    @Deprecated(since = "2.0.0", forRemoval = false)
+    public CatalogClientContract {}
+
+    /**
+     * Returns a named builder.
+     * @return a new builder
+     * @since 2.0.0
+     */
+    public static Builder builder() { return new Builder(); }
+
+    /**
+     * Named construction for this record.
+     * @since 2.0.0
+     */
+    public static final class Builder {
+        private Builder() {}
+        private Long protocolVersion;
+        private List<String> requiredCapabilities;
+
+        /**
+         * Sets the {@code protocolVersion} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder protocolVersion(Long value) {
+            this.protocolVersion = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code requiredCapabilities} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder requiredCapabilities(List<String> value) {
+            this.requiredCapabilities = value;
+            return this;
+        }
+
+        /**
+         * Builds a record after checking required property presence.
+         * @return a new record
+         * @throws IllegalStateException if a required property is missing
+         * @since 2.0.0
+         */
+        public CatalogClientContract build() {
+            if (protocolVersion == null) throw new IllegalStateException("Missing required property: protocolVersion");
+            if (requiredCapabilities == null) throw new IllegalStateException("Missing required property: requiredCapabilities");
+            return new CatalogClientContract(protocolVersion, requiredCapabilities);
+        }
+    }
 }

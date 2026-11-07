@@ -48,4 +48,71 @@ public final class SlashCommandInvocationResultSetPlanModel extends SlashCommand
 
     public Boolean getRuntimeSettingsChanged() { return runtimeSettingsChanged; }
     public void setRuntimeSettingsChanged(Boolean runtimeSettingsChanged) { this.runtimeSettingsChanged = runtimeSettingsChanged; }
+
+
+    /**
+     * Returns a named builder.
+     * @return a new builder
+     * @since 2.0.0
+     */
+    public static Builder builder() { return new Builder(); }
+
+    /**
+     * Named construction for this record.
+     * @since 2.0.0
+     */
+    public static final class Builder {
+        private Builder() {}
+        private String planModel;
+        private String message;
+        private Boolean runtimeSettingsChanged;
+
+        /**
+         * Sets the {@code planModel} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder planModel(String value) {
+            this.planModel = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code message} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder message(String value) {
+            this.message = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code runtimeSettingsChanged} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder runtimeSettingsChanged(Boolean value) {
+            this.runtimeSettingsChanged = value;
+            return this;
+        }
+
+        /**
+         * Builds a variant after checking required property presence.
+         * @return a new variant
+         * @throws IllegalStateException if a required property is missing
+         * @since 2.0.0
+         */
+        public SlashCommandInvocationResultSetPlanModel build() {
+            if (message == null) throw new IllegalStateException("Missing required property: message");
+            SlashCommandInvocationResultSetPlanModel instance = new SlashCommandInvocationResultSetPlanModel();
+            instance.setPlanModel(planModel);
+            instance.setMessage(message);
+            instance.setRuntimeSettingsChanged(runtimeSettingsChanged);
+            return instance;
+        }
+    }
 }

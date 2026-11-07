@@ -30,4 +30,67 @@ public record ManagedSettingsValidateParams(
     /** Channel the document is meant for (`device`, `server`, or `policyHelper`). Some keys are only honored in some channels; for example, a `policyHelper` registration is ignored in policy-helper output. When omitted, no channel-specific checks run. */
     @JsonProperty("layer") String layer
 ) {
+
+    /**
+     * Creates a record positionally.
+     * @deprecated Use {@link #builder()} for named construction.
+     */
+    @Deprecated(since = "2.0.0", forRemoval = false)
+    public ManagedSettingsValidateParams {}
+
+    /**
+     * Returns a named builder.
+     * @return a new builder
+     * @since 2.0.0
+     */
+    @com.github.copilot.CopilotExperimental
+    public static Builder builder() { return new Builder(); }
+
+    /**
+     * Named construction for this record.
+     * @since 2.0.0
+     */
+    @com.github.copilot.CopilotExperimental
+    public static final class Builder {
+        private Builder() {}
+        private Object content;
+        private boolean $presence0;
+        private String layer;
+
+        /**
+         * Sets the {@code content} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        @com.github.copilot.CopilotExperimental
+        public Builder content(Object value) {
+            this.content = value;
+            this.$presence0 = true;
+            return this;
+        }
+
+        /**
+         * Sets the {@code layer} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        @com.github.copilot.CopilotExperimental
+        public Builder layer(String value) {
+            this.layer = value;
+            return this;
+        }
+
+        /**
+         * Builds a record after checking required property presence.
+         * @return a new record
+         * @throws IllegalStateException if a required property is missing
+         * @since 2.0.0
+         */
+        public ManagedSettingsValidateParams build() {
+            if (!$presence0) throw new IllegalStateException("Missing required property: content");
+            return new ManagedSettingsValidateParams(content, layer);
+        }
+    }
 }

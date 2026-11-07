@@ -34,4 +34,86 @@ public record SessionQueuePendingItemsResult(
     /** ID of the running turn's user message while the model has not answered it, so `withdrawMessage` can still take it back once nothing sent after it is pending. A message leaves `items` when its turn starts, before its `user.message` is recorded; this tells that message apart from one that was removed. Absent when no turn prompt can be taken back. */
     @JsonProperty("withdrawableTurnMessageId") String withdrawableTurnMessageId
 ) {
+
+    /**
+     * Creates a record positionally.
+     * @deprecated Use {@link #builder()} for named construction.
+     */
+    @Deprecated(since = "2.0.0", forRemoval = false)
+    public SessionQueuePendingItemsResult {}
+
+    /**
+     * Returns a named builder.
+     * @return a new builder
+     * @since 2.0.0
+     */
+    public static Builder builder() { return new Builder(); }
+
+    /**
+     * Named construction for this record.
+     * @since 2.0.0
+     */
+    public static final class Builder {
+        private Builder() {}
+        private List<QueuePendingItems> items;
+        private List<String> steeringMessages;
+        private Long inFlightSteeringCount;
+        private String withdrawableTurnMessageId;
+
+        /**
+         * Sets the {@code items} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder items(List<QueuePendingItems> value) {
+            this.items = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code steeringMessages} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder steeringMessages(List<String> value) {
+            this.steeringMessages = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code inFlightSteeringCount} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder inFlightSteeringCount(Long value) {
+            this.inFlightSteeringCount = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code withdrawableTurnMessageId} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder withdrawableTurnMessageId(String value) {
+            this.withdrawableTurnMessageId = value;
+            return this;
+        }
+
+        /**
+         * Builds a record after checking required property presence.
+         * @return a new record
+         * @throws IllegalStateException if a required property is missing
+         * @since 2.0.0
+         */
+        public SessionQueuePendingItemsResult build() {
+            if (items == null) throw new IllegalStateException("Missing required property: items");
+            if (steeringMessages == null) throw new IllegalStateException("Missing required property: steeringMessages");
+            return new SessionQueuePendingItemsResult(items, steeringMessages, inFlightSteeringCount, withdrawableTurnMessageId);
+        }
+    }
 }

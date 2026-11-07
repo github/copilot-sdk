@@ -30,4 +30,61 @@ public record SkillsDiscoverResult(
     /** Messages for skills that failed to load (e.g. malformed SKILL.md). Empty when host skills are excluded so host-local paths are not disclosed to multitenant callers. */
     @JsonProperty("errors") List<String> errors
 ) {
+
+    /**
+     * Creates a record positionally.
+     * @deprecated Use {@link #builder()} for named construction.
+     */
+    @Deprecated(since = "2.0.0", forRemoval = false)
+    public SkillsDiscoverResult {}
+
+    /**
+     * Returns a named builder.
+     * @return a new builder
+     * @since 2.0.0
+     */
+    public static Builder builder() { return new Builder(); }
+
+    /**
+     * Named construction for this record.
+     * @since 2.0.0
+     */
+    public static final class Builder {
+        private Builder() {}
+        private List<ServerSkill> skills;
+        private List<String> errors;
+
+        /**
+         * Sets the {@code skills} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder skills(List<ServerSkill> value) {
+            this.skills = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code errors} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder errors(List<String> value) {
+            this.errors = value;
+            return this;
+        }
+
+        /**
+         * Builds a record after checking required property presence.
+         * @return a new record
+         * @throws IllegalStateException if a required property is missing
+         * @since 2.0.0
+         */
+        public SkillsDiscoverResult build() {
+            if (skills == null) throw new IllegalStateException("Missing required property: skills");
+            return new SkillsDiscoverResult(skills, errors);
+        }
+    }
 }

@@ -33,4 +33,80 @@ public record ConnectorCatalogResult(
     /** Validated catalog entries in service order. */
     @JsonProperty("connectors") List<ConnectorCatalogEntry> connectors
 ) {
+
+    /**
+     * Creates a record positionally.
+     * @deprecated Use {@link #builder()} for named construction.
+     */
+    @Deprecated(since = "2.0.0", forRemoval = false)
+    public ConnectorCatalogResult {}
+
+    /**
+     * Returns a named builder.
+     * @return a new builder
+     * @since 2.0.0
+     */
+    @com.github.copilot.CopilotExperimental
+    public static Builder builder() { return new Builder(); }
+
+    /**
+     * Named construction for this record.
+     * @since 2.0.0
+     */
+    @com.github.copilot.CopilotExperimental
+    public static final class Builder {
+        private Builder() {}
+        private Long revision;
+        private Long refreshedAtMs;
+        private List<ConnectorCatalogEntry> connectors;
+
+        /**
+         * Sets the {@code revision} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        @com.github.copilot.CopilotExperimental
+        public Builder revision(Long value) {
+            this.revision = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code refreshedAtMs} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        @com.github.copilot.CopilotExperimental
+        public Builder refreshedAtMs(Long value) {
+            this.refreshedAtMs = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code connectors} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        @com.github.copilot.CopilotExperimental
+        public Builder connectors(List<ConnectorCatalogEntry> value) {
+            this.connectors = value;
+            return this;
+        }
+
+        /**
+         * Builds a record after checking required property presence.
+         * @return a new record
+         * @throws IllegalStateException if a required property is missing
+         * @since 2.0.0
+         */
+        public ConnectorCatalogResult build() {
+            if (revision == null) throw new IllegalStateException("Missing required property: revision");
+            if (refreshedAtMs == null) throw new IllegalStateException("Missing required property: refreshedAtMs");
+            if (connectors == null) throw new IllegalStateException("Missing required property: connectors");
+            return new ConnectorCatalogResult(revision, refreshedAtMs, connectors);
+        }
+    }
 }

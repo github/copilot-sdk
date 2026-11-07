@@ -6,6 +6,7 @@ package com.github.copilot;
 
 import org.junit.jupiter.api.Tag;
 
+import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
@@ -13,6 +14,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
@@ -29,9 +31,12 @@ import com.github.copilot.generated.AssistantTurnEndEvent;
 import com.github.copilot.generated.AssistantTurnStartEvent;
 import com.github.copilot.generated.AssistantUsageEvent;
 import com.github.copilot.generated.SessionIdleEvent;
+import com.github.copilot.generated.SessionModeChangedEvent;
 import com.github.copilot.generated.ToolExecutionCompleteEvent;
 import com.github.copilot.generated.ToolExecutionStartEvent;
 import com.github.copilot.generated.UserMessageEvent;
+import com.github.copilot.generated.rpc.SessionMode;
+import com.github.copilot.generated.rpc.SessionModeSetParams;
 import com.github.copilot.rpc.MessageOptions;
 import com.github.copilot.rpc.PermissionHandler;
 
@@ -124,6 +129,29 @@ public class SessionEventsE2ETest {
 
             // Verify user message was captured
             assertFalse(userMessages.isEmpty(), "Should receive user.message event");
+        }
+    }
+
+    @Test
+    @AllowCopilotExperimental
+    void testShouldReceiveTypedModeChangedEventFromBuilderRequest() throws Exception {
+        ctx.configureForTest("rpc_event_side_effects", "should_emit_mode_changed_event_when_mode_set");
+
+        try (CopilotClient client = ctx.createClient();
+                CopilotSession session = client
+                        .createSession(ctx.newSessionConfig().setOnPermissionRequest(PermissionHandler.APPROVE_ALL))
+                        .get(30, TimeUnit.SECONDS)) {
+            var modeChanged = new CompletableFuture<SessionModeChangedEvent>();
+            try (var subscription = session.on(SessionModeChangedEvent.class, modeChanged::complete)) {
+                var params = SessionModeSetParams.builder().sessionId(session.getSessionId()).mode(SessionMode.PLAN)
+                        .build();
+                session.getRpc().mode.set(params).get(30, TimeUnit.SECONDS);
+
+                var event = modeChanged.get(30, TimeUnit.SECONDS);
+                assertNotNull(event.getData(), "Mode-changed event should carry typed data");
+                assertEquals(com.github.copilot.generated.SessionMode.INTERACTIVE, event.getData().previousMode());
+                assertEquals(com.github.copilot.generated.SessionMode.PLAN, event.getData().newMode());
+            }
         }
     }
 

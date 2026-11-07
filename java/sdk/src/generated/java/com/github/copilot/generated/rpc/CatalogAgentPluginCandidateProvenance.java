@@ -28,4 +28,75 @@ public record CatalogAgentPluginCandidateProvenance(
     /** Media type naming the plugin's format. */
     @JsonProperty("mediaType") CatalogAgentPluginMediaType mediaType
 ) {
+
+    /**
+     * Creates a record positionally.
+     * @deprecated Use {@link #builder()} for named construction.
+     */
+    @Deprecated(since = "2.0.0", forRemoval = false)
+    public CatalogAgentPluginCandidateProvenance {}
+
+    /**
+     * Returns a named builder.
+     * @return a new builder
+     * @since 2.0.0
+     */
+    public static Builder builder() { return new Builder(); }
+
+    /**
+     * Named construction for this record.
+     * @since 2.0.0
+     */
+    public static final class Builder {
+        private Builder() {}
+        private String authority;
+        private String observedAt;
+        private CatalogAgentPluginMediaType mediaType;
+
+        /**
+         * Sets the {@code authority} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder authority(String value) {
+            this.authority = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code observedAt} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder observedAt(String value) {
+            this.observedAt = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code mediaType} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder mediaType(CatalogAgentPluginMediaType value) {
+            this.mediaType = value;
+            return this;
+        }
+
+        /**
+         * Builds a record after checking required property presence.
+         * @return a new record
+         * @throws IllegalStateException if a required property is missing
+         * @since 2.0.0
+         */
+        public CatalogAgentPluginCandidateProvenance build() {
+            if (authority == null) throw new IllegalStateException("Missing required property: authority");
+            if (observedAt == null) throw new IllegalStateException("Missing required property: observedAt");
+            if (mediaType == null) throw new IllegalStateException("Missing required property: mediaType");
+            return new CatalogAgentPluginCandidateProvenance(authority, observedAt, mediaType);
+        }
+    }
 }

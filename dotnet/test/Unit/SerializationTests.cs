@@ -32,6 +32,18 @@ public class SerializationTests
     }
 
     [Fact]
+    public void AgentGetCurrentResult_SerializesDefaultAgentAsNull()
+    {
+        var options = GetSerializerOptions();
+        var result = JsonSerializer.Deserialize<AgentGetCurrentResult>(
+            "{\"agent\":null}", options)!;
+
+        Assert.Null(result.Agent);
+        using var document = JsonDocument.Parse(JsonSerializer.Serialize(result, options));
+        Assert.Equal(JsonValueKind.Null, document.RootElement.GetProperty("agent").ValueKind);
+    }
+
+    [Fact]
     public void AuthenticatedAuthorityUpdate_SerializesNullGrant()
     {
         var options = GetSerializerOptions();

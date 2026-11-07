@@ -139,6 +139,7 @@ class UpdateSessionOptionsForModeTest {
             client.updateSessionOptionsForMode(session, true, null, null, null).get();
 
             assertEquals("session.options.update", pair.lastMethod);
+            assertEquals("sess-1", pair.lastParams.path("sessionId").asText());
             assertTrue(pair.lastParams.get("skipCustomInstructions").asBoolean());
             assertTrue(pair.lastParams.path("customAgentsLocalOnly").isMissingNode(),
                     "customAgentsLocalOnly should be absent");

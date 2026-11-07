@@ -35,4 +35,96 @@ public record SessionsListParams(
     /** Only meaningful when `source` includes remote. When true, propagates errors from the remote service instead of silently returning an empty remote list. Defaults to false. */
     @JsonProperty("throwOnError") Boolean throwOnError
 ) {
+
+    /**
+     * Creates a record positionally.
+     * @deprecated Use {@link #builder()} for named construction.
+     */
+    @Deprecated(since = "2.0.0", forRemoval = false)
+    public SessionsListParams {}
+
+    /**
+     * Returns a named builder.
+     * @return a new builder
+     * @since 2.0.0
+     */
+    public static Builder builder() { return new Builder(); }
+
+    /**
+     * Named construction for this record.
+     * @since 2.0.0
+     */
+    public static final class Builder {
+        private Builder() {}
+        private SessionSource source;
+        private Long metadataLimit;
+        private SessionListFilter filter;
+        private Boolean includeDetached;
+        private Boolean throwOnError;
+
+        /**
+         * Sets the {@code source} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder source(SessionSource value) {
+            this.source = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code metadataLimit} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder metadataLimit(Long value) {
+            this.metadataLimit = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code filter} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder filter(SessionListFilter value) {
+            this.filter = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code includeDetached} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder includeDetached(Boolean value) {
+            this.includeDetached = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code throwOnError} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder throwOnError(Boolean value) {
+            this.throwOnError = value;
+            return this;
+        }
+
+        /**
+         * Builds a record after checking required property presence.
+         * @return a new record
+         * @throws IllegalStateException if a required property is missing
+         * @since 2.0.0
+         */
+        public SessionsListParams build() {
+            return new SessionsListParams(source, metadataLimit, filter, includeDetached, throwOnError);
+        }
+    }
 }

@@ -34,4 +34,44 @@ public final class EnqueueCommandResultFalse extends EnqueueCommandResult {
 
     public Object getQueueId() { return queueId; }
     public void setQueueId(Object queueId) { this.queueId = queueId; }
+
+
+    /**
+     * Returns a named builder.
+     * @return a new builder
+     * @since 2.0.0
+     */
+    public static Builder builder() { return new Builder(); }
+
+    /**
+     * Named construction for this record.
+     * @since 2.0.0
+     */
+    public static final class Builder {
+        private Builder() {}
+        private Object queueId;
+
+        /**
+         * Sets the {@code queueId} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder queueId(Object value) {
+            this.queueId = value;
+            return this;
+        }
+
+        /**
+         * Builds a variant after checking required property presence.
+         * @return a new variant
+         * @throws IllegalStateException if a required property is missing
+         * @since 2.0.0
+         */
+        public EnqueueCommandResultFalse build() {
+            EnqueueCommandResultFalse instance = new EnqueueCommandResultFalse();
+            instance.setQueueId(queueId);
+            return instance;
+        }
+    }
 }

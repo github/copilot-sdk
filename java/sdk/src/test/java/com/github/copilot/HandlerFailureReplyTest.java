@@ -196,8 +196,9 @@ class HandlerFailureReplyTest {
         logger.addHandler(handler);
         try {
             var event = new ExternalToolRequestedEvent();
-            event.setData(new ExternalToolRequestedEvent.ExternalToolRequestedEventData("request-delivers", SESSION_ID,
-                    "tool-call-delivers", "delivers", null, Map.of(), null, null, null));
+            event.setData(ExternalToolRequestedEvent.ExternalToolRequestedEventData.builder()
+                    .requestId("request-delivers").sessionId(SESSION_ID).toolCallId("tool-call-delivers")
+                    .toolName("delivers").arguments(Map.of()).build());
             dispatch(event);
 
             ObjectNode delivery = replies.poll(5, TimeUnit.SECONDS);
@@ -236,8 +237,9 @@ class HandlerFailureReplyTest {
         session.registerTools(List.of(tool("delivers", delivers)));
 
         var event = new ExternalToolRequestedEvent();
-        event.setData(new ExternalToolRequestedEvent.ExternalToolRequestedEventData("request-monitor", SESSION_ID,
-                "tool-call-monitor", "delivers", null, Map.of(), null, null, null));
+        event.setData(ExternalToolRequestedEvent.ExternalToolRequestedEventData.builder().requestId("request-monitor")
+                .sessionId(SESSION_ID).toolCallId("tool-call-monitor").toolName("delivers").arguments(Map.of())
+                .build());
         dispatch(event);
         assertNotNull(replies.poll(5, TimeUnit.SECONDS), "The tool result was never sent");
         // The SDK attaches its failure callback after publishing the request. Wait for
@@ -300,8 +302,8 @@ class HandlerFailureReplyTest {
         })));
 
         var event = new ExternalToolRequestedEvent();
-        event.setData(new ExternalToolRequestedEvent.ExternalToolRequestedEventData("request-fails", SESSION_ID,
-                "tool-call-fails", "fails", null, Map.of(), null, null, null));
+        event.setData(ExternalToolRequestedEvent.ExternalToolRequestedEventData.builder().requestId("request-fails")
+                .sessionId(SESSION_ID).toolCallId("tool-call-fails").toolName("fails").arguments(Map.of()).build());
         dispatch(event);
         assertEquals("handler failed", replyError(replies, "fails"));
         assertEquals("tool error rejected", replyError(replies, "fails"));
@@ -309,15 +311,16 @@ class HandlerFailureReplyTest {
 
     private String commandError(String name) throws Exception {
         var event = new CommandExecuteEvent();
-        event.setData(new CommandExecuteEvent.CommandExecuteEventData("request-" + name, "/" + name, name, ""));
+        event.setData(CommandExecuteEvent.CommandExecuteEventData.builder().requestId("request-" + name)
+                .command("/" + name).commandName(name).args("").build());
         dispatch(event);
         return replyError(commandReplies, name);
     }
 
     private String toolError(String name) throws Exception {
         var event = new ExternalToolRequestedEvent();
-        event.setData(new ExternalToolRequestedEvent.ExternalToolRequestedEventData("request-" + name, SESSION_ID,
-                "tool-call-" + name, name, null, Map.of(), null, null, null));
+        event.setData(ExternalToolRequestedEvent.ExternalToolRequestedEventData.builder().requestId("request-" + name)
+                .sessionId(SESSION_ID).toolCallId("tool-call-" + name).toolName(name).arguments(Map.of()).build());
         dispatch(event);
         return replyError(toolReplies, name);
     }

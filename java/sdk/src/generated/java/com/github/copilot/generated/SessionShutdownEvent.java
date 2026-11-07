@@ -79,5 +79,283 @@ public final class SessionShutdownEvent extends SessionEvent {
         /** Tool definitions token count at shutdown */
         @JsonProperty("toolDefinitionsTokens") Long toolDefinitionsTokens
     ) {
+
+        /**
+         * Creates a record positionally.
+         * @deprecated Use {@link #builder()} for named construction.
+         */
+        @Deprecated(since = "2.0.0", forRemoval = false)
+        public SessionShutdownEventData {}
+
+        /**
+         * Returns a named builder.
+         * @return a new builder
+         * @since 2.0.0
+         */
+        public static Builder builder() { return new Builder(); }
+
+        /**
+         * Named construction for this record.
+         * @since 2.0.0
+         */
+        public static final class Builder {
+            private Builder() {}
+            private List<String> toolUsageRequestIds;
+            private UsageGetMetricsResult accountingSnapshot;
+            private List<UsageMetricsProviderModelMetric> providerModelMetrics;
+            private Map<String, Long> usageAccountingWatermarks;
+            private ShutdownType shutdownType;
+            private String errorReason;
+            private Double totalPremiumRequests;
+            private Double totalNanoAiu;
+            private Map<String, ShutdownTokenDetail> tokenDetails;
+            private Long totalApiDurationMs;
+            private Long sessionStartTime;
+            private Long eventsFileSizeBytes;
+            private ShutdownCodeChanges codeChanges;
+            private Map<String, ShutdownModelMetric> modelMetrics;
+            private Map<String, ShutdownAgentMetric> agentMetrics;
+            private String currentModel;
+            private Long currentTokens;
+            private Long systemTokens;
+            private Long conversationTokens;
+            private Long toolDefinitionsTokens;
+
+            /**
+             * Sets the {@code toolUsageRequestIds} property.
+             * @param value the property value
+             * @return this builder
+             * @since 2.0.0
+             */
+            public Builder toolUsageRequestIds(List<String> value) {
+                this.toolUsageRequestIds = value;
+                return this;
+            }
+
+            /**
+             * Sets the {@code accountingSnapshot} property.
+             * @param value the property value
+             * @return this builder
+             * @since 2.0.0
+             */
+            public Builder accountingSnapshot(UsageGetMetricsResult value) {
+                this.accountingSnapshot = value;
+                return this;
+            }
+
+            /**
+             * Sets the {@code providerModelMetrics} property.
+             * @param value the property value
+             * @return this builder
+             * @since 2.0.0
+             */
+            public Builder providerModelMetrics(List<UsageMetricsProviderModelMetric> value) {
+                this.providerModelMetrics = value;
+                return this;
+            }
+
+            /**
+             * Sets the {@code usageAccountingWatermarks} property.
+             * @param value the property value
+             * @return this builder
+             * @since 2.0.0
+             */
+            public Builder usageAccountingWatermarks(Map<String, Long> value) {
+                this.usageAccountingWatermarks = value;
+                return this;
+            }
+
+            /**
+             * Sets the {@code shutdownType} property.
+             * @param value the property value
+             * @return this builder
+             * @since 2.0.0
+             */
+            public Builder shutdownType(ShutdownType value) {
+                this.shutdownType = value;
+                return this;
+            }
+
+            /**
+             * Sets the {@code errorReason} property.
+             * @param value the property value
+             * @return this builder
+             * @since 2.0.0
+             */
+            public Builder errorReason(String value) {
+                this.errorReason = value;
+                return this;
+            }
+
+            /**
+             * Sets the {@code totalPremiumRequests} property.
+             * @param value the property value
+             * @return this builder
+             * @since 2.0.0
+             */
+            public Builder totalPremiumRequests(Double value) {
+                this.totalPremiumRequests = value;
+                return this;
+            }
+
+            /**
+             * Sets the {@code totalNanoAiu} property.
+             * @param value the property value
+             * @return this builder
+             * @since 2.0.0
+             */
+            @com.github.copilot.CopilotExperimental
+            public Builder totalNanoAiu(Double value) {
+                this.totalNanoAiu = value;
+                return this;
+            }
+
+            /**
+             * Sets the {@code tokenDetails} property.
+             * @param value the property value
+             * @return this builder
+             * @since 2.0.0
+             */
+            public Builder tokenDetails(Map<String, ShutdownTokenDetail> value) {
+                this.tokenDetails = value;
+                return this;
+            }
+
+            /**
+             * Sets the {@code totalApiDurationMs} property.
+             * @param value the property value
+             * @return this builder
+             * @since 2.0.0
+             */
+            public Builder totalApiDurationMs(Long value) {
+                this.totalApiDurationMs = value;
+                return this;
+            }
+
+            /**
+             * Sets the {@code sessionStartTime} property.
+             * @param value the property value
+             * @return this builder
+             * @since 2.0.0
+             */
+            public Builder sessionStartTime(Long value) {
+                this.sessionStartTime = value;
+                return this;
+            }
+
+            /**
+             * Sets the {@code eventsFileSizeBytes} property.
+             * @param value the property value
+             * @return this builder
+             * @since 2.0.0
+             */
+            public Builder eventsFileSizeBytes(Long value) {
+                this.eventsFileSizeBytes = value;
+                return this;
+            }
+
+            /**
+             * Sets the {@code codeChanges} property.
+             * @param value the property value
+             * @return this builder
+             * @since 2.0.0
+             */
+            public Builder codeChanges(ShutdownCodeChanges value) {
+                this.codeChanges = value;
+                return this;
+            }
+
+            /**
+             * Sets the {@code modelMetrics} property.
+             * @param value the property value
+             * @return this builder
+             * @since 2.0.0
+             */
+            public Builder modelMetrics(Map<String, ShutdownModelMetric> value) {
+                this.modelMetrics = value;
+                return this;
+            }
+
+            /**
+             * Sets the {@code agentMetrics} property.
+             * @param value the property value
+             * @return this builder
+             * @since 2.0.0
+             */
+            public Builder agentMetrics(Map<String, ShutdownAgentMetric> value) {
+                this.agentMetrics = value;
+                return this;
+            }
+
+            /**
+             * Sets the {@code currentModel} property.
+             * @param value the property value
+             * @return this builder
+             * @since 2.0.0
+             */
+            public Builder currentModel(String value) {
+                this.currentModel = value;
+                return this;
+            }
+
+            /**
+             * Sets the {@code currentTokens} property.
+             * @param value the property value
+             * @return this builder
+             * @since 2.0.0
+             */
+            public Builder currentTokens(Long value) {
+                this.currentTokens = value;
+                return this;
+            }
+
+            /**
+             * Sets the {@code systemTokens} property.
+             * @param value the property value
+             * @return this builder
+             * @since 2.0.0
+             */
+            public Builder systemTokens(Long value) {
+                this.systemTokens = value;
+                return this;
+            }
+
+            /**
+             * Sets the {@code conversationTokens} property.
+             * @param value the property value
+             * @return this builder
+             * @since 2.0.0
+             */
+            public Builder conversationTokens(Long value) {
+                this.conversationTokens = value;
+                return this;
+            }
+
+            /**
+             * Sets the {@code toolDefinitionsTokens} property.
+             * @param value the property value
+             * @return this builder
+             * @since 2.0.0
+             */
+            public Builder toolDefinitionsTokens(Long value) {
+                this.toolDefinitionsTokens = value;
+                return this;
+            }
+
+            /**
+             * Builds a record after checking required property presence.
+             * @return a new record
+             * @throws IllegalStateException if a required property is missing
+             * @since 2.0.0
+             */
+            public SessionShutdownEventData build() {
+                if (shutdownType == null) throw new IllegalStateException("Missing required property: shutdownType");
+                if (totalApiDurationMs == null) throw new IllegalStateException("Missing required property: totalApiDurationMs");
+                if (sessionStartTime == null) throw new IllegalStateException("Missing required property: sessionStartTime");
+                if (codeChanges == null) throw new IllegalStateException("Missing required property: codeChanges");
+                if (modelMetrics == null) throw new IllegalStateException("Missing required property: modelMetrics");
+                return new SessionShutdownEventData(toolUsageRequestIds, accountingSnapshot, providerModelMetrics, usageAccountingWatermarks, shutdownType, errorReason, totalPremiumRequests, totalNanoAiu, tokenDetails, totalApiDurationMs, sessionStartTime, eventsFileSizeBytes, codeChanges, modelMetrics, agentMetrics, currentModel, currentTokens, systemTokens, conversationTokens, toolDefinitionsTokens);
+            }
+        }
     }
 }

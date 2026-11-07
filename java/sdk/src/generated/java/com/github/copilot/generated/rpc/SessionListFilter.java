@@ -30,4 +30,84 @@ public record SessionListFilter(
     /** Match sessions whose context.branch equals this value */
     @JsonProperty("branch") String branch
 ) {
+
+    /**
+     * Creates a record positionally.
+     * @deprecated Use {@link #builder()} for named construction.
+     */
+    @Deprecated(since = "2.0.0", forRemoval = false)
+    public SessionListFilter {}
+
+    /**
+     * Returns a named builder.
+     * @return a new builder
+     * @since 2.0.0
+     */
+    public static Builder builder() { return new Builder(); }
+
+    /**
+     * Named construction for this record.
+     * @since 2.0.0
+     */
+    public static final class Builder {
+        private Builder() {}
+        private String cwd;
+        private String gitRoot;
+        private String repository;
+        private String branch;
+
+        /**
+         * Sets the {@code cwd} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder cwd(String value) {
+            this.cwd = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code gitRoot} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder gitRoot(String value) {
+            this.gitRoot = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code repository} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder repository(String value) {
+            this.repository = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code branch} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder branch(String value) {
+            this.branch = value;
+            return this;
+        }
+
+        /**
+         * Builds a record after checking required property presence.
+         * @return a new record
+         * @throws IllegalStateException if a required property is missing
+         * @since 2.0.0
+         */
+        public SessionListFilter build() {
+            return new SessionListFilter(cwd, gitRoot, repository, branch);
+        }
+    }
 }

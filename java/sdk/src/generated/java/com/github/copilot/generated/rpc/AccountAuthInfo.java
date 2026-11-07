@@ -41,4 +41,59 @@ public final class AccountAuthInfo extends AuthInfo {
 
     public String getLogin() { return login; }
     public void setLogin(String login) { this.login = login; }
+
+
+    /**
+     * Returns a named builder.
+     * @return a new builder
+     * @since 2.0.0
+     */
+    public static Builder builder() { return new Builder(); }
+
+    /**
+     * Named construction for this record.
+     * @since 2.0.0
+     */
+    public static final class Builder {
+        private Builder() {}
+        private String host;
+        private String login;
+
+        /**
+         * Sets the {@code host} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder host(String value) {
+            this.host = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code login} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder login(String value) {
+            this.login = value;
+            return this;
+        }
+
+        /**
+         * Builds a variant after checking required property presence.
+         * @return a new variant
+         * @throws IllegalStateException if a required property is missing
+         * @since 2.0.0
+         */
+        public AccountAuthInfo build() {
+            if (host == null) throw new IllegalStateException("Missing required property: host");
+            if (login == null) throw new IllegalStateException("Missing required property: login");
+            AccountAuthInfo instance = new AccountAuthInfo();
+            instance.setHost(host);
+            instance.setLogin(login);
+            return instance;
+        }
+    }
 }

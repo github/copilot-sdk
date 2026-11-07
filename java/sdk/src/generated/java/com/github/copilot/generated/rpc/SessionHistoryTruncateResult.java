@@ -31,4 +31,73 @@ public record SessionHistoryTruncateResult(
     /** Failure detail when checkpointCleanupFailed is true. */
     @JsonProperty("checkpointCleanupError") String checkpointCleanupError
 ) {
+
+    /**
+     * Creates a record positionally.
+     * @deprecated Use {@link #builder()} for named construction.
+     */
+    @Deprecated(since = "2.0.0", forRemoval = false)
+    public SessionHistoryTruncateResult {}
+
+    /**
+     * Returns a named builder.
+     * @return a new builder
+     * @since 2.0.0
+     */
+    public static Builder builder() { return new Builder(); }
+
+    /**
+     * Named construction for this record.
+     * @since 2.0.0
+     */
+    public static final class Builder {
+        private Builder() {}
+        private Long eventsRemoved;
+        private Boolean checkpointCleanupFailed;
+        private String checkpointCleanupError;
+
+        /**
+         * Sets the {@code eventsRemoved} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder eventsRemoved(Long value) {
+            this.eventsRemoved = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code checkpointCleanupFailed} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder checkpointCleanupFailed(Boolean value) {
+            this.checkpointCleanupFailed = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code checkpointCleanupError} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder checkpointCleanupError(String value) {
+            this.checkpointCleanupError = value;
+            return this;
+        }
+
+        /**
+         * Builds a record after checking required property presence.
+         * @return a new record
+         * @throws IllegalStateException if a required property is missing
+         * @since 2.0.0
+         */
+        public SessionHistoryTruncateResult build() {
+            if (eventsRemoved == null) throw new IllegalStateException("Missing required property: eventsRemoved");
+            return new SessionHistoryTruncateResult(eventsRemoved, checkpointCleanupFailed, checkpointCleanupError);
+        }
+    }
 }

@@ -34,4 +34,90 @@ public record WorkflowDeclaredLimits(
     /** Maximum AI credits consumed by subagents and descendants. */
     @JsonProperty("maxAiCredits") Double maxAiCredits
 ) {
+
+    /**
+     * Creates a record positionally.
+     * @deprecated Use {@link #builder()} for named construction.
+     */
+    @Deprecated(since = "2.0.0", forRemoval = false)
+    public WorkflowDeclaredLimits {}
+
+    /**
+     * Returns a named builder.
+     * @return a new builder
+     * @since 2.0.0
+     */
+    @com.github.copilot.CopilotExperimental
+    public static Builder builder() { return new Builder(); }
+
+    /**
+     * Named construction for this record.
+     * @since 2.0.0
+     */
+    @com.github.copilot.CopilotExperimental
+    public static final class Builder {
+        private Builder() {}
+        private Long maxConcurrentSubagents;
+        private Long maxTotalSubagents;
+        private Double timeoutSeconds;
+        private Double maxAiCredits;
+
+        /**
+         * Sets the {@code maxConcurrentSubagents} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        @com.github.copilot.CopilotExperimental
+        public Builder maxConcurrentSubagents(Long value) {
+            this.maxConcurrentSubagents = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code maxTotalSubagents} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        @com.github.copilot.CopilotExperimental
+        public Builder maxTotalSubagents(Long value) {
+            this.maxTotalSubagents = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code timeoutSeconds} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        @com.github.copilot.CopilotExperimental
+        public Builder timeoutSeconds(Double value) {
+            this.timeoutSeconds = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code maxAiCredits} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        @com.github.copilot.CopilotExperimental
+        public Builder maxAiCredits(Double value) {
+            this.maxAiCredits = value;
+            return this;
+        }
+
+        /**
+         * Builds a record after checking required property presence.
+         * @return a new record
+         * @throws IllegalStateException if a required property is missing
+         * @since 2.0.0
+         */
+        public WorkflowDeclaredLimits build() {
+            return new WorkflowDeclaredLimits(maxConcurrentSubagents, maxTotalSubagents, timeoutSeconds, maxAiCredits);
+        }
+    }
 }

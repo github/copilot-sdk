@@ -32,4 +32,79 @@ record CafeMetricsRelease(
     /** Whether this is a draft. */
     @JsonProperty("draft") Boolean draft
 ) {
+
+    /**
+     * Creates a record positionally.
+     * @deprecated Use {@link #builder()} for named construction.
+     */
+    @Deprecated(since = "2.0.0", forRemoval = false)
+    CafeMetricsRelease {}
+
+    /**
+     * Returns a named builder.
+     * @return a new builder
+     * @since 2.0.0
+     */
+    @com.github.copilot.CopilotExperimental
+    public static Builder builder() { return new Builder(); }
+
+    /**
+     * Named construction for this record.
+     * @since 2.0.0
+     */
+    @com.github.copilot.CopilotExperimental
+    public static final class Builder {
+        private Builder() {}
+        private String tagName;
+        private Boolean prerelease;
+        private Boolean draft;
+
+        /**
+         * Sets the {@code tagName} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        @com.github.copilot.CopilotExperimental
+        public Builder tagName(String value) {
+            this.tagName = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code prerelease} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        @com.github.copilot.CopilotExperimental
+        public Builder prerelease(Boolean value) {
+            this.prerelease = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code draft} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        @com.github.copilot.CopilotExperimental
+        public Builder draft(Boolean value) {
+            this.draft = value;
+            return this;
+        }
+
+        /**
+         * Builds a record after checking required property presence.
+         * @return a new record
+         * @throws IllegalStateException if a required property is missing
+         * @since 2.0.0
+         */
+        public CafeMetricsRelease build() {
+            if (tagName == null) throw new IllegalStateException("Missing required property: tagName");
+            if (prerelease == null) throw new IllegalStateException("Missing required property: prerelease");
+            return new CafeMetricsRelease(tagName, prerelease, draft);
+        }
+    }
 }

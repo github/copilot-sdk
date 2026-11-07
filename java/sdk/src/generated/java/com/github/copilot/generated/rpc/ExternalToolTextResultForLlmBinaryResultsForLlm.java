@@ -33,4 +33,99 @@ public record ExternalToolTextResultForLlmBinaryResultsForLlm(
     /** Optional metadata from the producing tool. */
     @JsonProperty("metadata") Map<String, Object> metadata
 ) {
+
+    /**
+     * Creates a record positionally.
+     * @deprecated Use {@link #builder()} for named construction.
+     */
+    @Deprecated(since = "2.0.0", forRemoval = false)
+    public ExternalToolTextResultForLlmBinaryResultsForLlm {}
+
+    /**
+     * Returns a named builder.
+     * @return a new builder
+     * @since 2.0.0
+     */
+    public static Builder builder() { return new Builder(); }
+
+    /**
+     * Named construction for this record.
+     * @since 2.0.0
+     */
+    public static final class Builder {
+        private Builder() {}
+        private ExternalToolTextResultForLlmBinaryResultsForLlmType type;
+        private String data;
+        private String mimeType;
+        private String description;
+        private Map<String, Object> metadata;
+
+        /**
+         * Sets the {@code type} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder type(ExternalToolTextResultForLlmBinaryResultsForLlmType value) {
+            this.type = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code data} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder data(String value) {
+            this.data = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code mimeType} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder mimeType(String value) {
+            this.mimeType = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code description} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder description(String value) {
+            this.description = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code metadata} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder metadata(Map<String, Object> value) {
+            this.metadata = value;
+            return this;
+        }
+
+        /**
+         * Builds a record after checking required property presence.
+         * @return a new record
+         * @throws IllegalStateException if a required property is missing
+         * @since 2.0.0
+         */
+        public ExternalToolTextResultForLlmBinaryResultsForLlm build() {
+            if (type == null) throw new IllegalStateException("Missing required property: type");
+            if (data == null) throw new IllegalStateException("Missing required property: data");
+            if (mimeType == null) throw new IllegalStateException("Missing required property: mimeType");
+            return new ExternalToolTextResultForLlmBinaryResultsForLlm(type, data, mimeType, description, metadata);
+        }
+    }
 }

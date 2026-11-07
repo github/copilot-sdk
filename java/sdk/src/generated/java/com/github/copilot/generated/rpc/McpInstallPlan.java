@@ -45,4 +45,178 @@ public record McpInstallPlan(
     /** True only when every eligible transport choice needs additional values or secrets. False means at least one choice needs no additional configuration, not that every choice is ready. A later apply operation must validate the selected choice's own inputs, secrets and policy after explicit confirmation. */
     @JsonProperty("requiresInteractiveConfiguration") Boolean requiresInteractiveConfiguration
 ) {
+
+    /**
+     * Creates a record positionally.
+     * @deprecated Use {@link #builder()} for named construction.
+     */
+    @Deprecated(since = "2.0.0", forRemoval = false)
+    public McpInstallPlan {}
+
+    /**
+     * Returns a named builder.
+     * @return a new builder
+     * @since 2.0.0
+     */
+    public static Builder builder() { return new Builder(); }
+
+    /**
+     * Named construction for this record.
+     * @since 2.0.0
+     */
+    public static final class Builder {
+        private Builder() {}
+        private String planHandle;
+        private String planHandleExpiresAt;
+        private McpPlanResourceIdentity identity;
+        private McpPlanProvenance provenance;
+        private List<McpPlanTransportChoice> transportChoices;
+        private String recommendedTransportChoiceId;
+        private McpPlanTarget target;
+        private McpPlanPolicyResult policy;
+        private List<McpPlanConfigurationChange> configurationChanges;
+        private Boolean reloadRequired;
+        private Boolean requiresInteractiveConfiguration;
+
+        /**
+         * Sets the {@code planHandle} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder planHandle(String value) {
+            this.planHandle = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code planHandleExpiresAt} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder planHandleExpiresAt(String value) {
+            this.planHandleExpiresAt = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code identity} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder identity(McpPlanResourceIdentity value) {
+            this.identity = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code provenance} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder provenance(McpPlanProvenance value) {
+            this.provenance = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code transportChoices} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder transportChoices(List<McpPlanTransportChoice> value) {
+            this.transportChoices = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code recommendedTransportChoiceId} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder recommendedTransportChoiceId(String value) {
+            this.recommendedTransportChoiceId = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code target} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder target(McpPlanTarget value) {
+            this.target = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code policy} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder policy(McpPlanPolicyResult value) {
+            this.policy = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code configurationChanges} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder configurationChanges(List<McpPlanConfigurationChange> value) {
+            this.configurationChanges = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code reloadRequired} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder reloadRequired(Boolean value) {
+            this.reloadRequired = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code requiresInteractiveConfiguration} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder requiresInteractiveConfiguration(Boolean value) {
+            this.requiresInteractiveConfiguration = value;
+            return this;
+        }
+
+        /**
+         * Builds a record after checking required property presence.
+         * @return a new record
+         * @throws IllegalStateException if a required property is missing
+         * @since 2.0.0
+         */
+        public McpInstallPlan build() {
+            if (planHandle == null) throw new IllegalStateException("Missing required property: planHandle");
+            if (planHandleExpiresAt == null) throw new IllegalStateException("Missing required property: planHandleExpiresAt");
+            if (identity == null) throw new IllegalStateException("Missing required property: identity");
+            if (provenance == null) throw new IllegalStateException("Missing required property: provenance");
+            if (transportChoices == null) throw new IllegalStateException("Missing required property: transportChoices");
+            if (target == null) throw new IllegalStateException("Missing required property: target");
+            if (policy == null) throw new IllegalStateException("Missing required property: policy");
+            if (configurationChanges == null) throw new IllegalStateException("Missing required property: configurationChanges");
+            if (reloadRequired == null) throw new IllegalStateException("Missing required property: reloadRequired");
+            if (requiresInteractiveConfiguration == null) throw new IllegalStateException("Missing required property: requiresInteractiveConfiguration");
+            return new McpInstallPlan(planHandle, planHandleExpiresAt, identity, provenance, transportChoices, recommendedTransportChoiceId, target, policy, configurationChanges, reloadRequired, requiresInteractiveConfiguration);
+        }
+    }
 }

@@ -28,4 +28,74 @@ public record SandboxHostCapability(
     /** Human-readable reason and remedy when the feature is unsupported, such as a package to install or an OS update. Present only when `supported` is false. */
     @JsonProperty("reason") String reason
 ) {
+
+    /**
+     * Creates a record positionally.
+     * @deprecated Use {@link #builder()} for named construction.
+     */
+    @Deprecated(since = "2.0.0", forRemoval = false)
+    public SandboxHostCapability {}
+
+    /**
+     * Returns a named builder.
+     * @return a new builder
+     * @since 2.0.0
+     */
+    public static Builder builder() { return new Builder(); }
+
+    /**
+     * Named construction for this record.
+     * @since 2.0.0
+     */
+    public static final class Builder {
+        private Builder() {}
+        private String name;
+        private Boolean supported;
+        private String reason;
+
+        /**
+         * Sets the {@code name} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder name(String value) {
+            this.name = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code supported} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder supported(Boolean value) {
+            this.supported = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code reason} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder reason(String value) {
+            this.reason = value;
+            return this;
+        }
+
+        /**
+         * Builds a record after checking required property presence.
+         * @return a new record
+         * @throws IllegalStateException if a required property is missing
+         * @since 2.0.0
+         */
+        public SandboxHostCapability build() {
+            if (name == null) throw new IllegalStateException("Missing required property: name");
+            if (supported == null) throw new IllegalStateException("Missing required property: supported");
+            return new SandboxHostCapability(name, supported, reason);
+        }
+    }
 }

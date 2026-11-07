@@ -45,4 +45,62 @@ public final class AssistedApprovalAssessmentCompleted extends AssistedApprovalA
 
     public String getRationale() { return rationale; }
     public void setRationale(String rationale) { this.rationale = rationale; }
+
+
+    /**
+     * Returns a named builder.
+     * @return a new builder
+     * @since 2.0.0
+     */
+    @com.github.copilot.CopilotExperimental
+    public static Builder builder() { return new Builder(); }
+
+    /**
+     * Named construction for this record.
+     * @since 2.0.0
+     */
+    @com.github.copilot.CopilotExperimental
+    public static final class Builder {
+        private Builder() {}
+        private AssistedApprovalCompletedRecommendation recommendation;
+        private String rationale;
+
+        /**
+         * Sets the {@code recommendation} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        @com.github.copilot.CopilotExperimental
+        public Builder recommendation(AssistedApprovalCompletedRecommendation value) {
+            this.recommendation = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code rationale} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        @com.github.copilot.CopilotExperimental
+        public Builder rationale(String value) {
+            this.rationale = value;
+            return this;
+        }
+
+        /**
+         * Builds a variant after checking required property presence.
+         * @return a new variant
+         * @throws IllegalStateException if a required property is missing
+         * @since 2.0.0
+         */
+        public AssistedApprovalAssessmentCompleted build() {
+            if (recommendation == null) throw new IllegalStateException("Missing required property: recommendation");
+            AssistedApprovalAssessmentCompleted instance = new AssistedApprovalAssessmentCompleted();
+            instance.setRecommendation(recommendation);
+            instance.setRationale(rationale);
+            return instance;
+        }
+    }
 }

@@ -30,4 +30,66 @@ public record SessionContentExclusionCheckPathsResult(
     /** Per-path decisions in request order. Empty when available is false. */
     @JsonProperty("checks") List<ContentExclusionPathCheck> checks
 ) {
+
+    /**
+     * Creates a record positionally.
+     * @deprecated Use {@link #builder()} for named construction.
+     */
+    @Deprecated(since = "2.0.0", forRemoval = false)
+    public SessionContentExclusionCheckPathsResult {}
+
+    /**
+     * Returns a named builder.
+     * @return a new builder
+     * @since 2.0.0
+     */
+    @com.github.copilot.CopilotExperimental
+    public static Builder builder() { return new Builder(); }
+
+    /**
+     * Named construction for this record.
+     * @since 2.0.0
+     */
+    @com.github.copilot.CopilotExperimental
+    public static final class Builder {
+        private Builder() {}
+        private Boolean available;
+        private List<ContentExclusionPathCheck> checks;
+
+        /**
+         * Sets the {@code available} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        @com.github.copilot.CopilotExperimental
+        public Builder available(Boolean value) {
+            this.available = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code checks} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        @com.github.copilot.CopilotExperimental
+        public Builder checks(List<ContentExclusionPathCheck> value) {
+            this.checks = value;
+            return this;
+        }
+
+        /**
+         * Builds a record after checking required property presence.
+         * @return a new record
+         * @throws IllegalStateException if a required property is missing
+         * @since 2.0.0
+         */
+        public SessionContentExclusionCheckPathsResult build() {
+            if (available == null) throw new IllegalStateException("Missing required property: available");
+            if (checks == null) throw new IllegalStateException("Missing required property: checks");
+            return new SessionContentExclusionCheckPathsResult(available, checks);
+        }
+    }
 }

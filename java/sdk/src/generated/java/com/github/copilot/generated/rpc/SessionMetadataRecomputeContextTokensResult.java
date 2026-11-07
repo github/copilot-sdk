@@ -31,4 +31,75 @@ public record SessionMetadataRecomputeContextTokensResult(
     /** Tokens contributed by system/developer prompt snapshots. */
     @JsonProperty("systemTokenCount") Long systemTokenCount
 ) {
+
+    /**
+     * Creates a record positionally.
+     * @deprecated Use {@link #builder()} for named construction.
+     */
+    @Deprecated(since = "2.0.0", forRemoval = false)
+    public SessionMetadataRecomputeContextTokensResult {}
+
+    /**
+     * Returns a named builder.
+     * @return a new builder
+     * @since 2.0.0
+     */
+    public static Builder builder() { return new Builder(); }
+
+    /**
+     * Named construction for this record.
+     * @since 2.0.0
+     */
+    public static final class Builder {
+        private Builder() {}
+        private Long totalTokens;
+        private Long messagesTokenCount;
+        private Long systemTokenCount;
+
+        /**
+         * Sets the {@code totalTokens} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder totalTokens(Long value) {
+            this.totalTokens = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code messagesTokenCount} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder messagesTokenCount(Long value) {
+            this.messagesTokenCount = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code systemTokenCount} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder systemTokenCount(Long value) {
+            this.systemTokenCount = value;
+            return this;
+        }
+
+        /**
+         * Builds a record after checking required property presence.
+         * @return a new record
+         * @throws IllegalStateException if a required property is missing
+         * @since 2.0.0
+         */
+        public SessionMetadataRecomputeContextTokensResult build() {
+            if (totalTokens == null) throw new IllegalStateException("Missing required property: totalTokens");
+            if (messagesTokenCount == null) throw new IllegalStateException("Missing required property: messagesTokenCount");
+            if (systemTokenCount == null) throw new IllegalStateException("Missing required property: systemTokenCount");
+            return new SessionMetadataRecomputeContextTokensResult(totalTokens, messagesTokenCount, systemTokenCount);
+        }
+    }
 }

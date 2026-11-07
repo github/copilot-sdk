@@ -28,13 +28,61 @@ public record McpInstallationManagementOutcomeInstallPrepared(
     /** Installation management outcome discriminator. */
     @JsonProperty("kind") String kind
 ) implements McpInstallationManagementOutcome {
+    /**
+     * Creates this variant positionally and normalizes its discriminator.
+     * @deprecated Use {@link #builder()} for named construction.
+     */
+    @Deprecated(since = "2.0.0", forRemoval = false)
     public McpInstallationManagementOutcomeInstallPrepared {
         kind = "install-prepared";
     }
 
+    /**
+     * Creates this variant without explicitly supplying its discriminator.
+     * @deprecated Use {@link #builder()} for named construction.
+     */
+    @Deprecated(since = "2.0.0", forRemoval = false)
     public McpInstallationManagementOutcomeInstallPrepared(
         McpPreparedInstall operation
     ) {
         this(operation, "install-prepared");
+    }
+
+    /**
+     * Returns a named builder.
+     * @return a new builder
+     * @since 2.0.0
+     */
+    public static Builder builder() { return new Builder(); }
+
+    /**
+     * Named construction for this record.
+     * @since 2.0.0
+     */
+    public static final class Builder {
+        private Builder() {}
+        private McpPreparedInstall operation;
+
+        /**
+         * Sets the {@code operation} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder operation(McpPreparedInstall value) {
+            this.operation = value;
+            return this;
+        }
+
+        /**
+         * Builds a record after checking required property presence.
+         * @return a new record
+         * @throws IllegalStateException if a required property is missing
+         * @since 2.0.0
+         */
+        public McpInstallationManagementOutcomeInstallPrepared build() {
+            if (operation == null) throw new IllegalStateException("Missing required property: operation");
+            return new McpInstallationManagementOutcomeInstallPrepared(operation, "install-prepared");
+        }
     }
 }

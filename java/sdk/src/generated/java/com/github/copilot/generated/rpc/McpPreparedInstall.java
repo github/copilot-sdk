@@ -26,4 +26,62 @@ public record McpPreparedInstall(
     /** Original plan expiry in Unix epoch milliseconds; preparation does not extend it. */
     @JsonProperty("expiresAtEpochMs") Long expiresAtEpochMs
 ) {
+
+    /**
+     * Creates a record positionally.
+     * @deprecated Use {@link #builder()} for named construction.
+     */
+    @Deprecated(since = "2.0.0", forRemoval = false)
+    public McpPreparedInstall {}
+
+    /**
+     * Returns a named builder.
+     * @return a new builder
+     * @since 2.0.0
+     */
+    public static Builder builder() { return new Builder(); }
+
+    /**
+     * Named construction for this record.
+     * @since 2.0.0
+     */
+    public static final class Builder {
+        private Builder() {}
+        private String operationId;
+        private Long expiresAtEpochMs;
+
+        /**
+         * Sets the {@code operationId} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder operationId(String value) {
+            this.operationId = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code expiresAtEpochMs} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder expiresAtEpochMs(Long value) {
+            this.expiresAtEpochMs = value;
+            return this;
+        }
+
+        /**
+         * Builds a record after checking required property presence.
+         * @return a new record
+         * @throws IllegalStateException if a required property is missing
+         * @since 2.0.0
+         */
+        public McpPreparedInstall build() {
+            if (operationId == null) throw new IllegalStateException("Missing required property: operationId");
+            if (expiresAtEpochMs == null) throw new IllegalStateException("Missing required property: expiresAtEpochMs");
+            return new McpPreparedInstall(operationId, expiresAtEpochMs);
+        }
+    }
 }

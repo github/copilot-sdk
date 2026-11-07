@@ -25,6 +25,8 @@ import javax.annotation.processing.Generated;
 @javax.annotation.processing.Generated("copilot-sdk-codegen")
 @JsonInclude(JsonInclude.Include.NON_NULL)
 public final class SessionModelSwitchToRequest {
+    @com.fasterxml.jackson.annotation.JsonIgnore
+    private final java.util.Set<String> $explicitNulls = new java.util.LinkedHashSet<>();
 
     /** Model id to switch to, as returned by `list`. Include providerId to select an exact catalog entry when providers share the id. Without providerId, a bare id retains incumbent selection behavior; a registry-qualified id (`provider/id`, e.g. `acme/claude-sonnet`) targets a BYOK model. */
     @JsonProperty("modelId")
@@ -251,6 +253,8 @@ public final class SessionModelSwitchToRequest {
      */
     public SessionModelSwitchToRequest setAutoTier(AutoTier value) {
         this.autoTier = value;
+        if (value == null) $explicitNulls.add("autoTier");
+        else $explicitNulls.remove("autoTier");
         return this;
     }
 
@@ -262,6 +266,8 @@ public final class SessionModelSwitchToRequest {
      */
     public SessionModelSwitchToRequest setReasoningEffort(String value) {
         this.reasoningEffort = value;
+        if (value == null) $explicitNulls.add("reasoningEffort");
+        else $explicitNulls.remove("reasoningEffort");
         return this;
     }
 
@@ -406,5 +412,14 @@ public final class SessionModelSwitchToRequest {
     public SessionModelSwitchToRequest setProviderId(String value) {
         this.providerId = value;
         return this;
+    }
+
+    @com.fasterxml.jackson.annotation.JsonAnyGetter
+    @JsonInclude(value = JsonInclude.Include.ALWAYS, content = JsonInclude.Include.ALWAYS)
+    public java.util.Map<String, Object> $nullableProperties() {
+        java.util.Map<String, Object> values = new java.util.LinkedHashMap<>();
+        if ($explicitNulls.contains("autoTier") && autoTier == null) values.put("autoTier", null);
+        if ($explicitNulls.contains("reasoningEffort") && reasoningEffort == null) values.put("reasoningEffort", null);
+        return values;
     }
 }

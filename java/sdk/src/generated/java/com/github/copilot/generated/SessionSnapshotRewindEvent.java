@@ -42,5 +42,75 @@ public final class SessionSnapshotRewindEvent extends SessionEvent {
         /** The removed events, starting with `upToEventId`. Later events not listed were kept, such as a background agent's events that interleaved with a withdrawn turn */
         @JsonProperty("eventIds") List<String> eventIds
     ) {
+
+        /**
+         * Creates a record positionally.
+         * @deprecated Use {@link #builder()} for named construction.
+         */
+        @Deprecated(since = "2.0.0", forRemoval = false)
+        public SessionSnapshotRewindEventData {}
+
+        /**
+         * Returns a named builder.
+         * @return a new builder
+         * @since 2.0.0
+         */
+        public static Builder builder() { return new Builder(); }
+
+        /**
+         * Named construction for this record.
+         * @since 2.0.0
+         */
+        public static final class Builder {
+            private Builder() {}
+            private String upToEventId;
+            private Long eventsRemoved;
+            private List<String> eventIds;
+
+            /**
+             * Sets the {@code upToEventId} property.
+             * @param value the property value
+             * @return this builder
+             * @since 2.0.0
+             */
+            public Builder upToEventId(String value) {
+                this.upToEventId = value;
+                return this;
+            }
+
+            /**
+             * Sets the {@code eventsRemoved} property.
+             * @param value the property value
+             * @return this builder
+             * @since 2.0.0
+             */
+            public Builder eventsRemoved(Long value) {
+                this.eventsRemoved = value;
+                return this;
+            }
+
+            /**
+             * Sets the {@code eventIds} property.
+             * @param value the property value
+             * @return this builder
+             * @since 2.0.0
+             */
+            public Builder eventIds(List<String> value) {
+                this.eventIds = value;
+                return this;
+            }
+
+            /**
+             * Builds a record after checking required property presence.
+             * @return a new record
+             * @throws IllegalStateException if a required property is missing
+             * @since 2.0.0
+             */
+            public SessionSnapshotRewindEventData build() {
+                if (upToEventId == null) throw new IllegalStateException("Missing required property: upToEventId");
+                if (eventsRemoved == null) throw new IllegalStateException("Missing required property: eventsRemoved");
+                return new SessionSnapshotRewindEventData(upToEventId, eventsRemoved, eventIds);
+            }
+        }
     }
 }

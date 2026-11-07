@@ -48,6 +48,21 @@ class AhpHostTest {
     }
 
     @Test
+    void nullPublicationIdsPreserveOmittedWireFields() throws Exception {
+        try (var server = new FakeRuntime(); var client = server.client()) {
+            var host = await(client.startAhpHost(localOptions()));
+
+            var publish = assertDoesNotThrow(() -> host.publishSession(null));
+            var unpublish = assertDoesNotThrow(() -> host.unpublishSession(null));
+
+            assertThrows(Exception.class, () -> await(publish));
+            assertTrue(await(unpublish).unpublished());
+            assertFalse(server.unpublicationRequests.get(0).has("sessionId"));
+            await(host.dispose());
+        }
+    }
+
+    @Test
     void rejectsMissingInvalidAndIncompatibleAdmissionBeforeConnecting() throws Exception {
         for (var mode : com.github.copilot.rpc.CopilotClientMode.values()) {
             try (var server = new FakeRuntime();
@@ -64,7 +79,8 @@ class AhpHostTest {
                         AhpHostAuthentication.custom("owner", request -> null))) {
                     assertThrows(Exception.class,
                             () -> await(client.startAhpHost(localOptions().setAuthentication(policy)
-                                    .setGithubEnvironment(new HostGitHubEnvironmentOptions("host", "compute")))));
+                                    .setGithubEnvironment(HostGitHubEnvironmentOptions.builder().name("host")
+                                            .computeId("compute").build()))));
                 }
                 assertFalse(server.connected.isDone());
             }
@@ -231,7 +247,8 @@ class AhpHostTest {
 
     private static AhpHostOptions localOptions() {
         return new AhpHostOptions().setAuthentication(AhpHostAuthentication.github())
-                .setLocalServer(new HostLocalServerOptions(null, null, null, null));
+                .setLocalServer(HostLocalServerOptions.builder().hostname(null).port(null).token(null)
+                        .requireConnectionToken(null).build());
     }
 
     private static <T> T await(CompletableFuture<T> future) throws Exception {
@@ -256,7 +273,8 @@ class AhpHostTest {
                     var client = server.client();
                     var host = await(
                             client.startAhpHost(new AhpHostOptions().setAuthentication(AhpHostAuthentication.github())
-                                    .setGithubEnvironment(new HostGitHubEnvironmentOptions(fields[0], fields[1]))))) {
+                                    .setGithubEnvironment(HostGitHubEnvironmentOptions.builder().name(fields[0])
+                                            .computeId(fields[1]).build())))) {
                 var environment = await(server.startRequest).path("githubEnvironment");
                 assertEquals(fields[0], environment.path("name").asText());
                 assertEquals(fields[1], environment.path("computeId").asText());
@@ -271,10 +289,12 @@ class AhpHostTest {
             var options = new AhpHostOptions().setAuthentication(AhpHostAuthentication.github())
                     .setComputeId("compute");
             if (local) {
-                options.setLocalServer(new HostLocalServerOptions("127.0.0.1", 0L, "test-token", true));
+                options.setLocalServer(HostLocalServerOptions.builder().hostname("127.0.0.1").port(0L)
+                        .token("test-token").requireConnectionToken(true).build());
             }
             if (github) {
-                options.setGithubEnvironment(new HostGitHubEnvironmentOptions("test host", "compute"));
+                options.setGithubEnvironment(
+                        HostGitHubEnvironmentOptions.builder().name("test host").computeId("compute").build());
             }
             try (var host = await(client.startAhpHost(options))) {
                 var request = await(server.startRequest);
@@ -306,12 +326,13 @@ class AhpHostTest {
         try (var server = new FakeRuntime(); var client = server.client()) {
             server.finishConnect = new CompletableFuture<>();
             var options = localOptions().setComputeId("compute").setWorkspace("/runtime/workspace")
-                    .setGithubEnvironment(new HostGitHubEnvironmentOptions("original", "compute"));
+                    .setGithubEnvironment(
+                            HostGitHubEnvironmentOptions.builder().name("original").computeId("compute").build());
             var pending = client.startAhpHost(options);
             await(server.connectEntered);
             try {
                 options.setComputeId("changed").setWorkspace("/changed/workspace").setLocalServer(null)
-                        .setGithubEnvironment(new HostGitHubEnvironmentOptions("", ""))
+                        .setGithubEnvironment(HostGitHubEnvironmentOptions.builder().name("").computeId("").build())
                         .setAuthentication(AhpHostAuthentication.none());
             } finally {
                 server.finishConnect.complete(null);
@@ -334,7 +355,8 @@ class AhpHostTest {
                 var client = server.client();
                 var host = await(
                         client.startAhpHost(new AhpHostOptions().setAuthentication(AhpHostAuthentication.github())
-                                .setGithubEnvironment(new HostGitHubEnvironmentOptions("test host", "compute"))))) {
+                                .setGithubEnvironment(HostGitHubEnvironmentOptions.builder().name("test host")
+                                        .computeId("compute").build())))) {
             assertFalse(await(server.startRequest).path("githubEnvironment").has("requireConnectionBinding"));
         }
     }
@@ -344,9 +366,10 @@ class AhpHostTest {
     void forwardsExplicitConnectionBinding(boolean required) throws Exception {
         try (var server = new FakeRuntime();
                 var client = server.client();
-                var host = await(client.startAhpHost(
-                        new AhpHostOptions().setAuthentication(AhpHostAuthentication.github()).setGithubEnvironment(
-                                new HostGitHubEnvironmentOptions("test host", "compute", required))))) {
+                var host = await(
+                        client.startAhpHost(new AhpHostOptions().setAuthentication(AhpHostAuthentication.github())
+                                .setGithubEnvironment(HostGitHubEnvironmentOptions.builder().name("test host")
+                                        .computeId("compute").requireConnectionBinding(required).build())))) {
             assertEquals(required,
                     await(server.startRequest).path("githubEnvironment").path("requireConnectionBinding").asBoolean());
         }
@@ -449,13 +472,15 @@ class AhpHostTest {
                 try (var server = new FakeRuntime(); var client = server.client()) {
                     var host = await(client.startAhpHost(localOptions().setCreateSession(request -> {
                         if (changed) {
-                            request.config().setSessionLimits(new SessionLimitsConfig(credits.doubleValue() + 1));
+                            request.config().setSessionLimits(
+                                    SessionLimitsConfig.builder().maxAiCredits(credits.doubleValue() + 1).build());
                         }
                         return client
                                 .createSession(request.config().setOnPermissionRequest(PermissionHandler.APPROVE_ALL));
                     }).setResumeSession(request -> {
                         if (changed) {
-                            request.config().setSessionLimits(new SessionLimitsConfig(credits.doubleValue() + 1));
+                            request.config().setSessionLimits(
+                                    SessionLimitsConfig.builder().maxAiCredits(credits.doubleValue() + 1).build());
                         }
                         return client.resumeSession(request.sessionId(),
                                 request.config().setOnPermissionRequest(PermissionHandler.APPROVE_ALL));

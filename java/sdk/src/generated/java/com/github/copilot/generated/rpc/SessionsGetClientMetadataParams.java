@@ -30,4 +30,61 @@ public record SessionsGetClientMetadataParams(
     /** Case-sensitive keys to project from each valid bag. Each key must be non-empty, at most 256 UTF-8 bytes, and outside the reserved `copilot/` and `github/` namespaces. Omit to return every entry. */
     @JsonProperty("keys") List<String> keys
 ) {
+
+    /**
+     * Creates a record positionally.
+     * @deprecated Use {@link #builder()} for named construction.
+     */
+    @Deprecated(since = "2.0.0", forRemoval = false)
+    public SessionsGetClientMetadataParams {}
+
+    /**
+     * Returns a named builder.
+     * @return a new builder
+     * @since 2.0.0
+     */
+    public static Builder builder() { return new Builder(); }
+
+    /**
+     * Named construction for this record.
+     * @since 2.0.0
+     */
+    public static final class Builder {
+        private Builder() {}
+        private List<String> sessionIds;
+        private List<String> keys;
+
+        /**
+         * Sets the {@code sessionIds} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder sessionIds(List<String> value) {
+            this.sessionIds = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code keys} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder keys(List<String> value) {
+            this.keys = value;
+            return this;
+        }
+
+        /**
+         * Builds a record after checking required property presence.
+         * @return a new record
+         * @throws IllegalStateException if a required property is missing
+         * @since 2.0.0
+         */
+        public SessionsGetClientMetadataParams build() {
+            if (sessionIds == null) throw new IllegalStateException("Missing required property: sessionIds");
+            return new SessionsGetClientMetadataParams(sessionIds, keys);
+        }
+    }
 }

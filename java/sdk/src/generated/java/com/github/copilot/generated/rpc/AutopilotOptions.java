@@ -21,4 +21,60 @@ public record AutopilotOptions(
     /** Maximum automatic continuations outside an active objective. Zero allows none; defaults to five. Omitted values preserve the current limit on update or warm resume. */
     @JsonProperty("maxContinues") Long maxContinues
 ) {
+
+    /**
+     * Creates a record positionally.
+     * @deprecated Use {@link #builder()} for named construction.
+     */
+    @Deprecated(since = "2.0.0", forRemoval = false)
+    public AutopilotOptions {}
+
+    /**
+     * Returns a named builder.
+     * @return a new builder
+     * @since 2.0.0
+     */
+    public static Builder builder() { return new Builder(); }
+
+    /**
+     * Named construction for this record.
+     * @since 2.0.0
+     */
+    public static final class Builder {
+        private Builder() {}
+        private Boolean continuationEnabled;
+        private Long maxContinues;
+
+        /**
+         * Sets the {@code continuationEnabled} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder continuationEnabled(Boolean value) {
+            this.continuationEnabled = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code maxContinues} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder maxContinues(Long value) {
+            this.maxContinues = value;
+            return this;
+        }
+
+        /**
+         * Builds a record after checking required property presence.
+         * @return a new record
+         * @throws IllegalStateException if a required property is missing
+         * @since 2.0.0
+         */
+        public AutopilotOptions build() {
+            return new AutopilotOptions(continuationEnabled, maxContinues);
+        }
+    }
 }

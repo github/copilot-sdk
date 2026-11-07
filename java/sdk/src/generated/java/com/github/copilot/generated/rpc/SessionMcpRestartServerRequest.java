@@ -25,6 +25,8 @@ import javax.annotation.processing.Generated;
 @javax.annotation.processing.Generated("copilot-sdk-codegen")
 @JsonInclude(JsonInclude.Include.NON_NULL)
 public final class SessionMcpRestartServerRequest {
+    @com.fasterxml.jackson.annotation.JsonIgnore
+    private final java.util.Set<String> $explicitNulls = new java.util.LinkedHashSet<>();
 
     /** Name of the MCP server to restart */
     @JsonProperty("serverName")
@@ -82,6 +84,8 @@ public final class SessionMcpRestartServerRequest {
      */
     public SessionMcpRestartServerRequest setConfig(Object value) {
         this.config = value;
+        if (value == null) $explicitNulls.add("config");
+        else $explicitNulls.remove("config");
         return this;
     }
 
@@ -94,5 +98,13 @@ public final class SessionMcpRestartServerRequest {
     public SessionMcpRestartServerRequest setExpectedInstallationId(String value) {
         this.expectedInstallationId = value;
         return this;
+    }
+
+    @com.fasterxml.jackson.annotation.JsonAnyGetter
+    @JsonInclude(value = JsonInclude.Include.ALWAYS, content = JsonInclude.Include.ALWAYS)
+    public java.util.Map<String, Object> $nullableProperties() {
+        java.util.Map<String, Object> values = new java.util.LinkedHashMap<>();
+        if ($explicitNulls.contains("config") && config == null) values.put("config", null);
+        return values;
     }
 }

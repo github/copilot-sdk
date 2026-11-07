@@ -47,5 +47,101 @@ public final class ToolShellOutputEvent extends SessionEvent {
         @CopilotExperimental
         @JsonProperty("fusion") FusionAttribution fusion
     ) {
+
+        /**
+         * Creates a record positionally.
+         * @deprecated Use {@link #builder()} for named construction.
+         */
+        @Deprecated(since = "2.0.0", forRemoval = false)
+        public ToolShellOutputEventData {}
+
+        /**
+         * Returns a named builder.
+         * @return a new builder
+         * @since 2.0.0
+         */
+        public static Builder builder() { return new Builder(); }
+
+        /**
+         * Named construction for this record.
+         * @since 2.0.0
+         */
+        public static final class Builder {
+            private Builder() {}
+            private String toolCallId;
+            private ToolShellOutputStream stream;
+            private String text;
+            private Long sequence;
+            private FusionAttribution fusion;
+
+            /**
+             * Sets the {@code toolCallId} property.
+             * @param value the property value
+             * @return this builder
+             * @since 2.0.0
+             */
+            public Builder toolCallId(String value) {
+                this.toolCallId = value;
+                return this;
+            }
+
+            /**
+             * Sets the {@code stream} property.
+             * @param value the property value
+             * @return this builder
+             * @since 2.0.0
+             */
+            public Builder stream(ToolShellOutputStream value) {
+                this.stream = value;
+                return this;
+            }
+
+            /**
+             * Sets the {@code text} property.
+             * @param value the property value
+             * @return this builder
+             * @since 2.0.0
+             */
+            public Builder text(String value) {
+                this.text = value;
+                return this;
+            }
+
+            /**
+             * Sets the {@code sequence} property.
+             * @param value the property value
+             * @return this builder
+             * @since 2.0.0
+             */
+            public Builder sequence(Long value) {
+                this.sequence = value;
+                return this;
+            }
+
+            /**
+             * Sets the {@code fusion} property.
+             * @param value the property value
+             * @return this builder
+             * @since 2.0.0
+             */
+            @com.github.copilot.CopilotExperimental
+            public Builder fusion(FusionAttribution value) {
+                this.fusion = value;
+                return this;
+            }
+
+            /**
+             * Builds a record after checking required property presence.
+             * @return a new record
+             * @throws IllegalStateException if a required property is missing
+             * @since 2.0.0
+             */
+            public ToolShellOutputEventData build() {
+                if (toolCallId == null) throw new IllegalStateException("Missing required property: toolCallId");
+                if (text == null) throw new IllegalStateException("Missing required property: text");
+                if (sequence == null) throw new IllegalStateException("Missing required property: sequence");
+                return new ToolShellOutputEventData(toolCallId, stream, text, sequence, fusion);
+            }
+        }
     }
 }

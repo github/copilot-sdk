@@ -39,5 +39,123 @@ public record SessionWorkspacesSaveLargePasteResult(
         /** Size of the saved file in bytes */
         @JsonProperty("sizeBytes") Long sizeBytes
     ) {
+
+        /**
+         * Creates a record positionally.
+         * @deprecated Use {@link #builder()} for named construction.
+         */
+        @Deprecated(since = "2.0.0", forRemoval = false)
+        public SessionWorkspacesSaveLargePasteResultSaved {}
+
+        /**
+         * Returns a named builder.
+         * @return a new builder
+         * @since 2.0.0
+         */
+        public static Builder builder() { return new Builder(); }
+
+        /**
+         * Named construction for this record.
+         * @since 2.0.0
+         */
+        public static final class Builder {
+            private Builder() {}
+            private String filePath;
+            private String filename;
+            private Long sizeBytes;
+
+            /**
+             * Sets the {@code filePath} property.
+             * @param value the property value
+             * @return this builder
+             * @since 2.0.0
+             */
+            public Builder filePath(String value) {
+                this.filePath = value;
+                return this;
+            }
+
+            /**
+             * Sets the {@code filename} property.
+             * @param value the property value
+             * @return this builder
+             * @since 2.0.0
+             */
+            public Builder filename(String value) {
+                this.filename = value;
+                return this;
+            }
+
+            /**
+             * Sets the {@code sizeBytes} property.
+             * @param value the property value
+             * @return this builder
+             * @since 2.0.0
+             */
+            public Builder sizeBytes(Long value) {
+                this.sizeBytes = value;
+                return this;
+            }
+
+            /**
+             * Builds a record after checking required property presence.
+             * @return a new record
+             * @throws IllegalStateException if a required property is missing
+             * @since 2.0.0
+             */
+            public SessionWorkspacesSaveLargePasteResultSaved build() {
+                if (filePath == null) throw new IllegalStateException("Missing required property: filePath");
+                if (filename == null) throw new IllegalStateException("Missing required property: filename");
+                if (sizeBytes == null) throw new IllegalStateException("Missing required property: sizeBytes");
+                return new SessionWorkspacesSaveLargePasteResultSaved(filePath, filename, sizeBytes);
+            }
+        }
+    }
+
+    /**
+     * Creates a record positionally.
+     * @deprecated Use {@link #builder()} for named construction.
+     */
+    @Deprecated(since = "2.0.0", forRemoval = false)
+    public SessionWorkspacesSaveLargePasteResult {}
+
+    /**
+     * Returns a named builder.
+     * @return a new builder
+     * @since 2.0.0
+     */
+    public static Builder builder() { return new Builder(); }
+
+    /**
+     * Named construction for this record.
+     * @since 2.0.0
+     */
+    public static final class Builder {
+        private Builder() {}
+        private SessionWorkspacesSaveLargePasteResultSaved saved;
+        private boolean $presence0;
+
+        /**
+         * Sets the {@code saved} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder saved(SessionWorkspacesSaveLargePasteResultSaved value) {
+            this.saved = value;
+            this.$presence0 = true;
+            return this;
+        }
+
+        /**
+         * Builds a record after checking required property presence.
+         * @return a new record
+         * @throws IllegalStateException if a required property is missing
+         * @since 2.0.0
+         */
+        public SessionWorkspacesSaveLargePasteResult build() {
+            if (!$presence0) throw new IllegalStateException("Missing required property: saved");
+            return new SessionWorkspacesSaveLargePasteResult(saved);
+        }
     }
 }

@@ -27,4 +27,61 @@ record AgentRegistryListEntriesResult(
     /** The discovery failure, if any. */
     @JsonProperty("error") AgentRegistryError error
 ) {
+
+    /**
+     * Creates a record positionally.
+     * @deprecated Use {@link #builder()} for named construction.
+     */
+    @Deprecated(since = "2.0.0", forRemoval = false)
+    AgentRegistryListEntriesResult {}
+
+    /**
+     * Returns a named builder.
+     * @return a new builder
+     * @since 2.0.0
+     */
+    public static Builder builder() { return new Builder(); }
+
+    /**
+     * Named construction for this record.
+     * @since 2.0.0
+     */
+    public static final class Builder {
+        private Builder() {}
+        private List<AgentRegistryLiveTargetEntry> entries;
+        private AgentRegistryError error;
+
+        /**
+         * Sets the {@code entries} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder entries(List<AgentRegistryLiveTargetEntry> value) {
+            this.entries = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code error} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder error(AgentRegistryError value) {
+            this.error = value;
+            return this;
+        }
+
+        /**
+         * Builds a record after checking required property presence.
+         * @return a new record
+         * @throws IllegalStateException if a required property is missing
+         * @since 2.0.0
+         */
+        public AgentRegistryListEntriesResult build() {
+            if (entries == null) throw new IllegalStateException("Missing required property: entries");
+            return new AgentRegistryListEntriesResult(entries, error);
+        }
+    }
 }

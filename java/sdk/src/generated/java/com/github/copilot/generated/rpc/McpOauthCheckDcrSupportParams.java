@@ -33,4 +33,91 @@ record McpOauthCheckDcrSupportParams(
     /** Locally owned session whose egress policy and sandbox proxy constrain the request. Omitted or nonlocal session IDs provide no local session egress state. */
     @JsonProperty("sessionId") String sessionId
 ) {
+
+    /**
+     * Creates a record positionally.
+     * @deprecated Use {@link #builder()} for named construction.
+     */
+    @Deprecated(since = "2.0.0", forRemoval = false)
+    McpOauthCheckDcrSupportParams {}
+
+    /**
+     * Returns a named builder.
+     * @return a new builder
+     * @since 2.0.0
+     */
+    @com.github.copilot.CopilotExperimental
+    public static Builder builder() { return new Builder(); }
+
+    /**
+     * Named construction for this record.
+     * @since 2.0.0
+     */
+    @com.github.copilot.CopilotExperimental
+    public static final class Builder {
+        private Builder() {}
+        private String serverUrl;
+        private String resourceMetadataText;
+        private String sandboxProxy;
+        private String sessionId;
+
+        /**
+         * Sets the {@code serverUrl} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        @com.github.copilot.CopilotExperimental
+        public Builder serverUrl(String value) {
+            this.serverUrl = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code resourceMetadataText} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        @com.github.copilot.CopilotExperimental
+        public Builder resourceMetadataText(String value) {
+            this.resourceMetadataText = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code sandboxProxy} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        @com.github.copilot.CopilotExperimental
+        public Builder sandboxProxy(String value) {
+            this.sandboxProxy = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code sessionId} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        @com.github.copilot.CopilotExperimental
+        public Builder sessionId(String value) {
+            this.sessionId = value;
+            return this;
+        }
+
+        /**
+         * Builds a record after checking required property presence.
+         * @return a new record
+         * @throws IllegalStateException if a required property is missing
+         * @since 2.0.0
+         */
+        public McpOauthCheckDcrSupportParams build() {
+            if (serverUrl == null) throw new IllegalStateException("Missing required property: serverUrl");
+            return new McpOauthCheckDcrSupportParams(serverUrl, resourceMetadataText, sandboxProxy, sessionId);
+        }
+    }
 }

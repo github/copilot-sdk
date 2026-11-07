@@ -28,4 +28,52 @@ public record UiThreadRunRequest(
     /** Opaque, one-shot action identifier scoped to the receiving native connection. Execute only through the synchronous native UI-action entry point. */
     @JsonProperty("actionId") Long actionId
 ) {
+
+    /**
+     * Creates a record positionally.
+     * @deprecated Use {@link #builder()} for named construction.
+     */
+    @Deprecated(since = "2.0.0", forRemoval = false)
+    public UiThreadRunRequest {}
+
+    /**
+     * Returns a named builder.
+     * @return a new builder
+     * @since 2.0.0
+     */
+    @com.github.copilot.CopilotExperimental
+    public static Builder builder() { return new Builder(); }
+
+    /**
+     * Named construction for this record.
+     * @since 2.0.0
+     */
+    @com.github.copilot.CopilotExperimental
+    public static final class Builder {
+        private Builder() {}
+        private Long actionId;
+
+        /**
+         * Sets the {@code actionId} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        @com.github.copilot.CopilotExperimental
+        public Builder actionId(Long value) {
+            this.actionId = value;
+            return this;
+        }
+
+        /**
+         * Builds a record after checking required property presence.
+         * @return a new record
+         * @throws IllegalStateException if a required property is missing
+         * @since 2.0.0
+         */
+        public UiThreadRunRequest build() {
+            if (actionId == null) throw new IllegalStateException("Missing required property: actionId");
+            return new UiThreadRunRequest(actionId);
+        }
+    }
 }

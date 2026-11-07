@@ -62,4 +62,97 @@ public final class SlashCommandTextResult extends SlashCommandInvocationResult {
 
     public SandboxSessionChange getSandboxSessionChange() { return sandboxSessionChange; }
     public void setSandboxSessionChange(SandboxSessionChange sandboxSessionChange) { this.sandboxSessionChange = sandboxSessionChange; }
+
+
+    /**
+     * Returns a named builder.
+     * @return a new builder
+     * @since 2.0.0
+     */
+    public static Builder builder() { return new Builder(); }
+
+    /**
+     * Named construction for this record.
+     * @since 2.0.0
+     */
+    public static final class Builder {
+        private Builder() {}
+        private String text;
+        private Boolean markdown;
+        private Boolean preserveAnsi;
+        private Boolean runtimeSettingsChanged;
+        private SandboxSessionChange sandboxSessionChange;
+
+        /**
+         * Sets the {@code text} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder text(String value) {
+            this.text = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code markdown} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder markdown(Boolean value) {
+            this.markdown = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code preserveAnsi} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder preserveAnsi(Boolean value) {
+            this.preserveAnsi = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code runtimeSettingsChanged} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder runtimeSettingsChanged(Boolean value) {
+            this.runtimeSettingsChanged = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code sandboxSessionChange} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder sandboxSessionChange(SandboxSessionChange value) {
+            this.sandboxSessionChange = value;
+            return this;
+        }
+
+        /**
+         * Builds a variant after checking required property presence.
+         * @return a new variant
+         * @throws IllegalStateException if a required property is missing
+         * @since 2.0.0
+         */
+        public SlashCommandTextResult build() {
+            if (text == null) throw new IllegalStateException("Missing required property: text");
+            SlashCommandTextResult instance = new SlashCommandTextResult();
+            instance.setText(text);
+            instance.setMarkdown(markdown);
+            instance.setPreserveAnsi(preserveAnsi);
+            instance.setRuntimeSettingsChanged(runtimeSettingsChanged);
+            instance.setSandboxSessionChange(sandboxSessionChange);
+            return instance;
+        }
+    }
 }

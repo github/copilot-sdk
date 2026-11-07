@@ -35,4 +35,108 @@ record MemoryStoreStoreParams(
     /** Why the agent considers the fact worth remembering. */
     @JsonProperty("reason") String reason
 ) {
+
+    /**
+     * Creates a record positionally.
+     * @deprecated Use {@link #builder()} for named construction.
+     */
+    @Deprecated(since = "2.0.0", forRemoval = false)
+    MemoryStoreStoreParams {}
+
+    /**
+     * Returns a named builder.
+     * @return a new builder
+     * @since 2.0.0
+     */
+    @com.github.copilot.CopilotExperimental
+    public static Builder builder() { return new Builder(); }
+
+    /**
+     * Named construction for this record.
+     * @since 2.0.0
+     */
+    @com.github.copilot.CopilotExperimental
+    public static final class Builder {
+        private Builder() {}
+        private String sessionId;
+        private String subject;
+        private String fact;
+        private String citations;
+        private String reason;
+
+        /**
+         * Sets the {@code sessionId} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        @com.github.copilot.CopilotExperimental
+        public Builder sessionId(String value) {
+            this.sessionId = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code subject} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        @com.github.copilot.CopilotExperimental
+        public Builder subject(String value) {
+            this.subject = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code fact} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        @com.github.copilot.CopilotExperimental
+        public Builder fact(String value) {
+            this.fact = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code citations} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        @com.github.copilot.CopilotExperimental
+        public Builder citations(String value) {
+            this.citations = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code reason} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        @com.github.copilot.CopilotExperimental
+        public Builder reason(String value) {
+            this.reason = value;
+            return this;
+        }
+
+        /**
+         * Builds a record after checking required property presence.
+         * @return a new record
+         * @throws IllegalStateException if a required property is missing
+         * @since 2.0.0
+         */
+        public MemoryStoreStoreParams build() {
+            if (sessionId == null) throw new IllegalStateException("Missing required property: sessionId");
+            if (subject == null) throw new IllegalStateException("Missing required property: subject");
+            if (fact == null) throw new IllegalStateException("Missing required property: fact");
+            if (citations == null) throw new IllegalStateException("Missing required property: citations");
+            if (reason == null) throw new IllegalStateException("Missing required property: reason");
+            return new MemoryStoreStoreParams(sessionId, subject, fact, citations, reason);
+        }
+    }
 }

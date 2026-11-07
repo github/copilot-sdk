@@ -32,4 +32,99 @@ public record McpDiagnosticDetails(
     /** Serialized diagnostic detail. Protocol and HTTP records use JSON when detail is present. */
     @JsonProperty("data") String data
 ) {
+
+    /**
+     * Creates a record positionally.
+     * @deprecated Use {@link #builder()} for named construction.
+     */
+    @Deprecated(since = "2.0.0", forRemoval = false)
+    public McpDiagnosticDetails {}
+
+    /**
+     * Returns a named builder.
+     * @return a new builder
+     * @since 2.0.0
+     */
+    public static Builder builder() { return new Builder(); }
+
+    /**
+     * Named construction for this record.
+     * @since 2.0.0
+     */
+    public static final class Builder {
+        private Builder() {}
+        private McpDiagnosticKind kind;
+        private String serverName;
+        private String connectionId;
+        private McpDiagnosticDirection direction;
+        private String data;
+
+        /**
+         * Sets the {@code kind} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder kind(McpDiagnosticKind value) {
+            this.kind = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code serverName} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder serverName(String value) {
+            this.serverName = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code connectionId} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder connectionId(String value) {
+            this.connectionId = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code direction} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder direction(McpDiagnosticDirection value) {
+            this.direction = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code data} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder data(String value) {
+            this.data = value;
+            return this;
+        }
+
+        /**
+         * Builds a record after checking required property presence.
+         * @return a new record
+         * @throws IllegalStateException if a required property is missing
+         * @since 2.0.0
+         */
+        public McpDiagnosticDetails build() {
+            if (kind == null) throw new IllegalStateException("Missing required property: kind");
+            if (serverName == null) throw new IllegalStateException("Missing required property: serverName");
+            if (connectionId == null) throw new IllegalStateException("Missing required property: connectionId");
+            return new McpDiagnosticDetails(kind, serverName, connectionId, direction, data);
+        }
+    }
 }

@@ -36,4 +36,98 @@ public record CatalogSearchParams(
     /** Numbered navigation using metadata from an earlier response. Requires catalog-search-pagination and the same query, kinds, categories and effective limit. Omit for a fresh first-page search. */
     @JsonProperty("page") CatalogSearchPage page
 ) {
+
+    /**
+     * Creates a record positionally.
+     * @deprecated Use {@link #builder()} for named construction.
+     */
+    @Deprecated(since = "2.0.0", forRemoval = false)
+    public CatalogSearchParams {}
+
+    /**
+     * Returns a named builder.
+     * @return a new builder
+     * @since 2.0.0
+     */
+    public static Builder builder() { return new Builder(); }
+
+    /**
+     * Named construction for this record.
+     * @since 2.0.0
+     */
+    public static final class Builder {
+        private Builder() {}
+        private CatalogClientContract contract;
+        private String query;
+        private Long limit;
+        private List<CatalogCandidateKind> kinds;
+        private CatalogSearchPage page;
+
+        /**
+         * Sets the {@code contract} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder contract(CatalogClientContract value) {
+            this.contract = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code query} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder query(String value) {
+            this.query = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code limit} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder limit(Long value) {
+            this.limit = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code kinds} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder kinds(List<CatalogCandidateKind> value) {
+            this.kinds = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code page} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder page(CatalogSearchPage value) {
+            this.page = value;
+            return this;
+        }
+
+        /**
+         * Builds a record after checking required property presence.
+         * @return a new record
+         * @throws IllegalStateException if a required property is missing
+         * @since 2.0.0
+         */
+        public CatalogSearchParams build() {
+            if (contract == null) throw new IllegalStateException("Missing required property: contract");
+            if (query == null) throw new IllegalStateException("Missing required property: query");
+            return new CatalogSearchParams(contract, query, limit, kinds, page);
+        }
+    }
 }

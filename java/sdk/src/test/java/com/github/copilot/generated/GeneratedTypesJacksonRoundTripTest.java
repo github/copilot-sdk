@@ -6,14 +6,19 @@ package com.github.copilot.generated;
 
 import static org.junit.jupiter.api.Assertions.*;
 
+import com.fasterxml.jackson.annotation.JsonTypeInfo;
+import com.fasterxml.jackson.annotation.JsonValue;
 import java.io.IOException;
+import java.lang.reflect.Modifier;
 import java.net.URISyntaxException;
 import java.net.URL;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 
 import org.junit.jupiter.api.DynamicTest;
 import org.junit.jupiter.api.Test;
@@ -105,12 +110,12 @@ class GeneratedTypesJacksonRoundTripTest {
     }
 
     @TestFactory
-    Collection<DynamicTest> roundTripAllGeneratedRecords() {
+    Collection<DynamicTest> roundTripAllGeneratedRecords() throws Exception {
         List<DynamicTest> tests = new ArrayList<>();
         for (Class<?> cls : discoverGeneratedClasses()) {
             if (!cls.isRecord())
                 continue;
-            tests.add(DynamicTest.dynamicTest("record round-trip: " + cls.getSimpleName(), () -> {
+            tests.add(DynamicTest.dynamicTest("record round-trip: " + cls.getName(), () -> {
                 // Deserialize from empty JSON — all fields will be null/default
                 Object instance = MAPPER.readValue("{}", cls);
                 assertNotNull(instance, "Deserialized instance should not be null for " + cls.getName());
@@ -129,12 +134,12 @@ class GeneratedTypesJacksonRoundTripTest {
     }
 
     @TestFactory
-    Collection<DynamicTest> roundTripAllGeneratedEnums() {
+    Collection<DynamicTest> roundTripAllGeneratedEnums() throws Exception {
         List<DynamicTest> tests = new ArrayList<>();
         for (Class<?> cls : discoverGeneratedClasses()) {
             if (!cls.isEnum())
                 continue;
-            tests.add(DynamicTest.dynamicTest("enum round-trip: " + cls.getSimpleName(), () -> {
+            tests.add(DynamicTest.dynamicTest("enum round-trip: " + cls.getName(), () -> {
                 Object[] constants = cls.getEnumConstants();
                 assertNotNull(constants, "Enum constants should not be null for " + cls.getName());
                 assertTrue(constants.length > 0, "Enum should have at least one constant: " + cls.getName());
@@ -155,14 +160,81 @@ class GeneratedTypesJacksonRoundTripTest {
         return tests;
     }
 
+    @Test
+    void generatedDiscoveryCoversEveryCurrentBuilderFamily() throws Exception {
+        List<Class<?>> classes = discoverGeneratedClasses();
+        Set<Class<?>> identities = new HashSet<>(classes);
+        assertEquals(classes.size(), identities.size(), "Generated binary identities must be discovered exactly once");
+
+        List<Class<?>> records = classes.stream().filter(Class::isRecord).toList();
+        List<Class<?>> selectedRecords = records.stream()
+                .filter(GeneratedTypesJacksonRoundTripTest::isSelectedBuilderOwner).toList();
+        List<Class<?>> nestedSelectedRecords = selectedRecords.stream().filter(type -> type.getDeclaringClass() != null)
+                .toList();
+        List<Class<?>> enums = classes.stream().filter(Class::isEnum).toList();
+        List<Class<?>> mutableVariants = classes.stream().filter(GeneratedTypesJacksonRoundTripTest::isMutableVariant)
+                .toList();
+        List<Class<?>> sealedVariants = selectedRecords.stream()
+                .filter(GeneratedTypesJacksonRoundTripTest::isSealedVariantRecord).toList();
+        List<Class<?>> builderOwners = classes.stream()
+                .filter(GeneratedTypesJacksonRoundTripTest::isSelectedBuilderOwner).toList();
+        assertFalse(records.isEmpty(), "Should discover generated records");
+        assertFalse(selectedRecords.isEmpty(), "Should discover selected generated records");
+        assertFalse(nestedSelectedRecords.isEmpty(), "Should discover selected nested records");
+        assertFalse(enums.isEmpty(), "Should discover generated enums");
+        assertFalse(mutableVariants.isEmpty(), "Should discover generated mutable variants");
+        assertFalse(sealedVariants.isEmpty(), "Should discover generated sealed variants");
+        assertEquals(selectedRecords.size() + mutableVariants.size(), builderOwners.size(),
+                "Every selected record and mutable variant should own a builder");
+        assertTrue(
+                builderOwners.contains(com.github.copilot.generated.rpc.InstallationConfirmationRequestReview.class));
+    }
+
+    @Test
+    void everySelectedBuilderFactoryAndBuildMethodRetainsExactOwnerIdentity() throws Exception {
+        for (Class<?> owner : discoverGeneratedClasses().stream()
+                .filter(GeneratedTypesJacksonRoundTripTest::isSelectedBuilderOwner).toList()) {
+            var factory = owner.getDeclaredMethod("builder");
+            assertTrue(Modifier.isPublic(factory.getModifiers()), owner.getName());
+            assertTrue(Modifier.isStatic(factory.getModifiers()), owner.getName());
+            Class<?> builderType = factory.getReturnType();
+            assertSame(owner, builderType.getDeclaringClass(), owner.getName());
+            assertTrue(Modifier.isStatic(builderType.getModifiers()), builderType.getName());
+            assertTrue(factory.trySetAccessible(), owner.getName());
+            assertSame(builderType, factory.invoke(null).getClass(), owner.getName());
+            var build = builderType.getDeclaredMethod("build");
+            assertSame(owner, build.getReturnType(), owner.getName());
+        }
+    }
+
+    private static boolean isSelectedBuilderOwner(Class<?> type) {
+        return type.isRecord() ? !hasJsonValue(type) : isMutableVariant(type);
+    }
+
+    private static boolean hasJsonValue(Class<?> type) {
+        return java.util.Arrays.stream(type.getDeclaredMethods())
+                .anyMatch(method -> method.isAnnotationPresent(JsonValue.class));
+    }
+
+    private static boolean isMutableVariant(Class<?> type) {
+        Class<?> parent = type.getSuperclass();
+        return !type.isRecord() && !type.isEnum() && !Modifier.isAbstract(type.getModifiers())
+                && !SessionEvent.class.isAssignableFrom(type) && parent != null
+                && parent.isAnnotationPresent(JsonTypeInfo.class);
+    }
+
+    private static boolean isSealedVariantRecord(Class<?> type) {
+        return java.util.Arrays.stream(type.getInterfaces()).anyMatch(Class::isSealed);
+    }
+
     /**
-     * Discovers all top-level classes in the generated packages by scanning
-     * compiled {@code .class} files on disk. The packages
+     * Discovers all classes, including nested types, in the generated packages by
+     * scanning compiled {@code .class} files on disk. The packages
      * {@code com.github.copilot.generated} and
      * {@code com.github.copilot.generated.rpc} contain <em>only</em> generated
-     * code, so every loadable top-level class is included.
+     * code, so every class identity is included.
      */
-    private static List<Class<?>> discoverGeneratedClasses() {
+    private static List<Class<?>> discoverGeneratedClasses() throws IOException, URISyntaxException {
         List<Class<?>> result = new ArrayList<>();
         for (String pkg : GENERATED_PACKAGES) {
             result.addAll(findClassesInPackage(pkg));
@@ -170,7 +242,7 @@ class GeneratedTypesJacksonRoundTripTest {
         return result;
     }
 
-    private static List<Class<?>> findClassesInPackage(String packageName) {
+    private static List<Class<?>> findClassesInPackage(String packageName) throws IOException, URISyntaxException {
         List<Class<?>> classes = new ArrayList<>();
 
         // Load a known anchor class from the target package, then derive the
@@ -181,36 +253,29 @@ class GeneratedTypesJacksonRoundTripTest {
         String anchorName = packageName + ".AbortReason";
         Class<?> anchor;
         try {
-            anchor = Class.forName(anchorName);
+            anchor = Class.forName(anchorName, false, GeneratedTypesJacksonRoundTripTest.class.getClassLoader());
         } catch (ClassNotFoundException e) {
-            fail("Anchor class not found: " + anchorName);
-            return classes; // unreachable
+            throw new IllegalStateException("Anchor class not found: " + anchorName, e);
         }
 
-        Path packageDir;
-        try {
-            URL codeSourceUrl = anchor.getProtectionDomain().getCodeSource().getLocation();
-            assertNotNull(codeSourceUrl, "Could not determine code source for " + packageName);
-            Path classesRoot = Path.of(codeSourceUrl.toURI());
-            packageDir = classesRoot.resolve(packageName.replace('.', '/'));
-        } catch (URISyntaxException e) {
-            fail("Bad URI scanning " + packageName + ": " + e.getMessage());
-            return classes; // unreachable
-        }
+        URL codeSourceUrl = anchor.getProtectionDomain().getCodeSource().getLocation();
+        assertNotNull(codeSourceUrl, "Could not determine code source for " + packageName);
+        Path classesRoot = Path.of(codeSourceUrl.toURI());
+        Path packageDir = classesRoot.resolve(packageName.replace('.', '/'));
         assertTrue(Files.isDirectory(packageDir), "Expected a directory at " + packageDir);
 
         try (var files = Files.list(packageDir)) {
-            files.filter(p -> p.toString().endsWith(".class")).map(p -> p.getFileName().toString())
-                    .filter(name -> !name.contains("$")).forEach(name -> {
-                        String className = packageName + '.' + name.substring(0, name.length() - 6);
-                        try {
-                            classes.add(Class.forName(className));
-                        } catch (ClassNotFoundException | NoClassDefFoundError e) {
-                            // Skip classes that can't be loaded
-                        }
-                    });
-        } catch (IOException e) {
-            fail("Failed to scan package " + packageName + ": " + e.getMessage());
+            for (Path classFile : files.filter(p -> p.toString().endsWith(".class"))
+                    .filter(p -> !p.getFileName().toString().equals("package-info.class")).sorted().toList()) {
+                String className = packageName + '.'
+                        + packageDir.relativize(classFile).toString().replace('/', '.').replace('\\', '.');
+                className = className.substring(0, className.length() - ".class".length());
+                try {
+                    classes.add(Class.forName(className, false, anchor.getClassLoader()));
+                } catch (ClassNotFoundException e) {
+                    throw new IllegalStateException("Failed to load generated class " + className, e);
+                }
+            }
         }
         return classes;
     }

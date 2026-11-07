@@ -29,4 +29,77 @@ public record AuthenticatedAuthorityUpdate(
     @JsonInclude(JsonInclude.Include.ALWAYS)
     @JsonProperty("grant") AuthenticatedAuthorityGrant grant
 ) {
+
+    /**
+     * Creates a record positionally.
+     * @deprecated Use {@link #builder()} for named construction.
+     */
+    @Deprecated(since = "2.0.0", forRemoval = false)
+    public AuthenticatedAuthorityUpdate {}
+
+    /**
+     * Returns a named builder.
+     * @return a new builder
+     * @since 2.0.0
+     */
+    public static Builder builder() { return new Builder(); }
+
+    /**
+     * Named construction for this record.
+     * @since 2.0.0
+     */
+    public static final class Builder {
+        private Builder() {}
+        private Long revision;
+        private String source;
+        private AuthenticatedAuthorityGrant grant;
+        private boolean $presence2;
+
+        /**
+         * Sets the {@code revision} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder revision(Long value) {
+            this.revision = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code source} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder source(String value) {
+            this.source = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code grant} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder grant(AuthenticatedAuthorityGrant value) {
+            this.grant = value;
+            this.$presence2 = true;
+            return this;
+        }
+
+        /**
+         * Builds a record after checking required property presence.
+         * @return a new record
+         * @throws IllegalStateException if a required property is missing
+         * @since 2.0.0
+         */
+        public AuthenticatedAuthorityUpdate build() {
+            if (revision == null) throw new IllegalStateException("Missing required property: revision");
+            if (source == null) throw new IllegalStateException("Missing required property: source");
+            if (!$presence2) throw new IllegalStateException("Missing required property: grant");
+            return new AuthenticatedAuthorityUpdate(revision, source, grant);
+        }
+    }
 }

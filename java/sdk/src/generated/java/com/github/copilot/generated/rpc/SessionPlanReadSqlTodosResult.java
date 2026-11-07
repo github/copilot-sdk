@@ -28,4 +28,49 @@ public record SessionPlanReadSqlTodosResult(
     /** Rows from the session SQL todos table, ordered by creation time with insertion order used to break ties when available and id used for WITHOUT ROWID tables. */
     @JsonProperty("rows") List<PlanSqlTodosRow> rows
 ) {
+
+    /**
+     * Creates a record positionally.
+     * @deprecated Use {@link #builder()} for named construction.
+     */
+    @Deprecated(since = "2.0.0", forRemoval = false)
+    public SessionPlanReadSqlTodosResult {}
+
+    /**
+     * Returns a named builder.
+     * @return a new builder
+     * @since 2.0.0
+     */
+    public static Builder builder() { return new Builder(); }
+
+    /**
+     * Named construction for this record.
+     * @since 2.0.0
+     */
+    public static final class Builder {
+        private Builder() {}
+        private List<PlanSqlTodosRow> rows;
+
+        /**
+         * Sets the {@code rows} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder rows(List<PlanSqlTodosRow> value) {
+            this.rows = value;
+            return this;
+        }
+
+        /**
+         * Builds a record after checking required property presence.
+         * @return a new record
+         * @throws IllegalStateException if a required property is missing
+         * @since 2.0.0
+         */
+        public SessionPlanReadSqlTodosResult build() {
+            if (rows == null) throw new IllegalStateException("Missing required property: rows");
+            return new SessionPlanReadSqlTodosResult(rows);
+        }
+    }
 }

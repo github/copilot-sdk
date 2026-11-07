@@ -32,4 +32,74 @@ public record SessionHistoryListRewindPointsResult(
     /** Root user turns in chronological order. Empty when `unavailableReason` is set. */
     @JsonProperty("points") List<HistoryRewindPoint> points
 ) {
+
+    /**
+     * Creates a record positionally.
+     * @deprecated Use {@link #builder()} for named construction.
+     */
+    @Deprecated(since = "2.0.0", forRemoval = false)
+    public SessionHistoryListRewindPointsResult {}
+
+    /**
+     * Returns a named builder.
+     * @return a new builder
+     * @since 2.0.0
+     */
+    public static Builder builder() { return new Builder(); }
+
+    /**
+     * Named construction for this record.
+     * @since 2.0.0
+     */
+    public static final class Builder {
+        private Builder() {}
+        private Boolean fileChangeTrackingEnabled;
+        private HistoryRewindUnavailableReason unavailableReason;
+        private List<HistoryRewindPoint> points;
+
+        /**
+         * Sets the {@code fileChangeTrackingEnabled} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder fileChangeTrackingEnabled(Boolean value) {
+            this.fileChangeTrackingEnabled = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code unavailableReason} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder unavailableReason(HistoryRewindUnavailableReason value) {
+            this.unavailableReason = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code points} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder points(List<HistoryRewindPoint> value) {
+            this.points = value;
+            return this;
+        }
+
+        /**
+         * Builds a record after checking required property presence.
+         * @return a new record
+         * @throws IllegalStateException if a required property is missing
+         * @since 2.0.0
+         */
+        public SessionHistoryListRewindPointsResult build() {
+            if (fileChangeTrackingEnabled == null) throw new IllegalStateException("Missing required property: fileChangeTrackingEnabled");
+            if (points == null) throw new IllegalStateException("Missing required property: points");
+            return new SessionHistoryListRewindPointsResult(fileChangeTrackingEnabled, unavailableReason, points);
+        }
+    }
 }

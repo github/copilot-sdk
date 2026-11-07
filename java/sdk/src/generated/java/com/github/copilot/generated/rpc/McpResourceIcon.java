@@ -33,4 +33,97 @@ public record McpResourceIcon(
     /** Server-provided non-standard icon fields preserved from the MCP response */
     @JsonProperty("additionalProperties") Map<String, Object> additionalProperties
 ) {
+
+    /**
+     * Creates a record positionally.
+     * @deprecated Use {@link #builder()} for named construction.
+     */
+    @Deprecated(since = "2.0.0", forRemoval = false)
+    public McpResourceIcon {}
+
+    /**
+     * Returns a named builder.
+     * @return a new builder
+     * @since 2.0.0
+     */
+    public static Builder builder() { return new Builder(); }
+
+    /**
+     * Named construction for this record.
+     * @since 2.0.0
+     */
+    public static final class Builder {
+        private Builder() {}
+        private String src;
+        private String mimeType;
+        private String sizes;
+        private String theme;
+        private Map<String, Object> additionalProperties;
+
+        /**
+         * Sets the {@code src} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder src(String value) {
+            this.src = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code mimeType} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder mimeType(String value) {
+            this.mimeType = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code sizes} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder sizes(String value) {
+            this.sizes = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code theme} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder theme(String value) {
+            this.theme = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code additionalProperties} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder additionalProperties(Map<String, Object> value) {
+            this.additionalProperties = value;
+            return this;
+        }
+
+        /**
+         * Builds a record after checking required property presence.
+         * @return a new record
+         * @throws IllegalStateException if a required property is missing
+         * @since 2.0.0
+         */
+        public McpResourceIcon build() {
+            if (src == null) throw new IllegalStateException("Missing required property: src");
+            return new McpResourceIcon(src, mimeType, sizes, theme, additionalProperties);
+        }
+    }
 }

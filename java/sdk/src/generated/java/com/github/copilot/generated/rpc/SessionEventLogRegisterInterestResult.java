@@ -27,4 +27,49 @@ public record SessionEventLogRegisterInterestResult(
     /** Opaque handle for this registration. Pass to releaseInterest to release. Each call to registerInterest produces a fresh handle, even when the same eventType is registered multiple times. */
     @JsonProperty("handle") String handle
 ) {
+
+    /**
+     * Creates a record positionally.
+     * @deprecated Use {@link #builder()} for named construction.
+     */
+    @Deprecated(since = "2.0.0", forRemoval = false)
+    public SessionEventLogRegisterInterestResult {}
+
+    /**
+     * Returns a named builder.
+     * @return a new builder
+     * @since 2.0.0
+     */
+    public static Builder builder() { return new Builder(); }
+
+    /**
+     * Named construction for this record.
+     * @since 2.0.0
+     */
+    public static final class Builder {
+        private Builder() {}
+        private String handle;
+
+        /**
+         * Sets the {@code handle} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder handle(String value) {
+            this.handle = value;
+            return this;
+        }
+
+        /**
+         * Builds a record after checking required property presence.
+         * @return a new record
+         * @throws IllegalStateException if a required property is missing
+         * @since 2.0.0
+         */
+        public SessionEventLogRegisterInterestResult build() {
+            if (handle == null) throw new IllegalStateException("Missing required property: handle");
+            return new SessionEventLogRegisterInterestResult(handle);
+        }
+    }
 }

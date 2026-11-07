@@ -32,4 +32,80 @@ public record SessionModelSwitchAutoTierParams(
     /** Origin to record on the effective `session.model_change` event. Defaults to `sdk` when omitted. */
     @JsonProperty("source") ModelChangeSource source
 ) {
+
+    /**
+     * Creates a record positionally.
+     * @deprecated Use {@link #builder()} for named construction.
+     */
+    @Deprecated(since = "2.0.0", forRemoval = false)
+    public SessionModelSwitchAutoTierParams {}
+
+    /**
+     * Returns a named builder.
+     * @return a new builder
+     * @since 2.0.0
+     */
+    @com.github.copilot.CopilotExperimental
+    public static Builder builder() { return new Builder(); }
+
+    /**
+     * Named construction for this record.
+     * @since 2.0.0
+     */
+    @com.github.copilot.CopilotExperimental
+    public static final class Builder {
+        private Builder() {}
+        private String sessionId;
+        private AutoTier autoTier;
+        private boolean $presence1;
+        private ModelChangeSource source;
+
+        /**
+         * Sets the {@code sessionId} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        @com.github.copilot.CopilotExperimental
+        public Builder sessionId(String value) {
+            this.sessionId = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code autoTier} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        @com.github.copilot.CopilotExperimental
+        public Builder autoTier(AutoTier value) {
+            this.autoTier = value;
+            this.$presence1 = true;
+            return this;
+        }
+
+        /**
+         * Sets the {@code source} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        @com.github.copilot.CopilotExperimental
+        public Builder source(ModelChangeSource value) {
+            this.source = value;
+            return this;
+        }
+
+        /**
+         * Builds a record after checking required property presence.
+         * @return a new record
+         * @throws IllegalStateException if a required property is missing
+         * @since 2.0.0
+         */
+        public SessionModelSwitchAutoTierParams build() {
+            if (!$presence1) throw new IllegalStateException("Missing required property: autoTier");
+            return new SessionModelSwitchAutoTierParams(sessionId, autoTier, source);
+        }
+    }
 }

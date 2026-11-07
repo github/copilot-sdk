@@ -35,4 +35,104 @@ public record HostStartParams(
     /** Ask the owning application to resume its durable AHP sessions. */
     @JsonProperty("resumeFactory") Boolean resumeFactory
 ) {
+
+    /**
+     * Creates a record positionally.
+     * @deprecated Use {@link #builder()} for named construction.
+     */
+    @Deprecated(since = "2.0.0", forRemoval = false)
+    public HostStartParams {}
+
+    /**
+     * Returns a named builder.
+     * @return a new builder
+     * @since 2.0.0
+     */
+    @com.github.copilot.CopilotExperimental
+    public static Builder builder() { return new Builder(); }
+
+    /**
+     * Named construction for this record.
+     * @since 2.0.0
+     */
+    @com.github.copilot.CopilotExperimental
+    public static final class Builder {
+        private Builder() {}
+        private String hostId;
+        private HostLocalServerOptions localServer;
+        private HostGitHubEnvironmentOptions gitHubEnvironment;
+        private Boolean sessionFactory;
+        private Boolean resumeFactory;
+
+        /**
+         * Sets the {@code hostId} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        @com.github.copilot.CopilotExperimental
+        public Builder hostId(String value) {
+            this.hostId = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code localServer} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        @com.github.copilot.CopilotExperimental
+        public Builder localServer(HostLocalServerOptions value) {
+            this.localServer = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code githubEnvironment} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        @com.github.copilot.CopilotExperimental
+        public Builder gitHubEnvironment(HostGitHubEnvironmentOptions value) {
+            this.gitHubEnvironment = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code sessionFactory} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        @com.github.copilot.CopilotExperimental
+        public Builder sessionFactory(Boolean value) {
+            this.sessionFactory = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code resumeFactory} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        @com.github.copilot.CopilotExperimental
+        public Builder resumeFactory(Boolean value) {
+            this.resumeFactory = value;
+            return this;
+        }
+
+        /**
+         * Builds a record after checking required property presence.
+         * @return a new record
+         * @throws IllegalStateException if a required property is missing
+         * @since 2.0.0
+         */
+        public HostStartParams build() {
+            if (hostId == null) throw new IllegalStateException("Missing required property: hostId");
+            return new HostStartParams(hostId, localServer, gitHubEnvironment, sessionFactory, resumeFactory);
+        }
+    }
 }

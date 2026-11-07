@@ -39,5 +39,61 @@ public final class SessionIdleEvent extends SessionEvent {
         /** The session mode the agent was operating in when it went idle, when the mode is known. Lets turn-scoped consumers distinguish an autopilot continuation boundary (where the agent keeps working after this idle) from a genuine turn completion. */
         @JsonProperty("mode") SessionMode mode
     ) {
+
+        /**
+         * Creates a record positionally.
+         * @deprecated Use {@link #builder()} for named construction.
+         */
+        @Deprecated(since = "2.0.0", forRemoval = false)
+        public SessionIdleEventData {}
+
+        /**
+         * Returns a named builder.
+         * @return a new builder
+         * @since 2.0.0
+         */
+        public static Builder builder() { return new Builder(); }
+
+        /**
+         * Named construction for this record.
+         * @since 2.0.0
+         */
+        public static final class Builder {
+            private Builder() {}
+            private Boolean aborted;
+            private SessionMode mode;
+
+            /**
+             * Sets the {@code aborted} property.
+             * @param value the property value
+             * @return this builder
+             * @since 2.0.0
+             */
+            public Builder aborted(Boolean value) {
+                this.aborted = value;
+                return this;
+            }
+
+            /**
+             * Sets the {@code mode} property.
+             * @param value the property value
+             * @return this builder
+             * @since 2.0.0
+             */
+            public Builder mode(SessionMode value) {
+                this.mode = value;
+                return this;
+            }
+
+            /**
+             * Builds a record after checking required property presence.
+             * @return a new record
+             * @throws IllegalStateException if a required property is missing
+             * @since 2.0.0
+             */
+            public SessionIdleEventData build() {
+                return new SessionIdleEventData(aborted, mode);
+            }
+        }
     }
 }

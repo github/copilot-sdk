@@ -34,4 +34,93 @@ public record GitHubTokenAcquireRequest(
     /** Why the runtime is requesting a GitHub credential. */
     @JsonProperty("reason") GitHubTokenAcquireReason reason
 ) {
+
+    /**
+     * Creates a record positionally.
+     * @deprecated Use {@link #builder()} for named construction.
+     */
+    @Deprecated(since = "2.0.0", forRemoval = false)
+    public GitHubTokenAcquireRequest {}
+
+    /**
+     * Returns a named builder.
+     * @return a new builder
+     * @since 2.0.0
+     */
+    @com.github.copilot.CopilotExperimental
+    public static Builder builder() { return new Builder(); }
+
+    /**
+     * Named construction for this record.
+     * @since 2.0.0
+     */
+    @com.github.copilot.CopilotExperimental
+    public static final class Builder {
+        private Builder() {}
+        private String registrationId;
+        private String host;
+        private String sessionId;
+        private GitHubTokenAcquireReason reason;
+
+        /**
+         * Sets the {@code registrationId} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        @com.github.copilot.CopilotExperimental
+        public Builder registrationId(String value) {
+            this.registrationId = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code host} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        @com.github.copilot.CopilotExperimental
+        public Builder host(String value) {
+            this.host = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code sessionId} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        @com.github.copilot.CopilotExperimental
+        public Builder sessionId(String value) {
+            this.sessionId = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code reason} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        @com.github.copilot.CopilotExperimental
+        public Builder reason(GitHubTokenAcquireReason value) {
+            this.reason = value;
+            return this;
+        }
+
+        /**
+         * Builds a record after checking required property presence.
+         * @return a new record
+         * @throws IllegalStateException if a required property is missing
+         * @since 2.0.0
+         */
+        public GitHubTokenAcquireRequest build() {
+            if (registrationId == null) throw new IllegalStateException("Missing required property: registrationId");
+            if (host == null) throw new IllegalStateException("Missing required property: host");
+            if (reason == null) throw new IllegalStateException("Missing required property: reason");
+            return new GitHubTokenAcquireRequest(registrationId, host, sessionId, reason);
+        }
+    }
 }

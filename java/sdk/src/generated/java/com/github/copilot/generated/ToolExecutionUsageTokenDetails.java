@@ -26,4 +26,62 @@ public record ToolExecutionUsageTokenDetails(
     /** Text tokens included in the corresponding input or output total. */
     @JsonProperty("textTokens") Long textTokens
 ) {
+
+    /**
+     * Creates a record positionally.
+     * @deprecated Use {@link #builder()} for named construction.
+     */
+    @Deprecated(since = "2.0.0", forRemoval = false)
+    public ToolExecutionUsageTokenDetails {}
+
+    /**
+     * Returns a named builder.
+     * @return a new builder
+     * @since 2.0.0
+     */
+    public static Builder builder() { return new Builder(); }
+
+    /**
+     * Named construction for this record.
+     * @since 2.0.0
+     */
+    public static final class Builder {
+        private Builder() {}
+        private Long imageTokens;
+        private Long textTokens;
+
+        /**
+         * Sets the {@code imageTokens} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder imageTokens(Long value) {
+            this.imageTokens = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code textTokens} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder textTokens(Long value) {
+            this.textTokens = value;
+            return this;
+        }
+
+        /**
+         * Builds a record after checking required property presence.
+         * @return a new record
+         * @throws IllegalStateException if a required property is missing
+         * @since 2.0.0
+         */
+        public ToolExecutionUsageTokenDetails build() {
+            if (imageTokens == null) throw new IllegalStateException("Missing required property: imageTokens");
+            if (textTokens == null) throw new IllegalStateException("Missing required property: textTokens");
+            return new ToolExecutionUsageTokenDetails(imageTokens, textTokens);
+        }
+    }
 }

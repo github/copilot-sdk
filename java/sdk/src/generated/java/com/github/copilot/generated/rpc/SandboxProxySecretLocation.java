@@ -26,4 +26,62 @@ record SandboxProxySecretLocation(
     /** Identifier of the proxy password entry within that store. Derived from the configuration directory, so two Copilot homes on one machine never share an entry. Use it to recognize a `${secret:…}` reference in stored settings as this runtime's own proxy password. */
     @JsonProperty("secretId") String secretId
 ) {
+
+    /**
+     * Creates a record positionally.
+     * @deprecated Use {@link #builder()} for named construction.
+     */
+    @Deprecated(since = "2.0.0", forRemoval = false)
+    SandboxProxySecretLocation {}
+
+    /**
+     * Returns a named builder.
+     * @return a new builder
+     * @since 2.0.0
+     */
+    public static Builder builder() { return new Builder(); }
+
+    /**
+     * Named construction for this record.
+     * @since 2.0.0
+     */
+    public static final class Builder {
+        private Builder() {}
+        private String configDir;
+        private String secretId;
+
+        /**
+         * Sets the {@code configDir} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder configDir(String value) {
+            this.configDir = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code secretId} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder secretId(String value) {
+            this.secretId = value;
+            return this;
+        }
+
+        /**
+         * Builds a record after checking required property presence.
+         * @return a new record
+         * @throws IllegalStateException if a required property is missing
+         * @since 2.0.0
+         */
+        public SandboxProxySecretLocation build() {
+            if (configDir == null) throw new IllegalStateException("Missing required property: configDir");
+            if (secretId == null) throw new IllegalStateException("Missing required property: secretId");
+            return new SandboxProxySecretLocation(configDir, secretId);
+        }
+    }
 }

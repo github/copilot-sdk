@@ -30,4 +30,68 @@ record GitHubOwnersListParams(
     @JsonInclude(JsonInclude.Include.ALWAYS)
     @JsonProperty("authInfo") Object authInfo
 ) {
+
+    /**
+     * Creates a record positionally.
+     * @deprecated Use {@link #builder()} for named construction.
+     */
+    @Deprecated(since = "2.0.0", forRemoval = false)
+    GitHubOwnersListParams {}
+
+    /**
+     * Returns a named builder.
+     * @return a new builder
+     * @since 2.0.0
+     */
+    @com.github.copilot.CopilotExperimental
+    public static Builder builder() { return new Builder(); }
+
+    /**
+     * Named construction for this record.
+     * @since 2.0.0
+     */
+    @com.github.copilot.CopilotExperimental
+    public static final class Builder {
+        private Builder() {}
+        private Long requestId;
+        private Object authInfo;
+        private boolean $presence1;
+
+        /**
+         * Sets the {@code requestId} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        @com.github.copilot.CopilotExperimental
+        public Builder requestId(Long value) {
+            this.requestId = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code authInfo} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        @com.github.copilot.CopilotExperimental
+        public Builder authInfo(Object value) {
+            this.authInfo = value;
+            this.$presence1 = true;
+            return this;
+        }
+
+        /**
+         * Builds a record after checking required property presence.
+         * @return a new record
+         * @throws IllegalStateException if a required property is missing
+         * @since 2.0.0
+         */
+        public GitHubOwnersListParams build() {
+            if (requestId == null) throw new IllegalStateException("Missing required property: requestId");
+            if (!$presence1) throw new IllegalStateException("Missing required property: authInfo");
+            return new GitHubOwnersListParams(requestId, authInfo);
+        }
+    }
 }

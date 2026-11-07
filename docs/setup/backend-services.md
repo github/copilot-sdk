@@ -69,11 +69,15 @@ copilot --headless
 # Output: CLI server listening on port 52431
 ```
 
-By default the headless server only accepts connections from loopback (`127.0.0.1`). To accept connections from other hosts—for example from another machine on your network—bind to a non-loopback address with `--host`:
+By default the headless server only accepts connections from loopback (`127.0.0.1`), where it needs no authentication. To accept connections from other hosts—for example from another machine on your network—bind to a non-loopback address with `--host`. A non-loopback bind exposes the full runtime (sessions, shell and file tools, the configured GitHub token) to anything that can reach the port, so the server **requires** a connection token in that case and refuses to start without one. Set `COPILOT_CONNECTION_TOKEN` to a non-empty shared secret on the server, and pass the same value as `connectionToken` from the SDK client:
 
 ```bash
+# Generate a secret once and keep it (for example in your secret store)
+export COPILOT_CONNECTION_TOKEN="$(openssl rand -hex 32)"
 copilot --headless --host 0.0.0.0 --port 4321
 ```
+
+Without `COPILOT_CONNECTION_TOKEN`, a non-loopback bind fails with `refusing to bind the runtime server to non-loopback host ... without a connection token`. Keep the token out of shell history and process arguments, and prefer loopback with an authenticating reverse proxy where you can.
 
 For production, run it as a system service or in a container.
 
@@ -105,10 +109,13 @@ docker push your-registry/copilot-cli:latest
 ```
 
 ```bash
-# Docker — must bind to 0.0.0.0 so the container's published port is reachable
+# Docker — must bind to 0.0.0.0 so the container's published port is reachable;
+# a non-loopback bind requires COPILOT_CONNECTION_TOKEN, forwarded below from the
+# value exported above (`-e NAME` with no value keeps it out of the command line).
 docker run -d --name copilot-cli \
     -p 4321:4321 \
     -e COPILOT_GITHUB_TOKEN="$TOKEN" \
+    -e COPILOT_CONNECTION_TOKEN \
     copilot-cli:latest \
     --headless --host 0.0.0.0 --port 4321
 
@@ -120,6 +127,9 @@ Restart=always
 ```
 
 ## Step 2: connect the SDK
+
+> [!IMPORTANT]
+> If you started the server with a non-loopback `--host` (for example the Docker setup above), it requires a connection token. Pass the same `COPILOT_CONNECTION_TOKEN` value to the client as the second argument to `RuntimeConnection.forUri`, for example `RuntimeConnection.forUri("your-host:4321", { connectionToken: process.env.COPILOT_CONNECTION_TOKEN })` (Node), `RuntimeConnection.for_uri("your-host:4321", connection_token=...)` (Python), or the equivalent option in your language. A loopback server (the default `copilot --headless`) needs no token.
 
 <details open>
 <summary><strong>Node.js / TypeScript</strong></summary>
@@ -560,6 +570,8 @@ services:
     command: ["--headless", "--host", "0.0.0.0", "--port", "4321"]
     environment:
       - COPILOT_GITHUB_TOKEN=${COPILOT_GITHUB_TOKEN}
+      # Required for a non-loopback bind; the server refuses to start without it.
+      - COPILOT_CONNECTION_TOKEN=${COPILOT_CONNECTION_TOKEN}
     ports:
       - "4321:4321"
     restart: always
@@ -570,6 +582,8 @@ services:
     build: .
     environment:
       - CLI_URL=copilot-cli:4321
+      # Pass this as `connectionToken` to RuntimeConnection.forUri.
+      - COPILOT_CONNECTION_TOKEN=${COPILOT_CONNECTION_TOKEN}
     depends_on:
       - copilot-cli
     ports:

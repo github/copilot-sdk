@@ -41,5 +41,74 @@ public final class AssistantTurnEndEvent extends SessionEvent {
         /** Parent task tool call ID when this turn belongs to a sub-agent */
         @JsonProperty("parentToolCallId") String parentToolCallId
     ) {
+
+        /**
+         * Creates a record positionally.
+         * @deprecated Use {@link #builder()} for named construction.
+         */
+        @Deprecated(since = "2.0.0", forRemoval = false)
+        public AssistantTurnEndEventData {}
+
+        /**
+         * Returns a named builder.
+         * @return a new builder
+         * @since 2.0.0
+         */
+        public static Builder builder() { return new Builder(); }
+
+        /**
+         * Named construction for this record.
+         * @since 2.0.0
+         */
+        public static final class Builder {
+            private Builder() {}
+            private String turnId;
+            private String model;
+            private String parentToolCallId;
+
+            /**
+             * Sets the {@code turnId} property.
+             * @param value the property value
+             * @return this builder
+             * @since 2.0.0
+             */
+            public Builder turnId(String value) {
+                this.turnId = value;
+                return this;
+            }
+
+            /**
+             * Sets the {@code model} property.
+             * @param value the property value
+             * @return this builder
+             * @since 2.0.0
+             */
+            public Builder model(String value) {
+                this.model = value;
+                return this;
+            }
+
+            /**
+             * Sets the {@code parentToolCallId} property.
+             * @param value the property value
+             * @return this builder
+             * @since 2.0.0
+             */
+            public Builder parentToolCallId(String value) {
+                this.parentToolCallId = value;
+                return this;
+            }
+
+            /**
+             * Builds a record after checking required property presence.
+             * @return a new record
+             * @throws IllegalStateException if a required property is missing
+             * @since 2.0.0
+             */
+            public AssistantTurnEndEventData build() {
+                if (turnId == null) throw new IllegalStateException("Missing required property: turnId");
+                return new AssistantTurnEndEventData(turnId, model, parentToolCallId);
+            }
+        }
     }
 }

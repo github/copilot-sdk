@@ -53,4 +53,84 @@ public record SessionHistoryCompactParams(
             throw new IllegalArgumentException("Unknown SessionHistoryCompactParamsTrigger value: " + value);
         }
     }
+
+    /**
+     * Creates a record positionally.
+     * @deprecated Use {@link #builder()} for named construction.
+     */
+    @Deprecated(since = "2.0.0", forRemoval = false)
+    public SessionHistoryCompactParams {}
+
+    /**
+     * Returns a named builder.
+     * @return a new builder
+     * @since 2.0.0
+     */
+    public static Builder builder() { return new Builder(); }
+
+    /**
+     * Named construction for this record.
+     * @since 2.0.0
+     */
+    public static final class Builder {
+        private Builder() {}
+        private String sessionId;
+        private String customInstructions;
+        private SessionHistoryCompactParamsTrigger trigger;
+        private Long tokenLimit;
+
+        /**
+         * Sets the {@code sessionId} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder sessionId(String value) {
+            this.sessionId = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code customInstructions} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder customInstructions(String value) {
+            this.customInstructions = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code trigger} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder trigger(SessionHistoryCompactParamsTrigger value) {
+            this.trigger = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code tokenLimit} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder tokenLimit(Long value) {
+            this.tokenLimit = value;
+            return this;
+        }
+
+        /**
+         * Builds a record after checking required property presence.
+         * @return a new record
+         * @throws IllegalStateException if a required property is missing
+         * @since 2.0.0
+         */
+        public SessionHistoryCompactParams build() {
+            return new SessionHistoryCompactParams(sessionId, customInstructions, trigger, tokenLimit);
+        }
+    }
 }

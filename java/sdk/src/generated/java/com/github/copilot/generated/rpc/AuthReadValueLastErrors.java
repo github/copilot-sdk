@@ -39,4 +39,48 @@ public final class AuthReadValueLastErrors extends AuthReadValue {
 
     public List<AuthValidationError> getErrors() { return errors; }
     public void setErrors(List<AuthValidationError> errors) { this.errors = errors; }
+
+
+    /**
+     * Returns a named builder.
+     * @return a new builder
+     * @since 2.0.0
+     */
+    @com.github.copilot.CopilotExperimental
+    public static Builder builder() { return new Builder(); }
+
+    /**
+     * Named construction for this record.
+     * @since 2.0.0
+     */
+    @com.github.copilot.CopilotExperimental
+    public static final class Builder {
+        private Builder() {}
+        private List<AuthValidationError> errors;
+
+        /**
+         * Sets the {@code errors} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        @com.github.copilot.CopilotExperimental
+        public Builder errors(List<AuthValidationError> value) {
+            this.errors = value;
+            return this;
+        }
+
+        /**
+         * Builds a variant after checking required property presence.
+         * @return a new variant
+         * @throws IllegalStateException if a required property is missing
+         * @since 2.0.0
+         */
+        public AuthReadValueLastErrors build() {
+            if (errors == null) throw new IllegalStateException("Missing required property: errors");
+            AuthReadValueLastErrors instance = new AuthReadValueLastErrors();
+            instance.setErrors(errors);
+            return instance;
+        }
+    }
 }

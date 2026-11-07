@@ -34,4 +34,112 @@ public record RemoteControlConfig(
     /** Reattach to an existing MC session without creating a new one. */
     @JsonProperty("existingMcSession") RemoteControlConfigExistingMcSession existingMcSession
 ) {
+
+    /**
+     * Creates a record positionally.
+     * @deprecated Use {@link #builder()} for named construction.
+     */
+    @Deprecated(since = "2.0.0", forRemoval = false)
+    public RemoteControlConfig {}
+
+    /**
+     * Returns a named builder.
+     * @return a new builder
+     * @since 2.0.0
+     */
+    public static Builder builder() { return new Builder(); }
+
+    /**
+     * Named construction for this record.
+     * @since 2.0.0
+     */
+    public static final class Builder {
+        private Builder() {}
+        private Boolean remote;
+        private Boolean steerable;
+        private Boolean explicit;
+        private Boolean silent;
+        private String taskId;
+        private RemoteControlConfigExistingMcSession existingMcSession;
+
+        /**
+         * Sets the {@code remote} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder remote(Boolean value) {
+            this.remote = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code steerable} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder steerable(Boolean value) {
+            this.steerable = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code explicit} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder explicit(Boolean value) {
+            this.explicit = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code silent} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder silent(Boolean value) {
+            this.silent = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code taskId} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder taskId(String value) {
+            this.taskId = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code existingMcSession} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder existingMcSession(RemoteControlConfigExistingMcSession value) {
+            this.existingMcSession = value;
+            return this;
+        }
+
+        /**
+         * Builds a record after checking required property presence.
+         * @return a new record
+         * @throws IllegalStateException if a required property is missing
+         * @since 2.0.0
+         */
+        public RemoteControlConfig build() {
+            if (remote == null) throw new IllegalStateException("Missing required property: remote");
+            if (steerable == null) throw new IllegalStateException("Missing required property: steerable");
+            if (explicit == null) throw new IllegalStateException("Missing required property: explicit");
+            if (silent == null) throw new IllegalStateException("Missing required property: silent");
+            return new RemoteControlConfig(remote, steerable, explicit, silent, taskId, existingMcSession);
+        }
+    }
 }

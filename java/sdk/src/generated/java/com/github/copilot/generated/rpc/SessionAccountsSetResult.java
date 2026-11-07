@@ -29,4 +29,65 @@ public record SessionAccountsSetResult(
     /** For a logout, whether other signed-in accounts remain. */
     @JsonProperty("moreUsers") Boolean moreUsers
 ) {
+
+    /**
+     * Creates a record positionally.
+     * @deprecated Use {@link #builder()} for named construction.
+     */
+    @Deprecated(since = "2.0.0", forRemoval = false)
+    public SessionAccountsSetResult {}
+
+    /**
+     * Returns a named builder.
+     * @return a new builder
+     * @since 2.0.0
+     */
+    @com.github.copilot.CopilotExperimental
+    public static Builder builder() { return new Builder(); }
+
+    /**
+     * Named construction for this record.
+     * @since 2.0.0
+     */
+    @com.github.copilot.CopilotExperimental
+    public static final class Builder {
+        private Builder() {}
+        private Boolean ok;
+        private Boolean moreUsers;
+
+        /**
+         * Sets the {@code ok} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        @com.github.copilot.CopilotExperimental
+        public Builder ok(Boolean value) {
+            this.ok = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code moreUsers} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        @com.github.copilot.CopilotExperimental
+        public Builder moreUsers(Boolean value) {
+            this.moreUsers = value;
+            return this;
+        }
+
+        /**
+         * Builds a record after checking required property presence.
+         * @return a new record
+         * @throws IllegalStateException if a required property is missing
+         * @since 2.0.0
+         */
+        public SessionAccountsSetResult build() {
+            if (ok == null) throw new IllegalStateException("Missing required property: ok");
+            return new SessionAccountsSetResult(ok, moreUsers);
+        }
+    }
 }

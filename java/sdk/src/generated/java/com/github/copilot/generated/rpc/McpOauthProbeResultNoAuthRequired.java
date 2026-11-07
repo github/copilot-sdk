@@ -35,4 +35,45 @@ public final class McpOauthProbeResultNoAuthRequired extends McpOauthProbeResult
 
     public McpOauthHttpResponse getHttpResponse() { return httpResponse; }
     public void setHttpResponse(McpOauthHttpResponse httpResponse) { this.httpResponse = httpResponse; }
+
+
+    /**
+     * Returns a named builder.
+     * @return a new builder
+     * @since 2.0.0
+     */
+    public static Builder builder() { return new Builder(); }
+
+    /**
+     * Named construction for this record.
+     * @since 2.0.0
+     */
+    public static final class Builder {
+        private Builder() {}
+        private McpOauthHttpResponse httpResponse;
+
+        /**
+         * Sets the {@code httpResponse} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder httpResponse(McpOauthHttpResponse value) {
+            this.httpResponse = value;
+            return this;
+        }
+
+        /**
+         * Builds a variant after checking required property presence.
+         * @return a new variant
+         * @throws IllegalStateException if a required property is missing
+         * @since 2.0.0
+         */
+        public McpOauthProbeResultNoAuthRequired build() {
+            if (httpResponse == null) throw new IllegalStateException("Missing required property: httpResponse");
+            McpOauthProbeResultNoAuthRequired instance = new McpOauthProbeResultNoAuthRequired();
+            instance.setHttpResponse(httpResponse);
+            return instance;
+        }
+    }
 }

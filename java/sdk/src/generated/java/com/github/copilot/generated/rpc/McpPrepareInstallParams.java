@@ -44,4 +44,140 @@ only when the caller requires `mcp-configured-remote-installation`. */
     /** The trusted host presents this choice alongside the exact secret placeholders. */
     @JsonProperty("secretStorage") McpInstallationSecretStorage secretStorage
 ) {
+
+    /**
+     * Creates a record positionally.
+     * @deprecated Use {@link #builder()} for named construction.
+     */
+    @Deprecated(since = "2.0.0", forRemoval = false)
+    public McpPrepareInstallParams {}
+
+    /**
+     * Returns a named builder.
+     * @return a new builder
+     * @since 2.0.0
+     */
+    public static Builder builder() { return new Builder(); }
+
+    /**
+     * Named construction for this record.
+     * @since 2.0.0
+     */
+    public static final class Builder {
+        private Builder() {}
+        private CatalogClientContract contract;
+        private String planHandle;
+        private String choiceId;
+        private String policySessionId;
+        private List<McpInstallationInput> inputs;
+        private List<McpInstallationSecret> secrets;
+        private Object source;
+        private McpInstallationSecretStorage secretStorage;
+
+        /**
+         * Sets the {@code contract} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder contract(CatalogClientContract value) {
+            this.contract = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code planHandle} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder planHandle(String value) {
+            this.planHandle = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code choiceId} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder choiceId(String value) {
+            this.choiceId = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code policySessionId} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder policySessionId(String value) {
+            this.policySessionId = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code inputs} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder inputs(List<McpInstallationInput> value) {
+            this.inputs = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code secrets} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder secrets(List<McpInstallationSecret> value) {
+            this.secrets = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code source} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder source(Object value) {
+            this.source = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code secretStorage} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder secretStorage(McpInstallationSecretStorage value) {
+            this.secretStorage = value;
+            return this;
+        }
+
+        /**
+         * Builds a record after checking required property presence.
+         * @return a new record
+         * @throws IllegalStateException if a required property is missing
+         * @since 2.0.0
+         */
+        public McpPrepareInstallParams build() {
+            if (contract == null) throw new IllegalStateException("Missing required property: contract");
+            if (planHandle == null) throw new IllegalStateException("Missing required property: planHandle");
+            if (choiceId == null) throw new IllegalStateException("Missing required property: choiceId");
+            if (policySessionId == null) throw new IllegalStateException("Missing required property: policySessionId");
+            if (inputs == null) throw new IllegalStateException("Missing required property: inputs");
+            if (secrets == null) throw new IllegalStateException("Missing required property: secrets");
+            if (source == null) throw new IllegalStateException("Missing required property: source");
+            if (secretStorage == null) throw new IllegalStateException("Missing required property: secretStorage");
+            return new McpPrepareInstallParams(contract, planHandle, choiceId, policySessionId, inputs, secrets, source, secretStorage);
+        }
+    }
 }

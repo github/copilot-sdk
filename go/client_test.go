@@ -6,6 +6,7 @@ import (
 	"bufio"
 	"bytes"
 	"context"
+	"crypto/sha256"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -20,9 +21,11 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 
+	"github.com/github/copilot-sdk/go/internal/embeddedcli"
 	"github.com/github/copilot-sdk/go/internal/jsonrpc2"
 	"github.com/github/copilot-sdk/go/internal/truncbuffer"
 	"github.com/github/copilot-sdk/go/rpc"
@@ -85,6 +88,52 @@ func TestResolveRuntimeExecutable(t *testing.T) {
 			t.Fatalf("resolveRuntimeExecutable() = %q", path)
 		}
 	})
+}
+
+func TestClientEmbeddedInstallFailure(t *testing.T) {
+	const childKey = "COPILOT_SDK_TEST_INSTALL_FAILURE"
+	if os.Getenv(childKey) != "1" {
+		cmd := exec.Command(os.Args[0], "-test.run=^TestClientEmbeddedInstallFailure$")
+		cmd.Env = setEnvValue(os.Environ(), childKey, "1")
+		if output, err := cmd.CombinedOutput(); err != nil {
+			t.Fatalf("isolated embedded-cache test: %v\n%s", err, output)
+		}
+		return
+	}
+
+	t.Setenv("COPILOT_CLI_PATH", "")
+	tempDir := t.TempDir()
+	blockedDir := filepath.Join(tempDir, "not-a-directory")
+	if err := os.WriteFile(blockedDir, []byte("block installation"), 0600); err != nil {
+		t.Fatal(err)
+	}
+	cli, wrapper, node := []byte("cli"), []byte("wrapper"), []byte("node")
+	cliHash, wrapperHash, nodeHash := sha256.Sum256(cli), sha256.Sum256(wrapper), sha256.Sum256(node)
+	embeddedcli.Setup(embeddedcli.Config{
+		Cli:                   bytes.NewReader(cli),
+		CliHash:               cliHash[:],
+		RuntimeExecutable:     bytes.NewReader(wrapper),
+		RuntimeExecutableHash: wrapperHash[:],
+		RuntimeNode:           bytes.NewReader(node),
+		RuntimeNodeHash:       nodeHash[:],
+		Dir:                   blockedDir,
+	})
+	for name, connection := range map[string]RuntimeConnection{
+		"managed":   StdioConnection{},
+		"inprocess": InProcessConnection{},
+	} {
+		t.Run(name, func(t *testing.T) {
+			client := NewClient(&ClientOptions{Connection: connection})
+			err := client.Start(context.Background())
+			want := "creating install directory"
+			if name == "inprocess" && !inProcessAvailable {
+				want = "in-process transport unavailable"
+			}
+			if err == nil || !strings.Contains(err.Error(), want) {
+				t.Fatalf("Start must expose %q, got %v", want, err)
+			}
+		})
+	}
 }
 
 func TestClient_URLParsing(t *testing.T) {
@@ -687,6 +736,371 @@ func TestClient_StopShutsDownRuntimeWhenSessionDetachNeverAnswers(t *testing.T) 
 	if len(client.sessions) != 0 {
 		t.Fatal("Stop did not clear sessions")
 	}
+}
+
+func newSessionTrackingTestClient(t *testing.T, detachErr *jsonrpc2.Error) *Client {
+	t.Helper()
+	rpcClient, server, _ := newRuntimeShutdownRpcPair(t)
+	t.Cleanup(server.Stop)
+	for _, method := range []string{"session.create", "session.resume"} {
+		server.SetRequestHandler(method, func(params json.RawMessage) (json.RawMessage, *jsonrpc2.Error) {
+			return []byte(`{"sessionId":"` + sessionIDFromParams(t, params) + `"}`), nil
+		})
+	}
+	server.SetRequestHandler("session.detach", func(json.RawMessage) (json.RawMessage, *jsonrpc2.Error) {
+		if detachErr != nil {
+			return nil, detachErr
+		}
+		return []byte(`{"success":true}`), nil
+	})
+	return &Client{
+		client:   rpcClient,
+		RPC:      rpc.NewServerRPC(rpcClient),
+		sessions: make(map[string]*Session),
+	}
+}
+
+func trackedSession(c *Client, sessionID string) *Session {
+	c.sessionsMux.Lock()
+	defer c.sessionsMux.Unlock()
+	return c.sessions[sessionID]
+}
+
+func TestClient_DisconnectStopsTrackingSessionButKeepsResumedReplacement(t *testing.T) {
+	client := newSessionTrackingTestClient(t, nil)
+
+	created, err := client.CreateSession(t.Context(), &SessionConfig{})
+	if err != nil {
+		t.Fatalf("create session: %v", err)
+	}
+	sessionID := created.SessionID
+	if trackedSession(client, sessionID) != created {
+		t.Fatal("created session is not tracked")
+	}
+	if err := created.Disconnect(); err != nil {
+		t.Fatalf("disconnect session: %v", err)
+	}
+	if trackedSession(client, sessionID) != nil {
+		t.Fatal("disconnected session is still tracked by the client")
+	}
+
+	replaced, err := client.ResumeSession(t.Context(), sessionID, nil)
+	if err != nil {
+		t.Fatalf("resume session: %v", err)
+	}
+	replacement, err := client.ResumeSession(t.Context(), sessionID, nil)
+	if err != nil {
+		t.Fatalf("resume session again: %v", err)
+	}
+	if trackedSession(client, sessionID) != replacement {
+		t.Fatal("second resume did not replace the tracked session")
+	}
+	if err := replaced.Disconnect(); err != nil {
+		t.Fatalf("disconnect replaced session: %v", err)
+	}
+	if trackedSession(client, sessionID) != replacement {
+		t.Fatal("disconnecting a replaced session removed its replacement")
+	}
+	if err := replacement.Disconnect(); err != nil {
+		t.Fatalf("disconnect replacement session: %v", err)
+	}
+	if trackedSession(client, sessionID) != nil {
+		t.Fatal("disconnected replacement is still tracked by the client")
+	}
+}
+
+func TestClient_FailedDisconnectKeepsSessionTracked(t *testing.T) {
+	client := newSessionTrackingTestClient(t, &jsonrpc2.Error{Code: -32000, Message: "detach failed"})
+
+	session, err := client.CreateSession(t.Context(), &SessionConfig{})
+	if err != nil {
+		t.Fatalf("create session: %v", err)
+	}
+	if err := session.Disconnect(); err == nil || !strings.Contains(err.Error(), "detach failed") {
+		t.Fatalf("Disconnect error = %v, want the detach failure", err)
+	}
+	if trackedSession(client, session.SessionID) != session {
+		t.Fatal("a session whose detach failed is no longer tracked, so Stop cannot retry it")
+	}
+}
+
+func TestClient_FailedResumeDoesNotRestoreDisconnectedSession(t *testing.T) {
+	rpcClient, server, _ := newRuntimeShutdownRpcPair(t)
+	t.Cleanup(server.Stop)
+	client := &Client{
+		client:   rpcClient,
+		RPC:      rpc.NewServerRPC(rpcClient),
+		sessions: make(map[string]*Session),
+	}
+	server.SetRequestHandler("session.create", func(params json.RawMessage) (json.RawMessage, *jsonrpc2.Error) {
+		return []byte(`{"sessionId":"` + sessionIDFromParams(t, params) + `"}`), nil
+	})
+	server.SetRequestHandler("session.detach", func(json.RawMessage) (json.RawMessage, *jsonrpc2.Error) {
+		return []byte(`{"success":true}`), nil
+	})
+	resident, err := client.CreateSession(t.Context(), &SessionConfig{})
+	if err != nil {
+		t.Fatalf("create session: %v", err)
+	}
+	t.Cleanup(resident.stopEventProcessing)
+	server.SetRequestHandler("session.resume", func(json.RawMessage) (json.RawMessage, *jsonrpc2.Error) {
+		if err := resident.Disconnect(); err != nil {
+			return nil, &jsonrpc2.Error{Code: -32000, Message: err.Error()}
+		}
+		return nil, &jsonrpc2.Error{Code: -32000, Message: "resume rejected"}
+	})
+
+	_, err = client.ResumeSession(t.Context(), resident.SessionID, nil)
+	if err == nil || !strings.Contains(err.Error(), "resume rejected") {
+		t.Fatalf("ResumeSession error = %v, want resume rejected", err)
+	}
+	if trackedSession(client, resident.SessionID) != nil {
+		t.Fatal("failed resume restored a disconnected resident")
+	}
+}
+
+func TestClient_FailedResumeKeepsFailedDetachTracked(t *testing.T) {
+	rpcClient, server, _ := newRuntimeShutdownRpcPair(t)
+	t.Cleanup(server.Stop)
+	client := &Client{
+		client:   rpcClient,
+		RPC:      rpc.NewServerRPC(rpcClient),
+		sessions: make(map[string]*Session),
+	}
+	server.SetRequestHandler("session.create", func(params json.RawMessage) (json.RawMessage, *jsonrpc2.Error) {
+		return []byte(`{"sessionId":"` + sessionIDFromParams(t, params) + `"}`), nil
+	})
+	var detaches atomic.Int32
+	server.SetRequestHandler("session.detach", func(json.RawMessage) (json.RawMessage, *jsonrpc2.Error) {
+		detaches.Add(1)
+		return nil, &jsonrpc2.Error{Code: -32000, Message: "detach failed"}
+	})
+	server.SetRequestHandler("session.resume", func(json.RawMessage) (json.RawMessage, *jsonrpc2.Error) {
+		return nil, &jsonrpc2.Error{Code: -32000, Message: "resume rejected"}
+	})
+	resident, err := client.CreateSession(t.Context(), &SessionConfig{})
+	if err != nil {
+		t.Fatalf("create session: %v", err)
+	}
+	t.Cleanup(resident.stopEventProcessing)
+	if err := resident.Disconnect(); err == nil {
+		t.Fatal("Disconnect succeeded, want detach failed")
+	}
+	if _, err := client.ResumeSession(t.Context(), resident.SessionID, nil); err == nil {
+		t.Fatal("ResumeSession succeeded, want resume rejected")
+	}
+	if trackedSession(client, resident.SessionID) != resident {
+		t.Fatal("failed resume lost the resident whose detach needs retrying")
+	}
+	stopError := client.Stop()
+	if detaches.Load() != 2 || stopError == nil || !strings.Contains(stopError.Error(), "detach failed") {
+		t.Fatalf("Stop: detaches = %d, error = %v; want a detach retry and its failure", detaches.Load(), stopError)
+	}
+}
+
+func TestClient_FailedResumeDoesNotRestoreResidentAfterForceStop(t *testing.T) {
+	for _, failedDetach := range []bool{false, true} {
+		t.Run(fmt.Sprintf("failedDetach=%t", failedDetach), func(t *testing.T) {
+			rpcClient, server, _ := newRuntimeShutdownRpcPair(t)
+			t.Cleanup(server.Stop)
+			client := &Client{
+				client:   rpcClient,
+				RPC:      rpc.NewServerRPC(rpcClient),
+				sessions: make(map[string]*Session),
+			}
+			t.Cleanup(client.ForceStop)
+			server.SetRequestHandler("session.create", func(params json.RawMessage) (json.RawMessage, *jsonrpc2.Error) {
+				return []byte(`{"sessionId":"` + sessionIDFromParams(t, params) + `"}`), nil
+			})
+			server.SetRequestHandler("session.detach", func(json.RawMessage) (json.RawMessage, *jsonrpc2.Error) {
+				return nil, &jsonrpc2.Error{Code: -32000, Message: "detach failed"}
+			})
+			resident, err := client.CreateSession(t.Context(), &SessionConfig{})
+			if err != nil {
+				t.Fatalf("create session: %v", err)
+			}
+			t.Cleanup(resident.stopEventProcessing)
+			if failedDetach {
+				if err := resident.Disconnect(); err == nil {
+					t.Fatal("Disconnect succeeded, want detach failed")
+				}
+			}
+			forceStopped := make(chan struct{})
+			server.SetRequestHandler("session.resume", func(json.RawMessage) (json.RawMessage, *jsonrpc2.Error) {
+				client.ForceStop()
+				close(forceStopped)
+				return nil, &jsonrpc2.Error{Code: -32000, Message: "resume rejected"}
+			})
+
+			if _, err := client.ResumeSession(t.Context(), resident.SessionID, nil); err == nil {
+				t.Fatal("ResumeSession succeeded after ForceStop")
+			}
+			<-forceStopped
+			if trackedSession(client, resident.SessionID) != nil {
+				t.Fatal("failed resume restored a resident after ForceStop")
+			}
+			assertSessionEventChannelClosed(t, resident)
+			if err := client.Stop(); err != nil {
+				t.Fatalf("Stop after ForceStop: %v", err)
+			}
+		})
+	}
+}
+
+func TestClient_FailedResumeKeepsResidentCallbacksUntilStopDetachCompletes(t *testing.T) {
+	rpcClient, server, _ := newRuntimeShutdownRpcPair(t)
+	t.Cleanup(server.Stop)
+	client := &Client{
+		client:   rpcClient,
+		RPC:      rpc.NewServerRPC(rpcClient),
+		sessions: make(map[string]*Session),
+	}
+	t.Cleanup(client.ForceStop)
+	server.SetRequestHandler("session.create", func(json.RawMessage) (json.RawMessage, *jsonrpc2.Error) {
+		return []byte(`{"sessionId":"stopping-session"}`), nil
+	})
+	detaching := make(chan struct{})
+	finishDetach := make(chan struct{})
+	releaseDetach := sync.OnceFunc(func() { close(finishDetach) })
+	t.Cleanup(releaseDetach)
+	server.SetRequestHandler("session.detach", func(json.RawMessage) (json.RawMessage, *jsonrpc2.Error) {
+		close(detaching)
+		<-finishDetach
+		return []byte(`{"success":true}`), nil
+	})
+	resumeStarted := make(chan struct{})
+	rejectResume := make(chan struct{})
+	reject := sync.OnceFunc(func() { close(rejectResume) })
+	t.Cleanup(reject)
+	server.SetRequestHandler("session.resume", func(json.RawMessage) (json.RawMessage, *jsonrpc2.Error) {
+		close(resumeStarted)
+		<-rejectResume
+		return nil, &jsonrpc2.Error{Code: -32000, Message: "resume rejected"}
+	})
+	var hookCalls atomic.Int32
+	resident, err := client.CreateSession(t.Context(), &SessionConfig{
+		SessionID: "stopping-session",
+		Hooks: &SessionHooks{
+			OnSessionEnd: func(SessionEndHookInput, HookInvocation) (*SessionEndHookOutput, error) {
+				hookCalls.Add(1)
+				return nil, nil
+			},
+		},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(resident.stopEventProcessing)
+	events := make(chan SessionEvent, 1)
+	resident.On(func(event SessionEvent) { events <- event })
+	resumed := make(chan error, 1)
+	go func() {
+		_, err := client.ResumeSession(t.Context(), resident.SessionID, nil)
+		resumed <- err
+	}()
+	<-resumeStarted
+	stopped := make(chan error, 1)
+	go func() { stopped <- client.Stop() }()
+	<-detaching
+
+	reject()
+	if err := <-resumed; err == nil || !strings.Contains(err.Error(), "resume rejected") {
+		t.Fatalf("ResumeSession error = %v, want resume rejected", err)
+	}
+	if trackedSession(client, resident.SessionID) != resident {
+		t.Fatal("failed resume lost resident routing before detach completed")
+	}
+	client.handleSessionEvent(sessionEventRequest{
+		SessionID: resident.SessionID,
+		Event:     rpc.SessionEventWithAutoModeRecovery{SessionEvent: SessionEvent{Data: &SessionIdleData{}}},
+	})
+	select {
+	case event := <-events:
+		if _, ok := event.Data.(*SessionIdleData); !ok {
+			t.Fatalf("event data = %T, want *SessionIdleData", event.Data)
+		}
+	case <-time.After(time.Second):
+		t.Fatal("resident did not receive the terminal event before detach completed")
+	}
+	if _, err := client.handleHooksInvoke(hooksInvokeRequest{
+		SessionID: resident.SessionID,
+		Type:      "sessionEnd",
+		Input:     json.RawMessage(`{}`),
+	}); err != nil {
+		t.Fatalf("resident hook failed before detach completed: %v", err)
+	}
+	if hookCalls.Load() != 1 {
+		t.Fatalf("resident hook calls = %d, want 1", hookCalls.Load())
+	}
+	releaseDetach()
+	if err := <-stopped; err != nil {
+		t.Fatalf("Stop failed: %v", err)
+	}
+	assertSessionNotRegistered(t, client, resident.SessionID)
+	assertSessionEventChannelClosed(t, resident)
+}
+
+func TestClient_StopRetiresResidentAfterCanceledResumeAndQueuedCreate(t *testing.T) {
+	rpcClient, server, _ := newRuntimeShutdownRpcPair(t)
+	t.Cleanup(server.Stop)
+	client := &Client{client: rpcClient, RPC: rpc.NewServerRPC(rpcClient), sessions: make(map[string]*Session)}
+	t.Cleanup(client.ForceStop)
+	release := make(chan struct{})
+	defer close(release)
+	server.SetRequestHandler("session.create", func(json.RawMessage) (json.RawMessage, *jsonrpc2.Error) {
+		return []byte(`{"sessionId":"stopping-overlap"}`), nil
+	})
+	resident, err := client.CreateSession(t.Context(), &SessionConfig{SessionID: "stopping-overlap"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(resident.stopEventProcessing)
+	resumeStarted := make(chan struct{}, 1)
+	server.SetRequestHandler("session.resume", func(json.RawMessage) (json.RawMessage, *jsonrpc2.Error) {
+		resumeStarted <- struct{}{}
+		<-release
+		return nil, &jsonrpc2.Error{Code: -32000, Message: "resume rejected"}
+	})
+	detaching := make(chan struct{}, 1)
+	finishDetach := make(chan struct{})
+	releaseDetach := sync.OnceFunc(func() { close(finishDetach) })
+	defer releaseDetach()
+	server.SetRequestHandler("session.detach", func(json.RawMessage) (json.RawMessage, *jsonrpc2.Error) {
+		detaching <- struct{}{}
+		<-finishDetach
+		return []byte(`{"success":true}`), nil
+	})
+	resumeCtx, cancelResume := context.WithCancel(t.Context())
+	defer cancelResume()
+	createCtx, cancelCreate := context.WithCancel(t.Context())
+	defer cancelCreate()
+	resumed := make(chan error, 1)
+	created := make(chan error, 1)
+	go func() {
+		_, err := client.ResumeSession(resumeCtx, resident.SessionID, nil)
+		resumed <- err
+	}()
+	<-resumeStarted
+	go func() {
+		_, err := client.CreateSession(createCtx, &SessionConfig{SessionID: resident.SessionID})
+		created <- err
+	}()
+	stopped := make(chan error, 1)
+	go func() { stopped <- client.Stop() }()
+	<-detaching
+	cancelCreate()
+	if err := <-created; !errors.Is(err, context.Canceled) {
+		t.Fatalf("create error = %v, want cancellation", err)
+	}
+	cancelResume()
+	if err := <-resumed; !errors.Is(err, context.Canceled) {
+		t.Fatalf("resume error = %v, want cancellation", err)
+	}
+	releaseDetach()
+	if err := <-stopped; err != nil {
+		t.Fatalf("Stop failed: %v", err)
+	}
+	assertSessionEventChannelClosed(t, resident)
 }
 
 func TestClient_ForceStopAndExternalStopDoNotRequestRuntimeShutdown(t *testing.T) {

@@ -34,4 +34,103 @@ public record AuthenticatedAuthorityGrant(
     @JsonInclude(JsonInclude.Include.ALWAYS)
     @JsonProperty("scope") Object scope
 ) {
+
+    /**
+     * Creates a record positionally.
+     * @deprecated Use {@link #builder()} for named construction.
+     */
+    @Deprecated(since = "2.0.0", forRemoval = false)
+    public AuthenticatedAuthorityGrant {}
+
+    /**
+     * Returns a named builder.
+     * @return a new builder
+     * @since 2.0.0
+     */
+    public static Builder builder() { return new Builder(); }
+
+    /**
+     * Named construction for this record.
+     * @since 2.0.0
+     */
+    public static final class Builder {
+        private Builder() {}
+        private String source;
+        private String grantId;
+        private String expiresAt;
+        private List<String> statements;
+        private Object scope;
+        private boolean $presence4;
+
+        /**
+         * Sets the {@code source} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder source(String value) {
+            this.source = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code grantId} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder grantId(String value) {
+            this.grantId = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code expiresAt} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder expiresAt(String value) {
+            this.expiresAt = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code statements} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder statements(List<String> value) {
+            this.statements = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code scope} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder scope(Object value) {
+            this.scope = value;
+            this.$presence4 = true;
+            return this;
+        }
+
+        /**
+         * Builds a record after checking required property presence.
+         * @return a new record
+         * @throws IllegalStateException if a required property is missing
+         * @since 2.0.0
+         */
+        public AuthenticatedAuthorityGrant build() {
+            if (source == null) throw new IllegalStateException("Missing required property: source");
+            if (grantId == null) throw new IllegalStateException("Missing required property: grantId");
+            if (expiresAt == null) throw new IllegalStateException("Missing required property: expiresAt");
+            if (statements == null) throw new IllegalStateException("Missing required property: statements");
+            if (!$presence4) throw new IllegalStateException("Missing required property: scope");
+            return new AuthenticatedAuthorityGrant(source, grantId, expiresAt, statements, scope);
+        }
+    }
 }

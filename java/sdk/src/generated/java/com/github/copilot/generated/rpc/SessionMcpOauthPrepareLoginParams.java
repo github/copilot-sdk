@@ -37,4 +37,118 @@ public record SessionMcpOauthPrepareLoginParams(
     /** Text shown on the loopback callback page after successful authorisation. */
     @JsonProperty("callbackSuccessMessage") String callbackSuccessMessage
 ) {
+
+    /**
+     * Creates a record positionally.
+     * @deprecated Use {@link #builder()} for named construction.
+     */
+    @Deprecated(since = "2.0.0", forRemoval = false)
+    public SessionMcpOauthPrepareLoginParams {}
+
+    /**
+     * Returns a named builder.
+     * @return a new builder
+     * @since 2.0.0
+     */
+    @com.github.copilot.CopilotExperimental
+    public static Builder builder() { return new Builder(); }
+
+    /**
+     * Named construction for this record.
+     * @since 2.0.0
+     */
+    @com.github.copilot.CopilotExperimental
+    public static final class Builder {
+        private Builder() {}
+        private String sessionId;
+        private String serverName;
+        private String expectedInstallationId;
+        private Boolean forceReauth;
+        private String clientName;
+        private String callbackSuccessMessage;
+
+        /**
+         * Sets the {@code sessionId} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        @com.github.copilot.CopilotExperimental
+        public Builder sessionId(String value) {
+            this.sessionId = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code serverName} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        @com.github.copilot.CopilotExperimental
+        public Builder serverName(String value) {
+            this.serverName = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code expectedInstallationId} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        @com.github.copilot.CopilotExperimental
+        public Builder expectedInstallationId(String value) {
+            this.expectedInstallationId = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code forceReauth} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        @com.github.copilot.CopilotExperimental
+        public Builder forceReauth(Boolean value) {
+            this.forceReauth = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code clientName} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        @com.github.copilot.CopilotExperimental
+        public Builder clientName(String value) {
+            this.clientName = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code callbackSuccessMessage} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        @com.github.copilot.CopilotExperimental
+        public Builder callbackSuccessMessage(String value) {
+            this.callbackSuccessMessage = value;
+            return this;
+        }
+
+        /**
+         * Builds a record after checking required property presence.
+         * @return a new record
+         * @throws IllegalStateException if a required property is missing
+         * @since 2.0.0
+         */
+        public SessionMcpOauthPrepareLoginParams build() {
+            if (serverName == null) throw new IllegalStateException("Missing required property: serverName");
+            if (expectedInstallationId == null) throw new IllegalStateException("Missing required property: expectedInstallationId");
+            return new SessionMcpOauthPrepareLoginParams(sessionId, serverName, expectedInstallationId, forceReauth, clientName, callbackSuccessMessage);
+        }
+    }
 }

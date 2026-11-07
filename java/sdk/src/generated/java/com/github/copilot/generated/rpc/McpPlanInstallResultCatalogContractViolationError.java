@@ -41,4 +41,59 @@ public final class McpPlanInstallResultCatalogContractViolationError extends Mcp
 
     public String getMessage() { return message; }
     public void setMessage(String message) { this.message = message; }
+
+
+    /**
+     * Returns a named builder.
+     * @return a new builder
+     * @since 2.0.0
+     */
+    public static Builder builder() { return new Builder(); }
+
+    /**
+     * Named construction for this record.
+     * @since 2.0.0
+     */
+    public static final class Builder {
+        private Builder() {}
+        private CatalogContractViolationReason reason;
+        private String message;
+
+        /**
+         * Sets the {@code reason} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder reason(CatalogContractViolationReason value) {
+            this.reason = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code message} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder message(String value) {
+            this.message = value;
+            return this;
+        }
+
+        /**
+         * Builds a variant after checking required property presence.
+         * @return a new variant
+         * @throws IllegalStateException if a required property is missing
+         * @since 2.0.0
+         */
+        public McpPlanInstallResultCatalogContractViolationError build() {
+            if (reason == null) throw new IllegalStateException("Missing required property: reason");
+            if (message == null) throw new IllegalStateException("Missing required property: message");
+            McpPlanInstallResultCatalogContractViolationError instance = new McpPlanInstallResultCatalogContractViolationError();
+            instance.setReason(reason);
+            instance.setMessage(message);
+            return instance;
+        }
+    }
 }

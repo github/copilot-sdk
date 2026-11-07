@@ -99,4 +99,170 @@ when this exceeds 262144 UTF-8 bytes; it is never truncated. */
 
     public String getEntrypointContent() { return entrypointContent; }
     public void setEntrypointContent(String entrypointContent) { this.entrypointContent = entrypointContent; }
+
+
+    /**
+     * Returns a named builder.
+     * @return a new builder
+     * @since 2.0.0
+     */
+    public static Builder builder() { return new Builder(); }
+
+    /**
+     * Named construction for this record.
+     * @since 2.0.0
+     */
+    public static final class Builder {
+        private Builder() {}
+        private String name;
+        private String description;
+        private InstallationCatalogueIdentity catalogue;
+        private SkillInstallationSource source;
+        private SkillInstallationLocation target;
+        private Boolean installsDisabled;
+        private List<SkillInstallationFileReview> files;
+        private Long totalBytes;
+        private String entrypointPath;
+        private String entrypointContent;
+
+        /**
+         * Sets the {@code name} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder name(String value) {
+            this.name = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code description} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder description(String value) {
+            this.description = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code catalogue} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder catalogue(InstallationCatalogueIdentity value) {
+            this.catalogue = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code source} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder source(SkillInstallationSource value) {
+            this.source = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code target} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder target(SkillInstallationLocation value) {
+            this.target = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code installsDisabled} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder installsDisabled(Boolean value) {
+            this.installsDisabled = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code files} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder files(List<SkillInstallationFileReview> value) {
+            this.files = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code totalBytes} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder totalBytes(Long value) {
+            this.totalBytes = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code entrypointPath} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder entrypointPath(String value) {
+            this.entrypointPath = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code entrypointContent} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder entrypointContent(String value) {
+            this.entrypointContent = value;
+            return this;
+        }
+
+        /**
+         * Builds a variant after checking required property presence.
+         * @return a new variant
+         * @throws IllegalStateException if a required property is missing
+         * @since 2.0.0
+         */
+        public SkillInstallationReviewInstall build() {
+            if (name == null) throw new IllegalStateException("Missing required property: name");
+            if (catalogue == null) throw new IllegalStateException("Missing required property: catalogue");
+            if (source == null) throw new IllegalStateException("Missing required property: source");
+            if (target == null) throw new IllegalStateException("Missing required property: target");
+            if (installsDisabled == null) throw new IllegalStateException("Missing required property: installsDisabled");
+            if (files == null) throw new IllegalStateException("Missing required property: files");
+            if (totalBytes == null) throw new IllegalStateException("Missing required property: totalBytes");
+            if (entrypointPath == null) throw new IllegalStateException("Missing required property: entrypointPath");
+            if (entrypointContent == null) throw new IllegalStateException("Missing required property: entrypointContent");
+            SkillInstallationReviewInstall instance = new SkillInstallationReviewInstall();
+            instance.setName(name);
+            instance.setDescription(description);
+            instance.setCatalogue(catalogue);
+            instance.setSource(source);
+            instance.setTarget(target);
+            instance.setInstallsDisabled(installsDisabled);
+            instance.setFiles(files);
+            instance.setTotalBytes(totalBytes);
+            instance.setEntrypointPath(entrypointPath);
+            instance.setEntrypointContent(entrypointContent);
+            return instance;
+        }
+    }
 }

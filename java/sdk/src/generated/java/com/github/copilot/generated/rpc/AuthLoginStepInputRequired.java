@@ -38,4 +38,48 @@ public final class AuthLoginStepInputRequired extends AuthLoginStep {
 
     public String getPrompt() { return prompt; }
     public void setPrompt(String prompt) { this.prompt = prompt; }
+
+
+    /**
+     * Returns a named builder.
+     * @return a new builder
+     * @since 2.0.0
+     */
+    @com.github.copilot.CopilotExperimental
+    public static Builder builder() { return new Builder(); }
+
+    /**
+     * Named construction for this record.
+     * @since 2.0.0
+     */
+    @com.github.copilot.CopilotExperimental
+    public static final class Builder {
+        private Builder() {}
+        private String prompt;
+
+        /**
+         * Sets the {@code prompt} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        @com.github.copilot.CopilotExperimental
+        public Builder prompt(String value) {
+            this.prompt = value;
+            return this;
+        }
+
+        /**
+         * Builds a variant after checking required property presence.
+         * @return a new variant
+         * @throws IllegalStateException if a required property is missing
+         * @since 2.0.0
+         */
+        public AuthLoginStepInputRequired build() {
+            if (prompt == null) throw new IllegalStateException("Missing required property: prompt");
+            AuthLoginStepInputRequired instance = new AuthLoginStepInputRequired();
+            instance.setPrompt(prompt);
+            return instance;
+        }
+    }
 }

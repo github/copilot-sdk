@@ -9,6 +9,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.io.IOException;
@@ -47,10 +48,52 @@ class HttpResponseForwardingTest {
     private static final Duration DEADLINE = Duration.ofSeconds(5);
 
     @Test
+    void nullErrorMessageStillSendsTerminalFrame() throws Exception {
+        RecordingCaller caller = new RecordingCaller();
+        ServerRpc rpc = new ServerRpc(caller);
+        var exchange = new LlmInferenceExchange("test", () -> rpc.llmInference, caller);
+
+        CompletableFuture<Void> response = CompletableFuture.runAsync(() -> {
+            try {
+                exchange.errorResponse(null, null);
+            } catch (IOException e) {
+                throw new UncheckedIOException(e);
+            }
+        });
+
+        PendingCall call = caller.calls.poll(DEADLINE.toMillis(), TimeUnit.MILLISECONDS);
+        assertNotNull(call);
+        assertEquals("llmInference.httpResponseChunk", call.method());
+        var params = JsonRpcClient.getObjectMapper().valueToTree(call.params());
+        assertEquals("test", params.path("requestId").asText());
+        assertEquals("", params.path("data").asText());
+        assertTrue(params.path("end").asBoolean());
+        assertTrue(params.has("error"));
+        assertFalse(params.path("error").has("message"));
+        assertFalse(params.path("error").has("code"));
+
+        call.result().complete(null);
+        response.get(DEADLINE.toMillis(), TimeUnit.MILLISECONDS);
+    }
+
+    @Test
+    void nullHeadersPreserveClosedConnectionCheck() {
+        RecordingCaller caller = new RecordingCaller();
+        var exchange = new LlmInferenceExchange("test", () -> null, caller);
+
+        IOException error = assertThrows(IOException.class, () -> exchange.startResponse(200, null, null));
+
+        assertEquals("LLM inference response used after RPC connection closed", error.getMessage());
+        assertNull(caller.calls.poll());
+    }
+
+    @Test
     void recordsAcknowledgementBeforeReleasingWriter() throws Exception {
         RecordingCaller caller = new RecordingCaller();
         CompletableFuture<Object> write = caller.invoke("llmInference.httpResponseChunk",
-                new LlmInferenceHttpResponseChunkParams("test", "first", false, false, null), Object.class);
+                LlmInferenceHttpResponseChunkParams.builder().requestId("test").data("first").binary(false).end(false)
+                        .error(null).build(),
+                Object.class);
         CompletableFuture<Void> observed = write.thenRun(() -> assertEquals(0, caller.outstandingData.get()));
 
         PendingCall call = caller.calls.poll(DEADLINE.toMillis(), TimeUnit.MILLISECONDS);
@@ -302,7 +345,7 @@ class HttpResponseForwardingTest {
 
         TestFlow() {
             ServerRpc rpc = new ServerRpc(caller);
-            exchange = new LlmInferenceExchange("test", () -> rpc.llmInference);
+            exchange = new LlmInferenceExchange("test", () -> rpc.llmInference, caller);
             exchange.setMethod("GET");
             exchange.setContext(new CopilotRequestContext("test", null, null, null, null, null,
                     CopilotRequestTransport.HTTP, "http://unused.test", Map.of(), exchange.cancellation()));

@@ -29,4 +29,66 @@ public record HostSetSessionCreationPolicyParams(
     /** After acknowledgement, subsequent remote creation admissions use this policy. Already-admitted requests may finish. */
     @JsonProperty("allowCreatingNewSessions") Boolean allowCreatingNewSessions
 ) {
+
+    /**
+     * Creates a record positionally.
+     * @deprecated Use {@link #builder()} for named construction.
+     */
+    @Deprecated(since = "2.0.0", forRemoval = false)
+    public HostSetSessionCreationPolicyParams {}
+
+    /**
+     * Returns a named builder.
+     * @return a new builder
+     * @since 2.0.0
+     */
+    @com.github.copilot.CopilotExperimental
+    public static Builder builder() { return new Builder(); }
+
+    /**
+     * Named construction for this record.
+     * @since 2.0.0
+     */
+    @com.github.copilot.CopilotExperimental
+    public static final class Builder {
+        private Builder() {}
+        private String hostId;
+        private Boolean allowCreatingNewSessions;
+
+        /**
+         * Sets the {@code hostId} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        @com.github.copilot.CopilotExperimental
+        public Builder hostId(String value) {
+            this.hostId = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code allowCreatingNewSessions} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        @com.github.copilot.CopilotExperimental
+        public Builder allowCreatingNewSessions(Boolean value) {
+            this.allowCreatingNewSessions = value;
+            return this;
+        }
+
+        /**
+         * Builds a record after checking required property presence.
+         * @return a new record
+         * @throws IllegalStateException if a required property is missing
+         * @since 2.0.0
+         */
+        public HostSetSessionCreationPolicyParams build() {
+            if (hostId == null) throw new IllegalStateException("Missing required property: hostId");
+            if (allowCreatingNewSessions == null) throw new IllegalStateException("Missing required property: allowCreatingNewSessions");
+            return new HostSetSessionCreationPolicyParams(hostId, allowCreatingNewSessions);
+        }
+    }
 }

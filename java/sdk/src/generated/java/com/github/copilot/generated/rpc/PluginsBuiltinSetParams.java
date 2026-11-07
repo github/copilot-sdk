@@ -28,4 +28,49 @@ public record PluginsBuiltinSetParams(
     /** Complete replacement set of trusted built-in plugin directories. Every entry must be an absolute local filesystem path no longer than 4096 characters. */
     @JsonProperty("paths") List<String> paths
 ) {
+
+    /**
+     * Creates a record positionally.
+     * @deprecated Use {@link #builder()} for named construction.
+     */
+    @Deprecated(since = "2.0.0", forRemoval = false)
+    public PluginsBuiltinSetParams {}
+
+    /**
+     * Returns a named builder.
+     * @return a new builder
+     * @since 2.0.0
+     */
+    public static Builder builder() { return new Builder(); }
+
+    /**
+     * Named construction for this record.
+     * @since 2.0.0
+     */
+    public static final class Builder {
+        private Builder() {}
+        private List<String> paths;
+
+        /**
+         * Sets the {@code paths} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder paths(List<String> value) {
+            this.paths = value;
+            return this;
+        }
+
+        /**
+         * Builds a record after checking required property presence.
+         * @return a new record
+         * @throws IllegalStateException if a required property is missing
+         * @since 2.0.0
+         */
+        public PluginsBuiltinSetParams build() {
+            if (paths == null) throw new IllegalStateException("Missing required property: paths");
+            return new PluginsBuiltinSetParams(paths);
+        }
+    }
 }

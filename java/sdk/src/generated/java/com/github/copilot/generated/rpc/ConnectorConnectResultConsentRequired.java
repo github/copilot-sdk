@@ -45,4 +45,63 @@ public final class ConnectorConnectResultConsentRequired extends ConnectorConnec
 
     public String getContinuationId() { return continuationId; }
     public void setContinuationId(String continuationId) { this.continuationId = continuationId; }
+
+
+    /**
+     * Returns a named builder.
+     * @return a new builder
+     * @since 2.0.0
+     */
+    @com.github.copilot.CopilotExperimental
+    public static Builder builder() { return new Builder(); }
+
+    /**
+     * Named construction for this record.
+     * @since 2.0.0
+     */
+    @com.github.copilot.CopilotExperimental
+    public static final class Builder {
+        private Builder() {}
+        private String consentUrl;
+        private String continuationId;
+
+        /**
+         * Sets the {@code consentUrl} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        @com.github.copilot.CopilotExperimental
+        public Builder consentUrl(String value) {
+            this.consentUrl = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code continuationId} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        @com.github.copilot.CopilotExperimental
+        public Builder continuationId(String value) {
+            this.continuationId = value;
+            return this;
+        }
+
+        /**
+         * Builds a variant after checking required property presence.
+         * @return a new variant
+         * @throws IllegalStateException if a required property is missing
+         * @since 2.0.0
+         */
+        public ConnectorConnectResultConsentRequired build() {
+            if (consentUrl == null) throw new IllegalStateException("Missing required property: consentUrl");
+            if (continuationId == null) throw new IllegalStateException("Missing required property: continuationId");
+            ConnectorConnectResultConsentRequired instance = new ConnectorConnectResultConsentRequired();
+            instance.setConsentUrl(consentUrl);
+            instance.setContinuationId(continuationId);
+            return instance;
+        }
+    }
 }

@@ -47,8 +47,14 @@ public final class SessionInfoEvent extends SessionEvent {
     ) {
 
         /**
-         * Creates event data with the components it had before later optional fields were added.
+         * Creates a record with the components it had before later optional fields were added.
+         * @deprecated Use named construction via {@link #builder()}.
+         * @param infoType Category of informational message (e.g., "notification", "timing", "context_window", "mcp", "snapshot", "configuration", "authentication", "model")
+         * @param message Human-readable informational message for display in the timeline
+         * @param url Optional URL associated with this message that the user can open in a browser
+         * @param tip Optional actionable tip displayed with this message
          */
+        @Deprecated(since = "2.0.0", forRemoval = false)
         public SessionInfoEventData(
             String infoType,
             String message,
@@ -56,6 +62,100 @@ public final class SessionInfoEvent extends SessionEvent {
             String tip
         ) {
             this(infoType, message, url, tip, null);
+        }
+
+        /**
+         * Creates a record positionally.
+         * @deprecated Use {@link #builder()} for named construction.
+         */
+        @Deprecated(since = "2.0.0", forRemoval = false)
+        public SessionInfoEventData {}
+
+        /**
+         * Returns a named builder.
+         * @return a new builder
+         * @since 2.0.0
+         */
+        public static Builder builder() { return new Builder(); }
+
+        /**
+         * Named construction for this record.
+         * @since 2.0.0
+         */
+        public static final class Builder {
+            private Builder() {}
+            private String infoType;
+            private String message;
+            private String url;
+            private String tip;
+            private ResponsesReasoning responsesReasoning;
+
+            /**
+             * Sets the {@code infoType} property.
+             * @param value the property value
+             * @return this builder
+             * @since 2.0.0
+             */
+            public Builder infoType(String value) {
+                this.infoType = value;
+                return this;
+            }
+
+            /**
+             * Sets the {@code message} property.
+             * @param value the property value
+             * @return this builder
+             * @since 2.0.0
+             */
+            public Builder message(String value) {
+                this.message = value;
+                return this;
+            }
+
+            /**
+             * Sets the {@code url} property.
+             * @param value the property value
+             * @return this builder
+             * @since 2.0.0
+             */
+            public Builder url(String value) {
+                this.url = value;
+                return this;
+            }
+
+            /**
+             * Sets the {@code tip} property.
+             * @param value the property value
+             * @return this builder
+             * @since 2.0.0
+             */
+            public Builder tip(String value) {
+                this.tip = value;
+                return this;
+            }
+
+            /**
+             * Sets the {@code responsesReasoning} property.
+             * @param value the property value
+             * @return this builder
+             * @since 2.0.0
+             */
+            public Builder responsesReasoning(ResponsesReasoning value) {
+                this.responsesReasoning = value;
+                return this;
+            }
+
+            /**
+             * Builds a record after checking required property presence.
+             * @return a new record
+             * @throws IllegalStateException if a required property is missing
+             * @since 2.0.0
+             */
+            public SessionInfoEventData build() {
+                if (infoType == null) throw new IllegalStateException("Missing required property: infoType");
+                if (message == null) throw new IllegalStateException("Missing required property: message");
+                return new SessionInfoEventData(infoType, message, url, tip, responsesReasoning);
+            }
         }
     }
 }

@@ -41,4 +41,57 @@ public final class SessionsOpenCreate extends SessionsOpenParams {
 
     public Boolean getEmitStart() { return emitStart; }
     public void setEmitStart(Boolean emitStart) { this.emitStart = emitStart; }
+
+
+    /**
+     * Returns a named builder.
+     * @return a new builder
+     * @since 2.0.0
+     */
+    public static Builder builder() { return new Builder(); }
+
+    /**
+     * Named construction for this record.
+     * @since 2.0.0
+     */
+    public static final class Builder {
+        private Builder() {}
+        private SessionOpenOptions options;
+        private Boolean emitStart;
+
+        /**
+         * Sets the {@code options} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder options(SessionOpenOptions value) {
+            this.options = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code emitStart} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder emitStart(Boolean value) {
+            this.emitStart = value;
+            return this;
+        }
+
+        /**
+         * Builds a variant after checking required property presence.
+         * @return a new variant
+         * @throws IllegalStateException if a required property is missing
+         * @since 2.0.0
+         */
+        public SessionsOpenCreate build() {
+            SessionsOpenCreate instance = new SessionsOpenCreate();
+            instance.setOptions(options);
+            instance.setEmitStart(emitStart);
+            return instance;
+        }
+    }
 }

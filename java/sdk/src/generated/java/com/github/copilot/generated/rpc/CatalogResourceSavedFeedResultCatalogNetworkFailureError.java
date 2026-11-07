@@ -55,4 +55,85 @@ public final class CatalogResourceSavedFeedResultCatalogNetworkFailureError exte
 
     public String getMessage() { return message; }
     public void setMessage(String message) { this.message = message; }
+
+
+    /**
+     * Returns a named builder.
+     * @return a new builder
+     * @since 2.0.0
+     */
+    public static Builder builder() { return new Builder(); }
+
+    /**
+     * Named construction for this record.
+     * @since 2.0.0
+     */
+    public static final class Builder {
+        private Builder() {}
+        private CatalogNetworkFailureReason reason;
+        private Long statusCode;
+        private Long retryAfterSeconds;
+        private String message;
+
+        /**
+         * Sets the {@code reason} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder reason(CatalogNetworkFailureReason value) {
+            this.reason = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code statusCode} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder statusCode(Long value) {
+            this.statusCode = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code retryAfterSeconds} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder retryAfterSeconds(Long value) {
+            this.retryAfterSeconds = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code message} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder message(String value) {
+            this.message = value;
+            return this;
+        }
+
+        /**
+         * Builds a variant after checking required property presence.
+         * @return a new variant
+         * @throws IllegalStateException if a required property is missing
+         * @since 2.0.0
+         */
+        public CatalogResourceSavedFeedResultCatalogNetworkFailureError build() {
+            if (reason == null) throw new IllegalStateException("Missing required property: reason");
+            if (message == null) throw new IllegalStateException("Missing required property: message");
+            CatalogResourceSavedFeedResultCatalogNetworkFailureError instance = new CatalogResourceSavedFeedResultCatalogNetworkFailureError();
+            instance.setReason(reason);
+            instance.setStatusCode(statusCode);
+            instance.setRetryAfterSeconds(retryAfterSeconds);
+            instance.setMessage(message);
+            return instance;
+        }
+    }
 }

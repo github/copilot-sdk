@@ -48,4 +48,70 @@ public final class SessionsOpenResumeLast extends SessionsOpenParams {
 
     public Boolean getSuppressResumeWorkspaceMetadataWriteback() { return suppressResumeWorkspaceMetadataWriteback; }
     public void setSuppressResumeWorkspaceMetadataWriteback(Boolean suppressResumeWorkspaceMetadataWriteback) { this.suppressResumeWorkspaceMetadataWriteback = suppressResumeWorkspaceMetadataWriteback; }
+
+
+    /**
+     * Returns a named builder.
+     * @return a new builder
+     * @since 2.0.0
+     */
+    public static Builder builder() { return new Builder(); }
+
+    /**
+     * Named construction for this record.
+     * @since 2.0.0
+     */
+    public static final class Builder {
+        private Builder() {}
+        private SessionContext context;
+        private SessionOpenOptions options;
+        private Boolean suppressResumeWorkspaceMetadataWriteback;
+
+        /**
+         * Sets the {@code context} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder context(SessionContext value) {
+            this.context = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code options} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder options(SessionOpenOptions value) {
+            this.options = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code suppressResumeWorkspaceMetadataWriteback} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder suppressResumeWorkspaceMetadataWriteback(Boolean value) {
+            this.suppressResumeWorkspaceMetadataWriteback = value;
+            return this;
+        }
+
+        /**
+         * Builds a variant after checking required property presence.
+         * @return a new variant
+         * @throws IllegalStateException if a required property is missing
+         * @since 2.0.0
+         */
+        public SessionsOpenResumeLast build() {
+            SessionsOpenResumeLast instance = new SessionsOpenResumeLast();
+            instance.setContext(context);
+            instance.setOptions(options);
+            instance.setSuppressResumeWorkspaceMetadataWriteback(suppressResumeWorkspaceMetadataWriteback);
+            return instance;
+        }
+    }
 }

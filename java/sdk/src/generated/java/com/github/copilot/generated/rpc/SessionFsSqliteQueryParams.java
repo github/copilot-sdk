@@ -34,4 +34,93 @@ public record SessionFsSqliteQueryParams(
     /** Optional named bind parameters */
     @JsonProperty("params") Map<String, Object> params
 ) {
+
+    /**
+     * Creates a record positionally.
+     * @deprecated Use {@link #builder()} for named construction.
+     */
+    @Deprecated(since = "2.0.0", forRemoval = false)
+    public SessionFsSqliteQueryParams {}
+
+    /**
+     * Returns a named builder.
+     * @return a new builder
+     * @since 2.0.0
+     */
+    @com.github.copilot.CopilotExperimental
+    public static Builder builder() { return new Builder(); }
+
+    /**
+     * Named construction for this record.
+     * @since 2.0.0
+     */
+    @com.github.copilot.CopilotExperimental
+    public static final class Builder {
+        private Builder() {}
+        private String sessionId;
+        private String query;
+        private SessionFsSqliteQueryType queryType;
+        private Map<String, Object> params;
+
+        /**
+         * Sets the {@code sessionId} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        @com.github.copilot.CopilotExperimental
+        public Builder sessionId(String value) {
+            this.sessionId = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code query} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        @com.github.copilot.CopilotExperimental
+        public Builder query(String value) {
+            this.query = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code queryType} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        @com.github.copilot.CopilotExperimental
+        public Builder queryType(SessionFsSqliteQueryType value) {
+            this.queryType = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code params} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        @com.github.copilot.CopilotExperimental
+        public Builder params(Map<String, Object> value) {
+            this.params = value;
+            return this;
+        }
+
+        /**
+         * Builds a record after checking required property presence.
+         * @return a new record
+         * @throws IllegalStateException if a required property is missing
+         * @since 2.0.0
+         */
+        public SessionFsSqliteQueryParams build() {
+            if (sessionId == null) throw new IllegalStateException("Missing required property: sessionId");
+            if (query == null) throw new IllegalStateException("Missing required property: query");
+            if (queryType == null) throw new IllegalStateException("Missing required property: queryType");
+            return new SessionFsSqliteQueryParams(sessionId, query, queryType, params);
+        }
+    }
 }

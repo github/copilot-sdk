@@ -28,4 +28,62 @@ public record MemoryConfiguration(
     @CopilotExperimental
     @JsonProperty("mode") MemoryMode mode
 ) {
+
+    /**
+     * Creates a record positionally.
+     * @deprecated Use {@link #builder()} for named construction.
+     */
+    @Deprecated(since = "2.0.0", forRemoval = false)
+    public MemoryConfiguration {}
+
+    /**
+     * Returns a named builder.
+     * @return a new builder
+     * @since 2.0.0
+     */
+    public static Builder builder() { return new Builder(); }
+
+    /**
+     * Named construction for this record.
+     * @since 2.0.0
+     */
+    public static final class Builder {
+        private Builder() {}
+        private Boolean enabled;
+        private MemoryMode mode;
+
+        /**
+         * Sets the {@code enabled} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder enabled(Boolean value) {
+            this.enabled = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code mode} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        @com.github.copilot.CopilotExperimental
+        public Builder mode(MemoryMode value) {
+            this.mode = value;
+            return this;
+        }
+
+        /**
+         * Builds a record after checking required property presence.
+         * @return a new record
+         * @throws IllegalStateException if a required property is missing
+         * @since 2.0.0
+         */
+        public MemoryConfiguration build() {
+            if (enabled == null) throw new IllegalStateException("Missing required property: enabled");
+            return new MemoryConfiguration(enabled, mode);
+        }
+    }
 }

@@ -58,5 +58,123 @@ public final class PermissionContextualAuthorizationEvent extends SessionEvent {
         @CopilotExperimental
         @JsonProperty("spanEnd") Long spanEnd
     ) {
+
+        /**
+         * Creates a record positionally.
+         * @deprecated Use {@link #builder()} for named construction.
+         */
+        @Deprecated(since = "2.0.0", forRemoval = false)
+        public PermissionContextualAuthorizationEventData {}
+
+        /**
+         * Returns a named builder.
+         * @return a new builder
+         * @since 2.0.0
+         */
+        @com.github.copilot.CopilotExperimental
+        public static Builder builder() { return new Builder(); }
+
+        /**
+         * Named construction for this record.
+         * @since 2.0.0
+         */
+        @com.github.copilot.CopilotExperimental
+        public static final class Builder {
+            private Builder() {}
+            private String recordId;
+            private String requestId;
+            private Long turnIndex;
+            private PermissionMessageAuthorizationPolarity polarity;
+            private Long spanStart;
+            private Long spanEnd;
+
+            /**
+             * Sets the {@code recordId} property.
+             * @param value the property value
+             * @return this builder
+             * @since 2.0.0
+             */
+            @com.github.copilot.CopilotExperimental
+            public Builder recordId(String value) {
+                this.recordId = value;
+                return this;
+            }
+
+            /**
+             * Sets the {@code requestId} property.
+             * @param value the property value
+             * @return this builder
+             * @since 2.0.0
+             */
+            @com.github.copilot.CopilotExperimental
+            public Builder requestId(String value) {
+                this.requestId = value;
+                return this;
+            }
+
+            /**
+             * Sets the {@code turnIndex} property.
+             * @param value the property value
+             * @return this builder
+             * @since 2.0.0
+             */
+            @com.github.copilot.CopilotExperimental
+            public Builder turnIndex(Long value) {
+                this.turnIndex = value;
+                return this;
+            }
+
+            /**
+             * Sets the {@code polarity} property.
+             * @param value the property value
+             * @return this builder
+             * @since 2.0.0
+             */
+            @com.github.copilot.CopilotExperimental
+            public Builder polarity(PermissionMessageAuthorizationPolarity value) {
+                this.polarity = value;
+                return this;
+            }
+
+            /**
+             * Sets the {@code spanStart} property.
+             * @param value the property value
+             * @return this builder
+             * @since 2.0.0
+             */
+            @com.github.copilot.CopilotExperimental
+            public Builder spanStart(Long value) {
+                this.spanStart = value;
+                return this;
+            }
+
+            /**
+             * Sets the {@code spanEnd} property.
+             * @param value the property value
+             * @return this builder
+             * @since 2.0.0
+             */
+            @com.github.copilot.CopilotExperimental
+            public Builder spanEnd(Long value) {
+                this.spanEnd = value;
+                return this;
+            }
+
+            /**
+             * Builds a record after checking required property presence.
+             * @return a new record
+             * @throws IllegalStateException if a required property is missing
+             * @since 2.0.0
+             */
+            public PermissionContextualAuthorizationEventData build() {
+                if (recordId == null) throw new IllegalStateException("Missing required property: recordId");
+                if (requestId == null) throw new IllegalStateException("Missing required property: requestId");
+                if (turnIndex == null) throw new IllegalStateException("Missing required property: turnIndex");
+                if (polarity == null) throw new IllegalStateException("Missing required property: polarity");
+                if (spanStart == null) throw new IllegalStateException("Missing required property: spanStart");
+                if (spanEnd == null) throw new IllegalStateException("Missing required property: spanEnd");
+                return new PermissionContextualAuthorizationEventData(recordId, requestId, turnIndex, polarity, spanStart, spanEnd);
+            }
+        }
     }
 }

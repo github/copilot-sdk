@@ -59,13 +59,16 @@ class McpPromptsTest {
             }
         };
         var session = new SessionRpc(caller, "bound-session");
-        session.mcp.prompts.list(new SessionMcpPromptsListParams("foreign-session", "fixture", null)).join();
-        session.mcp.prompts.list(new SessionMcpPromptsListParams("foreign-session", "fixture", "page:2/opaque+cursor="))
-                .join();
-        session.mcp.prompts.get(new SessionMcpPromptsGetParams("foreign-session", "fixture", "rich", null)).join();
-        session.mcp.prompts.get(new SessionMcpPromptsGetParams("foreign-session", "fixture", "rich", Map.of())).join();
-        session.mcp.prompts.get(new SessionMcpPromptsGetParams("foreign-session", "fixture", "rich",
-                Map.of("topic", "日本語", "style", ""))).join();
+        session.mcp.prompts.list(SessionMcpPromptsListParams.builder().sessionId("foreign-session")
+                .serverName("fixture").cursor(null).build()).join();
+        session.mcp.prompts.list(SessionMcpPromptsListParams.builder().sessionId("foreign-session")
+                .serverName("fixture").cursor("page:2/opaque+cursor=").build()).join();
+        session.mcp.prompts.get(SessionMcpPromptsGetParams.builder().sessionId("foreign-session").serverName("fixture")
+                .promptName("rich").arguments(null).build()).join();
+        session.mcp.prompts.get(SessionMcpPromptsGetParams.builder().sessionId("foreign-session").serverName("fixture")
+                .promptName("rich").arguments(Map.of()).build()).join();
+        session.mcp.prompts.get(SessionMcpPromptsGetParams.builder().sessionId("foreign-session").serverName("fixture")
+                .promptName("rich").arguments(Map.of("topic", "日本語", "style", "")).build()).join();
 
         assertEquals(5, calls.size());
         for (int i = 0; i < calls.size(); i++) {

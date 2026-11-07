@@ -28,4 +28,74 @@ record McpOauthAuthenticateResult(
     /** Remaining lifetime in seconds when the issuer supplied an expiry. */
     @JsonProperty("expiresIn") Long expiresIn
 ) {
+
+    /**
+     * Creates a record positionally.
+     * @deprecated Use {@link #builder()} for named construction.
+     */
+    @Deprecated(since = "2.0.0", forRemoval = false)
+    McpOauthAuthenticateResult {}
+
+    /**
+     * Returns a named builder.
+     * @return a new builder
+     * @since 2.0.0
+     */
+    public static Builder builder() { return new Builder(); }
+
+    /**
+     * Named construction for this record.
+     * @since 2.0.0
+     */
+    public static final class Builder {
+        private Builder() {}
+        private String accessToken;
+        private String tokenType;
+        private Long expiresIn;
+
+        /**
+         * Sets the {@code accessToken} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder accessToken(String value) {
+            this.accessToken = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code tokenType} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder tokenType(String value) {
+            this.tokenType = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code expiresIn} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder expiresIn(Long value) {
+            this.expiresIn = value;
+            return this;
+        }
+
+        /**
+         * Builds a record after checking required property presence.
+         * @return a new record
+         * @throws IllegalStateException if a required property is missing
+         * @since 2.0.0
+         */
+        public McpOauthAuthenticateResult build() {
+            if (accessToken == null) throw new IllegalStateException("Missing required property: accessToken");
+            if (tokenType == null) throw new IllegalStateException("Missing required property: tokenType");
+            return new McpOauthAuthenticateResult(accessToken, tokenType, expiresIn);
+        }
+    }
 }

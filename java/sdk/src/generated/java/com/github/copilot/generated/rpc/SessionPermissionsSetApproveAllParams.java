@@ -31,4 +31,78 @@ public record SessionPermissionsSetApproveAllParams(
     /** Optional source for allow-all telemetry. Defaults to `rpc` when omitted for SDK callers. */
     @JsonProperty("source") PermissionsSetApproveAllSource source
 ) {
+
+    /**
+     * Creates a record positionally.
+     * @deprecated Use {@link #builder()} for named construction.
+     */
+    @Deprecated(since = "2.0.0", forRemoval = false)
+    public SessionPermissionsSetApproveAllParams {}
+
+    /**
+     * Returns a named builder.
+     * @return a new builder
+     * @since 2.0.0
+     */
+    @com.github.copilot.CopilotExperimental
+    public static Builder builder() { return new Builder(); }
+
+    /**
+     * Named construction for this record.
+     * @since 2.0.0
+     */
+    @com.github.copilot.CopilotExperimental
+    public static final class Builder {
+        private Builder() {}
+        private String sessionId;
+        private Boolean enabled;
+        private PermissionsSetApproveAllSource source;
+
+        /**
+         * Sets the {@code sessionId} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        @com.github.copilot.CopilotExperimental
+        public Builder sessionId(String value) {
+            this.sessionId = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code enabled} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        @com.github.copilot.CopilotExperimental
+        public Builder enabled(Boolean value) {
+            this.enabled = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code source} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        @com.github.copilot.CopilotExperimental
+        public Builder source(PermissionsSetApproveAllSource value) {
+            this.source = value;
+            return this;
+        }
+
+        /**
+         * Builds a record after checking required property presence.
+         * @return a new record
+         * @throws IllegalStateException if a required property is missing
+         * @since 2.0.0
+         */
+        public SessionPermissionsSetApproveAllParams build() {
+            if (enabled == null) throw new IllegalStateException("Missing required property: enabled");
+            return new SessionPermissionsSetApproveAllParams(sessionId, enabled, source);
+        }
+    }
 }

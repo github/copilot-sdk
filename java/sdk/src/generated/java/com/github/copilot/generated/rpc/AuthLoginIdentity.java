@@ -32,4 +32,80 @@ public record AuthLoginIdentity(
     /** Whether this base identity owns the session's active derived account. */
     @JsonProperty("active") Boolean active
 ) {
+
+    /**
+     * Creates a record positionally.
+     * @deprecated Use {@link #builder()} for named construction.
+     */
+    @Deprecated(since = "2.0.0", forRemoval = false)
+    public AuthLoginIdentity {}
+
+    /**
+     * Returns a named builder.
+     * @return a new builder
+     * @since 2.0.0
+     */
+    @com.github.copilot.CopilotExperimental
+    public static Builder builder() { return new Builder(); }
+
+    /**
+     * Named construction for this record.
+     * @since 2.0.0
+     */
+    @com.github.copilot.CopilotExperimental
+    public static final class Builder {
+        private Builder() {}
+        private String accountId;
+        private String label;
+        private Boolean active;
+
+        /**
+         * Sets the {@code accountId} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        @com.github.copilot.CopilotExperimental
+        public Builder accountId(String value) {
+            this.accountId = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code label} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        @com.github.copilot.CopilotExperimental
+        public Builder label(String value) {
+            this.label = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code active} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        @com.github.copilot.CopilotExperimental
+        public Builder active(Boolean value) {
+            this.active = value;
+            return this;
+        }
+
+        /**
+         * Builds a record after checking required property presence.
+         * @return a new record
+         * @throws IllegalStateException if a required property is missing
+         * @since 2.0.0
+         */
+        public AuthLoginIdentity build() {
+            if (accountId == null) throw new IllegalStateException("Missing required property: accountId");
+            if (label == null) throw new IllegalStateException("Missing required property: label");
+            if (active == null) throw new IllegalStateException("Missing required property: active");
+            return new AuthLoginIdentity(accountId, label, active);
+        }
+    }
 }

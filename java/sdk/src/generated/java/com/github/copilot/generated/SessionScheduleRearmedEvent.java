@@ -39,5 +39,63 @@ public final class SessionScheduleRearmedEvent extends SessionEvent {
         /** Absolute time (epoch milliseconds) the model armed the next run to fire */
         @JsonProperty("nextRunAt") Long nextRunAt
     ) {
+
+        /**
+         * Creates a record positionally.
+         * @deprecated Use {@link #builder()} for named construction.
+         */
+        @Deprecated(since = "2.0.0", forRemoval = false)
+        public SessionScheduleRearmedEventData {}
+
+        /**
+         * Returns a named builder.
+         * @return a new builder
+         * @since 2.0.0
+         */
+        public static Builder builder() { return new Builder(); }
+
+        /**
+         * Named construction for this record.
+         * @since 2.0.0
+         */
+        public static final class Builder {
+            private Builder() {}
+            private Long id;
+            private Long nextRunAt;
+
+            /**
+             * Sets the {@code id} property.
+             * @param value the property value
+             * @return this builder
+             * @since 2.0.0
+             */
+            public Builder id(Long value) {
+                this.id = value;
+                return this;
+            }
+
+            /**
+             * Sets the {@code nextRunAt} property.
+             * @param value the property value
+             * @return this builder
+             * @since 2.0.0
+             */
+            public Builder nextRunAt(Long value) {
+                this.nextRunAt = value;
+                return this;
+            }
+
+            /**
+             * Builds a record after checking required property presence.
+             * @return a new record
+             * @throws IllegalStateException if a required property is missing
+             * @since 2.0.0
+             */
+            public SessionScheduleRearmedEventData build() {
+                if (id == null) throw new IllegalStateException("Missing required property: id");
+                if (nextRunAt == null) throw new IllegalStateException("Missing required property: nextRunAt");
+                return new SessionScheduleRearmedEventData(id, nextRunAt);
+            }
+        }
     }
 }

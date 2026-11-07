@@ -33,4 +33,86 @@ record ManagedSettingsResolveBypassDisableTransitionParams(
     /** What the resolution said about bypass mode. Send `unknown` rather than omitting the field when there is no verdict. */
     @JsonProperty("policy") ManagedSettingsBypassPolicyResolution policy
 ) {
+
+    /**
+     * Creates a record positionally.
+     * @deprecated Use {@link #builder()} for named construction.
+     */
+    @Deprecated(since = "2.0.0", forRemoval = false)
+    ManagedSettingsResolveBypassDisableTransitionParams {}
+
+    /**
+     * Returns a named builder.
+     * @return a new builder
+     * @since 2.0.0
+     */
+    public static Builder builder() { return new Builder(); }
+
+    /**
+     * Named construction for this record.
+     * @since 2.0.0
+     */
+    public static final class Builder {
+        private Builder() {}
+        private ManagedSettingsBypassDisableSource currentSource;
+        private String currentManagedIdentity;
+        private String activeIdentity;
+        private ManagedSettingsBypassPolicyResolution policy;
+
+        /**
+         * Sets the {@code currentSource} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder currentSource(ManagedSettingsBypassDisableSource value) {
+            this.currentSource = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code currentManagedIdentity} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder currentManagedIdentity(String value) {
+            this.currentManagedIdentity = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code activeIdentity} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder activeIdentity(String value) {
+            this.activeIdentity = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code policy} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder policy(ManagedSettingsBypassPolicyResolution value) {
+            this.policy = value;
+            return this;
+        }
+
+        /**
+         * Builds a record after checking required property presence.
+         * @return a new record
+         * @throws IllegalStateException if a required property is missing
+         * @since 2.0.0
+         */
+        public ManagedSettingsResolveBypassDisableTransitionParams build() {
+            if (activeIdentity == null) throw new IllegalStateException("Missing required property: activeIdentity");
+            if (policy == null) throw new IllegalStateException("Missing required property: policy");
+            return new ManagedSettingsResolveBypassDisableTransitionParams(currentSource, currentManagedIdentity, activeIdentity, policy);
+        }
+    }
 }

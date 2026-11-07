@@ -27,4 +27,49 @@ record GitWorkingDirectoryContextParams(
     /** Absolute path to a directory inside the git working tree to query. */
     @JsonProperty("cwd") String cwd
 ) {
+
+    /**
+     * Creates a record positionally.
+     * @deprecated Use {@link #builder()} for named construction.
+     */
+    @Deprecated(since = "2.0.0", forRemoval = false)
+    GitWorkingDirectoryContextParams {}
+
+    /**
+     * Returns a named builder.
+     * @return a new builder
+     * @since 2.0.0
+     */
+    public static Builder builder() { return new Builder(); }
+
+    /**
+     * Named construction for this record.
+     * @since 2.0.0
+     */
+    public static final class Builder {
+        private Builder() {}
+        private String cwd;
+
+        /**
+         * Sets the {@code cwd} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder cwd(String value) {
+            this.cwd = value;
+            return this;
+        }
+
+        /**
+         * Builds a record after checking required property presence.
+         * @return a new record
+         * @throws IllegalStateException if a required property is missing
+         * @since 2.0.0
+         */
+        public GitWorkingDirectoryContextParams build() {
+            if (cwd == null) throw new IllegalStateException("Missing required property: cwd");
+            return new GitWorkingDirectoryContextParams(cwd);
+        }
+    }
 }

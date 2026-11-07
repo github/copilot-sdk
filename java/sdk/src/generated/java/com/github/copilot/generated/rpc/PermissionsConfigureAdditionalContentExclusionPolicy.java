@@ -30,4 +30,77 @@ public record PermissionsConfigureAdditionalContentExclusionPolicy(
     /** Allowed values for the `PermissionsConfigureAdditionalContentExclusionPolicyScope` enumeration. */
     @JsonProperty("scope") PermissionsConfigureAdditionalContentExclusionPolicyScope scope
 ) {
+
+    /**
+     * Creates a record positionally.
+     * @deprecated Use {@link #builder()} for named construction.
+     */
+    @Deprecated(since = "2.0.0", forRemoval = false)
+    public PermissionsConfigureAdditionalContentExclusionPolicy {}
+
+    /**
+     * Returns a named builder.
+     * @return a new builder
+     * @since 2.0.0
+     */
+    public static Builder builder() { return new Builder(); }
+
+    /**
+     * Named construction for this record.
+     * @since 2.0.0
+     */
+    public static final class Builder {
+        private Builder() {}
+        private List<PermissionsConfigureAdditionalContentExclusionPolicyRule> rules;
+        private Object lastUpdatedAt;
+        private boolean $presence1;
+        private PermissionsConfigureAdditionalContentExclusionPolicyScope scope;
+
+        /**
+         * Sets the {@code rules} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder rules(List<PermissionsConfigureAdditionalContentExclusionPolicyRule> value) {
+            this.rules = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code last_updated_at} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder lastUpdatedAt(Object value) {
+            this.lastUpdatedAt = value;
+            this.$presence1 = true;
+            return this;
+        }
+
+        /**
+         * Sets the {@code scope} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder scope(PermissionsConfigureAdditionalContentExclusionPolicyScope value) {
+            this.scope = value;
+            return this;
+        }
+
+        /**
+         * Builds a record after checking required property presence.
+         * @return a new record
+         * @throws IllegalStateException if a required property is missing
+         * @since 2.0.0
+         */
+        public PermissionsConfigureAdditionalContentExclusionPolicy build() {
+            if (rules == null) throw new IllegalStateException("Missing required property: rules");
+            if (!$presence1) throw new IllegalStateException("Missing required property: last_updated_at");
+            if (scope == null) throw new IllegalStateException("Missing required property: scope");
+            return new PermissionsConfigureAdditionalContentExclusionPolicy(rules, lastUpdatedAt, scope);
+        }
+    }
 }

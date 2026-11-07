@@ -28,4 +28,74 @@ public record SessionsOpenProgress(
     /** Optional step message. */
     @JsonProperty("message") String message
 ) {
+
+    /**
+     * Creates a record positionally.
+     * @deprecated Use {@link #builder()} for named construction.
+     */
+    @Deprecated(since = "2.0.0", forRemoval = false)
+    public SessionsOpenProgress {}
+
+    /**
+     * Returns a named builder.
+     * @return a new builder
+     * @since 2.0.0
+     */
+    public static Builder builder() { return new Builder(); }
+
+    /**
+     * Named construction for this record.
+     * @since 2.0.0
+     */
+    public static final class Builder {
+        private Builder() {}
+        private SessionsOpenProgressStep step;
+        private SessionsOpenProgressStatus status;
+        private String message;
+
+        /**
+         * Sets the {@code step} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder step(SessionsOpenProgressStep value) {
+            this.step = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code status} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder status(SessionsOpenProgressStatus value) {
+            this.status = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code message} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder message(String value) {
+            this.message = value;
+            return this;
+        }
+
+        /**
+         * Builds a record after checking required property presence.
+         * @return a new record
+         * @throws IllegalStateException if a required property is missing
+         * @since 2.0.0
+         */
+        public SessionsOpenProgress build() {
+            if (step == null) throw new IllegalStateException("Missing required property: step");
+            if (status == null) throw new IllegalStateException("Missing required property: status");
+            return new SessionsOpenProgress(step, status, message);
+        }
+    }
 }

@@ -28,4 +28,73 @@ record AccountSubscribeCopilotFreeResult(
     /** Explanation to show the user. Present on `failed`, and optionally alongside a `subscribed` status. */
     @JsonProperty("message") String message
 ) {
+
+    /**
+     * Creates a record positionally.
+     * @deprecated Use {@link #builder()} for named construction.
+     */
+    @Deprecated(since = "2.0.0", forRemoval = false)
+    AccountSubscribeCopilotFreeResult {}
+
+    /**
+     * Returns a named builder.
+     * @return a new builder
+     * @since 2.0.0
+     */
+    public static Builder builder() { return new Builder(); }
+
+    /**
+     * Named construction for this record.
+     * @since 2.0.0
+     */
+    public static final class Builder {
+        private Builder() {}
+        private String kind;
+        private String status;
+        private String message;
+
+        /**
+         * Sets the {@code kind} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder kind(String value) {
+            this.kind = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code status} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder status(String value) {
+            this.status = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code message} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder message(String value) {
+            this.message = value;
+            return this;
+        }
+
+        /**
+         * Builds a record after checking required property presence.
+         * @return a new record
+         * @throws IllegalStateException if a required property is missing
+         * @since 2.0.0
+         */
+        public AccountSubscribeCopilotFreeResult build() {
+            if (kind == null) throw new IllegalStateException("Missing required property: kind");
+            return new AccountSubscribeCopilotFreeResult(kind, status, message);
+        }
+    }
 }

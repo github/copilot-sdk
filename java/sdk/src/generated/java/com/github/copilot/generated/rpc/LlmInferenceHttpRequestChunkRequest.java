@@ -36,4 +36,122 @@ public record LlmInferenceHttpRequestChunkRequest(
     /** Identity of the agent invocation (one agentic loop) this body chunk belongs to, matching the `agentInvocationId` semantics on httpRequestStart. Carried per chunk so a persistent transport can attribute successive turns correctly: when a WebSocket connection is reused across turns, the httpRequestStart identity reflects only the turn that opened the connection, so each later turn stamps its own invocation id here. Absent when the runtime has no invocation context for the request, or on the plain-HTTP transport where every request has its own httpRequestStart. */
     @JsonProperty("agentInvocationId") String agentInvocationId
 ) {
+
+    /**
+     * Creates a record positionally.
+     * @deprecated Use {@link #builder()} for named construction.
+     */
+    @Deprecated(since = "2.0.0", forRemoval = false)
+    public LlmInferenceHttpRequestChunkRequest {}
+
+    /**
+     * Returns a named builder.
+     * @return a new builder
+     * @since 2.0.0
+     */
+    public static Builder builder() { return new Builder(); }
+
+    /**
+     * Named construction for this record.
+     * @since 2.0.0
+     */
+    public static final class Builder {
+        private Builder() {}
+        private String requestId;
+        private String data;
+        private Boolean binary;
+        private Boolean end;
+        private Boolean cancel;
+        private String cancelReason;
+        private String agentInvocationId;
+
+        /**
+         * Sets the {@code requestId} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder requestId(String value) {
+            this.requestId = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code data} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder data(String value) {
+            this.data = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code binary} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder binary(Boolean value) {
+            this.binary = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code end} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder end(Boolean value) {
+            this.end = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code cancel} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder cancel(Boolean value) {
+            this.cancel = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code cancelReason} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder cancelReason(String value) {
+            this.cancelReason = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code agentInvocationId} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder agentInvocationId(String value) {
+            this.agentInvocationId = value;
+            return this;
+        }
+
+        /**
+         * Builds a record after checking required property presence.
+         * @return a new record
+         * @throws IllegalStateException if a required property is missing
+         * @since 2.0.0
+         */
+        public LlmInferenceHttpRequestChunkRequest build() {
+            if (requestId == null) throw new IllegalStateException("Missing required property: requestId");
+            if (data == null) throw new IllegalStateException("Missing required property: data");
+            return new LlmInferenceHttpRequestChunkRequest(requestId, data, binary, end, cancel, cancelReason, agentInvocationId);
+        }
+    }
 }

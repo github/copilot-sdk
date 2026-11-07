@@ -56,8 +56,235 @@ public record InstalledPluginInfo(
 ) {
 
     /**
+     * Creates a record positionally.
+     * @deprecated Use {@link #builder()} for named construction.
+     */
+    @Deprecated(since = "2.0.0", forRemoval = false)
+    public InstalledPluginInfo {}
+
+    /**
+     * Returns a named builder.
+     * @return a new builder
+     * @since 2.0.0
+     */
+    public static Builder builder() { return new Builder(); }
+
+    /**
+     * Named construction for this record.
+     * @since 2.0.0
+     */
+    public static final class Builder {
+        private Builder() {}
+        private ManagedPluginAssignment assignment;
+        private String name;
+        private String marketplace;
+        private String directSourceId;
+        private String version;
+        private Boolean enabled;
+        private String rootPath;
+        private String installedFrom;
+        private String source;
+        private Boolean managed;
+        private Boolean managedDesiredEnabled;
+        private Boolean installed;
+        private String description;
+        private InstalledPluginVerifiedSource verifiedSource;
+        private String iconUrl;
+        private String id;
+
+        /**
+         * Sets the {@code assignment} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder assignment(ManagedPluginAssignment value) {
+            this.assignment = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code name} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder name(String value) {
+            this.name = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code marketplace} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder marketplace(String value) {
+            this.marketplace = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code directSourceId} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder directSourceId(String value) {
+            this.directSourceId = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code version} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder version(String value) {
+            this.version = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code enabled} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder enabled(Boolean value) {
+            this.enabled = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code rootPath} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder rootPath(String value) {
+            this.rootPath = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code installedFrom} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder installedFrom(String value) {
+            this.installedFrom = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code source} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder source(String value) {
+            this.source = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code managed} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder managed(Boolean value) {
+            this.managed = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code managedDesiredEnabled} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder managedDesiredEnabled(Boolean value) {
+            this.managedDesiredEnabled = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code installed} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder installed(Boolean value) {
+            this.installed = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code description} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder description(String value) {
+            this.description = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code verifiedSource} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder verifiedSource(InstalledPluginVerifiedSource value) {
+            this.verifiedSource = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code iconUrl} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder iconUrl(String value) {
+            this.iconUrl = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code id} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder id(String value) {
+            this.id = value;
+            return this;
+        }
+
+        /**
+         * Builds a record after checking required property presence.
+         * @return a new record
+         * @throws IllegalStateException if a required property is missing
+         * @since 2.0.0
+         */
+        public InstalledPluginInfo build() {
+            if (name == null) throw new IllegalStateException("Missing required property: name");
+            if (marketplace == null) throw new IllegalStateException("Missing required property: marketplace");
+            if (enabled == null) throw new IllegalStateException("Missing required property: enabled");
+            return new InstalledPluginInfo(assignment, name, marketplace, directSourceId, version, enabled, rootPath, installedFrom, source, managed, managedDesiredEnabled, installed, description, verifiedSource, iconUrl, id);
+        }
+    }
+
+    /**
      * Creates a record with the components it had before later optional fields were added.
-     *
+     * @deprecated Use named construction via {@link #builder()}.
      * @param name Plugin name
      * @param marketplace Marketplace the plugin came from. Empty string ("") for direct repo / URL / local installs.
      * @param directSourceId Opaque, stable hash identifying a direct (non-marketplace) install source. Present only for direct repo / URL / local installs; absent for marketplace plugins. Same source yields the same id; distinct sources never collide.
@@ -72,6 +299,7 @@ public record InstalledPluginInfo(
      * @param verifiedSource The GitHub repository and commit a direct install is pinned to, from its install record. Present only for a direct install pinned to one GitHub commit, such as a verified install from GitHub; absent for marketplace, local and unpinned installs.
      * @param iconUrl HTTPS URL of the plugin's icon on raw.githubusercontent.com, retained from the catalogue entry it was installed from. Untrusted external content: load it without credentials. Present only for a direct install pinned to one GitHub commit whose catalogue entry had an icon.
      */
+    @Deprecated(since = "2.0.0", forRemoval = false)
     public InstalledPluginInfo(
         String name,
         String marketplace,

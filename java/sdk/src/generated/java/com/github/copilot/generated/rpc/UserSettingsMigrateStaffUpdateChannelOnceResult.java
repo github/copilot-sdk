@@ -26,4 +26,61 @@ record UserSettingsMigrateStaffUpdateChannelOnceResult(
     /** When the migration was recorded as done, as an ISO-8601 timestamp. Absent only for `ineligible`, which records nothing. */
     @JsonProperty("completedAt") String completedAt
 ) {
+
+    /**
+     * Creates a record positionally.
+     * @deprecated Use {@link #builder()} for named construction.
+     */
+    @Deprecated(since = "2.0.0", forRemoval = false)
+    UserSettingsMigrateStaffUpdateChannelOnceResult {}
+
+    /**
+     * Returns a named builder.
+     * @return a new builder
+     * @since 2.0.0
+     */
+    public static Builder builder() { return new Builder(); }
+
+    /**
+     * Named construction for this record.
+     * @since 2.0.0
+     */
+    public static final class Builder {
+        private Builder() {}
+        private StaffUpdateChannelMigrationStatus status;
+        private String completedAt;
+
+        /**
+         * Sets the {@code status} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder status(StaffUpdateChannelMigrationStatus value) {
+            this.status = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code completedAt} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder completedAt(String value) {
+            this.completedAt = value;
+            return this;
+        }
+
+        /**
+         * Builds a record after checking required property presence.
+         * @return a new record
+         * @throws IllegalStateException if a required property is missing
+         * @since 2.0.0
+         */
+        public UserSettingsMigrateStaffUpdateChannelOnceResult build() {
+            if (status == null) throw new IllegalStateException("Missing required property: status");
+            return new UserSettingsMigrateStaffUpdateChannelOnceResult(status, completedAt);
+        }
+    }
 }

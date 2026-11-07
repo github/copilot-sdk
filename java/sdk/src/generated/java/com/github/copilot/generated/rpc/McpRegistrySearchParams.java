@@ -36,4 +36,108 @@ record McpRegistrySearchParams(
     /** Maximum number of servers to return. */
     @JsonProperty("limit") Long limit
 ) {
+
+    /**
+     * Creates a record positionally.
+     * @deprecated Use {@link #builder()} for named construction.
+     */
+    @Deprecated(since = "2.0.0", forRemoval = false)
+    McpRegistrySearchParams {}
+
+    /**
+     * Returns a named builder.
+     * @return a new builder
+     * @since 2.0.0
+     */
+    @com.github.copilot.CopilotExperimental
+    public static Builder builder() { return new Builder(); }
+
+    /**
+     * Named construction for this record.
+     * @since 2.0.0
+     */
+    @com.github.copilot.CopilotExperimental
+    public static final class Builder {
+        private Builder() {}
+        private Long requestId;
+        private Object authInfo;
+        private boolean $presence1;
+        private String query;
+        private String repository;
+        private Long limit;
+
+        /**
+         * Sets the {@code requestId} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        @com.github.copilot.CopilotExperimental
+        public Builder requestId(Long value) {
+            this.requestId = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code authInfo} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        @com.github.copilot.CopilotExperimental
+        public Builder authInfo(Object value) {
+            this.authInfo = value;
+            this.$presence1 = true;
+            return this;
+        }
+
+        /**
+         * Sets the {@code query} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        @com.github.copilot.CopilotExperimental
+        public Builder query(String value) {
+            this.query = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code repository} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        @com.github.copilot.CopilotExperimental
+        public Builder repository(String value) {
+            this.repository = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code limit} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        @com.github.copilot.CopilotExperimental
+        public Builder limit(Long value) {
+            this.limit = value;
+            return this;
+        }
+
+        /**
+         * Builds a record after checking required property presence.
+         * @return a new record
+         * @throws IllegalStateException if a required property is missing
+         * @since 2.0.0
+         */
+        public McpRegistrySearchParams build() {
+            if (requestId == null) throw new IllegalStateException("Missing required property: requestId");
+            if (!$presence1) throw new IllegalStateException("Missing required property: authInfo");
+            if (limit == null) throw new IllegalStateException("Missing required property: limit");
+            return new McpRegistrySearchParams(requestId, authInfo, query, repository, limit);
+        }
+    }
 }

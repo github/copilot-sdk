@@ -20,6 +20,7 @@ import java.util.logging.Level;
 import java.util.logging.Logger;
 
 import com.fasterxml.jackson.databind.JsonNode;
+import com.github.copilot.generated.rpc.RpcCaller;
 import com.github.copilot.generated.rpc.ServerLlmInferenceApi;
 
 /**
@@ -35,13 +36,16 @@ final class LlmInferenceAdapter {
 
     private final CopilotRequestHandler handler;
     private final Supplier<ServerLlmInferenceApi> rpcSupplier;
+    private final RpcCaller rpcCaller;
     private final Executor executor;
 
     private final Map<String, LlmInferenceExchange> pending = new ConcurrentHashMap<>();
 
-    LlmInferenceAdapter(CopilotRequestHandler handler, Supplier<ServerLlmInferenceApi> rpcSupplier, Executor executor) {
+    LlmInferenceAdapter(CopilotRequestHandler handler, Supplier<ServerLlmInferenceApi> rpcSupplier, RpcCaller rpcCaller,
+            Executor executor) {
         this.handler = handler;
         this.rpcSupplier = rpcSupplier;
+        this.rpcCaller = rpcCaller;
         this.executor = executor;
     }
 
@@ -64,7 +68,7 @@ final class LlmInferenceAdapter {
         // chunk (including the terminal end frame) that races ahead of its
         // start frame is buffered into the same exchange rather than dropped,
         // which would otherwise hang the body drain forever.
-        return pending.computeIfAbsent(requestId, id -> new LlmInferenceExchange(id, rpcSupplier));
+        return pending.computeIfAbsent(requestId, id -> new LlmInferenceExchange(id, rpcSupplier, rpcCaller));
     }
 
     private void handleRequestStart(JsonRpcClient rpc, String rpcId, JsonNode params) {

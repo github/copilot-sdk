@@ -42,5 +42,76 @@ public final class SessionCustomAgentsUpdatedEvent extends SessionEvent {
         /** Fatal errors from agent loading */
         @JsonProperty("errors") List<String> errors
     ) {
+
+        /**
+         * Creates a record positionally.
+         * @deprecated Use {@link #builder()} for named construction.
+         */
+        @Deprecated(since = "2.0.0", forRemoval = false)
+        public SessionCustomAgentsUpdatedEventData {}
+
+        /**
+         * Returns a named builder.
+         * @return a new builder
+         * @since 2.0.0
+         */
+        public static Builder builder() { return new Builder(); }
+
+        /**
+         * Named construction for this record.
+         * @since 2.0.0
+         */
+        public static final class Builder {
+            private Builder() {}
+            private List<CustomAgentsUpdatedAgent> agents;
+            private List<String> warnings;
+            private List<String> errors;
+
+            /**
+             * Sets the {@code agents} property.
+             * @param value the property value
+             * @return this builder
+             * @since 2.0.0
+             */
+            public Builder agents(List<CustomAgentsUpdatedAgent> value) {
+                this.agents = value;
+                return this;
+            }
+
+            /**
+             * Sets the {@code warnings} property.
+             * @param value the property value
+             * @return this builder
+             * @since 2.0.0
+             */
+            public Builder warnings(List<String> value) {
+                this.warnings = value;
+                return this;
+            }
+
+            /**
+             * Sets the {@code errors} property.
+             * @param value the property value
+             * @return this builder
+             * @since 2.0.0
+             */
+            public Builder errors(List<String> value) {
+                this.errors = value;
+                return this;
+            }
+
+            /**
+             * Builds a record after checking required property presence.
+             * @return a new record
+             * @throws IllegalStateException if a required property is missing
+             * @since 2.0.0
+             */
+            public SessionCustomAgentsUpdatedEventData build() {
+                if (agents == null) throw new IllegalStateException("Missing required property: agents");
+                if (warnings == null) throw new IllegalStateException("Missing required property: warnings");
+                if (errors == null) throw new IllegalStateException("Missing required property: errors");
+                return new SessionCustomAgentsUpdatedEventData(agents, warnings, errors);
+            }
+        }
     }
 }

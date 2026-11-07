@@ -54,15 +54,15 @@ pub(crate) fn copilot_binary_with_extract_dir(
     {
         let bundled = if use_runtime_wrapper {
             match extract_dir {
-                Some(dir) => crate::embeddedcli::install_runtime_at(dir),
+                Some(dir) => Ok(crate::embeddedcli::install_runtime_at(dir)),
                 None => crate::embeddedcli::runtime_path(),
             }
         } else {
             match extract_dir {
-                Some(dir) => crate::embeddedcli::install_at(dir),
+                Some(dir) => Ok(crate::embeddedcli::install_at(dir)),
                 None => crate::embeddedcli::path(),
             }
-        };
+        }?;
         if let Some(path) = bundled {
             if use_runtime_wrapper {
                 validate_runtime_pair(&path)?;
@@ -74,7 +74,7 @@ pub(crate) fn copilot_binary_with_extract_dir(
     #[cfg(not(feature = "bundled-cli"))]
     {
         let _ = extract_dir;
-        if let Some(program) = extracted_program(use_runtime_wrapper) {
+        if let Some(program) = extracted_program(use_runtime_wrapper)? {
             return Ok(program);
         }
     }
@@ -111,35 +111,42 @@ pub(crate) fn copilot_binary_with_extract_dir(
 /// / `$LOCALAPPDATA` into the artifact, breaks sccache across machines,
 /// and prevents copying `target/` between hosts.
 #[cfg(all(not(feature = "bundled-cli"), has_extracted_cli))]
-fn extracted_program(use_runtime_wrapper: bool) -> Option<PathBuf> {
+fn extracted_program(use_runtime_wrapper: bool) -> Result<Option<PathBuf>, Error> {
     let cache_identity = env!("COPILOT_SDK_CLI_CACHE_ID");
-    let dir = crate::cache_paths::extracted_runtime_install_dir(cache_identity);
-
-    let path = dir.join(if use_runtime_wrapper {
+    let binary_name = if use_runtime_wrapper {
         runtime_binary_name()
     } else {
         cli_binary_name()
-    });
+    };
+    let dir =
+        crate::cache_paths::extracted_runtime_install_dir(cache_identity).map_err(|error| {
+            ErrorKind::BinaryNotFound {
+                name: binary_name.into(),
+                hint: Some(error.to_string()),
+            }
+        })?;
+
+    let path = dir.join(binary_name);
     if use_runtime_wrapper {
         if validate_runtime_pair(&path).is_ok() {
-            return Some(path);
+            return Ok(Some(path));
         }
     } else if path.is_file() {
-        return Some(path);
+        return Ok(Some(path));
     }
     warn!(
         path = %path.display(),
         "expected build-time-extracted CLI is missing; rebuild the crate or set COPILOT_CLI_PATH"
     );
-    None
+    Ok(None)
 }
 
 /// `has_extracted_cli` is absent when the target is unsupported or the
 /// build opted out via `COPILOT_SKIP_CLI_DOWNLOAD`. In both cases there's
 /// no binary to look up, so the resolver returns `None` immediately.
 #[cfg(all(not(feature = "bundled-cli"), not(has_extracted_cli)))]
-fn extracted_program(_use_runtime_wrapper: bool) -> Option<PathBuf> {
-    None
+fn extracted_program(_use_runtime_wrapper: bool) -> Result<Option<PathBuf>, Error> {
+    Ok(None)
 }
 
 #[cfg(any(feature = "bundled-cli", has_extracted_cli, test))]

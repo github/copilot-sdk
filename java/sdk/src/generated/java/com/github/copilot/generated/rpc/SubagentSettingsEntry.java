@@ -34,4 +34,108 @@ public record SubagentSettingsEntry(
     /** Whether this agent's runtime-defined proactive invocation prompting is enabled, if supported. Currently consumed by the built-in rubber-duck agent. */
     @JsonProperty("autoInvoke") Boolean autoInvoke
 ) {
+
+    /**
+     * Creates a record positionally.
+     * @deprecated Use {@link #builder()} for named construction.
+     */
+    @Deprecated(since = "2.0.0", forRemoval = false)
+    public SubagentSettingsEntry {}
+
+    /**
+     * Returns a named builder.
+     * @return a new builder
+     * @since 2.0.0
+     */
+    public static Builder builder() { return new Builder(); }
+
+    /**
+     * Named construction for this record.
+     * @since 2.0.0
+     */
+    public static final class Builder {
+        private Builder() {}
+        private String model;
+        private String providerId;
+        private AgentModelPolicy modelPolicy;
+        private String effortLevel;
+        private SubagentSettingsEntryContextTier contextTier;
+        private Boolean autoInvoke;
+
+        /**
+         * Sets the {@code model} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder model(String value) {
+            this.model = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code providerId} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder providerId(String value) {
+            this.providerId = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code modelPolicy} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder modelPolicy(AgentModelPolicy value) {
+            this.modelPolicy = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code effortLevel} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder effortLevel(String value) {
+            this.effortLevel = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code contextTier} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder contextTier(SubagentSettingsEntryContextTier value) {
+            this.contextTier = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code autoInvoke} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder autoInvoke(Boolean value) {
+            this.autoInvoke = value;
+            return this;
+        }
+
+        /**
+         * Builds a record after checking required property presence.
+         * @return a new record
+         * @throws IllegalStateException if a required property is missing
+         * @since 2.0.0
+         */
+        public SubagentSettingsEntry build() {
+            return new SubagentSettingsEntry(model, providerId, modelPolicy, effortLevel, contextTier, autoInvoke);
+        }
+    }
 }

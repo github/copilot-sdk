@@ -30,4 +30,65 @@ public record SessionFsSqliteTransactionResult(
     /** Classified transaction failure, when execution did not succeed. */
     @JsonProperty("error") SessionFsSqliteTransactionError error
 ) {
+
+    /**
+     * Creates a record positionally.
+     * @deprecated Use {@link #builder()} for named construction.
+     */
+    @Deprecated(since = "2.0.0", forRemoval = false)
+    public SessionFsSqliteTransactionResult {}
+
+    /**
+     * Returns a named builder.
+     * @return a new builder
+     * @since 2.0.0
+     */
+    @com.github.copilot.CopilotExperimental
+    public static Builder builder() { return new Builder(); }
+
+    /**
+     * Named construction for this record.
+     * @since 2.0.0
+     */
+    @com.github.copilot.CopilotExperimental
+    public static final class Builder {
+        private Builder() {}
+        private List<SessionFsSqliteQueryResult> results;
+        private SessionFsSqliteTransactionError error;
+
+        /**
+         * Sets the {@code results} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        @com.github.copilot.CopilotExperimental
+        public Builder results(List<SessionFsSqliteQueryResult> value) {
+            this.results = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code error} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        @com.github.copilot.CopilotExperimental
+        public Builder error(SessionFsSqliteTransactionError value) {
+            this.error = value;
+            return this;
+        }
+
+        /**
+         * Builds a record after checking required property presence.
+         * @return a new record
+         * @throws IllegalStateException if a required property is missing
+         * @since 2.0.0
+         */
+        public SessionFsSqliteTransactionResult build() {
+            if (results == null) throw new IllegalStateException("Missing required property: results");
+            return new SessionFsSqliteTransactionResult(results, error);
+        }
+    }
 }

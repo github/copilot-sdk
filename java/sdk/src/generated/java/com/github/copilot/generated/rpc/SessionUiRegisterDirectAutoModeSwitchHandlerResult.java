@@ -31,10 +31,68 @@ public record SessionUiRegisterDirectAutoModeSwitchHandlerResult(
 ) {
 
     /**
+     * Creates a record positionally.
+     * @deprecated Use {@link #builder()} for named construction.
+     */
+    @Deprecated(since = "2.0.0", forRemoval = false)
+    public SessionUiRegisterDirectAutoModeSwitchHandlerResult {}
+
+    /**
+     * Returns a named builder.
+     * @return a new builder
+     * @since 2.0.0
+     */
+    public static Builder builder() { return new Builder(); }
+
+    /**
+     * Named construction for this record.
+     * @since 2.0.0
+     */
+    public static final class Builder {
+        private Builder() {}
+        private String handle;
+        private Boolean autoModeRecovery;
+
+        /**
+         * Sets the {@code handle} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder handle(String value) {
+            this.handle = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code autoModeRecovery} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder autoModeRecovery(Boolean value) {
+            this.autoModeRecovery = value;
+            return this;
+        }
+
+        /**
+         * Builds a record after checking required property presence.
+         * @return a new record
+         * @throws IllegalStateException if a required property is missing
+         * @since 2.0.0
+         */
+        public SessionUiRegisterDirectAutoModeSwitchHandlerResult build() {
+            if (handle == null) throw new IllegalStateException("Missing required property: handle");
+            return new SessionUiRegisterDirectAutoModeSwitchHandlerResult(handle, autoModeRecovery);
+        }
+    }
+
+    /**
      * Creates a direct Auto-switch registration result without recovery acknowledgment.
-     *
+     * @deprecated Use named construction via {@link #builder()}.
      * @param handle Opaque handle representing the registration. Pass this same handle to `unregisterDirectAutoModeSwitchHandler` when the in-process handler is no longer active. Multiple registrations are reference-counted; the server bridge will only dispatch auto-mode-switch requests when no handles are active.
      */
+    @Deprecated(since = "2.0.0", forRemoval = false)
     public SessionUiRegisterDirectAutoModeSwitchHandlerResult(
         String handle
     ) {

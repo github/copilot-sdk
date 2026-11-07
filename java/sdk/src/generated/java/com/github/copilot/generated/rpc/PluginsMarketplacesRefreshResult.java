@@ -28,4 +28,49 @@ public record PluginsMarketplacesRefreshResult(
     /** Per-marketplace refresh results in deterministic order. */
     @JsonProperty("results") List<MarketplaceRefreshEntry> results
 ) {
+
+    /**
+     * Creates a record positionally.
+     * @deprecated Use {@link #builder()} for named construction.
+     */
+    @Deprecated(since = "2.0.0", forRemoval = false)
+    public PluginsMarketplacesRefreshResult {}
+
+    /**
+     * Returns a named builder.
+     * @return a new builder
+     * @since 2.0.0
+     */
+    public static Builder builder() { return new Builder(); }
+
+    /**
+     * Named construction for this record.
+     * @since 2.0.0
+     */
+    public static final class Builder {
+        private Builder() {}
+        private List<MarketplaceRefreshEntry> results;
+
+        /**
+         * Sets the {@code results} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder results(List<MarketplaceRefreshEntry> value) {
+            this.results = value;
+            return this;
+        }
+
+        /**
+         * Builds a record after checking required property presence.
+         * @return a new record
+         * @throws IllegalStateException if a required property is missing
+         * @since 2.0.0
+         */
+        public PluginsMarketplacesRefreshResult build() {
+            if (results == null) throw new IllegalStateException("Missing required property: results");
+            return new PluginsMarketplacesRefreshResult(results);
+        }
+    }
 }

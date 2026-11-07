@@ -37,4 +37,124 @@ record ForceLoginOrgsDecision(
     /** Error-level detail from managed-policy discovery — which file failed to load, which field failed validation. Carried on the decision rather than left to the log because a refusal can exit the process before a log sink exists, which would discard the only actionable diagnostic a misconfigured managed device produces. */
     @JsonProperty("policyDiagnostics") List<String> policyDiagnostics
 ) {
+
+    /**
+     * Creates a record positionally.
+     * @deprecated Use {@link #builder()} for named construction.
+     */
+    @Deprecated(since = "2.0.0", forRemoval = false)
+    ForceLoginOrgsDecision {}
+
+    /**
+     * Returns a named builder.
+     * @return a new builder
+     * @since 2.0.0
+     */
+    public static Builder builder() { return new Builder(); }
+
+    /**
+     * Named construction for this record.
+     * @since 2.0.0
+     */
+    public static final class Builder {
+        private Builder() {}
+        private Boolean allowed;
+        private Boolean enforced;
+        private List<String> requiredOrgs;
+        private String matchedOrg;
+        private String denial;
+        private String message;
+        private List<String> policyDiagnostics;
+
+        /**
+         * Sets the {@code allowed} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder allowed(Boolean value) {
+            this.allowed = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code enforced} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder enforced(Boolean value) {
+            this.enforced = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code requiredOrgs} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder requiredOrgs(List<String> value) {
+            this.requiredOrgs = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code matchedOrg} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder matchedOrg(String value) {
+            this.matchedOrg = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code denial} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder denial(String value) {
+            this.denial = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code message} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder message(String value) {
+            this.message = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code policyDiagnostics} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder policyDiagnostics(List<String> value) {
+            this.policyDiagnostics = value;
+            return this;
+        }
+
+        /**
+         * Builds a record after checking required property presence.
+         * @return a new record
+         * @throws IllegalStateException if a required property is missing
+         * @since 2.0.0
+         */
+        public ForceLoginOrgsDecision build() {
+            if (allowed == null) throw new IllegalStateException("Missing required property: allowed");
+            if (enforced == null) throw new IllegalStateException("Missing required property: enforced");
+            if (requiredOrgs == null) throw new IllegalStateException("Missing required property: requiredOrgs");
+            if (policyDiagnostics == null) throw new IllegalStateException("Missing required property: policyDiagnostics");
+            return new ForceLoginOrgsDecision(allowed, enforced, requiredOrgs, matchedOrg, denial, message, policyDiagnostics);
+        }
+    }
 }

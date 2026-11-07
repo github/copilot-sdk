@@ -156,7 +156,7 @@ environment before starting the runtime instead.
 ## Quick Start
 
 For experimental in-process AHP hosting, select a transport explicitly:
-`client.startAhpHost(new AhpHostOptions().setAuthentication(AhpHostAuthentication.github()).setLocalServer(new HostLocalServerOptions(null, null, null, null)))`.
+`client.startAhpHost(new AhpHostOptions().setAuthentication(AhpHostAuthentication.github()).setLocalServer(HostLocalServerOptions.builder().build()))`.
 Admission is explicit in every client mode: select `github()`, `none()`, or
 `custom("stable-owner", request -> CompletableFuture.completedFuture(new AhpAuthenticationResult("stable-owner", "2099-01-01T00:00:00Z")))`.
 Custom validators receive the decrypted admission token and a cancellation
@@ -168,7 +168,7 @@ Mission Control requires `github()`. Create/resume callbacks receive trusted
 `request.authentication()` separately from `request.config()`; custom tokens
 never become GitHub or model-provider credentials.
 The transport types are in `com.github.copilot.generated.rpc`. For GitHub Mission
-Control, use `.setGithubEnvironment(new HostGitHubEnvironmentOptions("My host", "compute-id"))`
+Control, use `.setGithubEnvironment(HostGitHubEnvironmentOptions.builder().name("My host").computeId("compute-id").build())`
 instead, or configure both transports. GitHub environment name and compute ID are
 required; there is no implicit local listener. The host's `getUrl()`, `getToken()`,
 and `getPid()` may return `null`; `getEnvironmentId()` returns the GitHub environment
@@ -903,18 +903,137 @@ session.setAutoTier(null).get();
 
 `setModel(SetModelOptions)` accepts the same preference through `SetModelOptions.setAutoTier(...)`, which stages the tier atomically with selecting `auto`. Call `setResetAutoTier(true)` instead to return to provider-default routing; the two options are mutually exclusive.
 
+## Named construction and compatibility
+
+Use the construction API that matches the object's role:
+
+* **SDK-owned options** such as `SessionConfig`, `SetModelOptions`, and
+  `com.github.copilot.rpc.ModelCapabilitiesOverride` keep their fluent `setX(...)`
+  methods.
+* **Generated object DTOs** use `Type.builder().property(value).build()`, including
+  nested event payloads. Records retain component accessors such as `content()`;
+  builders do not add JavaBeans getters or `toBuilder()`.
+* **Extensible generated requests** keep their required-input constructors and
+  fluent setters. For example, `SessionModelSwitchToRequest` exposes `providerId`,
+  which the frozen `SessionModelSwitchToParams` record does not. Both expose
+  `contextTier`. Use the existing request overload when `providerId` is needed,
+  not another options or builder API.
+
+```java
+import com.github.copilot.AllowCopilotExperimental;
+import com.github.copilot.CopilotSession;
+import com.github.copilot.generated.AssistantMessageEvent;
+import com.github.copilot.generated.rpc.ContextTier;
+import com.github.copilot.generated.rpc.SessionModelSwitchToParams;
+import com.github.copilot.generated.rpc.SessionModelSwitchToRequest;
+import com.github.copilot.rpc.ModelCapabilitiesOverride;
+import com.github.copilot.rpc.SetModelOptions;
+import java.util.concurrent.CompletableFuture;
+
+@AllowCopilotExperimental
+class ConstructionExample {
+    static CompletableFuture<Void> configureModel(CopilotSession session) {
+        return session.setModel(new SetModelOptions()
+            .setModel("gpt-5.4")
+            .setModelCapabilities(new ModelCapabilitiesOverride()
+                .setSupports(new ModelCapabilitiesOverride.Supports().setVision(false))));
+    }
+
+    static CompletableFuture<?> useRecord(CopilotSession session) {
+        var params = SessionModelSwitchToParams.builder()
+            .sessionId(session.getSessionId())
+            .modelId("gpt-5.4")
+            .reasoningEffort("low")
+            .build();
+        return session.getRpc().model.switchTo(params);
+    }
+
+    static CompletableFuture<?> useExtensibleRequest(CopilotSession session) {
+        return session.getRpc().model.switchTo(new SessionModelSwitchToRequest("gpt-5.4")
+            .setProviderId("my-provider")
+            .setContextTier(ContextTier.fromValue("long_context")));
+    }
+
+    static AssistantMessageEvent makeEvent() {
+        var event = new AssistantMessageEvent();
+        event.setData(AssistantMessageEvent.AssistantMessageEventData.builder()
+            .messageId("message-1")
+            .content("Hello")
+            .build());
+        return event;
+    }
+}
+```
+
+Builders are additive: generated DTOs remain records or their existing mutable
+variant classes. Mainline and published 1.0.28 constructor signatures are retained,
+deprecated in favor of named construction, with `forRemoval = false`; no
+constructor removal is scheduled. Retaining those signatures preserves selected
+source and bytecode compatibility, but deprecation is not warning-free:
+`-Xlint:deprecation -Werror` can fail a consumer build.
+
+For additive optional **reference** properties, unchanged builder source and
+already-compiled builder callers remain usable. Retained constructors preserve
+released argument types and order, defaulting newly added optional
+references to null with the existing omission behavior, including for middle
+insertions. This guarantee requires unchanged existing property names, types,
+and requiredness. It does not cover required additions, renames, removals, type
+changes, conflicting erased constructor descriptors, exact record
+reflection/deconstruction shape, or equality, hash-code, and string results
+across different schemas.
+
+`build()` rejects missing required properties with
+`IllegalStateException("Missing required property: <wire-name>")`. Required
+nullable properties need an explicit setter call, which can supply null.
+Optional setters can be omitted; builders do not materialize schema defaults.
+False, zero, and empty values count as supplied. Supply actual session IDs even
+though session-bound RPC wrappers remain authoritative. Retained constructors
+and Jackson reads do not pass through builder validation. A nullable setter does
+not promise a JSON null; existing omission behavior and explicit-null reset APIs
+such as `setAutoTier(null)` remain unchanged.
+
+Builders are mutable and reusable; each build creates a fresh DTO without changing
+earlier field assignments. Collections retain shallow aliasing and mutability,
+not defensive copies or deep immutability. Raw `JsonNode` union wrappers, open
+maps, opaque JSON, enums, sealed interfaces, abstract union bases, event
+envelopes, and transport/framework types retain their existing construction APIs.
+Generated packages remain public in the existing SDK module.
+
+Javadoc `@since` describes the introduction of the API it documents: an older
+record type's tag does not date its newly added builder. Constructor deprecation
+metadata likewise describes the deprecation release, not the record's original
+introduction.
+
 ## Reasoning-summary presentation (experimental)
 
 Read the current model's reasoning-summary policy through `session.getRpc().model.getReasoningSummaries(...)`. Load the model catalog with `session.getRpc().model.list().get()` first, or accept a result with `ready() == false`.
 
 ```java
+import com.github.copilot.AllowCopilotExperimental;
+import com.github.copilot.CopilotSession;
 import com.github.copilot.generated.rpc.SessionModelGetReasoningSummariesParams;
 
-var presentation = new SessionModelGetReasoningSummariesParams(null, false);
-var policy = session.getRpc().model.getReasoningSummaries(presentation).get();
+@AllowCopilotExperimental
+class ReasoningSummaryExample {
+    static void readPolicy(CopilotSession session) throws Exception {
+        var presentation = SessionModelGetReasoningSummariesParams.builder()
+            .sessionId(session.getSessionId())
+            .summariesVisible(false)
+            .build();
+        var policy = session.getRpc().model.getReasoningSummaries(presentation).get();
+        System.out.println(policy.visibility());
+    }
+}
 ```
 
-The two constructor arguments are the persisted visibility setting (`null` when unset) and whether the host currently shows summaries (`null` defaults to false). The session wrapper supplies the session ID; callers do not need a placeholder ID. The original three-argument constructor remains available. `visibility()` can be `null` while experiment assignment is pending, and `clearRedundantSetting()` tells the host when its persisted setting matches the model default.
+Omit `persistedShowReasoning` when the persisted visibility setting is unset, or
+set it to that setting's value. `summariesVisible` reports whether the host
+currently shows summaries (unset defaults to false). Supply the actual session
+ID to the builder; the session wrapper still overrides it with its bound ID.
+The deprecated two-argument presentation-state and three-argument constructors
+remain available. `visibility()` can be `null` while experiment assignment is
+pending, and `clearRedundantSetting()` tells the host when its persisted setting
+matches the model default.
 
 ## Session Store
 

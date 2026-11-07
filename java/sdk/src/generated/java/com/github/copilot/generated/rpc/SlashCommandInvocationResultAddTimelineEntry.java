@@ -48,4 +48,71 @@ public final class SlashCommandInvocationResultAddTimelineEntry extends SlashCom
 
     public Boolean getRuntimeSettingsChanged() { return runtimeSettingsChanged; }
     public void setRuntimeSettingsChanged(Boolean runtimeSettingsChanged) { this.runtimeSettingsChanged = runtimeSettingsChanged; }
+
+
+    /**
+     * Returns a named builder.
+     * @return a new builder
+     * @since 2.0.0
+     */
+    public static Builder builder() { return new Builder(); }
+
+    /**
+     * Named construction for this record.
+     * @since 2.0.0
+     */
+    public static final class Builder {
+        private Builder() {}
+        private SlashCommandTimelineEntry entry;
+        private String prefillInput;
+        private Boolean runtimeSettingsChanged;
+
+        /**
+         * Sets the {@code entry} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder entry(SlashCommandTimelineEntry value) {
+            this.entry = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code prefillInput} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder prefillInput(String value) {
+            this.prefillInput = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code runtimeSettingsChanged} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder runtimeSettingsChanged(Boolean value) {
+            this.runtimeSettingsChanged = value;
+            return this;
+        }
+
+        /**
+         * Builds a variant after checking required property presence.
+         * @return a new variant
+         * @throws IllegalStateException if a required property is missing
+         * @since 2.0.0
+         */
+        public SlashCommandInvocationResultAddTimelineEntry build() {
+            if (entry == null) throw new IllegalStateException("Missing required property: entry");
+            SlashCommandInvocationResultAddTimelineEntry instance = new SlashCommandInvocationResultAddTimelineEntry();
+            instance.setEntry(entry);
+            instance.setPrefillInput(prefillInput);
+            instance.setRuntimeSettingsChanged(runtimeSettingsChanged);
+            return instance;
+        }
+    }
 }

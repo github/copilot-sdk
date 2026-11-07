@@ -538,6 +538,290 @@ class TestClientStartup:
 
 class TestClientShutdown:
     @pytest.mark.asyncio
+    @pytest.mark.parametrize("first_failure", ["create", "resume"])
+    async def test_failed_same_id_create_and_resume_preserve_live_resident(self, first_failure):
+        client = CopilotClient(connection=RuntimeConnection.for_uri("localhost:1234"))
+        rpc = Mock(stop=AsyncMock())
+        client._client = rpc
+        client._state = "connected"
+        resume_started = asyncio.Event()
+        create_started = asyncio.Event()
+        send_started = asyncio.Event()
+        resume_response = asyncio.get_running_loop().create_future()
+        create_response = asyncio.get_running_loop().create_future()
+        create_count = 0
+
+        async def mock_request(method, params, **kwargs):
+            nonlocal create_count
+            if method == "session.create":
+                create_count += 1
+                if create_count > 1:
+                    create_started.set()
+                    return await create_response
+                result = {"sessionId": params["sessionId"]}
+                kwargs["on_response_inline"](result)
+                return result
+            if method == "session.sendAndWait":
+                raise JsonRpcError(-32601, "Method not found")
+            if method == "session.send":
+                send_started.set()
+                return {"messageId": "pending-message"}
+            if method == "session.resume":
+                resume_started.set()
+                return await resume_response
+            raise AssertionError(f"unexpected request {method}")
+
+        rpc.request = mock_request
+        resident = await client.create_session()
+        waiting = asyncio.create_task(resident.send_and_wait("pending response"))
+        resuming = creating = None
+        try:
+            await asyncio.wait_for(send_started.wait(), timeout=5)
+            resuming = asyncio.create_task(client.resume_session(resident.session_id))
+            await asyncio.wait_for(resume_started.wait(), timeout=5)
+            creating = asyncio.create_task(client.create_session(session_id=resident.session_id))
+            await asyncio.wait_for(create_started.wait(), timeout=5)
+            attempts = {
+                "create": (create_response, creating),
+                "resume": (resume_response, resuming),
+            }
+            for name in (first_failure, "resume" if first_failure == "create" else "create"):
+                response, task = attempts[name]
+                response.set_exception(RuntimeError(f"{name} rejected"))
+                with pytest.raises(RuntimeError, match=f"{name} rejected"):
+                    await task
+            assert client._get_session(resident.session_id) is resident
+            resident.on(lambda _: None)
+            for index, (event_type, data) in enumerate(
+                [
+                    (
+                        "user.message",
+                        {"messageId": "pending-message", "content": "pending response"},
+                    ),
+                    ("session.idle", {}),
+                ]
+            ):
+                client._handle_notification(
+                    "session.event",
+                    {
+                        "sessionId": resident.session_id,
+                        "event": {
+                            "id": f"00000000-0000-4000-8000-{index:012d}",
+                            "timestamp": "2026-01-01T00:00:00Z",
+                            "type": event_type,
+                            "data": data,
+                            "parentId": None,
+                        },
+                    },
+                )
+            assert await asyncio.wait_for(waiting, timeout=5) is None
+        finally:
+            tasks = [task for task in (resuming, creating, waiting) if task is not None]
+            for task in tasks:
+                if not task.done():
+                    task.cancel()
+            await asyncio.gather(*tasks, return_exceptions=True)
+            await client.force_stop()
+
+    @pytest.mark.asyncio
+    async def test_shutdown_retires_resident_when_recovery_resume_is_unsupported(self):
+        client = CopilotClient(connection=RuntimeConnection.for_uri("localhost:1234"))
+        rpc = Mock(stop=AsyncMock())
+        client._client = rpc
+        client._state = "connected"
+        resume_started = asyncio.Event()
+        send_started = asyncio.Event()
+        detach_started = asyncio.Event()
+        release_detach = asyncio.Event()
+        resume_response = asyncio.get_running_loop().create_future()
+
+        async def mock_request(method, params, **kwargs):
+            if method == "session.create":
+                result = {"sessionId": params["sessionId"]}
+                kwargs["on_response_inline"](result)
+                return result
+            if method == "session.sendAndWait":
+                raise JsonRpcError(-32601, "Method not found")
+            if method == "session.send":
+                send_started.set()
+                return {"messageId": "pending-message"}
+            if method == "session.resume":
+                resume_started.set()
+                return await resume_response
+            if method == "session.detach":
+                detach_started.set()
+                await release_detach.wait()
+                return {"success": True}
+            raise AssertionError(f"unexpected request {method}")
+
+        rpc.request = mock_request
+        resident = await client.create_session()
+        waiting = asyncio.create_task(resident.send_and_wait("pending response"))
+        resuming = stopping = None
+        try:
+            await asyncio.wait_for(send_started.wait(), timeout=5)
+            resuming = asyncio.create_task(
+                client.resume_session(
+                    resident.session_id,
+                    auto_mode_recovery=True,
+                    on_auto_mode_switch_request=lambda _request, _invocation: "no",
+                )
+            )
+            await asyncio.wait_for(resume_started.wait(), timeout=5)
+            stopping = asyncio.create_task(client.stop())
+            await asyncio.wait_for(detach_started.wait(), timeout=5)
+            resume_response.set_result({"sessionId": resident.session_id})
+            with pytest.raises(RuntimeError, match="does not support auto_mode_recovery"):
+                await resuming
+            release_detach.set()
+            await stopping
+            with pytest.raises(RuntimeError, match="disconnected"):
+                resident.on(lambda _: None)
+            with pytest.raises(RuntimeError, match="Session closed"):
+                await asyncio.wait_for(waiting, timeout=5)
+            assert client._get_session(resident.session_id) is None
+        finally:
+            release_detach.set()
+            tasks = [task for task in (resuming, stopping, waiting) if task is not None]
+            for task in tasks:
+                if not task.done():
+                    task.cancel()
+            await asyncio.gather(*tasks, return_exceptions=True)
+            await client.force_stop()
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize("first_failure", [0, 1])
+    async def test_overlapping_failed_resumes_restore_live_resident(self, first_failure):
+        client = CopilotClient(connection=RuntimeConnection.for_uri("localhost:1234"))
+        rpc = Mock(stop=AsyncMock())
+        client._client = rpc
+        client._state = "connected"
+        responses = [asyncio.get_running_loop().create_future() for _ in range(2)]
+        started = [asyncio.Event(), asyncio.Event()]
+        send_started = asyncio.Event()
+        resume_count = 0
+
+        async def mock_request(method, params, **kwargs):
+            nonlocal resume_count
+            if method == "session.create":
+                result = {"sessionId": params["sessionId"]}
+                kwargs["on_response_inline"](result)
+                return result
+            if method == "session.sendAndWait":
+                raise JsonRpcError(-32601, "Method not found")
+            if method == "session.send":
+                send_started.set()
+                return {"messageId": "pending-message"}
+            if method == "session.resume":
+                index = resume_count
+                resume_count += 1
+                started[index].set()
+                return await responses[index]
+            raise AssertionError(f"unexpected request {method}")
+
+        rpc.request = mock_request
+        resident = await client.create_session()
+        waiting = asyncio.create_task(resident.send_and_wait("pending response"))
+        resumes = []
+        try:
+            await asyncio.wait_for(send_started.wait(), timeout=5)
+            for index in range(2):
+                resumes.append(asyncio.create_task(client.resume_session(resident.session_id)))
+                await asyncio.wait_for(started[index].wait(), timeout=5)
+            for index in (first_failure, 1 - first_failure):
+                responses[index].set_exception(RuntimeError("resume rejected"))
+                with pytest.raises(RuntimeError, match="resume rejected"):
+                    await resumes[index]
+                resident.on(lambda _: None)
+            assert client._get_session(resident.session_id) is resident
+            for index, (event_type, data) in enumerate(
+                [
+                    (
+                        "user.message",
+                        {"messageId": "pending-message", "content": "pending response"},
+                    ),
+                    ("session.idle", {}),
+                ]
+            ):
+                client._handle_notification(
+                    "session.event",
+                    {
+                        "sessionId": resident.session_id,
+                        "event": {
+                            "id": f"00000000-0000-4000-8000-{index:012d}",
+                            "timestamp": "2026-01-01T00:00:00Z",
+                            "type": event_type,
+                            "data": data,
+                            "parentId": None,
+                        },
+                    },
+                )
+            assert await asyncio.wait_for(waiting, timeout=5) is None
+        finally:
+            for task in (*resumes, waiting):
+                if not task.done():
+                    task.cancel()
+            await asyncio.gather(*resumes, waiting, return_exceptions=True)
+            await client.force_stop()
+
+    @pytest.mark.asyncio
+    async def test_failed_resume_and_queued_delete_retire_resident(self):
+        client = CopilotClient(connection=RuntimeConnection.for_uri("localhost:1234"))
+        rpc = Mock(stop=AsyncMock())
+        client._client = rpc
+        client._state = "connected"
+        resume_started = asyncio.Event()
+        send_started = asyncio.Event()
+        resume_response = asyncio.get_running_loop().create_future()
+
+        async def mock_request(method, params, **kwargs):
+            if method == "session.create":
+                result = {"sessionId": params["sessionId"]}
+                kwargs["on_response_inline"](result)
+                return result
+            if method == "session.sendAndWait":
+                raise JsonRpcError(-32601, "Method not found")
+            if method == "session.send":
+                send_started.set()
+                return {"messageId": "pending-message"}
+            if method == "session.resume":
+                resume_started.set()
+                return await resume_response
+            if method == "session.delete":
+                return {"success": True}
+            raise AssertionError(f"unexpected request {method}")
+
+        rpc.request = mock_request
+        resident = await client.create_session()
+        waiting = asyncio.create_task(resident.send_and_wait("pending response"))
+        resuming = None
+        deleting = None
+        try:
+            await asyncio.wait_for(send_started.wait(), timeout=5)
+            resuming = asyncio.create_task(client.resume_session(resident.session_id))
+            await asyncio.wait_for(resume_started.wait(), timeout=5)
+            deleting = asyncio.create_task(client.delete_session(resident.session_id))
+            resume_response.set_exception(RuntimeError("resume rejected"))
+            with pytest.raises(RuntimeError, match="resume rejected"):
+                await resuming
+            await deleting
+
+            assert client._get_session(resident.session_id) is None
+            with pytest.raises(RuntimeError, match="disconnected"):
+                resident.on(lambda _: None)
+            with pytest.raises(RuntimeError, match="Session closed"):
+                await asyncio.wait_for(waiting, timeout=5)
+        finally:
+            for task in (resuming, deleting, waiting):
+                if task is not None and not task.done():
+                    task.cancel()
+            await asyncio.gather(
+                *(task for task in (resuming, deleting, waiting) if task is not None),
+                return_exceptions=True,
+            )
+            await client.force_stop()
+
+    @pytest.mark.asyncio
     @pytest.mark.parametrize("shutdown", ["stop", "force_stop"])
     @pytest.mark.parametrize("restart", [False, True])
     async def test_shutdown_rejects_cloud_publication_after_session_snapshot(
@@ -1214,6 +1498,147 @@ class TestCreateSessionConfig:
             )
             assert create_payload["additionalDirectories"] == ["/repo/shared", "/repo/generated"]
             assert resume_payload["additionalDirectories"] == ["/repo/resumed"]
+        finally:
+            await client.force_stop()
+
+    @staticmethod
+    def _mock_session_requests(client, *, detach_success=True):
+        async def mock_request(method, params, **kwargs):
+            if method in ("session.create", "session.resume"):
+                result = {"sessionId": params["sessionId"], "workspacePath": None}
+                callback = kwargs.get("on_response_inline")
+                if callback is not None:
+                    callback(result)
+                return result
+            if method == "session.detach":
+                return {"success": True} if detach_success else {"success": False, "error": "busy"}
+            raise AssertionError(f"unexpected request {method}")
+
+        client._client.request = mock_request
+
+    @pytest.mark.asyncio
+    async def test_disconnect_stops_tracking_session_but_keeps_resumed_replacement(self):
+        client = CopilotClient(connection=RuntimeConnection.for_stdio(path=CLI_PATH))
+        await client.start()
+        try:
+            self._mock_session_requests(client)
+
+            created = await client.create_session()
+            session_id = created.session_id
+            assert client._get_session(session_id) is created
+            await created.disconnect()
+            assert client._get_session(session_id) is None
+
+            replaced = await client.resume_session(session_id)
+            replacement = await client.resume_session(session_id)
+            assert client._get_session(session_id) is replacement
+            await replaced.disconnect()
+            assert client._get_session(session_id) is replacement
+            await replacement.disconnect()
+            assert client._get_session(session_id) is None
+        finally:
+            await client.force_stop()
+
+    @pytest.mark.asyncio
+    async def test_failed_resume_does_not_restore_disconnected_session(self):
+        client = CopilotClient(connection=RuntimeConnection.for_stdio(path=CLI_PATH))
+        client._client = Mock(stop=AsyncMock())
+        client._state = "connected"
+        self._mock_session_requests(client)
+        try:
+            resident = await client.create_session()
+            request = client._client.request
+
+            async def fail_resume(method, params, **kwargs):
+                if method == "session.resume":
+                    await resident.disconnect()
+                    raise RuntimeError("resume rejected")
+                return await request(method, params, **kwargs)
+
+            client._client.request = fail_resume
+            with pytest.raises(RuntimeError, match="resume rejected"):
+                await client.resume_session(resident.session_id)
+            assert client._get_session(resident.session_id) is None
+        finally:
+            await client.force_stop()
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize("shutdown", ["stop", "force_stop"])
+    @pytest.mark.parametrize("restart", [False, True])
+    async def test_failed_resume_retires_displaced_resident_after_shutdown(self, shutdown, restart):
+        client = CopilotClient(connection=RuntimeConnection.for_uri("localhost:1234"))
+        rpc = Mock(stop=AsyncMock())
+        client._client = rpc
+        client._state = "connected"
+        self._mock_session_requests(client)
+        resume_started = asyncio.Event()
+        send_started = asyncio.Event()
+        resume_response = asyncio.get_running_loop().create_future()
+        request = rpc.request
+
+        async def mock_request(method, params, **kwargs):
+            if method == "session.sendAndWait":
+                raise JsonRpcError(-32601, "Method not found")
+            if method == "session.resume":
+                resume_started.set()
+                return await resume_response
+            if method == "session.send":
+                send_started.set()
+                return {"messageId": "pending-message"}
+            return await request(method, params, **kwargs)
+
+        rpc.request = mock_request
+        resident = await client.create_session()
+        waiting = asyncio.create_task(resident.send_and_wait("pending response"))
+        resuming = None
+        try:
+            await asyncio.wait_for(send_started.wait(), timeout=5)
+            resuming = asyncio.create_task(client.resume_session(resident.session_id))
+            await asyncio.wait_for(resume_started.wait(), timeout=5)
+            await getattr(client, shutdown)()
+            replacement = None
+            if restart:
+                next_rpc = Mock(stop=AsyncMock())
+
+                async def connect():
+                    client._client = next_rpc
+
+                client._connect_to_server = AsyncMock(side_effect=connect)
+                client._verify_protocol_version = AsyncMock()
+                await client.start()
+                self._mock_session_requests(client)
+                replacement = await client.create_session(session_id=resident.session_id)
+
+            resume_response.set_exception(RuntimeError("resume rejected"))
+            with pytest.raises(RuntimeError, match="resume rejected"):
+                await resuming
+            with pytest.raises(RuntimeError, match="disconnected"):
+                resident.on(lambda _: None)
+            with pytest.raises(RuntimeError, match="Session closed"):
+                await asyncio.wait_for(waiting, timeout=5)
+            assert client._get_session(resident.session_id) is replacement
+            if replacement is not None:
+                replacement.on(lambda _: None)
+        finally:
+            for task in (resuming, waiting):
+                if task is not None and not task.done():
+                    task.cancel()
+            await asyncio.gather(
+                *(task for task in (resuming, waiting) if task is not None), return_exceptions=True
+            )
+            await client.force_stop()
+
+    @pytest.mark.asyncio
+    async def test_failed_disconnect_keeps_session_tracked(self):
+        client = CopilotClient(connection=RuntimeConnection.for_stdio(path=CLI_PATH))
+        await client.start()
+        try:
+            self._mock_session_requests(client, detach_success=False)
+
+            session = await client.create_session()
+            with pytest.raises(RuntimeError, match="busy"):
+                await session.disconnect()
+            assert client._get_session(session.session_id) is session
         finally:
             await client.force_stop()
 

@@ -38,4 +38,118 @@ record HostConfiguration(
     /** Initial remote creation policy, independent of application session factories. Defaults to denied when omitted. */
     @JsonProperty("allowCreatingNewSessions") Boolean allowCreatingNewSessions
 ) {
+
+    /**
+     * Creates a record positionally.
+     * @deprecated Use {@link #builder()} for named construction.
+     */
+    @Deprecated(since = "2.0.0", forRemoval = false)
+    HostConfiguration {}
+
+    /**
+     * Returns a named builder.
+     * @return a new builder
+     * @since 2.0.0
+     */
+    @com.github.copilot.CopilotExperimental
+    public static Builder builder() { return new Builder(); }
+
+    /**
+     * Named construction for this record.
+     * @since 2.0.0
+     */
+    @com.github.copilot.CopilotExperimental
+    public static final class Builder {
+        private Builder() {}
+        private Object authentication;
+        private HostLocalServerConfiguration localServer;
+        private HostGitHubEnvironmentOptions gitHubEnvironment;
+        private Boolean sessionFactory;
+        private Boolean resumeFactory;
+        private Boolean allowCreatingNewSessions;
+
+        /**
+         * Sets the {@code authentication} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        @com.github.copilot.CopilotExperimental
+        public Builder authentication(Object value) {
+            this.authentication = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code localServer} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        @com.github.copilot.CopilotExperimental
+        public Builder localServer(HostLocalServerConfiguration value) {
+            this.localServer = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code githubEnvironment} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        @com.github.copilot.CopilotExperimental
+        public Builder gitHubEnvironment(HostGitHubEnvironmentOptions value) {
+            this.gitHubEnvironment = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code sessionFactory} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        @com.github.copilot.CopilotExperimental
+        public Builder sessionFactory(Boolean value) {
+            this.sessionFactory = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code resumeFactory} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        @com.github.copilot.CopilotExperimental
+        public Builder resumeFactory(Boolean value) {
+            this.resumeFactory = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code allowCreatingNewSessions} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        @com.github.copilot.CopilotExperimental
+        public Builder allowCreatingNewSessions(Boolean value) {
+            this.allowCreatingNewSessions = value;
+            return this;
+        }
+
+        /**
+         * Builds a record after checking required property presence.
+         * @return a new record
+         * @throws IllegalStateException if a required property is missing
+         * @since 2.0.0
+         */
+        public HostConfiguration build() {
+            if (sessionFactory == null) throw new IllegalStateException("Missing required property: sessionFactory");
+            if (resumeFactory == null) throw new IllegalStateException("Missing required property: resumeFactory");
+            return new HostConfiguration(authentication, localServer, gitHubEnvironment, sessionFactory, resumeFactory, allowCreatingNewSessions);
+        }
+    }
 }

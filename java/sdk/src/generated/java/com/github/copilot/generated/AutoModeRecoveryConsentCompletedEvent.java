@@ -41,5 +41,75 @@ public final class AutoModeRecoveryConsentCompletedEvent extends SessionEvent {
         /** User response when one was supplied. Absent when the runtime settled the offer without a user answer. */
         @JsonProperty("response") AutoModeSwitchResponse response
     ) {
+
+        /**
+         * Creates a record positionally.
+         * @deprecated Use {@link #builder()} for named construction.
+         */
+        @Deprecated(since = "2.0.0", forRemoval = false)
+        public AutoModeRecoveryConsentCompletedEventData {}
+
+        /**
+         * Returns a named builder.
+         * @return a new builder
+         * @since 2.0.0
+         */
+        public static Builder builder() { return new Builder(); }
+
+        /**
+         * Named construction for this record.
+         * @since 2.0.0
+         */
+        public static final class Builder {
+            private Builder() {}
+            private String requestId;
+            private String reason;
+            private AutoModeSwitchResponse response;
+
+            /**
+             * Sets the {@code requestId} property.
+             * @param value the property value
+             * @return this builder
+             * @since 2.0.0
+             */
+            public Builder requestId(String value) {
+                this.requestId = value;
+                return this;
+            }
+
+            /**
+             * Sets the {@code reason} property.
+             * @param value the property value
+             * @return this builder
+             * @since 2.0.0
+             */
+            public Builder reason(String value) {
+                this.reason = value;
+                return this;
+            }
+
+            /**
+             * Sets the {@code response} property.
+             * @param value the property value
+             * @return this builder
+             * @since 2.0.0
+             */
+            public Builder response(AutoModeSwitchResponse value) {
+                this.response = value;
+                return this;
+            }
+
+            /**
+             * Builds a record after checking required property presence.
+             * @return a new record
+             * @throws IllegalStateException if a required property is missing
+             * @since 2.0.0
+             */
+            public AutoModeRecoveryConsentCompletedEventData build() {
+                if (requestId == null) throw new IllegalStateException("Missing required property: requestId");
+                if (reason == null) throw new IllegalStateException("Missing required property: reason");
+                return new AutoModeRecoveryConsentCompletedEventData(requestId, reason, response);
+            }
+        }
     }
 }

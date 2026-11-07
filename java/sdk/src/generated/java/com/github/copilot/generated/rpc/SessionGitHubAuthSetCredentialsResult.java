@@ -29,4 +29,61 @@ public record SessionGitHubAuthSetCredentialsResult(
     /** Whether the session ended up with a populated `copilotUser` for the installed credentials. `true` when the supplied credential already carried `copilotUser` or it was successfully re-resolved server-side. `false` when the credential is installed without `copilotUser` — either re-resolution failed, or the variant cannot be re-resolved from the credential alone (only the raw-token variants `token`, `env`, and `gh-cli` can). In both `false` cases the token swap still applied, but plan/quota/billing metadata is degraded. Present whenever a credential was supplied; omitted only when no credential was supplied (no-op call). */
     @JsonProperty("copilotUserResolved") Boolean copilotUserResolved
 ) {
+
+    /**
+     * Creates a record positionally.
+     * @deprecated Use {@link #builder()} for named construction.
+     */
+    @Deprecated(since = "2.0.0", forRemoval = false)
+    public SessionGitHubAuthSetCredentialsResult {}
+
+    /**
+     * Returns a named builder.
+     * @return a new builder
+     * @since 2.0.0
+     */
+    public static Builder builder() { return new Builder(); }
+
+    /**
+     * Named construction for this record.
+     * @since 2.0.0
+     */
+    public static final class Builder {
+        private Builder() {}
+        private Boolean success;
+        private Boolean copilotUserResolved;
+
+        /**
+         * Sets the {@code success} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder success(Boolean value) {
+            this.success = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code copilotUserResolved} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder copilotUserResolved(Boolean value) {
+            this.copilotUserResolved = value;
+            return this;
+        }
+
+        /**
+         * Builds a record after checking required property presence.
+         * @return a new record
+         * @throws IllegalStateException if a required property is missing
+         * @since 2.0.0
+         */
+        public SessionGitHubAuthSetCredentialsResult build() {
+            if (success == null) throw new IllegalStateException("Missing required property: success");
+            return new SessionGitHubAuthSetCredentialsResult(success, copilotUserResolved);
+        }
+    }
 }

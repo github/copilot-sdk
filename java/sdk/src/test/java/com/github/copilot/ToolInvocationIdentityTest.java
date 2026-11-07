@@ -71,8 +71,9 @@ public class ToolInvocationIdentityTest {
 
     private static ExternalToolRequestedEvent externalToolRequested(String requestId, String toolCallId) {
         var event = new ExternalToolRequestedEvent();
-        event.setData(new ExternalToolRequestedEvent.ExternalToolRequestedEventData(requestId, "session-1", toolCallId,
-                "calc", null, Map.of(), null, null, null));
+        event.setData(ExternalToolRequestedEvent.ExternalToolRequestedEventData.builder().requestId(requestId)
+                .sessionId("session-1").toolCallId(toolCallId).toolName("calc").providerId(null).arguments(Map.of())
+                .workingDirectory(null).traceparent(null).tracestate(null).build());
         return event;
     }
 }

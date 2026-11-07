@@ -58,5 +58,163 @@ public final class AssistantFusionPhaseActivityEvent extends SessionEvent {
         /** Opaque hashed correlation token for matching tool-started and tool-completed activity within this Fusion activity stream. It is not the tool call identifier exposed by tool lifecycle events. */
         @JsonProperty("toolCallId") String toolCallId
     ) {
+
+        /**
+         * Creates a record positionally.
+         * @deprecated Use {@link #builder()} for named construction.
+         */
+        @Deprecated(since = "2.0.0", forRemoval = false)
+        public AssistantFusionPhaseActivityEventData {}
+
+        /**
+         * Returns a named builder.
+         * @return a new builder
+         * @since 2.0.0
+         */
+        @com.github.copilot.CopilotExperimental
+        public static Builder builder() { return new Builder(); }
+
+        /**
+         * Named construction for this record.
+         * @since 2.0.0
+         */
+        @com.github.copilot.CopilotExperimental
+        public static final class Builder {
+            private Builder() {}
+            private String fusionId;
+            private String phaseId;
+            private FusionPhaseKind phaseKind;
+            private FusionPattern pattern;
+            private String role;
+            private FusionConversationScope conversationScope;
+            private FusionPhaseActivityKind activity;
+            private Long totalResponseSizeBytes;
+            private String toolCallId;
+
+            /**
+             * Sets the {@code fusionId} property.
+             * @param value the property value
+             * @return this builder
+             * @since 2.0.0
+             */
+            @com.github.copilot.CopilotExperimental
+            public Builder fusionId(String value) {
+                this.fusionId = value;
+                return this;
+            }
+
+            /**
+             * Sets the {@code phaseId} property.
+             * @param value the property value
+             * @return this builder
+             * @since 2.0.0
+             */
+            @com.github.copilot.CopilotExperimental
+            public Builder phaseId(String value) {
+                this.phaseId = value;
+                return this;
+            }
+
+            /**
+             * Sets the {@code phaseKind} property.
+             * @param value the property value
+             * @return this builder
+             * @since 2.0.0
+             */
+            @com.github.copilot.CopilotExperimental
+            public Builder phaseKind(FusionPhaseKind value) {
+                this.phaseKind = value;
+                return this;
+            }
+
+            /**
+             * Sets the {@code pattern} property.
+             * @param value the property value
+             * @return this builder
+             * @since 2.0.0
+             */
+            @com.github.copilot.CopilotExperimental
+            public Builder pattern(FusionPattern value) {
+                this.pattern = value;
+                return this;
+            }
+
+            /**
+             * Sets the {@code role} property.
+             * @param value the property value
+             * @return this builder
+             * @since 2.0.0
+             */
+            @com.github.copilot.CopilotExperimental
+            public Builder role(String value) {
+                this.role = value;
+                return this;
+            }
+
+            /**
+             * Sets the {@code conversationScope} property.
+             * @param value the property value
+             * @return this builder
+             * @since 2.0.0
+             */
+            @com.github.copilot.CopilotExperimental
+            public Builder conversationScope(FusionConversationScope value) {
+                this.conversationScope = value;
+                return this;
+            }
+
+            /**
+             * Sets the {@code activity} property.
+             * @param value the property value
+             * @return this builder
+             * @since 2.0.0
+             */
+            @com.github.copilot.CopilotExperimental
+            public Builder activity(FusionPhaseActivityKind value) {
+                this.activity = value;
+                return this;
+            }
+
+            /**
+             * Sets the {@code totalResponseSizeBytes} property.
+             * @param value the property value
+             * @return this builder
+             * @since 2.0.0
+             */
+            @com.github.copilot.CopilotExperimental
+            public Builder totalResponseSizeBytes(Long value) {
+                this.totalResponseSizeBytes = value;
+                return this;
+            }
+
+            /**
+             * Sets the {@code toolCallId} property.
+             * @param value the property value
+             * @return this builder
+             * @since 2.0.0
+             */
+            @com.github.copilot.CopilotExperimental
+            public Builder toolCallId(String value) {
+                this.toolCallId = value;
+                return this;
+            }
+
+            /**
+             * Builds a record after checking required property presence.
+             * @return a new record
+             * @throws IllegalStateException if a required property is missing
+             * @since 2.0.0
+             */
+            public AssistantFusionPhaseActivityEventData build() {
+                if (fusionId == null) throw new IllegalStateException("Missing required property: fusionId");
+                if (phaseId == null) throw new IllegalStateException("Missing required property: phaseId");
+                if (phaseKind == null) throw new IllegalStateException("Missing required property: phaseKind");
+                if (pattern == null) throw new IllegalStateException("Missing required property: pattern");
+                if (role == null) throw new IllegalStateException("Missing required property: role");
+                if (conversationScope == null) throw new IllegalStateException("Missing required property: conversationScope");
+                if (activity == null) throw new IllegalStateException("Missing required property: activity");
+                return new AssistantFusionPhaseActivityEventData(fusionId, phaseId, phaseKind, pattern, role, conversationScope, activity, totalResponseSizeBytes, toolCallId);
+            }
+        }
     }
 }

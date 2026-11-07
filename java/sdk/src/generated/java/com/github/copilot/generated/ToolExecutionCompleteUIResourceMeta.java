@@ -24,4 +24,48 @@ public record ToolExecutionCompleteUIResourceMeta(
     /** MCP Apps UI resource metadata for a completed tool result, including CSP, permissions, domain, and border preference. */
     @JsonProperty("ui") ToolExecutionCompleteUIResourceMetaUI ui
 ) {
+
+    /**
+     * Creates a record positionally.
+     * @deprecated Use {@link #builder()} for named construction.
+     */
+    @Deprecated(since = "2.0.0", forRemoval = false)
+    public ToolExecutionCompleteUIResourceMeta {}
+
+    /**
+     * Returns a named builder.
+     * @return a new builder
+     * @since 2.0.0
+     */
+    public static Builder builder() { return new Builder(); }
+
+    /**
+     * Named construction for this record.
+     * @since 2.0.0
+     */
+    public static final class Builder {
+        private Builder() {}
+        private ToolExecutionCompleteUIResourceMetaUI ui;
+
+        /**
+         * Sets the {@code ui} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder ui(ToolExecutionCompleteUIResourceMetaUI value) {
+            this.ui = value;
+            return this;
+        }
+
+        /**
+         * Builds a record after checking required property presence.
+         * @return a new record
+         * @throws IllegalStateException if a required property is missing
+         * @since 2.0.0
+         */
+        public ToolExecutionCompleteUIResourceMeta build() {
+            return new ToolExecutionCompleteUIResourceMeta(ui);
+        }
+    }
 }

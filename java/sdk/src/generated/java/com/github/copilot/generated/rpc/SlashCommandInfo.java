@@ -39,4 +39,136 @@ public record SlashCommandInfo(
     /** Whether the command may be the target of `/every` / `/after` schedules. Resolution happens at every tick, so only set this when the command is safe to re-invoke and produces an agent prompt. */
     @JsonProperty("schedulable") Boolean schedulable
 ) {
+
+    /**
+     * Creates a record positionally.
+     * @deprecated Use {@link #builder()} for named construction.
+     */
+    @Deprecated(since = "2.0.0", forRemoval = false)
+    public SlashCommandInfo {}
+
+    /**
+     * Returns a named builder.
+     * @return a new builder
+     * @since 2.0.0
+     */
+    public static Builder builder() { return new Builder(); }
+
+    /**
+     * Named construction for this record.
+     * @since 2.0.0
+     */
+    public static final class Builder {
+        private Builder() {}
+        private String name;
+        private List<String> aliases;
+        private String description;
+        private SlashCommandKind kind;
+        private SlashCommandInput input;
+        private Boolean allowDuringAgentExecution;
+        private Boolean experimental;
+        private Boolean schedulable;
+
+        /**
+         * Sets the {@code name} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder name(String value) {
+            this.name = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code aliases} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder aliases(List<String> value) {
+            this.aliases = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code description} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder description(String value) {
+            this.description = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code kind} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder kind(SlashCommandKind value) {
+            this.kind = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code input} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder input(SlashCommandInput value) {
+            this.input = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code allowDuringAgentExecution} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder allowDuringAgentExecution(Boolean value) {
+            this.allowDuringAgentExecution = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code experimental} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder experimental(Boolean value) {
+            this.experimental = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code schedulable} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder schedulable(Boolean value) {
+            this.schedulable = value;
+            return this;
+        }
+
+        /**
+         * Builds a record after checking required property presence.
+         * @return a new record
+         * @throws IllegalStateException if a required property is missing
+         * @since 2.0.0
+         */
+        public SlashCommandInfo build() {
+            if (name == null) throw new IllegalStateException("Missing required property: name");
+            if (description == null) throw new IllegalStateException("Missing required property: description");
+            if (kind == null) throw new IllegalStateException("Missing required property: kind");
+            if (allowDuringAgentExecution == null) throw new IllegalStateException("Missing required property: allowDuringAgentExecution");
+            return new SlashCommandInfo(name, aliases, description, kind, input, allowDuringAgentExecution, experimental, schedulable);
+        }
+    }
 }

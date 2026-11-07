@@ -36,4 +36,127 @@ public record McpUninstallPlan(
     /** Shared authentication is deliberately retained; revocation is a separate action. */
     @JsonProperty("preservesSharedAuthentication") Boolean preservesSharedAuthentication
 ) {
+
+    /**
+     * Creates a record positionally.
+     * @deprecated Use {@link #builder()} for named construction.
+     */
+    @Deprecated(since = "2.0.0", forRemoval = false)
+    public McpUninstallPlan {}
+
+    /**
+     * Returns a named builder.
+     * @return a new builder
+     * @since 2.0.0
+     */
+    public static Builder builder() { return new Builder(); }
+
+    /**
+     * Named construction for this record.
+     * @since 2.0.0
+     */
+    public static final class Builder {
+        private Builder() {}
+        private String planHandle;
+        private String operationId;
+        private Long expiresAtEpochMs;
+        private McpInstallationSummary installation;
+        private Boolean restoresPreviousConfiguration;
+        private Long ownedSecretCount;
+        private Boolean preservesSharedAuthentication;
+
+        /**
+         * Sets the {@code planHandle} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder planHandle(String value) {
+            this.planHandle = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code operationId} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder operationId(String value) {
+            this.operationId = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code expiresAtEpochMs} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder expiresAtEpochMs(Long value) {
+            this.expiresAtEpochMs = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code installation} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder installation(McpInstallationSummary value) {
+            this.installation = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code restoresPreviousConfiguration} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder restoresPreviousConfiguration(Boolean value) {
+            this.restoresPreviousConfiguration = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code ownedSecretCount} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder ownedSecretCount(Long value) {
+            this.ownedSecretCount = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code preservesSharedAuthentication} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder preservesSharedAuthentication(Boolean value) {
+            this.preservesSharedAuthentication = value;
+            return this;
+        }
+
+        /**
+         * Builds a record after checking required property presence.
+         * @return a new record
+         * @throws IllegalStateException if a required property is missing
+         * @since 2.0.0
+         */
+        public McpUninstallPlan build() {
+            if (planHandle == null) throw new IllegalStateException("Missing required property: planHandle");
+            if (operationId == null) throw new IllegalStateException("Missing required property: operationId");
+            if (expiresAtEpochMs == null) throw new IllegalStateException("Missing required property: expiresAtEpochMs");
+            if (installation == null) throw new IllegalStateException("Missing required property: installation");
+            if (restoresPreviousConfiguration == null) throw new IllegalStateException("Missing required property: restoresPreviousConfiguration");
+            if (ownedSecretCount == null) throw new IllegalStateException("Missing required property: ownedSecretCount");
+            if (preservesSharedAuthentication == null) throw new IllegalStateException("Missing required property: preservesSharedAuthentication");
+            return new McpUninstallPlan(planHandle, operationId, expiresAtEpochMs, installation, restoresPreviousConfiguration, ownedSecretCount, preservesSharedAuthentication);
+        }
+    }
 }

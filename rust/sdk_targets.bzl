@@ -68,6 +68,7 @@ def sdk_targets(name = "platform_dirs_srcs"):
         srcs = [
             "build.rs",
             "src/cache_paths.rs",
+            "src/cache_paths/unix.rs",
         ] + native.glob(["build/**/*.rs", "src/platform_dirs/**/*.rs"]),
         aliases = aliases(build = True),
         build_script_env = {

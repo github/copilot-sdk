@@ -40,4 +40,110 @@ record ConnectParams(
     /** Connection token; required when the server was started with COPILOT_CONNECTION_TOKEN */
     @JsonProperty("token") String token
 ) {
+
+    /**
+     * Creates a record positionally.
+     * @deprecated Use {@link #builder()} for named construction.
+     */
+    @Deprecated(since = "2.0.0", forRemoval = false)
+    ConnectParams {}
+
+    /**
+     * Returns a named builder.
+     * @return a new builder
+     * @since 2.0.0
+     */
+    public static Builder builder() { return new Builder(); }
+
+    /**
+     * Named construction for this record.
+     * @since 2.0.0
+     */
+    public static final class Builder {
+        private Builder() {}
+        private EntraAuthConfig entra;
+        private Boolean entraTokenProvider;
+        private Boolean enableGitHubTelemetryForwarding;
+        private ConnectClientInfo clientInfo;
+        private List<TaskKind> supportedTaskKinds;
+        private String token;
+
+        /**
+         * Sets the {@code entra} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        @com.github.copilot.CopilotExperimental
+        public Builder entra(EntraAuthConfig value) {
+            this.entra = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code entraTokenProvider} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        @com.github.copilot.CopilotExperimental
+        public Builder entraTokenProvider(Boolean value) {
+            this.entraTokenProvider = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code enableGitHubTelemetryForwarding} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder enableGitHubTelemetryForwarding(Boolean value) {
+            this.enableGitHubTelemetryForwarding = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code clientInfo} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder clientInfo(ConnectClientInfo value) {
+            this.clientInfo = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code supportedTaskKinds} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder supportedTaskKinds(List<TaskKind> value) {
+            this.supportedTaskKinds = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code token} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder token(String value) {
+            this.token = value;
+            return this;
+        }
+
+        /**
+         * Builds a record after checking required property presence.
+         * @return a new record
+         * @throws IllegalStateException if a required property is missing
+         * @since 2.0.0
+         */
+        public ConnectParams build() {
+            return new ConnectParams(entra, entraTokenProvider, enableGitHubTelemetryForwarding, clientInfo, supportedTaskKinds, token);
+        }
+    }
 }

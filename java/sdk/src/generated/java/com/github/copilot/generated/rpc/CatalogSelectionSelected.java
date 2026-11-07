@@ -41,4 +41,59 @@ public final class CatalogSelectionSelected extends CatalogSelectionResult {
 
     public String getSearchId() { return searchId; }
     public void setSearchId(String searchId) { this.searchId = searchId; }
+
+
+    /**
+     * Returns a named builder.
+     * @return a new builder
+     * @since 2.0.0
+     */
+    public static Builder builder() { return new Builder(); }
+
+    /**
+     * Named construction for this record.
+     * @since 2.0.0
+     */
+    public static final class Builder {
+        private Builder() {}
+        private String candidateHandle;
+        private String searchId;
+
+        /**
+         * Sets the {@code candidateHandle} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder candidateHandle(String value) {
+            this.candidateHandle = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code searchId} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder searchId(String value) {
+            this.searchId = value;
+            return this;
+        }
+
+        /**
+         * Builds a variant after checking required property presence.
+         * @return a new variant
+         * @throws IllegalStateException if a required property is missing
+         * @since 2.0.0
+         */
+        public CatalogSelectionSelected build() {
+            if (candidateHandle == null) throw new IllegalStateException("Missing required property: candidateHandle");
+            if (searchId == null) throw new IllegalStateException("Missing required property: searchId");
+            CatalogSelectionSelected instance = new CatalogSelectionSelected();
+            instance.setCandidateHandle(candidateHandle);
+            instance.setSearchId(searchId);
+            return instance;
+        }
+    }
 }

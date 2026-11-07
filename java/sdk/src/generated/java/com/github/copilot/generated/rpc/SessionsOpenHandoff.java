@@ -62,4 +62,97 @@ public final class SessionsOpenHandoff extends SessionsOpenParams {
 
     public Object getOnConfirm() { return onConfirm; }
     public void setOnConfirm(Object onConfirm) { this.onConfirm = onConfirm; }
+
+
+    /**
+     * Returns a named builder.
+     * @return a new builder
+     * @since 2.0.0
+     */
+    public static Builder builder() { return new Builder(); }
+
+    /**
+     * Named construction for this record.
+     * @since 2.0.0
+     */
+    public static final class Builder {
+        private Builder() {}
+        private RemoteSessionMetadataValue metadata;
+        private SessionOpenOptions options;
+        private SessionsOpenHandoffTaskType taskType;
+        private Object onProgress;
+        private Object onConfirm;
+
+        /**
+         * Sets the {@code metadata} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder metadata(RemoteSessionMetadataValue value) {
+            this.metadata = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code options} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder options(SessionOpenOptions value) {
+            this.options = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code taskType} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder taskType(SessionsOpenHandoffTaskType value) {
+            this.taskType = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code onProgress} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder onProgress(Object value) {
+            this.onProgress = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code onConfirm} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder onConfirm(Object value) {
+            this.onConfirm = value;
+            return this;
+        }
+
+        /**
+         * Builds a variant after checking required property presence.
+         * @return a new variant
+         * @throws IllegalStateException if a required property is missing
+         * @since 2.0.0
+         */
+        public SessionsOpenHandoff build() {
+            if (metadata == null) throw new IllegalStateException("Missing required property: metadata");
+            SessionsOpenHandoff instance = new SessionsOpenHandoff();
+            instance.setMetadata(metadata);
+            instance.setOptions(options);
+            instance.setTaskType(taskType);
+            instance.setOnProgress(onProgress);
+            instance.setOnConfirm(onConfirm);
+            return instance;
+        }
+    }
 }

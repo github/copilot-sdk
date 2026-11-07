@@ -38,4 +38,112 @@ public record SessionWorkspacesDiffResult(
     /** Why the session diff could not be produced, when applicable. Set only when `session` mode was requested and `isFallback` is true, so a client can tell the permanent `file-change-tracking-disabled` apart from the transient `session-busy`, which the same request answers once the session settles. Never set for `unstaged` or `branch` mode, and never `unsupported-remote-session`: a remote session's captures live on its own host, so a `session`-mode diff is rejected for one rather than answered with a controller-side fallback. */
     @JsonProperty("unavailableReason") HistoryRewindUnavailableReason unavailableReason
 ) {
+
+    /**
+     * Creates a record positionally.
+     * @deprecated Use {@link #builder()} for named construction.
+     */
+    @Deprecated(since = "2.0.0", forRemoval = false)
+    public SessionWorkspacesDiffResult {}
+
+    /**
+     * Returns a named builder.
+     * @return a new builder
+     * @since 2.0.0
+     */
+    public static Builder builder() { return new Builder(); }
+
+    /**
+     * Named construction for this record.
+     * @since 2.0.0
+     */
+    public static final class Builder {
+        private Builder() {}
+        private WorkspaceDiffMode requestedMode;
+        private WorkspaceDiffMode mode;
+        private List<WorkspaceDiffFileChange> changes;
+        private String baseBranch;
+        private Boolean isFallback;
+        private HistoryRewindUnavailableReason unavailableReason;
+
+        /**
+         * Sets the {@code requestedMode} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder requestedMode(WorkspaceDiffMode value) {
+            this.requestedMode = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code mode} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder mode(WorkspaceDiffMode value) {
+            this.mode = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code changes} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder changes(List<WorkspaceDiffFileChange> value) {
+            this.changes = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code baseBranch} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder baseBranch(String value) {
+            this.baseBranch = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code isFallback} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder isFallback(Boolean value) {
+            this.isFallback = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code unavailableReason} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder unavailableReason(HistoryRewindUnavailableReason value) {
+            this.unavailableReason = value;
+            return this;
+        }
+
+        /**
+         * Builds a record after checking required property presence.
+         * @return a new record
+         * @throws IllegalStateException if a required property is missing
+         * @since 2.0.0
+         */
+        public SessionWorkspacesDiffResult build() {
+            if (requestedMode == null) throw new IllegalStateException("Missing required property: requestedMode");
+            if (mode == null) throw new IllegalStateException("Missing required property: mode");
+            if (changes == null) throw new IllegalStateException("Missing required property: changes");
+            if (isFallback == null) throw new IllegalStateException("Missing required property: isFallback");
+            return new SessionWorkspacesDiffResult(requestedMode, mode, changes, baseBranch, isFallback, unavailableReason);
+        }
+    }
 }

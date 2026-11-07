@@ -28,4 +28,49 @@ public record SessionCompletionsRequestResult(
     /** Completion items in host-ranked order. */
     @JsonProperty("items") List<SessionCompletionItem> items
 ) {
+
+    /**
+     * Creates a record positionally.
+     * @deprecated Use {@link #builder()} for named construction.
+     */
+    @Deprecated(since = "2.0.0", forRemoval = false)
+    public SessionCompletionsRequestResult {}
+
+    /**
+     * Returns a named builder.
+     * @return a new builder
+     * @since 2.0.0
+     */
+    public static Builder builder() { return new Builder(); }
+
+    /**
+     * Named construction for this record.
+     * @since 2.0.0
+     */
+    public static final class Builder {
+        private Builder() {}
+        private List<SessionCompletionItem> items;
+
+        /**
+         * Sets the {@code items} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder items(List<SessionCompletionItem> value) {
+            this.items = value;
+            return this;
+        }
+
+        /**
+         * Builds a record after checking required property presence.
+         * @return a new record
+         * @throws IllegalStateException if a required property is missing
+         * @since 2.0.0
+         */
+        public SessionCompletionsRequestResult build() {
+            if (items == null) throw new IllegalStateException("Missing required property: items");
+            return new SessionCompletionsRequestResult(items);
+        }
+    }
 }

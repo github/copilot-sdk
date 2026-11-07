@@ -30,4 +30,62 @@ public record SessionMcpOauthPrepareLoginResult(
     /** Original expiry, not extended by consumption, retries or cancellation. */
     @JsonProperty("expiresAt") OffsetDateTime expiresAt
 ) {
+
+    /**
+     * Creates a record positionally.
+     * @deprecated Use {@link #builder()} for named construction.
+     */
+    @Deprecated(since = "2.0.0", forRemoval = false)
+    public SessionMcpOauthPrepareLoginResult {}
+
+    /**
+     * Returns a named builder.
+     * @return a new builder
+     * @since 2.0.0
+     */
+    public static Builder builder() { return new Builder(); }
+
+    /**
+     * Named construction for this record.
+     * @since 2.0.0
+     */
+    public static final class Builder {
+        private Builder() {}
+        private String loginId;
+        private OffsetDateTime expiresAt;
+
+        /**
+         * Sets the {@code loginId} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder loginId(String value) {
+            this.loginId = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code expiresAt} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder expiresAt(OffsetDateTime value) {
+            this.expiresAt = value;
+            return this;
+        }
+
+        /**
+         * Builds a record after checking required property presence.
+         * @return a new record
+         * @throws IllegalStateException if a required property is missing
+         * @since 2.0.0
+         */
+        public SessionMcpOauthPrepareLoginResult build() {
+            if (loginId == null) throw new IllegalStateException("Missing required property: loginId");
+            if (expiresAt == null) throw new IllegalStateException("Missing required property: expiresAt");
+            return new SessionMcpOauthPrepareLoginResult(loginId, expiresAt);
+        }
+    }
 }

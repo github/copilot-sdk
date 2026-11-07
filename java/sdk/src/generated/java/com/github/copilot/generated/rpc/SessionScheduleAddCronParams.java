@@ -37,4 +37,118 @@ record SessionScheduleAddCronParams(
     /** IANA timezone for evaluating the cron expression. */
     @JsonProperty("tz") String tz
 ) {
+
+    /**
+     * Creates a record positionally.
+     * @deprecated Use {@link #builder()} for named construction.
+     */
+    @Deprecated(since = "2.0.0", forRemoval = false)
+    SessionScheduleAddCronParams {}
+
+    /**
+     * Returns a named builder.
+     * @return a new builder
+     * @since 2.0.0
+     */
+    @com.github.copilot.CopilotExperimental
+    public static Builder builder() { return new Builder(); }
+
+    /**
+     * Named construction for this record.
+     * @since 2.0.0
+     */
+    @com.github.copilot.CopilotExperimental
+    public static final class Builder {
+        private Builder() {}
+        private String sessionId;
+        private String cron;
+        private String prompt;
+        private Boolean recurring;
+        private String displayPrompt;
+        private String tz;
+
+        /**
+         * Sets the {@code sessionId} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        @com.github.copilot.CopilotExperimental
+        public Builder sessionId(String value) {
+            this.sessionId = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code cron} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        @com.github.copilot.CopilotExperimental
+        public Builder cron(String value) {
+            this.cron = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code prompt} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        @com.github.copilot.CopilotExperimental
+        public Builder prompt(String value) {
+            this.prompt = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code recurring} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        @com.github.copilot.CopilotExperimental
+        public Builder recurring(Boolean value) {
+            this.recurring = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code displayPrompt} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        @com.github.copilot.CopilotExperimental
+        public Builder displayPrompt(String value) {
+            this.displayPrompt = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code tz} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        @com.github.copilot.CopilotExperimental
+        public Builder tz(String value) {
+            this.tz = value;
+            return this;
+        }
+
+        /**
+         * Builds a record after checking required property presence.
+         * @return a new record
+         * @throws IllegalStateException if a required property is missing
+         * @since 2.0.0
+         */
+        public SessionScheduleAddCronParams build() {
+            if (cron == null) throw new IllegalStateException("Missing required property: cron");
+            if (prompt == null) throw new IllegalStateException("Missing required property: prompt");
+            return new SessionScheduleAddCronParams(sessionId, cron, prompt, recurring, displayPrompt, tz);
+        }
+    }
 }

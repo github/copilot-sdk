@@ -24,4 +24,49 @@ public record McpDiagnosticSourceConfiguration(
     /** Threshold to apply to MCP diagnostic producers in this session. */
     @JsonProperty("level") DiagnosticLogLevel level
 ) {
+
+    /**
+     * Creates a record positionally.
+     * @deprecated Use {@link #builder()} for named construction.
+     */
+    @Deprecated(since = "2.0.0", forRemoval = false)
+    public McpDiagnosticSourceConfiguration {}
+
+    /**
+     * Returns a named builder.
+     * @return a new builder
+     * @since 2.0.0
+     */
+    public static Builder builder() { return new Builder(); }
+
+    /**
+     * Named construction for this record.
+     * @since 2.0.0
+     */
+    public static final class Builder {
+        private Builder() {}
+        private DiagnosticLogLevel level;
+
+        /**
+         * Sets the {@code level} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder level(DiagnosticLogLevel value) {
+            this.level = value;
+            return this;
+        }
+
+        /**
+         * Builds a record after checking required property presence.
+         * @return a new record
+         * @throws IllegalStateException if a required property is missing
+         * @since 2.0.0
+         */
+        public McpDiagnosticSourceConfiguration build() {
+            if (level == null) throw new IllegalStateException("Missing required property: level");
+            return new McpDiagnosticSourceConfiguration(level);
+        }
+    }
 }

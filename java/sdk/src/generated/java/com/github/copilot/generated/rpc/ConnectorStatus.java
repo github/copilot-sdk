@@ -41,4 +41,133 @@ public record ConnectorStatus(
     /** Number of active opaque connection continuations. */
     @JsonProperty("pendingConnections") Long pendingConnections
 ) {
+
+    /**
+     * Creates a record positionally.
+     * @deprecated Use {@link #builder()} for named construction.
+     */
+    @Deprecated(since = "2.0.0", forRemoval = false)
+    public ConnectorStatus {}
+
+    /**
+     * Returns a named builder.
+     * @return a new builder
+     * @since 2.0.0
+     */
+    @com.github.copilot.CopilotExperimental
+    public static Builder builder() { return new Builder(); }
+
+    /**
+     * Named construction for this record.
+     * @since 2.0.0
+     */
+    @com.github.copilot.CopilotExperimental
+    public static final class Builder {
+        private Builder() {}
+        private Long apiVersion;
+        private ConnectorAvailability availability;
+        private String accountId;
+        private ConnectorCatalogResult catalog;
+        private ConnectorAuthorizationRequirement authorizationRequirement;
+        private List<ConnectorRuntimeStatus> runtimeServers;
+        private Long pendingConnections;
+
+        /**
+         * Sets the {@code apiVersion} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        @com.github.copilot.CopilotExperimental
+        public Builder apiVersion(Long value) {
+            this.apiVersion = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code availability} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        @com.github.copilot.CopilotExperimental
+        public Builder availability(ConnectorAvailability value) {
+            this.availability = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code accountId} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        @com.github.copilot.CopilotExperimental
+        public Builder accountId(String value) {
+            this.accountId = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code catalog} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        @com.github.copilot.CopilotExperimental
+        public Builder catalog(ConnectorCatalogResult value) {
+            this.catalog = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code authorizationRequirement} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        @com.github.copilot.CopilotExperimental
+        public Builder authorizationRequirement(ConnectorAuthorizationRequirement value) {
+            this.authorizationRequirement = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code runtimeServers} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        @com.github.copilot.CopilotExperimental
+        public Builder runtimeServers(List<ConnectorRuntimeStatus> value) {
+            this.runtimeServers = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code pendingConnections} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        @com.github.copilot.CopilotExperimental
+        public Builder pendingConnections(Long value) {
+            this.pendingConnections = value;
+            return this;
+        }
+
+        /**
+         * Builds a record after checking required property presence.
+         * @return a new record
+         * @throws IllegalStateException if a required property is missing
+         * @since 2.0.0
+         */
+        public ConnectorStatus build() {
+            if (apiVersion == null) throw new IllegalStateException("Missing required property: apiVersion");
+            if (availability == null) throw new IllegalStateException("Missing required property: availability");
+            if (runtimeServers == null) throw new IllegalStateException("Missing required property: runtimeServers");
+            if (pendingConnections == null) throw new IllegalStateException("Missing required property: pendingConnections");
+            return new ConnectorStatus(apiVersion, availability, accountId, catalog, authorizationRequirement, runtimeServers, pendingConnections);
+        }
+    }
 }

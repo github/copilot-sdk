@@ -28,4 +28,52 @@ public record HostListSessionsResult(
     /** Complete advertised session summaries, in the host's catalog order. */
     @JsonProperty("sessions") List<HostSessionSummary> sessions
 ) {
+
+    /**
+     * Creates a record positionally.
+     * @deprecated Use {@link #builder()} for named construction.
+     */
+    @Deprecated(since = "2.0.0", forRemoval = false)
+    public HostListSessionsResult {}
+
+    /**
+     * Returns a named builder.
+     * @return a new builder
+     * @since 2.0.0
+     */
+    @com.github.copilot.CopilotExperimental
+    public static Builder builder() { return new Builder(); }
+
+    /**
+     * Named construction for this record.
+     * @since 2.0.0
+     */
+    @com.github.copilot.CopilotExperimental
+    public static final class Builder {
+        private Builder() {}
+        private List<HostSessionSummary> sessions;
+
+        /**
+         * Sets the {@code sessions} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        @com.github.copilot.CopilotExperimental
+        public Builder sessions(List<HostSessionSummary> value) {
+            this.sessions = value;
+            return this;
+        }
+
+        /**
+         * Builds a record after checking required property presence.
+         * @return a new record
+         * @throws IllegalStateException if a required property is missing
+         * @since 2.0.0
+         */
+        public HostListSessionsResult build() {
+            if (sessions == null) throw new IllegalStateException("Missing required property: sessions");
+            return new HostListSessionsResult(sessions);
+        }
+    }
 }

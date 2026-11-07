@@ -29,4 +29,65 @@ public record SessionManagementMessageResult(
     /** Destination title captured by the receiving runtime at message admission. */
     @JsonProperty("targetSessionName") String targetSessionName
 ) {
+
+    /**
+     * Creates a record positionally.
+     * @deprecated Use {@link #builder()} for named construction.
+     */
+    @Deprecated(since = "2.0.0", forRemoval = false)
+    public SessionManagementMessageResult {}
+
+    /**
+     * Returns a named builder.
+     * @return a new builder
+     * @since 2.0.0
+     */
+    @com.github.copilot.CopilotExperimental
+    public static Builder builder() { return new Builder(); }
+
+    /**
+     * Named construction for this record.
+     * @since 2.0.0
+     */
+    @com.github.copilot.CopilotExperimental
+    public static final class Builder {
+        private Builder() {}
+        private Boolean accepted;
+        private String targetSessionName;
+
+        /**
+         * Sets the {@code accepted} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        @com.github.copilot.CopilotExperimental
+        public Builder accepted(Boolean value) {
+            this.accepted = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code targetSessionName} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        @com.github.copilot.CopilotExperimental
+        public Builder targetSessionName(String value) {
+            this.targetSessionName = value;
+            return this;
+        }
+
+        /**
+         * Builds a record after checking required property presence.
+         * @return a new record
+         * @throws IllegalStateException if a required property is missing
+         * @since 2.0.0
+         */
+        public SessionManagementMessageResult build() {
+            if (accepted == null) throw new IllegalStateException("Missing required property: accepted");
+            return new SessionManagementMessageResult(accepted, targetSessionName);
+        }
+    }
 }

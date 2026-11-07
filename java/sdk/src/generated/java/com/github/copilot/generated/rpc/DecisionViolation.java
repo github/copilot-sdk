@@ -34,4 +34,92 @@ public record DecisionViolation(
     /** The limit it broke, when numeric. */
     @JsonProperty("limit") Long limit
 ) {
+
+    /**
+     * Creates a record positionally.
+     * @deprecated Use {@link #builder()} for named construction.
+     */
+    @Deprecated(since = "2.0.0", forRemoval = false)
+    public DecisionViolation {}
+
+    /**
+     * Returns a named builder.
+     * @return a new builder
+     * @since 2.0.0
+     */
+    @com.github.copilot.CopilotExperimental
+    public static Builder builder() { return new Builder(); }
+
+    /**
+     * Named construction for this record.
+     * @since 2.0.0
+     */
+    @com.github.copilot.CopilotExperimental
+    public static final class Builder {
+        private Builder() {}
+        private String path;
+        private String rule;
+        private Long actual;
+        private Long limit;
+
+        /**
+         * Sets the {@code path} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        @com.github.copilot.CopilotExperimental
+        public Builder path(String value) {
+            this.path = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code rule} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        @com.github.copilot.CopilotExperimental
+        public Builder rule(String value) {
+            this.rule = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code actual} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        @com.github.copilot.CopilotExperimental
+        public Builder actual(Long value) {
+            this.actual = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code limit} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        @com.github.copilot.CopilotExperimental
+        public Builder limit(Long value) {
+            this.limit = value;
+            return this;
+        }
+
+        /**
+         * Builds a record after checking required property presence.
+         * @return a new record
+         * @throws IllegalStateException if a required property is missing
+         * @since 2.0.0
+         */
+        public DecisionViolation build() {
+            if (path == null) throw new IllegalStateException("Missing required property: path");
+            if (rule == null) throw new IllegalStateException("Missing required property: rule");
+            return new DecisionViolation(path, rule, actual, limit);
+        }
+    }
 }

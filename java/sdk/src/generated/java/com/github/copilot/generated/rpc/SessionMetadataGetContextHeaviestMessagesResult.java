@@ -30,4 +30,62 @@ public record SessionMetadataGetContextHeaviestMessagesResult(
     /** Heaviest messages, most-expensive first. */
     @JsonProperty("messages") List<ContextHeaviestMessage> messages
 ) {
+
+    /**
+     * Creates a record positionally.
+     * @deprecated Use {@link #builder()} for named construction.
+     */
+    @Deprecated(since = "2.0.0", forRemoval = false)
+    public SessionMetadataGetContextHeaviestMessagesResult {}
+
+    /**
+     * Returns a named builder.
+     * @return a new builder
+     * @since 2.0.0
+     */
+    public static Builder builder() { return new Builder(); }
+
+    /**
+     * Named construction for this record.
+     * @since 2.0.0
+     */
+    public static final class Builder {
+        private Builder() {}
+        private Long totalTokens;
+        private List<ContextHeaviestMessage> messages;
+
+        /**
+         * Sets the {@code totalTokens} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder totalTokens(Long value) {
+            this.totalTokens = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code messages} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder messages(List<ContextHeaviestMessage> value) {
+            this.messages = value;
+            return this;
+        }
+
+        /**
+         * Builds a record after checking required property presence.
+         * @return a new record
+         * @throws IllegalStateException if a required property is missing
+         * @since 2.0.0
+         */
+        public SessionMetadataGetContextHeaviestMessagesResult build() {
+            if (totalTokens == null) throw new IllegalStateException("Missing required property: totalTokens");
+            if (messages == null) throw new IllegalStateException("Missing required property: messages");
+            return new SessionMetadataGetContextHeaviestMessagesResult(totalTokens, messages);
+        }
+    }
 }

@@ -26,4 +26,62 @@ record AccountDescribeAuthInfoResult(
     /** One-line description of the identity, suitable after a verb such as "Switched to". */
     @JsonProperty("description") String description
 ) {
+
+    /**
+     * Creates a record positionally.
+     * @deprecated Use {@link #builder()} for named construction.
+     */
+    @Deprecated(since = "2.0.0", forRemoval = false)
+    AccountDescribeAuthInfoResult {}
+
+    /**
+     * Returns a named builder.
+     * @return a new builder
+     * @since 2.0.0
+     */
+    public static Builder builder() { return new Builder(); }
+
+    /**
+     * Named construction for this record.
+     * @since 2.0.0
+     */
+    public static final class Builder {
+        private Builder() {}
+        private String message;
+        private String description;
+
+        /**
+         * Sets the {@code message} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder message(String value) {
+            this.message = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code description} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder description(String value) {
+            this.description = value;
+            return this;
+        }
+
+        /**
+         * Builds a record after checking required property presence.
+         * @return a new record
+         * @throws IllegalStateException if a required property is missing
+         * @since 2.0.0
+         */
+        public AccountDescribeAuthInfoResult build() {
+            if (message == null) throw new IllegalStateException("Missing required property: message");
+            if (description == null) throw new IllegalStateException("Missing required property: description");
+            return new AccountDescribeAuthInfoResult(message, description);
+        }
+    }
 }

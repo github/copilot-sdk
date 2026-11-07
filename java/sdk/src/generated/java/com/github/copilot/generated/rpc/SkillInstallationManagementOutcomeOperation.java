@@ -28,13 +28,61 @@ public record SkillInstallationManagementOutcomeOperation(
     /** Skill installation management outcome discriminator. */
     @JsonProperty("kind") String kind
 ) implements SkillInstallationManagementOutcome {
+    /**
+     * Creates this variant positionally and normalizes its discriminator.
+     * @deprecated Use {@link #builder()} for named construction.
+     */
+    @Deprecated(since = "2.0.0", forRemoval = false)
     public SkillInstallationManagementOutcomeOperation {
         kind = "operation";
     }
 
+    /**
+     * Creates this variant without explicitly supplying its discriminator.
+     * @deprecated Use {@link #builder()} for named construction.
+     */
+    @Deprecated(since = "2.0.0", forRemoval = false)
     public SkillInstallationManagementOutcomeOperation(
         SkillInstallationOperationStatus operation
     ) {
         this(operation, "operation");
+    }
+
+    /**
+     * Returns a named builder.
+     * @return a new builder
+     * @since 2.0.0
+     */
+    public static Builder builder() { return new Builder(); }
+
+    /**
+     * Named construction for this record.
+     * @since 2.0.0
+     */
+    public static final class Builder {
+        private Builder() {}
+        private SkillInstallationOperationStatus operation;
+
+        /**
+         * Sets the {@code operation} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder operation(SkillInstallationOperationStatus value) {
+            this.operation = value;
+            return this;
+        }
+
+        /**
+         * Builds a record after checking required property presence.
+         * @return a new record
+         * @throws IllegalStateException if a required property is missing
+         * @since 2.0.0
+         */
+        public SkillInstallationManagementOutcomeOperation build() {
+            if (operation == null) throw new IllegalStateException("Missing required property: operation");
+            return new SkillInstallationManagementOutcomeOperation(operation, "operation");
+        }
     }
 }

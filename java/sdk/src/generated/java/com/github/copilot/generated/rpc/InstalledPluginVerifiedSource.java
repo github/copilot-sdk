@@ -26,4 +26,62 @@ public record InstalledPluginVerifiedSource(
     /** Full 40-character hexadecimal commit SHA the plugin is pinned to. */
     @JsonProperty("revision") String revision
 ) {
+
+    /**
+     * Creates a record positionally.
+     * @deprecated Use {@link #builder()} for named construction.
+     */
+    @Deprecated(since = "2.0.0", forRemoval = false)
+    public InstalledPluginVerifiedSource {}
+
+    /**
+     * Returns a named builder.
+     * @return a new builder
+     * @since 2.0.0
+     */
+    public static Builder builder() { return new Builder(); }
+
+    /**
+     * Named construction for this record.
+     * @since 2.0.0
+     */
+    public static final class Builder {
+        private Builder() {}
+        private String repository;
+        private String revision;
+
+        /**
+         * Sets the {@code repository} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder repository(String value) {
+            this.repository = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code revision} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder revision(String value) {
+            this.revision = value;
+            return this;
+        }
+
+        /**
+         * Builds a record after checking required property presence.
+         * @return a new record
+         * @throws IllegalStateException if a required property is missing
+         * @since 2.0.0
+         */
+        public InstalledPluginVerifiedSource build() {
+            if (repository == null) throw new IllegalStateException("Missing required property: repository");
+            if (revision == null) throw new IllegalStateException("Missing required property: revision");
+            return new InstalledPluginVerifiedSource(repository, revision);
+        }
+    }
 }

@@ -42,4 +42,59 @@ final class CafeMetricsResolveAdmissionParamsSuccess extends CafeMetricsResolveA
 
     public List<CafeMetricsRelease> getReleases() { return releases; }
     public void setReleases(List<CafeMetricsRelease> releases) { this.releases = releases; }
+
+
+    /**
+     * Returns a named builder.
+     * @return a new builder
+     * @since 2.0.0
+     */
+    public static Builder builder() { return new Builder(); }
+
+    /**
+     * Named construction for this record.
+     * @since 2.0.0
+     */
+    public static final class Builder {
+        private Builder() {}
+        private Double lookupDurationMs;
+        private List<CafeMetricsRelease> releases;
+
+        /**
+         * Sets the {@code lookupDurationMs} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder lookupDurationMs(Double value) {
+            this.lookupDurationMs = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code releases} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder releases(List<CafeMetricsRelease> value) {
+            this.releases = value;
+            return this;
+        }
+
+        /**
+         * Builds a variant after checking required property presence.
+         * @return a new variant
+         * @throws IllegalStateException if a required property is missing
+         * @since 2.0.0
+         */
+        public CafeMetricsResolveAdmissionParamsSuccess build() {
+            if (lookupDurationMs == null) throw new IllegalStateException("Missing required property: lookupDurationMs");
+            if (releases == null) throw new IllegalStateException("Missing required property: releases");
+            CafeMetricsResolveAdmissionParamsSuccess instance = new CafeMetricsResolveAdmissionParamsSuccess();
+            instance.setLookupDurationMs(lookupDurationMs);
+            instance.setReleases(releases);
+            return instance;
+        }
+    }
 }

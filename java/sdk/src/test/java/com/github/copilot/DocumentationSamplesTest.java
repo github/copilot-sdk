@@ -1,16 +1,86 @@
 package com.github.copilot;
 
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.regex.Pattern;
+import java.util.stream.Collectors;
+
+import javax.tools.DiagnosticCollector;
+import javax.tools.JavaFileObject;
+import javax.tools.ToolProvider;
 
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.io.TempDir;
 
 class DocumentationSamplesTest {
+
+    @TempDir
+    Path compilationDirectory;
+
+    @Test
+    void generatedConstructionExamplesCompile() throws IOException {
+        Path root = Path.of("").toAbsolutePath();
+        compileMarkdownExample(root.resolve("../README.md"), "ConstructionExample");
+        compileMarkdownExample(root.resolve("../README.md"), "ReasoningSummaryExample");
+        compileMarkdownExample(root.resolve("../../docs/runtime-supervised-host.md"), "HostingExample");
+        compileMarkdownExample(root.resolve("../../docs/features/usage-and-billing.md"), "ContextInfoExample");
+    }
+
+    @Test
+    void modelCapabilitiesJavadocCompilesWithOwningImports() throws IOException {
+        String source = Files.readString(Path.of("src/main/java/com/github/copilot/CopilotSession.java"));
+        int example = source.indexOf("session.setModel(\"claude-sonnet-4.5\", null,");
+        assertTrue(example >= 0, "Missing capability-override Javadoc example");
+        int start = source.lastIndexOf("<pre>{@code", example);
+        int end = source.indexOf("}</pre>", example);
+        assertTrue(start >= 0 && end > start, "Missing Javadoc code delimiters");
+        String imports = source.lines().filter(line -> line.startsWith("import ")).collect(Collectors.joining("\n"));
+        String code = source.substring(start + "<pre>{@code".length(), end).replaceAll("(?m)^\\s*\\* ?", "");
+        compileExample("ModelCapabilitiesExample", imports + """
+
+                class ModelCapabilitiesExample {
+                    static void example(com.github.copilot.CopilotSession session) throws Exception {
+                """ + code + "\n    }\n}\n");
+    }
+
+    private void compileMarkdownExample(Path path, String className) throws IOException {
+        var blocks = Pattern.compile("```java\\R(.*?)\\R```", Pattern.DOTALL).matcher(Files.readString(path));
+        List<String> examples = new ArrayList<>();
+        while (blocks.find()) {
+            if (blocks.group(1).contains("class " + className + " ")) {
+                examples.add(blocks.group(1));
+            }
+        }
+        assertTrue(examples.size() == 1, () -> path + ": expected exactly one " + className + " example");
+        compileExample(className, examples.get(0));
+    }
+
+    private void compileExample(String className, String source) throws IOException {
+        var compiler = ToolProvider.getSystemJavaCompiler();
+        assertNotNull(compiler, "Documentation compilation requires a JDK");
+        Path file = compilationDirectory.resolve(className + ".java");
+        Files.writeString(file, source);
+        var diagnostics = new DiagnosticCollector<JavaFileObject>();
+        try (var files = compiler.getStandardFileManager(diagnostics, null, null)) {
+            var units = files.getJavaFileObjects(file.toFile());
+            String classpath = System.getProperty("surefire.test.class.path", System.getProperty("java.class.path"));
+            String modulePath = System.getProperty("jdk.module.path");
+            if (modulePath != null && !modulePath.isBlank()) {
+                classpath += java.io.File.pathSeparator + modulePath;
+            }
+            var options = List.of("--release", "17", "-proc:none", "-classpath", classpath, "-d",
+                    compilationDirectory.toString());
+            assertTrue(compiler.getTask(null, files, diagnostics, options, null, units).call(),
+                    () -> className + ": " + diagnostics.getDiagnostics());
+        }
+    }
 
     @Test
     void docsAndJbangSamplesUseRequiredPermissionHandler() throws IOException {

@@ -45,8 +45,166 @@ public record SessionConnectorsGetCapabilitiesResult(
 ) {
 
     /**
+     * Creates a record positionally.
+     * @deprecated Use {@link #builder()} for named construction.
+     */
+    @Deprecated(since = "2.0.0", forRemoval = false)
+    public SessionConnectorsGetCapabilitiesResult {}
+
+    /**
+     * Returns a named builder.
+     * @return a new builder
+     * @since 2.0.0
+     */
+    @com.github.copilot.CopilotExperimental
+    public static Builder builder() { return new Builder(); }
+
+    /**
+     * Named construction for this record.
+     * @since 2.0.0
+     */
+    @com.github.copilot.CopilotExperimental
+    public static final class Builder {
+        private Builder() {}
+        private Long apiVersion;
+        private ConnectorAvailability availability;
+        private Boolean consentContinuation;
+        private Boolean opaqueAccountSelection;
+        private Boolean sessionAccountSelection;
+        private Boolean targetedReconcile;
+        private Long maxPollAttempts;
+        private Long maxPollIntervalMs;
+        private Long maxDeadlineMs;
+
+        /**
+         * Sets the {@code apiVersion} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        @com.github.copilot.CopilotExperimental
+        public Builder apiVersion(Long value) {
+            this.apiVersion = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code availability} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        @com.github.copilot.CopilotExperimental
+        public Builder availability(ConnectorAvailability value) {
+            this.availability = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code consentContinuation} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        @com.github.copilot.CopilotExperimental
+        public Builder consentContinuation(Boolean value) {
+            this.consentContinuation = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code opaqueAccountSelection} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        @com.github.copilot.CopilotExperimental
+        public Builder opaqueAccountSelection(Boolean value) {
+            this.opaqueAccountSelection = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code sessionAccountSelection} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        @com.github.copilot.CopilotExperimental
+        public Builder sessionAccountSelection(Boolean value) {
+            this.sessionAccountSelection = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code targetedReconcile} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        @com.github.copilot.CopilotExperimental
+        public Builder targetedReconcile(Boolean value) {
+            this.targetedReconcile = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code maxPollAttempts} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        @com.github.copilot.CopilotExperimental
+        public Builder maxPollAttempts(Long value) {
+            this.maxPollAttempts = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code maxPollIntervalMs} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        @com.github.copilot.CopilotExperimental
+        public Builder maxPollIntervalMs(Long value) {
+            this.maxPollIntervalMs = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code maxDeadlineMs} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        @com.github.copilot.CopilotExperimental
+        public Builder maxDeadlineMs(Long value) {
+            this.maxDeadlineMs = value;
+            return this;
+        }
+
+        /**
+         * Builds a record after checking required property presence.
+         * @return a new record
+         * @throws IllegalStateException if a required property is missing
+         * @since 2.0.0
+         */
+        public SessionConnectorsGetCapabilitiesResult build() {
+            if (apiVersion == null) throw new IllegalStateException("Missing required property: apiVersion");
+            if (availability == null) throw new IllegalStateException("Missing required property: availability");
+            if (consentContinuation == null) throw new IllegalStateException("Missing required property: consentContinuation");
+            if (opaqueAccountSelection == null) throw new IllegalStateException("Missing required property: opaqueAccountSelection");
+            if (maxPollAttempts == null) throw new IllegalStateException("Missing required property: maxPollAttempts");
+            if (maxPollIntervalMs == null) throw new IllegalStateException("Missing required property: maxPollIntervalMs");
+            if (maxDeadlineMs == null) throw new IllegalStateException("Missing required property: maxDeadlineMs");
+            return new SessionConnectorsGetCapabilitiesResult(apiVersion, availability, consentContinuation, opaqueAccountSelection, sessionAccountSelection, targetedReconcile, maxPollAttempts, maxPollIntervalMs, maxDeadlineMs);
+        }
+    }
+
+    /**
      * Creates a record with the components it had before later optional fields were added.
-     *
+     * @deprecated Use named construction via {@link #builder()}.
      * @param apiVersion Connector API contract version.
      * @param availability Current session availability. Disabled availability is reported without making a Connector request.
      * @param consentContinuation Whether connect and reconnect can return an opaque continuation for bounded consent polling.
@@ -55,6 +213,7 @@ public record SessionConnectorsGetCapabilitiesResult(
      * @param maxPollIntervalMs Maximum accepted delay in milliseconds between polling attempts.
      * @param maxDeadlineMs Maximum accepted wall-clock deadline in milliseconds for one continuation call.
      */
+    @Deprecated(since = "2.0.0", forRemoval = false)
     public SessionConnectorsGetCapabilitiesResult(
         Long apiVersion,
         ConnectorAvailability availability,

@@ -27,4 +27,49 @@ public record SessionHistoryClearContextResult(
     /** Number of non-system, non-developer messages that were removed from the conversation. Zero only when the window already held no conversation. */
     @JsonProperty("messagesCleared") Long messagesCleared
 ) {
+
+    /**
+     * Creates a record positionally.
+     * @deprecated Use {@link #builder()} for named construction.
+     */
+    @Deprecated(since = "2.0.0", forRemoval = false)
+    public SessionHistoryClearContextResult {}
+
+    /**
+     * Returns a named builder.
+     * @return a new builder
+     * @since 2.0.0
+     */
+    public static Builder builder() { return new Builder(); }
+
+    /**
+     * Named construction for this record.
+     * @since 2.0.0
+     */
+    public static final class Builder {
+        private Builder() {}
+        private Long messagesCleared;
+
+        /**
+         * Sets the {@code messagesCleared} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder messagesCleared(Long value) {
+            this.messagesCleared = value;
+            return this;
+        }
+
+        /**
+         * Builds a record after checking required property presence.
+         * @return a new record
+         * @throws IllegalStateException if a required property is missing
+         * @since 2.0.0
+         */
+        public SessionHistoryClearContextResult build() {
+            if (messagesCleared == null) throw new IllegalStateException("Missing required property: messagesCleared");
+            return new SessionHistoryClearContextResult(messagesCleared);
+        }
+    }
 }

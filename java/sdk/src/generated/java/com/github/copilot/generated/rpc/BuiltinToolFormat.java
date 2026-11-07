@@ -32,4 +32,80 @@ public record BuiltinToolFormat(
     /** Grammar definition accepted by the tool. */
     @JsonProperty("definition") String definition
 ) {
+
+    /**
+     * Creates a record positionally.
+     * @deprecated Use {@link #builder()} for named construction.
+     */
+    @Deprecated(since = "2.0.0", forRemoval = false)
+    public BuiltinToolFormat {}
+
+    /**
+     * Returns a named builder.
+     * @return a new builder
+     * @since 2.0.0
+     */
+    @com.github.copilot.CopilotExperimental
+    public static Builder builder() { return new Builder(); }
+
+    /**
+     * Named construction for this record.
+     * @since 2.0.0
+     */
+    @com.github.copilot.CopilotExperimental
+    public static final class Builder {
+        private Builder() {}
+        private BuiltinToolFormatType type;
+        private String syntax;
+        private String definition;
+
+        /**
+         * Sets the {@code type} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        @com.github.copilot.CopilotExperimental
+        public Builder type(BuiltinToolFormatType value) {
+            this.type = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code syntax} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        @com.github.copilot.CopilotExperimental
+        public Builder syntax(String value) {
+            this.syntax = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code definition} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        @com.github.copilot.CopilotExperimental
+        public Builder definition(String value) {
+            this.definition = value;
+            return this;
+        }
+
+        /**
+         * Builds a record after checking required property presence.
+         * @return a new record
+         * @throws IllegalStateException if a required property is missing
+         * @since 2.0.0
+         */
+        public BuiltinToolFormat build() {
+            if (type == null) throw new IllegalStateException("Missing required property: type");
+            if (syntax == null) throw new IllegalStateException("Missing required property: syntax");
+            if (definition == null) throw new IllegalStateException("Missing required property: definition");
+            return new BuiltinToolFormat(type, syntax, definition);
+        }
+    }
 }

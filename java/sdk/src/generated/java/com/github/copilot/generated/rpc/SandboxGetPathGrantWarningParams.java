@@ -29,4 +29,61 @@ record SandboxGetPathGrantWarningParams(
     /** Whether the grant is read-only. Omitted means read/write, which gets the stricter advice. */
     @JsonProperty("readOnly") Boolean readOnly
 ) {
+
+    /**
+     * Creates a record positionally.
+     * @deprecated Use {@link #builder()} for named construction.
+     */
+    @Deprecated(since = "2.0.0", forRemoval = false)
+    SandboxGetPathGrantWarningParams {}
+
+    /**
+     * Returns a named builder.
+     * @return a new builder
+     * @since 2.0.0
+     */
+    public static Builder builder() { return new Builder(); }
+
+    /**
+     * Named construction for this record.
+     * @since 2.0.0
+     */
+    public static final class Builder {
+        private Builder() {}
+        private String resolvedPath;
+        private Boolean readOnly;
+
+        /**
+         * Sets the {@code resolvedPath} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder resolvedPath(String value) {
+            this.resolvedPath = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code readOnly} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder readOnly(Boolean value) {
+            this.readOnly = value;
+            return this;
+        }
+
+        /**
+         * Builds a record after checking required property presence.
+         * @return a new record
+         * @throws IllegalStateException if a required property is missing
+         * @since 2.0.0
+         */
+        public SandboxGetPathGrantWarningParams build() {
+            if (resolvedPath == null) throw new IllegalStateException("Missing required property: resolvedPath");
+            return new SandboxGetPathGrantWarningParams(resolvedPath, readOnly);
+        }
+    }
 }

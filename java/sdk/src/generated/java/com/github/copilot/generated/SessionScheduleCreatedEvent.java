@@ -55,5 +55,159 @@ public final class SessionScheduleCreatedEvent extends SessionEvent {
         /** Who created the schedule (`user` or `model`). Persisted so a resumed session keeps gating non-user schedules from firing skills that opted out of model invocation. Absent on entries created before this field existed; a missing origin fails closed (treated the same as a non-user origin), so such a schedule may not resolve a `disable-model-invocation` skill. */
         @JsonProperty("origin") ScheduleOrigin origin
     ) {
+
+        /**
+         * Creates a record positionally.
+         * @deprecated Use {@link #builder()} for named construction.
+         */
+        @Deprecated(since = "2.0.0", forRemoval = false)
+        public SessionScheduleCreatedEventData {}
+
+        /**
+         * Returns a named builder.
+         * @return a new builder
+         * @since 2.0.0
+         */
+        public static Builder builder() { return new Builder(); }
+
+        /**
+         * Named construction for this record.
+         * @since 2.0.0
+         */
+        public static final class Builder {
+            private Builder() {}
+            private Long id;
+            private Long intervalMs;
+            private String cron;
+            private String tz;
+            private Long at;
+            private String prompt;
+            private Boolean recurring;
+            private Boolean selfPaced;
+            private String displayPrompt;
+            private ScheduleOrigin origin;
+
+            /**
+             * Sets the {@code id} property.
+             * @param value the property value
+             * @return this builder
+             * @since 2.0.0
+             */
+            public Builder id(Long value) {
+                this.id = value;
+                return this;
+            }
+
+            /**
+             * Sets the {@code intervalMs} property.
+             * @param value the property value
+             * @return this builder
+             * @since 2.0.0
+             */
+            public Builder intervalMs(Long value) {
+                this.intervalMs = value;
+                return this;
+            }
+
+            /**
+             * Sets the {@code cron} property.
+             * @param value the property value
+             * @return this builder
+             * @since 2.0.0
+             */
+            public Builder cron(String value) {
+                this.cron = value;
+                return this;
+            }
+
+            /**
+             * Sets the {@code tz} property.
+             * @param value the property value
+             * @return this builder
+             * @since 2.0.0
+             */
+            public Builder tz(String value) {
+                this.tz = value;
+                return this;
+            }
+
+            /**
+             * Sets the {@code at} property.
+             * @param value the property value
+             * @return this builder
+             * @since 2.0.0
+             */
+            public Builder at(Long value) {
+                this.at = value;
+                return this;
+            }
+
+            /**
+             * Sets the {@code prompt} property.
+             * @param value the property value
+             * @return this builder
+             * @since 2.0.0
+             */
+            public Builder prompt(String value) {
+                this.prompt = value;
+                return this;
+            }
+
+            /**
+             * Sets the {@code recurring} property.
+             * @param value the property value
+             * @return this builder
+             * @since 2.0.0
+             */
+            public Builder recurring(Boolean value) {
+                this.recurring = value;
+                return this;
+            }
+
+            /**
+             * Sets the {@code selfPaced} property.
+             * @param value the property value
+             * @return this builder
+             * @since 2.0.0
+             */
+            public Builder selfPaced(Boolean value) {
+                this.selfPaced = value;
+                return this;
+            }
+
+            /**
+             * Sets the {@code displayPrompt} property.
+             * @param value the property value
+             * @return this builder
+             * @since 2.0.0
+             */
+            public Builder displayPrompt(String value) {
+                this.displayPrompt = value;
+                return this;
+            }
+
+            /**
+             * Sets the {@code origin} property.
+             * @param value the property value
+             * @return this builder
+             * @since 2.0.0
+             */
+            public Builder origin(ScheduleOrigin value) {
+                this.origin = value;
+                return this;
+            }
+
+            /**
+             * Builds a record after checking required property presence.
+             * @return a new record
+             * @throws IllegalStateException if a required property is missing
+             * @since 2.0.0
+             */
+            public SessionScheduleCreatedEventData build() {
+                if (id == null) throw new IllegalStateException("Missing required property: id");
+                if (prompt == null) throw new IllegalStateException("Missing required property: prompt");
+                return new SessionScheduleCreatedEventData(id, intervalMs, cron, tz, at, prompt, recurring, selfPaced, displayPrompt, origin);
+            }
+        }
     }
 }

@@ -41,4 +41,58 @@ public final class SlashCommandInvocationResultShowDialog extends SlashCommandIn
 
     public Boolean getRuntimeSettingsChanged() { return runtimeSettingsChanged; }
     public void setRuntimeSettingsChanged(Boolean runtimeSettingsChanged) { this.runtimeSettingsChanged = runtimeSettingsChanged; }
+
+
+    /**
+     * Returns a named builder.
+     * @return a new builder
+     * @since 2.0.0
+     */
+    public static Builder builder() { return new Builder(); }
+
+    /**
+     * Named construction for this record.
+     * @since 2.0.0
+     */
+    public static final class Builder {
+        private Builder() {}
+        private SlashCommandModelPickerDialog dialog;
+        private Boolean runtimeSettingsChanged;
+
+        /**
+         * Sets the {@code dialog} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder dialog(SlashCommandModelPickerDialog value) {
+            this.dialog = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code runtimeSettingsChanged} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder runtimeSettingsChanged(Boolean value) {
+            this.runtimeSettingsChanged = value;
+            return this;
+        }
+
+        /**
+         * Builds a variant after checking required property presence.
+         * @return a new variant
+         * @throws IllegalStateException if a required property is missing
+         * @since 2.0.0
+         */
+        public SlashCommandInvocationResultShowDialog build() {
+            if (dialog == null) throw new IllegalStateException("Missing required property: dialog");
+            SlashCommandInvocationResultShowDialog instance = new SlashCommandInvocationResultShowDialog();
+            instance.setDialog(dialog);
+            instance.setRuntimeSettingsChanged(runtimeSettingsChanged);
+            return instance;
+        }
+    }
 }

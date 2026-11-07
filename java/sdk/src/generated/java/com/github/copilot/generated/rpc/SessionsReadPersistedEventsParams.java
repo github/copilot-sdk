@@ -33,4 +33,85 @@ public record SessionsReadPersistedEventsParams(
     /** Direction to page through persisted history. Forward starts at the beginning; backward starts with the newest events. Events in each page remain chronological. This selects the initial read only; a continuation always uses the direction bound into its cursor. */
     @JsonProperty("direction") EventsReadDirection direction
 ) {
+
+    /**
+     * Creates a record positionally.
+     * @deprecated Use {@link #builder()} for named construction.
+     */
+    @Deprecated(since = "2.0.0", forRemoval = false)
+    public SessionsReadPersistedEventsParams {}
+
+    /**
+     * Returns a named builder.
+     * @return a new builder
+     * @since 2.0.0
+     */
+    public static Builder builder() { return new Builder(); }
+
+    /**
+     * Named construction for this record.
+     * @since 2.0.0
+     */
+    public static final class Builder {
+        private Builder() {}
+        private String sessionId;
+        private String cursor;
+        private Long max;
+        private EventsReadDirection direction;
+
+        /**
+         * Sets the {@code sessionId} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder sessionId(String value) {
+            this.sessionId = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code cursor} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder cursor(String value) {
+            this.cursor = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code max} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder max(Long value) {
+            this.max = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code direction} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder direction(EventsReadDirection value) {
+            this.direction = value;
+            return this;
+        }
+
+        /**
+         * Builds a record after checking required property presence.
+         * @return a new record
+         * @throws IllegalStateException if a required property is missing
+         * @since 2.0.0
+         */
+        public SessionsReadPersistedEventsParams build() {
+            if (sessionId == null) throw new IllegalStateException("Missing required property: sessionId");
+            return new SessionsReadPersistedEventsParams(sessionId, cursor, max, direction);
+        }
+    }
 }

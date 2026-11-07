@@ -39,5 +39,63 @@ public final class SessionModelDeselectedEvent extends SessionEvent {
         /** Low-cardinality reason the selection was cleared. */
         @JsonProperty("reason") ModelDeselectedReason reason
     ) {
+
+        /**
+         * Creates a record positionally.
+         * @deprecated Use {@link #builder()} for named construction.
+         */
+        @Deprecated(since = "2.0.0", forRemoval = false)
+        public SessionModelDeselectedEventData {}
+
+        /**
+         * Returns a named builder.
+         * @return a new builder
+         * @since 2.0.0
+         */
+        public static Builder builder() { return new Builder(); }
+
+        /**
+         * Named construction for this record.
+         * @since 2.0.0
+         */
+        public static final class Builder {
+            private Builder() {}
+            private String previousModel;
+            private ModelDeselectedReason reason;
+
+            /**
+             * Sets the {@code previousModel} property.
+             * @param value the property value
+             * @return this builder
+             * @since 2.0.0
+             */
+            public Builder previousModel(String value) {
+                this.previousModel = value;
+                return this;
+            }
+
+            /**
+             * Sets the {@code reason} property.
+             * @param value the property value
+             * @return this builder
+             * @since 2.0.0
+             */
+            public Builder reason(ModelDeselectedReason value) {
+                this.reason = value;
+                return this;
+            }
+
+            /**
+             * Builds a record after checking required property presence.
+             * @return a new record
+             * @throws IllegalStateException if a required property is missing
+             * @since 2.0.0
+             */
+            public SessionModelDeselectedEventData build() {
+                if (previousModel == null) throw new IllegalStateException("Missing required property: previousModel");
+                if (reason == null) throw new IllegalStateException("Missing required property: reason");
+                return new SessionModelDeselectedEventData(previousModel, reason);
+            }
+        }
     }
 }

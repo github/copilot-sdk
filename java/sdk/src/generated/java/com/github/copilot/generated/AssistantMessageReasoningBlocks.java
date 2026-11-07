@@ -33,4 +33,78 @@ public record AssistantMessageReasoningBlocks(
     /** Anthropic Messages assistant block ordering preserved when the legacy reasoning-only representation cannot reproduce it exactly. Thinking and text blocks remain verbatim; tool-use entries retain identity and a payload fingerprint when later signed reasoning depends on them, and are hydrated from the message's tool requests during replay. */
     @JsonProperty("orderedBlocks") List<Object> orderedBlocks
 ) {
+
+    /**
+     * Creates a record positionally.
+     * @deprecated Use {@link #builder()} for named construction.
+     */
+    @Deprecated(since = "2.0.0", forRemoval = false)
+    public AssistantMessageReasoningBlocks {}
+
+    /**
+     * Returns a named builder.
+     * @return a new builder
+     * @since 2.0.0
+     */
+    @com.github.copilot.CopilotExperimental
+    public static Builder builder() { return new Builder(); }
+
+    /**
+     * Named construction for this record.
+     * @since 2.0.0
+     */
+    @com.github.copilot.CopilotExperimental
+    public static final class Builder {
+        private Builder() {}
+        private String provider;
+        private List<Object> blocks;
+        private List<Object> orderedBlocks;
+
+        /**
+         * Sets the {@code provider} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        @com.github.copilot.CopilotExperimental
+        public Builder provider(String value) {
+            this.provider = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code blocks} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        @com.github.copilot.CopilotExperimental
+        public Builder blocks(List<Object> value) {
+            this.blocks = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code orderedBlocks} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        @com.github.copilot.CopilotExperimental
+        public Builder orderedBlocks(List<Object> value) {
+            this.orderedBlocks = value;
+            return this;
+        }
+
+        /**
+         * Builds a record after checking required property presence.
+         * @return a new record
+         * @throws IllegalStateException if a required property is missing
+         * @since 2.0.0
+         */
+        public AssistantMessageReasoningBlocks build() {
+            if (provider == null) throw new IllegalStateException("Missing required property: provider");
+            return new AssistantMessageReasoningBlocks(provider, blocks, orderedBlocks);
+        }
+    }
 }

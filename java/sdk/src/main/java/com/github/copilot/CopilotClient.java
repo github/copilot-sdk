@@ -12,6 +12,7 @@ import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashMap;
+import java.util.IdentityHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
@@ -126,6 +127,8 @@ public final class CopilotClient implements AutoCloseable {
     private final CliServerManager serverManager;
     private final LifecycleEventManager lifecycleManager = new LifecycleEventManager();
     private final Map<String, CopilotSession> sessions = new ConcurrentHashMap<>();
+    // Guarded by this; a pending resume owns the predecessor it can restore.
+    private final Map<CopilotSession, Map<String, CopilotSession>> resumePredecessors = new IdentityHashMap<>();
     private final Map<JsonRpcClient, Map<String, SessionInitialization>> sessionInitializations = new WeakHashMap<>();
     private final AhpHostManager ahpHosts;
     private final GitHubTokenProviderRegistry gitHubTokenProviders = new GitHubTokenProviderRegistry();
@@ -135,6 +138,8 @@ public final class CopilotClient implements AutoCloseable {
      * cannot hold up the teardown.
      */
     private volatile CompletableFuture<Connection> connectionFuture;
+    private CompletableFuture<Connection> retiringConnection;
+    private boolean forceRetirement;
     private volatile boolean disposed = false;
     private final String optionsHost;
     private final Integer optionsPort;
@@ -620,21 +625,28 @@ public final class CopilotClient implements AutoCloseable {
      * @return A future that completes when the connection is established
      */
     public CompletableFuture<Void> start() {
+        return startConnection().thenApply(c -> null);
+    }
+
+    private CompletableFuture<Connection> startConnection() {
         CompletableFuture<Connection> future = connectionFuture;
+        StartupFuture startup = null;
         if (future == null) {
             synchronized (this) {
                 future = connectionFuture;
                 if (future == null) {
-                    var startup = new StartupFuture();
-                    // Published before the startup runs, which a direct executor does right
-                    // here, so that forceStop() can end it.
+                    startup = new StartupFuture();
                     connectionFuture = startup;
-                    startCore(startup);
                     future = startup;
                 }
             }
         }
-        return future.thenApply(c -> null);
+        // A direct executor can perform startup I/O here; shutdown must still be
+        // able to acquire the lifecycle monitor and return its future.
+        if (startup != null) {
+            startCore(startup);
+        }
+        return future;
     }
 
     private void startCore(StartupFuture startup) {
@@ -721,7 +733,7 @@ public final class CopilotClient implements AutoCloseable {
             LlmInferenceAdapter llmAdapter = null;
             if (hasLlmInference) {
                 llmAdapter = new LlmInferenceAdapter(requestHandler, () -> connection.serverRpc().llmInference,
-                        executor);
+                        connectedRpc::invoke, executor);
                 llmAdapter.registerHandlers(connectedRpc);
             }
             LlmInferenceAdapter connectedLlmAdapter = llmAdapter;
@@ -936,8 +948,10 @@ public final class CopilotClient implements AutoCloseable {
             }
             connectParams.put("supportedTaskKinds", List.of("agent", "client", "shell"));
             if (this.options.getEntra() != null) {
-                connectParams.put("entra", new com.github.copilot.generated.rpc.EntraAuthConfig(
-                        this.options.getEntra().getClientId(), this.options.getEntra().getMatsAppName()));
+                connectParams.put("entra",
+                        com.github.copilot.generated.rpc.EntraAuthConfig.builder()
+                                .clientId(this.options.getEntra().getClientId())
+                                .matsAppName(this.options.getEntra().getMatsAppName()).build());
                 if (this.options.getEntra().getTokenProvider() != null) {
                     connectParams.put("entraTokenProvider", true);
                 }
@@ -1025,9 +1039,14 @@ public final class CopilotClient implements AutoCloseable {
      */
     public CompletableFuture<Void> stop() {
         ahpHosts.disconnect();
-        CompletableFuture<Connection> stoppedConnection = connectionFuture;
+        CompletableFuture<Connection> stoppedConnection;
+        ArrayList<CopilotSession> activeSessions;
+        synchronized (this) {
+            stoppedConnection = connectionFuture;
+            retiringConnection = stoppedConnection;
+            activeSessions = new ArrayList<>(sessions.values());
+        }
         var closeFutures = new ArrayList<CompletableFuture<Void>>();
-        var activeSessions = new ArrayList<>(sessions.values());
 
         for (CopilotSession session : activeSessions) {
             // Every deadline starts here and no thread waits on it, so the detaches
@@ -1074,9 +1093,15 @@ public final class CopilotClient implements AutoCloseable {
     public CompletableFuture<Void> forceStop() {
         ahpHosts.disconnect();
         disposed = true;
-        var activeSessions = new ArrayList<>(sessions.values());
+        ArrayList<CopilotSession> activeSessions;
+        synchronized (this) {
+            // Fence resume admission and rollback before taking the retirement snapshot.
+            retiringConnection = connectionFuture;
+            forceRetirement = true;
+            activeSessions = new ArrayList<>(sessions.values());
+        }
         activeSessions.forEach(CopilotSession::forceStopLocally);
-        sessions.clear();
+        activeSessions.forEach(session -> sessions.remove(session.getSessionId(), session));
         gitHubTokenProviders.clear();
         // Dispatch the blocking shutdownOwnedExecutor() on a dedicated thread:
         // cleanupConnection() is chained off async work running on the owned
@@ -1096,8 +1121,13 @@ public final class CopilotClient implements AutoCloseable {
      *            terminated with the connection's own
      */
     private CompletableFuture<Void> cleanupConnection(boolean gracefulRuntimeShutdown, boolean endStartup) {
-        CompletableFuture<Connection> future = connectionFuture;
-        connectionFuture = null;
+        CompletableFuture<Connection> future;
+        synchronized (this) {
+            future = connectionFuture;
+            connectionFuture = null;
+            retiringConnection = null;
+            forceRetirement = false;
+        }
 
         // Retire the cache and its queue together so old fetches cannot affect a new
         // lifecycle.
@@ -1284,6 +1314,7 @@ public final class CopilotClient implements AutoCloseable {
                     if (extracted.transformCallbacks() != null) {
                         s.registerTransformCallbacks(extracted.transformCallbacks());
                     }
+                    s.setReleaseFromClient(() -> forgetSession(s));
                     sessions.put(sid, s);
                     LoggingHelpers.logTiming(LOG, Level.FINE,
                             "CopilotClient.createSession local setup complete. Elapsed={Elapsed}, SessionId=" + sid,
@@ -1396,9 +1427,10 @@ public final class CopilotClient implements AutoCloseable {
                                             return rejectUnsupportedAutoModeRecovery(session, connection, true);
                                         }
                                         CompletableFuture<?> interest = config.getOnMcpAuthRequest() != null
-                                                ? session.getRpc().eventLog.registerInterest(
-                                                        new SessionEventLogRegisterInterestParams(returnedId,
-                                                                "mcp.oauth_required"))
+                                                ? session.getRpc().eventLog
+                                                        .registerInterest(SessionEventLogRegisterInterestParams
+                                                                .builder().sessionId(returnedId)
+                                                                .eventType("mcp.oauth_required").build())
                                                 : CompletableFuture.completedFuture(null);
                                         session.setWorkspacePath(response.workspacePath());
                                         session.setPermissionModeResult(response.permissionModeResult());
@@ -1572,7 +1604,8 @@ public final class CopilotClient implements AutoCloseable {
         } catch (IllegalArgumentException e) {
             return CompletableFuture.failedFuture(e);
         }
-        return ensureConnected()
+        CompletableFuture<Connection> resumeConnection = ensureConnected();
+        return resumeConnection
                 .thenCompose(connection -> initializeSession(connection, sessionId, config.isAutoModeRecovery(), () -> {
                     long totalNanos = System.nanoTime();
                     // Validate before registering so a rejected resume leaves any resident
@@ -1586,9 +1619,16 @@ public final class CopilotClient implements AutoCloseable {
                     return resolveResumeSessionId(connection, sessionId, config.getConfigDirectory(),
                             config.isAutoModeRecovery()).thenCompose(resolvedSessionId -> {
                                 long setupNanos = System.nanoTime();
-                                var session = new CopilotSession(resolvedSessionId, connection.rpc);
-                                session.setExecutor(executor);
-                                SessionRequestBuilder.configureSession(session, config);
+                                CopilotSession session;
+                                synchronized (this) {
+                                    if (connectionFuture != resumeConnection
+                                            || retiringConnection == resumeConnection) {
+                                        throw new IllegalStateException("Client not connected");
+                                    }
+                                    session = new CopilotSession(resolvedSessionId, connection.rpc);
+                                    session.setExecutor(executor);
+                                    SessionRequestBuilder.configureSession(session, config);
+                                }
                                 LoggingHelpers.logTiming(LOG, Level.FINE,
                                         "CopilotClient.resumeSession local setup complete. Elapsed={Elapsed}, SessionId="
                                                 + sessionId,
@@ -1658,8 +1698,12 @@ public final class CopilotClient implements AutoCloseable {
                                 long rpcNanos = System.nanoTime();
                                 // Keep the resident owner through lookup and setup. Publish the fully
                                 // configured canonical owner immediately before resume can call it.
-                                CopilotSession replacedSession = sessions.put(resolvedSessionId, session);
-                                session.recordResumeFallback(resolvedSessionId, replacedSession);
+                                try {
+                                    registerResumeSession(session, resolvedSessionId, resumeConnection);
+                                } catch (RuntimeException error) {
+                                    session.forceStopLocally();
+                                    throw error;
+                                }
                                 return connection.rpc.invoke("session.resume", request, ResumeSessionResponse.class)
                                         .thenCompose(response -> initializeSession(connection,
                                                 response.sessionId() != null
@@ -1683,13 +1727,14 @@ public final class CopilotClient implements AutoCloseable {
                                                                         && !returnedId.equals(resolvedSessionId);
                                                                 CopilotSession resident = changedId
                                                                         ? sessions.get(returnedId)
-                                                                        : replacedSession;
+                                                                        : resumePredecessor(session, resolvedSessionId);
                                                                 if (changedId) {
                                                                     session.setActiveSessionId(returnedId);
                                                                     if (resident == null) {
                                                                         // Detach can invoke session-end hooks using the
                                                                         // canonical ID.
-                                                                        sessions.put(returnedId, session);
+                                                                        registerResumeSession(session, returnedId,
+                                                                                resumeConnection);
                                                                     }
                                                                 }
                                                                 if (resident != null) {
@@ -1699,7 +1744,8 @@ public final class CopilotClient implements AutoCloseable {
                                                                     // a
                                                                     // rollback.
                                                                     if (changedId) {
-                                                                        sessions.put(returnedId, session);
+                                                                        registerResumeSession(session, returnedId,
+                                                                                resumeConnection);
                                                                         sessions.remove(resolvedSessionId, session);
                                                                     }
                                                                     if (tokenRegistration != null) {
@@ -1708,7 +1754,7 @@ public final class CopilotClient implements AutoCloseable {
                                                                         gitHubTokenProviders
                                                                                 .retire(session.getSessionId());
                                                                     }
-                                                                    session.commitResumeRegistration();
+                                                                    commitResumeSession(session);
                                                                     keepResumedSessionOnRecoveryRejection[0] = true;
                                                                 }
                                                                 return rejectUnsupportedAutoModeRecovery(session,
@@ -1725,17 +1771,21 @@ public final class CopilotClient implements AutoCloseable {
                                                                 // its reply.
                                                                 session.setActiveSessionId(returnedId);
                                                                 mappedReturnedId[0] = returnedId;
-                                                                session.recordResumeFallback(returnedId,
-                                                                        sessions.put(returnedId, session));
+                                                                registerResumeSession(session, returnedId,
+                                                                        resumeConnection);
                                                             }
                                                             String interestSessionId = session.getSessionId();
                                                             CompletableFuture<?> interest = config
                                                                     .getOnMcpAuthRequest() != null
                                                                             ? session.getRpc().eventLog
                                                                                     .registerInterest(
-                                                                                            new SessionEventLogRegisterInterestParams(
-                                                                                                    interestSessionId,
-                                                                                                    "mcp.oauth_required"))
+                                                                                            SessionEventLogRegisterInterestParams
+                                                                                                    .builder()
+                                                                                                    .sessionId(
+                                                                                                            interestSessionId)
+                                                                                                    .eventType(
+                                                                                                            "mcp.oauth_required")
+                                                                                                    .build())
                                                                             : CompletableFuture.completedFuture(null);
                                                             return interest.thenApply(interestResult -> {
                                                                 logMcpAuthInterestRegistration(interestResult);
@@ -1769,26 +1819,13 @@ public final class CopilotClient implements AutoCloseable {
                                                                         if (mappedReturnedId[0] != null) {
                                                                             sessions.remove(resolvedSessionId, session);
                                                                         }
-                                                                        session.commitResumeRegistration();
+                                                                        commitResumeSession(session);
                                                                         return session;
                                                                     });
                                                         })))
                                         .exceptionally(ex -> {
                                             if (!keepResumedSessionOnRecoveryRejection[0]) {
-                                                session.forceStopLocally();
-                                                // A concurrent resume may own the ID now; undo only this attempt.
-                                                sessions.compute(resolvedSessionId,
-                                                        (id, current) -> current == session
-                                                                ? session.liveResumeOwner(id)
-                                                                : current);
-                                                if (mappedReturnedId[0] != null) {
-                                                    sessions.compute(mappedReturnedId[0],
-                                                            (id, current) -> current == session
-                                                                    ? session.liveResumeOwner(id)
-                                                                    : current);
-                                                } else {
-                                                    sessions.remove(session.getSessionId(), session);
-                                                }
+                                                rollbackResumeSession(session, resumeConnection, connection.rpc);
                                                 if (tokenRegistration != null) {
                                                     tokenRegistration.close();
                                                 }
@@ -1801,6 +1838,85 @@ public final class CopilotClient implements AutoCloseable {
                                         });
                             });
                 }));
+    }
+
+    private synchronized void registerResumeSession(CopilotSession session, String sessionId,
+            CompletableFuture<Connection> resumeConnection) {
+        if (connectionFuture != resumeConnection || retiringConnection == resumeConnection) {
+            throw new IllegalStateException("Client not connected");
+        }
+        resumePredecessors.computeIfAbsent(session, ignored -> new HashMap<>()).put(sessionId,
+                sessions.put(sessionId, session));
+    }
+
+    private synchronized CopilotSession resumePredecessor(CopilotSession session, String sessionId) {
+        return resumePredecessors.get(session).get(sessionId);
+    }
+
+    private void commitResumeSession(CopilotSession session) {
+        session.setReleaseFromClient(() -> forgetSession(session));
+        if (session.isDetached()) {
+            forgetSession(session);
+        }
+        synchronized (this) {
+            resumePredecessors.remove(session);
+        }
+    }
+
+    private void rollbackResumeSession(CopilotSession session, CompletableFuture<Connection> resumeConnection,
+            JsonRpcClient rpc) {
+        var retiringSessions = new LinkedHashSet<CopilotSession>();
+        var retainedSessions = new LinkedHashSet<CopilotSession>();
+        synchronized (this) {
+            var predecessors = resumePredecessors.remove(session);
+            // Graceful stop needs restored callbacks until the provisional detach ends.
+            boolean retiring = connectionFuture != resumeConnection
+                    || (retiringConnection == resumeConnection && forceRetirement);
+            if (predecessors != null) {
+                predecessors.forEach((sessionId, replacedSession) -> {
+                    // Later attempts inherit the fallback, never a retired provisional.
+                    resumePredecessors.values()
+                            .forEach(pending -> pending
+                                    .replaceAll((id, predecessor) -> id.equals(sessionId) && predecessor == session
+                                            ? replacedSession
+                                            : predecessor));
+                    sessions.compute(sessionId, (id, current) -> {
+                        if (current != session) {
+                            return current;
+                        }
+                        return !retiring && replacedSession != null && !replacedSession.isDetached()
+                                ? replacedSession
+                                : null;
+                    });
+                    if (replacedSession != null && replacedSession.usesConnection(rpc)) {
+                        if (!retiring && ownsResumePredecessor(sessionId, replacedSession)) {
+                            retainedSessions.add(replacedSession);
+                        } else {
+                            retiringSessions.add(replacedSession);
+                        }
+                    }
+                });
+            }
+        }
+        retiringSessions.removeAll(retainedSessions);
+        retiringSessions.forEach(CopilotSession::forceStopLocally);
+        session.forceStopLocally();
+        sessions.remove(session.getSessionId(), session);
+    }
+
+    private boolean ownsResumePredecessor(String sessionId, CopilotSession predecessor) {
+        if (predecessor == null) {
+            return false;
+        }
+        // Only a routed attempt can retain predecessors. Deletion or shutdown
+        // removing that route must not leave a pending attempt owning the resident.
+        for (CopilotSession current = sessions.get(sessionId); current != null; current = resumePredecessors
+                .getOrDefault(current, Map.of()).get(sessionId)) {
+            if (current == predecessor) {
+                return true;
+            }
+        }
+        return false;
     }
 
     CompletableFuture<Void> updateSessionOptionsForMode(CopilotSession session, Boolean skipCustomInstructions,
@@ -1882,73 +1998,13 @@ public final class CopilotClient implements AutoCloseable {
             return CompletableFuture.completedFuture(null);
         }
 
-        var params = new SessionOptionsUpdateParams(null, // sessionId - set by SessionOptionsApi
-                null, // imageGeneration
-                null, // model
-                null, // modelCapabilitiesOverrides
-                null, // reasoningEffort
-                null, // reasoningSummary
-                null, // verbosity
-                null, // clientName
-                null, // lspClientName
-                null, // integrationId
-                null, // featureFlags
-                null, // isExperimentalMode
-                null, // provider
-                null, // capi
-                null, // workingDirectory
-                null, // availableTools
-                null, // excludedTools
-                null, // includedBuiltinAgents
-                null, // excludedBuiltinAgents
-                null, // toolFilterPrecedence
-                null, // enableScriptSafety
-                null, // shell
-                null, // shellInitProfile
-                null, // shellProcessFlags
-                null, // sandboxConfig
-                null, // sandboxConfigSource
-                null, // logInteractiveShells
-                null, // envValueMode
-                null, // allowAllMcpServerInstructions
-                null, // skillDirectories
-                null, // agentDirectories
-                null, // instructionDirectories
-                null, // hookDirectories
-                null, // ignoredSkillsLocations
-                patchSkills, // includedBuiltinSkills
-                null, // disabledSkills
-                null, // enableOnDemandInstructionDiscovery
-                null, // maxInlineBinaryBytes
-                patchPlugins, // installedPlugins
-                patchAgents, // customAgentsLocalOnly
-                null, // suppressCustomAgentPrompt
-                patchSkip, // skipCustomInstructions
-                null, // disabledInstructionSources
-                patchCoauthor, // coauthorEnabled
-                null, // trajectoryFile
-                null, // enableStreaming
-                null, // copilotUrl
-                null, // askUserDisabled
-                null, // continueOnAutoMode
-                null, // runningInInteractiveMode
-                null, // enableReasoningSummaries
-                null, // agentContext
-                null, // eventsLogDirectory
-                null, // eventsLogIncludesSubagents
-                null, // additionalContentExclusionPolicies
-                patchSchedule, // manageScheduleEnabled
-                null, // sessionCapabilities
-                null, // skipEmbeddingRetrieval
-                null, // organizationCustomInstructions
-                null, // enableFileHooks
-                null, // enableHostGitOperations
-                null, // enableSessionStore
-                null, // enableSkills
-                null, // contextTier
-                null, // sessionLimits
-                null // autopilot
-        );
+        var builder = SessionOptionsUpdateParams.builder().sessionId(session.getSessionId())
+                .installedPlugins(patchPlugins).customAgentsLocalOnly(patchAgents).skipCustomInstructions(patchSkip)
+                .coauthorEnabled(patchCoauthor).manageScheduleEnabled(patchSchedule);
+        if (patchSkills != null) {
+            builder.includedBuiltinSkills(patchSkills);
+        }
+        var params = builder.build();
 
         return session.getRpc().options.update(params).<Void>thenCompose(result -> {
             LOG.fine("session.options.update applied for session " + session.getSessionId());
@@ -2161,6 +2217,13 @@ public final class CopilotClient implements AutoCloseable {
     }
 
     /**
+     * Stops tracking a closed session unless a later create or resume replaced it.
+     */
+    private void forgetSession(CopilotSession session) {
+        sessions.remove(session.getSessionId(), session);
+    }
+
+    /**
      * Lists all available sessions.
      * <p>
      * Returns metadata about all sessions that can be resumed, including their IDs,
@@ -2330,9 +2393,11 @@ public final class CopilotClient implements AutoCloseable {
         }
         var snapshot = new AhpHostOptions(options);
         var result = new CompletableFuture<AhpHost>();
-        ensureConnected().thenCompose(connection -> result.isDone()
-                ? CompletableFuture.<AhpHost>failedFuture(new java.util.concurrent.CancellationException())
-                : ahpHosts.start(connection.serverRpc().host, snapshot)).whenComplete((host, error) -> {
+        ensureConnected()
+                .thenCompose(connection -> result.isDone()
+                        ? CompletableFuture.<AhpHost>failedFuture(new java.util.concurrent.CancellationException())
+                        : ahpHosts.start(connection.serverRpc().host, connection.rpc()::invoke, snapshot))
+                .whenComplete((host, error) -> {
                     if (error != null) {
                         result.completeExceptionally(error);
                     } else if (!result.complete(host)) {
@@ -2351,8 +2416,7 @@ public final class CopilotClient implements AutoCloseable {
             throw new IllegalStateException("Client not connected. Call start() first.");
         }
 
-        start();
-        return connectionFuture;
+        return startConnection();
     }
 
     /**

@@ -50,5 +50,106 @@ public final class UiEphemeralQueryEvent extends SessionEvent {
         /** Model or transport failure message, present for the `failed` phase. */
         @JsonProperty("error") String error
     ) {
+
+        /**
+         * Creates a record positionally.
+         * @deprecated Use {@link #builder()} for named construction.
+         */
+        @Deprecated(since = "2.0.0", forRemoval = false)
+        public UiEphemeralQueryEventData {}
+
+        /**
+         * Returns a named builder.
+         * @return a new builder
+         * @since 2.0.0
+         */
+        @com.github.copilot.CopilotExperimental
+        public static Builder builder() { return new Builder(); }
+
+        /**
+         * Named construction for this record.
+         * @since 2.0.0
+         */
+        @com.github.copilot.CopilotExperimental
+        public static final class Builder {
+            private Builder() {}
+            private String requestId;
+            private UIEphemeralQueryPhase phase;
+            private String chunk;
+            private String answer;
+            private String error;
+
+            /**
+             * Sets the {@code requestId} property.
+             * @param value the property value
+             * @return this builder
+             * @since 2.0.0
+             */
+            @com.github.copilot.CopilotExperimental
+            public Builder requestId(String value) {
+                this.requestId = value;
+                return this;
+            }
+
+            /**
+             * Sets the {@code phase} property.
+             * @param value the property value
+             * @return this builder
+             * @since 2.0.0
+             */
+            @com.github.copilot.CopilotExperimental
+            public Builder phase(UIEphemeralQueryPhase value) {
+                this.phase = value;
+                return this;
+            }
+
+            /**
+             * Sets the {@code chunk} property.
+             * @param value the property value
+             * @return this builder
+             * @since 2.0.0
+             */
+            @com.github.copilot.CopilotExperimental
+            public Builder chunk(String value) {
+                this.chunk = value;
+                return this;
+            }
+
+            /**
+             * Sets the {@code answer} property.
+             * @param value the property value
+             * @return this builder
+             * @since 2.0.0
+             */
+            @com.github.copilot.CopilotExperimental
+            public Builder answer(String value) {
+                this.answer = value;
+                return this;
+            }
+
+            /**
+             * Sets the {@code error} property.
+             * @param value the property value
+             * @return this builder
+             * @since 2.0.0
+             */
+            @com.github.copilot.CopilotExperimental
+            public Builder error(String value) {
+                this.error = value;
+                return this;
+            }
+
+            /**
+             * Builds a record after checking required property presence.
+             * @return a new record
+             * @throws IllegalStateException if a required property is missing
+             * @since 2.0.0
+             */
+            public UiEphemeralQueryEventData build() {
+                if (requestId == null) throw new IllegalStateException("Missing required property: requestId");
+                if (phase == null) throw new IllegalStateException("Missing required property: phase");
+                return new UiEphemeralQueryEventData(requestId, phase, chunk, answer, error);
+            }
+        }
     }
 }

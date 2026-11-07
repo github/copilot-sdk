@@ -2116,7 +2116,15 @@ explicit program path is supplied.
 
    Public unstable cache directories use
    `copilot-sdk-runtime-<version>` instead of `<version>` to keep release
-   destinations separate. Legacy cache paths remain unchanged.
+   destinations separate. Other version names remain unchanged.
+
+   If the user cache cannot be determined, Unix uses
+   `<temp>/copilot-sdk-cache-<uid>` with owner-only permissions (`0700`), checking
+   ownership and permissions before reuse. No `HOME` is required. The selected
+   temporary base is trusted, like an explicit extraction directory; the
+   application must keep it protected from replacement by other users.
+   Other platforms retain the existing temporary-directory fallback.
+   Legacy shared Unix caches are not reused, so the first fallback install is cold.
 
 ### Overriding the extraction location
 

@@ -37,5 +37,50 @@ public final class SessionPlanChangedEvent extends SessionEvent {
         /** The type of operation performed on the plan file */
         @JsonProperty("operation") PlanChangedOperation operation
     ) {
+
+        /**
+         * Creates a record positionally.
+         * @deprecated Use {@link #builder()} for named construction.
+         */
+        @Deprecated(since = "2.0.0", forRemoval = false)
+        public SessionPlanChangedEventData {}
+
+        /**
+         * Returns a named builder.
+         * @return a new builder
+         * @since 2.0.0
+         */
+        public static Builder builder() { return new Builder(); }
+
+        /**
+         * Named construction for this record.
+         * @since 2.0.0
+         */
+        public static final class Builder {
+            private Builder() {}
+            private PlanChangedOperation operation;
+
+            /**
+             * Sets the {@code operation} property.
+             * @param value the property value
+             * @return this builder
+             * @since 2.0.0
+             */
+            public Builder operation(PlanChangedOperation value) {
+                this.operation = value;
+                return this;
+            }
+
+            /**
+             * Builds a record after checking required property presence.
+             * @return a new record
+             * @throws IllegalStateException if a required property is missing
+             * @since 2.0.0
+             */
+            public SessionPlanChangedEventData build() {
+                if (operation == null) throw new IllegalStateException("Missing required property: operation");
+                return new SessionPlanChangedEventData(operation);
+            }
+        }
     }
 }

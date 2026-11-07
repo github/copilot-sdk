@@ -31,4 +31,86 @@ public record SessionOpenOptionsAdditionalContentExclusionPolicyRule(
     /** Source descriptor for a `sessions.open` content-exclusion rule, with source name and type. */
     @JsonProperty("source") SessionOpenOptionsAdditionalContentExclusionPolicyRuleSource source
 ) {
+
+    /**
+     * Creates a record positionally.
+     * @deprecated Use {@link #builder()} for named construction.
+     */
+    @Deprecated(since = "2.0.0", forRemoval = false)
+    public SessionOpenOptionsAdditionalContentExclusionPolicyRule {}
+
+    /**
+     * Returns a named builder.
+     * @return a new builder
+     * @since 2.0.0
+     */
+    public static Builder builder() { return new Builder(); }
+
+    /**
+     * Named construction for this record.
+     * @since 2.0.0
+     */
+    public static final class Builder {
+        private Builder() {}
+        private List<String> paths;
+        private List<String> ifAnyMatch;
+        private List<String> ifNoneMatch;
+        private SessionOpenOptionsAdditionalContentExclusionPolicyRuleSource source;
+
+        /**
+         * Sets the {@code paths} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder paths(List<String> value) {
+            this.paths = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code ifAnyMatch} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder ifAnyMatch(List<String> value) {
+            this.ifAnyMatch = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code ifNoneMatch} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder ifNoneMatch(List<String> value) {
+            this.ifNoneMatch = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code source} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder source(SessionOpenOptionsAdditionalContentExclusionPolicyRuleSource value) {
+            this.source = value;
+            return this;
+        }
+
+        /**
+         * Builds a record after checking required property presence.
+         * @return a new record
+         * @throws IllegalStateException if a required property is missing
+         * @since 2.0.0
+         */
+        public SessionOpenOptionsAdditionalContentExclusionPolicyRule build() {
+            if (paths == null) throw new IllegalStateException("Missing required property: paths");
+            if (source == null) throw new IllegalStateException("Missing required property: source");
+            return new SessionOpenOptionsAdditionalContentExclusionPolicyRule(paths, ifAnyMatch, ifNoneMatch, source);
+        }
+    }
 }

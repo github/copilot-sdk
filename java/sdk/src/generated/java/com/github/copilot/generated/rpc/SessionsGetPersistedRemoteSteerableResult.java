@@ -24,4 +24,48 @@ record SessionsGetPersistedRemoteSteerableResult(
     /** The session's persisted remote-steerable flag if recorded; omitted when no value has been persisted */
     @JsonProperty("remoteSteerable") Boolean remoteSteerable
 ) {
+
+    /**
+     * Creates a record positionally.
+     * @deprecated Use {@link #builder()} for named construction.
+     */
+    @Deprecated(since = "2.0.0", forRemoval = false)
+    SessionsGetPersistedRemoteSteerableResult {}
+
+    /**
+     * Returns a named builder.
+     * @return a new builder
+     * @since 2.0.0
+     */
+    public static Builder builder() { return new Builder(); }
+
+    /**
+     * Named construction for this record.
+     * @since 2.0.0
+     */
+    public static final class Builder {
+        private Builder() {}
+        private Boolean remoteSteerable;
+
+        /**
+         * Sets the {@code remoteSteerable} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder remoteSteerable(Boolean value) {
+            this.remoteSteerable = value;
+            return this;
+        }
+
+        /**
+         * Builds a record after checking required property presence.
+         * @return a new record
+         * @throws IllegalStateException if a required property is missing
+         * @since 2.0.0
+         */
+        public SessionsGetPersistedRemoteSteerableResult build() {
+            return new SessionsGetPersistedRemoteSteerableResult(remoteSteerable);
+        }
+    }
 }

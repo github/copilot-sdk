@@ -29,4 +29,62 @@ record AgentsCustomAgentInitialModelDecisionParams(
     /** The models available to this session, serialized in the shape the model list carries. */
     @JsonProperty("availableModelsJson") String availableModelsJson
 ) {
+
+    /**
+     * Creates a record positionally.
+     * @deprecated Use {@link #builder()} for named construction.
+     */
+    @Deprecated(since = "2.0.0", forRemoval = false)
+    AgentsCustomAgentInitialModelDecisionParams {}
+
+    /**
+     * Returns a named builder.
+     * @return a new builder
+     * @since 2.0.0
+     */
+    public static Builder builder() { return new Builder(); }
+
+    /**
+     * Named construction for this record.
+     * @since 2.0.0
+     */
+    public static final class Builder {
+        private Builder() {}
+        private String agentModelsJson;
+        private String availableModelsJson;
+
+        /**
+         * Sets the {@code agentModelsJson} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder agentModelsJson(String value) {
+            this.agentModelsJson = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code availableModelsJson} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder availableModelsJson(String value) {
+            this.availableModelsJson = value;
+            return this;
+        }
+
+        /**
+         * Builds a record after checking required property presence.
+         * @return a new record
+         * @throws IllegalStateException if a required property is missing
+         * @since 2.0.0
+         */
+        public AgentsCustomAgentInitialModelDecisionParams build() {
+            if (agentModelsJson == null) throw new IllegalStateException("Missing required property: agentModelsJson");
+            if (availableModelsJson == null) throw new IllegalStateException("Missing required property: availableModelsJson");
+            return new AgentsCustomAgentInitialModelDecisionParams(agentModelsJson, availableModelsJson);
+        }
+    }
 }

@@ -29,4 +29,62 @@ public record SessionSandboxDisableForSessionResult(
     /** The authoritative sandbox enabled state after the operation. */
     @JsonProperty("enabled") Boolean enabled
 ) {
+
+    /**
+     * Creates a record positionally.
+     * @deprecated Use {@link #builder()} for named construction.
+     */
+    @Deprecated(since = "2.0.0", forRemoval = false)
+    public SessionSandboxDisableForSessionResult {}
+
+    /**
+     * Returns a named builder.
+     * @return a new builder
+     * @since 2.0.0
+     */
+    public static Builder builder() { return new Builder(); }
+
+    /**
+     * Named construction for this record.
+     * @since 2.0.0
+     */
+    public static final class Builder {
+        private Builder() {}
+        private Boolean success;
+        private Boolean enabled;
+
+        /**
+         * Sets the {@code success} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder success(Boolean value) {
+            this.success = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code enabled} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder enabled(Boolean value) {
+            this.enabled = value;
+            return this;
+        }
+
+        /**
+         * Builds a record after checking required property presence.
+         * @return a new record
+         * @throws IllegalStateException if a required property is missing
+         * @since 2.0.0
+         */
+        public SessionSandboxDisableForSessionResult build() {
+            if (success == null) throw new IllegalStateException("Missing required property: success");
+            if (enabled == null) throw new IllegalStateException("Missing required property: enabled");
+            return new SessionSandboxDisableForSessionResult(success, enabled);
+        }
+    }
 }

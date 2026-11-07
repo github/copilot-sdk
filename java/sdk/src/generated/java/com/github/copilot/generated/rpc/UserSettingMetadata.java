@@ -30,4 +30,79 @@ public record UserSettingMetadata(
     /** True when the user has not set an explicit value for this setting (i.e. it is left at its default). Reflects whether the user has overridden the key, not whether the effective value happens to equal the default — a key explicitly set to a value identical to the default still reports false. */
     @JsonProperty("isDefault") Boolean isDefault
 ) {
+
+    /**
+     * Creates a record positionally.
+     * @deprecated Use {@link #builder()} for named construction.
+     */
+    @Deprecated(since = "2.0.0", forRemoval = false)
+    public UserSettingMetadata {}
+
+    /**
+     * Returns a named builder.
+     * @return a new builder
+     * @since 2.0.0
+     */
+    public static Builder builder() { return new Builder(); }
+
+    /**
+     * Named construction for this record.
+     * @since 2.0.0
+     */
+    public static final class Builder {
+        private Builder() {}
+        private Object value;
+        private boolean $presence0;
+        private Object default_;
+        private boolean $presence1;
+        private Boolean isDefault;
+
+        /**
+         * Sets the {@code value} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder value(Object value) {
+            this.value = value;
+            this.$presence0 = true;
+            return this;
+        }
+
+        /**
+         * Sets the {@code default} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder default_(Object value) {
+            this.default_ = value;
+            this.$presence1 = true;
+            return this;
+        }
+
+        /**
+         * Sets the {@code isDefault} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder isDefault(Boolean value) {
+            this.isDefault = value;
+            return this;
+        }
+
+        /**
+         * Builds a record after checking required property presence.
+         * @return a new record
+         * @throws IllegalStateException if a required property is missing
+         * @since 2.0.0
+         */
+        public UserSettingMetadata build() {
+            if (!$presence0) throw new IllegalStateException("Missing required property: value");
+            if (!$presence1) throw new IllegalStateException("Missing required property: default");
+            if (isDefault == null) throw new IllegalStateException("Missing required property: isDefault");
+            return new UserSettingMetadata(value, default_, isDefault);
+        }
+    }
 }

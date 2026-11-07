@@ -32,4 +32,97 @@ public record UIExitPlanModeResponse(
     /** When true, the agent is instructed to end its turn without starting implementation so the client can restore the session model and auto-submit a fresh implementation turn on it. Set only when a distinct plan configuration (a different model, reasoning effort, or context tier) actually ran the planning turn. */
     @JsonProperty("deferImplementation") Boolean deferImplementation
 ) {
+
+    /**
+     * Creates a record positionally.
+     * @deprecated Use {@link #builder()} for named construction.
+     */
+    @Deprecated(since = "2.0.0", forRemoval = false)
+    public UIExitPlanModeResponse {}
+
+    /**
+     * Returns a named builder.
+     * @return a new builder
+     * @since 2.0.0
+     */
+    public static Builder builder() { return new Builder(); }
+
+    /**
+     * Named construction for this record.
+     * @since 2.0.0
+     */
+    public static final class Builder {
+        private Builder() {}
+        private Boolean approved;
+        private UIExitPlanModeAction selectedAction;
+        private Boolean autoApproveEdits;
+        private String feedback;
+        private Boolean deferImplementation;
+
+        /**
+         * Sets the {@code approved} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder approved(Boolean value) {
+            this.approved = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code selectedAction} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder selectedAction(UIExitPlanModeAction value) {
+            this.selectedAction = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code autoApproveEdits} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder autoApproveEdits(Boolean value) {
+            this.autoApproveEdits = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code feedback} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder feedback(String value) {
+            this.feedback = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code deferImplementation} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder deferImplementation(Boolean value) {
+            this.deferImplementation = value;
+            return this;
+        }
+
+        /**
+         * Builds a record after checking required property presence.
+         * @return a new record
+         * @throws IllegalStateException if a required property is missing
+         * @since 2.0.0
+         */
+        public UIExitPlanModeResponse build() {
+            if (approved == null) throw new IllegalStateException("Missing required property: approved");
+            return new UIExitPlanModeResponse(approved, selectedAction, autoApproveEdits, feedback, deferImplementation);
+        }
+    }
 }

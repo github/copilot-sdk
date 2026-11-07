@@ -24,4 +24,48 @@ public record McpAppToolCallCompleteToolMeta(
     /** MCP App tool `_meta.ui` resource URI and SEP-1865 visibility captured with an `mcp_app.tool_call_complete` result. */
     @JsonProperty("ui") McpAppToolCallCompleteToolMetaUI ui
 ) {
+
+    /**
+     * Creates a record positionally.
+     * @deprecated Use {@link #builder()} for named construction.
+     */
+    @Deprecated(since = "2.0.0", forRemoval = false)
+    public McpAppToolCallCompleteToolMeta {}
+
+    /**
+     * Returns a named builder.
+     * @return a new builder
+     * @since 2.0.0
+     */
+    public static Builder builder() { return new Builder(); }
+
+    /**
+     * Named construction for this record.
+     * @since 2.0.0
+     */
+    public static final class Builder {
+        private Builder() {}
+        private McpAppToolCallCompleteToolMetaUI ui;
+
+        /**
+         * Sets the {@code ui} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder ui(McpAppToolCallCompleteToolMetaUI value) {
+            this.ui = value;
+            return this;
+        }
+
+        /**
+         * Builds a record after checking required property presence.
+         * @return a new record
+         * @throws IllegalStateException if a required property is missing
+         * @since 2.0.0
+         */
+        public McpAppToolCallCompleteToolMeta build() {
+            return new McpAppToolCallCompleteToolMeta(ui);
+        }
+    }
 }

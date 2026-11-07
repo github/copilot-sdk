@@ -45,4 +45,170 @@ public record ProviderModelConfig(
     /** Provider-published model metadata, preserved verbatim as the public Model.metadata object. */
     @JsonProperty("metadata") Map<String, Object> metadata
 ) {
+
+    /**
+     * Creates a record positionally.
+     * @deprecated Use {@link #builder()} for named construction.
+     */
+    @Deprecated(since = "2.0.0", forRemoval = false)
+    public ProviderModelConfig {}
+
+    /**
+     * Returns a named builder.
+     * @return a new builder
+     * @since 2.0.0
+     */
+    public static Builder builder() { return new Builder(); }
+
+    /**
+     * Named construction for this record.
+     * @since 2.0.0
+     */
+    public static final class Builder {
+        private Builder() {}
+        private String id;
+        private String provider;
+        private String wireModel;
+        private String modelId;
+        private String name;
+        private Long maxPromptTokens;
+        private Long maxContextWindowTokens;
+        private Long maxOutputTokens;
+        private ModelCapabilitiesOverride capabilities;
+        private Object systemMessage;
+        private Map<String, Object> metadata;
+
+        /**
+         * Sets the {@code id} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder id(String value) {
+            this.id = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code provider} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder provider(String value) {
+            this.provider = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code wireModel} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder wireModel(String value) {
+            this.wireModel = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code modelId} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder modelId(String value) {
+            this.modelId = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code name} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder name(String value) {
+            this.name = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code maxPromptTokens} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder maxPromptTokens(Long value) {
+            this.maxPromptTokens = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code maxContextWindowTokens} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder maxContextWindowTokens(Long value) {
+            this.maxContextWindowTokens = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code maxOutputTokens} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder maxOutputTokens(Long value) {
+            this.maxOutputTokens = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code capabilities} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder capabilities(ModelCapabilitiesOverride value) {
+            this.capabilities = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code systemMessage} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder systemMessage(Object value) {
+            this.systemMessage = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code metadata} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder metadata(Map<String, Object> value) {
+            this.metadata = value;
+            return this;
+        }
+
+        /**
+         * Builds a record after checking required property presence.
+         * @return a new record
+         * @throws IllegalStateException if a required property is missing
+         * @since 2.0.0
+         */
+        public ProviderModelConfig build() {
+            if (id == null) throw new IllegalStateException("Missing required property: id");
+            if (provider == null) throw new IllegalStateException("Missing required property: provider");
+            return new ProviderModelConfig(id, provider, wireModel, modelId, name, maxPromptTokens, maxContextWindowTokens, maxOutputTokens, capabilities, systemMessage, metadata);
+        }
+    }
 }

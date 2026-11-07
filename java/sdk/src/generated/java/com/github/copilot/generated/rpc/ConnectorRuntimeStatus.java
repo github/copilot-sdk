@@ -32,4 +32,80 @@ public record ConnectorRuntimeStatus(
     /** Current live MCP host status. */
     @JsonProperty("status") ConnectorMcpStatus status
 ) {
+
+    /**
+     * Creates a record positionally.
+     * @deprecated Use {@link #builder()} for named construction.
+     */
+    @Deprecated(since = "2.0.0", forRemoval = false)
+    public ConnectorRuntimeStatus {}
+
+    /**
+     * Returns a named builder.
+     * @return a new builder
+     * @since 2.0.0
+     */
+    @com.github.copilot.CopilotExperimental
+    public static Builder builder() { return new Builder(); }
+
+    /**
+     * Named construction for this record.
+     * @since 2.0.0
+     */
+    @com.github.copilot.CopilotExperimental
+    public static final class Builder {
+        private Builder() {}
+        private String runtimeServerId;
+        private String connectorName;
+        private ConnectorMcpStatus status;
+
+        /**
+         * Sets the {@code runtimeServerId} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        @com.github.copilot.CopilotExperimental
+        public Builder runtimeServerId(String value) {
+            this.runtimeServerId = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code connectorName} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        @com.github.copilot.CopilotExperimental
+        public Builder connectorName(String value) {
+            this.connectorName = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code status} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        @com.github.copilot.CopilotExperimental
+        public Builder status(ConnectorMcpStatus value) {
+            this.status = value;
+            return this;
+        }
+
+        /**
+         * Builds a record after checking required property presence.
+         * @return a new record
+         * @throws IllegalStateException if a required property is missing
+         * @since 2.0.0
+         */
+        public ConnectorRuntimeStatus build() {
+            if (runtimeServerId == null) throw new IllegalStateException("Missing required property: runtimeServerId");
+            if (connectorName == null) throw new IllegalStateException("Missing required property: connectorName");
+            if (status == null) throw new IllegalStateException("Missing required property: status");
+            return new ConnectorRuntimeStatus(runtimeServerId, connectorName, status);
+        }
+    }
 }

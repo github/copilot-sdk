@@ -26,4 +26,61 @@ public record ManagedPluginAssignment(
     /** Administrator-provided explanation from the same winning policy entry as the state. */
     @JsonProperty("reason") String reason
 ) {
+
+    /**
+     * Creates a record positionally.
+     * @deprecated Use {@link #builder()} for named construction.
+     */
+    @Deprecated(since = "2.0.0", forRemoval = false)
+    public ManagedPluginAssignment {}
+
+    /**
+     * Returns a named builder.
+     * @return a new builder
+     * @since 2.0.0
+     */
+    public static Builder builder() { return new Builder(); }
+
+    /**
+     * Named construction for this record.
+     * @since 2.0.0
+     */
+    public static final class Builder {
+        private Builder() {}
+        private String state;
+        private String reason;
+
+        /**
+         * Sets the {@code state} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder state(String value) {
+            this.state = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code reason} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder reason(String value) {
+            this.reason = value;
+            return this;
+        }
+
+        /**
+         * Builds a record after checking required property presence.
+         * @return a new record
+         * @throws IllegalStateException if a required property is missing
+         * @since 2.0.0
+         */
+        public ManagedPluginAssignment build() {
+            if (state == null) throw new IllegalStateException("Missing required property: state");
+            return new ManagedPluginAssignment(state, reason);
+        }
+    }
 }

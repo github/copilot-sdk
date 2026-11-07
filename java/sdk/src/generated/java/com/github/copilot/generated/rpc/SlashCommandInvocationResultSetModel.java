@@ -84,4 +84,136 @@ public final class SlashCommandInvocationResultSetModel extends SlashCommandInvo
 
     public Boolean getRuntimeSettingsChanged() { return runtimeSettingsChanged; }
     public void setRuntimeSettingsChanged(Boolean runtimeSettingsChanged) { this.runtimeSettingsChanged = runtimeSettingsChanged; }
+
+
+    /**
+     * Returns a named builder.
+     * @return a new builder
+     * @since 2.0.0
+     */
+    public static Builder builder() { return new Builder(); }
+
+    /**
+     * Named construction for this record.
+     * @since 2.0.0
+     */
+    public static final class Builder {
+        private Builder() {}
+        private String model;
+        private AutoTier autoTier;
+        private String scope;
+        private String warning;
+        private String reasoningEffort;
+        private Map<String, Object> revertOnCancel;
+        private String repoScope;
+        private Boolean runtimeSettingsChanged;
+
+        /**
+         * Sets the {@code model} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder model(String value) {
+            this.model = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code autoTier} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder autoTier(AutoTier value) {
+            this.autoTier = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code scope} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder scope(String value) {
+            this.scope = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code warning} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder warning(String value) {
+            this.warning = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code reasoningEffort} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder reasoningEffort(String value) {
+            this.reasoningEffort = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code revertOnCancel} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder revertOnCancel(Map<String, Object> value) {
+            this.revertOnCancel = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code repoScope} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder repoScope(String value) {
+            this.repoScope = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code runtimeSettingsChanged} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder runtimeSettingsChanged(Boolean value) {
+            this.runtimeSettingsChanged = value;
+            return this;
+        }
+
+        /**
+         * Builds a variant after checking required property presence.
+         * @return a new variant
+         * @throws IllegalStateException if a required property is missing
+         * @since 2.0.0
+         */
+        public SlashCommandInvocationResultSetModel build() {
+            if (model == null) throw new IllegalStateException("Missing required property: model");
+            SlashCommandInvocationResultSetModel instance = new SlashCommandInvocationResultSetModel();
+            instance.setModel(model);
+            instance.setAutoTier(autoTier);
+            instance.setScope(scope);
+            instance.setWarning(warning);
+            instance.setReasoningEffort(reasoningEffort);
+            instance.setRevertOnCancel(revertOnCancel);
+            instance.setRepoScope(repoScope);
+            instance.setRuntimeSettingsChanged(runtimeSettingsChanged);
+            return instance;
+        }
+    }
 }

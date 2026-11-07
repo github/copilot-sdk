@@ -29,4 +29,74 @@ record UserSettingsHostContext(
     /** The host's environment variables. `COPILOT_HOME` is read from here, as are the variables a settings hook may expand. */
     @JsonProperty("environment") Map<String, Object> environment
 ) {
+
+    /**
+     * Creates a record positionally.
+     * @deprecated Use {@link #builder()} for named construction.
+     */
+    @Deprecated(since = "2.0.0", forRemoval = false)
+    UserSettingsHostContext {}
+
+    /**
+     * Returns a named builder.
+     * @return a new builder
+     * @since 2.0.0
+     */
+    public static Builder builder() { return new Builder(); }
+
+    /**
+     * Named construction for this record.
+     * @since 2.0.0
+     */
+    public static final class Builder {
+        private Builder() {}
+        private String configDir;
+        private String homeDirectory;
+        private Map<String, Object> environment;
+
+        /**
+         * Sets the {@code configDir} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder configDir(String value) {
+            this.configDir = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code homeDirectory} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder homeDirectory(String value) {
+            this.homeDirectory = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code environment} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder environment(Map<String, Object> value) {
+            this.environment = value;
+            return this;
+        }
+
+        /**
+         * Builds a record after checking required property presence.
+         * @return a new record
+         * @throws IllegalStateException if a required property is missing
+         * @since 2.0.0
+         */
+        public UserSettingsHostContext build() {
+            if (homeDirectory == null) throw new IllegalStateException("Missing required property: homeDirectory");
+            if (environment == null) throw new IllegalStateException("Missing required property: environment");
+            return new UserSettingsHostContext(configDir, homeDirectory, environment);
+        }
+    }
 }

@@ -48,4 +48,73 @@ public final class CatalogTrustSnapshotUnsupported extends CatalogTrustSnapshot 
 
     public CatalogTrustProvenance getProvenance() { return provenance; }
     public void setProvenance(CatalogTrustProvenance provenance) { this.provenance = provenance; }
+
+
+    /**
+     * Returns a named builder.
+     * @return a new builder
+     * @since 2.0.0
+     */
+    public static Builder builder() { return new Builder(); }
+
+    /**
+     * Named construction for this record.
+     * @since 2.0.0
+     */
+    public static final class Builder {
+        private Builder() {}
+        private CatalogTrustSnapshotSchemaVersion schemaVersion;
+        private CatalogTrustEligibility eligibility;
+        private CatalogTrustProvenance provenance;
+
+        /**
+         * Sets the {@code schemaVersion} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder schemaVersion(CatalogTrustSnapshotSchemaVersion value) {
+            this.schemaVersion = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code eligibility} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder eligibility(CatalogTrustEligibility value) {
+            this.eligibility = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code provenance} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder provenance(CatalogTrustProvenance value) {
+            this.provenance = value;
+            return this;
+        }
+
+        /**
+         * Builds a variant after checking required property presence.
+         * @return a new variant
+         * @throws IllegalStateException if a required property is missing
+         * @since 2.0.0
+         */
+        public CatalogTrustSnapshotUnsupported build() {
+            if (schemaVersion == null) throw new IllegalStateException("Missing required property: schemaVersion");
+            if (eligibility == null) throw new IllegalStateException("Missing required property: eligibility");
+            if (provenance == null) throw new IllegalStateException("Missing required property: provenance");
+            CatalogTrustSnapshotUnsupported instance = new CatalogTrustSnapshotUnsupported();
+            instance.setSchemaVersion(schemaVersion);
+            instance.setEligibility(eligibility);
+            instance.setProvenance(provenance);
+            return instance;
+        }
+    }
 }

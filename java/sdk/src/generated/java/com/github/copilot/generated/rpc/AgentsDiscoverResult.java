@@ -28,4 +28,49 @@ public record AgentsDiscoverResult(
     /** All discovered agents across all sources */
     @JsonProperty("agents") List<AgentInfo> agents
 ) {
+
+    /**
+     * Creates a record positionally.
+     * @deprecated Use {@link #builder()} for named construction.
+     */
+    @Deprecated(since = "2.0.0", forRemoval = false)
+    public AgentsDiscoverResult {}
+
+    /**
+     * Returns a named builder.
+     * @return a new builder
+     * @since 2.0.0
+     */
+    public static Builder builder() { return new Builder(); }
+
+    /**
+     * Named construction for this record.
+     * @since 2.0.0
+     */
+    public static final class Builder {
+        private Builder() {}
+        private List<AgentInfo> agents;
+
+        /**
+         * Sets the {@code agents} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder agents(List<AgentInfo> value) {
+            this.agents = value;
+            return this;
+        }
+
+        /**
+         * Builds a record after checking required property presence.
+         * @return a new record
+         * @throws IllegalStateException if a required property is missing
+         * @since 2.0.0
+         */
+        public AgentsDiscoverResult build() {
+            if (agents == null) throw new IllegalStateException("Missing required property: agents");
+            return new AgentsDiscoverResult(agents);
+        }
+    }
 }

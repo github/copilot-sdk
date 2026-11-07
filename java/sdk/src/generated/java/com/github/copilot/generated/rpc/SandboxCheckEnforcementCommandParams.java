@@ -30,4 +30,62 @@ record SandboxCheckEnforcementCommandParams(
     /** The command's arguments, in order. Pass an empty array for a bare command: several entries in the allowlist admit the bare form and refuse every argument. */
     @JsonProperty("args") List<String> args
 ) {
+
+    /**
+     * Creates a record positionally.
+     * @deprecated Use {@link #builder()} for named construction.
+     */
+    @Deprecated(since = "2.0.0", forRemoval = false)
+    SandboxCheckEnforcementCommandParams {}
+
+    /**
+     * Returns a named builder.
+     * @return a new builder
+     * @since 2.0.0
+     */
+    public static Builder builder() { return new Builder(); }
+
+    /**
+     * Named construction for this record.
+     * @since 2.0.0
+     */
+    public static final class Builder {
+        private Builder() {}
+        private String commandName;
+        private List<String> args;
+
+        /**
+         * Sets the {@code commandName} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder commandName(String value) {
+            this.commandName = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code args} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder args(List<String> value) {
+            this.args = value;
+            return this;
+        }
+
+        /**
+         * Builds a record after checking required property presence.
+         * @return a new record
+         * @throws IllegalStateException if a required property is missing
+         * @since 2.0.0
+         */
+        public SandboxCheckEnforcementCommandParams build() {
+            if (commandName == null) throw new IllegalStateException("Missing required property: commandName");
+            if (args == null) throw new IllegalStateException("Missing required property: args");
+            return new SandboxCheckEnforcementCommandParams(commandName, args);
+        }
+    }
 }

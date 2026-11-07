@@ -31,4 +31,66 @@ public record SandboxCredentialSuggestion(
     /** HTTPS hostnames suggested by a local known-provider mapping. An empty list requires the user to supply injection hosts before adding a masking entry. These suggestions do not allow network access. */
     @JsonProperty("suggestedInjectHosts") List<String> suggestedInjectHosts
 ) {
+
+    /**
+     * Creates a record positionally.
+     * @deprecated Use {@link #builder()} for named construction.
+     */
+    @Deprecated(since = "2.0.0", forRemoval = false)
+    public SandboxCredentialSuggestion {}
+
+    /**
+     * Returns a named builder.
+     * @return a new builder
+     * @since 2.0.0
+     */
+    @com.github.copilot.CopilotExperimental
+    public static Builder builder() { return new Builder(); }
+
+    /**
+     * Named construction for this record.
+     * @since 2.0.0
+     */
+    @com.github.copilot.CopilotExperimental
+    public static final class Builder {
+        private Builder() {}
+        private String name;
+        private List<String> suggestedInjectHosts;
+
+        /**
+         * Sets the {@code name} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        @com.github.copilot.CopilotExperimental
+        public Builder name(String value) {
+            this.name = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code suggestedInjectHosts} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        @com.github.copilot.CopilotExperimental
+        public Builder suggestedInjectHosts(List<String> value) {
+            this.suggestedInjectHosts = value;
+            return this;
+        }
+
+        /**
+         * Builds a record after checking required property presence.
+         * @return a new record
+         * @throws IllegalStateException if a required property is missing
+         * @since 2.0.0
+         */
+        public SandboxCredentialSuggestion build() {
+            if (name == null) throw new IllegalStateException("Missing required property: name");
+            if (suggestedInjectHosts == null) throw new IllegalStateException("Missing required property: suggestedInjectHosts");
+            return new SandboxCredentialSuggestion(name, suggestedInjectHosts);
+        }
+    }
 }

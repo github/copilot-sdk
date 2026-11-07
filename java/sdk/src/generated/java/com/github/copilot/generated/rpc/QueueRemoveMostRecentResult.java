@@ -24,4 +24,49 @@ public record QueueRemoveMostRecentResult(
     /** True if a user-facing pending item was removed (LIFO across both queues); false when no removable items remained. */
     @JsonProperty("removed") Boolean removed
 ) {
+
+    /**
+     * Creates a record positionally.
+     * @deprecated Use {@link #builder()} for named construction.
+     */
+    @Deprecated(since = "2.0.0", forRemoval = false)
+    public QueueRemoveMostRecentResult {}
+
+    /**
+     * Returns a named builder.
+     * @return a new builder
+     * @since 2.0.0
+     */
+    public static Builder builder() { return new Builder(); }
+
+    /**
+     * Named construction for this record.
+     * @since 2.0.0
+     */
+    public static final class Builder {
+        private Builder() {}
+        private Boolean removed;
+
+        /**
+         * Sets the {@code removed} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder removed(Boolean value) {
+            this.removed = value;
+            return this;
+        }
+
+        /**
+         * Builds a record after checking required property presence.
+         * @return a new record
+         * @throws IllegalStateException if a required property is missing
+         * @since 2.0.0
+         */
+        public QueueRemoveMostRecentResult build() {
+            if (removed == null) throw new IllegalStateException("Missing required property: removed");
+            return new QueueRemoveMostRecentResult(removed);
+        }
+    }
 }

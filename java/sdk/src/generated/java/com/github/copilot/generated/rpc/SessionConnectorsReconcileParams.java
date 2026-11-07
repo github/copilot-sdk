@@ -31,4 +31,78 @@ public record SessionConnectorsReconcileParams(
     /** When true, refresh the catalog before reconciling. A disabled Connector API performs no service request. */
     @JsonProperty("refreshCatalog") Boolean refreshCatalog
 ) {
+
+    /**
+     * Creates a record positionally.
+     * @deprecated Use {@link #builder()} for named construction.
+     */
+    @Deprecated(since = "2.0.0", forRemoval = false)
+    public SessionConnectorsReconcileParams {}
+
+    /**
+     * Returns a named builder.
+     * @return a new builder
+     * @since 2.0.0
+     */
+    @com.github.copilot.CopilotExperimental
+    public static Builder builder() { return new Builder(); }
+
+    /**
+     * Named construction for this record.
+     * @since 2.0.0
+     */
+    @com.github.copilot.CopilotExperimental
+    public static final class Builder {
+        private Builder() {}
+        private String sessionId;
+        private String accountId;
+        private Boolean refreshCatalog;
+
+        /**
+         * Sets the {@code sessionId} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        @com.github.copilot.CopilotExperimental
+        public Builder sessionId(String value) {
+            this.sessionId = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code accountId} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        @com.github.copilot.CopilotExperimental
+        public Builder accountId(String value) {
+            this.accountId = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code refreshCatalog} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        @com.github.copilot.CopilotExperimental
+        public Builder refreshCatalog(Boolean value) {
+            this.refreshCatalog = value;
+            return this;
+        }
+
+        /**
+         * Builds a record after checking required property presence.
+         * @return a new record
+         * @throws IllegalStateException if a required property is missing
+         * @since 2.0.0
+         */
+        public SessionConnectorsReconcileParams build() {
+            if (accountId == null) throw new IllegalStateException("Missing required property: accountId");
+            return new SessionConnectorsReconcileParams(sessionId, accountId, refreshCatalog);
+        }
+    }
 }

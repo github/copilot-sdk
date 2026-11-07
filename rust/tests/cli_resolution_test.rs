@@ -28,6 +28,10 @@ use serial_test::serial;
 #[path = "../src/platform_dirs/mod.rs"]
 mod platform_dirs;
 
+#[cfg(all(not(feature = "bundled-cli"), has_extracted_cli))]
+#[path = "../src/cache_paths.rs"]
+mod cache_paths;
+
 fn unset_env(key: &str) {
     // SAFETY: these tests are serialized with #[serial(copilot_cli_path)]
     // so no other test in this binary mutates COPILOT_CLI_PATH while
@@ -119,12 +123,13 @@ async fn stale_env_override_falls_through() {
 }
 
 /// With `bundled-cli` off, `build.rs` extracts the runtime wrapper into the
-/// per-user cache and the runtime resolver recomputes its location from
+/// protected cache and the runtime resolver recomputes its location from
 /// `COPILOT_SDK_CLI_CACHE_ID` + the OS-derived binary name. This test
 /// mirrors that convention and asserts the file is on disk where the
 /// resolver expects to find it.
 #[cfg(all(not(feature = "bundled-cli"), has_extracted_cli))]
 #[test]
+#[serial(copilot_cli_path)]
 fn extracted_binary_present_at_conventional_path() {
     let cache_identity = env!("COPILOT_SDK_CLI_CACHE_ID");
     let binary = if cfg!(windows) {
@@ -132,29 +137,14 @@ fn extracted_binary_present_at_conventional_path() {
     } else {
         "copilot-runtime"
     };
-    let sanitized = sanitize_cache_identity_for_test(cache_identity);
-    let path = platform_dirs::cache_dir()
-        .unwrap_or_else(std::env::temp_dir)
-        .join("github-copilot-sdk")
-        .join("runtime")
-        .join(sanitized)
+    let path = cache_paths::extracted_runtime_install_dir(cache_identity)
+        .expect("protected extraction directory")
         .join(binary);
     assert!(
         path.is_file(),
         "expected build.rs to extract the CLI to {} (`bundled-cli` off)",
         path.display()
     );
-}
-
-#[cfg(all(not(feature = "bundled-cli"), has_extracted_cli))]
-fn sanitize_cache_identity_for_test(cache_identity: &str) -> String {
-    cache_identity
-        .chars()
-        .map(|c| match c {
-            'a'..='z' | 'A'..='Z' | '0'..='9' | '.' | '-' | '_' => c,
-            _ => '_',
-        })
-        .collect()
 }
 
 /// With `bundled-cli` off, the resolver locates the build-time-extracted

@@ -40,4 +40,135 @@ record RuntimeLifecycleSystemStateData(
     /** Complete active operation set after applying the change. */
     @JsonProperty("activeOperations") List<RuntimeLifecycleOperation> activeOperations
 ) {
+
+    /**
+     * Creates a record positionally.
+     * @deprecated Use {@link #builder()} for named construction.
+     */
+    @Deprecated(since = "2.0.0", forRemoval = false)
+    RuntimeLifecycleSystemStateData {}
+
+    /**
+     * Returns a named builder.
+     * @return a new builder
+     * @since 2.0.0
+     */
+    @com.github.copilot.CopilotExperimental
+    public static Builder builder() { return new Builder(); }
+
+    /**
+     * Named construction for this record.
+     * @since 2.0.0
+     */
+    @com.github.copilot.CopilotExperimental
+    public static final class Builder {
+        private Builder() {}
+        private String sessionId;
+        private String incarnationId;
+        private String system;
+        private Long systemRevision;
+        private String condition;
+        private RuntimeLifecycleOperation changedOperation;
+        private List<RuntimeLifecycleOperation> activeOperations;
+
+        /**
+         * Sets the {@code sessionId} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        @com.github.copilot.CopilotExperimental
+        public Builder sessionId(String value) {
+            this.sessionId = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code incarnationId} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        @com.github.copilot.CopilotExperimental
+        public Builder incarnationId(String value) {
+            this.incarnationId = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code system} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        @com.github.copilot.CopilotExperimental
+        public Builder system(String value) {
+            this.system = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code systemRevision} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        @com.github.copilot.CopilotExperimental
+        public Builder systemRevision(Long value) {
+            this.systemRevision = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code condition} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        @com.github.copilot.CopilotExperimental
+        public Builder condition(String value) {
+            this.condition = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code changedOperation} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        @com.github.copilot.CopilotExperimental
+        public Builder changedOperation(RuntimeLifecycleOperation value) {
+            this.changedOperation = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code activeOperations} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        @com.github.copilot.CopilotExperimental
+        public Builder activeOperations(List<RuntimeLifecycleOperation> value) {
+            this.activeOperations = value;
+            return this;
+        }
+
+        /**
+         * Builds a record after checking required property presence.
+         * @return a new record
+         * @throws IllegalStateException if a required property is missing
+         * @since 2.0.0
+         */
+        public RuntimeLifecycleSystemStateData build() {
+            if (sessionId == null) throw new IllegalStateException("Missing required property: sessionId");
+            if (incarnationId == null) throw new IllegalStateException("Missing required property: incarnationId");
+            if (system == null) throw new IllegalStateException("Missing required property: system");
+            if (systemRevision == null) throw new IllegalStateException("Missing required property: systemRevision");
+            if (changedOperation == null) throw new IllegalStateException("Missing required property: changedOperation");
+            if (activeOperations == null) throw new IllegalStateException("Missing required property: activeOperations");
+            return new RuntimeLifecycleSystemStateData(sessionId, incarnationId, system, systemRevision, condition, changedOperation, activeOperations);
+        }
+    }
 }

@@ -35,4 +35,99 @@ public record SessionHistoryCompactResult(
     /** Post-compaction context window usage breakdown */
     @JsonProperty("contextWindow") HistoryCompactContextWindow contextWindow
 ) {
+
+    /**
+     * Creates a record positionally.
+     * @deprecated Use {@link #builder()} for named construction.
+     */
+    @Deprecated(since = "2.0.0", forRemoval = false)
+    public SessionHistoryCompactResult {}
+
+    /**
+     * Returns a named builder.
+     * @return a new builder
+     * @since 2.0.0
+     */
+    public static Builder builder() { return new Builder(); }
+
+    /**
+     * Named construction for this record.
+     * @since 2.0.0
+     */
+    public static final class Builder {
+        private Builder() {}
+        private Boolean success;
+        private Long tokensRemoved;
+        private Long messagesRemoved;
+        private String summaryContent;
+        private HistoryCompactContextWindow contextWindow;
+
+        /**
+         * Sets the {@code success} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder success(Boolean value) {
+            this.success = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code tokensRemoved} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder tokensRemoved(Long value) {
+            this.tokensRemoved = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code messagesRemoved} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder messagesRemoved(Long value) {
+            this.messagesRemoved = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code summaryContent} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder summaryContent(String value) {
+            this.summaryContent = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code contextWindow} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder contextWindow(HistoryCompactContextWindow value) {
+            this.contextWindow = value;
+            return this;
+        }
+
+        /**
+         * Builds a record after checking required property presence.
+         * @return a new record
+         * @throws IllegalStateException if a required property is missing
+         * @since 2.0.0
+         */
+        public SessionHistoryCompactResult build() {
+            if (success == null) throw new IllegalStateException("Missing required property: success");
+            if (tokensRemoved == null) throw new IllegalStateException("Missing required property: tokensRemoved");
+            if (messagesRemoved == null) throw new IllegalStateException("Missing required property: messagesRemoved");
+            return new SessionHistoryCompactResult(success, tokensRemoved, messagesRemoved, summaryContent, contextWindow);
+        }
+    }
 }

@@ -34,4 +34,90 @@ public record WorkflowAgentContextObservation(
     /** Full context-window capacity resolved for the initialized child session. */
     @JsonProperty("maxContextWindowTokens") Long maxContextWindowTokens
 ) {
+
+    /**
+     * Creates a record positionally.
+     * @deprecated Use {@link #builder()} for named construction.
+     */
+    @Deprecated(since = "2.0.0", forRemoval = false)
+    public WorkflowAgentContextObservation {}
+
+    /**
+     * Returns a named builder.
+     * @return a new builder
+     * @since 2.0.0
+     */
+    @com.github.copilot.CopilotExperimental
+    public static Builder builder() { return new Builder(); }
+
+    /**
+     * Named construction for this record.
+     * @since 2.0.0
+     */
+    @com.github.copilot.CopilotExperimental
+    public static final class Builder {
+        private Builder() {}
+        private ContextTier requestedTier;
+        private String resolvedTier;
+        private Long promptTokenLimit;
+        private Long maxContextWindowTokens;
+
+        /**
+         * Sets the {@code requestedTier} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        @com.github.copilot.CopilotExperimental
+        public Builder requestedTier(ContextTier value) {
+            this.requestedTier = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code resolvedTier} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        @com.github.copilot.CopilotExperimental
+        public Builder resolvedTier(String value) {
+            this.resolvedTier = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code promptTokenLimit} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        @com.github.copilot.CopilotExperimental
+        public Builder promptTokenLimit(Long value) {
+            this.promptTokenLimit = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code maxContextWindowTokens} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        @com.github.copilot.CopilotExperimental
+        public Builder maxContextWindowTokens(Long value) {
+            this.maxContextWindowTokens = value;
+            return this;
+        }
+
+        /**
+         * Builds a record after checking required property presence.
+         * @return a new record
+         * @throws IllegalStateException if a required property is missing
+         * @since 2.0.0
+         */
+        public WorkflowAgentContextObservation build() {
+            return new WorkflowAgentContextObservation(requestedTier, resolvedTier, promptTokenLimit, maxContextWindowTokens);
+        }
+    }
 }

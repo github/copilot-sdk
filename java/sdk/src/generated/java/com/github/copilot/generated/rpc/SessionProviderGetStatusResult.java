@@ -27,4 +27,52 @@ public record SessionProviderGetStatusResult(
     /** Whether the selected model uses a custom provider instead of requiring GitHub authentication. */
     @JsonProperty("hasCustomProvider") Boolean hasCustomProvider
 ) {
+
+    /**
+     * Creates a record positionally.
+     * @deprecated Use {@link #builder()} for named construction.
+     */
+    @Deprecated(since = "2.0.0", forRemoval = false)
+    public SessionProviderGetStatusResult {}
+
+    /**
+     * Returns a named builder.
+     * @return a new builder
+     * @since 2.0.0
+     */
+    @com.github.copilot.CopilotExperimental
+    public static Builder builder() { return new Builder(); }
+
+    /**
+     * Named construction for this record.
+     * @since 2.0.0
+     */
+    @com.github.copilot.CopilotExperimental
+    public static final class Builder {
+        private Builder() {}
+        private Boolean hasCustomProvider;
+
+        /**
+         * Sets the {@code hasCustomProvider} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        @com.github.copilot.CopilotExperimental
+        public Builder hasCustomProvider(Boolean value) {
+            this.hasCustomProvider = value;
+            return this;
+        }
+
+        /**
+         * Builds a record after checking required property presence.
+         * @return a new record
+         * @throws IllegalStateException if a required property is missing
+         * @since 2.0.0
+         */
+        public SessionProviderGetStatusResult build() {
+            if (hasCustomProvider == null) throw new IllegalStateException("Missing required property: hasCustomProvider");
+            return new SessionProviderGetStatusResult(hasCustomProvider);
+        }
+    }
 }

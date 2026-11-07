@@ -33,4 +33,87 @@ public record SessionFsSetProviderParams(
     /** Optional capabilities declared by the provider */
     @JsonProperty("capabilities") SessionFsSetProviderCapabilities capabilities
 ) {
+
+    /**
+     * Creates a record positionally.
+     * @deprecated Use {@link #builder()} for named construction.
+     */
+    @Deprecated(since = "2.0.0", forRemoval = false)
+    public SessionFsSetProviderParams {}
+
+    /**
+     * Returns a named builder.
+     * @return a new builder
+     * @since 2.0.0
+     */
+    public static Builder builder() { return new Builder(); }
+
+    /**
+     * Named construction for this record.
+     * @since 2.0.0
+     */
+    public static final class Builder {
+        private Builder() {}
+        private String initialCwd;
+        private String sessionStatePath;
+        private SessionFsSetProviderConventions conventions;
+        private SessionFsSetProviderCapabilities capabilities;
+
+        /**
+         * Sets the {@code initialCwd} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder initialCwd(String value) {
+            this.initialCwd = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code sessionStatePath} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder sessionStatePath(String value) {
+            this.sessionStatePath = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code conventions} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder conventions(SessionFsSetProviderConventions value) {
+            this.conventions = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code capabilities} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder capabilities(SessionFsSetProviderCapabilities value) {
+            this.capabilities = value;
+            return this;
+        }
+
+        /**
+         * Builds a record after checking required property presence.
+         * @return a new record
+         * @throws IllegalStateException if a required property is missing
+         * @since 2.0.0
+         */
+        public SessionFsSetProviderParams build() {
+            if (initialCwd == null) throw new IllegalStateException("Missing required property: initialCwd");
+            if (sessionStatePath == null) throw new IllegalStateException("Missing required property: sessionStatePath");
+            if (conventions == null) throw new IllegalStateException("Missing required property: conventions");
+            return new SessionFsSetProviderParams(initialCwd, sessionStatePath, conventions, capabilities);
+        }
+    }
 }

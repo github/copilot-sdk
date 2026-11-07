@@ -28,4 +28,49 @@ public record InstructionsDiscoverResult(
     /** All discovered instruction sources */
     @JsonProperty("sources") List<InstructionSource> sources
 ) {
+
+    /**
+     * Creates a record positionally.
+     * @deprecated Use {@link #builder()} for named construction.
+     */
+    @Deprecated(since = "2.0.0", forRemoval = false)
+    public InstructionsDiscoverResult {}
+
+    /**
+     * Returns a named builder.
+     * @return a new builder
+     * @since 2.0.0
+     */
+    public static Builder builder() { return new Builder(); }
+
+    /**
+     * Named construction for this record.
+     * @since 2.0.0
+     */
+    public static final class Builder {
+        private Builder() {}
+        private List<InstructionSource> sources;
+
+        /**
+         * Sets the {@code sources} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder sources(List<InstructionSource> value) {
+            this.sources = value;
+            return this;
+        }
+
+        /**
+         * Builds a record after checking required property presence.
+         * @return a new record
+         * @throws IllegalStateException if a required property is missing
+         * @since 2.0.0
+         */
+        public InstructionsDiscoverResult build() {
+            if (sources == null) throw new IllegalStateException("Missing required property: sources");
+            return new InstructionsDiscoverResult(sources);
+        }
+    }
 }

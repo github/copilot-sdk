@@ -34,4 +34,85 @@ public record SessionsPruneOldParams(
     /** Session IDs that should never be considered for pruning */
     @JsonProperty("excludeSessionIds") List<String> excludeSessionIds
 ) {
+
+    /**
+     * Creates a record positionally.
+     * @deprecated Use {@link #builder()} for named construction.
+     */
+    @Deprecated(since = "2.0.0", forRemoval = false)
+    public SessionsPruneOldParams {}
+
+    /**
+     * Returns a named builder.
+     * @return a new builder
+     * @since 2.0.0
+     */
+    public static Builder builder() { return new Builder(); }
+
+    /**
+     * Named construction for this record.
+     * @since 2.0.0
+     */
+    public static final class Builder {
+        private Builder() {}
+        private Long olderThanDays;
+        private Boolean dryRun;
+        private Boolean includeNamed;
+        private List<String> excludeSessionIds;
+
+        /**
+         * Sets the {@code olderThanDays} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder olderThanDays(Long value) {
+            this.olderThanDays = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code dryRun} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder dryRun(Boolean value) {
+            this.dryRun = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code includeNamed} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder includeNamed(Boolean value) {
+            this.includeNamed = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code excludeSessionIds} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder excludeSessionIds(List<String> value) {
+            this.excludeSessionIds = value;
+            return this;
+        }
+
+        /**
+         * Builds a record after checking required property presence.
+         * @return a new record
+         * @throws IllegalStateException if a required property is missing
+         * @since 2.0.0
+         */
+        public SessionsPruneOldParams build() {
+            if (olderThanDays == null) throw new IllegalStateException("Missing required property: olderThanDays");
+            return new SessionsPruneOldParams(olderThanDays, dryRun, includeNamed, excludeSessionIds);
+        }
+    }
 }

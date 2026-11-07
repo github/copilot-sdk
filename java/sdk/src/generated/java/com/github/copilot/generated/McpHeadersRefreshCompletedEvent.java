@@ -39,5 +39,63 @@ public final class McpHeadersRefreshCompletedEvent extends SessionEvent {
         /** How the pending MCP headers refresh request resolved. */
         @JsonProperty("outcome") McpHeadersRefreshCompletedOutcome outcome
     ) {
+
+        /**
+         * Creates a record positionally.
+         * @deprecated Use {@link #builder()} for named construction.
+         */
+        @Deprecated(since = "2.0.0", forRemoval = false)
+        public McpHeadersRefreshCompletedEventData {}
+
+        /**
+         * Returns a named builder.
+         * @return a new builder
+         * @since 2.0.0
+         */
+        public static Builder builder() { return new Builder(); }
+
+        /**
+         * Named construction for this record.
+         * @since 2.0.0
+         */
+        public static final class Builder {
+            private Builder() {}
+            private String requestId;
+            private McpHeadersRefreshCompletedOutcome outcome;
+
+            /**
+             * Sets the {@code requestId} property.
+             * @param value the property value
+             * @return this builder
+             * @since 2.0.0
+             */
+            public Builder requestId(String value) {
+                this.requestId = value;
+                return this;
+            }
+
+            /**
+             * Sets the {@code outcome} property.
+             * @param value the property value
+             * @return this builder
+             * @since 2.0.0
+             */
+            public Builder outcome(McpHeadersRefreshCompletedOutcome value) {
+                this.outcome = value;
+                return this;
+            }
+
+            /**
+             * Builds a record after checking required property presence.
+             * @return a new record
+             * @throws IllegalStateException if a required property is missing
+             * @since 2.0.0
+             */
+            public McpHeadersRefreshCompletedEventData build() {
+                if (requestId == null) throw new IllegalStateException("Missing required property: requestId");
+                if (outcome == null) throw new IllegalStateException("Missing required property: outcome");
+                return new McpHeadersRefreshCompletedEventData(requestId, outcome);
+            }
+        }
     }
 }

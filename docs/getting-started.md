@@ -1965,15 +1965,16 @@ copilot --headless --port 4321
 
 If you don't specify a port, the CLI will choose a random available port.
 
-By default the headless server only accepts connections from loopback (`127.0.0.1`), so the SDK must run on the same machine. To accept connections from other hosts (for example when running the CLI in a container or on a separate server), bind to a non-loopback address with `--host`:
+By default the headless server only accepts connections from loopback (`127.0.0.1`), so the SDK must run on the same machine. To accept connections from other hosts (for example when running the CLI in a container or on a separate server), bind to a non-loopback address with `--host`. A non-loopback bind requires a connection token, or the server refuses to start:
 
 ```bash
-# Listen on all interfaces
+# Listen on all interfaces; set a shared secret the clients will send
+export COPILOT_CONNECTION_TOKEN="$(openssl rand -hex 32)"
 copilot --headless --host 0.0.0.0 --port 4321
 ```
 
 > [!WARNING]
-> Exposing the headless server on a non-loopback address makes it reachable by anyone who can route to that address. Pair it with network controls (firewall, private network, reverse proxy) and authentication appropriate for your environment.
+> Exposing the headless server on a non-loopback address makes it reachable by anyone who can route to that address. The server requires `COPILOT_CONNECTION_TOKEN` to be set to a non-empty value for a non-loopback bind, and clients must send the same value as `connectionToken`; still pair it with network controls (firewall, private network, reverse proxy) appropriate for your environment.
 
 The connection carries plaintext JSON-RPC over TCP, not HTTP or TLS. Node.js, Python, Go, .NET, and Java reject `https://`; `http://` is an address alias. Connection tokens do not encrypt traffic, so confidentiality requires an encrypted tunnel or equivalent application-managed protection.
 

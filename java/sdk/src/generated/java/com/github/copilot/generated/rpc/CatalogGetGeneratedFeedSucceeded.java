@@ -56,4 +56,87 @@ public final class CatalogGetGeneratedFeedSucceeded extends CatalogResourceGener
 
     public CatalogNegotiatedContract getNegotiated() { return negotiated; }
     public void setNegotiated(CatalogNegotiatedContract negotiated) { this.negotiated = negotiated; }
+
+
+    /**
+     * Returns a named builder.
+     * @return a new builder
+     * @since 2.0.0
+     */
+    public static Builder builder() { return new Builder(); }
+
+    /**
+     * Named construction for this record.
+     * @since 2.0.0
+     */
+    public static final class Builder {
+        private Builder() {}
+        private String searchId;
+        private CatalogGeneratedFeedDescription feed;
+        private List<CatalogFeedEntry> entries;
+        private CatalogNegotiatedContract negotiated;
+
+        /**
+         * Sets the {@code searchId} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder searchId(String value) {
+            this.searchId = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code feed} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder feed(CatalogGeneratedFeedDescription value) {
+            this.feed = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code entries} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder entries(List<CatalogFeedEntry> value) {
+            this.entries = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code negotiated} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder negotiated(CatalogNegotiatedContract value) {
+            this.negotiated = value;
+            return this;
+        }
+
+        /**
+         * Builds a variant after checking required property presence.
+         * @return a new variant
+         * @throws IllegalStateException if a required property is missing
+         * @since 2.0.0
+         */
+        public CatalogGetGeneratedFeedSucceeded build() {
+            if (searchId == null) throw new IllegalStateException("Missing required property: searchId");
+            if (feed == null) throw new IllegalStateException("Missing required property: feed");
+            if (entries == null) throw new IllegalStateException("Missing required property: entries");
+            if (negotiated == null) throw new IllegalStateException("Missing required property: negotiated");
+            CatalogGetGeneratedFeedSucceeded instance = new CatalogGetGeneratedFeedSucceeded();
+            instance.setSearchId(searchId);
+            instance.setFeed(feed);
+            instance.setEntries(entries);
+            instance.setNegotiated(negotiated);
+            return instance;
+        }
+    }
 }

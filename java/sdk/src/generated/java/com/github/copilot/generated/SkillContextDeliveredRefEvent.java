@@ -50,5 +50,101 @@ public final class SkillContextDeliveredRefEvent extends SessionEvent {
         /** Interaction that delivered this context, when known */
         @JsonProperty("interactionId") String interactionId
     ) {
+
+        /**
+         * Creates a record positionally.
+         * @deprecated Use {@link #builder()} for named construction.
+         */
+        @Deprecated(since = "2.0.0", forRemoval = false)
+        public SkillContextDeliveredRefEventData {}
+
+        /**
+         * Returns a named builder.
+         * @return a new builder
+         * @since 2.0.0
+         */
+        @com.github.copilot.CopilotExperimental
+        public static Builder builder() { return new Builder(); }
+
+        /**
+         * Named construction for this record.
+         * @since 2.0.0
+         */
+        @com.github.copilot.CopilotExperimental
+        public static final class Builder {
+            private Builder() {}
+            private String contentId;
+            private String prefix;
+            private String suffix;
+            private String source;
+            private String interactionId;
+
+            /**
+             * Sets the {@code contentId} property.
+             * @param value the property value
+             * @return this builder
+             * @since 2.0.0
+             */
+            public Builder contentId(String value) {
+                this.contentId = value;
+                return this;
+            }
+
+            /**
+             * Sets the {@code prefix} property.
+             * @param value the property value
+             * @return this builder
+             * @since 2.0.0
+             */
+            public Builder prefix(String value) {
+                this.prefix = value;
+                return this;
+            }
+
+            /**
+             * Sets the {@code suffix} property.
+             * @param value the property value
+             * @return this builder
+             * @since 2.0.0
+             */
+            public Builder suffix(String value) {
+                this.suffix = value;
+                return this;
+            }
+
+            /**
+             * Sets the {@code source} property.
+             * @param value the property value
+             * @return this builder
+             * @since 2.0.0
+             */
+            public Builder source(String value) {
+                this.source = value;
+                return this;
+            }
+
+            /**
+             * Sets the {@code interactionId} property.
+             * @param value the property value
+             * @return this builder
+             * @since 2.0.0
+             */
+            public Builder interactionId(String value) {
+                this.interactionId = value;
+                return this;
+            }
+
+            /**
+             * Builds a record after checking required property presence.
+             * @return a new record
+             * @throws IllegalStateException if a required property is missing
+             * @since 2.0.0
+             */
+            public SkillContextDeliveredRefEventData build() {
+                if (contentId == null) throw new IllegalStateException("Missing required property: contentId");
+                if (source == null) throw new IllegalStateException("Missing required property: source");
+                return new SkillContextDeliveredRefEventData(contentId, prefix, suffix, source, interactionId);
+            }
+        }
     }
 }

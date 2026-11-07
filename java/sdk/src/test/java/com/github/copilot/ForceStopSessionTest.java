@@ -60,6 +60,143 @@ class ForceStopSessionTest {
     public record Answer(int value) {
     }
 
+    @ParameterizedTest
+    @ValueSource(booleans = {false, true})
+    void shutdownReturnsItsFutureWhileInlineStartupWaitsForConnect(boolean force) throws Exception {
+        var callers = Executors.newFixedThreadPool(2);
+        try (var server = new Server(); var client = server.createClient(Runnable::run)) {
+            server.holdConnect = true;
+            var starting = callers.submit(client::start);
+            var connect = server.heldConnects.poll(5, TimeUnit.SECONDS);
+            assertNotNull(connect, "Inline startup must be waiting for the connect response");
+            boolean connectReleased = false;
+            try {
+                var shutdown = callers.submit(() -> force ? client.forceStop() : client.stop());
+                var stopping = shutdown.get(2, TimeUnit.SECONDS);
+                if (!force) {
+                    server.completeConnect(connect);
+                    connectReleased = true;
+                    starting.get(5, TimeUnit.SECONDS).get(5, TimeUnit.SECONDS);
+                } else {
+                    assertThrows(ExecutionException.class,
+                            () -> starting.get(5, TimeUnit.SECONDS).get(5, TimeUnit.SECONDS));
+                }
+                stopping.get(5, TimeUnit.SECONDS);
+            } finally {
+                if (!connectReleased && !starting.isDone()) {
+                    try {
+                        server.completeConnect(connect);
+                    } catch (IOException error) {
+                        if (!server.peerClosed.await(5, TimeUnit.SECONDS)) {
+                            throw error;
+                        }
+                    }
+                }
+            }
+        } finally {
+            callers.shutdownNow();
+            assertTrue(callers.awaitTermination(5, TimeUnit.SECONDS), "The owned startup callers must stop");
+        }
+    }
+
+    @Test
+    void implicitInlineStartupReturnsItsFailureWhenForceStopped() throws Exception {
+        var caller = Executors.newSingleThreadExecutor();
+        try (var server = new Server(); var client = server.createClient(Runnable::run)) {
+            server.holdConnect = true;
+            var creating = caller.submit(() -> client
+                    .createSession(new SessionConfig().setOnPermissionRequest(PermissionHandler.APPROVE_ALL)));
+            assertNotNull(server.heldConnects.poll(5, TimeUnit.SECONDS),
+                    "Implicit startup must be waiting for the connect response");
+
+            client.forceStop().get(5, TimeUnit.SECONDS);
+
+            var result = creating.get(5, TimeUnit.SECONDS);
+            assertThrows(ExecutionException.class, () -> result.get(5, TimeUnit.SECONDS));
+        } finally {
+            caller.shutdownNow();
+            assertTrue(caller.awaitTermination(5, TimeUnit.SECONDS), "The owned startup caller must stop");
+        }
+    }
+
+    @Test
+    void concurrentFailedResumesDuringGracefulStopRetireDisplacedWaits() throws Exception {
+        try (var server = new Server(); var client = server.createClient()) {
+            var resident = createSession(client);
+            var waiting = resident.sendAndWait(new MessageOptions().setPrompt("pending response"), 0);
+            assertNotNull(server.sends.poll(5, TimeUnit.SECONDS), "The legacy wait must be admitted");
+            client.ping("send acknowledgement barrier").get(5, TimeUnit.SECONDS);
+            server.holdResume = true;
+            var config = new ResumeSessionConfig().setOnPermissionRequest(PermissionHandler.APPROVE_ALL);
+            var first = client.resumeSession(resident.getSessionId(), config);
+            var firstRequest = server.heldResumes.poll(5, TimeUnit.SECONDS);
+            assertNotNull(firstRequest, "The first resume must be admitted");
+            var second = client.resumeSession(resident.getSessionId(), config);
+            var secondRequest = server.heldResumes.poll(5, TimeUnit.SECONDS);
+            assertNotNull(secondRequest, "The second resume must be admitted");
+            server.holdDetachResponse = true;
+            var stopping = client.stop();
+            var detach = server.heldDetaches.poll(5, TimeUnit.SECONDS);
+            assertNotNull(detach, "Graceful stop must be draining the second provisional session");
+            try {
+                for (var request : List.of(firstRequest, secondRequest)) {
+                    server.writeMessage(Map.of("jsonrpc", "2.0", "id", request.get("id"), "error",
+                            Map.of("code", -32603, "message", "controlled resume rejection")));
+                    var resuming = request == firstRequest ? first : second;
+                    assertThrows(ExecutionException.class, () -> resuming.get(5, TimeUnit.SECONDS));
+                }
+            } finally {
+                server.completeDetach(detach, "success");
+                stopping.get(CopilotSession.DETACH_TIMEOUT_SECONDS + 3, TimeUnit.SECONDS);
+            }
+
+            var error = assertThrows(ExecutionException.class, () -> waiting.get(5, TimeUnit.SECONDS));
+            assertEquals("Session closed before response completed", error.getCause().getMessage());
+            assertThrows(IllegalStateException.class, () -> resident.on(event -> {
+            }));
+        }
+    }
+
+    @Test
+    void failedResumeDuringGracefulStopPreservesResidentCallbacksUntilDetachCompletes() throws Exception {
+        var events = new AtomicInteger();
+        var hooks = new AtomicInteger();
+        try (var server = new Server(); var client = server.createClient()) {
+            var resident = client
+                    .createSession(new SessionConfig().setOnPermissionRequest(PermissionHandler.APPROVE_ALL)
+                            .setHooks(new SessionHooks().setOnSessionEnd((input, invocation) -> {
+                                hooks.incrementAndGet();
+                                return CompletableFuture.completedFuture(null);
+                            })))
+                    .get(5, TimeUnit.SECONDS);
+            try (var subscription = resident.on(event -> events.incrementAndGet())) {
+                server.holdResume = true;
+                var resuming = client.resumeSession(resident.getSessionId(),
+                        new ResumeSessionConfig().setOnPermissionRequest(PermissionHandler.APPROVE_ALL));
+                var resume = server.heldResumes.poll(5, TimeUnit.SECONDS);
+                assertNotNull(resume, "Warm resume must be pending before stop");
+                server.holdDetachResponse = true;
+                var stopping = client.stop();
+                var detach = server.heldDetaches.poll(5, TimeUnit.SECONDS);
+                assertNotNull(detach, "Graceful stop must be draining the provisional session");
+                try {
+                    server.writeMessage(Map.of("jsonrpc", "2.0", "id", resume.get("id"), "error",
+                            Map.of("code", -32603, "message", "controlled resume rejection")));
+                    assertThrows(ExecutionException.class, () -> resuming.get(5, TimeUnit.SECONDS));
+                    server.emitIdle(resident.getSessionId());
+                    client.ping("failed resume callback barrier").get(5, TimeUnit.SECONDS);
+                    assertEquals(1, events.get(), "The resident must receive terminal events while detach drains");
+                    server.invokeSessionEnd(resident.getSessionId());
+                    assertEquals(1, hooks.get(), "The resident's session-end hook must remain routed");
+                } finally {
+                    server.completeDetach(detach, "success");
+                    stopping.get(CopilotSession.DETACH_TIMEOUT_SECONDS + 3, TimeUnit.SECONDS);
+                }
+                assertThrows(IllegalStateException.class, () -> resident.send("after stop"));
+            }
+        }
+    }
+
     @Test
     void gracefulClosePreservesEventsAndSessionEndHooksUntilDetachCompletes() throws Exception {
         var events = new AtomicInteger();
@@ -1092,6 +1229,7 @@ class ForceStopSessionTest {
         private final java.util.concurrent.BlockingQueue<JsonNode> creates = new java.util.concurrent.LinkedBlockingQueue<>();
         private final java.util.concurrent.BlockingQueue<JsonNode> heldPings = new java.util.concurrent.LinkedBlockingQueue<>();
         private final java.util.concurrent.BlockingQueue<JsonNode> heldResumes = new java.util.concurrent.LinkedBlockingQueue<>();
+        private final java.util.concurrent.BlockingQueue<JsonNode> heldConnects = new java.util.concurrent.LinkedBlockingQueue<>();
         private final java.util.concurrent.BlockingQueue<JsonNode> toolReplies = new java.util.concurrent.LinkedBlockingQueue<>();
         private volatile Socket socket;
         private volatile boolean closed;
@@ -1101,6 +1239,7 @@ class ForceStopSessionTest {
         private volatile boolean completionSupported;
         private volatile boolean holdPing;
         private volatile boolean holdResume;
+        private volatile boolean holdConnect;
         private volatile boolean holdToolReplies;
         private final java.util.concurrent.BlockingQueue<JsonNode> completions = new java.util.concurrent.LinkedBlockingQueue<>();
         private final java.util.concurrent.BlockingQueue<JsonNode> cancellations = new java.util.concurrent.LinkedBlockingQueue<>();
@@ -1130,6 +1269,11 @@ class ForceStopSessionTest {
 
         void emitIdle(String sessionId) throws IOException {
             emitEvent(sessionId, "session.idle", Map.of());
+        }
+
+        void completeConnect(JsonNode request) throws IOException {
+            writeMessage(Map.of("jsonrpc", "2.0", "id", request.get("id"), "result",
+                    Map.of("protocolVersion", SdkProtocolVersion.get())));
         }
 
         void completeDetach(JsonNode request, String outcome) throws IOException {
@@ -1206,6 +1350,10 @@ class ForceStopSessionTest {
                     }
                     if (request.path("method").asText().equals("$/cancelRequest")) {
                         cancellations.add(params.get("id"));
+                        continue;
+                    }
+                    if (holdConnect && request.path("method").asText().equals("connect")) {
+                        heldConnects.add(request);
                         continue;
                     }
                     if (holdResumeResponse && request.path("method").asText().equals("session.resume")) {

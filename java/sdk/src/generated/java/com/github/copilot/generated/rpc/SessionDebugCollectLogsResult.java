@@ -34,4 +34,87 @@ public record SessionDebugCollectLogsResult(
     /** Optional files or directories that could not be included. */
     @JsonProperty("skippedEntries") List<DebugCollectLogsSkippedEntry> skippedEntries
 ) {
+
+    /**
+     * Creates a record positionally.
+     * @deprecated Use {@link #builder()} for named construction.
+     */
+    @Deprecated(since = "2.0.0", forRemoval = false)
+    public SessionDebugCollectLogsResult {}
+
+    /**
+     * Returns a named builder.
+     * @return a new builder
+     * @since 2.0.0
+     */
+    public static Builder builder() { return new Builder(); }
+
+    /**
+     * Named construction for this record.
+     * @since 2.0.0
+     */
+    public static final class Builder {
+        private Builder() {}
+        private DebugCollectLogsResultKind kind;
+        private String path;
+        private List<DebugCollectLogsCollectedEntry> entries;
+        private List<DebugCollectLogsSkippedEntry> skippedEntries;
+
+        /**
+         * Sets the {@code kind} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder kind(DebugCollectLogsResultKind value) {
+            this.kind = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code path} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder path(String value) {
+            this.path = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code entries} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder entries(List<DebugCollectLogsCollectedEntry> value) {
+            this.entries = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code skippedEntries} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder skippedEntries(List<DebugCollectLogsSkippedEntry> value) {
+            this.skippedEntries = value;
+            return this;
+        }
+
+        /**
+         * Builds a record after checking required property presence.
+         * @return a new record
+         * @throws IllegalStateException if a required property is missing
+         * @since 2.0.0
+         */
+        public SessionDebugCollectLogsResult build() {
+            if (kind == null) throw new IllegalStateException("Missing required property: kind");
+            if (path == null) throw new IllegalStateException("Missing required property: path");
+            if (entries == null) throw new IllegalStateException("Missing required property: entries");
+            return new SessionDebugCollectLogsResult(kind, path, entries, skippedEntries);
+        }
+    }
 }

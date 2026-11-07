@@ -37,4 +37,109 @@ record SessionMcpOauthStoreKeyParams(
     /** Preserve hostless credential and account selection. */
     @JsonProperty("sessionless") Boolean sessionless
 ) {
+
+    /**
+     * Creates a record positionally.
+     * @deprecated Use {@link #builder()} for named construction.
+     */
+    @Deprecated(since = "2.0.0", forRemoval = false)
+    SessionMcpOauthStoreKeyParams {}
+
+    /**
+     * Returns a named builder.
+     * @return a new builder
+     * @since 2.0.0
+     */
+    public static Builder builder() { return new Builder(); }
+
+    /**
+     * Named construction for this record.
+     * @since 2.0.0
+     */
+    public static final class Builder {
+        private Builder() {}
+        private String sessionId;
+        private String serverUrl;
+        private String clientId;
+        private String clientIdMetadataUrl;
+        private Object store;
+        private Boolean sessionless;
+
+        /**
+         * Sets the {@code sessionId} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder sessionId(String value) {
+            this.sessionId = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code serverUrl} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder serverUrl(String value) {
+            this.serverUrl = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code clientId} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder clientId(String value) {
+            this.clientId = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code clientIdMetadataUrl} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder clientIdMetadataUrl(String value) {
+            this.clientIdMetadataUrl = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code store} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder store(Object value) {
+            this.store = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code sessionless} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder sessionless(Boolean value) {
+            this.sessionless = value;
+            return this;
+        }
+
+        /**
+         * Builds a record after checking required property presence.
+         * @return a new record
+         * @throws IllegalStateException if a required property is missing
+         * @since 2.0.0
+         */
+        public SessionMcpOauthStoreKeyParams build() {
+            if (serverUrl == null) throw new IllegalStateException("Missing required property: serverUrl");
+            return new SessionMcpOauthStoreKeyParams(sessionId, serverUrl, clientId, clientIdMetadataUrl, store, sessionless);
+        }
+    }
 }

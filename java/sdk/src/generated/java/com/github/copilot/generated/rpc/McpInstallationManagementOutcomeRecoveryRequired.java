@@ -26,11 +26,46 @@ public record McpInstallationManagementOutcomeRecoveryRequired(
     /** Installation management outcome discriminator. */
     @JsonProperty("kind") String kind
 ) implements McpInstallationManagementOutcome {
+    /**
+     * Creates this variant positionally and normalizes its discriminator.
+     * @deprecated Use {@link #builder()} for named construction.
+     */
+    @Deprecated(since = "2.0.0", forRemoval = false)
     public McpInstallationManagementOutcomeRecoveryRequired {
         kind = "recovery-required";
     }
 
+    /**
+     * Creates this variant without explicitly supplying its discriminator.
+     * @deprecated Use {@link #builder()} for named construction.
+     */
+    @Deprecated(since = "2.0.0", forRemoval = false)
     public McpInstallationManagementOutcomeRecoveryRequired() {
         this("recovery-required");
+    }
+
+    /**
+     * Returns a named builder.
+     * @return a new builder
+     * @since 2.0.0
+     */
+    public static Builder builder() { return new Builder(); }
+
+    /**
+     * Named construction for this record.
+     * @since 2.0.0
+     */
+    public static final class Builder {
+        private Builder() {}
+
+        /**
+         * Builds a record after checking required property presence.
+         * @return a new record
+         * @throws IllegalStateException if a required property is missing
+         * @since 2.0.0
+         */
+        public McpInstallationManagementOutcomeRecoveryRequired build() {
+            return new McpInstallationManagementOutcomeRecoveryRequired("recovery-required");
+        }
     }
 }

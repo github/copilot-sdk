@@ -40,4 +40,129 @@ public record SessionPermissionsConfigureParams(
     /** If specified, replaces the host-supplied GitHub Content Exclusion policies on the session (combined with natively-discovered policies when evaluating tool/file access). Omit to leave the current policies unchanged. */
     @JsonProperty("additionalContentExclusionPolicies") List<PermissionsConfigureAdditionalContentExclusionPolicy> additionalContentExclusionPolicies
 ) {
+
+    /**
+     * Creates a record positionally.
+     * @deprecated Use {@link #builder()} for named construction.
+     */
+    @Deprecated(since = "2.0.0", forRemoval = false)
+    public SessionPermissionsConfigureParams {}
+
+    /**
+     * Returns a named builder.
+     * @return a new builder
+     * @since 2.0.0
+     */
+    @com.github.copilot.CopilotExperimental
+    public static Builder builder() { return new Builder(); }
+
+    /**
+     * Named construction for this record.
+     * @since 2.0.0
+     */
+    @com.github.copilot.CopilotExperimental
+    public static final class Builder {
+        private Builder() {}
+        private String sessionId;
+        private Boolean approveAllToolPermissionRequests;
+        private Boolean approveAllReadPermissionRequests;
+        private PermissionRulesSet rules;
+        private PermissionPathsConfig paths;
+        private PermissionUrlsConfig urls;
+        private List<PermissionsConfigureAdditionalContentExclusionPolicy> additionalContentExclusionPolicies;
+
+        /**
+         * Sets the {@code sessionId} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        @com.github.copilot.CopilotExperimental
+        public Builder sessionId(String value) {
+            this.sessionId = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code approveAllToolPermissionRequests} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        @com.github.copilot.CopilotExperimental
+        public Builder approveAllToolPermissionRequests(Boolean value) {
+            this.approveAllToolPermissionRequests = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code approveAllReadPermissionRequests} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        @com.github.copilot.CopilotExperimental
+        public Builder approveAllReadPermissionRequests(Boolean value) {
+            this.approveAllReadPermissionRequests = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code rules} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        @com.github.copilot.CopilotExperimental
+        public Builder rules(PermissionRulesSet value) {
+            this.rules = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code paths} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        @com.github.copilot.CopilotExperimental
+        public Builder paths(PermissionPathsConfig value) {
+            this.paths = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code urls} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        @com.github.copilot.CopilotExperimental
+        public Builder urls(PermissionUrlsConfig value) {
+            this.urls = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code additionalContentExclusionPolicies} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        @com.github.copilot.CopilotExperimental
+        public Builder additionalContentExclusionPolicies(List<PermissionsConfigureAdditionalContentExclusionPolicy> value) {
+            this.additionalContentExclusionPolicies = value;
+            return this;
+        }
+
+        /**
+         * Builds a record after checking required property presence.
+         * @return a new record
+         * @throws IllegalStateException if a required property is missing
+         * @since 2.0.0
+         */
+        public SessionPermissionsConfigureParams build() {
+            return new SessionPermissionsConfigureParams(sessionId, approveAllToolPermissionRequests, approveAllReadPermissionRequests, rules, paths, urls, additionalContentExclusionPolicies);
+        }
+    }
 }

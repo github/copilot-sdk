@@ -48,4 +48,181 @@ public record QueueInsertMessage(
     /** Accepted for internal SendOptions compatibility but ignored; delivery is derived from current session activity. */
     @JsonProperty("delivery") String delivery
 ) {
+
+    /**
+     * Creates a record positionally.
+     * @deprecated Use {@link #builder()} for named construction.
+     */
+    @Deprecated(since = "2.0.0", forRemoval = false)
+    public QueueInsertMessage {}
+
+    /**
+     * Returns a named builder.
+     * @return a new builder
+     * @since 2.0.0
+     */
+    public static Builder builder() { return new Builder(); }
+
+    /**
+     * Named construction for this record.
+     * @since 2.0.0
+     */
+    public static final class Builder {
+        private Builder() {}
+        private String prompt;
+        private String displayPrompt;
+        private List<Object> attachments;
+        private SendAgentMode agentMode;
+        private String source;
+        private Boolean billable;
+        private String requiredTool;
+        private Map<String, String> requestHeaders;
+        private SendMode mode;
+        private Boolean prepend;
+        private Boolean wait_;
+        private String delivery;
+
+        /**
+         * Sets the {@code prompt} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder prompt(String value) {
+            this.prompt = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code displayPrompt} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder displayPrompt(String value) {
+            this.displayPrompt = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code attachments} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder attachments(List<Object> value) {
+            this.attachments = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code agentMode} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder agentMode(SendAgentMode value) {
+            this.agentMode = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code source} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder source(String value) {
+            this.source = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code billable} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder billable(Boolean value) {
+            this.billable = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code requiredTool} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder requiredTool(String value) {
+            this.requiredTool = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code requestHeaders} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder requestHeaders(Map<String, String> value) {
+            this.requestHeaders = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code mode} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder mode(SendMode value) {
+            this.mode = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code prepend} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder prepend(Boolean value) {
+            this.prepend = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code wait} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder wait_(Boolean value) {
+            this.wait_ = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code delivery} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder delivery(String value) {
+            this.delivery = value;
+            return this;
+        }
+
+        /**
+         * Builds a record after checking required property presence.
+         * @return a new record
+         * @throws IllegalStateException if a required property is missing
+         * @since 2.0.0
+         */
+        public QueueInsertMessage build() {
+            if (prompt == null) throw new IllegalStateException("Missing required property: prompt");
+            return new QueueInsertMessage(prompt, displayPrompt, attachments, agentMode, source, billable, requiredTool, requestHeaders, mode, prepend, wait_, delivery);
+        }
+    }
 }

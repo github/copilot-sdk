@@ -28,4 +28,73 @@ public record SessionLimitsExhaustedResponse(
     /** New absolute max AI Credits when action is 'set'. */
     @JsonProperty("maxAiCredits") Double maxAiCredits
 ) {
+
+    /**
+     * Creates a record positionally.
+     * @deprecated Use {@link #builder()} for named construction.
+     */
+    @Deprecated(since = "2.0.0", forRemoval = false)
+    public SessionLimitsExhaustedResponse {}
+
+    /**
+     * Returns a named builder.
+     * @return a new builder
+     * @since 2.0.0
+     */
+    public static Builder builder() { return new Builder(); }
+
+    /**
+     * Named construction for this record.
+     * @since 2.0.0
+     */
+    public static final class Builder {
+        private Builder() {}
+        private SessionLimitsExhaustedResponseAction action;
+        private Double additionalAiCredits;
+        private Double maxAiCredits;
+
+        /**
+         * Sets the {@code action} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder action(SessionLimitsExhaustedResponseAction value) {
+            this.action = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code additionalAiCredits} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder additionalAiCredits(Double value) {
+            this.additionalAiCredits = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code maxAiCredits} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder maxAiCredits(Double value) {
+            this.maxAiCredits = value;
+            return this;
+        }
+
+        /**
+         * Builds a record after checking required property presence.
+         * @return a new record
+         * @throws IllegalStateException if a required property is missing
+         * @since 2.0.0
+         */
+        public SessionLimitsExhaustedResponse build() {
+            if (action == null) throw new IllegalStateException("Missing required property: action");
+            return new SessionLimitsExhaustedResponse(action, additionalAiCredits, maxAiCredits);
+        }
+    }
 }

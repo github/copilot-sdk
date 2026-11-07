@@ -28,4 +28,52 @@ record QueueBeginDeferredIdleDrainResult(
     /** True when the host should run finishDeferredIdleDrain asynchronously. */
     @JsonProperty("shouldDrain") Boolean shouldDrain
 ) {
+
+    /**
+     * Creates a record positionally.
+     * @deprecated Use {@link #builder()} for named construction.
+     */
+    @Deprecated(since = "2.0.0", forRemoval = false)
+    QueueBeginDeferredIdleDrainResult {}
+
+    /**
+     * Returns a named builder.
+     * @return a new builder
+     * @since 2.0.0
+     */
+    @com.github.copilot.CopilotExperimental
+    public static Builder builder() { return new Builder(); }
+
+    /**
+     * Named construction for this record.
+     * @since 2.0.0
+     */
+    @com.github.copilot.CopilotExperimental
+    public static final class Builder {
+        private Builder() {}
+        private Boolean shouldDrain;
+
+        /**
+         * Sets the {@code shouldDrain} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        @com.github.copilot.CopilotExperimental
+        public Builder shouldDrain(Boolean value) {
+            this.shouldDrain = value;
+            return this;
+        }
+
+        /**
+         * Builds a record after checking required property presence.
+         * @return a new record
+         * @throws IllegalStateException if a required property is missing
+         * @since 2.0.0
+         */
+        public QueueBeginDeferredIdleDrainResult build() {
+            if (shouldDrain == null) throw new IllegalStateException("Missing required property: shouldDrain");
+            return new QueueBeginDeferredIdleDrainResult(shouldDrain);
+        }
+    }
 }

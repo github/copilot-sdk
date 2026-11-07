@@ -45,10 +45,81 @@ This option may change or be removed in a future release. */
 ) {
 
     /**
+     * Creates a record positionally.
+     * @deprecated Use {@link #builder()} for named construction.
+     */
+    @Deprecated(since = "2.0.0", forRemoval = false)
+    public ProtocolImageGenerationOptions {}
+
+    /**
+     * Returns a named builder.
+     * @return a new builder
+     * @since 2.0.0
+     */
+    public static Builder builder() { return new Builder(); }
+
+    /**
+     * Named construction for this record.
+     * @since 2.0.0
+     */
+    public static final class Builder {
+        private Builder() {}
+        private Boolean enabled;
+        private Boolean watermark;
+        private Boolean saveToDisk;
+
+        /**
+         * Sets the {@code enabled} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder enabled(Boolean value) {
+            this.enabled = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code watermark} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        @com.github.copilot.CopilotExperimental
+        public Builder watermark(Boolean value) {
+            this.watermark = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code saveToDisk} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        @com.github.copilot.CopilotExperimental
+        public Builder saveToDisk(Boolean value) {
+            this.saveToDisk = value;
+            return this;
+        }
+
+        /**
+         * Builds a record after checking required property presence.
+         * @return a new record
+         * @throws IllegalStateException if a required property is missing
+         * @since 2.0.0
+         */
+        public ProtocolImageGenerationOptions build() {
+            return new ProtocolImageGenerationOptions(enabled, watermark, saveToDisk);
+        }
+    }
+
+    /**
      * Creates image generation options without an explicit watermark or save preference.
-     *
+     * @deprecated Use named construction via {@link #builder()}.
      * @param enabled Disabled by default for SDK sessions. CAPI model access and permissions still apply.
      */
+    @Deprecated(since = "2.0.0", forRemoval = false)
     public ProtocolImageGenerationOptions(
         Boolean enabled
     ) {
@@ -57,10 +128,11 @@ This option may change or be removed in a future release. */
 
     /**
      * Creates image generation options without an explicit save preference.
-     *
+     * @deprecated Use named construction via {@link #builder()}.
      * @param enabled Disabled by default for SDK sessions. CAPI model access and permissions still apply.
      * @param watermark Experimental. Request a visible "Made with AI" label on generated and edited images. This option may change or be removed in a future release. Overrides the user's imageGenerationWatermark preference for this session; otherwise that preference applies, defaulting to false. Re-supply after a cold resume. Does not enable image generation or enforce enterprise policy.
      */
+    @Deprecated(since = "2.0.0", forRemoval = false)
     public ProtocolImageGenerationOptions(
         Boolean enabled,
         Boolean watermark

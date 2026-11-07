@@ -41,5 +41,75 @@ public final class ModelCallFinalResultEvent extends SessionEvent {
         /** Bounded result of the final attempt */
         @JsonProperty("result") ModelCallFinalResult result
     ) {
+
+        /**
+         * Creates a record positionally.
+         * @deprecated Use {@link #builder()} for named construction.
+         */
+        @Deprecated(since = "2.0.0", forRemoval = false)
+        public ModelCallFinalResultEventData {}
+
+        /**
+         * Returns a named builder.
+         * @return a new builder
+         * @since 2.0.0
+         */
+        public static Builder builder() { return new Builder(); }
+
+        /**
+         * Named construction for this record.
+         * @since 2.0.0
+         */
+        public static final class Builder {
+            private Builder() {}
+            private String model;
+            private Boolean isByok;
+            private ModelCallFinalResult result;
+
+            /**
+             * Sets the {@code model} property.
+             * @param value the property value
+             * @return this builder
+             * @since 2.0.0
+             */
+            public Builder model(String value) {
+                this.model = value;
+                return this;
+            }
+
+            /**
+             * Sets the {@code isByok} property.
+             * @param value the property value
+             * @return this builder
+             * @since 2.0.0
+             */
+            public Builder isByok(Boolean value) {
+                this.isByok = value;
+                return this;
+            }
+
+            /**
+             * Sets the {@code result} property.
+             * @param value the property value
+             * @return this builder
+             * @since 2.0.0
+             */
+            public Builder result(ModelCallFinalResult value) {
+                this.result = value;
+                return this;
+            }
+
+            /**
+             * Builds a record after checking required property presence.
+             * @return a new record
+             * @throws IllegalStateException if a required property is missing
+             * @since 2.0.0
+             */
+            public ModelCallFinalResultEventData build() {
+                if (model == null) throw new IllegalStateException("Missing required property: model");
+                if (result == null) throw new IllegalStateException("Missing required property: result");
+                return new ModelCallFinalResultEventData(model, isByok, result);
+            }
+        }
     }
 }

@@ -765,6 +765,14 @@ spec:
                 secretKeyRef:
                   name: copilot-secrets
                   key: github-token
+            # A non-loopback bind (--host 0.0.0.0) requires a connection token,
+            # or the server refuses to start. Clients pass the same value as
+            # `connectionToken` to RuntimeConnection.forUri (see backend-services.md).
+            - name: COPILOT_CONNECTION_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: copilot-secrets
+                  key: connection-token
           ports:
             - containerPort: 4321
           volumeMounts:
@@ -816,6 +824,14 @@ containers:
   - name: copilot-cli
     image: your-registry/copilot-cli:latest  # See backend-services.md for how to build and push this image
     command: ["copilot", "--headless", "--host", "0.0.0.0", "--port", "4321"]
+    # A non-loopback bind (--host 0.0.0.0) requires COPILOT_CONNECTION_TOKEN to be
+    # set to a non-empty value, or the server refuses to start. Supply it from your
+    # secret store and pass the same value as `connectionToken` from the SDK client.
+    environmentVariables:
+      - name: COPILOT_GITHUB_TOKEN
+        secureValue: your-github-token
+      - name: COPILOT_CONNECTION_TOKEN
+        secureValue: your-connection-token
     volumeMounts:
       - name: session-storage
         mountPath: /root/.copilot/session-state

@@ -27,4 +27,64 @@ public record PermissionsConfigureAssistedApprovalContext(
     @JsonInclude(JsonInclude.Include.ALWAYS)
     @JsonProperty("value") Object value
 ) {
+
+    /**
+     * Creates a record positionally.
+     * @deprecated Use {@link #builder()} for named construction.
+     */
+    @Deprecated(since = "2.0.0", forRemoval = false)
+    public PermissionsConfigureAssistedApprovalContext {}
+
+    /**
+     * Returns a named builder.
+     * @return a new builder
+     * @since 2.0.0
+     */
+    public static Builder builder() { return new Builder(); }
+
+    /**
+     * Named construction for this record.
+     * @since 2.0.0
+     */
+    public static final class Builder {
+        private Builder() {}
+        private String source;
+        private Object value;
+        private boolean $presence1;
+
+        /**
+         * Sets the {@code source} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder source(String value) {
+            this.source = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code value} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder value(Object value) {
+            this.value = value;
+            this.$presence1 = true;
+            return this;
+        }
+
+        /**
+         * Builds a record after checking required property presence.
+         * @return a new record
+         * @throws IllegalStateException if a required property is missing
+         * @since 2.0.0
+         */
+        public PermissionsConfigureAssistedApprovalContext build() {
+            if (source == null) throw new IllegalStateException("Missing required property: source");
+            if (!$presence1) throw new IllegalStateException("Missing required property: value");
+            return new PermissionsConfigureAssistedApprovalContext(source, value);
+        }
+    }
 }

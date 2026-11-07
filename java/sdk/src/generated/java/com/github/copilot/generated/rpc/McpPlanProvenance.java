@@ -30,4 +30,88 @@ public record McpPlanProvenance(
     /** JSON MCP media type the validated card was interpreted as. */
     @JsonProperty("mediaType") McpServerCardMediaType mediaType
 ) {
+
+    /**
+     * Creates a record positionally.
+     * @deprecated Use {@link #builder()} for named construction.
+     */
+    @Deprecated(since = "2.0.0", forRemoval = false)
+    public McpPlanProvenance {}
+
+    /**
+     * Returns a named builder.
+     * @return a new builder
+     * @since 2.0.0
+     */
+    public static Builder builder() { return new Builder(); }
+
+    /**
+     * Named construction for this record.
+     * @since 2.0.0
+     */
+    public static final class Builder {
+        private Builder() {}
+        private String authority;
+        private String validatedAt;
+        private CardDigest cardDigest;
+        private McpServerCardMediaType mediaType;
+
+        /**
+         * Sets the {@code authority} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder authority(String value) {
+            this.authority = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code validatedAt} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder validatedAt(String value) {
+            this.validatedAt = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code cardDigest} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder cardDigest(CardDigest value) {
+            this.cardDigest = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code mediaType} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder mediaType(McpServerCardMediaType value) {
+            this.mediaType = value;
+            return this;
+        }
+
+        /**
+         * Builds a record after checking required property presence.
+         * @return a new record
+         * @throws IllegalStateException if a required property is missing
+         * @since 2.0.0
+         */
+        public McpPlanProvenance build() {
+            if (authority == null) throw new IllegalStateException("Missing required property: authority");
+            if (validatedAt == null) throw new IllegalStateException("Missing required property: validatedAt");
+            if (cardDigest == null) throw new IllegalStateException("Missing required property: cardDigest");
+            if (mediaType == null) throw new IllegalStateException("Missing required property: mediaType");
+            return new McpPlanProvenance(authority, validatedAt, cardDigest, mediaType);
+        }
+    }
 }

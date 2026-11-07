@@ -61,5 +61,195 @@ public final class SessionErrorEvent extends SessionEvent {
         /** Optional URL associated with this error that the user can open in a browser */
         @JsonProperty("url") String url
     ) {
+
+        /**
+         * Creates a record positionally.
+         * @deprecated Use {@link #builder()} for named construction.
+         */
+        @Deprecated(since = "2.0.0", forRemoval = false)
+        public SessionErrorEventData {}
+
+        /**
+         * Returns a named builder.
+         * @return a new builder
+         * @since 2.0.0
+         */
+        public static Builder builder() { return new Builder(); }
+
+        /**
+         * Named construction for this record.
+         * @since 2.0.0
+         */
+        public static final class Builder {
+            private Builder() {}
+            private String originatingMessageId;
+            private String errorType;
+            private String errorCode;
+            private String providerErrorType;
+            private String providerErrorParam;
+            private Boolean eligibleForAutoSwitch;
+            private String message;
+            private RemediationAction remediation;
+            private String stack;
+            private Long statusCode;
+            private String providerCallId;
+            private String serviceRequestId;
+            private String url;
+
+            /**
+             * Sets the {@code originatingMessageId} property.
+             * @param value the property value
+             * @return this builder
+             * @since 2.0.0
+             */
+            public Builder originatingMessageId(String value) {
+                this.originatingMessageId = value;
+                return this;
+            }
+
+            /**
+             * Sets the {@code errorType} property.
+             * @param value the property value
+             * @return this builder
+             * @since 2.0.0
+             */
+            public Builder errorType(String value) {
+                this.errorType = value;
+                return this;
+            }
+
+            /**
+             * Sets the {@code errorCode} property.
+             * @param value the property value
+             * @return this builder
+             * @since 2.0.0
+             */
+            public Builder errorCode(String value) {
+                this.errorCode = value;
+                return this;
+            }
+
+            /**
+             * Sets the {@code providerErrorType} property.
+             * @param value the property value
+             * @return this builder
+             * @since 2.0.0
+             */
+            public Builder providerErrorType(String value) {
+                this.providerErrorType = value;
+                return this;
+            }
+
+            /**
+             * Sets the {@code providerErrorParam} property.
+             * @param value the property value
+             * @return this builder
+             * @since 2.0.0
+             */
+            public Builder providerErrorParam(String value) {
+                this.providerErrorParam = value;
+                return this;
+            }
+
+            /**
+             * Sets the {@code eligibleForAutoSwitch} property.
+             * @param value the property value
+             * @return this builder
+             * @since 2.0.0
+             */
+            public Builder eligibleForAutoSwitch(Boolean value) {
+                this.eligibleForAutoSwitch = value;
+                return this;
+            }
+
+            /**
+             * Sets the {@code message} property.
+             * @param value the property value
+             * @return this builder
+             * @since 2.0.0
+             */
+            public Builder message(String value) {
+                this.message = value;
+                return this;
+            }
+
+            /**
+             * Sets the {@code remediation} property.
+             * @param value the property value
+             * @return this builder
+             * @since 2.0.0
+             */
+            public Builder remediation(RemediationAction value) {
+                this.remediation = value;
+                return this;
+            }
+
+            /**
+             * Sets the {@code stack} property.
+             * @param value the property value
+             * @return this builder
+             * @since 2.0.0
+             */
+            public Builder stack(String value) {
+                this.stack = value;
+                return this;
+            }
+
+            /**
+             * Sets the {@code statusCode} property.
+             * @param value the property value
+             * @return this builder
+             * @since 2.0.0
+             */
+            public Builder statusCode(Long value) {
+                this.statusCode = value;
+                return this;
+            }
+
+            /**
+             * Sets the {@code providerCallId} property.
+             * @param value the property value
+             * @return this builder
+             * @since 2.0.0
+             */
+            public Builder providerCallId(String value) {
+                this.providerCallId = value;
+                return this;
+            }
+
+            /**
+             * Sets the {@code serviceRequestId} property.
+             * @param value the property value
+             * @return this builder
+             * @since 2.0.0
+             */
+            public Builder serviceRequestId(String value) {
+                this.serviceRequestId = value;
+                return this;
+            }
+
+            /**
+             * Sets the {@code url} property.
+             * @param value the property value
+             * @return this builder
+             * @since 2.0.0
+             */
+            public Builder url(String value) {
+                this.url = value;
+                return this;
+            }
+
+            /**
+             * Builds a record after checking required property presence.
+             * @return a new record
+             * @throws IllegalStateException if a required property is missing
+             * @since 2.0.0
+             */
+            public SessionErrorEventData build() {
+                if (errorType == null) throw new IllegalStateException("Missing required property: errorType");
+                if (message == null) throw new IllegalStateException("Missing required property: message");
+                return new SessionErrorEventData(originatingMessageId, errorType, errorCode, providerErrorType, providerErrorParam, eligibleForAutoSwitch, message, remediation, stack, statusCode, providerCallId, serviceRequestId, url);
+            }
+        }
     }
 }

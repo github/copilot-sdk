@@ -32,4 +32,80 @@ public record WorkflowRunConsumed(
     /** AI usage consumed by the run in nano-AIU. */
     @JsonProperty("nanoAiu") Long nanoAiu
 ) {
+
+    /**
+     * Creates a record positionally.
+     * @deprecated Use {@link #builder()} for named construction.
+     */
+    @Deprecated(since = "2.0.0", forRemoval = false)
+    public WorkflowRunConsumed {}
+
+    /**
+     * Returns a named builder.
+     * @return a new builder
+     * @since 2.0.0
+     */
+    @com.github.copilot.CopilotExperimental
+    public static Builder builder() { return new Builder(); }
+
+    /**
+     * Named construction for this record.
+     * @since 2.0.0
+     */
+    @com.github.copilot.CopilotExperimental
+    public static final class Builder {
+        private Builder() {}
+        private Long activeMs;
+        private Long subagents;
+        private Long nanoAiu;
+
+        /**
+         * Sets the {@code activeMs} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        @com.github.copilot.CopilotExperimental
+        public Builder activeMs(Long value) {
+            this.activeMs = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code subagents} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        @com.github.copilot.CopilotExperimental
+        public Builder subagents(Long value) {
+            this.subagents = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code nanoAiu} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        @com.github.copilot.CopilotExperimental
+        public Builder nanoAiu(Long value) {
+            this.nanoAiu = value;
+            return this;
+        }
+
+        /**
+         * Builds a record after checking required property presence.
+         * @return a new record
+         * @throws IllegalStateException if a required property is missing
+         * @since 2.0.0
+         */
+        public WorkflowRunConsumed build() {
+            if (activeMs == null) throw new IllegalStateException("Missing required property: activeMs");
+            if (subagents == null) throw new IllegalStateException("Missing required property: subagents");
+            if (nanoAiu == null) throw new IllegalStateException("Missing required property: nanoAiu");
+            return new WorkflowRunConsumed(activeMs, subagents, nanoAiu);
+        }
+    }
 }

@@ -41,4 +41,59 @@ public final class CatalogFeedAvailableEntry extends CatalogFeedEntry {
 
     public CatalogCandidate getCandidate() { return candidate; }
     public void setCandidate(CatalogCandidate candidate) { this.candidate = candidate; }
+
+
+    /**
+     * Returns a named builder.
+     * @return a new builder
+     * @since 2.0.0
+     */
+    public static Builder builder() { return new Builder(); }
+
+    /**
+     * Named construction for this record.
+     * @since 2.0.0
+     */
+    public static final class Builder {
+        private Builder() {}
+        private String identifier;
+        private CatalogCandidate candidate;
+
+        /**
+         * Sets the {@code identifier} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder identifier(String value) {
+            this.identifier = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code candidate} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder candidate(CatalogCandidate value) {
+            this.candidate = value;
+            return this;
+        }
+
+        /**
+         * Builds a variant after checking required property presence.
+         * @return a new variant
+         * @throws IllegalStateException if a required property is missing
+         * @since 2.0.0
+         */
+        public CatalogFeedAvailableEntry build() {
+            if (identifier == null) throw new IllegalStateException("Missing required property: identifier");
+            if (candidate == null) throw new IllegalStateException("Missing required property: candidate");
+            CatalogFeedAvailableEntry instance = new CatalogFeedAvailableEntry();
+            instance.setIdentifier(identifier);
+            instance.setCandidate(candidate);
+            return instance;
+        }
+    }
 }

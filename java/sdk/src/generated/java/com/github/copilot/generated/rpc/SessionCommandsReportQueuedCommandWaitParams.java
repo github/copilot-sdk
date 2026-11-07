@@ -36,4 +36,109 @@ record SessionCommandsReportQueuedCommandWaitParams(
     /** True when the wait starts and false when it ends. */
     @JsonProperty("waiting") Boolean waiting
 ) {
+
+    /**
+     * Creates a record positionally.
+     * @deprecated Use {@link #builder()} for named construction.
+     */
+    @Deprecated(since = "2.0.0", forRemoval = false)
+    SessionCommandsReportQueuedCommandWaitParams {}
+
+    /**
+     * Returns a named builder.
+     * @return a new builder
+     * @since 2.0.0
+     */
+    @com.github.copilot.CopilotExperimental
+    public static Builder builder() { return new Builder(); }
+
+    /**
+     * Named construction for this record.
+     * @since 2.0.0
+     */
+    @com.github.copilot.CopilotExperimental
+    public static final class Builder {
+        private Builder() {}
+        private String sessionId;
+        private String requestId;
+        private String accountIdentity;
+        private boolean $presence2;
+        private QueuedCommandWaitRequirement requirement;
+        private Boolean waiting;
+
+        /**
+         * Sets the {@code sessionId} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        @com.github.copilot.CopilotExperimental
+        public Builder sessionId(String value) {
+            this.sessionId = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code requestId} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        @com.github.copilot.CopilotExperimental
+        public Builder requestId(String value) {
+            this.requestId = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code accountIdentity} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        @com.github.copilot.CopilotExperimental
+        public Builder accountIdentity(String value) {
+            this.accountIdentity = value;
+            this.$presence2 = true;
+            return this;
+        }
+
+        /**
+         * Sets the {@code requirement} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        @com.github.copilot.CopilotExperimental
+        public Builder requirement(QueuedCommandWaitRequirement value) {
+            this.requirement = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code waiting} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        @com.github.copilot.CopilotExperimental
+        public Builder waiting(Boolean value) {
+            this.waiting = value;
+            return this;
+        }
+
+        /**
+         * Builds a record after checking required property presence.
+         * @return a new record
+         * @throws IllegalStateException if a required property is missing
+         * @since 2.0.0
+         */
+        public SessionCommandsReportQueuedCommandWaitParams build() {
+            if (requestId == null) throw new IllegalStateException("Missing required property: requestId");
+            if (!$presence2) throw new IllegalStateException("Missing required property: accountIdentity");
+            if (requirement == null) throw new IllegalStateException("Missing required property: requirement");
+            if (waiting == null) throw new IllegalStateException("Missing required property: waiting");
+            return new SessionCommandsReportQueuedCommandWaitParams(sessionId, requestId, accountIdentity, requirement, waiting);
+        }
+    }
 }

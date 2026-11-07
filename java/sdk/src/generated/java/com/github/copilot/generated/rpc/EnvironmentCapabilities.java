@@ -35,4 +35,91 @@ public record EnvironmentCapabilities(
     /** Current session count, when advertised. */
     @JsonProperty("currentSessions") Long currentSessions
 ) {
+
+    /**
+     * Creates a record positionally.
+     * @deprecated Use {@link #builder()} for named construction.
+     */
+    @Deprecated(since = "2.0.0", forRemoval = false)
+    public EnvironmentCapabilities {}
+
+    /**
+     * Returns a named builder.
+     * @return a new builder
+     * @since 2.0.0
+     */
+    @com.github.copilot.CopilotExperimental
+    public static Builder builder() { return new Builder(); }
+
+    /**
+     * Named construction for this record.
+     * @since 2.0.0
+     */
+    @com.github.copilot.CopilotExperimental
+    public static final class Builder {
+        private Builder() {}
+        private String ahpVersion;
+        private List<String> features;
+        private Long maxSessions;
+        private Long currentSessions;
+
+        /**
+         * Sets the {@code ahpVersion} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        @com.github.copilot.CopilotExperimental
+        public Builder ahpVersion(String value) {
+            this.ahpVersion = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code features} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        @com.github.copilot.CopilotExperimental
+        public Builder features(List<String> value) {
+            this.features = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code maxSessions} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        @com.github.copilot.CopilotExperimental
+        public Builder maxSessions(Long value) {
+            this.maxSessions = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code currentSessions} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        @com.github.copilot.CopilotExperimental
+        public Builder currentSessions(Long value) {
+            this.currentSessions = value;
+            return this;
+        }
+
+        /**
+         * Builds a record after checking required property presence.
+         * @return a new record
+         * @throws IllegalStateException if a required property is missing
+         * @since 2.0.0
+         */
+        public EnvironmentCapabilities build() {
+            if (features == null) throw new IllegalStateException("Missing required property: features");
+            return new EnvironmentCapabilities(ahpVersion, features, maxSessions, currentSessions);
+        }
+    }
 }

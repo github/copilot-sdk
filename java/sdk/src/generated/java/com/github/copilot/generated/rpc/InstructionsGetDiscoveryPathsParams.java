@@ -30,4 +30,60 @@ public record InstructionsGetDiscoveryPathsParams(
     /** When true, omit the host's user-level instruction targets, leaving only repository targets. For multitenant deployments (mirrors `discover`'s `excludeHostInstructions`). */
     @JsonProperty("excludeHostInstructions") Boolean excludeHostInstructions
 ) {
+
+    /**
+     * Creates a record positionally.
+     * @deprecated Use {@link #builder()} for named construction.
+     */
+    @Deprecated(since = "2.0.0", forRemoval = false)
+    public InstructionsGetDiscoveryPathsParams {}
+
+    /**
+     * Returns a named builder.
+     * @return a new builder
+     * @since 2.0.0
+     */
+    public static Builder builder() { return new Builder(); }
+
+    /**
+     * Named construction for this record.
+     * @since 2.0.0
+     */
+    public static final class Builder {
+        private Builder() {}
+        private List<String> projectPaths;
+        private Boolean excludeHostInstructions;
+
+        /**
+         * Sets the {@code projectPaths} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder projectPaths(List<String> value) {
+            this.projectPaths = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code excludeHostInstructions} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder excludeHostInstructions(Boolean value) {
+            this.excludeHostInstructions = value;
+            return this;
+        }
+
+        /**
+         * Builds a record after checking required property presence.
+         * @return a new record
+         * @throws IllegalStateException if a required property is missing
+         * @since 2.0.0
+         */
+        public InstructionsGetDiscoveryPathsParams build() {
+            return new InstructionsGetDiscoveryPathsParams(projectPaths, excludeHostInstructions);
+        }
+    }
 }

@@ -40,4 +40,132 @@ public record ProviderMonthlyUsage(
     /** End of the service-reported monthly billing cycle, in UTC RFC 3339. */
     @JsonProperty("resetOn") String resetOn
 ) {
+
+    /**
+     * Creates a record positionally.
+     * @deprecated Use {@link #builder()} for named construction.
+     */
+    @Deprecated(since = "2.0.0", forRemoval = false)
+    public ProviderMonthlyUsage {}
+
+    /**
+     * Returns a named builder.
+     * @return a new builder
+     * @since 2.0.0
+     */
+    @com.github.copilot.CopilotExperimental
+    public static Builder builder() { return new Builder(); }
+
+    /**
+     * Named construction for this record.
+     * @since 2.0.0
+     */
+    @com.github.copilot.CopilotExperimental
+    public static final class Builder {
+        private Builder() {}
+        private ProviderMonthlyUsageState state;
+        private ProviderQuotaUnit unit;
+        private ProviderMonthlyUsageScope scope;
+        private Double consumedQuantity;
+        private String queriedAt;
+        private String cycleStart;
+        private String resetOn;
+
+        /**
+         * Sets the {@code state} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        @com.github.copilot.CopilotExperimental
+        public Builder state(ProviderMonthlyUsageState value) {
+            this.state = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code unit} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        @com.github.copilot.CopilotExperimental
+        public Builder unit(ProviderQuotaUnit value) {
+            this.unit = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code scope} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        @com.github.copilot.CopilotExperimental
+        public Builder scope(ProviderMonthlyUsageScope value) {
+            this.scope = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code consumedQuantity} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        @com.github.copilot.CopilotExperimental
+        public Builder consumedQuantity(Double value) {
+            this.consumedQuantity = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code queriedAt} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        @com.github.copilot.CopilotExperimental
+        public Builder queriedAt(String value) {
+            this.queriedAt = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code cycleStart} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        @com.github.copilot.CopilotExperimental
+        public Builder cycleStart(String value) {
+            this.cycleStart = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code resetOn} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        @com.github.copilot.CopilotExperimental
+        public Builder resetOn(String value) {
+            this.resetOn = value;
+            return this;
+        }
+
+        /**
+         * Builds a record after checking required property presence.
+         * @return a new record
+         * @throws IllegalStateException if a required property is missing
+         * @since 2.0.0
+         */
+        public ProviderMonthlyUsage build() {
+            if (state == null) throw new IllegalStateException("Missing required property: state");
+            if (unit == null) throw new IllegalStateException("Missing required property: unit");
+            if (scope == null) throw new IllegalStateException("Missing required property: scope");
+            return new ProviderMonthlyUsage(state, unit, scope, consumedQuantity, queriedAt, cycleStart, resetOn);
+        }
+    }
 }

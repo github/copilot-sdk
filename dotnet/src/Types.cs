@@ -3013,9 +3013,7 @@ public sealed class ProviderConfig
     /// Product serving the model, such as <c>ollama</c> or <c>lm_studio</c>, reported in telemetry
     /// as <c>model_provider</c>. Allowed values are <c>openai</c>, <c>anthropic</c>,
     /// <c>azure_openai</c>, <c>ollama</c>, <c>lm_studio</c>, <c>foundry_local</c>, and
-    /// <c>llama_cpp</c>. <c>azure_openai</c> also omits explicit prompt-cache breakpoints, which
-    /// limit cross-turn cache reuse on Azure; set it for a proxy or custom domain in front of
-    /// Azure OpenAI.
+    /// <c>llama_cpp</c>; only affects telemetry.
     /// </summary>
     [JsonPropertyName("modelProvider")]
     public string? ModelProvider { get; set; }
@@ -3202,9 +3200,7 @@ public sealed class NamedProviderConfig
     /// Product serving this provider's models, such as <c>ollama</c> or <c>lm_studio</c>, reported
     /// in telemetry as <c>model_provider</c>. Allowed values are <c>openai</c>, <c>anthropic</c>,
     /// <c>azure_openai</c>, <c>ollama</c>, <c>lm_studio</c>, <c>foundry_local</c>, and
-    /// <c>llama_cpp</c>. <c>azure_openai</c> also omits explicit prompt-cache breakpoints, which
-    /// limit cross-turn cache reuse on Azure; set it for a proxy or custom domain in front of
-    /// Azure OpenAI.
+    /// <c>llama_cpp</c>; only affects telemetry.
     /// </summary>
     [JsonPropertyName("modelProvider")]
     public string? ModelProvider { get; set; }

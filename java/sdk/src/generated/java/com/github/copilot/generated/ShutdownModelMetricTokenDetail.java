@@ -24,4 +24,49 @@ public record ShutdownModelMetricTokenDetail(
     /** Accumulated token count for this token type */
     @JsonProperty("tokenCount") Long tokenCount
 ) {
+
+    /**
+     * Creates a record positionally.
+     * @deprecated Use {@link #builder()} for named construction.
+     */
+    @Deprecated(since = "2.0.0", forRemoval = false)
+    public ShutdownModelMetricTokenDetail {}
+
+    /**
+     * Returns a named builder.
+     * @return a new builder
+     * @since 2.0.0
+     */
+    public static Builder builder() { return new Builder(); }
+
+    /**
+     * Named construction for this record.
+     * @since 2.0.0
+     */
+    public static final class Builder {
+        private Builder() {}
+        private Long tokenCount;
+
+        /**
+         * Sets the {@code tokenCount} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder tokenCount(Long value) {
+            this.tokenCount = value;
+            return this;
+        }
+
+        /**
+         * Builds a record after checking required property presence.
+         * @return a new record
+         * @throws IllegalStateException if a required property is missing
+         * @since 2.0.0
+         */
+        public ShutdownModelMetricTokenDetail build() {
+            if (tokenCount == null) throw new IllegalStateException("Missing required property: tokenCount");
+            return new ShutdownModelMetricTokenDetail(tokenCount);
+        }
+    }
 }

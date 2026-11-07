@@ -25,6 +25,7 @@ import javax.annotation.processing.Generated;
 @javax.annotation.processing.Generated("copilot-sdk-codegen")
 @JsonInclude(JsonInclude.Include.NON_NULL)
 @JsonIgnoreProperties(ignoreUnknown = true)
+@com.fasterxml.jackson.databind.annotation.JsonDeserialize(using = SessionOptionsUpdateParams.$NullableDeserializer.class)
 public record SessionOptionsUpdateParams(
     /** Target session identifier */
     @JsonProperty("sessionId") String sessionId,
@@ -162,6 +163,949 @@ Omitted values preserve the current setting. Re-supply consent on cold resume. *
     /** Optional session limits. Pass null to clear the session limits. */
     @JsonProperty("sessionLimits") SessionLimitsConfig sessionLimits,
     /** Patch the Autopilot policy. Omitted fields retain their current values; an empty object makes no changes. Does not change the session mode. */
-    @JsonProperty("autopilot") AutopilotOptions autopilot
+    @JsonProperty("autopilot") AutopilotOptions autopilot,
+    @com.fasterxml.jackson.annotation.JsonIgnore java.util.Set<String> $explicitNulls
 ) {
+
+    /**
+     * Creates a record positionally.
+     * @deprecated Use {@link #builder()} for named construction.
+     */
+    @Deprecated(since = "2.0.0", forRemoval = false)
+    public SessionOptionsUpdateParams { $explicitNulls = $explicitNulls == null ? java.util.Set.of() : java.util.Set.copyOf($explicitNulls); }
+
+    /**
+     * Creates a record with legacy null-as-omission semantics.
+     * @deprecated Use {@link #builder()} for named construction.
+     */
+    @Deprecated(since = "2.0.0", forRemoval = false)
+    public SessionOptionsUpdateParams(String sessionId, ProtocolImageGenerationOptions imageGeneration, String model, ModelCapabilitiesOverride modelCapabilitiesOverrides, String reasoningEffort, OptionsUpdateReasoningSummary reasoningSummary, Verbosity verbosity, String clientName, String lspClientName, String integrationId, Map<String, Boolean> featureFlags, Boolean isExperimentalMode, ProviderConfig provider, CapiSessionOptions capi, String workingDirectory, List<String> availableTools, List<String> excludedTools, List<String> includedBuiltinAgents, List<String> excludedBuiltinAgents, OptionsUpdateToolFilterPrecedence toolFilterPrecedence, Boolean enableScriptSafety, ShellOptions shell, String shellInitProfile, List<String> shellProcessFlags, SandboxConfig sandboxConfig, SandboxConfigSource sandboxConfigSource, Boolean logInteractiveShells, OptionsUpdateEnvValueMode envValueMode, Boolean allowAllMcpServerInstructions, List<String> skillDirectories, List<String> agentDirectories, List<String> instructionDirectories, List<String> hookDirectories, List<String> ignoredSkillsLocations, List<String> includedBuiltinSkills, List<String> disabledSkills, Boolean enableOnDemandInstructionDiscovery, Long maxInlineBinaryBytes, List<SessionInstalledPlugin> installedPlugins, Boolean customAgentsLocalOnly, Boolean suppressCustomAgentPrompt, Boolean skipCustomInstructions, List<String> disabledInstructionSources, Boolean coauthorEnabled, String trajectoryFile, Boolean enableStreaming, String copilotUrl, Boolean askUserDisabled, Boolean continueOnAutoMode, Boolean runningInInteractiveMode, Boolean enableReasoningSummaries, String agentContext, String eventsLogDirectory, Boolean eventsLogIncludesSubagents, List<OptionsUpdateAdditionalContentExclusionPolicy> additionalContentExclusionPolicies, Boolean manageScheduleEnabled, List<SessionCapability> sessionCapabilities, Boolean skipEmbeddingRetrieval, String organizationCustomInstructions, Boolean enableFileHooks, Boolean enableHostGitOperations, Boolean enableSessionStore, Boolean enableSkills, OptionsUpdateContextTier contextTier, SessionLimitsConfig sessionLimits, AutopilotOptions autopilot) {
+        this(sessionId, imageGeneration, model, modelCapabilitiesOverrides, reasoningEffort, reasoningSummary, verbosity, clientName, lspClientName, integrationId, featureFlags, isExperimentalMode, provider, capi, workingDirectory, availableTools, excludedTools, includedBuiltinAgents, excludedBuiltinAgents, toolFilterPrecedence, enableScriptSafety, shell, shellInitProfile, shellProcessFlags, sandboxConfig, sandboxConfigSource, logInteractiveShells, envValueMode, allowAllMcpServerInstructions, skillDirectories, agentDirectories, instructionDirectories, hookDirectories, ignoredSkillsLocations, includedBuiltinSkills, disabledSkills, enableOnDemandInstructionDiscovery, maxInlineBinaryBytes, installedPlugins, customAgentsLocalOnly, suppressCustomAgentPrompt, skipCustomInstructions, disabledInstructionSources, coauthorEnabled, trajectoryFile, enableStreaming, copilotUrl, askUserDisabled, continueOnAutoMode, runningInInteractiveMode, enableReasoningSummaries, agentContext, eventsLogDirectory, eventsLogIncludesSubagents, additionalContentExclusionPolicies, manageScheduleEnabled, sessionCapabilities, skipEmbeddingRetrieval, organizationCustomInstructions, enableFileHooks, enableHostGitOperations, enableSessionStore, enableSkills, contextTier, sessionLimits, autopilot, java.util.Set.of());
+    }
+
+    /**
+     * Returns a named builder.
+     * @return a new builder
+     * @since 2.0.0
+     */
+    @com.github.copilot.CopilotExperimental
+    public static Builder builder() { return new Builder(); }
+
+    /**
+     * Named construction for this record.
+     * @since 2.0.0
+     */
+    @com.github.copilot.CopilotExperimental
+    public static final class Builder {
+        private Builder() {}
+        private String sessionId;
+        private ProtocolImageGenerationOptions imageGeneration;
+        private String model;
+        private ModelCapabilitiesOverride modelCapabilitiesOverrides;
+        private String reasoningEffort;
+        private OptionsUpdateReasoningSummary reasoningSummary;
+        private Verbosity verbosity;
+        private String clientName;
+        private String lspClientName;
+        private String integrationId;
+        private Map<String, Boolean> featureFlags;
+        private Boolean isExperimentalMode;
+        private ProviderConfig provider;
+        private CapiSessionOptions capi;
+        private String workingDirectory;
+        private List<String> availableTools;
+        private List<String> excludedTools;
+        private List<String> includedBuiltinAgents;
+        private boolean $presence17;
+        private List<String> excludedBuiltinAgents;
+        private OptionsUpdateToolFilterPrecedence toolFilterPrecedence;
+        private Boolean enableScriptSafety;
+        private ShellOptions shell;
+        private String shellInitProfile;
+        private List<String> shellProcessFlags;
+        private SandboxConfig sandboxConfig;
+        private SandboxConfigSource sandboxConfigSource;
+        private Boolean logInteractiveShells;
+        private OptionsUpdateEnvValueMode envValueMode;
+        private Boolean allowAllMcpServerInstructions;
+        private List<String> skillDirectories;
+        private List<String> agentDirectories;
+        private List<String> instructionDirectories;
+        private List<String> hookDirectories;
+        private List<String> ignoredSkillsLocations;
+        private List<String> includedBuiltinSkills;
+        private boolean $presence34;
+        private List<String> disabledSkills;
+        private Boolean enableOnDemandInstructionDiscovery;
+        private Long maxInlineBinaryBytes;
+        private List<SessionInstalledPlugin> installedPlugins;
+        private Boolean customAgentsLocalOnly;
+        private Boolean suppressCustomAgentPrompt;
+        private Boolean skipCustomInstructions;
+        private List<String> disabledInstructionSources;
+        private Boolean coauthorEnabled;
+        private String trajectoryFile;
+        private Boolean enableStreaming;
+        private String copilotUrl;
+        private Boolean askUserDisabled;
+        private Boolean continueOnAutoMode;
+        private Boolean runningInInteractiveMode;
+        private Boolean enableReasoningSummaries;
+        private String agentContext;
+        private String eventsLogDirectory;
+        private Boolean eventsLogIncludesSubagents;
+        private List<OptionsUpdateAdditionalContentExclusionPolicy> additionalContentExclusionPolicies;
+        private Boolean manageScheduleEnabled;
+        private List<SessionCapability> sessionCapabilities;
+        private Boolean skipEmbeddingRetrieval;
+        private String organizationCustomInstructions;
+        private Boolean enableFileHooks;
+        private Boolean enableHostGitOperations;
+        private Boolean enableSessionStore;
+        private Boolean enableSkills;
+        private OptionsUpdateContextTier contextTier;
+        private SessionLimitsConfig sessionLimits;
+        private boolean $presence64;
+        private AutopilotOptions autopilot;
+
+        /**
+         * Sets the {@code sessionId} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        @com.github.copilot.CopilotExperimental
+        public Builder sessionId(String value) {
+            this.sessionId = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code imageGeneration} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        @com.github.copilot.CopilotExperimental
+        public Builder imageGeneration(ProtocolImageGenerationOptions value) {
+            this.imageGeneration = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code model} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        @com.github.copilot.CopilotExperimental
+        public Builder model(String value) {
+            this.model = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code modelCapabilitiesOverrides} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        @com.github.copilot.CopilotExperimental
+        public Builder modelCapabilitiesOverrides(ModelCapabilitiesOverride value) {
+            this.modelCapabilitiesOverrides = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code reasoningEffort} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        @com.github.copilot.CopilotExperimental
+        public Builder reasoningEffort(String value) {
+            this.reasoningEffort = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code reasoningSummary} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        @com.github.copilot.CopilotExperimental
+        public Builder reasoningSummary(OptionsUpdateReasoningSummary value) {
+            this.reasoningSummary = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code verbosity} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        @com.github.copilot.CopilotExperimental
+        public Builder verbosity(Verbosity value) {
+            this.verbosity = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code clientName} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        @com.github.copilot.CopilotExperimental
+        public Builder clientName(String value) {
+            this.clientName = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code lspClientName} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        @com.github.copilot.CopilotExperimental
+        public Builder lspClientName(String value) {
+            this.lspClientName = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code integrationId} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        @com.github.copilot.CopilotExperimental
+        public Builder integrationId(String value) {
+            this.integrationId = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code featureFlags} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        @com.github.copilot.CopilotExperimental
+        public Builder featureFlags(Map<String, Boolean> value) {
+            this.featureFlags = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code isExperimentalMode} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        @com.github.copilot.CopilotExperimental
+        public Builder isExperimentalMode(Boolean value) {
+            this.isExperimentalMode = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code provider} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        @com.github.copilot.CopilotExperimental
+        public Builder provider(ProviderConfig value) {
+            this.provider = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code capi} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        @com.github.copilot.CopilotExperimental
+        public Builder capi(CapiSessionOptions value) {
+            this.capi = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code workingDirectory} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        @com.github.copilot.CopilotExperimental
+        public Builder workingDirectory(String value) {
+            this.workingDirectory = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code availableTools} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        @com.github.copilot.CopilotExperimental
+        public Builder availableTools(List<String> value) {
+            this.availableTools = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code excludedTools} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        @com.github.copilot.CopilotExperimental
+        public Builder excludedTools(List<String> value) {
+            this.excludedTools = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code includedBuiltinAgents} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        @com.github.copilot.CopilotExperimental
+        public Builder includedBuiltinAgents(List<String> value) {
+            this.includedBuiltinAgents = value;
+            this.$presence17 = true;
+            return this;
+        }
+
+        /**
+         * Sets the {@code excludedBuiltinAgents} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        @com.github.copilot.CopilotExperimental
+        public Builder excludedBuiltinAgents(List<String> value) {
+            this.excludedBuiltinAgents = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code toolFilterPrecedence} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        @com.github.copilot.CopilotExperimental
+        public Builder toolFilterPrecedence(OptionsUpdateToolFilterPrecedence value) {
+            this.toolFilterPrecedence = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code enableScriptSafety} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        @com.github.copilot.CopilotExperimental
+        public Builder enableScriptSafety(Boolean value) {
+            this.enableScriptSafety = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code shell} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        @com.github.copilot.CopilotExperimental
+        public Builder shell(ShellOptions value) {
+            this.shell = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code shellInitProfile} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        @com.github.copilot.CopilotExperimental
+        public Builder shellInitProfile(String value) {
+            this.shellInitProfile = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code shellProcessFlags} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        @com.github.copilot.CopilotExperimental
+        public Builder shellProcessFlags(List<String> value) {
+            this.shellProcessFlags = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code sandboxConfig} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        @com.github.copilot.CopilotExperimental
+        public Builder sandboxConfig(SandboxConfig value) {
+            this.sandboxConfig = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code sandboxConfigSource} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        @com.github.copilot.CopilotExperimental
+        public Builder sandboxConfigSource(SandboxConfigSource value) {
+            this.sandboxConfigSource = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code logInteractiveShells} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        @com.github.copilot.CopilotExperimental
+        public Builder logInteractiveShells(Boolean value) {
+            this.logInteractiveShells = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code envValueMode} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        @com.github.copilot.CopilotExperimental
+        public Builder envValueMode(OptionsUpdateEnvValueMode value) {
+            this.envValueMode = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code allowAllMcpServerInstructions} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        @com.github.copilot.CopilotExperimental
+        public Builder allowAllMcpServerInstructions(Boolean value) {
+            this.allowAllMcpServerInstructions = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code skillDirectories} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        @com.github.copilot.CopilotExperimental
+        public Builder skillDirectories(List<String> value) {
+            this.skillDirectories = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code agentDirectories} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        @com.github.copilot.CopilotExperimental
+        public Builder agentDirectories(List<String> value) {
+            this.agentDirectories = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code instructionDirectories} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        @com.github.copilot.CopilotExperimental
+        public Builder instructionDirectories(List<String> value) {
+            this.instructionDirectories = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code hookDirectories} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        @com.github.copilot.CopilotExperimental
+        public Builder hookDirectories(List<String> value) {
+            this.hookDirectories = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code ignoredSkillsLocations} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        @com.github.copilot.CopilotExperimental
+        public Builder ignoredSkillsLocations(List<String> value) {
+            this.ignoredSkillsLocations = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code includedBuiltinSkills} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        @com.github.copilot.CopilotExperimental
+        public Builder includedBuiltinSkills(List<String> value) {
+            this.includedBuiltinSkills = value;
+            this.$presence34 = true;
+            return this;
+        }
+
+        /**
+         * Sets the {@code disabledSkills} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        @com.github.copilot.CopilotExperimental
+        public Builder disabledSkills(List<String> value) {
+            this.disabledSkills = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code enableOnDemandInstructionDiscovery} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        @com.github.copilot.CopilotExperimental
+        public Builder enableOnDemandInstructionDiscovery(Boolean value) {
+            this.enableOnDemandInstructionDiscovery = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code maxInlineBinaryBytes} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        @com.github.copilot.CopilotExperimental
+        public Builder maxInlineBinaryBytes(Long value) {
+            this.maxInlineBinaryBytes = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code installedPlugins} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        @com.github.copilot.CopilotExperimental
+        public Builder installedPlugins(List<SessionInstalledPlugin> value) {
+            this.installedPlugins = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code customAgentsLocalOnly} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        @com.github.copilot.CopilotExperimental
+        public Builder customAgentsLocalOnly(Boolean value) {
+            this.customAgentsLocalOnly = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code suppressCustomAgentPrompt} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        @com.github.copilot.CopilotExperimental
+        public Builder suppressCustomAgentPrompt(Boolean value) {
+            this.suppressCustomAgentPrompt = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code skipCustomInstructions} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        @com.github.copilot.CopilotExperimental
+        public Builder skipCustomInstructions(Boolean value) {
+            this.skipCustomInstructions = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code disabledInstructionSources} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        @com.github.copilot.CopilotExperimental
+        public Builder disabledInstructionSources(List<String> value) {
+            this.disabledInstructionSources = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code coauthorEnabled} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        @com.github.copilot.CopilotExperimental
+        public Builder coauthorEnabled(Boolean value) {
+            this.coauthorEnabled = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code trajectoryFile} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        @com.github.copilot.CopilotExperimental
+        public Builder trajectoryFile(String value) {
+            this.trajectoryFile = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code enableStreaming} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        @com.github.copilot.CopilotExperimental
+        public Builder enableStreaming(Boolean value) {
+            this.enableStreaming = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code copilotUrl} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        @com.github.copilot.CopilotExperimental
+        public Builder copilotUrl(String value) {
+            this.copilotUrl = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code askUserDisabled} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        @com.github.copilot.CopilotExperimental
+        public Builder askUserDisabled(Boolean value) {
+            this.askUserDisabled = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code continueOnAutoMode} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        @com.github.copilot.CopilotExperimental
+        public Builder continueOnAutoMode(Boolean value) {
+            this.continueOnAutoMode = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code runningInInteractiveMode} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        @com.github.copilot.CopilotExperimental
+        public Builder runningInInteractiveMode(Boolean value) {
+            this.runningInInteractiveMode = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code enableReasoningSummaries} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        @com.github.copilot.CopilotExperimental
+        public Builder enableReasoningSummaries(Boolean value) {
+            this.enableReasoningSummaries = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code agentContext} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        @com.github.copilot.CopilotExperimental
+        public Builder agentContext(String value) {
+            this.agentContext = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code eventsLogDirectory} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        @com.github.copilot.CopilotExperimental
+        public Builder eventsLogDirectory(String value) {
+            this.eventsLogDirectory = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code eventsLogIncludesSubagents} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        @com.github.copilot.CopilotExperimental
+        public Builder eventsLogIncludesSubagents(Boolean value) {
+            this.eventsLogIncludesSubagents = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code additionalContentExclusionPolicies} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        @com.github.copilot.CopilotExperimental
+        public Builder additionalContentExclusionPolicies(List<OptionsUpdateAdditionalContentExclusionPolicy> value) {
+            this.additionalContentExclusionPolicies = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code manageScheduleEnabled} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        @com.github.copilot.CopilotExperimental
+        public Builder manageScheduleEnabled(Boolean value) {
+            this.manageScheduleEnabled = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code sessionCapabilities} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        @com.github.copilot.CopilotExperimental
+        public Builder sessionCapabilities(List<SessionCapability> value) {
+            this.sessionCapabilities = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code skipEmbeddingRetrieval} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        @com.github.copilot.CopilotExperimental
+        public Builder skipEmbeddingRetrieval(Boolean value) {
+            this.skipEmbeddingRetrieval = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code organizationCustomInstructions} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        @com.github.copilot.CopilotExperimental
+        public Builder organizationCustomInstructions(String value) {
+            this.organizationCustomInstructions = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code enableFileHooks} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        @com.github.copilot.CopilotExperimental
+        public Builder enableFileHooks(Boolean value) {
+            this.enableFileHooks = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code enableHostGitOperations} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        @com.github.copilot.CopilotExperimental
+        public Builder enableHostGitOperations(Boolean value) {
+            this.enableHostGitOperations = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code enableSessionStore} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        @com.github.copilot.CopilotExperimental
+        public Builder enableSessionStore(Boolean value) {
+            this.enableSessionStore = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code enableSkills} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        @com.github.copilot.CopilotExperimental
+        public Builder enableSkills(Boolean value) {
+            this.enableSkills = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code contextTier} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        @com.github.copilot.CopilotExperimental
+        public Builder contextTier(OptionsUpdateContextTier value) {
+            this.contextTier = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code sessionLimits} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        @com.github.copilot.CopilotExperimental
+        public Builder sessionLimits(SessionLimitsConfig value) {
+            this.sessionLimits = value;
+            this.$presence64 = true;
+            return this;
+        }
+
+        /**
+         * Sets the {@code autopilot} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        @com.github.copilot.CopilotExperimental
+        public Builder autopilot(AutopilotOptions value) {
+            this.autopilot = value;
+            return this;
+        }
+
+        /**
+         * Builds a record after checking required property presence.
+         * @return a new record
+         * @throws IllegalStateException if a required property is missing
+         * @since 2.0.0
+         */
+        public SessionOptionsUpdateParams build() {
+            java.util.Set<String> $explicitNulls = new java.util.LinkedHashSet<>();
+            if ($presence17 && includedBuiltinAgents == null) $explicitNulls.add("includedBuiltinAgents");
+            if ($presence34 && includedBuiltinSkills == null) $explicitNulls.add("includedBuiltinSkills");
+            if ($presence64 && sessionLimits == null) $explicitNulls.add("sessionLimits");
+            return new SessionOptionsUpdateParams(sessionId, imageGeneration, model, modelCapabilitiesOverrides, reasoningEffort, reasoningSummary, verbosity, clientName, lspClientName, integrationId, featureFlags, isExperimentalMode, provider, capi, workingDirectory, availableTools, excludedTools, includedBuiltinAgents, excludedBuiltinAgents, toolFilterPrecedence, enableScriptSafety, shell, shellInitProfile, shellProcessFlags, sandboxConfig, sandboxConfigSource, logInteractiveShells, envValueMode, allowAllMcpServerInstructions, skillDirectories, agentDirectories, instructionDirectories, hookDirectories, ignoredSkillsLocations, includedBuiltinSkills, disabledSkills, enableOnDemandInstructionDiscovery, maxInlineBinaryBytes, installedPlugins, customAgentsLocalOnly, suppressCustomAgentPrompt, skipCustomInstructions, disabledInstructionSources, coauthorEnabled, trajectoryFile, enableStreaming, copilotUrl, askUserDisabled, continueOnAutoMode, runningInInteractiveMode, enableReasoningSummaries, agentContext, eventsLogDirectory, eventsLogIncludesSubagents, additionalContentExclusionPolicies, manageScheduleEnabled, sessionCapabilities, skipEmbeddingRetrieval, organizationCustomInstructions, enableFileHooks, enableHostGitOperations, enableSessionStore, enableSkills, contextTier, sessionLimits, autopilot, $explicitNulls);
+        }
+    }
+
+    @com.fasterxml.jackson.annotation.JsonAnyGetter
+    @JsonInclude(value = JsonInclude.Include.ALWAYS, content = JsonInclude.Include.ALWAYS)
+    public java.util.Map<String, Object> $nullableProperties() {
+        java.util.Map<String, Object> values = new java.util.LinkedHashMap<>();
+        if ($explicitNulls.contains("includedBuiltinAgents") && includedBuiltinAgents == null) values.put("includedBuiltinAgents", null);
+        if ($explicitNulls.contains("includedBuiltinSkills") && includedBuiltinSkills == null) values.put("includedBuiltinSkills", null);
+        if ($explicitNulls.contains("sessionLimits") && sessionLimits == null) values.put("sessionLimits", null);
+        return values;
+    }
+
+    public static final class $NullableDeserializer extends com.fasterxml.jackson.databind.JsonDeserializer<SessionOptionsUpdateParams> {
+        @Override
+        public SessionOptionsUpdateParams deserialize(com.fasterxml.jackson.core.JsonParser parser,
+                com.fasterxml.jackson.databind.DeserializationContext context) throws java.io.IOException {
+            com.fasterxml.jackson.databind.JsonNode tree = context.readTree(parser);
+            if (!tree.isObject()) return context.reportInputMismatch(SessionOptionsUpdateParams.class, "Expected a JSON object");
+            java.util.Set<String> $explicitNulls = new java.util.LinkedHashSet<>();
+            if (tree.has("includedBuiltinAgents") && tree.get("includedBuiltinAgents").isNull()) $explicitNulls.add("includedBuiltinAgents");
+            if (tree.has("includedBuiltinSkills") && tree.get("includedBuiltinSkills").isNull()) $explicitNulls.add("includedBuiltinSkills");
+            if (tree.has("sessionLimits") && tree.get("sessionLimits").isNull()) $explicitNulls.add("sessionLimits");
+            return new SessionOptionsUpdateParams(readProperty(context, tree, "sessionId", new com.fasterxml.jackson.core.type.TypeReference<String>() {}), readProperty(context, tree, "imageGeneration", new com.fasterxml.jackson.core.type.TypeReference<ProtocolImageGenerationOptions>() {}), readProperty(context, tree, "model", new com.fasterxml.jackson.core.type.TypeReference<String>() {}), readProperty(context, tree, "modelCapabilitiesOverrides", new com.fasterxml.jackson.core.type.TypeReference<ModelCapabilitiesOverride>() {}), readProperty(context, tree, "reasoningEffort", new com.fasterxml.jackson.core.type.TypeReference<String>() {}), readProperty(context, tree, "reasoningSummary", new com.fasterxml.jackson.core.type.TypeReference<OptionsUpdateReasoningSummary>() {}), readProperty(context, tree, "verbosity", new com.fasterxml.jackson.core.type.TypeReference<Verbosity>() {}), readProperty(context, tree, "clientName", new com.fasterxml.jackson.core.type.TypeReference<String>() {}), readProperty(context, tree, "lspClientName", new com.fasterxml.jackson.core.type.TypeReference<String>() {}), readProperty(context, tree, "integrationId", new com.fasterxml.jackson.core.type.TypeReference<String>() {}), readProperty(context, tree, "featureFlags", new com.fasterxml.jackson.core.type.TypeReference<Map<String, Boolean>>() {}), readProperty(context, tree, "isExperimentalMode", new com.fasterxml.jackson.core.type.TypeReference<Boolean>() {}), readProperty(context, tree, "provider", new com.fasterxml.jackson.core.type.TypeReference<ProviderConfig>() {}), readProperty(context, tree, "capi", new com.fasterxml.jackson.core.type.TypeReference<CapiSessionOptions>() {}), readProperty(context, tree, "workingDirectory", new com.fasterxml.jackson.core.type.TypeReference<String>() {}), readProperty(context, tree, "availableTools", new com.fasterxml.jackson.core.type.TypeReference<List<String>>() {}), readProperty(context, tree, "excludedTools", new com.fasterxml.jackson.core.type.TypeReference<List<String>>() {}), readProperty(context, tree, "includedBuiltinAgents", new com.fasterxml.jackson.core.type.TypeReference<List<String>>() {}), readProperty(context, tree, "excludedBuiltinAgents", new com.fasterxml.jackson.core.type.TypeReference<List<String>>() {}), readProperty(context, tree, "toolFilterPrecedence", new com.fasterxml.jackson.core.type.TypeReference<OptionsUpdateToolFilterPrecedence>() {}), readProperty(context, tree, "enableScriptSafety", new com.fasterxml.jackson.core.type.TypeReference<Boolean>() {}), readProperty(context, tree, "shell", new com.fasterxml.jackson.core.type.TypeReference<ShellOptions>() {}), readProperty(context, tree, "shellInitProfile", new com.fasterxml.jackson.core.type.TypeReference<String>() {}), readProperty(context, tree, "shellProcessFlags", new com.fasterxml.jackson.core.type.TypeReference<List<String>>() {}), readProperty(context, tree, "sandboxConfig", new com.fasterxml.jackson.core.type.TypeReference<SandboxConfig>() {}), readProperty(context, tree, "sandboxConfigSource", new com.fasterxml.jackson.core.type.TypeReference<SandboxConfigSource>() {}), readProperty(context, tree, "logInteractiveShells", new com.fasterxml.jackson.core.type.TypeReference<Boolean>() {}), readProperty(context, tree, "envValueMode", new com.fasterxml.jackson.core.type.TypeReference<OptionsUpdateEnvValueMode>() {}), readProperty(context, tree, "allowAllMcpServerInstructions", new com.fasterxml.jackson.core.type.TypeReference<Boolean>() {}), readProperty(context, tree, "skillDirectories", new com.fasterxml.jackson.core.type.TypeReference<List<String>>() {}), readProperty(context, tree, "agentDirectories", new com.fasterxml.jackson.core.type.TypeReference<List<String>>() {}), readProperty(context, tree, "instructionDirectories", new com.fasterxml.jackson.core.type.TypeReference<List<String>>() {}), readProperty(context, tree, "hookDirectories", new com.fasterxml.jackson.core.type.TypeReference<List<String>>() {}), readProperty(context, tree, "ignoredSkillsLocations", new com.fasterxml.jackson.core.type.TypeReference<List<String>>() {}), readProperty(context, tree, "includedBuiltinSkills", new com.fasterxml.jackson.core.type.TypeReference<List<String>>() {}), readProperty(context, tree, "disabledSkills", new com.fasterxml.jackson.core.type.TypeReference<List<String>>() {}), readProperty(context, tree, "enableOnDemandInstructionDiscovery", new com.fasterxml.jackson.core.type.TypeReference<Boolean>() {}), readProperty(context, tree, "maxInlineBinaryBytes", new com.fasterxml.jackson.core.type.TypeReference<Long>() {}), readProperty(context, tree, "installedPlugins", new com.fasterxml.jackson.core.type.TypeReference<List<SessionInstalledPlugin>>() {}), readProperty(context, tree, "customAgentsLocalOnly", new com.fasterxml.jackson.core.type.TypeReference<Boolean>() {}), readProperty(context, tree, "suppressCustomAgentPrompt", new com.fasterxml.jackson.core.type.TypeReference<Boolean>() {}), readProperty(context, tree, "skipCustomInstructions", new com.fasterxml.jackson.core.type.TypeReference<Boolean>() {}), readProperty(context, tree, "disabledInstructionSources", new com.fasterxml.jackson.core.type.TypeReference<List<String>>() {}), readProperty(context, tree, "coauthorEnabled", new com.fasterxml.jackson.core.type.TypeReference<Boolean>() {}), readProperty(context, tree, "trajectoryFile", new com.fasterxml.jackson.core.type.TypeReference<String>() {}), readProperty(context, tree, "enableStreaming", new com.fasterxml.jackson.core.type.TypeReference<Boolean>() {}), readProperty(context, tree, "copilotUrl", new com.fasterxml.jackson.core.type.TypeReference<String>() {}), readProperty(context, tree, "askUserDisabled", new com.fasterxml.jackson.core.type.TypeReference<Boolean>() {}), readProperty(context, tree, "continueOnAutoMode", new com.fasterxml.jackson.core.type.TypeReference<Boolean>() {}), readProperty(context, tree, "runningInInteractiveMode", new com.fasterxml.jackson.core.type.TypeReference<Boolean>() {}), readProperty(context, tree, "enableReasoningSummaries", new com.fasterxml.jackson.core.type.TypeReference<Boolean>() {}), readProperty(context, tree, "agentContext", new com.fasterxml.jackson.core.type.TypeReference<String>() {}), readProperty(context, tree, "eventsLogDirectory", new com.fasterxml.jackson.core.type.TypeReference<String>() {}), readProperty(context, tree, "eventsLogIncludesSubagents", new com.fasterxml.jackson.core.type.TypeReference<Boolean>() {}), readProperty(context, tree, "additionalContentExclusionPolicies", new com.fasterxml.jackson.core.type.TypeReference<List<OptionsUpdateAdditionalContentExclusionPolicy>>() {}), readProperty(context, tree, "manageScheduleEnabled", new com.fasterxml.jackson.core.type.TypeReference<Boolean>() {}), readProperty(context, tree, "sessionCapabilities", new com.fasterxml.jackson.core.type.TypeReference<List<SessionCapability>>() {}), readProperty(context, tree, "skipEmbeddingRetrieval", new com.fasterxml.jackson.core.type.TypeReference<Boolean>() {}), readProperty(context, tree, "organizationCustomInstructions", new com.fasterxml.jackson.core.type.TypeReference<String>() {}), readProperty(context, tree, "enableFileHooks", new com.fasterxml.jackson.core.type.TypeReference<Boolean>() {}), readProperty(context, tree, "enableHostGitOperations", new com.fasterxml.jackson.core.type.TypeReference<Boolean>() {}), readProperty(context, tree, "enableSessionStore", new com.fasterxml.jackson.core.type.TypeReference<Boolean>() {}), readProperty(context, tree, "enableSkills", new com.fasterxml.jackson.core.type.TypeReference<Boolean>() {}), readProperty(context, tree, "contextTier", new com.fasterxml.jackson.core.type.TypeReference<OptionsUpdateContextTier>() {}), readProperty(context, tree, "sessionLimits", new com.fasterxml.jackson.core.type.TypeReference<SessionLimitsConfig>() {}), readProperty(context, tree, "autopilot", new com.fasterxml.jackson.core.type.TypeReference<AutopilotOptions>() {}), $explicitNulls);
+        }
+
+        private static <T> T readProperty(com.fasterxml.jackson.databind.DeserializationContext context,
+                com.fasterxml.jackson.databind.JsonNode tree, String name,
+                com.fasterxml.jackson.core.type.TypeReference<T> type) throws java.io.IOException {
+            if (!tree.has(name)) return null;
+            return context.readTreeAsValue(tree.get(name), context.getTypeFactory().constructType(type));
+        }
+    }
 }

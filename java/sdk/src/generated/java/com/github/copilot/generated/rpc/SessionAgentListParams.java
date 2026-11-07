@@ -31,4 +31,72 @@ public record SessionAgentListParams(
     /** When true, request authored base prompt text on each AgentInfo. Prompt text may be omitted when unavailable, such as for agents projected through a relay session. */
     @JsonProperty("includePrompt") Boolean includePrompt
 ) {
+
+    /**
+     * Creates a record positionally.
+     * @deprecated Use {@link #builder()} for named construction.
+     */
+    @Deprecated(since = "2.0.0", forRemoval = false)
+    public SessionAgentListParams {}
+
+    /**
+     * Returns a named builder.
+     * @return a new builder
+     * @since 2.0.0
+     */
+    public static Builder builder() { return new Builder(); }
+
+    /**
+     * Named construction for this record.
+     * @since 2.0.0
+     */
+    public static final class Builder {
+        private Builder() {}
+        private String sessionId;
+        private Boolean includeBuiltInAgents;
+        private Boolean includePrompt;
+
+        /**
+         * Sets the {@code sessionId} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder sessionId(String value) {
+            this.sessionId = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code includeBuiltInAgents} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder includeBuiltInAgents(Boolean value) {
+            this.includeBuiltInAgents = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code includePrompt} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder includePrompt(Boolean value) {
+            this.includePrompt = value;
+            return this;
+        }
+
+        /**
+         * Builds a record after checking required property presence.
+         * @return a new record
+         * @throws IllegalStateException if a required property is missing
+         * @since 2.0.0
+         */
+        public SessionAgentListParams build() {
+            return new SessionAgentListParams(sessionId, includeBuiltInAgents, includePrompt);
+        }
+    }
 }

@@ -92,10 +92,10 @@ class SlashCommandsIT {
 
     @Test
     void autoPilotToggle() throws Exception {
-        SlashCommandInvocationResult first = session.getRpc().commands
-                .invoke(new SessionCommandsInvokeParams(null, "autopilot", null, null)).get(15, TimeUnit.SECONDS);
-        SlashCommandInvocationResult second = session.getRpc().commands
-                .invoke(new SessionCommandsInvokeParams(null, "autopilot", null, null)).get(15, TimeUnit.SECONDS);
+        SlashCommandInvocationResult first = session.getRpc().commands.invoke(SessionCommandsInvokeParams.builder()
+                .sessionId(null).name("autopilot").input(null).origin(null).build()).get(15, TimeUnit.SECONDS);
+        SlashCommandInvocationResult second = session.getRpc().commands.invoke(SessionCommandsInvokeParams.builder()
+                .sessionId(null).name("autopilot").input(null).origin(null).build()).get(15, TimeUnit.SECONDS);
 
         String firstOutput = extractDisplayText(first);
         String secondOutput = extractDisplayText(second);
@@ -127,8 +127,8 @@ class SlashCommandsIT {
 
     @Test
     void listDirs() throws Exception {
-        SlashCommandInvocationResult result = session.getRpc().commands
-                .invoke(new SessionCommandsInvokeParams(null, "list-dirs", null, null)).get(15, TimeUnit.SECONDS);
+        SlashCommandInvocationResult result = session.getRpc().commands.invoke(SessionCommandsInvokeParams.builder()
+                .sessionId(null).name("list-dirs").input(null).origin(null).build()).get(15, TimeUnit.SECONDS);
 
         String output = extractDisplayText(result);
         assertTrue(Pattern.compile("(?s)^.*Total: [0-9]+ directories.*$").matcher(output).matches(),
@@ -146,21 +146,23 @@ class SlashCommandsIT {
         Files.createDirectories(addDirPath);
         String addDirPathString = addDirPath.toString();
 
-        SlashCommandInvocationResult beforeListResult = session.getRpc().commands
-                .invoke(new SessionCommandsInvokeParams(null, "list-dirs", null, null)).get(15, TimeUnit.SECONDS);
+        SlashCommandInvocationResult beforeListResult = session.getRpc().commands.invoke(SessionCommandsInvokeParams
+                .builder().sessionId(null).name("list-dirs").input(null).origin(null).build())
+                .get(15, TimeUnit.SECONDS);
         String beforeListOutput = extractDisplayText(beforeListResult);
         System.out.println("/list-dirs (before /add-dir) result:");
         System.out.println(beforeListOutput);
 
-        SlashCommandInvocationResult addDirResult = session.getRpc().commands
-                .invoke(new SessionCommandsInvokeParams(null, "add-dir", addDirPathString, null))
+        SlashCommandInvocationResult addDirResult = session.getRpc().commands.invoke(SessionCommandsInvokeParams
+                .builder().sessionId(null).name("add-dir").input(addDirPathString).origin(null).build())
                 .get(15, TimeUnit.SECONDS);
         String addDirOutput = extractDisplayText(addDirResult);
         System.out.println("/add-dir result:");
         System.out.println(addDirOutput);
 
-        SlashCommandInvocationResult afterListResult = session.getRpc().commands
-                .invoke(new SessionCommandsInvokeParams(null, "list-dirs", null, null)).get(15, TimeUnit.SECONDS);
+        SlashCommandInvocationResult afterListResult = session.getRpc().commands.invoke(SessionCommandsInvokeParams
+                .builder().sessionId(null).name("list-dirs").input(null).origin(null).build())
+                .get(15, TimeUnit.SECONDS);
         String afterListOutput = extractDisplayText(afterListResult);
         System.out.println("/list-dirs (after /add-dir) result:");
         System.out.println(afterListOutput);
@@ -171,8 +173,9 @@ class SlashCommandsIT {
 
     @Test
     void usage() throws Exception {
-        SlashCommandInvocationResult result = session.getRpc().commands
-                .invoke(new SessionCommandsInvokeParams(null, "usage", null, null)).get(15, TimeUnit.SECONDS);
+        SlashCommandInvocationResult result = session.getRpc().commands.invoke(
+                SessionCommandsInvokeParams.builder().sessionId(null).name("usage").input(null).origin(null).build())
+                .get(15, TimeUnit.SECONDS);
 
         String output = extractDisplayText(result);
         assertTrue(Pattern.compile("(?s)^.*Changes:.*$").matcher(output).matches(),

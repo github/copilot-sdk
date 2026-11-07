@@ -30,4 +30,66 @@ public record SessionProvidersModelsListResult(
     /** Provider-native models in provider order. */
     @JsonProperty("models") List<DiscoveredModel> models
 ) {
+
+    /**
+     * Creates a record positionally.
+     * @deprecated Use {@link #builder()} for named construction.
+     */
+    @Deprecated(since = "2.0.0", forRemoval = false)
+    public SessionProvidersModelsListResult {}
+
+    /**
+     * Returns a named builder.
+     * @return a new builder
+     * @since 2.0.0
+     */
+    @com.github.copilot.CopilotExperimental
+    public static Builder builder() { return new Builder(); }
+
+    /**
+     * Named construction for this record.
+     * @since 2.0.0
+     */
+    @com.github.copilot.CopilotExperimental
+    public static final class Builder {
+        private Builder() {}
+        private ModelProviderOperationOutcome outcome;
+        private List<DiscoveredModel> models;
+
+        /**
+         * Sets the {@code outcome} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        @com.github.copilot.CopilotExperimental
+        public Builder outcome(ModelProviderOperationOutcome value) {
+            this.outcome = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code models} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        @com.github.copilot.CopilotExperimental
+        public Builder models(List<DiscoveredModel> value) {
+            this.models = value;
+            return this;
+        }
+
+        /**
+         * Builds a record after checking required property presence.
+         * @return a new record
+         * @throws IllegalStateException if a required property is missing
+         * @since 2.0.0
+         */
+        public SessionProvidersModelsListResult build() {
+            if (outcome == null) throw new IllegalStateException("Missing required property: outcome");
+            if (models == null) throw new IllegalStateException("Missing required property: models");
+            return new SessionProvidersModelsListResult(outcome, models);
+        }
+    }
 }

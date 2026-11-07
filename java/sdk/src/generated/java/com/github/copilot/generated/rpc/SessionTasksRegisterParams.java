@@ -39,4 +39,133 @@ public record SessionTasksRegisterParams(
     /** Expected current sequence for idempotent registration or orphan reclaim */
     @JsonProperty("expectedSequence") Long expectedSequence
 ) {
+
+    /**
+     * Creates a record positionally.
+     * @deprecated Use {@link #builder()} for named construction.
+     */
+    @Deprecated(since = "2.0.0", forRemoval = false)
+    public SessionTasksRegisterParams {}
+
+    /**
+     * Returns a named builder.
+     * @return a new builder
+     * @since 2.0.0
+     */
+    @com.github.copilot.CopilotExperimental
+    public static Builder builder() { return new Builder(); }
+
+    /**
+     * Named construction for this record.
+     * @since 2.0.0
+     */
+    @com.github.copilot.CopilotExperimental
+    public static final class Builder {
+        private Builder() {}
+        private String sessionId;
+        private TaskClientType type;
+        private String clientTaskId;
+        private String description;
+        private String displayName;
+        private Boolean cancellable;
+        private Long expectedSequence;
+
+        /**
+         * Sets the {@code sessionId} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        @com.github.copilot.CopilotExperimental
+        public Builder sessionId(String value) {
+            this.sessionId = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code type} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        @com.github.copilot.CopilotExperimental
+        public Builder type(TaskClientType value) {
+            this.type = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code clientTaskId} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        @com.github.copilot.CopilotExperimental
+        public Builder clientTaskId(String value) {
+            this.clientTaskId = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code description} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        @com.github.copilot.CopilotExperimental
+        public Builder description(String value) {
+            this.description = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code displayName} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        @com.github.copilot.CopilotExperimental
+        public Builder displayName(String value) {
+            this.displayName = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code cancellable} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        @com.github.copilot.CopilotExperimental
+        public Builder cancellable(Boolean value) {
+            this.cancellable = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code expectedSequence} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        @com.github.copilot.CopilotExperimental
+        public Builder expectedSequence(Long value) {
+            this.expectedSequence = value;
+            return this;
+        }
+
+        /**
+         * Builds a record after checking required property presence.
+         * @return a new record
+         * @throws IllegalStateException if a required property is missing
+         * @since 2.0.0
+         */
+        public SessionTasksRegisterParams build() {
+            if (type == null) throw new IllegalStateException("Missing required property: type");
+            if (clientTaskId == null) throw new IllegalStateException("Missing required property: clientTaskId");
+            if (description == null) throw new IllegalStateException("Missing required property: description");
+            if (cancellable == null) throw new IllegalStateException("Missing required property: cancellable");
+            return new SessionTasksRegisterParams(sessionId, type, clientTaskId, description, displayName, cancellable, expectedSequence);
+        }
+    }
 }

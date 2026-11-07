@@ -34,4 +34,111 @@ record FeatureFlagMetadata(
     /** Environment variable that overrides this flag's experiment assignment locally in the experiment service, not in `featureFlags.resolve`. Present exactly when `expFlag` is, and derived from it, so a caller reads a local override without reproducing the naming rule. */
     @JsonProperty("expFlagEnvVar") String expFlagEnvVar
 ) {
+
+    /**
+     * Creates a record positionally.
+     * @deprecated Use {@link #builder()} for named construction.
+     */
+    @Deprecated(since = "2.0.0", forRemoval = false)
+    FeatureFlagMetadata {}
+
+    /**
+     * Returns a named builder.
+     * @return a new builder
+     * @since 2.0.0
+     */
+    public static Builder builder() { return new Builder(); }
+
+    /**
+     * Named construction for this record.
+     * @since 2.0.0
+     */
+    public static final class Builder {
+        private Builder() {}
+        private String name;
+        private FeatureFlagAvailability availability;
+        private Boolean capiSanity;
+        private String experimentalDescription;
+        private String expFlag;
+        private String expFlagEnvVar;
+
+        /**
+         * Sets the {@code name} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder name(String value) {
+            this.name = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code availability} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder availability(FeatureFlagAvailability value) {
+            this.availability = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code capiSanity} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder capiSanity(Boolean value) {
+            this.capiSanity = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code experimentalDescription} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder experimentalDescription(String value) {
+            this.experimentalDescription = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code expFlag} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder expFlag(String value) {
+            this.expFlag = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code expFlagEnvVar} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder expFlagEnvVar(String value) {
+            this.expFlagEnvVar = value;
+            return this;
+        }
+
+        /**
+         * Builds a record after checking required property presence.
+         * @return a new record
+         * @throws IllegalStateException if a required property is missing
+         * @since 2.0.0
+         */
+        public FeatureFlagMetadata build() {
+            if (name == null) throw new IllegalStateException("Missing required property: name");
+            if (availability == null) throw new IllegalStateException("Missing required property: availability");
+            if (capiSanity == null) throw new IllegalStateException("Missing required property: capiSanity");
+            return new FeatureFlagMetadata(name, availability, capiSanity, experimentalDescription, expFlag, expFlagEnvVar);
+        }
+    }
 }

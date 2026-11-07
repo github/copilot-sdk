@@ -34,4 +34,45 @@ public final class CatalogSelectionTimedOut extends CatalogSelectionResult {
 
     public String getSearchId() { return searchId; }
     public void setSearchId(String searchId) { this.searchId = searchId; }
+
+
+    /**
+     * Returns a named builder.
+     * @return a new builder
+     * @since 2.0.0
+     */
+    public static Builder builder() { return new Builder(); }
+
+    /**
+     * Named construction for this record.
+     * @since 2.0.0
+     */
+    public static final class Builder {
+        private Builder() {}
+        private String searchId;
+
+        /**
+         * Sets the {@code searchId} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder searchId(String value) {
+            this.searchId = value;
+            return this;
+        }
+
+        /**
+         * Builds a variant after checking required property presence.
+         * @return a new variant
+         * @throws IllegalStateException if a required property is missing
+         * @since 2.0.0
+         */
+        public CatalogSelectionTimedOut build() {
+            if (searchId == null) throw new IllegalStateException("Missing required property: searchId");
+            CatalogSelectionTimedOut instance = new CatalogSelectionTimedOut();
+            instance.setSearchId(searchId);
+            return instance;
+        }
+    }
 }

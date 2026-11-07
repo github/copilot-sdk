@@ -42,10 +42,20 @@ public record McpInstallationReviewUninstall(
     /** Exact reviewed installation action. */
     @JsonProperty("action") String action
 ) implements McpInstallationReview {
+    /**
+     * Creates this variant positionally and normalizes its discriminator.
+     * @deprecated Use {@link #builder()} for named construction.
+     */
+    @Deprecated(since = "2.0.0", forRemoval = false)
     public McpInstallationReviewUninstall {
         action = "uninstall";
     }
 
+    /**
+     * Creates this variant without explicitly supplying its discriminator.
+     * @deprecated Use {@link #builder()} for named construction.
+     */
+    @Deprecated(since = "2.0.0", forRemoval = false)
     public McpInstallationReviewUninstall(
         String installationId,
         McpPlanResourceIdentity identity,
@@ -57,5 +67,134 @@ public record McpInstallationReviewUninstall(
         Boolean preservesSharedAuthentication
     ) {
         this(installationId, identity, provenance, target, policy, restoresPreviousConfiguration, ownedSecretCount, preservesSharedAuthentication, "uninstall");
+    }
+
+    /**
+     * Returns a named builder.
+     * @return a new builder
+     * @since 2.0.0
+     */
+    public static Builder builder() { return new Builder(); }
+
+    /**
+     * Named construction for this record.
+     * @since 2.0.0
+     */
+    public static final class Builder {
+        private Builder() {}
+        private String installationId;
+        private McpPlanResourceIdentity identity;
+        private McpPlanProvenance provenance;
+        private McpPlanTarget target;
+        private McpPlanPolicyResult policy;
+        private Boolean restoresPreviousConfiguration;
+        private Long ownedSecretCount;
+        private Boolean preservesSharedAuthentication;
+
+        /**
+         * Sets the {@code installationId} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder installationId(String value) {
+            this.installationId = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code identity} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder identity(McpPlanResourceIdentity value) {
+            this.identity = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code provenance} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder provenance(McpPlanProvenance value) {
+            this.provenance = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code target} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder target(McpPlanTarget value) {
+            this.target = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code policy} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder policy(McpPlanPolicyResult value) {
+            this.policy = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code restoresPreviousConfiguration} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder restoresPreviousConfiguration(Boolean value) {
+            this.restoresPreviousConfiguration = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code ownedSecretCount} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder ownedSecretCount(Long value) {
+            this.ownedSecretCount = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code preservesSharedAuthentication} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder preservesSharedAuthentication(Boolean value) {
+            this.preservesSharedAuthentication = value;
+            return this;
+        }
+
+        /**
+         * Builds a record after checking required property presence.
+         * @return a new record
+         * @throws IllegalStateException if a required property is missing
+         * @since 2.0.0
+         */
+        public McpInstallationReviewUninstall build() {
+            if (installationId == null) throw new IllegalStateException("Missing required property: installationId");
+            if (identity == null) throw new IllegalStateException("Missing required property: identity");
+            if (provenance == null) throw new IllegalStateException("Missing required property: provenance");
+            if (target == null) throw new IllegalStateException("Missing required property: target");
+            if (policy == null) throw new IllegalStateException("Missing required property: policy");
+            if (restoresPreviousConfiguration == null) throw new IllegalStateException("Missing required property: restoresPreviousConfiguration");
+            if (ownedSecretCount == null) throw new IllegalStateException("Missing required property: ownedSecretCount");
+            if (preservesSharedAuthentication == null) throw new IllegalStateException("Missing required property: preservesSharedAuthentication");
+            return new McpInstallationReviewUninstall(installationId, identity, provenance, target, policy, restoresPreviousConfiguration, ownedSecretCount, preservesSharedAuthentication, "uninstall");
+        }
     }
 }

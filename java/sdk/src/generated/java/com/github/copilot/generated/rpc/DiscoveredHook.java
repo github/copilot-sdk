@@ -42,8 +42,152 @@ public record DiscoveredHook(
 ) {
 
     /**
+     * Creates a record positionally.
+     * @deprecated Use {@link #builder()} for named construction.
+     */
+    @Deprecated(since = "2.0.0", forRemoval = false)
+    public DiscoveredHook {}
+
+    /**
+     * Returns a named builder.
+     * @return a new builder
+     * @since 2.0.0
+     */
+    public static Builder builder() { return new Builder(); }
+
+    /**
+     * Named construction for this record.
+     * @since 2.0.0
+     */
+    public static final class Builder {
+        private Builder() {}
+        private String id;
+        private HookType hookType;
+        private HookOrigin origin;
+        private String source;
+        private String projectPath;
+        private Boolean enabled;
+        private String disableKey;
+        private String definitionFileUri;
+        private String pluginId;
+
+        /**
+         * Sets the {@code id} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder id(String value) {
+            this.id = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code hookType} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder hookType(HookType value) {
+            this.hookType = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code origin} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder origin(HookOrigin value) {
+            this.origin = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code source} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder source(String value) {
+            this.source = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code projectPath} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder projectPath(String value) {
+            this.projectPath = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code enabled} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder enabled(Boolean value) {
+            this.enabled = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code disableKey} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder disableKey(String value) {
+            this.disableKey = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code definitionFileUri} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder definitionFileUri(String value) {
+            this.definitionFileUri = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code pluginId} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder pluginId(String value) {
+            this.pluginId = value;
+            return this;
+        }
+
+        /**
+         * Builds a record after checking required property presence.
+         * @return a new record
+         * @throws IllegalStateException if a required property is missing
+         * @since 2.0.0
+         */
+        public DiscoveredHook build() {
+            if (id == null) throw new IllegalStateException("Missing required property: id");
+            if (hookType == null) throw new IllegalStateException("Missing required property: hookType");
+            if (origin == null) throw new IllegalStateException("Missing required property: origin");
+            if (enabled == null) throw new IllegalStateException("Missing required property: enabled");
+            return new DiscoveredHook(id, hookType, origin, source, projectPath, enabled, disableKey, definitionFileUri, pluginId);
+        }
+    }
+
+    /**
      * Creates a record without plugin ownership or content-root metadata.
-     *
+     * @deprecated Use named construction via {@link #builder()}.
      * @param id Deterministic identifier for this server-discovered action row. It remains stable while the project, origin, source, event, action content, and duplicate ordinal are unchanged. This is row identity, not the key persisted in disabledHooks.
      * @param hookType Hook event that invokes this action.
      * @param origin Configuration tier that contributed this hook action.
@@ -52,6 +196,7 @@ public record DiscoveredHook(
      * @param enabled Whether this action is enabled under the server-side discovery settings. Concrete sessions may differ because they can add session-specific directories, plugins, or trust. False when its disable key is present in the user's disabled-hooks setting or disable-all settings suppress the action.
      * @param disableKey Durable content hash used by hook enablement. Identical actions may intentionally share this key. Omitted when changing the user's disabled-hooks setting cannot change the action's current server-discovered state, including managed-policy hooks, session-start prompt actions, actions suppressed by disable-all settings, and projectless plugin actions that require project-directory expansion.
      */
+    @Deprecated(since = "2.0.0", forRemoval = false)
     public DiscoveredHook(
         String id,
         HookType hookType,

@@ -41,4 +41,59 @@ final class GitHubFetchResultProxyResponse extends GitHubFetchResult {
 
     public Long getStatus() { return status; }
     public void setStatus(Long status) { this.status = status; }
+
+
+    /**
+     * Returns a named builder.
+     * @return a new builder
+     * @since 2.0.0
+     */
+    public static Builder builder() { return new Builder(); }
+
+    /**
+     * Named construction for this record.
+     * @since 2.0.0
+     */
+    public static final class Builder {
+        private Builder() {}
+        private String message;
+        private Long status;
+
+        /**
+         * Sets the {@code message} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder message(String value) {
+            this.message = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code status} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder status(Long value) {
+            this.status = value;
+            return this;
+        }
+
+        /**
+         * Builds a variant after checking required property presence.
+         * @return a new variant
+         * @throws IllegalStateException if a required property is missing
+         * @since 2.0.0
+         */
+        public GitHubFetchResultProxyResponse build() {
+            if (message == null) throw new IllegalStateException("Missing required property: message");
+            if (status == null) throw new IllegalStateException("Missing required property: status");
+            GitHubFetchResultProxyResponse instance = new GitHubFetchResultProxyResponse();
+            instance.setMessage(message);
+            instance.setStatus(status);
+            return instance;
+        }
+    }
 }

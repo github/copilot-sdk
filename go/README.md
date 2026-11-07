@@ -419,6 +419,14 @@ Follow these steps to embed the CLI:
 
 That's it! When your application calls `copilot.NewClient` without a `Connection` field (or with an empty `StdioConnection{}`), the SDK automatically installs the embedded `copilot-runtime` executable and adjacent `runtime.node` to a cache directory for managed child-process connections.
 
+If the user cache cannot be determined, Unix uses
+`<temp>/copilot-sdk-cache-<uid>` with owner-only permissions (`0700`), checking
+ownership and permissions before reuse. No `HOME` is required. The selected
+temporary base is trusted, like `COPILOT_HOME` or `embeddedcli.Config.Dir`;
+the application must keep these locations protected from replacement by other
+users. Other platforms retain the existing temporary-directory fallback.
+Legacy shared Unix caches are not reused, so the first fallback install is cold.
+
 The bundler prepares the native runtime library required by the [in-process transport](#in-process-transport-experimental). It is included in the application only when building with the `copilot_inprocess` build tag.
 
 ## In-process transport (Experimental)

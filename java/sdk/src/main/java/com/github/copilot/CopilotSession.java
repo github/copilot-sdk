@@ -38,6 +38,7 @@ import com.github.copilot.generated.ExternalToolCompletedEvent;
 import com.github.copilot.generated.rpc.SessionCommandsHandlePendingCommandParams;
 import com.github.copilot.generated.rpc.SessionLogParams;
 import com.github.copilot.generated.rpc.SessionLogLevel;
+import com.github.copilot.generated.rpc.SessionLogResult;
 import com.github.copilot.generated.rpc.SessionMcpOauthHandlePendingRequestParams;
 import com.github.copilot.generated.rpc.ModelCapabilitiesOverride;
 import com.github.copilot.generated.rpc.ModelCapabilitiesOverrideLimits;
@@ -51,6 +52,7 @@ import com.github.copilot.generated.rpc.SessionRpc;
 import com.github.copilot.generated.rpc.SessionToolsHandlePendingToolCallParams;
 import com.github.copilot.generated.rpc.SessionToolsSetParams;
 import com.github.copilot.generated.rpc.SessionUiElicitationParams;
+import com.github.copilot.generated.rpc.SessionUiElicitationResult;
 import com.github.copilot.generated.rpc.SessionUiHandlePendingElicitationParams;
 import com.github.copilot.generated.rpc.UIElicitationResponse;
 import com.github.copilot.generated.rpc.UIElicitationResponseAction;
@@ -206,6 +208,7 @@ public final class CopilotSession implements AutoCloseable {
      * client-supplied sessionId).
      */
     private volatile String sessionId;
+    private volatile Runnable releaseFromClient;
     private volatile String workspacePath;
     private volatile TranscriptRecoveryReport transcriptRecovery;
     private volatile SessionPermissionsSetModeResult permissionModeResult;
@@ -243,6 +246,7 @@ public final class CopilotSession implements AutoCloseable {
 
     /** Tracks whether this session instance has been closed or force-stopped. */
     private volatile boolean isTerminated = false;
+    private volatile boolean detached;
     private volatile boolean completionRpcUnsupported;
     private volatile boolean callbacksRetired = false;
 
@@ -350,6 +354,18 @@ public final class CopilotSession implements AutoCloseable {
 
     void setGitHubTokenProviderRegistration(GitHubTokenProviderRegistry.Registration registration) {
         this.gitHubTokenProviderRegistration = registration;
+    }
+
+    /**
+     * Sets how the owning client stops tracking this session once {@link #close()}
+     * detaches it. Package-private; called by CopilotClient.
+     */
+    void setReleaseFromClient(Runnable releaseFromClient) {
+        this.releaseFromClient = releaseFromClient;
+    }
+
+    boolean isDetached() {
+        return detached;
     }
 
     synchronized void releaseGitHubTokenProviderRegistration() {
@@ -1137,7 +1153,14 @@ public final class CopilotSession implements AutoCloseable {
         ensureNotTerminated();
         List<ToolDefinition> toolList = tools != null ? List.copyOf(tools) : List.of();
         Map<String, ToolDefinition> replacementHandlers = buildToolHandlerMap(toolList);
-        var params = new SessionToolsSetParams(sessionId, SessionRequestBuilder.toProtocolExternalTools(toolList));
+        boolean preserveNullNames = SessionRequestBuilder.requiresNullToolNameCompatibility(toolList);
+        SessionToolsSetParams params = preserveNullNames
+                ? null
+                : SessionToolsSetParams.builder().sessionId(sessionId)
+                        .tools(SessionRequestBuilder.toProtocolExternalTools(toolList)).build();
+        JsonNode wireTools = preserveNullNames
+                ? SessionRequestBuilder.toProtocolExternalToolsPreservingNullNames(toolList)
+                : null;
 
         var result = new CompletableFuture<Void>();
         CompletableFuture<Void> operation;
@@ -1147,7 +1170,19 @@ public final class CopilotSession implements AutoCloseable {
                     return CompletableFuture.<Void>completedFuture(null);
                 }
                 ensureNotTerminated();
-                return getRpc().tools.set(params).thenRun(() -> {
+                CompletableFuture<Void> request;
+                if (preserveNullNames) {
+                    // Generated builders reject null names, but the previous records
+                    // omitted them and let the runtime reject the replacement through
+                    // this returned future.
+                    ObjectNode payload = MAPPER.createObjectNode();
+                    payload.put("sessionId", sessionId);
+                    payload.set("tools", wireTools);
+                    request = rpc.invoke("session.tools.set", payload, Void.class);
+                } else {
+                    request = getRpc().tools.set(params);
+                }
+                return request.thenRun(() -> {
                     synchronized (CopilotSession.this) {
                         ensureNotTerminated();
                         toolHandlers.set(replacementHandlers);
@@ -1789,17 +1824,18 @@ public final class CopilotSession implements AutoCloseable {
 
     private void sendToolResponse(String requestId, String toolName, ToolResultObject result, String error) {
         try {
-            getRpc().tools
-                    .handlePendingToolCall(
-                            new SessionToolsHandlePendingToolCallParams(sessionId, requestId, result, error))
-                    .whenComplete((ignored, sendError) -> {
-                        if (sendError != null) {
-                            // Keep the reply off the reader thread and independent of tool handlers
-                            // that may be waiting for this session on the application's executor.
-                            CLEANUP_DISPATCHER
-                                    .execute(() -> answerUndeliveredToolResult(requestId, toolName, sendError));
-                        }
-                    });
+            var request = SessionToolsHandlePendingToolCallParams.builder().sessionId(sessionId).requestId(requestId)
+                    .error(error);
+            if (result != null) {
+                request.result(result);
+            }
+            getRpc().tools.handlePendingToolCall(request.build()).whenComplete((ignored, sendError) -> {
+                if (sendError != null) {
+                    // Keep the reply off the reader thread and independent of tool handlers
+                    // that may be waiting for this session on the application's executor.
+                    CLEANUP_DISPATCHER.execute(() -> answerUndeliveredToolResult(requestId, toolName, sendError));
+                }
+            });
         } catch (Exception e) {
             answerUndeliveredToolResult(requestId, toolName, e);
         }
@@ -1819,8 +1855,9 @@ public final class CopilotSession implements AutoCloseable {
         LOG.log(Level.SEVERE, "External tool result delivery failed. sessionId=" + sessionId + ", requestId="
                 + requestId + ", tool=" + toolName, error);
         try {
-            getRpc().tools.handlePendingToolCall(
-                    new SessionToolsHandlePendingToolCallParams(sessionId, requestId, null, handlerErrorMessage(error)))
+            getRpc().tools
+                    .handlePendingToolCall(SessionToolsHandlePendingToolCallParams.builder().sessionId(sessionId)
+                            .requestId(requestId).error(handlerErrorMessage(error)).build())
                     .whenComplete((ignored, sendError) -> {
                         if (sendError != null) {
                             LOG.log(Level.WARNING, "Error sending tool error for requestId=" + requestId, sendError);
@@ -1847,8 +1884,9 @@ public final class CopilotSession implements AutoCloseable {
      * future completes exceptionally, or its result cannot be sent.
      */
     private SessionUiHandlePendingElicitationParams buildElicitationCancelParams(String requestId) {
-        var cancelResult = new UIElicitationResponse(UIElicitationResponseAction.CANCEL, null, null);
-        return new SessionUiHandlePendingElicitationParams(sessionId, requestId, cancelResult);
+        var cancelResult = UIElicitationResponse.builder().action(UIElicitationResponseAction.CANCEL).build();
+        return SessionUiHandlePendingElicitationParams.builder().sessionId(sessionId).requestId(requestId)
+                .result(cancelResult).build();
     }
 
     /**
@@ -1874,9 +1912,10 @@ public final class CopilotSession implements AutoCloseable {
                             // so another client can handle it.
                             return;
                         }
-                        getRpc().permissions.handlePendingPermissionRequest(
-                                new SessionPermissionsHandlePendingPermissionRequestParams(sessionId, requestId, result,
-                                        result.getDecisionContext()));
+                        getRpc().permissions
+                                .handlePendingPermissionRequest(SessionPermissionsHandlePendingPermissionRequestParams
+                                        .builder().sessionId(sessionId).requestId(requestId).result(result)
+                                        .decisionContext(result.getDecisionContext()).build());
                     } catch (Exception e) {
                         LOG.log(Level.WARNING, "Error sending permission result for requestId=" + requestId, e);
                     }
@@ -1885,9 +1924,9 @@ public final class CopilotSession implements AutoCloseable {
                     try {
                         PermissionRequestResult denied = new PermissionRequestResult();
                         denied.setKind(PermissionRequestResultKind.DENIED_COULD_NOT_REQUEST_FROM_USER);
-                        getRpc().permissions.handlePendingPermissionRequest(
-                                new SessionPermissionsHandlePendingPermissionRequestParams(sessionId, requestId, denied,
-                                        null));
+                        getRpc().permissions
+                                .handlePendingPermissionRequest(SessionPermissionsHandlePendingPermissionRequestParams
+                                        .builder().sessionId(sessionId).requestId(requestId).result(denied).build());
                     } catch (Exception e) {
                         LOG.log(Level.WARNING, "Error sending permission denied for requestId=" + requestId, e);
                     }
@@ -1898,9 +1937,9 @@ public final class CopilotSession implements AutoCloseable {
                 try {
                     PermissionRequestResult denied = new PermissionRequestResult();
                     denied.setKind(PermissionRequestResultKind.DENIED_COULD_NOT_REQUEST_FROM_USER);
-                    getRpc().permissions.handlePendingPermissionRequest(
-                            new SessionPermissionsHandlePendingPermissionRequestParams(sessionId, requestId, denied,
-                                    null));
+                    getRpc().permissions
+                            .handlePendingPermissionRequest(SessionPermissionsHandlePendingPermissionRequestParams
+                                    .builder().sessionId(sessionId).requestId(requestId).result(denied).build());
                 } catch (Exception sendEx) {
                     LOG.log(Level.WARNING, "Error sending permission denied for requestId=" + requestId, sendEx);
                 }
@@ -1977,8 +2016,8 @@ public final class CopilotSession implements AutoCloseable {
                 }
                 response = tokenResponse;
             }
-            getRpc().mcp.oauth.handlePendingRequest(
-                    new SessionMcpOauthHandlePendingRequestParams(sessionId, requestId, response));
+            getRpc().mcp.oauth.handlePendingRequest(SessionMcpOauthHandlePendingRequestParams.builder()
+                    .sessionId(sessionId).requestId(requestId).result(response).build());
         } catch (Exception e) {
             LOG.log(Level.WARNING, "Error sending MCP auth response for requestId=" + requestId, e);
         }
@@ -2020,8 +2059,9 @@ public final class CopilotSession implements AutoCloseable {
         Runnable task = () -> {
             if (handler == null) {
                 try {
-                    getRpc().commands.handlePendingCommand(new SessionCommandsHandlePendingCommandParams(sessionId,
-                            requestId, "Unknown command: " + commandName));
+                    getRpc().commands.handlePendingCommand(
+                            SessionCommandsHandlePendingCommandParams.builder().sessionId(sessionId)
+                                    .requestId(requestId).error("Unknown command: " + commandName).build());
                 } catch (Exception e) {
                     LOG.log(Level.WARNING, "Error sending command error for requestId=" + requestId, e);
                 }
@@ -2032,15 +2072,15 @@ public final class CopilotSession implements AutoCloseable {
                         .setArgs(args);
                 handler.handle(ctx).thenRun(() -> {
                     try {
-                        getRpc().commands.handlePendingCommand(
-                                new SessionCommandsHandlePendingCommandParams(sessionId, requestId, null));
+                        getRpc().commands.handlePendingCommand(SessionCommandsHandlePendingCommandParams.builder()
+                                .sessionId(sessionId).requestId(requestId).build());
                     } catch (Exception e) {
                         LOG.log(Level.WARNING, "Error sending command result for requestId=" + requestId, e);
                     }
                 }).exceptionally(ex -> {
                     try {
-                        getRpc().commands.handlePendingCommand(new SessionCommandsHandlePendingCommandParams(sessionId,
-                                requestId, handlerErrorMessage(ex)));
+                        getRpc().commands.handlePendingCommand(SessionCommandsHandlePendingCommandParams.builder()
+                                .sessionId(sessionId).requestId(requestId).error(handlerErrorMessage(ex)).build());
                     } catch (Exception e) {
                         LOG.log(Level.WARNING, "Error sending command error for requestId=" + requestId, e);
                     }
@@ -2052,8 +2092,8 @@ public final class CopilotSession implements AutoCloseable {
                 CopilotRequestHandler.rethrowFatalError(e);
                 LOG.log(Level.WARNING, "Error executing command for requestId=" + requestId, e);
                 try {
-                    getRpc().commands.handlePendingCommand(new SessionCommandsHandlePendingCommandParams(sessionId,
-                            requestId, handlerErrorMessage(e)));
+                    getRpc().commands.handlePendingCommand(SessionCommandsHandlePendingCommandParams.builder()
+                            .sessionId(sessionId).requestId(requestId).error(handlerErrorMessage(e)).build());
                 } catch (Exception sendEx) {
                     LOG.log(Level.WARNING, "Error sending command error for requestId=" + requestId, sendEx);
                 }
@@ -2088,9 +2128,10 @@ public final class CopilotSession implements AutoCloseable {
                             ? result.getAction().getValue()
                             : ElicitationResultAction.CANCEL.getValue();
                     var parsedAction = UIElicitationResponseAction.fromValue(actionStr);
-                    var elicitationResult = new UIElicitationResponse(parsedAction, result.getContent(), null);
-                    return getRpc().ui.handlePendingElicitation(
-                            new SessionUiHandlePendingElicitationParams(sessionId, requestId, elicitationResult));
+                    var elicitationResult = UIElicitationResponse.builder().action(parsedAction)
+                            .content(result.getContent()).build();
+                    return getRpc().ui.handlePendingElicitation(SessionUiHandlePendingElicitationParams.builder()
+                            .sessionId(sessionId).requestId(requestId).result(elicitationResult).build());
                 }).exceptionally(ex -> {
                     LOG.log(Level.WARNING,
                             "Error executing elicitation handler or sending result for requestId=" + requestId, ex);
@@ -2152,10 +2193,9 @@ public final class CopilotSession implements AutoCloseable {
         @Override
         public CompletableFuture<ElicitationResult> elicitation(ElicitationParams params) {
             assertElicitation();
-            return getRpc().ui.elicitation(new SessionUiElicitationParams(sessionId, null, params.getMessage(),
-                    new UIElicitationSchema(params.getRequestedSchema().getType(),
-                            params.getRequestedSchema().getProperties(), params.getRequestedSchema().getRequired()),
-                    null, null)).thenApply(resp -> {
+            var schema = params.getRequestedSchema();
+            return sendElicitation(params.getMessage(), schema.getType(), schema.getProperties(), schema.getRequired())
+                    .thenApply(resp -> {
                         var result = new ElicitationResult();
                         if (resp.action() != null) {
                             for (ElicitationResultAction a : ElicitationResultAction.values()) {
@@ -2177,9 +2217,7 @@ public final class CopilotSession implements AutoCloseable {
         public CompletableFuture<Boolean> confirm(String message) {
             assertElicitation();
             var field = Map.of("type", "boolean", "default", (Object) true);
-            return getRpc().ui
-                    .elicitation(new SessionUiElicitationParams(sessionId, null, message, new UIElicitationSchema(
-                            "object", Map.of("confirmed", (Object) field), List.of("confirmed")), null, null))
+            return sendElicitation(message, "object", Map.of("confirmed", (Object) field), List.of("confirmed"))
                     .thenApply(resp -> {
                         if (resp.action() == UIElicitationResponseAction.ACCEPT && resp.content() != null) {
                             Object val = resp.content().get("confirmed");
@@ -2201,9 +2239,7 @@ public final class CopilotSession implements AutoCloseable {
         public CompletableFuture<String> select(String message, String[] options) {
             assertElicitation();
             var field = Map.of("type", (Object) "string", "enum", (Object) options);
-            return getRpc().ui
-                    .elicitation(new SessionUiElicitationParams(sessionId, null, message, new UIElicitationSchema(
-                            "object", Map.of("selection", (Object) field), List.of("selection")), null, null))
+            return sendElicitation(message, "object", Map.of("selection", (Object) field), List.of("selection"))
                     .thenApply(resp -> {
                         if (resp.action() == UIElicitationResponseAction.ACCEPT && resp.content() != null) {
                             Object val = resp.content().get("selection");
@@ -2232,8 +2268,7 @@ public final class CopilotSession implements AutoCloseable {
                 if (options.getDefaultValue() != null)
                     field.put("default", options.getDefaultValue());
             }
-            return getRpc().ui.elicitation(new SessionUiElicitationParams(sessionId, null, message,
-                    new UIElicitationSchema("object", Map.of("value", (Object) field), List.of("value")), null, null))
+            return sendElicitation(message, "object", Map.of("value", (Object) field), List.of("value"))
                     .thenApply(resp -> {
                         if (resp.action() == UIElicitationResponseAction.ACCEPT && resp.content() != null) {
                             Object val = resp.content().get("value");
@@ -2241,6 +2276,34 @@ public final class CopilotSession implements AutoCloseable {
                         }
                         return null;
                     });
+        }
+
+        private CompletableFuture<SessionUiElicitationResult> sendElicitation(String message, String type,
+                Map<String, Object> properties, List<String> required) {
+            if (message != null && type != null && properties != null) {
+                var schema = UIElicitationSchema.builder().type(type).properties(properties).required(required).build();
+                var request = SessionUiElicitationParams.builder().sessionId(sessionId).message(message)
+                        .requestedSchema(schema).build();
+                return getRpc().ui.elicitation(request);
+            }
+            // Generated builders reject required nulls, but the previous records
+            // omitted them and let the runtime complete the returned future.
+            ObjectNode payload = MAPPER.createObjectNode();
+            payload.put("sessionId", sessionId);
+            if (message != null) {
+                payload.put("message", message);
+            }
+            ObjectNode schema = payload.putObject("requestedSchema");
+            if (type != null) {
+                schema.put("type", type);
+            }
+            if (properties != null) {
+                schema.set("properties", MAPPER.valueToTree(properties));
+            }
+            if (required != null) {
+                schema.set("required", MAPPER.valueToTree(required));
+            }
+            return rpc.invoke("session.ui.elicitation", payload, SessionUiElicitationResult.class);
         }
     }
 
@@ -2518,8 +2581,7 @@ public final class CopilotSession implements AutoCloseable {
                 LOG.warning("failed to deserialize session.canvas.opened payload");
                 return;
             }
-            upsertOpenCanvas(new OpenCanvasInstance(data.instanceId(), data.extensionId(), data.extensionName(),
-                    data.canvasId(), data.icon(), data.title(), data.status(), data.url(), data.input()));
+            upsertOpenCanvas(MAPPER.convertValue(data, OpenCanvasInstance.class));
         }
     }
 
@@ -2959,7 +3021,8 @@ public final class CopilotSession implements AutoCloseable {
      *
      * <pre>{@code
      * session.setModel("claude-sonnet-4.5", null,
-     * 		new ModelCapabilitiesOverride().setSupports(new ModelCapabilitiesOverride.Supports().setVision(false)))
+     * 		new com.github.copilot.rpc.ModelCapabilitiesOverride()
+     * 				.setSupports(new com.github.copilot.rpc.ModelCapabilitiesOverride.Supports().setVision(false)))
      * 		.get();
      * }</pre>
      *
@@ -3027,14 +3090,14 @@ public final class CopilotSession implements AutoCloseable {
         ModelCapabilitiesOverrideSupports supports = null;
         if (modelCapabilities.getSupports() != null) {
             var s = modelCapabilities.getSupports();
-            supports = new ModelCapabilitiesOverrideSupports(s.getVision().orElse(null), null,
-                    s.getReasoningEffort().orElse(null), null);
+            supports = ModelCapabilitiesOverrideSupports.builder().vision(s.getVision().orElse(null))
+                    .reasoningEffort(s.getReasoningEffort().orElse(null)).build();
         }
         ModelCapabilitiesOverrideLimits limits = null;
         if (modelCapabilities.getLimits() != null) {
             limits = MAPPER.convertValue(modelCapabilities.getLimits(), ModelCapabilitiesOverrideLimits.class);
         }
-        return new ModelCapabilitiesOverride(supports, limits);
+        return ModelCapabilitiesOverride.builder().supports(supports).limits(limits).build();
     }
 
     private static com.github.copilot.generated.rpc.AutoTier toGeneratedAutoTier(
@@ -3081,16 +3144,20 @@ public final class CopilotSession implements AutoCloseable {
         var generatedReasoningSummary = options.getReasoningSummary() == null
                 ? null
                 : com.github.copilot.generated.rpc.ReasoningSummary.fromValue(options.getReasoningSummary());
-        var params = new SessionModelSwitchToParams(sessionId, options.getModel(),
-                toGeneratedAutoTier(options.getAutoTier()), options.getReasoningEffort(), generatedReasoningSummary,
-                null, toGeneratedCapabilities(options.getModelCapabilities()), null, null, null, null, null, null, null,
-                null, null);
+        var builder = SessionModelSwitchToParams.builder().sessionId(sessionId).modelId(options.getModel())
+                .reasoningSummary(generatedReasoningSummary)
+                .modelCapabilities(toGeneratedCapabilities(options.getModelCapabilities()));
+        if (options.getAutoTier() != null) {
+            builder.autoTier(toGeneratedAutoTier(options.getAutoTier()));
+        }
+        if (options.hasReasoningEffort()) {
+            builder.reasoningEffort(options.getReasoningEffort());
+        }
+        var params = builder.build();
         if (!options.isResetAutoTier()) {
             return getRpc().model.switchTo(params).thenApply(r -> null);
         }
-        // The generated params record omits null properties, but returning to
-        // provider-default Auto routing requires sending an explicit null tier, so
-        // build the payload directly and reinstate the null.
+        // Returning to provider-default Auto routing requires an explicit null tier.
         ObjectNode payload = MAPPER.valueToTree(params);
         payload.putNull("autoTier");
         return rpc.invoke("session.model.switchTo", payload, Void.class);
@@ -3132,14 +3199,14 @@ public final class CopilotSession implements AutoCloseable {
     @CopilotExperimental
     public CompletableFuture<SessionModelSwitchAutoTierResult> setAutoTier(com.github.copilot.rpc.AutoTier autoTier) {
         ensureNotTerminated();
-        var params = new SessionModelSwitchAutoTierParams(sessionId, toGeneratedAutoTier(autoTier), null);
         if (autoTier != null) {
+            var params = SessionModelSwitchAutoTierParams.builder().sessionId(sessionId)
+                    .autoTier(toGeneratedAutoTier(autoTier)).build();
             return getRpc().model.switchAutoTier(params);
         }
-        // The generated params record omits null properties, but the runtime
-        // distinguishes an explicit null tier (return to provider-default routing)
-        // from an absent one, so build the payload directly and reinstate the null.
-        ObjectNode payload = MAPPER.valueToTree(params);
+        // Returning to provider-default Auto routing requires an explicit null tier.
+        ObjectNode payload = MAPPER.createObjectNode();
+        payload.put("sessionId", sessionId);
         payload.putNull("autoTier");
         return rpc.invoke("session.model.switchAutoTier", payload, SessionModelSwitchAutoTierResult.class);
     }
@@ -3207,8 +3274,25 @@ public final class CopilotSession implements AutoCloseable {
                 rpcLevel = SessionLogLevel.INFO;
             }
         }
-        return getRpc().log(new SessionLogParams(sessionId, message, rpcLevel, null, ephemeral, url, null))
-                .thenApply(r -> null);
+        if (message == null) {
+            // Preserve the pre-builder payload, which omitted a null message and let
+            // the runtime report validation through the returned future.
+            ObjectNode payload = MAPPER.createObjectNode();
+            payload.put("sessionId", sessionId);
+            if (rpcLevel != null) {
+                payload.put("level", rpcLevel.getValue());
+            }
+            if (ephemeral != null) {
+                payload.put("ephemeral", ephemeral);
+            }
+            if (url != null) {
+                payload.put("url", url);
+            }
+            return rpc.invoke("session.log", payload, SessionLogResult.class).thenApply(r -> null);
+        }
+        var params = SessionLogParams.builder().sessionId(sessionId).message(message).level(rpcLevel)
+                .ephemeral(ephemeral).url(url).build();
+        return getRpc().log(params).thenApply(r -> null);
     }
 
     /**
@@ -3428,9 +3512,17 @@ public final class CopilotSession implements AutoCloseable {
 
     private CompletableFuture<SessionDetachResponse> sendDetach() {
         return rpc.invoke("session.detach", Map.of("sessionId", sessionId), SessionDetachResponse.class)
-                .whenComplete((ignored, error) -> {
+                .whenComplete((response, error) -> {
                     if (!callbacksRetired) {
                         retireCallbacks();
+                    }
+                    if (error == null && detachRejection(response) == null) {
+                        detached = true;
+                        Runnable release = releaseFromClient;
+                        releaseFromClient = null;
+                        if (release != null) {
+                            release.run();
+                        }
                     }
                 });
     }

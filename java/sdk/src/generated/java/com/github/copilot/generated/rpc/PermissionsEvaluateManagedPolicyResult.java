@@ -28,4 +28,75 @@ record PermissionsEvaluateManagedPolicyResult(
     /** True when the managed layer supplies permission rules that the session must enforce. */
     @JsonProperty("permissionRulesActive") Boolean permissionRulesActive
 ) {
+
+    /**
+     * Creates a record positionally.
+     * @deprecated Use {@link #builder()} for named construction.
+     */
+    @Deprecated(since = "2.0.0", forRemoval = false)
+    PermissionsEvaluateManagedPolicyResult {}
+
+    /**
+     * Returns a named builder.
+     * @return a new builder
+     * @since 2.0.0
+     */
+    public static Builder builder() { return new Builder(); }
+
+    /**
+     * Named construction for this record.
+     * @since 2.0.0
+     */
+    public static final class Builder {
+        private Builder() {}
+        private Boolean bypassPermissionsDisabled;
+        private Boolean policyUndetermined;
+        private Boolean permissionRulesActive;
+
+        /**
+         * Sets the {@code bypassPermissionsDisabled} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder bypassPermissionsDisabled(Boolean value) {
+            this.bypassPermissionsDisabled = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code policyUndetermined} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder policyUndetermined(Boolean value) {
+            this.policyUndetermined = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code permissionRulesActive} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder permissionRulesActive(Boolean value) {
+            this.permissionRulesActive = value;
+            return this;
+        }
+
+        /**
+         * Builds a record after checking required property presence.
+         * @return a new record
+         * @throws IllegalStateException if a required property is missing
+         * @since 2.0.0
+         */
+        public PermissionsEvaluateManagedPolicyResult build() {
+            if (bypassPermissionsDisabled == null) throw new IllegalStateException("Missing required property: bypassPermissionsDisabled");
+            if (policyUndetermined == null) throw new IllegalStateException("Missing required property: policyUndetermined");
+            if (permissionRulesActive == null) throw new IllegalStateException("Missing required property: permissionRulesActive");
+            return new PermissionsEvaluateManagedPolicyResult(bypassPermissionsDisabled, policyUndetermined, permissionRulesActive);
+        }
+    }
 }

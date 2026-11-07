@@ -81,4 +81,137 @@ final class GitHubReleaseSnapshotResultSuccess extends GitHubReleaseSnapshotResu
 
     public GitHubReleaseSnapshotEntry getAutomaticUpdateCandidate() { return automaticUpdateCandidate; }
     public void setAutomaticUpdateCandidate(GitHubReleaseSnapshotEntry automaticUpdateCandidate) { this.automaticUpdateCandidate = automaticUpdateCandidate; }
+
+
+    /**
+     * Returns a named builder.
+     * @return a new builder
+     * @since 2.0.0
+     */
+    @com.github.copilot.CopilotExperimental
+    public static Builder builder() { return new Builder(); }
+
+    /**
+     * Named construction for this record.
+     * @since 2.0.0
+     */
+    @com.github.copilot.CopilotExperimental
+    public static final class Builder {
+        private Builder() {}
+        private GitHubReleaseUpdateChannel updateChannel;
+        private Double lookupDurationMs;
+        private List<GitHubReleaseSnapshotEntry> latestStableReleases;
+        private List<GitHubReleaseSnapshotEntry> prereleasesNewerThanLatestStable;
+        private String runningVersion;
+        private Boolean eligible;
+        private GitHubReleaseSnapshotEntry automaticUpdateCandidate;
+
+        /**
+         * Sets the {@code updateChannel} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        @com.github.copilot.CopilotExperimental
+        public Builder updateChannel(GitHubReleaseUpdateChannel value) {
+            this.updateChannel = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code lookupDurationMs} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        @com.github.copilot.CopilotExperimental
+        public Builder lookupDurationMs(Double value) {
+            this.lookupDurationMs = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code latestStableReleases} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        @com.github.copilot.CopilotExperimental
+        public Builder latestStableReleases(List<GitHubReleaseSnapshotEntry> value) {
+            this.latestStableReleases = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code prereleasesNewerThanLatestStable} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        @com.github.copilot.CopilotExperimental
+        public Builder prereleasesNewerThanLatestStable(List<GitHubReleaseSnapshotEntry> value) {
+            this.prereleasesNewerThanLatestStable = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code runningVersion} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        @com.github.copilot.CopilotExperimental
+        public Builder runningVersion(String value) {
+            this.runningVersion = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code eligible} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        @com.github.copilot.CopilotExperimental
+        public Builder eligible(Boolean value) {
+            this.eligible = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code automaticUpdateCandidate} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        @com.github.copilot.CopilotExperimental
+        public Builder automaticUpdateCandidate(GitHubReleaseSnapshotEntry value) {
+            this.automaticUpdateCandidate = value;
+            return this;
+        }
+
+        /**
+         * Builds a variant after checking required property presence.
+         * @return a new variant
+         * @throws IllegalStateException if a required property is missing
+         * @since 2.0.0
+         */
+        public GitHubReleaseSnapshotResultSuccess build() {
+            if (updateChannel == null) throw new IllegalStateException("Missing required property: updateChannel");
+            if (lookupDurationMs == null) throw new IllegalStateException("Missing required property: lookupDurationMs");
+            if (latestStableReleases == null) throw new IllegalStateException("Missing required property: latestStableReleases");
+            if (prereleasesNewerThanLatestStable == null) throw new IllegalStateException("Missing required property: prereleasesNewerThanLatestStable");
+            if (runningVersion == null) throw new IllegalStateException("Missing required property: runningVersion");
+            if (eligible == null) throw new IllegalStateException("Missing required property: eligible");
+            GitHubReleaseSnapshotResultSuccess instance = new GitHubReleaseSnapshotResultSuccess();
+            instance.setUpdateChannel(updateChannel);
+            instance.setLookupDurationMs(lookupDurationMs);
+            instance.setLatestStableReleases(latestStableReleases);
+            instance.setPrereleasesNewerThanLatestStable(prereleasesNewerThanLatestStable);
+            instance.setRunningVersion(runningVersion);
+            instance.setEligible(eligible);
+            instance.setAutomaticUpdateCandidate(automaticUpdateCandidate);
+            return instance;
+        }
+    }
 }

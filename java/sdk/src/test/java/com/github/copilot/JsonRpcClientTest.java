@@ -166,7 +166,8 @@ class JsonRpcClientTest {
                         "sandbox.proxyCa.checkRelevance"}) {
                     CompletableFuture<?> result = method.endsWith("checkInstallationSupport")
                             ? server.sandbox.proxyCa.checkInstallationSupport()
-                            : server.sandbox.proxyCa.checkRelevance(new SandboxProxyCaCheckRelevanceParams(null));
+                            : server.sandbox.proxyCa.checkRelevance(
+                                    SandboxProxyCaCheckRelevanceParams.builder().sandboxConfig(null).build());
                     JsonNode request = MAPPER.readTree(readRpcMessage(pair.serverSide.getInputStream()));
                     assertEquals(method, request.get("method").asText());
                     writeRpcMessage(pair.serverSide.getOutputStream(),

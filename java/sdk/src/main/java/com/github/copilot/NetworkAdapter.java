@@ -57,17 +57,22 @@ final class NetworkAdapter {
         var callbacks = new ArrayList<CancellableCallbackAdapter<?, String>>(2);
         if (resolveProxy != null) {
             callbacks.add(new CancellableCallbackAdapter<>("network.resolveProxy", "Proxy resolution",
-                    NetworkResolveProxyRequest.class, resolveProxy, NetworkResolveProxyResult::new, executor));
+                    NetworkResolveProxyRequest.class, resolveProxy,
+                    value -> NetworkResolveProxyResult.builder().proxy(value).build(), executor));
         }
         if (authenticateNegotiate != null) {
             callbacks.add(new CancellableCallbackAdapter<>("network.authenticateNegotiate", "Negotiate authentication",
                     NetworkAuthenticateNegotiateRequest.class, authenticateNegotiate,
-                    NetworkAuthenticateNegotiateResult::new, executor));
+                    value -> NetworkAuthenticateNegotiateResult.builder().token(value).build(), executor));
         }
-        var registration = new NetworkSetProviderParams(config.getScope(),
-                resolveProxy != null ? new NetworkResolveProxyOptions() : null,
-                authenticateNegotiate != null ? new NetworkAuthenticateNegotiateOptions() : null);
-        return new NetworkAdapter(registration, List.copyOf(callbacks));
+        var registration = NetworkSetProviderParams.builder().scope(config.getScope());
+        if (resolveProxy != null) {
+            registration.resolveProxy(NetworkResolveProxyOptions.builder().build());
+        }
+        if (authenticateNegotiate != null) {
+            registration.authenticateNegotiate(NetworkAuthenticateNegotiateOptions.builder().build());
+        }
+        return new NetworkAdapter(registration.build(), List.copyOf(callbacks));
     }
 
     void registerHandlers(JsonRpcClient rpc) {

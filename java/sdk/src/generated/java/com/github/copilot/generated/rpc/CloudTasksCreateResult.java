@@ -40,4 +40,130 @@ record CloudTasksCreateResult(
     /** The error body the service returned, preserved verbatim so a host can surface the service's own message. */
     @JsonProperty("errorPayloadJson") String errorPayloadJson
 ) {
+
+    /**
+     * Creates a record positionally.
+     * @deprecated Use {@link #builder()} for named construction.
+     */
+    @Deprecated(since = "2.0.0", forRemoval = false)
+    CloudTasksCreateResult {}
+
+    /**
+     * Returns a named builder.
+     * @return a new builder
+     * @since 2.0.0
+     */
+    @com.github.copilot.CopilotExperimental
+    public static Builder builder() { return new Builder(); }
+
+    /**
+     * Named construction for this record.
+     * @since 2.0.0
+     */
+    @com.github.copilot.CopilotExperimental
+    public static final class Builder {
+        private Builder() {}
+        private Boolean ok;
+        private String responseJson;
+        private String reason;
+        private String message;
+        private Long statusCode;
+        private String errorMessage;
+        private String errorPayloadJson;
+
+        /**
+         * Sets the {@code ok} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        @com.github.copilot.CopilotExperimental
+        public Builder ok(Boolean value) {
+            this.ok = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code responseJson} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        @com.github.copilot.CopilotExperimental
+        public Builder responseJson(String value) {
+            this.responseJson = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code reason} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        @com.github.copilot.CopilotExperimental
+        public Builder reason(String value) {
+            this.reason = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code message} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        @com.github.copilot.CopilotExperimental
+        public Builder message(String value) {
+            this.message = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code statusCode} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        @com.github.copilot.CopilotExperimental
+        public Builder statusCode(Long value) {
+            this.statusCode = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code errorMessage} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        @com.github.copilot.CopilotExperimental
+        public Builder errorMessage(String value) {
+            this.errorMessage = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code errorPayloadJson} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        @com.github.copilot.CopilotExperimental
+        public Builder errorPayloadJson(String value) {
+            this.errorPayloadJson = value;
+            return this;
+        }
+
+        /**
+         * Builds a record after checking required property presence.
+         * @return a new record
+         * @throws IllegalStateException if a required property is missing
+         * @since 2.0.0
+         */
+        public CloudTasksCreateResult build() {
+            if (ok == null) throw new IllegalStateException("Missing required property: ok");
+            return new CloudTasksCreateResult(ok, responseJson, reason, message, statusCode, errorMessage, errorPayloadJson);
+        }
+    }
 }

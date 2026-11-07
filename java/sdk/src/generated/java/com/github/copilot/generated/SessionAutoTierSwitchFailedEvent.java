@@ -41,5 +41,77 @@ public final class SessionAutoTierSwitchFailedEvent extends SessionEvent {
         /** Low-cardinality failure outcome reported by Auto resolution. */
         @JsonProperty("reason") AutoTierSwitchFailureReason reason
     ) {
+
+        /**
+         * Creates a record positionally.
+         * @deprecated Use {@link #builder()} for named construction.
+         */
+        @Deprecated(since = "2.0.0", forRemoval = false)
+        public SessionAutoTierSwitchFailedEventData {}
+
+        /**
+         * Returns a named builder.
+         * @return a new builder
+         * @since 2.0.0
+         */
+        public static Builder builder() { return new Builder(); }
+
+        /**
+         * Named construction for this record.
+         * @since 2.0.0
+         */
+        public static final class Builder {
+            private Builder() {}
+            private AutoTier effectiveAutoTier;
+            private AutoTier requestedAutoTier;
+            private boolean $presence1;
+            private AutoTierSwitchFailureReason reason;
+
+            /**
+             * Sets the {@code effectiveAutoTier} property.
+             * @param value the property value
+             * @return this builder
+             * @since 2.0.0
+             */
+            public Builder effectiveAutoTier(AutoTier value) {
+                this.effectiveAutoTier = value;
+                return this;
+            }
+
+            /**
+             * Sets the {@code requestedAutoTier} property.
+             * @param value the property value
+             * @return this builder
+             * @since 2.0.0
+             */
+            public Builder requestedAutoTier(AutoTier value) {
+                this.requestedAutoTier = value;
+                this.$presence1 = true;
+                return this;
+            }
+
+            /**
+             * Sets the {@code reason} property.
+             * @param value the property value
+             * @return this builder
+             * @since 2.0.0
+             */
+            public Builder reason(AutoTierSwitchFailureReason value) {
+                this.reason = value;
+                return this;
+            }
+
+            /**
+             * Builds a record after checking required property presence.
+             * @return a new record
+             * @throws IllegalStateException if a required property is missing
+             * @since 2.0.0
+             */
+            public SessionAutoTierSwitchFailedEventData build() {
+                if (!$presence1) throw new IllegalStateException("Missing required property: requestedAutoTier");
+                if (reason == null) throw new IllegalStateException("Missing required property: reason");
+                return new SessionAutoTierSwitchFailedEventData(effectiveAutoTier, requestedAutoTier, reason);
+            }
+        }
     }
 }

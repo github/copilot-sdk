@@ -32,4 +32,79 @@ public record AutopilotObjectiveCreditLimit(
     /** Exact window consumption in non-negative integer nano-AIU, encoded as a decimal string. */
     @JsonProperty("creditsUsedNanoAiu") String creditsUsedNanoAiu
 ) {
+
+    /**
+     * Creates a record positionally.
+     * @deprecated Use {@link #builder()} for named construction.
+     */
+    @Deprecated(since = "2.0.0", forRemoval = false)
+    public AutopilotObjectiveCreditLimit {}
+
+    /**
+     * Returns a named builder.
+     * @return a new builder
+     * @since 2.0.0
+     */
+    @com.github.copilot.CopilotExperimental
+    public static Builder builder() { return new Builder(); }
+
+    /**
+     * Named construction for this record.
+     * @since 2.0.0
+     */
+    @com.github.copilot.CopilotExperimental
+    public static final class Builder {
+        private Builder() {}
+        private Double credits;
+        private Double creditsUsed;
+        private String creditsUsedNanoAiu;
+
+        /**
+         * Sets the {@code credits} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        @com.github.copilot.CopilotExperimental
+        public Builder credits(Double value) {
+            this.credits = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code creditsUsed} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        @com.github.copilot.CopilotExperimental
+        public Builder creditsUsed(Double value) {
+            this.creditsUsed = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code creditsUsedNanoAiu} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        @com.github.copilot.CopilotExperimental
+        public Builder creditsUsedNanoAiu(String value) {
+            this.creditsUsedNanoAiu = value;
+            return this;
+        }
+
+        /**
+         * Builds a record after checking required property presence.
+         * @return a new record
+         * @throws IllegalStateException if a required property is missing
+         * @since 2.0.0
+         */
+        public AutopilotObjectiveCreditLimit build() {
+            if (creditsUsed == null) throw new IllegalStateException("Missing required property: creditsUsed");
+            if (creditsUsedNanoAiu == null) throw new IllegalStateException("Missing required property: creditsUsedNanoAiu");
+            return new AutopilotObjectiveCreditLimit(credits, creditsUsed, creditsUsedNanoAiu);
+        }
+    }
 }

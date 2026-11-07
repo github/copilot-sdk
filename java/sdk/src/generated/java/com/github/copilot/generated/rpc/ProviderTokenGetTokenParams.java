@@ -29,4 +29,66 @@ public record ProviderTokenGetTokenParams(
     /** Name of the BYOK provider needing a token. For the legacy whole-session provider this is the implicit provider name; for named providers it is the configured provider name. */
     @JsonProperty("providerName") String providerName
 ) {
+
+    /**
+     * Creates a record positionally.
+     * @deprecated Use {@link #builder()} for named construction.
+     */
+    @Deprecated(since = "2.0.0", forRemoval = false)
+    public ProviderTokenGetTokenParams {}
+
+    /**
+     * Returns a named builder.
+     * @return a new builder
+     * @since 2.0.0
+     */
+    @com.github.copilot.CopilotExperimental
+    public static Builder builder() { return new Builder(); }
+
+    /**
+     * Named construction for this record.
+     * @since 2.0.0
+     */
+    @com.github.copilot.CopilotExperimental
+    public static final class Builder {
+        private Builder() {}
+        private String sessionId;
+        private String providerName;
+
+        /**
+         * Sets the {@code sessionId} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        @com.github.copilot.CopilotExperimental
+        public Builder sessionId(String value) {
+            this.sessionId = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code providerName} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        @com.github.copilot.CopilotExperimental
+        public Builder providerName(String value) {
+            this.providerName = value;
+            return this;
+        }
+
+        /**
+         * Builds a record after checking required property presence.
+         * @return a new record
+         * @throws IllegalStateException if a required property is missing
+         * @since 2.0.0
+         */
+        public ProviderTokenGetTokenParams build() {
+            if (sessionId == null) throw new IllegalStateException("Missing required property: sessionId");
+            if (providerName == null) throw new IllegalStateException("Missing required property: providerName");
+            return new ProviderTokenGetTokenParams(sessionId, providerName);
+        }
+    }
 }

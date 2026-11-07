@@ -40,5 +40,63 @@ public final class ToolSearchActivatedEvent extends SessionEvent {
         /** Names of tool definitions activated by this search invocation. */
         @JsonProperty("toolNames") List<String> toolNames
     ) {
+
+        /**
+         * Creates a record positionally.
+         * @deprecated Use {@link #builder()} for named construction.
+         */
+        @Deprecated(since = "2.0.0", forRemoval = false)
+        public ToolSearchActivatedEventData {}
+
+        /**
+         * Returns a named builder.
+         * @return a new builder
+         * @since 2.0.0
+         */
+        public static Builder builder() { return new Builder(); }
+
+        /**
+         * Named construction for this record.
+         * @since 2.0.0
+         */
+        public static final class Builder {
+            private Builder() {}
+            private String strategy;
+            private List<String> toolNames;
+
+            /**
+             * Sets the {@code strategy} property.
+             * @param value the property value
+             * @return this builder
+             * @since 2.0.0
+             */
+            public Builder strategy(String value) {
+                this.strategy = value;
+                return this;
+            }
+
+            /**
+             * Sets the {@code toolNames} property.
+             * @param value the property value
+             * @return this builder
+             * @since 2.0.0
+             */
+            public Builder toolNames(List<String> value) {
+                this.toolNames = value;
+                return this;
+            }
+
+            /**
+             * Builds a record after checking required property presence.
+             * @return a new record
+             * @throws IllegalStateException if a required property is missing
+             * @since 2.0.0
+             */
+            public ToolSearchActivatedEventData build() {
+                if (strategy == null) throw new IllegalStateException("Missing required property: strategy");
+                if (toolNames == null) throw new IllegalStateException("Missing required property: toolNames");
+                return new ToolSearchActivatedEventData(strategy, toolNames);
+            }
+        }
     }
 }

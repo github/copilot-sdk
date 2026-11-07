@@ -55,4 +55,84 @@ public final class SessionsOpenResume extends SessionsOpenParams {
 
     public Boolean getSuppressResumeWorkspaceMetadataWriteback() { return suppressResumeWorkspaceMetadataWriteback; }
     public void setSuppressResumeWorkspaceMetadataWriteback(Boolean suppressResumeWorkspaceMetadataWriteback) { this.suppressResumeWorkspaceMetadataWriteback = suppressResumeWorkspaceMetadataWriteback; }
+
+
+    /**
+     * Returns a named builder.
+     * @return a new builder
+     * @since 2.0.0
+     */
+    public static Builder builder() { return new Builder(); }
+
+    /**
+     * Named construction for this record.
+     * @since 2.0.0
+     */
+    public static final class Builder {
+        private Builder() {}
+        private String sessionId;
+        private SessionOpenOptions options;
+        private Boolean resume;
+        private Boolean suppressResumeWorkspaceMetadataWriteback;
+
+        /**
+         * Sets the {@code sessionId} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder sessionId(String value) {
+            this.sessionId = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code options} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder options(SessionOpenOptions value) {
+            this.options = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code resume} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder resume(Boolean value) {
+            this.resume = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code suppressResumeWorkspaceMetadataWriteback} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder suppressResumeWorkspaceMetadataWriteback(Boolean value) {
+            this.suppressResumeWorkspaceMetadataWriteback = value;
+            return this;
+        }
+
+        /**
+         * Builds a variant after checking required property presence.
+         * @return a new variant
+         * @throws IllegalStateException if a required property is missing
+         * @since 2.0.0
+         */
+        public SessionsOpenResume build() {
+            if (sessionId == null) throw new IllegalStateException("Missing required property: sessionId");
+            SessionsOpenResume instance = new SessionsOpenResume();
+            instance.setSessionId(sessionId);
+            instance.setOptions(options);
+            instance.setResume(resume);
+            instance.setSuppressResumeWorkspaceMetadataWriteback(suppressResumeWorkspaceMetadataWriteback);
+            return instance;
+        }
+    }
 }

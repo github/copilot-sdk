@@ -32,4 +32,80 @@ public record SessionExtensionsGetPolicyResult(
     /** Executable entries discovered from this session's runtime-verified eligible plugins. Under plugin_only, independently launched targets must match these entry paths; an external package, a caller-supplied plugin label, or a synthetic transport bootstrap does not establish eligibility. Empty while pending or when no extension controller is configured. */
     @JsonProperty("eligiblePluginEntries") List<EligiblePluginExtensionEntry> eligiblePluginEntries
 ) {
+
+    /**
+     * Creates a record positionally.
+     * @deprecated Use {@link #builder()} for named construction.
+     */
+    @Deprecated(since = "2.0.0", forRemoval = false)
+    public SessionExtensionsGetPolicyResult {}
+
+    /**
+     * Returns a named builder.
+     * @return a new builder
+     * @since 2.0.0
+     */
+    @com.github.copilot.CopilotExperimental
+    public static Builder builder() { return new Builder(); }
+
+    /**
+     * Named construction for this record.
+     * @since 2.0.0
+     */
+    @com.github.copilot.CopilotExperimental
+    public static final class Builder {
+        private Builder() {}
+        private StandaloneExtensionAdmission standalone;
+        private Long enforcementVersion;
+        private List<EligiblePluginExtensionEntry> eligiblePluginEntries;
+
+        /**
+         * Sets the {@code standalone} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        @com.github.copilot.CopilotExperimental
+        public Builder standalone(StandaloneExtensionAdmission value) {
+            this.standalone = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code enforcementVersion} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        @com.github.copilot.CopilotExperimental
+        public Builder enforcementVersion(Long value) {
+            this.enforcementVersion = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code eligiblePluginEntries} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        @com.github.copilot.CopilotExperimental
+        public Builder eligiblePluginEntries(List<EligiblePluginExtensionEntry> value) {
+            this.eligiblePluginEntries = value;
+            return this;
+        }
+
+        /**
+         * Builds a record after checking required property presence.
+         * @return a new record
+         * @throws IllegalStateException if a required property is missing
+         * @since 2.0.0
+         */
+        public SessionExtensionsGetPolicyResult build() {
+            if (standalone == null) throw new IllegalStateException("Missing required property: standalone");
+            if (enforcementVersion == null) throw new IllegalStateException("Missing required property: enforcementVersion");
+            if (eligiblePluginEntries == null) throw new IllegalStateException("Missing required property: eligiblePluginEntries");
+            return new SessionExtensionsGetPolicyResult(standalone, enforcementVersion, eligiblePluginEntries);
+        }
+    }
 }

@@ -36,4 +36,106 @@ public record DecisionsAskResult(
     /** Milliseconds from receiving the request to producing the result. */
     @JsonProperty("latencyMs") Long latencyMs
 ) {
+
+    /**
+     * Creates a record positionally.
+     * @deprecated Use {@link #builder()} for named construction.
+     */
+    @Deprecated(since = "2.0.0", forRemoval = false)
+    public DecisionsAskResult {}
+
+    /**
+     * Returns a named builder.
+     * @return a new builder
+     * @since 2.0.0
+     */
+    @com.github.copilot.CopilotExperimental
+    public static Builder builder() { return new Builder(); }
+
+    /**
+     * Named construction for this record.
+     * @since 2.0.0
+     */
+    @com.github.copilot.CopilotExperimental
+    public static final class Builder {
+        private Builder() {}
+        private String model;
+        private String upstreamModel;
+        private List<Object> answers;
+        private DecisionUsage usage;
+        private Long latencyMs;
+
+        /**
+         * Sets the {@code model} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        @com.github.copilot.CopilotExperimental
+        public Builder model(String value) {
+            this.model = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code upstreamModel} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        @com.github.copilot.CopilotExperimental
+        public Builder upstreamModel(String value) {
+            this.upstreamModel = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code answers} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        @com.github.copilot.CopilotExperimental
+        public Builder answers(List<Object> value) {
+            this.answers = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code usage} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        @com.github.copilot.CopilotExperimental
+        public Builder usage(DecisionUsage value) {
+            this.usage = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code latencyMs} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        @com.github.copilot.CopilotExperimental
+        public Builder latencyMs(Long value) {
+            this.latencyMs = value;
+            return this;
+        }
+
+        /**
+         * Builds a record after checking required property presence.
+         * @return a new record
+         * @throws IllegalStateException if a required property is missing
+         * @since 2.0.0
+         */
+        public DecisionsAskResult build() {
+            if (model == null) throw new IllegalStateException("Missing required property: model");
+            if (answers == null) throw new IllegalStateException("Missing required property: answers");
+            if (latencyMs == null) throw new IllegalStateException("Missing required property: latencyMs");
+            return new DecisionsAskResult(model, upstreamModel, answers, usage, latencyMs);
+        }
+    }
 }

@@ -52,5 +52,95 @@ public final class PermissionCarriedForwardEvent extends SessionEvent {
         @CopilotExperimental
         @JsonProperty("decisionSource") PermissionDecisionSource decisionSource
     ) {
+
+        /**
+         * Creates a record positionally.
+         * @deprecated Use {@link #builder()} for named construction.
+         */
+        @Deprecated(since = "2.0.0", forRemoval = false)
+        public PermissionCarriedForwardEventData {}
+
+        /**
+         * Returns a named builder.
+         * @return a new builder
+         * @since 2.0.0
+         */
+        @com.github.copilot.CopilotExperimental
+        public static Builder builder() { return new Builder(); }
+
+        /**
+         * Named construction for this record.
+         * @since 2.0.0
+         */
+        @com.github.copilot.CopilotExperimental
+        public static final class Builder {
+            private Builder() {}
+            private String requestId;
+            private String toolCallId;
+            private String recordId;
+            private PermissionDecisionSource decisionSource;
+
+            /**
+             * Sets the {@code requestId} property.
+             * @param value the property value
+             * @return this builder
+             * @since 2.0.0
+             */
+            @com.github.copilot.CopilotExperimental
+            public Builder requestId(String value) {
+                this.requestId = value;
+                return this;
+            }
+
+            /**
+             * Sets the {@code toolCallId} property.
+             * @param value the property value
+             * @return this builder
+             * @since 2.0.0
+             */
+            @com.github.copilot.CopilotExperimental
+            public Builder toolCallId(String value) {
+                this.toolCallId = value;
+                return this;
+            }
+
+            /**
+             * Sets the {@code recordId} property.
+             * @param value the property value
+             * @return this builder
+             * @since 2.0.0
+             */
+            @com.github.copilot.CopilotExperimental
+            public Builder recordId(String value) {
+                this.recordId = value;
+                return this;
+            }
+
+            /**
+             * Sets the {@code decisionSource} property.
+             * @param value the property value
+             * @return this builder
+             * @since 2.0.0
+             */
+            @com.github.copilot.CopilotExperimental
+            public Builder decisionSource(PermissionDecisionSource value) {
+                this.decisionSource = value;
+                return this;
+            }
+
+            /**
+             * Builds a record after checking required property presence.
+             * @return a new record
+             * @throws IllegalStateException if a required property is missing
+             * @since 2.0.0
+             */
+            public PermissionCarriedForwardEventData build() {
+                if (requestId == null) throw new IllegalStateException("Missing required property: requestId");
+                if (toolCallId == null) throw new IllegalStateException("Missing required property: toolCallId");
+                if (recordId == null) throw new IllegalStateException("Missing required property: recordId");
+                if (decisionSource == null) throw new IllegalStateException("Missing required property: decisionSource");
+                return new PermissionCarriedForwardEventData(requestId, toolCallId, recordId, decisionSource);
+            }
+        }
     }
 }

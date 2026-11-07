@@ -24,4 +24,48 @@ public record SandboxConfigUserPolicyExperimental(
     /** macOS seatbelt experimental options. */
     @JsonProperty("seatbelt") SandboxConfigUserPolicyExperimentalSeatbelt seatbelt
 ) {
+
+    /**
+     * Creates a record positionally.
+     * @deprecated Use {@link #builder()} for named construction.
+     */
+    @Deprecated(since = "2.0.0", forRemoval = false)
+    public SandboxConfigUserPolicyExperimental {}
+
+    /**
+     * Returns a named builder.
+     * @return a new builder
+     * @since 2.0.0
+     */
+    public static Builder builder() { return new Builder(); }
+
+    /**
+     * Named construction for this record.
+     * @since 2.0.0
+     */
+    public static final class Builder {
+        private Builder() {}
+        private SandboxConfigUserPolicyExperimentalSeatbelt seatbelt;
+
+        /**
+         * Sets the {@code seatbelt} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder seatbelt(SandboxConfigUserPolicyExperimentalSeatbelt value) {
+            this.seatbelt = value;
+            return this;
+        }
+
+        /**
+         * Builds a record after checking required property presence.
+         * @return a new record
+         * @throws IllegalStateException if a required property is missing
+         * @since 2.0.0
+         */
+        public SandboxConfigUserPolicyExperimental build() {
+            return new SandboxConfigUserPolicyExperimental(seatbelt);
+        }
+    }
 }

@@ -31,4 +31,75 @@ public record SessionTasksRegisterResult(
     /** True only when this invocation reclaimed an orphaned task */
     @JsonProperty("reclaimed") Boolean reclaimed
 ) {
+
+    /**
+     * Creates a record positionally.
+     * @deprecated Use {@link #builder()} for named construction.
+     */
+    @Deprecated(since = "2.0.0", forRemoval = false)
+    public SessionTasksRegisterResult {}
+
+    /**
+     * Returns a named builder.
+     * @return a new builder
+     * @since 2.0.0
+     */
+    public static Builder builder() { return new Builder(); }
+
+    /**
+     * Named construction for this record.
+     * @since 2.0.0
+     */
+    public static final class Builder {
+        private Builder() {}
+        private TaskClientInfo task;
+        private Boolean created;
+        private Boolean reclaimed;
+
+        /**
+         * Sets the {@code task} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder task(TaskClientInfo value) {
+            this.task = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code created} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder created(Boolean value) {
+            this.created = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code reclaimed} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder reclaimed(Boolean value) {
+            this.reclaimed = value;
+            return this;
+        }
+
+        /**
+         * Builds a record after checking required property presence.
+         * @return a new record
+         * @throws IllegalStateException if a required property is missing
+         * @since 2.0.0
+         */
+        public SessionTasksRegisterResult build() {
+            if (task == null) throw new IllegalStateException("Missing required property: task");
+            if (created == null) throw new IllegalStateException("Missing required property: created");
+            if (reclaimed == null) throw new IllegalStateException("Missing required property: reclaimed");
+            return new SessionTasksRegisterResult(task, created, reclaimed);
+        }
+    }
 }

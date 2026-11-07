@@ -33,4 +33,93 @@ public record SessionProvidersGetStatusResult(
     /** Provider-reported version. */
     @JsonProperty("version") String version
 ) {
+
+    /**
+     * Creates a record positionally.
+     * @deprecated Use {@link #builder()} for named construction.
+     */
+    @Deprecated(since = "2.0.0", forRemoval = false)
+    public SessionProvidersGetStatusResult {}
+
+    /**
+     * Returns a named builder.
+     * @return a new builder
+     * @since 2.0.0
+     */
+    @com.github.copilot.CopilotExperimental
+    public static Builder builder() { return new Builder(); }
+
+    /**
+     * Named construction for this record.
+     * @since 2.0.0
+     */
+    @com.github.copilot.CopilotExperimental
+    public static final class Builder {
+        private Builder() {}
+        private ModelProviderOperationOutcome outcome;
+        private ModelProviderInstance instance;
+        private String status;
+        private String version;
+
+        /**
+         * Sets the {@code outcome} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        @com.github.copilot.CopilotExperimental
+        public Builder outcome(ModelProviderOperationOutcome value) {
+            this.outcome = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code instance} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        @com.github.copilot.CopilotExperimental
+        public Builder instance(ModelProviderInstance value) {
+            this.instance = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code status} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        @com.github.copilot.CopilotExperimental
+        public Builder status(String value) {
+            this.status = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code version} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        @com.github.copilot.CopilotExperimental
+        public Builder version(String value) {
+            this.version = value;
+            return this;
+        }
+
+        /**
+         * Builds a record after checking required property presence.
+         * @return a new record
+         * @throws IllegalStateException if a required property is missing
+         * @since 2.0.0
+         */
+        public SessionProvidersGetStatusResult build() {
+            if (outcome == null) throw new IllegalStateException("Missing required property: outcome");
+            if (instance == null) throw new IllegalStateException("Missing required property: instance");
+            if (status == null) throw new IllegalStateException("Missing required property: status");
+            return new SessionProvidersGetStatusResult(outcome, instance, status, version);
+        }
+    }
 }

@@ -59,4 +59,93 @@ public final class AuthLoginStepDeviceCode extends AuthLoginStep {
 
     public Long getInterval() { return interval; }
     public void setInterval(Long interval) { this.interval = interval; }
+
+
+    /**
+     * Returns a named builder.
+     * @return a new builder
+     * @since 2.0.0
+     */
+    @com.github.copilot.CopilotExperimental
+    public static Builder builder() { return new Builder(); }
+
+    /**
+     * Named construction for this record.
+     * @since 2.0.0
+     */
+    @com.github.copilot.CopilotExperimental
+    public static final class Builder {
+        private Builder() {}
+        private String userCode;
+        private String verificationUri;
+        private Long expiresIn;
+        private Long interval;
+
+        /**
+         * Sets the {@code userCode} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        @com.github.copilot.CopilotExperimental
+        public Builder userCode(String value) {
+            this.userCode = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code verificationUri} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        @com.github.copilot.CopilotExperimental
+        public Builder verificationUri(String value) {
+            this.verificationUri = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code expiresIn} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        @com.github.copilot.CopilotExperimental
+        public Builder expiresIn(Long value) {
+            this.expiresIn = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code interval} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        @com.github.copilot.CopilotExperimental
+        public Builder interval(Long value) {
+            this.interval = value;
+            return this;
+        }
+
+        /**
+         * Builds a variant after checking required property presence.
+         * @return a new variant
+         * @throws IllegalStateException if a required property is missing
+         * @since 2.0.0
+         */
+        public AuthLoginStepDeviceCode build() {
+            if (userCode == null) throw new IllegalStateException("Missing required property: userCode");
+            if (verificationUri == null) throw new IllegalStateException("Missing required property: verificationUri");
+            if (expiresIn == null) throw new IllegalStateException("Missing required property: expiresIn");
+            if (interval == null) throw new IllegalStateException("Missing required property: interval");
+            AuthLoginStepDeviceCode instance = new AuthLoginStepDeviceCode();
+            instance.setUserCode(userCode);
+            instance.setVerificationUri(verificationUri);
+            instance.setExpiresIn(expiresIn);
+            instance.setInterval(interval);
+            return instance;
+        }
+    }
 }

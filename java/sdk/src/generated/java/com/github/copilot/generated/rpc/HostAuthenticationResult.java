@@ -30,4 +30,66 @@ record HostAuthenticationResult(
     /** Required future expiration in RFC3339 format. */
     @JsonProperty("expiresAt") String expiresAt
 ) {
+
+    /**
+     * Creates a record positionally.
+     * @deprecated Use {@link #builder()} for named construction.
+     */
+    @Deprecated(since = "2.0.0", forRemoval = false)
+    HostAuthenticationResult {}
+
+    /**
+     * Returns a named builder.
+     * @return a new builder
+     * @since 2.0.0
+     */
+    @com.github.copilot.CopilotExperimental
+    public static Builder builder() { return new Builder(); }
+
+    /**
+     * Named construction for this record.
+     * @since 2.0.0
+     */
+    @com.github.copilot.CopilotExperimental
+    public static final class Builder {
+        private Builder() {}
+        private String identity;
+        private String expiresAt;
+
+        /**
+         * Sets the {@code identity} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        @com.github.copilot.CopilotExperimental
+        public Builder identity(String value) {
+            this.identity = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code expiresAt} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        @com.github.copilot.CopilotExperimental
+        public Builder expiresAt(String value) {
+            this.expiresAt = value;
+            return this;
+        }
+
+        /**
+         * Builds a record after checking required property presence.
+         * @return a new record
+         * @throws IllegalStateException if a required property is missing
+         * @since 2.0.0
+         */
+        public HostAuthenticationResult build() {
+            if (identity == null) throw new IllegalStateException("Missing required property: identity");
+            if (expiresAt == null) throw new IllegalStateException("Missing required property: expiresAt");
+            return new HostAuthenticationResult(identity, expiresAt);
+        }
+    }
 }

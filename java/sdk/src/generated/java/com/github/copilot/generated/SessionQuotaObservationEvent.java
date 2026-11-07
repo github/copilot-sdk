@@ -42,5 +42,53 @@ public final class SessionQuotaObservationEvent extends SessionEvent {
         /** The admitted provider's state observation. Admission balances and percentages remain absent; separate monthly usage may report its own amount and cycle. */
         @JsonProperty("observation") ProviderQuotaState observation
     ) {
+
+        /**
+         * Creates a record positionally.
+         * @deprecated Use {@link #builder()} for named construction.
+         */
+        @Deprecated(since = "2.0.0", forRemoval = false)
+        public SessionQuotaObservationEventData {}
+
+        /**
+         * Returns a named builder.
+         * @return a new builder
+         * @since 2.0.0
+         */
+        @com.github.copilot.CopilotExperimental
+        public static Builder builder() { return new Builder(); }
+
+        /**
+         * Named construction for this record.
+         * @since 2.0.0
+         */
+        @com.github.copilot.CopilotExperimental
+        public static final class Builder {
+            private Builder() {}
+            private ProviderQuotaState observation;
+
+            /**
+             * Sets the {@code observation} property.
+             * @param value the property value
+             * @return this builder
+             * @since 2.0.0
+             */
+            @com.github.copilot.CopilotExperimental
+            public Builder observation(ProviderQuotaState value) {
+                this.observation = value;
+                return this;
+            }
+
+            /**
+             * Builds a record after checking required property presence.
+             * @return a new record
+             * @throws IllegalStateException if a required property is missing
+             * @since 2.0.0
+             */
+            public SessionQuotaObservationEventData build() {
+                if (observation == null) throw new IllegalStateException("Missing required property: observation");
+                return new SessionQuotaObservationEventData(observation);
+            }
+        }
     }
 }

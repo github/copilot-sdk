@@ -63,4 +63,100 @@ public final class CatalogSearchSucceeded extends CatalogSearchResult {
 
     public CatalogSearchPagination getPagination() { return pagination; }
     public void setPagination(CatalogSearchPagination pagination) { this.pagination = pagination; }
+
+
+    /**
+     * Returns a named builder.
+     * @return a new builder
+     * @since 2.0.0
+     */
+    public static Builder builder() { return new Builder(); }
+
+    /**
+     * Named construction for this record.
+     * @since 2.0.0
+     */
+    public static final class Builder {
+        private Builder() {}
+        private String searchId;
+        private List<CatalogCandidate> candidates;
+        private Boolean truncated;
+        private CatalogNegotiatedContract negotiated;
+        private CatalogSearchPagination pagination;
+
+        /**
+         * Sets the {@code searchId} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder searchId(String value) {
+            this.searchId = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code candidates} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder candidates(List<CatalogCandidate> value) {
+            this.candidates = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code truncated} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder truncated(Boolean value) {
+            this.truncated = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code negotiated} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder negotiated(CatalogNegotiatedContract value) {
+            this.negotiated = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code pagination} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder pagination(CatalogSearchPagination value) {
+            this.pagination = value;
+            return this;
+        }
+
+        /**
+         * Builds a variant after checking required property presence.
+         * @return a new variant
+         * @throws IllegalStateException if a required property is missing
+         * @since 2.0.0
+         */
+        public CatalogSearchSucceeded build() {
+            if (searchId == null) throw new IllegalStateException("Missing required property: searchId");
+            if (candidates == null) throw new IllegalStateException("Missing required property: candidates");
+            if (truncated == null) throw new IllegalStateException("Missing required property: truncated");
+            if (negotiated == null) throw new IllegalStateException("Missing required property: negotiated");
+            CatalogSearchSucceeded instance = new CatalogSearchSucceeded();
+            instance.setSearchId(searchId);
+            instance.setCandidates(candidates);
+            instance.setTruncated(truncated);
+            instance.setNegotiated(negotiated);
+            instance.setPagination(pagination);
+            return instance;
+        }
+    }
 }

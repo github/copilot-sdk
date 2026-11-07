@@ -27,4 +27,62 @@ public record PermissionRulesSet(
     /** Rules that auto-deny matching requests */
     @JsonProperty("denied") List<PermissionRule> denied
 ) {
+
+    /**
+     * Creates a record positionally.
+     * @deprecated Use {@link #builder()} for named construction.
+     */
+    @Deprecated(since = "2.0.0", forRemoval = false)
+    public PermissionRulesSet {}
+
+    /**
+     * Returns a named builder.
+     * @return a new builder
+     * @since 2.0.0
+     */
+    public static Builder builder() { return new Builder(); }
+
+    /**
+     * Named construction for this record.
+     * @since 2.0.0
+     */
+    public static final class Builder {
+        private Builder() {}
+        private List<PermissionRule> approved;
+        private List<PermissionRule> denied;
+
+        /**
+         * Sets the {@code approved} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder approved(List<PermissionRule> value) {
+            this.approved = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code denied} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder denied(List<PermissionRule> value) {
+            this.denied = value;
+            return this;
+        }
+
+        /**
+         * Builds a record after checking required property presence.
+         * @return a new record
+         * @throws IllegalStateException if a required property is missing
+         * @since 2.0.0
+         */
+        public PermissionRulesSet build() {
+            if (approved == null) throw new IllegalStateException("Missing required property: approved");
+            if (denied == null) throw new IllegalStateException("Missing required property: denied");
+            return new PermissionRulesSet(approved, denied);
+        }
+    }
 }

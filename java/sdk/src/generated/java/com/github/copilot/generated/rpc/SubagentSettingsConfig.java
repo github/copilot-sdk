@@ -38,4 +38,103 @@ public record SubagentSettingsConfig(
     /** Maximum subagent nesting depth; applies to usage-based billing users only */
     @JsonProperty("maxDepth") Long maxDepth
 ) {
+
+    /**
+     * Creates a record positionally.
+     * @deprecated Use {@link #builder()} for named construction.
+     */
+    @Deprecated(since = "2.0.0", forRemoval = false)
+    public SubagentSettingsConfig {}
+
+    /**
+     * Returns a named builder.
+     * @return a new builder
+     * @since 2.0.0
+     */
+    @com.github.copilot.CopilotExperimental
+    public static Builder builder() { return new Builder(); }
+
+    /**
+     * Named construction for this record.
+     * @since 2.0.0
+     */
+    @com.github.copilot.CopilotExperimental
+    public static final class Builder {
+        private Builder() {}
+        private Map<String, SubagentSettingsEntry> agents;
+        private Boolean contextManagementTools;
+        private List<String> disabledSubagents;
+        private Long maxConcurrency;
+        private Long maxDepth;
+
+        /**
+         * Sets the {@code agents} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        @com.github.copilot.CopilotExperimental
+        public Builder agents(Map<String, SubagentSettingsEntry> value) {
+            this.agents = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code contextManagementTools} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        @com.github.copilot.CopilotExperimental
+        public Builder contextManagementTools(Boolean value) {
+            this.contextManagementTools = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code disabledSubagents} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        @com.github.copilot.CopilotExperimental
+        public Builder disabledSubagents(List<String> value) {
+            this.disabledSubagents = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code maxConcurrency} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        @com.github.copilot.CopilotExperimental
+        public Builder maxConcurrency(Long value) {
+            this.maxConcurrency = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code maxDepth} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        @com.github.copilot.CopilotExperimental
+        public Builder maxDepth(Long value) {
+            this.maxDepth = value;
+            return this;
+        }
+
+        /**
+         * Builds a record after checking required property presence.
+         * @return a new record
+         * @throws IllegalStateException if a required property is missing
+         * @since 2.0.0
+         */
+        public SubagentSettingsConfig build() {
+            return new SubagentSettingsConfig(agents, contextManagementTools, disabledSubagents, maxConcurrency, maxDepth);
+        }
+    }
 }

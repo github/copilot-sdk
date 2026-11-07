@@ -30,4 +30,64 @@ public record WorkflowAgentReasoningEffortObservation(
     /** Effective reasoning effort reported by the initialized child session. */
     @JsonProperty("resolved") String resolved
 ) {
+
+    /**
+     * Creates a record positionally.
+     * @deprecated Use {@link #builder()} for named construction.
+     */
+    @Deprecated(since = "2.0.0", forRemoval = false)
+    public WorkflowAgentReasoningEffortObservation {}
+
+    /**
+     * Returns a named builder.
+     * @return a new builder
+     * @since 2.0.0
+     */
+    @com.github.copilot.CopilotExperimental
+    public static Builder builder() { return new Builder(); }
+
+    /**
+     * Named construction for this record.
+     * @since 2.0.0
+     */
+    @com.github.copilot.CopilotExperimental
+    public static final class Builder {
+        private Builder() {}
+        private String requested;
+        private String resolved;
+
+        /**
+         * Sets the {@code requested} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        @com.github.copilot.CopilotExperimental
+        public Builder requested(String value) {
+            this.requested = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code resolved} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        @com.github.copilot.CopilotExperimental
+        public Builder resolved(String value) {
+            this.resolved = value;
+            return this;
+        }
+
+        /**
+         * Builds a record after checking required property presence.
+         * @return a new record
+         * @throws IllegalStateException if a required property is missing
+         * @since 2.0.0
+         */
+        public WorkflowAgentReasoningEffortObservation build() {
+            return new WorkflowAgentReasoningEffortObservation(requested, resolved);
+        }
+    }
 }

@@ -12,15 +12,7 @@ pub use ahp_host::{
     AhpSessionResumeFactory, AhpSessionResumeRequest,
 };
 
-// Outside tests, `cache_paths`'s only caller is `resolve::extracted_program`, which
-// needs the build script to have extracted a CLI (`has_extracted_cli`). Without it the
-// module is compiled only for its own unit tests.
-#[cfg(all(
-    feature = "runtime",
-    not(feature = "bundled-cli"),
-    not(feature = "local-runtime"),
-    any(test, has_extracted_cli)
-))]
+#[cfg(any(test, has_bundled_cli, has_extracted_cli))]
 mod cache_paths;
 /// Canvas declarations, provider callbacks, and host-side canvas RPC types.
 pub mod canvas;
@@ -298,7 +290,10 @@ pub const HAS_BUNDLED_CLI: bool = cfg!(has_bundled_cli);
 pub fn install_bundled_cli() -> Option<PathBuf> {
     #[cfg(feature = "bundled-cli")]
     {
-        embeddedcli::path()
+        embeddedcli::path().unwrap_or_else(|error| {
+            tracing::warn!(%error, "embedded CLI installation failed");
+            None
+        })
     }
     #[cfg(not(feature = "bundled-cli"))]
     {
@@ -319,7 +314,10 @@ pub fn install_bundled_cli() -> Option<PathBuf> {
 pub fn install_bundled_runtime() -> Option<PathBuf> {
     #[cfg(feature = "bundled-cli")]
     {
-        embeddedcli::runtime_path()
+        embeddedcli::runtime_path().unwrap_or_else(|error| {
+            tracing::warn!(%error, "embedded runtime installation failed");
+            None
+        })
     }
     #[cfg(not(feature = "bundled-cli"))]
     {

@@ -39,5 +39,63 @@ public final class SessionWorkspaceFileChangedEvent extends SessionEvent {
         /** Whether the file was newly created or updated */
         @JsonProperty("operation") WorkspaceFileChangedOperation operation
     ) {
+
+        /**
+         * Creates a record positionally.
+         * @deprecated Use {@link #builder()} for named construction.
+         */
+        @Deprecated(since = "2.0.0", forRemoval = false)
+        public SessionWorkspaceFileChangedEventData {}
+
+        /**
+         * Returns a named builder.
+         * @return a new builder
+         * @since 2.0.0
+         */
+        public static Builder builder() { return new Builder(); }
+
+        /**
+         * Named construction for this record.
+         * @since 2.0.0
+         */
+        public static final class Builder {
+            private Builder() {}
+            private String path;
+            private WorkspaceFileChangedOperation operation;
+
+            /**
+             * Sets the {@code path} property.
+             * @param value the property value
+             * @return this builder
+             * @since 2.0.0
+             */
+            public Builder path(String value) {
+                this.path = value;
+                return this;
+            }
+
+            /**
+             * Sets the {@code operation} property.
+             * @param value the property value
+             * @return this builder
+             * @since 2.0.0
+             */
+            public Builder operation(WorkspaceFileChangedOperation value) {
+                this.operation = value;
+                return this;
+            }
+
+            /**
+             * Builds a record after checking required property presence.
+             * @return a new record
+             * @throws IllegalStateException if a required property is missing
+             * @since 2.0.0
+             */
+            public SessionWorkspaceFileChangedEventData build() {
+                if (path == null) throw new IllegalStateException("Missing required property: path");
+                if (operation == null) throw new IllegalStateException("Missing required property: operation");
+                return new SessionWorkspaceFileChangedEventData(path, operation);
+            }
+        }
     }
 }

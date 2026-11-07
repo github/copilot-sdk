@@ -550,6 +550,7 @@ export class CopilotSession {
     private completionRpcUnsupported = false;
     private disconnecting = false;
     private onDisconnected?: () => void;
+    private releaseFromClient?: () => void;
 
     /** @internal Client session API handlers, populated by CopilotClient during create/resume. */
     clientSessionApis: ClientSessionApiHandlers = {};
@@ -1361,6 +1362,7 @@ export class CopilotSession {
             return;
         }
         this.disconnected = true;
+        this.releaseFromClient = undefined;
         for (const fail of this.pendingResponseWaits) {
             fail(new Error("Session disconnected while waiting for a response"));
         }
@@ -1421,6 +1423,19 @@ export class CopilotSession {
     _setOnDisconnected(callback: () => void): void {
         this.assertConnected();
         this.onDisconnected = callback;
+    }
+
+    /**
+     * @internal Lets the owning client stop tracking this session once `disconnect()`
+     * succeeds. Failed create/resume paths unregister the session themselves.
+     */
+    _setReleaseFromClient(callback: () => void): void {
+        this.releaseFromClient = callback;
+    }
+
+    /** @internal */
+    _isDisconnected(): boolean {
+        return this.disconnected;
     }
 
     /**
@@ -2975,7 +2990,9 @@ export class CopilotSession {
                     `Failed to disconnect session ${this.sessionId}: ${response.error || "Unknown error"}`
                 );
             }
+            const release = this.releaseFromClient;
             this._markDisconnected();
+            release?.();
         } catch (error) {
             this.disconnecting = false;
             throw error;

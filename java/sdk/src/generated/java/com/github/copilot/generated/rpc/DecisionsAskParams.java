@@ -40,4 +40,131 @@ public record DecisionsAskParams(
     /** Static identifier of the calling feature, used only for telemetry and never sent to the model, for example `vscode.chat.route`. Unrecognized values are reported as `other`. */
     @JsonProperty("purpose") String purpose
 ) {
+
+    /**
+     * Creates a record positionally.
+     * @deprecated Use {@link #builder()} for named construction.
+     */
+    @Deprecated(since = "2.0.0", forRemoval = false)
+    public DecisionsAskParams {}
+
+    /**
+     * Returns a named builder.
+     * @return a new builder
+     * @since 2.0.0
+     */
+    @com.github.copilot.CopilotExperimental
+    public static Builder builder() { return new Builder(); }
+
+    /**
+     * Named construction for this record.
+     * @since 2.0.0
+     */
+    @com.github.copilot.CopilotExperimental
+    public static final class Builder {
+        private Builder() {}
+        private String selectionId;
+        private String gitHubToken;
+        private String model;
+        private Object context;
+        private List<Object> questions;
+        private Long timeoutMs;
+        private String purpose;
+
+        /**
+         * Sets the {@code selectionId} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        @com.github.copilot.CopilotExperimental
+        public Builder selectionId(String value) {
+            this.selectionId = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code gitHubToken} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        @com.github.copilot.CopilotExperimental
+        public Builder gitHubToken(String value) {
+            this.gitHubToken = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code model} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        @com.github.copilot.CopilotExperimental
+        public Builder model(String value) {
+            this.model = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code context} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        @com.github.copilot.CopilotExperimental
+        public Builder context(Object value) {
+            this.context = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code questions} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        @com.github.copilot.CopilotExperimental
+        public Builder questions(List<Object> value) {
+            this.questions = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code timeoutMs} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        @com.github.copilot.CopilotExperimental
+        public Builder timeoutMs(Long value) {
+            this.timeoutMs = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code purpose} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        @com.github.copilot.CopilotExperimental
+        public Builder purpose(String value) {
+            this.purpose = value;
+            return this;
+        }
+
+        /**
+         * Builds a record after checking required property presence.
+         * @return a new record
+         * @throws IllegalStateException if a required property is missing
+         * @since 2.0.0
+         */
+        public DecisionsAskParams build() {
+            if (context == null) throw new IllegalStateException("Missing required property: context");
+            if (questions == null) throw new IllegalStateException("Missing required property: questions");
+            return new DecisionsAskParams(selectionId, gitHubToken, model, context, questions, timeoutMs, purpose);
+        }
+    }
 }

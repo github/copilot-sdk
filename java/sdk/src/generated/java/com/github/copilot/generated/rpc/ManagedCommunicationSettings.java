@@ -28,4 +28,51 @@ public record ManagedCommunicationSettings(
     /** Where end users find help for this organization's Copilot deployment. */
     @JsonProperty("support") ManagedCommunicationSupport support
 ) {
+
+    /**
+     * Creates a record positionally.
+     * @deprecated Use {@link #builder()} for named construction.
+     */
+    @Deprecated(since = "2.0.0", forRemoval = false)
+    public ManagedCommunicationSettings {}
+
+    /**
+     * Returns a named builder.
+     * @return a new builder
+     * @since 2.0.0
+     */
+    @com.github.copilot.CopilotExperimental
+    public static Builder builder() { return new Builder(); }
+
+    /**
+     * Named construction for this record.
+     * @since 2.0.0
+     */
+    @com.github.copilot.CopilotExperimental
+    public static final class Builder {
+        private Builder() {}
+        private ManagedCommunicationSupport support;
+
+        /**
+         * Sets the {@code support} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        @com.github.copilot.CopilotExperimental
+        public Builder support(ManagedCommunicationSupport value) {
+            this.support = value;
+            return this;
+        }
+
+        /**
+         * Builds a record after checking required property presence.
+         * @return a new record
+         * @throws IllegalStateException if a required property is missing
+         * @since 2.0.0
+         */
+        public ManagedCommunicationSettings build() {
+            return new ManagedCommunicationSettings(support);
+        }
+    }
 }

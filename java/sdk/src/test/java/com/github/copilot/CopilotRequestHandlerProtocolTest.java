@@ -214,6 +214,7 @@ class CopilotRequestHandlerProtocolTest {
                 peer.sendChunk(requestId, "request-body", null, true);
                 JsonNode head = peer.nextMethod();
                 assertEquals(200, head.path("params").path("status").asInt());
+                assertEquals("present", head.path("params").path("headers").path("x-response").get(0).asText());
                 peer.ack(head);
                 JsonNode end = peer.nextMethod();
                 assertTrue(end.path("params").path("end").asBoolean());
@@ -244,6 +245,7 @@ class CopilotRequestHandlerProtocolTest {
             peer.startRequest("reused-socket", "opening-invocation", true);
             JsonNode head = peer.nextMethod();
             assertEquals(101, head.path("params").path("status").asInt());
+            assertFalse(head.path("params").has("headers"), head.toString());
             peer.ack(head);
             CopilotRequestContext connection = handler.contexts.poll(DEADLINE_SECONDS, TimeUnit.SECONDS);
             assertNotNull(connection);
@@ -459,7 +461,7 @@ class CopilotRequestHandlerProtocolTest {
         }
         @Override
         public HttpHeaders headers() {
-            return HttpHeaders.of(Map.of(), (name, value) -> true);
+            return HttpHeaders.of(Map.of("x-response", List.of("present")), (name, value) -> true);
         }
         @Override
         public Optional<SSLSession> sslSession() {

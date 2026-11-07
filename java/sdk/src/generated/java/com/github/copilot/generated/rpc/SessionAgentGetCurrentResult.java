@@ -25,6 +25,54 @@ import javax.annotation.processing.Generated;
 @JsonIgnoreProperties(ignoreUnknown = true)
 public record SessionAgentGetCurrentResult(
     /** Currently selected custom agent, or null if using the default agent */
+    @JsonInclude(JsonInclude.Include.ALWAYS)
     @JsonProperty("agent") AgentInfo agent
 ) {
+
+    /**
+     * Creates a record positionally.
+     * @deprecated Use {@link #builder()} for named construction.
+     */
+    @Deprecated(since = "2.0.0", forRemoval = false)
+    public SessionAgentGetCurrentResult {}
+
+    /**
+     * Returns a named builder.
+     * @return a new builder
+     * @since 2.0.0
+     */
+    public static Builder builder() { return new Builder(); }
+
+    /**
+     * Named construction for this record.
+     * @since 2.0.0
+     */
+    public static final class Builder {
+        private Builder() {}
+        private AgentInfo agent;
+        private boolean $presence0;
+
+        /**
+         * Sets the {@code agent} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder agent(AgentInfo value) {
+            this.agent = value;
+            this.$presence0 = true;
+            return this;
+        }
+
+        /**
+         * Builds a record after checking required property presence.
+         * @return a new record
+         * @throws IllegalStateException if a required property is missing
+         * @since 2.0.0
+         */
+        public SessionAgentGetCurrentResult build() {
+            if (!$presence0) throw new IllegalStateException("Missing required property: agent");
+            return new SessionAgentGetCurrentResult(agent);
+        }
+    }
 }

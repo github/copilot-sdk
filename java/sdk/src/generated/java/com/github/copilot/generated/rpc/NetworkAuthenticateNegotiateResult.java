@@ -27,4 +27,48 @@ public record NetworkAuthenticateNegotiateResult(
     /** Base64 initial SPNEGO token without the Negotiate prefix; omitted when unavailable. Never log or persist it. */
     @JsonProperty("token") String token
 ) {
+
+    /**
+     * Creates a record positionally.
+     * @deprecated Use {@link #builder()} for named construction.
+     */
+    @Deprecated(since = "2.0.0", forRemoval = false)
+    public NetworkAuthenticateNegotiateResult {}
+
+    /**
+     * Returns a named builder.
+     * @return a new builder
+     * @since 2.0.0
+     */
+    public static Builder builder() { return new Builder(); }
+
+    /**
+     * Named construction for this record.
+     * @since 2.0.0
+     */
+    public static final class Builder {
+        private Builder() {}
+        private String token;
+
+        /**
+         * Sets the {@code token} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder token(String value) {
+            this.token = value;
+            return this;
+        }
+
+        /**
+         * Builds a record after checking required property presence.
+         * @return a new record
+         * @throws IllegalStateException if a required property is missing
+         * @since 2.0.0
+         */
+        public NetworkAuthenticateNegotiateResult build() {
+            return new NetworkAuthenticateNegotiateResult(token);
+        }
+    }
 }

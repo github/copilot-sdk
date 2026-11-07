@@ -24,4 +24,49 @@ record UserSettingsMigrateObsoleteOnDiskResult(
     /** What the cleanup did. Only `changed` rewrote the document. The cleaned settings are not returned here: the document is written before this replies, so `user.settings.load` reads it authoritatively. */
     @JsonProperty("status") UserSettingsMigrateObsoleteOnDiskStatus status
 ) {
+
+    /**
+     * Creates a record positionally.
+     * @deprecated Use {@link #builder()} for named construction.
+     */
+    @Deprecated(since = "2.0.0", forRemoval = false)
+    UserSettingsMigrateObsoleteOnDiskResult {}
+
+    /**
+     * Returns a named builder.
+     * @return a new builder
+     * @since 2.0.0
+     */
+    public static Builder builder() { return new Builder(); }
+
+    /**
+     * Named construction for this record.
+     * @since 2.0.0
+     */
+    public static final class Builder {
+        private Builder() {}
+        private UserSettingsMigrateObsoleteOnDiskStatus status;
+
+        /**
+         * Sets the {@code status} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder status(UserSettingsMigrateObsoleteOnDiskStatus value) {
+            this.status = value;
+            return this;
+        }
+
+        /**
+         * Builds a record after checking required property presence.
+         * @return a new record
+         * @throws IllegalStateException if a required property is missing
+         * @since 2.0.0
+         */
+        public UserSettingsMigrateObsoleteOnDiskResult build() {
+            if (status == null) throw new IllegalStateException("Missing required property: status");
+            return new UserSettingsMigrateObsoleteOnDiskResult(status);
+        }
+    }
 }

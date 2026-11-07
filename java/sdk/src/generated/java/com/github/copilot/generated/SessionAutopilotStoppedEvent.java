@@ -39,5 +39,62 @@ public final class SessionAutopilotStoppedEvent extends SessionEvent {
         /** Original root user message ID for this request, absent when no root request is available. */
         @JsonProperty("requestId") String requestId
     ) {
+
+        /**
+         * Creates a record positionally.
+         * @deprecated Use {@link #builder()} for named construction.
+         */
+        @Deprecated(since = "2.0.0", forRemoval = false)
+        public SessionAutopilotStoppedEventData {}
+
+        /**
+         * Returns a named builder.
+         * @return a new builder
+         * @since 2.0.0
+         */
+        public static Builder builder() { return new Builder(); }
+
+        /**
+         * Named construction for this record.
+         * @since 2.0.0
+         */
+        public static final class Builder {
+            private Builder() {}
+            private String reason;
+            private String requestId;
+
+            /**
+             * Sets the {@code reason} property.
+             * @param value the property value
+             * @return this builder
+             * @since 2.0.0
+             */
+            public Builder reason(String value) {
+                this.reason = value;
+                return this;
+            }
+
+            /**
+             * Sets the {@code requestId} property.
+             * @param value the property value
+             * @return this builder
+             * @since 2.0.0
+             */
+            public Builder requestId(String value) {
+                this.requestId = value;
+                return this;
+            }
+
+            /**
+             * Builds a record after checking required property presence.
+             * @return a new record
+             * @throws IllegalStateException if a required property is missing
+             * @since 2.0.0
+             */
+            public SessionAutopilotStoppedEventData build() {
+                if (reason == null) throw new IllegalStateException("Missing required property: reason");
+                return new SessionAutopilotStoppedEventData(reason, requestId);
+            }
+        }
     }
 }

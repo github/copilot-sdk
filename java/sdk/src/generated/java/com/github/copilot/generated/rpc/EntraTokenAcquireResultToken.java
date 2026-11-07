@@ -45,4 +45,63 @@ public final class EntraTokenAcquireResultToken extends EntraTokenAcquireResult 
 
     public String getAccessToken() { return accessToken; }
     public void setAccessToken(String accessToken) { this.accessToken = accessToken; }
+
+
+    /**
+     * Returns a named builder.
+     * @return a new builder
+     * @since 2.0.0
+     */
+    @com.github.copilot.CopilotExperimental
+    public static Builder builder() { return new Builder(); }
+
+    /**
+     * Named construction for this record.
+     * @since 2.0.0
+     */
+    @com.github.copilot.CopilotExperimental
+    public static final class Builder {
+        private Builder() {}
+        private String accountId;
+        private String accessToken;
+
+        /**
+         * Sets the {@code accountId} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        @com.github.copilot.CopilotExperimental
+        public Builder accountId(String value) {
+            this.accountId = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code accessToken} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        @com.github.copilot.CopilotExperimental
+        public Builder accessToken(String value) {
+            this.accessToken = value;
+            return this;
+        }
+
+        /**
+         * Builds a variant after checking required property presence.
+         * @return a new variant
+         * @throws IllegalStateException if a required property is missing
+         * @since 2.0.0
+         */
+        public EntraTokenAcquireResultToken build() {
+            if (accountId == null) throw new IllegalStateException("Missing required property: accountId");
+            if (accessToken == null) throw new IllegalStateException("Missing required property: accessToken");
+            EntraTokenAcquireResultToken instance = new EntraTokenAcquireResultToken();
+            instance.setAccountId(accountId);
+            instance.setAccessToken(accessToken);
+            return instance;
+        }
+    }
 }

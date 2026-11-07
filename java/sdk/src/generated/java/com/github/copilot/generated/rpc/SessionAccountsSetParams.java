@@ -29,4 +29,79 @@ public record SessionAccountsSetParams(
     /** The non-interactive mutation command to apply. */
     @JsonProperty("command") AuthWrite command
 ) {
+
+    /**
+     * Creates a record positionally.
+     * @deprecated Use {@link #builder()} for named construction.
+     */
+    @Deprecated(since = "2.0.0", forRemoval = false)
+    public SessionAccountsSetParams {}
+
+    /**
+     * Returns a named builder.
+     * @return a new builder
+     * @since 2.0.0
+     */
+    @com.github.copilot.CopilotExperimental
+    public static Builder builder() { return new Builder(); }
+
+    /**
+     * Named construction for this record.
+     * @since 2.0.0
+     */
+    @com.github.copilot.CopilotExperimental
+    public static final class Builder {
+        private Builder() {}
+        private String sessionId;
+        private AuthWrite command;
+
+        /**
+         * Sets the {@code sessionId} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        @com.github.copilot.CopilotExperimental
+        public Builder sessionId(String value) {
+            this.sessionId = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code command} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        @com.github.copilot.CopilotExperimental
+        public Builder command(AuthWrite value) {
+            this.command = value;
+            return this;
+        }
+
+        /**
+         * Builds a record after checking required property presence.
+         * @return a new record
+         * @throws IllegalStateException if a required property is missing
+         * @since 2.0.0
+         */
+        public SessionAccountsSetParams build() {
+            if (command == null) throw new IllegalStateException("Missing required property: command");
+            return new SessionAccountsSetParams(sessionId, command);
+        }
+    }
+
+    /**
+     * Retains the constructor published in Java SDK 1.0.28.
+     * @deprecated Use named construction via {@link #builder()}.
+     * @param sessionId Target session identifier
+     * @param command The non-interactive mutation command to apply.
+     */
+    @Deprecated(since = "2.0.0", forRemoval = false)
+    public SessionAccountsSetParams(
+        String sessionId,
+        java.lang.Object command
+    ) {
+        this(sessionId, command == null || command instanceof AuthWrite ? (AuthWrite) command : RpcMapper.INSTANCE.convertValue(command, AuthWrite.class));
+    }
 }

@@ -1505,10 +1505,7 @@ pub struct ProviderConfig {
     /// Product serving the model, such as `"ollama"` or `"lm_studio"`,
     /// reported in telemetry as `model_provider`. Allowed values are
     /// `"openai"`, `"anthropic"`, `"azure_openai"`, `"ollama"`,
-    /// `"lm_studio"`, `"foundry_local"`, and `"llama_cpp"`. `"azure_openai"`
-    /// also omits explicit prompt-cache breakpoints, which limit cross-turn
-    /// cache reuse on Azure; set it for a proxy or custom domain in front of
-    /// Azure OpenAI.
+    /// `"lm_studio"`, `"foundry_local"`, and `"llama_cpp"`; only affects telemetry.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub model_provider: Option<String>,
     /// API endpoint URL.
@@ -1622,9 +1619,7 @@ impl ProviderConfig {
 
     /// Set the product serving the model. Allowed values are `"openai"`,
     /// `"anthropic"`, `"azure_openai"`, `"ollama"`, `"lm_studio"`,
-    /// `"foundry_local"`, and `"llama_cpp"`. `"azure_openai"` also omits
-    /// explicit prompt-cache breakpoints; see
-    /// [`model_provider`](Self::model_provider).
+    /// `"foundry_local"`, and `"llama_cpp"`. Only affects telemetry.
     pub fn with_model_provider(mut self, model_provider: impl Into<String>) -> Self {
         self.model_provider = Some(model_provider.into());
         self
@@ -1798,10 +1793,7 @@ pub struct NamedProviderConfig {
     /// Product serving this provider's models, such as `"ollama"` or
     /// `"lm_studio"`, reported in telemetry as `model_provider`. Allowed values
     /// are `"openai"`, `"anthropic"`, `"azure_openai"`, `"ollama"`,
-    /// `"lm_studio"`, `"foundry_local"`, and `"llama_cpp"`. `"azure_openai"`
-    /// also omits explicit prompt-cache breakpoints, which limit cross-turn
-    /// cache reuse on Azure; set it for a proxy or custom domain in front of
-    /// Azure OpenAI.
+    /// `"lm_studio"`, `"foundry_local"`, and `"llama_cpp"`; only affects telemetry.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub model_provider: Option<String>,
     /// API endpoint URL.
@@ -1873,9 +1865,7 @@ impl NamedProviderConfig {
 
     /// Set the product serving this provider's models. Allowed values are
     /// `"openai"`, `"anthropic"`, `"azure_openai"`, `"ollama"`,
-    /// `"lm_studio"`, `"foundry_local"`, and `"llama_cpp"`. `"azure_openai"`
-    /// also omits explicit prompt-cache breakpoints; see
-    /// [`model_provider`](Self::model_provider).
+    /// `"lm_studio"`, `"foundry_local"`, and `"llama_cpp"`. Only affects telemetry.
     pub fn with_model_provider(mut self, model_provider: impl Into<String>) -> Self {
         self.model_provider = Some(model_provider.into());
         self

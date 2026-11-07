@@ -27,4 +27,52 @@ public record ConnectorsRefreshParams(
     /** Opaque account ID. */
     @JsonProperty("accountId") String accountId
 ) {
+
+    /**
+     * Creates a record positionally.
+     * @deprecated Use {@link #builder()} for named construction.
+     */
+    @Deprecated(since = "2.0.0", forRemoval = false)
+    public ConnectorsRefreshParams {}
+
+    /**
+     * Returns a named builder.
+     * @return a new builder
+     * @since 2.0.0
+     */
+    @com.github.copilot.CopilotExperimental
+    public static Builder builder() { return new Builder(); }
+
+    /**
+     * Named construction for this record.
+     * @since 2.0.0
+     */
+    @com.github.copilot.CopilotExperimental
+    public static final class Builder {
+        private Builder() {}
+        private String accountId;
+
+        /**
+         * Sets the {@code accountId} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        @com.github.copilot.CopilotExperimental
+        public Builder accountId(String value) {
+            this.accountId = value;
+            return this;
+        }
+
+        /**
+         * Builds a record after checking required property presence.
+         * @return a new record
+         * @throws IllegalStateException if a required property is missing
+         * @since 2.0.0
+         */
+        public ConnectorsRefreshParams build() {
+            if (accountId == null) throw new IllegalStateException("Missing required property: accountId");
+            return new ConnectorsRefreshParams(accountId);
+        }
+    }
 }

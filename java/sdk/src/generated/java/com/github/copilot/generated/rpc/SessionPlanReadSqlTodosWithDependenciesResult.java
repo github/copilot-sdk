@@ -30,4 +30,62 @@ public record SessionPlanReadSqlTodosWithDependenciesResult(
     /** Edges from the session SQL todo_deps table. Empty when no database, no todo_deps table, or the SELECT failed. Read independently from `rows`, so a broken todo_deps table does not affect the rows result and vice versa. */
     @JsonProperty("dependencies") List<PlanSqlTodoDependency> dependencies
 ) {
+
+    /**
+     * Creates a record positionally.
+     * @deprecated Use {@link #builder()} for named construction.
+     */
+    @Deprecated(since = "2.0.0", forRemoval = false)
+    public SessionPlanReadSqlTodosWithDependenciesResult {}
+
+    /**
+     * Returns a named builder.
+     * @return a new builder
+     * @since 2.0.0
+     */
+    public static Builder builder() { return new Builder(); }
+
+    /**
+     * Named construction for this record.
+     * @since 2.0.0
+     */
+    public static final class Builder {
+        private Builder() {}
+        private List<PlanSqlTodosRow> rows;
+        private List<PlanSqlTodoDependency> dependencies;
+
+        /**
+         * Sets the {@code rows} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder rows(List<PlanSqlTodosRow> value) {
+            this.rows = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code dependencies} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder dependencies(List<PlanSqlTodoDependency> value) {
+            this.dependencies = value;
+            return this;
+        }
+
+        /**
+         * Builds a record after checking required property presence.
+         * @return a new record
+         * @throws IllegalStateException if a required property is missing
+         * @since 2.0.0
+         */
+        public SessionPlanReadSqlTodosWithDependenciesResult build() {
+            if (rows == null) throw new IllegalStateException("Missing required property: rows");
+            if (dependencies == null) throw new IllegalStateException("Missing required property: dependencies");
+            return new SessionPlanReadSqlTodosWithDependenciesResult(rows, dependencies);
+        }
+    }
 }

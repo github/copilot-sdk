@@ -32,12 +32,93 @@ public record CapabilitiesChangedUI(
 ) {
 
     /**
+     * Creates a record positionally.
+     * @deprecated Use {@link #builder()} for named construction.
+     */
+    @Deprecated(since = "2.0.0", forRemoval = false)
+    public CapabilitiesChangedUI {}
+
+    /**
+     * Returns a named builder.
+     * @return a new builder
+     * @since 2.0.0
+     */
+    public static Builder builder() { return new Builder(); }
+
+    /**
+     * Named construction for this record.
+     * @since 2.0.0
+     */
+    public static final class Builder {
+        private Builder() {}
+        private Boolean elicitation;
+        private Boolean mcpApps;
+        private Boolean canvases;
+        private Boolean autoModeRecovery;
+
+        /**
+         * Sets the {@code elicitation} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder elicitation(Boolean value) {
+            this.elicitation = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code mcpApps} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder mcpApps(Boolean value) {
+            this.mcpApps = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code canvases} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder canvases(Boolean value) {
+            this.canvases = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code autoModeRecovery} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder autoModeRecovery(Boolean value) {
+            this.autoModeRecovery = value;
+            return this;
+        }
+
+        /**
+         * Builds a record after checking required property presence.
+         * @return a new record
+         * @throws IllegalStateException if a required property is missing
+         * @since 2.0.0
+         */
+        public CapabilitiesChangedUI build() {
+            return new CapabilitiesChangedUI(elicitation, mcpApps, canvases, autoModeRecovery);
+        }
+    }
+
+    /**
      * Creates UI capability changes without an Auto recovery update.
-     *
+     * @deprecated Use named construction via {@link #builder()}.
      * @param elicitation Whether elicitation is now supported
      * @param mcpApps Whether MCP Apps (SEP-1865) UI passthrough is now supported
      * @param canvases Whether canvas rendering is now supported
      */
+    @Deprecated(since = "2.0.0", forRemoval = false)
     public CapabilitiesChangedUI(
         Boolean elicitation,
         Boolean mcpApps,

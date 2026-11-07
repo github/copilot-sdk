@@ -14643,16 +14643,13 @@ class ProviderConfigAzure:
 # Experimental: this type is part of an experimental API and may change or be removed.
 class ProviderConfigModelProvider(Enum):
     """The product serving the provider's models, reported in telemetry as `model_provider`.
-    Besides telemetry, `azure_openai` makes OpenAI Responses requests omit explicit
-    `prompt_cache_breakpoint` markers, which limit cross-turn cache reuse on Azure.
+    Only affects telemetry.
 
     The product serving the model, reported in telemetry as `model_provider`.
 
     The product serving the model, reported in telemetry as `model_provider`. Set it when
     `type` alone cannot identify the product, such as Ollama or LM Studio behind an
-    OpenAI-compatible endpoint, or a proxy or custom domain in front of Azure OpenAI. Besides
-    telemetry, `azure_openai` makes OpenAI Responses requests omit explicit
-    `prompt_cache_breakpoint` markers, which limit cross-turn cache reuse on Azure.
+    OpenAI-compatible endpoint. Only affects telemetry.
     """
     ANTHROPIC = "anthropic"
     AZURE_OPENAI = "azure_openai"
@@ -37632,8 +37629,7 @@ class NamedProviderConfig:
 
     model_provider: ProviderConfigModelProvider | None = None
     """The product serving the provider's models, reported in telemetry as `model_provider`.
-    Besides telemetry, `azure_openai` makes OpenAI Responses requests omit explicit
-    `prompt_cache_breakpoint` markers, which limit cross-turn cache reuse on Azure.
+    Only affects telemetry.
     """
     transport: ProviderTransport | None = None
     """Transport used to communicate with the provider."""
@@ -52088,8 +52084,7 @@ class AgentGetCurrentResult:
 
     def to_dict(self) -> dict:
         result: dict = {}
-        if self.agent is not None:
-            result["agent"] = from_union([lambda x: to_class(AgentInfo, x), from_none], self.agent)
+        result["agent"] = from_union([lambda x: to_class(AgentInfo, x), from_none], self.agent)
         return result
 
 # Experimental: this type is part of an experimental API and may change or be removed.
@@ -57266,9 +57261,7 @@ class ProviderConfig:
     model_provider: ProviderConfigModelProvider | None = None
     """The product serving the model, reported in telemetry as `model_provider`. Set it when
     `type` alone cannot identify the product, such as Ollama or LM Studio behind an
-    OpenAI-compatible endpoint, or a proxy or custom domain in front of Azure OpenAI. Besides
-    telemetry, `azure_openai` makes OpenAI Responses requests omit explicit
-    `prompt_cache_breakpoint` markers, which limit cross-turn cache reuse on Azure.
+    OpenAI-compatible endpoint. Only affects telemetry.
     """
     provider_name: str | None = None
     """Provider name used for model and telemetry attribution."""

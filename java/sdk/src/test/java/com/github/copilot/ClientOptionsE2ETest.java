@@ -115,7 +115,8 @@ class ClientOptionsE2ETest {
                         .setReasoningEffort("low").setReasoningSummary("none").setContextTier("long_context")
                         .setAvailableTools(java.util.List.of("bash")).setExcludedTools(java.util.List.of("grep"))
                         .setExcludedBuiltInAgents(java.util.List.of("explore")).setEnableSessionTelemetry(true)
-                        .setEnableCitations(true).setSessionLimits(new SessionLimitsConfig(42.0))
+                        .setEnableCitations(true)
+                        .setSessionLimits(SessionLimitsConfig.builder().maxAiCredits(42.0).build())
                         .setWorkingDirectory(workDir.toString()).setStreaming(true)
                         .setIncludeSubAgentStreamingEvents(true).setConfigDirectory(configDir.toString())
                         .setEnableConfigDiscovery(false).setSkipEmbeddingRetrieval(true)
@@ -207,19 +208,18 @@ class ClientOptionsE2ETest {
             try (var client = fake.createClient()) {
                 client.createSession(new SessionConfig().setSessionId("java-resume-session")
                         .setOnPermissionRequest(PermissionHandler.APPROVE_ALL)).get(30, TimeUnit.SECONDS);
-                var session = client.resumeSession("java-resume-session",
-                        new ResumeSessionConfig().setClientName("java-resume-client").setModel("gpt-5-mini")
-                                .setReasoningEffort("medium").setReasoningSummary("none").setContextTier("long_context")
-                                .setEnableCitations(true).setSessionLimits(new SessionLimitsConfig(84.0))
-                                .setWorkingDirectory(workDir.toString()).setConfigDirectory(configDir.toString())
-                                .setEnableConfigDiscovery(false).setSkipEmbeddingRetrieval(true)
-                                .setOrganizationCustomInstructions("Use resumed Java instructions.")
-                                .setEnableOnDemandInstructionDiscovery(false).setEnableFileHooks(true)
-                                .setEnableHostGitOperations(false).setEnableSessionStore(true).setEnableSkills(false)
-                                .setEmbeddingCacheStorage("in-memory").setGitHubToken("java-resume-token")
-                                .setSkipCustomInstructions(false).setCustomAgentsLocalOnly(true)
-                                .setCoauthorEnabled(false).setManageScheduleEnabled(true)
-                                .setOnPermissionRequest(PermissionHandler.APPROVE_ALL))
+                var session = client.resumeSession("java-resume-session", new ResumeSessionConfig()
+                        .setClientName("java-resume-client").setModel("gpt-5-mini").setReasoningEffort("medium")
+                        .setReasoningSummary("none").setContextTier("long_context").setEnableCitations(true)
+                        .setSessionLimits(SessionLimitsConfig.builder().maxAiCredits(84.0).build())
+                        .setWorkingDirectory(workDir.toString()).setConfigDirectory(configDir.toString())
+                        .setEnableConfigDiscovery(false).setSkipEmbeddingRetrieval(true)
+                        .setOrganizationCustomInstructions("Use resumed Java instructions.")
+                        .setEnableOnDemandInstructionDiscovery(false).setEnableFileHooks(true)
+                        .setEnableHostGitOperations(false).setEnableSessionStore(true).setEnableSkills(false)
+                        .setEmbeddingCacheStorage("in-memory").setGitHubToken("java-resume-token")
+                        .setSkipCustomInstructions(false).setCustomAgentsLocalOnly(true).setCoauthorEnabled(false)
+                        .setManageScheduleEnabled(true).setOnPermissionRequest(PermissionHandler.APPROVE_ALL))
                         .get(30, TimeUnit.SECONDS);
                 session.close();
             }

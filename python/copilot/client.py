@@ -2249,6 +2249,7 @@ class CopilotClient:
         ] = weakref.WeakValueDictionary()
         self._active_session_callbacks: dict[str, int] = {}
         self._ordinary_session_resumes: dict[str, set[asyncio.Future[None]]] = {}
+        self._resume_predecessors: dict[CopilotSession, CopilotSession | None] = {}
         self._auto_mode_recovery_cleanups: dict[JsonRpcClient, dict[str, asyncio.Future[None]]] = {}
         self._auto_mode_recovery_cleanup_tasks: set[asyncio.Task[None]] = set()
         self._session_admission_closed = False
@@ -3734,6 +3735,7 @@ class CopilotClient:
         initialization_lock: _SessionInitialization | None = None
         release_inline_initialization: Callable[[], None] | None = None
         session: CopilotSession | None = None
+        replaced_session: CopilotSession | None = None
         registered_session_id: str | None = None
         server_assigned_session_id: str | None = None
         inline_state_lock = threading.Lock()
@@ -3770,7 +3772,10 @@ class CopilotClient:
                     local_session_id, rpc_client, wait_for_resumes=auto_mode_recovery
                 )
                 session = _initialize_session(local_session_id)
-                self._register_session(session)
+                replaced_session = self._register_session(session)
+                with self._sessions_lock:
+                    # A concurrent resume rollback must retain the resident behind this create.
+                    self._resume_predecessors[session] = replaced_session
                 registered_session_id = local_session_id
             except BaseException:
                 if session is not None:
@@ -3792,7 +3797,7 @@ class CopilotClient:
             # registered. Non-cloud sessions are already registered above.
             def _register_inline(raw_response: Any) -> None:
                 nonlocal session, registered_session_id, server_assigned_session_id
-                nonlocal release_inline_initialization
+                nonlocal release_inline_initialization, replaced_session
                 if session is not None:
                     return
                 if not isinstance(raw_response, dict):
@@ -3826,7 +3831,9 @@ class CopilotClient:
                         if not late_success:
                             release_inline_initialization = release
                             try:
-                                self._register_session(initialized)
+                                replaced_session = self._register_session(initialized)
+                                with self._sessions_lock:
+                                    self._resume_predecessors[initialized] = replaced_session
                             except BaseException:
                                 _retire_unreturned_session(initialized)
                                 raise
@@ -3919,9 +3926,21 @@ class CopilotClient:
                         and registered_id in self._auto_mode_recovery_cleanups.get(rpc_client, {})
                     )
             with self._sessions_lock:
+                if failed_session is not None:
+                    replaced_session = self._rollback_resume_predecessor(failed_session)
+                retiring = self._session_admission_closed or self._client is not rpc_client
                 if registered_id is not None and not cleanup_owns_session:
                     if self._sessions.get(registered_id) is failed_session:
-                        del self._sessions[registered_id]
+                        if (
+                            not retiring
+                            and replaced_session is not None
+                            and not replaced_session._destroyed
+                        ):
+                            self._sessions[registered_id] = replaced_session
+                        else:
+                            del self._sessions[registered_id]
+            if retiring and replaced_session is not None:
+                replaced_session._mark_disconnected()
             if failed_session is not None and not cleanup_owns_session:
                 failed_session._mark_disconnected()
             if orphaned_id is not None:
@@ -3941,6 +3960,9 @@ class CopilotClient:
                 raise exc from cleanup_error
             raise
         finally:
+            with self._sessions_lock:
+                if session is not None:
+                    self._resume_predecessors.pop(session, None)
             if initialization_lock is not None:
                 initialization_lock.release()
             with inline_state_lock:
@@ -4737,6 +4759,8 @@ class CopilotClient:
                     )
                 )
             replaced_session = self._register_session(session)
+            with self._sessions_lock:
+                self._resume_predecessors[session] = replaced_session
         except BaseException:
             if session is not None:
                 session._mark_disconnected()
@@ -4771,11 +4795,13 @@ class CopilotClient:
                         canonical_id, rpc_client, wait_for_resumes=auto_mode_recovery
                     )
                 with self._sessions_lock:
+                    replaced_session = self._rollback_resume_predecessor(session)
                     if self._sessions.get(session_id) is session:
                         if replaced_session is None:
                             del self._sessions[session_id]
                         else:
                             self._sessions[session_id] = replaced_session
+                    self._resume_predecessors[session] = None
                     if ordinary_resume is not None:
                         resumes = self._ordinary_session_resumes[ordinary_resume_session_id]
                         resumes.remove(ordinary_resume)
@@ -4789,6 +4815,8 @@ class CopilotClient:
                 session.session_id = canonical_id
                 session._rpc = None
                 replaced_session = self._register_session(session)
+                with self._sessions_lock:
+                    self._resume_predecessors[session] = replaced_session
                 self._assign_github_token_provider(
                     github_token_provider_registration_id, canonical_id
                 )
@@ -4847,17 +4875,37 @@ class CopilotClient:
             # fails, except when a successful resume was rejected only because
             # the runtime did not acknowledge Auto recovery.
             with self._sessions_lock:
+                replaced_session = self._rollback_resume_predecessor(session)
+                retiring = self._session_admission_closed or self._client is not rpc_client
                 cleanup_owns_session = self._sessions.get(
                     session_id
                 ) is session and session_id in self._auto_mode_recovery_cleanups.get(rpc_client, {})
                 if self._sessions.get(session_id) is session and not cleanup_owns_session:
                     if (
-                        replaced_session is not None
+                        not retiring
+                        and replaced_session is not None
+                        and not replaced_session._destroyed
                         and not keep_resumed_session_on_recovery_rejection
                     ):
                         self._sessions[session_id] = replaced_session
                     elif not keep_resumed_session_on_recovery_rejection:
                         del self._sessions[session_id]
+                restored = self._sessions.get(session_id) is replaced_session
+                owner = self._sessions.get(session_id)
+                retained = False
+                while owner is not None and owner in self._resume_predecessors:
+                    owner = self._resume_predecessors[owner]
+                    if owner is replaced_session:
+                        retained = True
+                        break
+            if (
+                not restored
+                and not retained
+                and (retiring or not keep_resumed_session_on_recovery_rejection)
+                and replaced_session is not None
+                and replaced_session._client is rpc_client
+            ):
+                replaced_session._mark_disconnected()
             if keep_resumed_session_on_recovery_rejection:
                 self._commit_github_token_provider(
                     session_id, github_token_provider_registration_id
@@ -4876,6 +4924,8 @@ class CopilotClient:
                 )
             raise
         finally:
+            with self._sessions_lock:
+                self._resume_predecessors.pop(session, None)
             if ordinary_resume is not None:
                 with self._sessions_lock:
                     resumes = self._ordinary_session_resumes[ordinary_resume_session_id]
@@ -5131,9 +5181,7 @@ class CopilotClient:
                 else:
                     session = None
             if session is not None:
-                session._clear_skill_provider()
-                session._register_memory_store(None)
-                session._run_disconnect_callback()
+                session._mark_disconnected()
         finally:
             initialization.release()
 
@@ -6560,8 +6608,23 @@ class CopilotClient:
                     "Session is still detaching after rejected Auto recovery enrollment"
                 )
             previous = self._sessions.get(session.session_id)
+            session._set_release_from_client(self._forget_session)
             self._sessions[session.session_id] = session
             return previous
+
+    def _rollback_resume_predecessor(self, session: CopilotSession) -> CopilotSession | None:
+        # Called with _sessions_lock held. Later attempts must skip a failed provisional.
+        predecessor = self._resume_predecessors.pop(session)
+        for pending, previous in self._resume_predecessors.items():
+            if previous is session:
+                self._resume_predecessors[pending] = predecessor
+        return predecessor
+
+    def _forget_session(self, session: CopilotSession) -> None:
+        """Stop tracking a disconnected session unless a later create or resume replaced it."""
+        with self._sessions_lock:
+            if self._sessions.get(session.session_id) is session:
+                del self._sessions[session.session_id]
 
     def _get_session(self, session_id: str) -> CopilotSession | None:
         with self._sessions_lock:

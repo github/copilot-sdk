@@ -35,4 +35,107 @@ public record SessionWorkflowAgentParams(
     /** Subagent execution options. */
     @JsonProperty("opts") WorkflowAgentOptions opts
 ) {
+
+    /**
+     * Creates a record positionally.
+     * @deprecated Use {@link #builder()} for named construction.
+     */
+    @Deprecated(since = "2.0.0", forRemoval = false)
+    public SessionWorkflowAgentParams {}
+
+    /**
+     * Returns a named builder.
+     * @return a new builder
+     * @since 2.0.0
+     */
+    @com.github.copilot.CopilotExperimental
+    public static Builder builder() { return new Builder(); }
+
+    /**
+     * Named construction for this record.
+     * @since 2.0.0
+     */
+    @com.github.copilot.CopilotExperimental
+    public static final class Builder {
+        private Builder() {}
+        private String sessionId;
+        private String workflowRunId;
+        private String executionToken;
+        private String prompt;
+        private WorkflowAgentOptions opts;
+
+        /**
+         * Sets the {@code sessionId} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        @com.github.copilot.CopilotExperimental
+        public Builder sessionId(String value) {
+            this.sessionId = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code workflowRunId} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        @com.github.copilot.CopilotExperimental
+        public Builder workflowRunId(String value) {
+            this.workflowRunId = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code executionToken} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        @com.github.copilot.CopilotExperimental
+        public Builder executionToken(String value) {
+            this.executionToken = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code prompt} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        @com.github.copilot.CopilotExperimental
+        public Builder prompt(String value) {
+            this.prompt = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code opts} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        @com.github.copilot.CopilotExperimental
+        public Builder opts(WorkflowAgentOptions value) {
+            this.opts = value;
+            return this;
+        }
+
+        /**
+         * Builds a record after checking required property presence.
+         * @return a new record
+         * @throws IllegalStateException if a required property is missing
+         * @since 2.0.0
+         */
+        public SessionWorkflowAgentParams build() {
+            if (workflowRunId == null) throw new IllegalStateException("Missing required property: workflowRunId");
+            if (executionToken == null) throw new IllegalStateException("Missing required property: executionToken");
+            if (prompt == null) throw new IllegalStateException("Missing required property: prompt");
+            if (opts == null) throw new IllegalStateException("Missing required property: opts");
+            return new SessionWorkflowAgentParams(sessionId, workflowRunId, executionToken, prompt, opts);
+        }
+    }
 }

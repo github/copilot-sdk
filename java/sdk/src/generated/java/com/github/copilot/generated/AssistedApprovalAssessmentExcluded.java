@@ -38,4 +38,48 @@ public final class AssistedApprovalAssessmentExcluded extends AssistedApprovalAs
 
     public String getReason() { return reason; }
     public void setReason(String reason) { this.reason = reason; }
+
+
+    /**
+     * Returns a named builder.
+     * @return a new builder
+     * @since 2.0.0
+     */
+    @com.github.copilot.CopilotExperimental
+    public static Builder builder() { return new Builder(); }
+
+    /**
+     * Named construction for this record.
+     * @since 2.0.0
+     */
+    @com.github.copilot.CopilotExperimental
+    public static final class Builder {
+        private Builder() {}
+        private String reason;
+
+        /**
+         * Sets the {@code reason} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        @com.github.copilot.CopilotExperimental
+        public Builder reason(String value) {
+            this.reason = value;
+            return this;
+        }
+
+        /**
+         * Builds a variant after checking required property presence.
+         * @return a new variant
+         * @throws IllegalStateException if a required property is missing
+         * @since 2.0.0
+         */
+        public AssistedApprovalAssessmentExcluded build() {
+            if (reason == null) throw new IllegalStateException("Missing required property: reason");
+            AssistedApprovalAssessmentExcluded instance = new AssistedApprovalAssessmentExcluded();
+            instance.setReason(reason);
+            return instance;
+        }
+    }
 }

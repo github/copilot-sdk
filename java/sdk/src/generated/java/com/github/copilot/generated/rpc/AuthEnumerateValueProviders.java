@@ -35,4 +35,45 @@ public final class AuthEnumerateValueProviders extends AuthEnumerateValue {
 
     public List<ProviderDescriptor> getItems() { return items; }
     public void setItems(List<ProviderDescriptor> items) { this.items = items; }
+
+
+    /**
+     * Returns a named builder.
+     * @return a new builder
+     * @since 2.0.0
+     */
+    public static Builder builder() { return new Builder(); }
+
+    /**
+     * Named construction for this record.
+     * @since 2.0.0
+     */
+    public static final class Builder {
+        private Builder() {}
+        private List<ProviderDescriptor> items;
+
+        /**
+         * Sets the {@code items} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder items(List<ProviderDescriptor> value) {
+            this.items = value;
+            return this;
+        }
+
+        /**
+         * Builds a variant after checking required property presence.
+         * @return a new variant
+         * @throws IllegalStateException if a required property is missing
+         * @since 2.0.0
+         */
+        public AuthEnumerateValueProviders build() {
+            if (items == null) throw new IllegalStateException("Missing required property: items");
+            AuthEnumerateValueProviders instance = new AuthEnumerateValueProviders();
+            instance.setItems(items);
+            return instance;
+        }
+    }
 }

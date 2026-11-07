@@ -30,4 +30,84 @@ public record ModelBilling(
     /** Active server-driven promotion for this model, if any. Present when the model is being promoted with a discount, which may be time-boxed or open-ended. */
     @JsonProperty("promo") ModelBillingPromo promo
 ) {
+
+    /**
+     * Creates a record positionally.
+     * @deprecated Use {@link #builder()} for named construction.
+     */
+    @Deprecated(since = "2.0.0", forRemoval = false)
+    public ModelBilling {}
+
+    /**
+     * Returns a named builder.
+     * @return a new builder
+     * @since 2.0.0
+     */
+    public static Builder builder() { return new Builder(); }
+
+    /**
+     * Named construction for this record.
+     * @since 2.0.0
+     */
+    public static final class Builder {
+        private Builder() {}
+        private Double multiplier;
+        private ModelBillingTokenPrices tokenPrices;
+        private Long discountPercent;
+        private ModelBillingPromo promo;
+
+        /**
+         * Sets the {@code multiplier} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder multiplier(Double value) {
+            this.multiplier = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code tokenPrices} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder tokenPrices(ModelBillingTokenPrices value) {
+            this.tokenPrices = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code discountPercent} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder discountPercent(Long value) {
+            this.discountPercent = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code promo} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder promo(ModelBillingPromo value) {
+            this.promo = value;
+            return this;
+        }
+
+        /**
+         * Builds a record after checking required property presence.
+         * @return a new record
+         * @throws IllegalStateException if a required property is missing
+         * @since 2.0.0
+         */
+        public ModelBilling build() {
+            return new ModelBilling(multiplier, tokenPrices, discountPercent, promo);
+        }
+    }
 }

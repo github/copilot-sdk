@@ -160,8 +160,8 @@ class AutoModeRecoveryTest {
             assertTrue(ui.registerDirectAutoModeSwitchHandler(true).get(5, TimeUnit.SECONDS).autoModeRecovery());
             assertFalse(ui.registerDirectAutoModeSwitchHandler(false).get(5, TimeUnit.SECONDS).autoModeRecovery());
             assertTrue(ui
-                    .registerDirectAutoModeSwitchHandler(
-                            new SessionUiRegisterDirectAutoModeSwitchHandlerParams("ignored-session", true))
+                    .registerDirectAutoModeSwitchHandler(SessionUiRegisterDirectAutoModeSwitchHandlerParams.builder()
+                            .sessionId("ignored-session").autoModeRecovery(true).build())
                     .get(5, TimeUnit.SECONDS).autoModeRecovery());
 
             var registrations = runtime.requests.stream().filter(

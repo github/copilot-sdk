@@ -30,15 +30,16 @@ class PermissionRequestResultDecisionContextTest {
     private static final ObjectMapper MAPPER = new ObjectMapper();
 
     private static PermissionDecisionContext sampleContext() {
-        return new PermissionDecisionContext(PermissionDecisionOutcome.AUTO_APPROVED,
-                PermissionDecisionSource.HOST_POLICY, PermissionDecisionSurface.SDK, null, null);
+        return PermissionDecisionContext.builder().outcome(PermissionDecisionOutcome.AUTO_APPROVED)
+                .source(PermissionDecisionSource.HOST_POLICY).surface(PermissionDecisionSurface.SDK)
+                .responseCapability(null).userFeedback(null).build();
     }
 
     @Test
     void setDecisionContextForwardsContextAsSiblingOfResult() throws Exception {
         var result = PermissionRequestResult.approveOnce().setDecisionContext(sampleContext());
-        var params = new SessionPermissionsHandlePendingPermissionRequestParams("session-1", "req-1", result,
-                result.getDecisionContext());
+        var params = SessionPermissionsHandlePendingPermissionRequestParams.builder().sessionId("session-1")
+                .requestId("req-1").result(result).decisionContext(result.getDecisionContext()).build();
 
         JsonNode json = MAPPER.valueToTree(params);
 
@@ -54,8 +55,8 @@ class PermissionRequestResultDecisionContextTest {
         var result = PermissionRequestResult.approveOnce();
         assertNull(result.getDecisionContext());
 
-        var params = new SessionPermissionsHandlePendingPermissionRequestParams("session-1", "req-1", result,
-                result.getDecisionContext());
+        var params = SessionPermissionsHandlePendingPermissionRequestParams.builder().sessionId("session-1")
+                .requestId("req-1").result(result).decisionContext(result.getDecisionContext()).build();
 
         JsonNode json = MAPPER.valueToTree(params);
 
@@ -67,8 +68,9 @@ class PermissionRequestResultDecisionContextTest {
     @Test
     void setDecisionContextTwiceReplacesRatherThanNests() {
         var first = sampleContext();
-        var second = new PermissionDecisionContext(PermissionDecisionOutcome.PROMPTED_USER,
-                PermissionDecisionSource.HUMAN_RESPONSE, PermissionDecisionSurface.TUI, null, null);
+        var second = PermissionDecisionContext.builder().outcome(PermissionDecisionOutcome.PROMPTED_USER)
+                .source(PermissionDecisionSource.HUMAN_RESPONSE).surface(PermissionDecisionSurface.TUI)
+                .responseCapability(null).userFeedback(null).build();
 
         var result = PermissionRequestResult.approveOnce().setDecisionContext(first).setDecisionContext(second);
 
@@ -88,11 +90,12 @@ class PermissionRequestResultDecisionContextTest {
 
     @Test
     void userFeedbackRemainsSeparateFromThePermissionResult() {
-        var context = new PermissionDecisionContext(PermissionDecisionOutcome.PROMPTED_USER,
-                PermissionDecisionSource.HUMAN_RESPONSE, PermissionDecisionSurface.SDK, null,
-                "This action is acceptable.");
+        var context = PermissionDecisionContext.builder().outcome(PermissionDecisionOutcome.PROMPTED_USER)
+                .source(PermissionDecisionSource.HUMAN_RESPONSE).surface(PermissionDecisionSurface.SDK)
+                .responseCapability(null).userFeedback("This action is acceptable.").build();
         var result = PermissionRequestResult.approveOnce().setDecisionContext(context);
-        var params = new SessionPermissionsHandlePendingPermissionRequestParams("session-1", "req-1", result, context);
+        var params = SessionPermissionsHandlePendingPermissionRequestParams.builder().sessionId("session-1")
+                .requestId("req-1").result(result).decisionContext(context).build();
 
         JsonNode json = MAPPER.valueToTree(params);
 

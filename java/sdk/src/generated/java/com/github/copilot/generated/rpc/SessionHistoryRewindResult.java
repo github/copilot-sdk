@@ -36,4 +36,99 @@ public record SessionHistoryRewindResult(
     /** Failure detail. Set only for the failure and partial-failure outcomes (`files-rolled-back`, `rollback-incomplete`, `truncation-failed`, `checkpoint-cleanup-failed`, `snapshot-prune-failed`); omitted for `success` and for the unavailable outcomes (`session-busy`, `file-change-tracking-disabled`, `unsupported-remote-session`). */
     @JsonProperty("error") String error
 ) {
+
+    /**
+     * Creates a record positionally.
+     * @deprecated Use {@link #builder()} for named construction.
+     */
+    @Deprecated(since = "2.0.0", forRemoval = false)
+    public SessionHistoryRewindResult {}
+
+    /**
+     * Returns a named builder.
+     * @return a new builder
+     * @since 2.0.0
+     */
+    public static Builder builder() { return new Builder(); }
+
+    /**
+     * Named construction for this record.
+     * @since 2.0.0
+     */
+    public static final class Builder {
+        private Builder() {}
+        private HistoryRewindOutcome outcome;
+        private Long eventsRemoved;
+        private List<String> restoredFiles;
+        private List<HistorySkippedFileRestore> skippedFiles;
+        private String error;
+
+        /**
+         * Sets the {@code outcome} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder outcome(HistoryRewindOutcome value) {
+            this.outcome = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code eventsRemoved} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder eventsRemoved(Long value) {
+            this.eventsRemoved = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code restoredFiles} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder restoredFiles(List<String> value) {
+            this.restoredFiles = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code skippedFiles} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder skippedFiles(List<HistorySkippedFileRestore> value) {
+            this.skippedFiles = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code error} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder error(String value) {
+            this.error = value;
+            return this;
+        }
+
+        /**
+         * Builds a record after checking required property presence.
+         * @return a new record
+         * @throws IllegalStateException if a required property is missing
+         * @since 2.0.0
+         */
+        public SessionHistoryRewindResult build() {
+            if (outcome == null) throw new IllegalStateException("Missing required property: outcome");
+            if (restoredFiles == null) throw new IllegalStateException("Missing required property: restoredFiles");
+            if (skippedFiles == null) throw new IllegalStateException("Missing required property: skippedFiles");
+            return new SessionHistoryRewindResult(outcome, eventsRemoved, restoredFiles, skippedFiles, error);
+        }
+    }
 }

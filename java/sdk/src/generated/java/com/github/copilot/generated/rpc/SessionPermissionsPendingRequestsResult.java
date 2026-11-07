@@ -28,4 +28,49 @@ public record SessionPermissionsPendingRequestsResult(
     /** Pending permission prompts reconstructed from the session's event history. Equivalent to the set of `permission.requested` events that have not yet been followed by a matching `permission.completed` event. Used by clients (e.g. the CLI) to hydrate UI for prompts that were emitted before the client attached to the session. */
     @JsonProperty("items") List<PendingPermissionRequest> items
 ) {
+
+    /**
+     * Creates a record positionally.
+     * @deprecated Use {@link #builder()} for named construction.
+     */
+    @Deprecated(since = "2.0.0", forRemoval = false)
+    public SessionPermissionsPendingRequestsResult {}
+
+    /**
+     * Returns a named builder.
+     * @return a new builder
+     * @since 2.0.0
+     */
+    public static Builder builder() { return new Builder(); }
+
+    /**
+     * Named construction for this record.
+     * @since 2.0.0
+     */
+    public static final class Builder {
+        private Builder() {}
+        private List<PendingPermissionRequest> items;
+
+        /**
+         * Sets the {@code items} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder items(List<PendingPermissionRequest> value) {
+            this.items = value;
+            return this;
+        }
+
+        /**
+         * Builds a record after checking required property presence.
+         * @return a new record
+         * @throws IllegalStateException if a required property is missing
+         * @since 2.0.0
+         */
+        public SessionPermissionsPendingRequestsResult build() {
+            if (items == null) throw new IllegalStateException("Missing required property: items");
+            return new SessionPermissionsPendingRequestsResult(items);
+        }
+    }
 }

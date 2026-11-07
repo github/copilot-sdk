@@ -1566,7 +1566,7 @@ export class CopilotClient {
             }
         }
         clearTimeout(detachDeadlineTimer);
-        for (const session of activeSessions) {
+        for (const session of new Set([...activeSessions, ...this.sessions.values()])) {
             session._markDisconnected();
         }
         this.sessions.clear();
@@ -2243,6 +2243,7 @@ export class CopilotClient {
             config.systemMessage
         );
 
+        let replacedSession: CopilotSession | undefined;
         // Creates the session object, wires up handlers, and registers it in
         // the sessions map.
         const initializeSession = (sessionId: string): CopilotSession => {
@@ -2291,6 +2292,7 @@ export class CopilotClient {
             // becomes routable; a failed open must not leave handlers behind.
             this.setupSessionFs(s, config);
             signal.throwIfAborted();
+            replacedSession = this.sessions.get(sessionId);
             this.sessions.set(sessionId, s);
             return s;
         };
@@ -2494,8 +2496,17 @@ export class CopilotClient {
             this.commitGitHubTokenProvider(returnedSessionId, gitHubTokenProviderRegistrationId);
         } catch (e) {
             session?._markDisconnected();
-            if (registeredId !== undefined && this.sessions.get(registeredId) === session) {
-                this.sessions.delete(registeredId);
+            if (registeredId !== undefined && session !== undefined) {
+                const current = this.sessions.get(registeredId);
+                if (current === session) {
+                    if (replacedSession && !replacedSession._isDisconnected()) {
+                        this.sessions.set(registeredId, replacedSession);
+                    } else {
+                        this.sessions.delete(registeredId);
+                    }
+                } else if (current === undefined) {
+                    replacedSession?._markDisconnected();
+                }
             }
             if (gitHubTokenProviderRegistrationId !== undefined) {
                 this.githubTokenProviders.delete(gitHubTokenProviderRegistrationId);
@@ -2527,6 +2538,11 @@ export class CopilotClient {
             releaseCloudInitialization?.();
         }
 
+        if (session._isDisconnected()) {
+            this.forgetSession(session);
+        } else {
+            session._setReleaseFromClient(this.forgetSession.bind(this, session));
+        }
         for (const entry of this.hostHandoffs.values()) {
             if (entry.requestedSessionId === session.sessionId) {
                 entry.configs.set(session, config);
@@ -2940,12 +2956,19 @@ export class CopilotClient {
             }
             // The runtime keeps the resident session's bindings when a resume
             // fails, so its callbacks must keep reaching the replaced session.
-            if (this.sessions.get(sessionId) === session) {
-                if (replacedSession && !keepResumedSessionOnRecoveryRejection) {
+            const current = this.sessions.get(sessionId);
+            if (current === session) {
+                if (
+                    replacedSession &&
+                    !replacedSession._isDisconnected() &&
+                    !keepResumedSessionOnRecoveryRejection
+                ) {
                     this.sessions.set(sessionId, replacedSession);
                 } else if (!keepResumedSessionOnRecoveryRejection) {
                     this.sessions.delete(sessionId);
                 }
+            } else if (current === undefined) {
+                replacedSession?._markDisconnected();
             }
             if (gitHubTokenProviderRegistrationId !== undefined) {
                 if (keepResumedSessionOnRecoveryRejection) {
@@ -2962,6 +2985,12 @@ export class CopilotClient {
             releaseCanonicalInitialization?.();
         }
 
+        // Keep provisional cleanup routable until rollback can restore its resident.
+        if (session._isDisconnected()) {
+            this.forgetSession(session);
+        } else {
+            session._setReleaseFromClient(this.forgetSession.bind(this, session));
+        }
         for (const entry of this.hostHandoffs.values()) {
             if (entry.requestedSessionId === session.sessionId) {
                 entry.configs.set(session, { ...config, sessionId });
@@ -3599,8 +3628,7 @@ export class CopilotClient {
             signal.throwIfAborted();
             if (this.sessions.get(sessionId) === session) {
                 this.sessions.delete(sessionId);
-                session?._clearMemoryStore();
-                session?._runOnDisconnected();
+                session?._markDisconnected();
             }
         } finally {
             release();
@@ -3621,6 +3649,13 @@ export class CopilotClient {
         const { success, error } = response;
         if (!success) {
             throw new Error(`Failed to delete session ${sessionId}: ${error || "Unknown error"}`);
+        }
+    }
+
+    /** Stops tracking a disconnected session unless a later create or resume replaced it. */
+    private forgetSession(session: CopilotSession): void {
+        if (this.sessions.get(session.sessionId) === session) {
+            this.sessions.delete(session.sessionId);
         }
     }
 

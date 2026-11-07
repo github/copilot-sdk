@@ -27,4 +27,49 @@ public record SessionTasksPromoteToBackgroundResult(
     /** Whether the task was successfully promoted to background mode */
     @JsonProperty("promoted") Boolean promoted
 ) {
+
+    /**
+     * Creates a record positionally.
+     * @deprecated Use {@link #builder()} for named construction.
+     */
+    @Deprecated(since = "2.0.0", forRemoval = false)
+    public SessionTasksPromoteToBackgroundResult {}
+
+    /**
+     * Returns a named builder.
+     * @return a new builder
+     * @since 2.0.0
+     */
+    public static Builder builder() { return new Builder(); }
+
+    /**
+     * Named construction for this record.
+     * @since 2.0.0
+     */
+    public static final class Builder {
+        private Builder() {}
+        private Boolean promoted;
+
+        /**
+         * Sets the {@code promoted} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder promoted(Boolean value) {
+            this.promoted = value;
+            return this;
+        }
+
+        /**
+         * Builds a record after checking required property presence.
+         * @return a new record
+         * @throws IllegalStateException if a required property is missing
+         * @since 2.0.0
+         */
+        public SessionTasksPromoteToBackgroundResult build() {
+            if (promoted == null) throw new IllegalStateException("Missing required property: promoted");
+            return new SessionTasksPromoteToBackgroundResult(promoted);
+        }
+    }
 }

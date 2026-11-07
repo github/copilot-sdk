@@ -133,8 +133,8 @@ final class InstallationConfirmationAdapter {
     }
 
     private void completeResult(JsonRpcClient rpc, PendingConfirmation confirmation, InstallationDecision decision) {
-        var result = new InstallationsConfirmResult(confirmation.request.confirmationId(),
-                confirmation.request.reviewFingerprint(), decision);
+        var result = InstallationsConfirmResult.builder().confirmationId(confirmation.request.confirmationId())
+                .reviewFingerprint(confirmation.request.reviewFingerprint()).decision(decision).build();
         if (!confirmation.retire()) {
             return;
         }

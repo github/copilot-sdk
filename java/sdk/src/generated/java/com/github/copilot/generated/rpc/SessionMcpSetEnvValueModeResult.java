@@ -27,4 +27,49 @@ public record SessionMcpSetEnvValueModeResult(
     /** Mode recorded on the session after the update */
     @JsonProperty("mode") McpSetEnvValueModeDetails mode
 ) {
+
+    /**
+     * Creates a record positionally.
+     * @deprecated Use {@link #builder()} for named construction.
+     */
+    @Deprecated(since = "2.0.0", forRemoval = false)
+    public SessionMcpSetEnvValueModeResult {}
+
+    /**
+     * Returns a named builder.
+     * @return a new builder
+     * @since 2.0.0
+     */
+    public static Builder builder() { return new Builder(); }
+
+    /**
+     * Named construction for this record.
+     * @since 2.0.0
+     */
+    public static final class Builder {
+        private Builder() {}
+        private McpSetEnvValueModeDetails mode;
+
+        /**
+         * Sets the {@code mode} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder mode(McpSetEnvValueModeDetails value) {
+            this.mode = value;
+            return this;
+        }
+
+        /**
+         * Builds a record after checking required property presence.
+         * @return a new record
+         * @throws IllegalStateException if a required property is missing
+         * @since 2.0.0
+         */
+        public SessionMcpSetEnvValueModeResult build() {
+            if (mode == null) throw new IllegalStateException("Missing required property: mode");
+            return new SessionMcpSetEnvValueModeResult(mode);
+        }
+    }
 }

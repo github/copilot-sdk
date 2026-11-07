@@ -37,4 +37,120 @@ public record CanvasCloseParams(
     /** Session context supplied by the runtime. */
     @JsonProperty("session") CanvasSessionContext session
 ) {
+
+    /**
+     * Creates a record positionally.
+     * @deprecated Use {@link #builder()} for named construction.
+     */
+    @Deprecated(since = "2.0.0", forRemoval = false)
+    public CanvasCloseParams {}
+
+    /**
+     * Returns a named builder.
+     * @return a new builder
+     * @since 2.0.0
+     */
+    @com.github.copilot.CopilotExperimental
+    public static Builder builder() { return new Builder(); }
+
+    /**
+     * Named construction for this record.
+     * @since 2.0.0
+     */
+    @com.github.copilot.CopilotExperimental
+    public static final class Builder {
+        private Builder() {}
+        private String sessionId;
+        private String extensionId;
+        private String canvasId;
+        private String instanceId;
+        private CanvasHostContext host;
+        private CanvasSessionContext session;
+
+        /**
+         * Sets the {@code sessionId} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        @com.github.copilot.CopilotExperimental
+        public Builder sessionId(String value) {
+            this.sessionId = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code extensionId} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        @com.github.copilot.CopilotExperimental
+        public Builder extensionId(String value) {
+            this.extensionId = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code canvasId} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        @com.github.copilot.CopilotExperimental
+        public Builder canvasId(String value) {
+            this.canvasId = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code instanceId} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        @com.github.copilot.CopilotExperimental
+        public Builder instanceId(String value) {
+            this.instanceId = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code host} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        @com.github.copilot.CopilotExperimental
+        public Builder host(CanvasHostContext value) {
+            this.host = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code session} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        @com.github.copilot.CopilotExperimental
+        public Builder session(CanvasSessionContext value) {
+            this.session = value;
+            return this;
+        }
+
+        /**
+         * Builds a record after checking required property presence.
+         * @return a new record
+         * @throws IllegalStateException if a required property is missing
+         * @since 2.0.0
+         */
+        public CanvasCloseParams build() {
+            if (sessionId == null) throw new IllegalStateException("Missing required property: sessionId");
+            if (extensionId == null) throw new IllegalStateException("Missing required property: extensionId");
+            if (canvasId == null) throw new IllegalStateException("Missing required property: canvasId");
+            if (instanceId == null) throw new IllegalStateException("Missing required property: instanceId");
+            return new CanvasCloseParams(sessionId, extensionId, canvasId, instanceId, host, session);
+        }
+    }
 }

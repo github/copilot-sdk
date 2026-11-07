@@ -33,4 +33,79 @@ public record SessionFsSqliteTransactionStatement(
     /** Optional named bind parameters. */
     @JsonProperty("params") Map<String, Object> params
 ) {
+
+    /**
+     * Creates a record positionally.
+     * @deprecated Use {@link #builder()} for named construction.
+     */
+    @Deprecated(since = "2.0.0", forRemoval = false)
+    public SessionFsSqliteTransactionStatement {}
+
+    /**
+     * Returns a named builder.
+     * @return a new builder
+     * @since 2.0.0
+     */
+    @com.github.copilot.CopilotExperimental
+    public static Builder builder() { return new Builder(); }
+
+    /**
+     * Named construction for this record.
+     * @since 2.0.0
+     */
+    @com.github.copilot.CopilotExperimental
+    public static final class Builder {
+        private Builder() {}
+        private String query;
+        private SessionFsSqliteQueryType queryType;
+        private Map<String, Object> params;
+
+        /**
+         * Sets the {@code query} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        @com.github.copilot.CopilotExperimental
+        public Builder query(String value) {
+            this.query = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code queryType} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        @com.github.copilot.CopilotExperimental
+        public Builder queryType(SessionFsSqliteQueryType value) {
+            this.queryType = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code params} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        @com.github.copilot.CopilotExperimental
+        public Builder params(Map<String, Object> value) {
+            this.params = value;
+            return this;
+        }
+
+        /**
+         * Builds a record after checking required property presence.
+         * @return a new record
+         * @throws IllegalStateException if a required property is missing
+         * @since 2.0.0
+         */
+        public SessionFsSqliteTransactionStatement build() {
+            if (query == null) throw new IllegalStateException("Missing required property: query");
+            if (queryType == null) throw new IllegalStateException("Missing required property: queryType");
+            return new SessionFsSqliteTransactionStatement(query, queryType, params);
+        }
+    }
 }

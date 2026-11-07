@@ -37,4 +37,97 @@ public record SessionModelListResult(
     /** Ordered Auto routing preferences discovered for this session's account. */
     @JsonProperty("auto") AutoTierMetadata auto
 ) {
+
+    /**
+     * Creates a record positionally.
+     * @deprecated Use {@link #builder()} for named construction.
+     */
+    @Deprecated(since = "2.0.0", forRemoval = false)
+    public SessionModelListResult {}
+
+    /**
+     * Returns a named builder.
+     * @return a new builder
+     * @since 2.0.0
+     */
+    public static Builder builder() { return new Builder(); }
+
+    /**
+     * Named construction for this record.
+     * @since 2.0.0
+     */
+    public static final class Builder {
+        private Builder() {}
+        private List<Object> list;
+        private List<ModelProviderDescriptor> providers;
+        private List<SessionModelPriceCategory> modelPriceCategories;
+        private Map<String, Object> quotaSnapshots;
+        private AutoTierMetadata auto;
+
+        /**
+         * Sets the {@code list} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder list(List<Object> value) {
+            this.list = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code providers} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder providers(List<ModelProviderDescriptor> value) {
+            this.providers = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code modelPriceCategories} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder modelPriceCategories(List<SessionModelPriceCategory> value) {
+            this.modelPriceCategories = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code quotaSnapshots} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder quotaSnapshots(Map<String, Object> value) {
+            this.quotaSnapshots = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code auto} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder auto(AutoTierMetadata value) {
+            this.auto = value;
+            return this;
+        }
+
+        /**
+         * Builds a record after checking required property presence.
+         * @return a new record
+         * @throws IllegalStateException if a required property is missing
+         * @since 2.0.0
+         */
+        public SessionModelListResult build() {
+            if (list == null) throw new IllegalStateException("Missing required property: list");
+            return new SessionModelListResult(list, providers, modelPriceCategories, quotaSnapshots, auto);
+        }
+    }
 }

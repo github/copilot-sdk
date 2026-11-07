@@ -40,9 +40,175 @@ public record NamedProviderConfig(
     @JsonProperty("azure") ProviderConfigAzure azure,
     /** Additional HTTP headers included with provider requests. */
     @JsonProperty("headers") Map<String, String> headers,
-    /** The product serving the provider's models, reported in telemetry as `model_provider`. Besides telemetry, `azure_openai` makes OpenAI Responses requests omit explicit `prompt_cache_breakpoint` markers, which limit cross-turn cache reuse on Azure. */
+    /** The product serving the provider's models, reported in telemetry as `model_provider`. Only affects telemetry. */
     @JsonProperty("modelProvider") ProviderConfigModelProvider modelProvider,
     /** Whether the host supplies bearer tokens dynamically. */
     @JsonProperty("hasBearerTokenProvider") Boolean hasBearerTokenProvider
 ) {
+
+    /**
+     * Creates a record positionally.
+     * @deprecated Use {@link #builder()} for named construction.
+     */
+    @Deprecated(since = "2.0.0", forRemoval = false)
+    public NamedProviderConfig {}
+
+    /**
+     * Returns a named builder.
+     * @return a new builder
+     * @since 2.0.0
+     */
+    public static Builder builder() { return new Builder(); }
+
+    /**
+     * Named construction for this record.
+     * @since 2.0.0
+     */
+    public static final class Builder {
+        private Builder() {}
+        private String name;
+        private ProviderConfigType type;
+        private ProviderConfigWireApi wireApi;
+        private ProviderConfigTransport transport;
+        private String baseUrl;
+        private String apiKey;
+        private String bearerToken;
+        private ProviderConfigAzure azure;
+        private Map<String, String> headers;
+        private ProviderConfigModelProvider modelProvider;
+        private Boolean hasBearerTokenProvider;
+
+        /**
+         * Sets the {@code name} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder name(String value) {
+            this.name = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code type} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder type(ProviderConfigType value) {
+            this.type = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code wireApi} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder wireApi(ProviderConfigWireApi value) {
+            this.wireApi = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code transport} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder transport(ProviderConfigTransport value) {
+            this.transport = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code baseUrl} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder baseUrl(String value) {
+            this.baseUrl = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code apiKey} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder apiKey(String value) {
+            this.apiKey = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code bearerToken} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder bearerToken(String value) {
+            this.bearerToken = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code azure} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder azure(ProviderConfigAzure value) {
+            this.azure = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code headers} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder headers(Map<String, String> value) {
+            this.headers = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code modelProvider} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder modelProvider(ProviderConfigModelProvider value) {
+            this.modelProvider = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code hasBearerTokenProvider} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder hasBearerTokenProvider(Boolean value) {
+            this.hasBearerTokenProvider = value;
+            return this;
+        }
+
+        /**
+         * Builds a record after checking required property presence.
+         * @return a new record
+         * @throws IllegalStateException if a required property is missing
+         * @since 2.0.0
+         */
+        public NamedProviderConfig build() {
+            if (name == null) throw new IllegalStateException("Missing required property: name");
+            if (baseUrl == null) throw new IllegalStateException("Missing required property: baseUrl");
+            return new NamedProviderConfig(name, type, wireApi, transport, baseUrl, apiKey, bearerToken, azure, headers, modelProvider, hasBearerTokenProvider);
+        }
+    }
 }

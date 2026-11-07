@@ -52,4 +52,77 @@ public final class EntraTokenAcquireRequestIdentity extends EntraTokenAcquireReq
 
     public String getAccountId() { return accountId; }
     public void setAccountId(String accountId) { this.accountId = accountId; }
+
+
+    /**
+     * Returns a named builder.
+     * @return a new builder
+     * @since 2.0.0
+     */
+    @com.github.copilot.CopilotExperimental
+    public static Builder builder() { return new Builder(); }
+
+    /**
+     * Named construction for this record.
+     * @since 2.0.0
+     */
+    @com.github.copilot.CopilotExperimental
+    public static final class Builder {
+        private Builder() {}
+        private String clientId;
+        private EntraTokenAcquireReason reason;
+        private String accountId;
+
+        /**
+         * Sets the {@code clientId} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        @com.github.copilot.CopilotExperimental
+        public Builder clientId(String value) {
+            this.clientId = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code reason} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        @com.github.copilot.CopilotExperimental
+        public Builder reason(EntraTokenAcquireReason value) {
+            this.reason = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code accountId} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        @com.github.copilot.CopilotExperimental
+        public Builder accountId(String value) {
+            this.accountId = value;
+            return this;
+        }
+
+        /**
+         * Builds a variant after checking required property presence.
+         * @return a new variant
+         * @throws IllegalStateException if a required property is missing
+         * @since 2.0.0
+         */
+        public EntraTokenAcquireRequestIdentity build() {
+            if (clientId == null) throw new IllegalStateException("Missing required property: clientId");
+            if (reason == null) throw new IllegalStateException("Missing required property: reason");
+            EntraTokenAcquireRequestIdentity instance = new EntraTokenAcquireRequestIdentity();
+            instance.setClientId(clientId);
+            instance.setReason(reason);
+            instance.setAccountId(accountId);
+            return instance;
+        }
+    }
 }

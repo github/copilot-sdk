@@ -29,4 +29,61 @@ public record SessionOptionsUpdateResult(
     /** Number of hooks loaded from installed plugins, returned when installedPlugins is updated */
     @JsonProperty("pluginHookCount") Long pluginHookCount
 ) {
+
+    /**
+     * Creates a record positionally.
+     * @deprecated Use {@link #builder()} for named construction.
+     */
+    @Deprecated(since = "2.0.0", forRemoval = false)
+    public SessionOptionsUpdateResult {}
+
+    /**
+     * Returns a named builder.
+     * @return a new builder
+     * @since 2.0.0
+     */
+    public static Builder builder() { return new Builder(); }
+
+    /**
+     * Named construction for this record.
+     * @since 2.0.0
+     */
+    public static final class Builder {
+        private Builder() {}
+        private Boolean success;
+        private Long pluginHookCount;
+
+        /**
+         * Sets the {@code success} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder success(Boolean value) {
+            this.success = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code pluginHookCount} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder pluginHookCount(Long value) {
+            this.pluginHookCount = value;
+            return this;
+        }
+
+        /**
+         * Builds a record after checking required property presence.
+         * @return a new record
+         * @throws IllegalStateException if a required property is missing
+         * @since 2.0.0
+         */
+        public SessionOptionsUpdateResult build() {
+            if (success == null) throw new IllegalStateException("Missing required property: success");
+            return new SessionOptionsUpdateResult(success, pluginHookCount);
+        }
+    }
 }

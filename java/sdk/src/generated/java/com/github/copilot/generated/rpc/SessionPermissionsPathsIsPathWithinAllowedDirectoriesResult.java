@@ -27,4 +27,49 @@ public record SessionPermissionsPathsIsPathWithinAllowedDirectoriesResult(
     /** Whether the path is within the session's allowed directories */
     @JsonProperty("allowed") Boolean allowed
 ) {
+
+    /**
+     * Creates a record positionally.
+     * @deprecated Use {@link #builder()} for named construction.
+     */
+    @Deprecated(since = "2.0.0", forRemoval = false)
+    public SessionPermissionsPathsIsPathWithinAllowedDirectoriesResult {}
+
+    /**
+     * Returns a named builder.
+     * @return a new builder
+     * @since 2.0.0
+     */
+    public static Builder builder() { return new Builder(); }
+
+    /**
+     * Named construction for this record.
+     * @since 2.0.0
+     */
+    public static final class Builder {
+        private Builder() {}
+        private Boolean allowed;
+
+        /**
+         * Sets the {@code allowed} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder allowed(Boolean value) {
+            this.allowed = value;
+            return this;
+        }
+
+        /**
+         * Builds a record after checking required property presence.
+         * @return a new record
+         * @throws IllegalStateException if a required property is missing
+         * @since 2.0.0
+         */
+        public SessionPermissionsPathsIsPathWithinAllowedDirectoriesResult build() {
+            if (allowed == null) throw new IllegalStateException("Missing required property: allowed");
+            return new SessionPermissionsPathsIsPathWithinAllowedDirectoriesResult(allowed);
+        }
+    }
 }

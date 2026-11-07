@@ -31,4 +31,66 @@ public record Citations(
     /** Spans of generated text annotated with the sources that support them. */
     @JsonProperty("spans") List<CitationSpan> spans
 ) {
+
+    /**
+     * Creates a record positionally.
+     * @deprecated Use {@link #builder()} for named construction.
+     */
+    @Deprecated(since = "2.0.0", forRemoval = false)
+    public Citations {}
+
+    /**
+     * Returns a named builder.
+     * @return a new builder
+     * @since 2.0.0
+     */
+    @com.github.copilot.CopilotExperimental
+    public static Builder builder() { return new Builder(); }
+
+    /**
+     * Named construction for this record.
+     * @since 2.0.0
+     */
+    @com.github.copilot.CopilotExperimental
+    public static final class Builder {
+        private Builder() {}
+        private List<CitationSource> sources;
+        private List<CitationSpan> spans;
+
+        /**
+         * Sets the {@code sources} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        @com.github.copilot.CopilotExperimental
+        public Builder sources(List<CitationSource> value) {
+            this.sources = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code spans} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        @com.github.copilot.CopilotExperimental
+        public Builder spans(List<CitationSpan> value) {
+            this.spans = value;
+            return this;
+        }
+
+        /**
+         * Builds a record after checking required property presence.
+         * @return a new record
+         * @throws IllegalStateException if a required property is missing
+         * @since 2.0.0
+         */
+        public Citations build() {
+            if (sources == null) throw new IllegalStateException("Missing required property: sources");
+            if (spans == null) throw new IllegalStateException("Missing required property: spans");
+            return new Citations(sources, spans);
+        }
+    }
 }

@@ -30,4 +30,87 @@ public record SkillDiscoveryPath(
     /** The input project path this directory was derived from (only for project scope) */
     @JsonProperty("projectPath") String projectPath
 ) {
+
+    /**
+     * Creates a record positionally.
+     * @deprecated Use {@link #builder()} for named construction.
+     */
+    @Deprecated(since = "2.0.0", forRemoval = false)
+    public SkillDiscoveryPath {}
+
+    /**
+     * Returns a named builder.
+     * @return a new builder
+     * @since 2.0.0
+     */
+    public static Builder builder() { return new Builder(); }
+
+    /**
+     * Named construction for this record.
+     * @since 2.0.0
+     */
+    public static final class Builder {
+        private Builder() {}
+        private String path;
+        private SkillDiscoveryScope scope;
+        private Boolean preferredForCreation;
+        private String projectPath;
+
+        /**
+         * Sets the {@code path} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder path(String value) {
+            this.path = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code scope} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder scope(SkillDiscoveryScope value) {
+            this.scope = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code preferredForCreation} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder preferredForCreation(Boolean value) {
+            this.preferredForCreation = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code projectPath} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder projectPath(String value) {
+            this.projectPath = value;
+            return this;
+        }
+
+        /**
+         * Builds a record after checking required property presence.
+         * @return a new record
+         * @throws IllegalStateException if a required property is missing
+         * @since 2.0.0
+         */
+        public SkillDiscoveryPath build() {
+            if (path == null) throw new IllegalStateException("Missing required property: path");
+            if (scope == null) throw new IllegalStateException("Missing required property: scope");
+            if (preferredForCreation == null) throw new IllegalStateException("Missing required property: preferredForCreation");
+            return new SkillDiscoveryPath(path, scope, preferredForCreation, projectPath);
+        }
+    }
 }

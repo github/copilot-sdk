@@ -52,5 +52,137 @@ public final class McpAppToolCallCompleteEvent extends SessionEvent {
         /** The tool's `_meta.ui` block at the time of the call, so consumers can decide whether to forward the result to the model without re-listing tools. */
         @JsonProperty("toolMeta") McpAppToolCallCompleteToolMeta toolMeta
     ) {
+
+        /**
+         * Creates a record positionally.
+         * @deprecated Use {@link #builder()} for named construction.
+         */
+        @Deprecated(since = "2.0.0", forRemoval = false)
+        public McpAppToolCallCompleteEventData {}
+
+        /**
+         * Returns a named builder.
+         * @return a new builder
+         * @since 2.0.0
+         */
+        public static Builder builder() { return new Builder(); }
+
+        /**
+         * Named construction for this record.
+         * @since 2.0.0
+         */
+        public static final class Builder {
+            private Builder() {}
+            private String serverName;
+            private String toolName;
+            private Map<String, Object> arguments;
+            private Boolean success;
+            private Double durationMs;
+            private Map<String, Object> result;
+            private McpAppToolCallCompleteError error;
+            private McpAppToolCallCompleteToolMeta toolMeta;
+
+            /**
+             * Sets the {@code serverName} property.
+             * @param value the property value
+             * @return this builder
+             * @since 2.0.0
+             */
+            public Builder serverName(String value) {
+                this.serverName = value;
+                return this;
+            }
+
+            /**
+             * Sets the {@code toolName} property.
+             * @param value the property value
+             * @return this builder
+             * @since 2.0.0
+             */
+            public Builder toolName(String value) {
+                this.toolName = value;
+                return this;
+            }
+
+            /**
+             * Sets the {@code arguments} property.
+             * @param value the property value
+             * @return this builder
+             * @since 2.0.0
+             */
+            public Builder arguments(Map<String, Object> value) {
+                this.arguments = value;
+                return this;
+            }
+
+            /**
+             * Sets the {@code success} property.
+             * @param value the property value
+             * @return this builder
+             * @since 2.0.0
+             */
+            public Builder success(Boolean value) {
+                this.success = value;
+                return this;
+            }
+
+            /**
+             * Sets the {@code durationMs} property.
+             * @param value the property value
+             * @return this builder
+             * @since 2.0.0
+             */
+            public Builder durationMs(Double value) {
+                this.durationMs = value;
+                return this;
+            }
+
+            /**
+             * Sets the {@code result} property.
+             * @param value the property value
+             * @return this builder
+             * @since 2.0.0
+             */
+            public Builder result(Map<String, Object> value) {
+                this.result = value;
+                return this;
+            }
+
+            /**
+             * Sets the {@code error} property.
+             * @param value the property value
+             * @return this builder
+             * @since 2.0.0
+             */
+            public Builder error(McpAppToolCallCompleteError value) {
+                this.error = value;
+                return this;
+            }
+
+            /**
+             * Sets the {@code toolMeta} property.
+             * @param value the property value
+             * @return this builder
+             * @since 2.0.0
+             */
+            public Builder toolMeta(McpAppToolCallCompleteToolMeta value) {
+                this.toolMeta = value;
+                return this;
+            }
+
+            /**
+             * Builds a record after checking required property presence.
+             * @return a new record
+             * @throws IllegalStateException if a required property is missing
+             * @since 2.0.0
+             */
+            public McpAppToolCallCompleteEventData build() {
+                if (serverName == null) throw new IllegalStateException("Missing required property: serverName");
+                if (toolName == null) throw new IllegalStateException("Missing required property: toolName");
+                if (success == null) throw new IllegalStateException("Missing required property: success");
+                if (durationMs == null) throw new IllegalStateException("Missing required property: durationMs");
+                return new McpAppToolCallCompleteEventData(serverName, toolName, arguments, success, durationMs, result, error, toolMeta);
+            }
+        }
     }
 }

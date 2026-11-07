@@ -171,8 +171,8 @@ public class SessionConfigE2ETest {
         ctx.configureForTest("session_config", "should_apply_session_limits_on_create");
 
         try (CopilotClient client = ctx.createClient()) {
-            CopilotSession session = client
-                    .createSession(ctx.newSessionConfig().setSessionLimits(new SessionLimitsConfig(30.0))
+            CopilotSession session = client.createSession(
+                    ctx.newSessionConfig().setSessionLimits(SessionLimitsConfig.builder().maxAiCredits(30.0).build())
                             .setOnPermissionRequest(PermissionHandler.APPROVE_ALL))
                     .get();
 
@@ -195,7 +195,7 @@ public class SessionConfigE2ETest {
             CopilotSession session1 = client
                     .createSession(ctx.newSessionConfig().setOnPermissionRequest(PermissionHandler.APPROVE_ALL)).get();
             CopilotSession session2 = client.resumeSession(session1.getSessionId(),
-                    new ResumeSessionConfig().setSessionLimits(new SessionLimitsConfig(30.0))
+                    new ResumeSessionConfig().setSessionLimits(SessionLimitsConfig.builder().maxAiCredits(30.0).build())
                             .setOnPermissionRequest(PermissionHandler.APPROVE_ALL))
                     .get();
 

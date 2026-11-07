@@ -4289,7 +4289,7 @@ pub struct NamedProviderConfig {
     /// Additional HTTP headers included with provider requests.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub headers: Option<HashMap<String, String>>,
-    /// The product serving the provider's models, reported in telemetry as `model_provider`. Besides telemetry, `azure_openai` makes OpenAI Responses requests omit explicit `prompt_cache_breakpoint` markers, which limit cross-turn cache reuse on Azure.
+    /// The product serving the provider's models, reported in telemetry as `model_provider`. Only affects telemetry.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub model_provider: Option<ProviderConfigModelProvider>,
     /// Unique provider name used to qualify model selection IDs.
