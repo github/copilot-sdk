@@ -183,6 +183,8 @@ pub enum SessionErrorKind {
         code: SendSessionMessageErrorCode,
         /// Runtime-assigned message ID, when admission progressed far enough to assign one.
         message_id: Option<String>,
+        /// Stable runtime failure identifier, when reported.
+        failure_code: Option<String>,
     },
 
     /// The CLI could not detach the session.

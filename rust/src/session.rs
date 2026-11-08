@@ -56,7 +56,7 @@ const TOOL_SEARCH_TOOL_NAME: &str = "tool_search_tool";
 
 fn parse_send_session_message_error_data(
     data: Option<&Value>,
-) -> Option<(SendSessionMessageErrorCode, Option<String>)> {
+) -> Option<(SendSessionMessageErrorCode, Option<String>, Option<String>)> {
     let envelope = data?.as_object()?;
     let kind = envelope.get("kind")?.as_str()?;
     let runtime_code = envelope.get("code")?.as_str()?;
@@ -64,32 +64,25 @@ fn parse_send_session_message_error_data(
         Some(value) => Some(value.as_str()?.to_string()),
         None => None,
     };
+    let failure_code = match envelope.get("failureCode") {
+        Some(value) => Some(value.as_str()?.to_string()),
+        None => None,
+    };
 
     let code = match kind {
-        "session_message_refused"
-            if matches!(
-                runtime_code,
-                "target-not-active"
-                    | "target-generation-changed"
-                    | "source-not-active"
-                    | "self-send"
-                    | "request-invalid"
-                    | "recipient-refused"
-                    | "transport-unavailable"
-            ) =>
+        "session_message_refused" => SendSessionMessageErrorCode::Refused,
+        "session_message_not_delivered"
+            if runtime_code == "not-delivered" && message_id.is_some() =>
         {
-            SendSessionMessageErrorCode::Refused
-        }
-        "session_message_not_delivered" if runtime_code == "not-delivered" => {
             SendSessionMessageErrorCode::NotDelivered
         }
-        "session_message_ambiguous" if runtime_code == "ambiguous" => {
+        "session_message_ambiguous" if runtime_code == "ambiguous" && message_id.is_some() => {
             SendSessionMessageErrorCode::Ambiguous
         }
         _ => return None,
     };
 
-    Some((code, message_id))
+    Some((code, message_id, failure_code))
 }
 
 /// Default capacity of the per-session event broadcast buffer backing
@@ -643,7 +636,7 @@ impl Session {
         self.send_inner(opts.into()).await
     }
 
-    /// Lists active local sessions available for exact-ID cross-session messaging.
+    /// Lists active local and remote sessions available for exact-ID cross-session messaging.
     ///
     /// The runtime derives the source identity from this bound session. Pass
     /// `None` to list all messageable sessions or a request containing an
@@ -661,7 +654,7 @@ impl Session {
         Ok(serde_json::from_value(value)?)
     }
 
-    /// Sends one authenticated non-user message to an exact active local session.
+    /// Sends one authenticated non-user message to an exact active local or remote session.
     ///
     /// The runtime derives the source identity from this bound session. Success
     /// reports recipient admission, not completion of delegated work. An
@@ -681,18 +674,23 @@ impl Session {
         {
             Ok(result) => Ok(result),
             Err(error) => {
-                let Some((code, message_id)) =
+                let classified = if error.is_transport_failure() {
+                    Some((SendSessionMessageErrorCode::Ambiguous, None, None))
+                } else if error.rpc_code() == Some(error_codes::INTERNAL_ERROR) {
                     parse_send_session_message_error_data(error.rpc_data())
-                else {
+                } else {
+                    None
+                };
+                let Some((code, message_id, failure_code)) = classified else {
                     return Err(error);
                 };
-                let message = error
-                    .message()
-                    .map(str::to_owned)
-                    .unwrap_or_else(|| error.to_string());
-                Err(Error::with_message(
-                    ErrorKind::Session(SessionErrorKind::SendSessionMessage { code, message_id }),
-                    message,
+                Err(Error::new(
+                    ErrorKind::Session(SessionErrorKind::SendSessionMessage {
+                        code,
+                        message_id,
+                        failure_code,
+                    }),
+                    error,
                 ))
             }
         }

@@ -2444,6 +2444,7 @@ async fn list_messageable_sessions_stamps_bound_source_and_preserves_exact_name(
             session
                 .list_messageable_sessions(Some(ListMessageableSessionsRequest {
                     name: Some("  ReSeArCh  ".to_string()),
+                    ..Default::default()
                 }))
                 .await
         }
@@ -2489,7 +2490,7 @@ async fn list_messageable_sessions_stamps_bound_source_and_preserves_exact_name(
 }
 
 #[tokio::test]
-async fn list_messageable_sessions_omits_absent_name() {
+async fn list_messageable_sessions_omits_absent_name_and_location() {
     let (session, mut server) = create_session_pair().await;
     let handle = tokio::spawn(async move { session.list_messageable_sessions(None).await });
 
@@ -2505,6 +2506,53 @@ async fn list_messageable_sessions_omits_absent_name() {
 
     let result = timeout(TIMEOUT, handle).await.unwrap().unwrap().unwrap();
     assert!(result.sessions.is_empty());
+}
+
+#[tokio::test]
+async fn list_messageable_sessions_preserves_location_and_bound_source() {
+    for (location, wire_location) in [
+        (
+            github_copilot_sdk::rpc::MessageableSessionLocation::Local,
+            "local",
+        ),
+        (
+            github_copilot_sdk::rpc::MessageableSessionLocation::Remote,
+            "remote",
+        ),
+    ] {
+        let (session, mut server) = create_session_pair().await;
+        let handle = tokio::spawn(async move {
+            session
+                .list_messageable_sessions(Some(ListMessageableSessionsRequest {
+                    name: Some("Target".to_string()),
+                    location: Some(location),
+                }))
+                .await
+        });
+
+        let request = server.read_request().await;
+        assert_eq!(request["method"], "session.listMessageableSessions");
+        assert_eq!(
+            request["params"],
+            serde_json::json!({
+                "sessionId": server.session_id,
+                "name": "Target",
+                "location": wire_location,
+            })
+        );
+        server
+            .respond(&request, serde_json::json!({ "sessions": [] }))
+            .await;
+        assert!(
+            timeout(TIMEOUT, handle)
+                .await
+                .unwrap()
+                .unwrap()
+                .unwrap()
+                .sessions
+                .is_empty()
+        );
+    }
 }
 
 #[tokio::test]
@@ -2604,14 +2652,18 @@ async fn send_session_message_preserves_typed_terminal_outcomes_and_message_ids(
         ),
     ] {
         let (session, mut server) = create_session_pair().await;
-        let handle = tokio::spawn(async move {
-            session
-                .send_session_message(SendSessionMessageRequest {
-                    target_session_id: "target-session".to_string(),
-                    content: "Please inspect this.".to_string(),
-                    delivery: Some(SendMode::Enqueue),
-                })
-                .await
+        let session = Arc::new(session);
+        let handle = tokio::spawn({
+            let session = session.clone();
+            async move {
+                session
+                    .send_session_message(SendSessionMessageRequest {
+                        target_session_id: "target-session".to_string(),
+                        content: "Please inspect this.".to_string(),
+                        delivery: Some(SendMode::Enqueue),
+                    })
+                    .await
+            }
         });
 
         let request = server.read_request().await;
@@ -2633,14 +2685,35 @@ async fn send_session_message_preserves_typed_terminal_outcomes_and_message_ids(
             .unwrap()
             .unwrap()
             .unwrap_err();
-        let ErrorKind::Session(SessionErrorKind::SendSessionMessage { code, message_id }) =
-            error.kind()
+        let ErrorKind::Session(SessionErrorKind::SendSessionMessage {
+            code,
+            message_id,
+            failure_code,
+        }) = error.kind()
         else {
             panic!("unexpected error kind: {:?}", error.kind());
         };
         assert_eq!(*code, expected_code);
         assert_eq!(message_id.as_deref(), Some("message-terminal"));
-        assert_eq!(error.message(), Some("cross-session send failed"));
+        assert!(failure_code.is_none());
+        let source = std::error::Error::source(&error)
+            .and_then(|source| source.downcast_ref::<github_copilot_sdk::Error>())
+            .expect("classified send retains the original SDK error");
+        assert_eq!(source.rpc_code(), Some(-32603));
+        assert_eq!(source.message(), Some("cross-session send failed"));
+        assert_eq!(
+            source.rpc_data(),
+            Some(&serde_json::json!({
+                "kind": kind,
+                "code": runtime_code,
+                "messageId": "message-terminal",
+            }))
+        );
+        assert!(
+            timeout(Duration::from_millis(50), server.read_request())
+                .await
+                .is_err()
+        );
     }
 }
 
@@ -2678,6 +2751,215 @@ async fn send_session_message_leaves_unrecognized_error_envelopes_as_rpc_errors(
         .unwrap_err();
     assert_eq!(error.rpc_code(), Some(-32603));
     assert_eq!(error.message(), Some("raw runtime failure"));
+}
+
+#[tokio::test]
+async fn send_session_message_preserves_reported_failure_codes() {
+    for (kind, runtime_code, message_id, expected_code) in [
+        (
+            "session_message_refused",
+            "remote-target-not-active",
+            None,
+            SendSessionMessageErrorCode::Refused,
+        ),
+        (
+            "session_message_not_delivered",
+            "not-delivered",
+            Some("message-not-delivered"),
+            SendSessionMessageErrorCode::NotDelivered,
+        ),
+        (
+            "session_message_ambiguous",
+            "ambiguous",
+            Some("message-ambiguous"),
+            SendSessionMessageErrorCode::Ambiguous,
+        ),
+    ] {
+        let (session, mut server) = create_session_pair().await;
+        let session = Arc::new(session);
+        let handle = tokio::spawn({
+            let session = session.clone();
+            async move {
+                session
+                    .send_session_message(SendSessionMessageRequest {
+                        target_session_id: "target-session".to_string(),
+                        content: "Please inspect this.".to_string(),
+                        delivery: None,
+                    })
+                    .await
+            }
+        });
+        let request = server.read_request().await;
+        assert_eq!(request["method"], "session.sendSessionMessage");
+        let mut data = serde_json::json!({
+            "kind": kind,
+            "code": runtime_code,
+            "failureCode": "recipient-generation-changed",
+        });
+        if let Some(message_id) = message_id {
+            data["messageId"] = Value::String(message_id.to_string());
+        }
+        server
+            .respond_error_with_data(&request, -32603, "cross-session send failed", data.clone())
+            .await;
+        let error = timeout(TIMEOUT, handle)
+            .await
+            .unwrap()
+            .unwrap()
+            .unwrap_err();
+        let ErrorKind::Session(SessionErrorKind::SendSessionMessage {
+            code,
+            message_id: actual_id,
+            failure_code,
+        }) = error.kind()
+        else {
+            panic!("unexpected error kind: {:?}", error.kind());
+        };
+        assert_eq!(*code, expected_code);
+        assert_eq!(actual_id.as_deref(), message_id);
+        assert_eq!(
+            failure_code.as_deref(),
+            Some("recipient-generation-changed")
+        );
+        let source = std::error::Error::source(&error)
+            .and_then(|source| source.downcast_ref::<github_copilot_sdk::Error>())
+            .expect("classified send retains the original SDK error");
+        assert_eq!(source.rpc_data(), Some(&data));
+        assert_eq!(source.rpc_code(), Some(-32603));
+        assert_eq!(source.message(), Some("cross-session send failed"));
+        assert!(
+            timeout(Duration::from_millis(50), server.read_request())
+                .await
+                .is_err()
+        );
+    }
+}
+
+#[tokio::test]
+async fn send_session_message_leaves_invalid_envelopes_and_other_rpc_codes_unchanged() {
+    for (rpc_code, data) in [
+        (-32603, serde_json::json!(null)),
+        (-32603, serde_json::json!([])),
+        (
+            -32603,
+            serde_json::json!({"kind": "unknown", "code": "ambiguous", "messageId": "id"}),
+        ),
+        (
+            -32603,
+            serde_json::json!({"kind": 1, "code": "ambiguous", "messageId": "id"}),
+        ),
+        (
+            -32603,
+            serde_json::json!({"kind": "session_message_refused", "code": 1}),
+        ),
+        (
+            -32603,
+            serde_json::json!({"kind": "session_message_not_delivered", "code": "not-delivered"}),
+        ),
+        (
+            -32603,
+            serde_json::json!({"kind": "session_message_ambiguous", "code": "ambiguous"}),
+        ),
+        (
+            -32603,
+            serde_json::json!({"kind": "session_message_ambiguous", "code": "ambiguous", "messageId": 1}),
+        ),
+        (
+            -32603,
+            serde_json::json!({"kind": "session_message_refused", "code": "target-not-active", "failureCode": null}),
+        ),
+        (
+            -32603,
+            serde_json::json!({"kind": "session_message_refused", "code": "target-not-active", "failureCode": 1}),
+        ),
+        (
+            -32602,
+            serde_json::json!({"kind": "session_message_refused", "code": "target-not-active"}),
+        ),
+    ] {
+        let (session, mut server) = create_session_pair().await;
+        let session = Arc::new(session);
+        let handle = tokio::spawn({
+            let session = session.clone();
+            async move {
+                session
+                    .send_session_message(SendSessionMessageRequest {
+                        target_session_id: "target-session".to_string(),
+                        content: "Please inspect this.".to_string(),
+                        delivery: None,
+                    })
+                    .await
+            }
+        });
+        let request = server.read_request().await;
+        assert_eq!(request["method"], "session.sendSessionMessage");
+        server
+            .respond_error_with_data(&request, rpc_code, "raw runtime failure", data.clone())
+            .await;
+        let error = timeout(TIMEOUT, handle)
+            .await
+            .unwrap()
+            .unwrap()
+            .unwrap_err();
+        assert_eq!(error.rpc_code(), Some(rpc_code as i32), "{data}");
+        assert_eq!(error.message(), Some("raw runtime failure"));
+        assert_eq!(
+            error.rpc_data(),
+            if data.is_null() { None } else { Some(&data) }
+        );
+        assert!(std::error::Error::source(&error).is_none());
+        assert!(
+            timeout(Duration::from_millis(50), server.read_request())
+                .await
+                .is_err()
+        );
+    }
+}
+
+#[tokio::test]
+async fn send_session_message_transport_loss_is_ambiguous_without_invented_id() {
+    let (session, mut server) = create_session_pair().await;
+    let session = Arc::new(session);
+    let handle = tokio::spawn({
+        let session = session.clone();
+        async move {
+            session
+                .send_session_message(SendSessionMessageRequest {
+                    target_session_id: "target-session".to_string(),
+                    content: "Please inspect this.".to_string(),
+                    delivery: None,
+                })
+                .await
+        }
+    });
+    let request = server.read_request().await;
+    assert_eq!(request["method"], "session.sendSessionMessage");
+    server.write.shutdown().await.unwrap();
+    let error = timeout(TIMEOUT, handle)
+        .await
+        .unwrap()
+        .unwrap()
+        .unwrap_err();
+    let ErrorKind::Session(SessionErrorKind::SendSessionMessage {
+        code,
+        message_id,
+        failure_code,
+    }) = error.kind()
+    else {
+        panic!("unexpected error kind: {:?}", error.kind());
+    };
+    assert_eq!(*code, SendSessionMessageErrorCode::Ambiguous);
+    assert!(message_id.is_none());
+    assert!(failure_code.is_none());
+    let source = std::error::Error::source(&error)
+        .and_then(|source| source.downcast_ref::<github_copilot_sdk::Error>())
+        .expect("transport loss retains the original SDK error");
+    assert!(source.is_transport_failure());
+    assert!(
+        timeout(Duration::from_millis(50), server.read_request())
+            .await
+            .is_err()
+    );
 }
 
 #[tokio::test]

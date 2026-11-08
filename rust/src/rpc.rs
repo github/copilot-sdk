@@ -11,16 +11,29 @@
 pub use crate::generated::api_types::*;
 pub use crate::generated::rpc::*;
 
-/// Optional exact-name query for active local messageable sessions.
+/// Inventory location selected for messageable-session discovery.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub enum MessageableSessionLocation {
+    /// Sessions registered on the local host.
+    Local,
+    /// Sessions discoverable through the source session's remote producer.
+    Remote,
+}
+
+/// Optional exact-name query for active local and remote messageable sessions.
 #[derive(Debug, Clone, Default, serde::Serialize, serde::Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct ListMessageableSessionsRequest {
     /// Optional exact session name query. Matching semantics are owned by the local host.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub name: Option<String>,
+    /// Inventory location to query. Omit to include both local and remote sessions.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub location: Option<MessageableSessionLocation>,
 }
 
-/// Sanitized active local session available for exact-ID messaging selection.
+/// Client family of an active local or remote messageable session.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 #[serde(rename_all = "lowercase")]
 pub enum MessageableSessionClientKind {
@@ -32,7 +45,7 @@ pub enum MessageableSessionClientKind {
     Sdk,
 }
 
-/// Sanitized active local session available for exact-ID messaging selection.
+/// Sanitized active local or remote session available for exact-ID messaging selection.
 #[derive(Debug, Clone, Default, serde::Serialize, serde::Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct MessageableSession {
@@ -49,7 +62,7 @@ pub struct MessageableSession {
     pub client_kind: Option<MessageableSessionClientKind>,
 }
 
-/// Sanitized active local sessions available for exact-ID messaging selection.
+/// Sanitized active local and remote sessions available for exact-ID messaging selection.
 #[derive(Debug, Clone, Default, serde::Serialize, serde::Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct ListMessageableSessionsResult {
@@ -79,7 +92,7 @@ pub enum SessionMessageDelivery {
 #[derive(Debug, Clone, Default, serde::Serialize, serde::Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct SendSessionMessageRequest {
-    /// Exact active local recipient session ID.
+    /// Exact active local or remote recipient session ID.
     pub target_session_id: String,
     /// Natural-language message content.
     pub content: String,
