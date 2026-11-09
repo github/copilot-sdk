@@ -32,6 +32,7 @@ public record McpPromptIcon(
     /** Theme hint for this icon */
     @JsonProperty("theme") String theme,
     /** Server-provided non-standard icon fields */
+    @JsonInclude(value = JsonInclude.Include.NON_NULL, content = JsonInclude.Include.ALWAYS)
     @JsonProperty("additionalProperties") Map<String, Object> additionalProperties
 ) {
 

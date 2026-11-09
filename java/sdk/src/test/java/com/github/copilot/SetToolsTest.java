@@ -62,6 +62,8 @@ class SetToolsTest {
         assertEquals("", payload.at("/tools/0/description").asText());
         assertEquals("object", payload.at("/tools/0/parameters/type").asText());
         assertFalse(payload.at("/tools/0").has("handler"));
+        assertTrue(payload.at("/tools/0/hasHandler").booleanValue());
+        assertFalse(payload.at("/tools/1/hasHandler").booleanValue());
         assertEquals("declaration_only", payload.at("/tools/1/name").asText());
         assertEquals("", payload.at("/tools/1/description").asText());
         assertTrue(payload.at("/tools/1/overridesBuiltInTool").asBoolean());

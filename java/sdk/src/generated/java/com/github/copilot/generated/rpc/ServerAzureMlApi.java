@@ -27,6 +27,28 @@ public final class ServerAzureMlApi {
     }
 
     /**
+     * Updates one managed model's persisted registration under its connection-owned Azure ML family lease. Captures prior rows for compensation, preserves unrelated configuration, and remains available after the originating chat session closes. Does not change a live session registry or selection.
+     *
+     * @apiNote This method is experimental and may change in a future version.
+     * @since 1.0.0
+     */
+    @CopilotExperimental
+    public CompletableFuture<AzureMlRegistrationResult> registration(AzureMlRegistrationParams params) {
+        return caller.invoke("azureMl.registration", params, AzureMlRegistrationResult.class);
+    }
+
+    /**
+     * Reads local graphics memory off the caller thread for on-device model eligibility. Does not start a model server, resolve credentials, or contact a model registry.
+     *
+     * @apiNote This method is experimental and may change in a future version.
+     * @since 1.0.0
+     */
+    @CopilotExperimental
+    public CompletableFuture<AzureMlHardwareResult> hardware() {
+        return caller.invoke("azureMl.hardware", java.util.Map.of(), AzureMlHardwareResult.class);
+    }
+
+    /**
      * Lists eligible Azure ML local models and redacted warnings before a chat session exists.
      *
      * @apiNote This method is experimental and may change in a future version.

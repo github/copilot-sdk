@@ -29,6 +29,26 @@ To discover Markdown definitions from versioned packages or vendored folders, us
 
 Pass `customAgents` when creating a session. Each agent needs at minimum a `name` and `prompt`.
 
+Use the built-in subagent allowlist on both create and resume to restrict only
+built-in subagents. An empty list disables all built-in subagents; a nonempty
+list allows only the named built-ins, subject to runtime availability and
+exclusions. Unknown built-in names are rejected. Custom agents remain available,
+including custom agents with the same name as a built-in.
+
+| SDK                  | Create and resume option                                            |
+| -------------------- | ------------------------------------------------------------------- |
+| Node.js / TypeScript | `includedBuiltinAgents`                                             |
+| Python               | `included_builtin_agents`                                           |
+| Go                   | `IncludedBuiltInAgents` (use a non-nil `[]string{}` to disable all) |
+| .NET                 | `IncludedBuiltInAgents`                                             |
+| Java                 | `setIncludedBuiltInAgents`                                          |
+| Rust                 | `with_included_builtin_agents`                                      |
+
+Omitting the allowlist uses existing defaults when creating a session or
+resuming after a runtime restart (cold resume). On a resident session (warm
+resume), omission preserves the current allowlist. The allowlist is not
+persisted: supply it again on resume to retain the restriction after a restart.
+
 <details open>
 <summary><strong>Node.js / TypeScript</strong></summary>
 

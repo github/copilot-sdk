@@ -12,6 +12,7 @@ using System.Runtime.CompilerServices;
 using System.Runtime.ExceptionServices;
 using System.Text;
 using System.Text.Json;
+using System.Text.Json.Nodes;
 using GitHub.Copilot.Rpc;
 using GitHub.Copilot.Test.Harness;
 using Microsoft.Extensions.AI;
@@ -23,6 +24,55 @@ namespace GitHub.Copilot.Test.Unit;
 public sealed partial class ClientSessionLifetimeTests
 {
     private sealed record RpcRequestRecord(string Method, JsonElement Params);
+
+    [Theory]
+    [InlineData(false, false)]
+    [InlineData(true, false)]
+    [InlineData(false, true)]
+    [InlineData(true, true)]
+    public async Task SessionRequests_Preserve_Depth_For_Custom_JsonValues(bool resume, bool toolMetadata)
+    {
+        await using var server = await FakeCopilotServer.StartAsync();
+        await using var client = new CopilotClient(new CopilotClientOptions { Connection = RuntimeConnection.ForUri(server.Url) });
+        await using var original = await client.CreateSessionAsync(new SessionConfig());
+        await original.DisposeAsync();
+        server.ClearRequests();
+
+        JsonNode groups = JsonValue.Create<object>(42)!;
+        var levels = toolMetadata ? 59 : 61;
+        for (var i = 0; i < levels; i++)
+        {
+            groups = new JsonObject { ["nested"] = groups };
+        }
+        var assignments = toolMetadata ? null : new CopilotExpAssignmentResponse { ParameterGroups = groups };
+        AIFunction[]? tools = toolMetadata
+            ? [CopilotTool.DefineTool((Func<string>)(() => "unused"),
+                new CopilotToolOptions { Metadata = new Dictionary<string, JsonNode?> { ["depth"] = groups } })]
+            : null;
+        await using var session = resume
+            ? await client.ResumeSessionAsync(original.SessionId, new ResumeSessionConfig
+            {
+                ExpAssignments = assignments,
+                Tools = tools,
+                OnPermissionRequest = PermissionHandler.ApproveAll
+            })
+            : await client.CreateSessionAsync(new SessionConfig
+            {
+                ExpAssignments = assignments,
+                Tools = tools,
+                OnPermissionRequest = PermissionHandler.ApproveAll
+            });
+
+        var request = Assert.Single(server.Requests, r => r.Method == (resume ? "session.resume" : "session.create"));
+        var value = toolMetadata
+            ? request.Params.GetProperty("tools")[0].GetProperty("metadata").GetProperty("depth")
+            : request.Params.GetProperty("expAssignments").GetProperty("ParameterGroups");
+        for (var i = 0; i < levels; i++)
+        {
+            value = value.GetProperty("nested");
+        }
+        Assert.Equal(42, value.GetInt32());
+    }
 
     [Theory]
     [InlineData(false)]
@@ -94,6 +144,42 @@ public sealed partial class ClientSessionLifetimeTests
         {
             await client.StartAsync();
             Assert.Single(server.Requests, r => r.Method == "ping");
+        }
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task Start_After_Failed_Start_Connects_Again(bool autoStart)
+    {
+        var timeout = TimeSpan.FromSeconds(10);
+        var listener = new TcpListener(IPAddress.Loopback, 0);
+        listener.Start();
+        await using var client = new CopilotClient(new CopilotClientOptions
+        {
+            Connection = RuntimeConnection.ForUri($"http://127.0.0.1:{((IPEndPoint)listener.LocalEndpoint).Port}")
+        });
+
+        // The runtime drops the first connection, which fails the first startup.
+        var dropFirst = DropNextConnectionAsync();
+        await Assert.ThrowsAnyAsync<Exception>(() => client.StartAsync().WaitAsync(timeout));
+        await dropFirst.WaitAsync(timeout);
+        await using var server = FakeCopilotServer.ServeNextConnection(listener);
+
+        if (autoStart)
+        {
+            await using var session = await client.CreateSessionAsync(new SessionConfig()).WaitAsync(timeout);
+        }
+        else
+        {
+            await client.StartAsync().WaitAsync(timeout);
+        }
+
+        Assert.Contains(server.Requests, r => r.Method == "connect");
+
+        async Task DropNextConnectionAsync()
+        {
+            using var connection = await listener.AcceptTcpClientAsync();
         }
     }
 
@@ -1352,7 +1438,7 @@ public sealed partial class ClientSessionLifetimeTests
         await using var client = new CopilotClient(new CopilotClientOptions { Connection = RuntimeConnection.ForUri(server.Url) });
         var terminalTool = CopilotTool.DefineTool(
             (Func<string>)(() => "done"),
-            new CopilotToolOptions { IsTerminal = true });
+            new CopilotToolOptions { IsTerminal = true, Idempotent = true });
         var plainTool = CopilotTool.DefineTool((Func<string>)(() => "continue"));
 
         await using var created = await client.CreateSessionAsync(new SessionConfig
@@ -1365,6 +1451,8 @@ public sealed partial class ClientSessionLifetimeTests
         var createTools = createRequest.Params.GetProperty("tools");
         Assert.True(createTools[0].GetProperty("isTerminal").GetBoolean());
         Assert.False(createTools[1].TryGetProperty("isTerminal", out _));
+        Assert.True(createTools[0].GetProperty("idempotent").GetBoolean());
+        Assert.False(createTools[1].TryGetProperty("idempotent", out _));
 
         server.ClearRequests();
 
@@ -1376,6 +1464,7 @@ public sealed partial class ClientSessionLifetimeTests
 
         var resumeRequest = Assert.Single(server.Requests, request => request.Method == "session.resume");
         Assert.True(resumeRequest.Params.GetProperty("tools")[0].GetProperty("isTerminal").GetBoolean());
+        Assert.True(resumeRequest.Params.GetProperty("tools")[0].GetProperty("idempotent").GetBoolean());
     }
 
     [Theory]
@@ -4049,8 +4138,10 @@ public sealed partial class ClientSessionLifetimeTests
         return (int)count.GetValue(dictionary)!;
     }
 
-    [Fact]
-    public async Task CreateSessionAsync_Serializes_ManagedSettings_Permissions()
+    [Theory]
+    [InlineData(null)]
+    [InlineData("program-parent")]
+    public async Task CreateSessionAsync_Serializes_ManagedSettings_Permissions(string? programToolCallId)
     {
         await using var server = await FakeCopilotServer.StartAsync();
         await using var client = new CopilotClient(new CopilotClientOptions { Connection = RuntimeConnection.ForUri(server.Url) });
@@ -4125,11 +4216,13 @@ public sealed partial class ClientSessionLifetimeTests
                     Recommendation = AssistedApprovalCompletedRecommendation.RequireApproval,
                     Rationale = "The command modifies protected files."
                 },
-                RequestId = "managed-permission"
+                RequestId = "managed-permission",
+                ProgramToolCallId = programToolCallId
             }
         });
         var invocation = await permissionInvocation.Task.WaitAsync(TimeSpan.FromSeconds(5));
         Assert.True(invocation.ManagedSettingsEnabled);
+        Assert.Equal(programToolCallId, invocation.ProgramToolCallId);
         var promptRequest = Assert.IsType<PermissionPromptRequestCommands>(invocation.PromptRequest);
         Assert.Null(promptRequest.ManagedApprovalRequired);
         Assert.Equal(AssistedApprovalRecommendation.Approve, promptRequest.AssistedApproval?.Recommendation);
@@ -4655,6 +4748,9 @@ public sealed partial class ClientSessionLifetimeTests
             return Task.FromResult(new FakeCopilotServer(listener, acceptReconnect));
         }
 
+        /// <summary>Serves the next connection a started <paramref name="listener"/> accepts.</summary>
+        public static FakeCopilotServer ServeNextConnection(TcpListener listener) => new(listener, acceptReconnect: false);
+
         public Task DestroyStarted => _destroyStarted.Task;
 
         public int RuntimeShutdownCount { get; private set; }
@@ -4729,6 +4825,13 @@ public sealed partial class ClientSessionLifetimeTests
         {
             // RunAsync owns the stream and disposes it after its I/O has stopped.
             _cts.Cancel();
+        }
+
+        public void CloseOutput()
+        {
+            var stream = _stream ?? throw new InvalidOperationException("Client is not connected.");
+            // Deliver buffered responses and EOF without resetting the connection on an unread request.
+            stream.Socket.Shutdown(SocketShutdown.Send);
         }
 
         public async Task<JsonElement> SendRequestAsync(string method, Dictionary<string, object?> parameters)
@@ -4814,7 +4917,6 @@ public sealed partial class ClientSessionLifetimeTests
         {
             _allowDestroy.TrySetResult();
             _cts.Cancel();
-            _listener.Stop();
 
             try
             {
@@ -4822,6 +4924,11 @@ public sealed partial class ClientSessionLifetimeTests
             }
             catch (Exception ex) when (ex is OperationCanceledException or ObjectDisposedException or IOException or SocketException)
             {
+            }
+            finally
+            {
+                // An admitted reconnect accept must observe cancellation before the listener stops.
+                _listener.Stop();
             }
 
             try
@@ -4971,6 +5078,10 @@ public sealed partial class ClientSessionLifetimeTests
                     };
                 }
                 await WriteMessageAsync(stream, response, cancellationToken);
+                if (AfterResponseAsync is { } afterSendResponse)
+                {
+                    await afterSendResponse(requestRecord, cancellationToken);
+                }
                 return;
             }
             if ((method == "session.create" && _failSessionCreate) || (method == "session.resume" && FailSessionResume))

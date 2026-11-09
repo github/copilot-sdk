@@ -32,6 +32,17 @@ public class SerializationTests
     }
 
     [Fact]
+    public void FeatureFlagConfigPatch_SerializesRemovalOnlyPatchWithNullValues()
+    {
+        var patch = new FeatureFlagConfigPatch { UndefinedKeys = ["obsolete"] };
+        var json = JsonSerializer.Serialize(patch, GetSerializerOptions());
+        using var document = JsonDocument.Parse(json);
+
+        Assert.Equal(JsonValueKind.Null, document.RootElement.GetProperty("values").ValueKind);
+        Assert.Equal("obsolete", document.RootElement.GetProperty("undefinedKeys")[0].GetString());
+    }
+
+    [Fact]
     public void AgentGetCurrentResult_SerializesDefaultAgentAsNull()
     {
         var options = GetSerializerOptions();
@@ -295,6 +306,26 @@ public class SerializationTests
         var deserialized = JsonSerializer.Deserialize<NamedProviderConfig>(json, options);
         Assert.NotNull(deserialized);
         Assert.Equal("ollama", deserialized.ModelProvider);
+    }
+
+    [Fact]
+    public void LocalModelOptions_RoundTripThroughPublicProviderTypes()
+    {
+        var options = GetSerializerOptions();
+        const string providerJson = """{"name":"local","type":"winml","baseUrl":"model.gguf","localModel":{"device":"gpu","future":[1,true]}}""";
+        const string modelJson = """{"id":"model","provider":"local","autoLocal":{"source":"azureml","future":[1,true]},"metadata":{"autoLocal":{"source":"azureml"},"future":[1,true]}}""";
+        var provider = JsonSerializer.Deserialize<NamedProviderConfig>(providerJson, options)!;
+        var model = JsonSerializer.Deserialize<ProviderModelConfig>(modelJson, options)!;
+        using var expectedProvider = JsonDocument.Parse(providerJson);
+        using var expectedModel = JsonDocument.Parse(modelJson);
+        using var actualProvider = JsonDocument.Parse(JsonSerializer.Serialize(provider, options));
+        using var actualModel = JsonDocument.Parse(JsonSerializer.Serialize(model, options));
+        Assert.Equal(expectedProvider.RootElement.GetProperty("localModel").GetRawText(),
+            actualProvider.RootElement.GetProperty("localModel").GetRawText());
+        Assert.Equal(expectedModel.RootElement.GetProperty("autoLocal").GetRawText(),
+            actualModel.RootElement.GetProperty("autoLocal").GetRawText());
+        Assert.Equal(expectedModel.RootElement.GetProperty("metadata").GetRawText(),
+            actualModel.RootElement.GetProperty("metadata").GetRawText());
     }
 
     [Fact]

@@ -393,6 +393,9 @@ public final class FfiRuntimeHost implements AutoCloseable {
         if (options.getMode() == CopilotClientMode.EMPTY) {
             env.put("COPILOT_DISABLE_KEYTAR", "1");
         }
+        if (options.getTelemetry() != null) {
+            env.putAll(options.getTelemetry().toEnvironment());
+        }
 
         return jsonBytes(env);
     }

@@ -178,9 +178,10 @@ const (
 	SessionEventTypeSessionCanvasRemoved SessionEventType = "session.canvas.removed"
 	// Experimental: SessionEventTypeSessionCanvasUnavailable identifies an experimental event
 	// that may change or be removed.
-	SessionEventTypeSessionCanvasUnavailable  SessionEventType = "session.canvas.unavailable"
-	SessionEventTypeSessionCompactionComplete SessionEventType = "session.compaction_complete"
-	SessionEventTypeSessionCompactionStart    SessionEventType = "session.compaction_start"
+	SessionEventTypeSessionCanvasUnavailable    SessionEventType = "session.canvas.unavailable"
+	SessionEventTypeSessionCompactionComplete   SessionEventType = "session.compaction_complete"
+	SessionEventTypeSessionCompactionStart      SessionEventType = "session.compaction_start"
+	SessionEventTypeSessionCompactionSummarized SessionEventType = "session.compaction_summarized"
 	// Experimental: SessionEventTypeSessionCompletionReceipt identifies an experimental event
 	// that may change or be removed.
 	SessionEventTypeSessionCompletionReceipt           SessionEventType = "session.completion_receipt"
@@ -297,6 +298,29 @@ const (
 	// may change or be removed.
 	SessionEventTypeWorkflowRunUpdated SessionEventType = "workflow.run_updated"
 )
+
+// A background compaction's summarizer settled; its summary is not applied to the conversation yet. The matching session.compaction_complete follows once it is applied (or discarded) and remains authoritative.
+type SessionCompactionSummarizedData struct {
+	// Always true: the settled outcome still awaits being applied, which session.compaction_complete reports
+	ApplyPending bool `json:"applyPending"`
+	// Identifier shared with the matching compaction start and completion events
+	CompactionAttemptID string `json:"compactionAttemptId"`
+	// Error message if the summarizer failed
+	Error *string `json:"error,omitempty"`
+	// How the compaction ran relative to the conversation, as on the start event ("background"). Open set; readers must tolerate other values.
+	Execution string `json:"execution"`
+	// Bounded reason for a failed summarizer, using the same values as the completion event's failureReason. Unknown future values are preserved.
+	FailureReason *string `json:"failureReason,omitempty"`
+	// How the summarizer settled: "succeeded", "failed", or "cancelled". Open set; readers must tolerate other values.
+	Outcome string `json:"outcome"`
+	// Whether the summarizer produced a summary that can be applied
+	Success bool `json:"success"`
+}
+
+func (*SessionCompactionSummarizedData) sessionEventData() {}
+func (*SessionCompactionSummarizedData) Type() SessionEventType {
+	return SessionEventTypeSessionCompactionSummarized
+}
 
 // A detected loss of a previously cached prompt prefix
 type PromptCacheBreakData struct {
@@ -738,7 +762,7 @@ func (*SessionCompactionStartData) Type() SessionEventType {
 	return SessionEventTypeSessionCompactionStart
 }
 
-// Context-cleared details emitted when the host clears the conversation (the session.history.clearContext RPC / Session.clearContextMessages)
+// Context-cleared details emitted when the conversation is cleared (the session.history.clearContext RPC, or the runtime starting a fresh context window)
 type SessionContextClearedData struct {
 	// Optional initial message set after clearing
 	InitialMessage *string `json:"initialMessage,omitempty"`
@@ -1169,39 +1193,6 @@ type WorkflowRunSettledData struct {
 
 func (*WorkflowRunSettledData) sessionEventData()      {}
 func (*WorkflowRunSettledData) Type() SessionEventType { return SessionEventTypeWorkflowRunSettled }
-
-// Error details for timeline display including message and optional diagnostic information
-type SessionErrorData struct {
-	// Only set on `errorType: "rate_limit"`. When `true`, the runtime will follow this error with an `auto_mode_switch.requested` event (or silently switch if `continueOnAutoMode` is enabled). UI clients can use this flag to suppress duplicate rendering of the rate-limit error when they show their own auto-mode-switch prompt.
-	EligibleForAutoSwitch *bool `json:"eligibleForAutoSwitch,omitempty"`
-	// Fine-grained error code from the upstream provider, when available. For `errorType: "rate_limit"`, this is one of the `RateLimitErrorCode` values (e.g., `"user_weekly_rate_limited"`, `"user_global_rate_limited"`, `"rate_limited"`, `"user_model_rate_limited"`, `"integration_rate_limited"`). For `errorType: "quota"`, this is the CAPI quota error code (e.g., `"quota_exceeded"`, `"session_quota_exceeded"`, `"billing_not_configured"`).
-	ErrorCode *string `json:"errorCode,omitempty"`
-	// Category of error (e.g., "authentication", "authorization", "policy", "quota", "rate_limit", "context_limit", "query")
-	ErrorType string `json:"errorType"`
-	// Human-readable error message
-	Message string `json:"message"`
-	// Original root user-message ID of the failed request, including failures before user.message is emitted. Absent for session-wide errors or legacy hosts.
-	OriginatingMessageID *string `json:"originatingMessageId,omitempty"`
-	// GitHub request tracing ID (x-github-request-id header) for correlating with server-side logs
-	ProviderCallID *string `json:"providerCallId,omitempty"`
-	// Sanitized provider-defined error parameter preserved from a structured upstream error envelope, when available.
-	ProviderErrorParam *string `json:"providerErrorParam,omitempty"`
-	// Provider-defined error type preserved from a structured upstream error envelope, when available (for example, `invalid_request_error`).
-	ProviderErrorType *string `json:"providerErrorType,omitempty"`
-	// What the user must do to recover, when the runtime knows of an action. The `message` never names a client affordance, so a client that offers one — a slash command, a settings pane, a link — renders it from this value.
-	Remediation *RemediationAction `json:"remediation,omitempty"`
-	// Copilot service request ID (x-copilot-service-request-id header) for CAPI log correlation
-	ServiceRequestID *string `json:"serviceRequestId,omitempty"`
-	// Error stack trace, when available
-	Stack *string `json:"stack,omitempty"`
-	// HTTP status code from the upstream request, if applicable
-	StatusCode *int32 `json:"statusCode,omitempty"`
-	// Optional URL associated with this error that the user can open in a browser
-	URL *string `json:"url,omitempty"`
-}
-
-func (*SessionErrorData) sessionEventData()      {}
-func (*SessionErrorData) Type() SessionEventType { return SessionEventTypeSessionError }
 
 // Exact skill context delivered to the model during a tool phase. This is not a user submission or another skill invocation.
 type SkillContextDeliveredData struct {
@@ -2728,6 +2719,8 @@ type PermissionRequestedData struct {
 	PermissionMode *PermissionMode `json:"permissionMode,omitempty"`
 	// Details of the permission being requested
 	PermissionRequest PermissionRequest `json:"permissionRequest"`
+	// Program invocation owning this permission request. Its child call must not be resumed independently.
+	ProgramToolCallID *string `json:"programToolCallId,omitempty"`
 	// Derived user-facing permission prompt details for UI consumers
 	PromptRequest PermissionPromptRequest `json:"promptRequest,omitempty"`
 	// Permission-recovery episode that authorized this request to surface for interactive attention
@@ -3065,6 +3058,41 @@ type CommandsChangedData struct {
 
 func (*CommandsChangedData) sessionEventData()      {}
 func (*CommandsChangedData) Type() SessionEventType { return SessionEventTypeCommandsChanged }
+
+// Session error details for timeline display. Request-correlated completion RPC failures carry the terminal error's same fields in their error data, with stack and completionEventId.
+type SessionErrorData struct {
+	// Only set on `errorType: "rate_limit"`. When `true`, the runtime will follow this error with an `auto_mode_switch.requested` event (or silently switch if `continueOnAutoMode` is enabled). UI clients can use this flag to suppress duplicate rendering of the rate-limit error when they show their own auto-mode-switch prompt.
+	EligibleForAutoSwitch *bool `json:"eligibleForAutoSwitch,omitempty"`
+	// Fine-grained error code from the upstream provider, when available. For `errorType: "rate_limit"`, this is one of the `RateLimitErrorCode` values (e.g., `"user_weekly_rate_limited"`, `"user_global_rate_limited"`, `"rate_limited"`, `"user_model_rate_limited"`, `"integration_rate_limited"`). For `errorType: "quota"`, this is the CAPI quota error code (e.g., `"quota_exceeded"`, `"session_quota_exceeded"`, `"billing_not_configured"`).
+	ErrorCode *string `json:"errorCode,omitempty"`
+	// Category of error (e.g., "authentication", "authorization", "policy", "quota", "rate_limit", "context_limit", "query")
+	ErrorType string `json:"errorType"`
+	// Human-readable error message
+	Message string `json:"message"`
+	// Original root user-message ID of the failed request, including failures before user.message is emitted. Absent for session-wide errors or legacy hosts.
+	OriginatingMessageID *string `json:"originatingMessageId,omitempty"`
+	// GitHub request tracing ID (x-github-request-id header) for correlating with server-side logs
+	ProviderCallID *string `json:"providerCallId,omitempty"`
+	// Provider-defined error code, when available; unset otherwise. Unlike errorCode, this is not a runtime or Copilot API classification and does not imply a remediation or retry policy.
+	ProviderErrorCode *string `json:"providerErrorCode,omitempty"`
+	// Sanitized provider-defined error parameter preserved from a structured upstream error envelope, when available.
+	ProviderErrorParam *string `json:"providerErrorParam,omitempty"`
+	// Provider-defined error type preserved from a structured upstream error envelope, when available (for example, `invalid_request_error`).
+	ProviderErrorType *string `json:"providerErrorType,omitempty"`
+	// What the user must do to recover, when the runtime knows of an action. The `message` never names a client affordance, so a client that offers one — a slash command, a settings pane, a link — renders it from this value.
+	Remediation *RemediationAction `json:"remediation,omitempty"`
+	// Copilot service request ID (x-copilot-service-request-id header) for CAPI log correlation
+	ServiceRequestID *string `json:"serviceRequestId,omitempty"`
+	// Error stack trace, when available
+	Stack *string `json:"stack,omitempty"`
+	// HTTP status code from the upstream request, if applicable
+	StatusCode *int32 `json:"statusCode,omitempty"`
+	// Optional URL associated with this error that the user can open in a browser
+	URL *string `json:"url,omitempty"`
+}
+
+func (*SessionErrorData) sessionEventData()      {}
+func (*SessionErrorData) Type() SessionEventType { return SessionEventTypeSessionError }
 
 // Session handoff metadata including source, context, and repository information
 type SessionHandoffData struct {
@@ -3638,6 +3666,9 @@ type ToolExecutionCompleteData struct {
 	// Tool call ID of the parent tool invocation when this event originates from a sub-agent
 	// Deprecated: ParentToolCallID is deprecated.
 	ParentToolCallID *string `json:"parentToolCallId,omitempty"`
+	// Host-owned call ID of the run_program invocation that requested this child tool. Its result is program input, not a model message; agent attribution remains independent.
+	// Experimental: ProgramToolCallID is part of an experimental API and may change or be removed.
+	ProgramToolCallID *string `json:"programToolCallId,omitempty"`
 	// Tool execution result on success
 	Result *ToolExecutionCompleteResult `json:"result,omitempty"`
 	// Per-request treatment/eligibility signal returned by the Copilot API in the `X-GitHub-Copilot-Request-TE` response header for the associated model call; `false` when the header was absent or unparseable.
@@ -3709,6 +3740,9 @@ type ToolExecutionStartData struct {
 	// Tool call ID of the parent tool invocation when this event originates from a sub-agent
 	// Deprecated: ParentToolCallID is deprecated.
 	ParentToolCallID *string `json:"parentToolCallId,omitempty"`
+	// Host-owned call ID of the run_program invocation that requested this child tool. Its result is program input, not a model message; agent attribution remains independent.
+	// Experimental: ProgramToolCallID is part of an experimental API and may change or be removed.
+	ProgramToolCallID *string `json:"programToolCallId,omitempty"`
 	// Whether the selected tool descriptor explicitly classifies this call as read-only.
 	ReadOnly *bool `json:"readOnly,omitempty"`
 	// Per-request treatment/eligibility signal returned by the Copilot API in the `X-GitHub-Copilot-Request-TE` response header for the associated model call; `false` when the header was absent or unparseable.
@@ -4866,6 +4900,9 @@ type PermissionApprovalEvaluation struct {
 // Assisted-approval judge information attached to a permission request. Present only in assisted mode; its absence means the judge did not evaluate the request. The `recommendation` conveys the judge's disposition for this request.
 // Experimental: PermissionAssistedApproval is part of an experimental API and may change or be removed.
 type PermissionAssistedApproval struct {
+	// Zero-based indexes into the shell request's `commandSegments` that a `requireApproval` recommendation identified as needing approval, validated by the runtime against that request. Absent when the recommendation did not attribute approval to specific segments; the whole command then needs approval.
+	// Experimental: ApprovalRequiredCommandSegments is part of an experimental API and may change or be removed.
+	ApprovalRequiredCommandSegments []int64 `json:"approvalRequiredCommandSegments,omitzero"`
 	// Runtime reason and judge-call metadata. Absent on older events; missing metadata means unknown, not that the judge was skipped.
 	Evaluation *PermissionApprovalEvaluation `json:"evaluation,omitempty"`
 	// Runtime-generated correlation ID for the original judge invocation. Cached recommendations retain it. Absent when review was skipped or the event predates correlation support; never part of the judge prompt.
@@ -5133,6 +5170,8 @@ type PermissionPromptRequestURL struct {
 	Intention string `json:"intention"`
 	// Whether managed policy requires a human response and forbids host auto-approval
 	ManagedApprovalRequired *bool `json:"managedApprovalRequired,omitempty"`
+	// Wildcard pattern covering the registrable domain of the URL and its subdomains, for example https://*.example.com for https://api.example.com/x. The runtime computes it from the Public Suffix List, keeping the URL's scheme and non-default port, so every host offers the same scope. Absent when no parent-domain approval can be offered safely (IP addresses, private-network names, public suffixes) and for sandbox-bypass requests. Hosts may offer it as a broader alternative to approving the exact origin for the running session and, when the user chooses it, return it as the domain of an approve-for-session response. It is session-only: the runtime matches it by registrable domain, so a subdomain the Public Suffix List lists as a separate owner (for example a bucket under s3.amazonaws.com) is not covered, and the runtime never persists it. Do not offer it as a permanent approval; an approve-permanently response carrying this exact pattern is kept for the session only and writes nothing to settings. The pattern also matches the registrable domain itself.
+	ParentDomainPattern *string `json:"parentDomainPattern,omitempty"`
 	// Immediately preceding URL when this prompt is for a redirect target
 	RedirectedFrom *string `json:"redirectedFrom,omitempty"`
 	// True when the tool is asking to run this URL fetch outside the sandbox, after the network policy denied the approved URL or the sandbox proxy could not reach it (host opted in via sandbox.allowBypass). The model cannot ask for this; only the tool raises it. This is a request, not a grant: the fetch runs only if the user approves this permission request. Hosts should highlight the elevated risk in the approval UI.

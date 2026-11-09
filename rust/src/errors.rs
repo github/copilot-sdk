@@ -397,7 +397,17 @@ impl Error {
         }
     }
 
-    /// Returns the non-null JSON-RPC error data for an [`ErrorKind::Rpc`] error, if any.
+    pub(crate) fn into_agent_error(mut self) -> Self {
+        let kind = match &mut self.repr {
+            Repr::Simple(kind)
+            | Repr::SimpleMessage(kind, ..)
+            | Repr::Custom(Custom { kind, .. }) => kind,
+        };
+        *kind = ErrorKind::Session(SessionErrorKind::AgentError);
+        self
+    }
+
+    /// Returns the non-null JSON-RPC error data, including terminal session error details.
     ///
     /// The value may be an object, array, or scalar. Missing and `null` data
     /// return `None`. Data is not included in this error's `Display` or `Debug`

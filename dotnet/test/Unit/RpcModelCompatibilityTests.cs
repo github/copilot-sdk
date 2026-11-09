@@ -12,6 +12,47 @@ namespace GitHub.Copilot.Test.Unit;
 public sealed partial class ClientSessionLifetimeTests
 {
     [Fact]
+    public async Task Options_Update_Preserves_Positional_Calls_And_The_Published_Clr_Signature()
+    {
+        await using var server = await FakeCopilotServer.StartAsync();
+        await using var client = new CopilotClient(new CopilotClientOptions
+        {
+            Connection = RuntimeConnection.ForUri(server.Url)
+        });
+        await using var session = await client.CreateSessionAsync(new SessionConfig());
+        server.ClearRequests();
+
+        await session.Rpc.Options.UpdateAsync(new ProtocolImageGenerationOptions());
+        await session.Rpc.Options.UpdateAsync(null);
+        await session.Rpc.Options.UpdateAsync();
+        await session.Rpc.Options.UpdateAsync(settings: new SessionSettingsPatch { Memory = true });
+
+        var current = Assert.Single(typeof(OptionsApi).GetMethods(),
+            method => method.Name == "UpdateAsync" && method.GetParameters().Any(parameter => parameter.Name == "settings"));
+        var publishedTypes = current.GetParameters()
+            .Where(parameter => parameter.Name != "settings")
+            .Select(parameter => parameter.ParameterType)
+            .ToArray();
+        Assert.Equal(66, publishedTypes.Length);
+        Assert.Equal(typeof(ProtocolImageGenerationOptions), publishedTypes[0]);
+        Assert.Equal(typeof(CancellationToken), publishedTypes[^1]);
+        var published = typeof(OptionsApi).GetMethod("UpdateAsync", publishedTypes);
+        Assert.NotNull(published);
+        var arguments = new object?[publishedTypes.Length];
+        arguments[^1] = CancellationToken.None;
+        await (Task)published.Invoke(session.Rpc.Options, arguments)!;
+
+        var requests = server.Requests.ToArray();
+        Assert.Equal(5, requests.Length);
+        Assert.Equal(JsonValueKind.Object, requests[0].Params.GetProperty("imageGeneration").ValueKind);
+        Assert.True(requests[3].Params.GetProperty("settings").GetProperty("memory").GetBoolean());
+        foreach (var request in requests.Where((_, index) => index != 3))
+        {
+            Assert.False(request.Params.TryGetProperty("settings", out _));
+        }
+    }
+
+    [Fact]
     public void Model_Price_Units_Keep_Public_Request_And_Cancellation_Overloads()
     {
         var legacy = typeof(ServerModelsApi).GetMethod("ListTokenPriceUnitsAsync", [typeof(CancellationToken)]);

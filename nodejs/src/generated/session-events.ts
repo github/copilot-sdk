@@ -46,6 +46,7 @@ export type SessionEvent =
   | UsageInfoEvent
   | ContextClearedEvent
   | CompactionStartEvent
+  | CompactionSummarizedEvent
   | CompactionCompleteEvent
   | TaskCompleteEvent
   | CompletionReceiptEvent
@@ -2441,7 +2442,7 @@ export interface RemoteSteerableChangedData {
   remoteSteerable: boolean;
 }
 /**
- * Session event "session.error". Error details for timeline display including message and optional diagnostic information
+ * Session event "session.error". Session error details for timeline display. Request-correlated completion RPC failures carry the terminal error's same fields in their error data, with stack and completionEventId.
  */
 export interface ErrorEvent {
   /**
@@ -2453,7 +2454,7 @@ export interface ErrorEvent {
    */
   checkpoint?: boolean;
   /**
-   * Error details for timeline display including message and optional diagnostic information
+   * Session error details for timeline display. Request-correlated completion RPC failures carry the terminal error's same fields in their error data, with stack and completionEventId.
    */
   data: ErrorData;
   /**
@@ -2478,7 +2479,7 @@ export interface ErrorEvent {
   type: "session.error";
 }
 /**
- * Error details for timeline display including message and optional diagnostic information
+ * Session error details for timeline display. Request-correlated completion RPC failures carry the terminal error's same fields in their error data, with stack and completionEventId.
  */
 export interface ErrorData {
   /**
@@ -2505,6 +2506,10 @@ export interface ErrorData {
    * GitHub request tracing ID (x-github-request-id header) for correlating with server-side logs
    */
   providerCallId?: string;
+  /**
+   * Provider-defined error code, when available; unset otherwise. Unlike errorCode, this is not a runtime or Copilot API classification and does not imply a remediation or retry policy.
+   */
+  providerErrorCode?: string;
   /**
    * Sanitized provider-defined error parameter preserved from a structured upstream error envelope, when available.
    */
@@ -4874,7 +4879,7 @@ export interface UsageInfoData {
   toolDefinitionsTokens?: number;
 }
 /**
- * Session event "session.context_cleared". Context-cleared details emitted when the host clears the conversation (the session.history.clearContext RPC / Session.clearContextMessages)
+ * Session event "session.context_cleared". Context-cleared details emitted when the conversation is cleared (the session.history.clearContext RPC, or the runtime starting a fresh context window)
  */
 export interface ContextClearedEvent {
   /**
@@ -4886,7 +4891,7 @@ export interface ContextClearedEvent {
    */
   checkpoint?: boolean;
   /**
-   * Context-cleared details emitted when the host clears the conversation (the session.history.clearContext RPC / Session.clearContextMessages)
+   * Context-cleared details emitted when the conversation is cleared (the session.history.clearContext RPC, or the runtime starting a fresh context window)
    */
   data: ContextClearedData;
   /**
@@ -4911,7 +4916,7 @@ export interface ContextClearedEvent {
   type: "session.context_cleared";
 }
 /**
- * Context-cleared details emitted when the host clears the conversation (the session.history.clearContext RPC / Session.clearContextMessages)
+ * Context-cleared details emitted when the conversation is cleared (the session.history.clearContext RPC, or the runtime starting a fresh context window)
  */
 export interface ContextClearedData {
   /**
@@ -5016,6 +5021,76 @@ export interface CompactionStartData {
    * What initiated this compaction, when known
    */
   trigger?: CompactionTrigger;
+}
+/**
+ * Session event "session.compaction_summarized". A background compaction's summarizer settled; its summary is not applied to the conversation yet. The matching session.compaction_complete follows once it is applied (or discarded) and remains authoritative.
+ */
+export interface CompactionSummarizedEvent {
+  /**
+   * Sub-agent instance identifier. Absent for events from the root/main agent and session-level events.
+   */
+  agentId?: string;
+  /**
+   * Whether this physical journal record belongs to a replay checkpoint rather than original session history.
+   */
+  checkpoint?: boolean;
+  /**
+   * A background compaction's summarizer settled; its summary is not applied to the conversation yet. The matching session.compaction_complete follows once it is applied (or discarded) and remains authoritative.
+   */
+  data: CompactionSummarizedData;
+  /**
+   * Always true for events that are transient and not persisted to the session event log on disk.
+   */
+  ephemeral: true;
+  /**
+   * Unique event identifier (UUID v4), generated when the event is emitted
+   */
+  id: string;
+  /**
+   * ID of the chronologically preceding event in the session, forming a linked chain. Null for the first event.
+   */
+  parentId: string | null;
+  /**
+   * ISO 8601 timestamp when the event was created
+   */
+  timestamp: string;
+  /**
+   * Type discriminator. Always "session.compaction_summarized".
+   */
+  type: "session.compaction_summarized";
+}
+/**
+ * A background compaction's summarizer settled; its summary is not applied to the conversation yet. The matching session.compaction_complete follows once it is applied (or discarded) and remains authoritative.
+ */
+export interface CompactionSummarizedData {
+  /**
+   * Always true: the settled outcome still awaits being applied, which session.compaction_complete reports
+   */
+  applyPending: boolean;
+  /**
+   * Identifier shared with the matching compaction start and completion events
+   */
+  compactionAttemptId: string;
+  /**
+   * Error message if the summarizer failed
+   */
+  error?: string;
+  /**
+   * How the compaction ran relative to the conversation, as on the start event ("background"). Open set; readers must tolerate other values.
+   */
+  execution: string;
+  /**
+   * Bounded reason for a failed summarizer, using the same values as the completion event's failureReason. Unknown future values are preserved.
+   */
+  failureReason?: string;
+  /**
+   * How the summarizer settled: "succeeded", "failed", or "cancelled". Open set; readers must tolerate other values.
+   */
+  outcome: string;
+  /**
+   * Whether the summarizer produced a summary that can be applied
+   */
+  success: boolean;
 }
 /**
  * Session event "session.compaction_complete". Conversation compaction results including success status, metrics, and optional error details
@@ -9635,6 +9710,12 @@ export interface ToolExecutionStartData {
    */
   parentToolCallId?: string;
   /**
+   * Host-owned call ID of the run_program invocation that requested this child tool. Its result is program input, not a model message; agent attribution remains independent.
+   *
+   * @experimental
+   */
+  programToolCallId?: string;
+  /**
    * Whether the selected tool descriptor explicitly classifies this call as read-only.
    */
   readOnly?: boolean;
@@ -9981,6 +10062,12 @@ export interface ToolExecutionCompleteData {
    * Tool call ID of the parent tool invocation when this event originates from a sub-agent
    */
   parentToolCallId?: string;
+  /**
+   * Host-owned call ID of the run_program invocation that requested this child tool. Its result is program input, not a model message; agent attribution remains independent.
+   *
+   * @experimental
+   */
+  programToolCallId?: string;
   /**
    * Tool execution result on success
    */
@@ -12040,6 +12127,10 @@ export interface PermissionRequestedData {
    */
   permissionRequest: PermissionRequest;
   /**
+   * Program invocation owning this permission request. Its child call must not be resumed independently.
+   */
+  programToolCallId?: string;
+  /**
    * Derived user-facing permission prompt details for UI consumers
    */
   promptRequest?: PermissionPromptRequest;
@@ -12472,6 +12563,12 @@ export interface PermissionRequestMemory {
  */
 /** @experimental */
 export interface PermissionAssistedApproval {
+  /**
+   * Zero-based indexes into the shell request's `commandSegments` that a `requireApproval` recommendation identified as needing approval, validated by the runtime against that request. Absent when the recommendation did not attribute approval to specific segments; the whole command then needs approval.
+   *
+   * @experimental
+   */
+  approvalRequiredCommandSegments?: number[];
   /**
    * Runtime reason and judge-call metadata. Absent on older events; missing metadata means unknown, not that the judge was skipped.
    */
@@ -13036,6 +13133,10 @@ export interface PermissionPromptRequestUrl {
    * Whether managed policy requires a human response and forbids host auto-approval
    */
   managedApprovalRequired?: boolean;
+  /**
+   * Wildcard pattern covering the registrable domain of the URL and its subdomains, for example https://*.example.com for https://api.example.com/x. The runtime computes it from the Public Suffix List, keeping the URL's scheme and non-default port, so every host offers the same scope. Absent when no parent-domain approval can be offered safely (IP addresses, private-network names, public suffixes) and for sandbox-bypass requests. Hosts may offer it as a broader alternative to approving the exact origin for the running session and, when the user chooses it, return it as the domain of an approve-for-session response. It is session-only: the runtime matches it by registrable domain, so a subdomain the Public Suffix List lists as a separate owner (for example a bucket under s3.amazonaws.com) is not covered, and the runtime never persists it. Do not offer it as a permanent approval; an approve-permanently response carrying this exact pattern is kept for the session only and writes nothing to settings. The pattern also matches the registrable domain itself.
+   */
+  parentDomainPattern?: string;
   /**
    * Immediately preceding URL when this prompt is for a redirect target
    */
@@ -15034,6 +15135,12 @@ export interface ExternalToolRequestedData {
    * Arguments to pass to the external tool
    */
   arguments?: JsonValue;
+  /**
+   * Whether the tool definition had an SDK handler when this request was dispatched.
+   *
+   * @internal
+   */
+  hasHandler?: boolean;
   /**
    * Stable provider identity captured with an extension-owned tool definition; hosts use it to route the request to the same provider that was offered to the model
    */

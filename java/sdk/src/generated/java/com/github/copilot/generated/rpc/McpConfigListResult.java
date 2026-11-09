@@ -26,6 +26,7 @@ import javax.annotation.processing.Generated;
 @JsonIgnoreProperties(ignoreUnknown = true)
 public record McpConfigListResult(
     /** All MCP servers from user config, keyed by name */
+    @JsonInclude(value = JsonInclude.Include.NON_NULL, content = JsonInclude.Include.ALWAYS)
     @JsonProperty("servers") Map<String, Object> servers
 ) {
 

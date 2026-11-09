@@ -35,6 +35,8 @@ public final class ExternalToolRequestedEvent extends SessionEvent {
     @JsonInclude(JsonInclude.Include.NON_NULL)
     @com.fasterxml.jackson.databind.annotation.JsonDeserialize(using = ExternalToolRequestedEventData.$NullableDeserializer.class)
     public record ExternalToolRequestedEventData(
+        /** Whether the tool definition had an SDK handler when this request was dispatched. */
+        @JsonProperty("hasHandler") Boolean hasHandler,
         /** Unique identifier for this request; used to respond via session.respondToExternalTool() */
         @JsonProperty("requestId") String requestId,
         /** Session ID that this external tool request belongs to */
@@ -57,6 +59,64 @@ public final class ExternalToolRequestedEvent extends SessionEvent {
     ) {
 
         /**
+         * Creates a record with the components it had before later optional fields were added.
+         * @deprecated Use named construction via {@link #builder()}.
+         * @param requestId Unique identifier for this request; used to respond via session.respondToExternalTool()
+         * @param sessionId Session ID that this external tool request belongs to
+         * @param toolCallId Tool call ID assigned to this external tool invocation
+         * @param toolName Name of the external tool to invoke
+         * @param providerId Stable provider identity captured with an extension-owned tool definition; hosts use it to route the request to the same provider that was offered to the model
+         * @param arguments Arguments to pass to the external tool
+         * @param workingDirectory Active session working directory, when known.
+         * @param traceparent W3C Trace Context traceparent header for the execute_tool span
+         * @param tracestate W3C Trace Context tracestate header for the execute_tool span
+         */
+        @Deprecated(since = "2.0.0", forRemoval = false)
+        public ExternalToolRequestedEventData(
+            String requestId,
+            String sessionId,
+            String toolCallId,
+            String toolName,
+            String providerId,
+            Object arguments,
+            String workingDirectory,
+            String traceparent,
+            String tracestate
+        ) {
+            this(null, requestId, sessionId, toolCallId, toolName, providerId, arguments, workingDirectory, traceparent, tracestate);
+        }
+
+        /**
+         * Creates a record with the components it had before later optional fields were added.
+         * @deprecated Use named construction via {@link #builder()}.
+         * @param requestId Unique identifier for this request; used to respond via session.respondToExternalTool()
+         * @param sessionId Session ID that this external tool request belongs to
+         * @param toolCallId Tool call ID assigned to this external tool invocation
+         * @param toolName Name of the external tool to invoke
+         * @param providerId Stable provider identity captured with an extension-owned tool definition; hosts use it to route the request to the same provider that was offered to the model
+         * @param arguments Arguments to pass to the external tool
+         * @param workingDirectory Active session working directory, when known.
+         * @param traceparent W3C Trace Context traceparent header for the execute_tool span
+         * @param tracestate W3C Trace Context tracestate header for the execute_tool span
+         * @param $explicitNulls nullable properties explicitly set to null
+         */
+        @Deprecated(since = "2.0.0", forRemoval = false)
+        public ExternalToolRequestedEventData(
+            String requestId,
+            String sessionId,
+            String toolCallId,
+            String toolName,
+            String providerId,
+            Object arguments,
+            String workingDirectory,
+            String traceparent,
+            String tracestate,
+            java.util.Set<String> $explicitNulls
+        ) {
+            this(null, requestId, sessionId, toolCallId, toolName, providerId, arguments, workingDirectory, traceparent, tracestate, $explicitNulls);
+        }
+
+        /**
          * Creates a record positionally.
          * @deprecated Use {@link #builder()} for named construction.
          */
@@ -68,8 +128,8 @@ public final class ExternalToolRequestedEvent extends SessionEvent {
          * @deprecated Use {@link #builder()} for named construction.
          */
         @Deprecated(since = "2.0.0", forRemoval = false)
-        public ExternalToolRequestedEventData(String requestId, String sessionId, String toolCallId, String toolName, String providerId, Object arguments, String workingDirectory, String traceparent, String tracestate) {
-            this(requestId, sessionId, toolCallId, toolName, providerId, arguments, workingDirectory, traceparent, tracestate, java.util.Set.of());
+        public ExternalToolRequestedEventData(Boolean hasHandler, String requestId, String sessionId, String toolCallId, String toolName, String providerId, Object arguments, String workingDirectory, String traceparent, String tracestate) {
+            this(hasHandler, requestId, sessionId, toolCallId, toolName, providerId, arguments, workingDirectory, traceparent, tracestate, java.util.Set.of());
         }
 
         /**
@@ -85,17 +145,29 @@ public final class ExternalToolRequestedEvent extends SessionEvent {
          */
         public static final class Builder {
             private Builder() {}
+            private Boolean hasHandler;
             private String requestId;
             private String sessionId;
             private String toolCallId;
             private String toolName;
             private String providerId;
-            private boolean $presence4;
-            private Object arguments;
             private boolean $presence5;
+            private Object arguments;
+            private boolean $presence6;
             private String workingDirectory;
             private String traceparent;
             private String tracestate;
+
+            /**
+             * Sets the {@code hasHandler} property.
+             * @param value the property value
+             * @return this builder
+             * @since 2.0.0
+             */
+            public Builder hasHandler(Boolean value) {
+                this.hasHandler = value;
+                return this;
+            }
 
             /**
              * Sets the {@code requestId} property.
@@ -149,7 +221,7 @@ public final class ExternalToolRequestedEvent extends SessionEvent {
              */
             public Builder providerId(String value) {
                 this.providerId = value;
-                this.$presence4 = true;
+                this.$presence5 = true;
                 return this;
             }
 
@@ -161,7 +233,7 @@ public final class ExternalToolRequestedEvent extends SessionEvent {
              */
             public Builder arguments(Object value) {
                 this.arguments = value;
-                this.$presence5 = true;
+                this.$presence6 = true;
                 return this;
             }
 
@@ -210,9 +282,9 @@ public final class ExternalToolRequestedEvent extends SessionEvent {
                 if (toolCallId == null) throw new IllegalStateException("Missing required property: toolCallId");
                 if (toolName == null) throw new IllegalStateException("Missing required property: toolName");
                 java.util.Set<String> $explicitNulls = new java.util.LinkedHashSet<>();
-                if ($presence4 && providerId == null) $explicitNulls.add("providerId");
-                if ($presence5 && arguments == null) $explicitNulls.add("arguments");
-                return new ExternalToolRequestedEventData(requestId, sessionId, toolCallId, toolName, providerId, arguments, workingDirectory, traceparent, tracestate, $explicitNulls);
+                if ($presence5 && providerId == null) $explicitNulls.add("providerId");
+                if ($presence6 && arguments == null) $explicitNulls.add("arguments");
+                return new ExternalToolRequestedEventData(hasHandler, requestId, sessionId, toolCallId, toolName, providerId, arguments, workingDirectory, traceparent, tracestate, $explicitNulls);
             }
         }
 
@@ -234,7 +306,7 @@ public final class ExternalToolRequestedEvent extends SessionEvent {
                 java.util.Set<String> $explicitNulls = new java.util.LinkedHashSet<>();
                 if (tree.has("providerId") && tree.get("providerId").isNull()) $explicitNulls.add("providerId");
                 if (tree.has("arguments") && tree.get("arguments").isNull()) $explicitNulls.add("arguments");
-                return new ExternalToolRequestedEventData(readProperty(context, tree, "requestId", new com.fasterxml.jackson.core.type.TypeReference<String>() {}), readProperty(context, tree, "sessionId", new com.fasterxml.jackson.core.type.TypeReference<String>() {}), readProperty(context, tree, "toolCallId", new com.fasterxml.jackson.core.type.TypeReference<String>() {}), readProperty(context, tree, "toolName", new com.fasterxml.jackson.core.type.TypeReference<String>() {}), readProperty(context, tree, "providerId", new com.fasterxml.jackson.core.type.TypeReference<String>() {}), readProperty(context, tree, "arguments", new com.fasterxml.jackson.core.type.TypeReference<Object>() {}), readProperty(context, tree, "workingDirectory", new com.fasterxml.jackson.core.type.TypeReference<String>() {}), readProperty(context, tree, "traceparent", new com.fasterxml.jackson.core.type.TypeReference<String>() {}), readProperty(context, tree, "tracestate", new com.fasterxml.jackson.core.type.TypeReference<String>() {}), $explicitNulls);
+                return new ExternalToolRequestedEventData(readProperty(context, tree, "hasHandler", new com.fasterxml.jackson.core.type.TypeReference<Boolean>() {}), readProperty(context, tree, "requestId", new com.fasterxml.jackson.core.type.TypeReference<String>() {}), readProperty(context, tree, "sessionId", new com.fasterxml.jackson.core.type.TypeReference<String>() {}), readProperty(context, tree, "toolCallId", new com.fasterxml.jackson.core.type.TypeReference<String>() {}), readProperty(context, tree, "toolName", new com.fasterxml.jackson.core.type.TypeReference<String>() {}), readProperty(context, tree, "providerId", new com.fasterxml.jackson.core.type.TypeReference<String>() {}), readProperty(context, tree, "arguments", new com.fasterxml.jackson.core.type.TypeReference<Object>() {}), readProperty(context, tree, "workingDirectory", new com.fasterxml.jackson.core.type.TypeReference<String>() {}), readProperty(context, tree, "traceparent", new com.fasterxml.jackson.core.type.TypeReference<String>() {}), readProperty(context, tree, "tracestate", new com.fasterxml.jackson.core.type.TypeReference<String>() {}), $explicitNulls);
             }
 
             private static <T> T readProperty(com.fasterxml.jackson.databind.DeserializationContext context,

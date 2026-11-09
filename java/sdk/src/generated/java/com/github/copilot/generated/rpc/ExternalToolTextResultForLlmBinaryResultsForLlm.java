@@ -31,6 +31,7 @@ public record ExternalToolTextResultForLlmBinaryResultsForLlm(
     /** Human-readable description of the binary data */
     @JsonProperty("description") String description,
     /** Optional metadata from the producing tool. */
+    @JsonInclude(value = JsonInclude.Include.NON_NULL, content = JsonInclude.Include.ALWAYS)
     @JsonProperty("metadata") Map<String, Object> metadata
 ) {
 

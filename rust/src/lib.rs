@@ -3,6 +3,10 @@
 #![deny(rustdoc::broken_intra_doc_links)]
 #![cfg_attr(test, allow(clippy::unwrap_used))]
 
+#[cfg(feature = "in-process")]
+#[doc(hidden)]
+pub use ffi::{InProcessPermissionUpdate, InProcessSessionHost};
+
 /// Experimental runtime-owned Agent Host Protocol listeners.
 pub mod ahp_host;
 pub use ahp_host::{
@@ -210,10 +214,10 @@ pub enum Transport {
     /// Loads the native runtime library and speaks JSON-RPC over its C ABI.
     /// This is **experimental**. Per-client [`ClientOptions::program`],
     /// [`ClientOptions::extra_args`], [`ClientOptions::working_directory`],
-    /// [`ClientOptions::env`], [`ClientOptions::env_remove`],
-    /// and [`ClientOptions::telemetry`] are not supported because native
+    /// [`ClientOptions::env`] and [`ClientOptions::env_remove`]
+    /// are not supported because native
     /// runtime code shares the host process. Typed runtime options such as
-    /// authentication, log level, and [`ClientOptions::base_directory`] remain
+    /// authentication, telemetry, log level, and [`ClientOptions::base_directory`] remain
     /// supported.
     ///
     /// Requires the `in-process` Cargo feature, enabled by either
@@ -323,6 +327,21 @@ pub fn install_bundled_runtime() -> Option<PathBuf> {
     {
         None
     }
+}
+
+/// A capability to borrow an existing native session without replacing its owner.
+///
+/// The registration token comes from the embedding's original session registration.
+/// The runtime validates the native resource and closes the borrowed connection
+/// when that registration or its authenticated parent connection ends.
+#[derive(Clone)]
+pub struct InProcessSessionBinding {
+    /// The authenticated in-process connection that supplies the credential resolver.
+    pub parent_connection_id: u32,
+    /// The native resource ID, which may differ from the public session ID.
+    pub native_session_id: String,
+    /// The original session host registration token.
+    pub registration_token: String,
 }
 
 /// Unsupported SDK test infrastructure configuration.
@@ -508,9 +527,9 @@ pub struct ClientOptions {
     ///
     /// [`MessageOptions`]: crate::types::MessageOptions
     pub on_get_trace_context: Option<Arc<dyn TraceContextProvider>>,
-    /// OpenTelemetry config forwarded to the spawned CLI process. See
+    /// OpenTelemetry startup config for the owned runtime, including in-process hosts. See
     /// [`TelemetryConfig`] for the env-var mapping. The SDK takes no
-    /// OpenTelemetry dependency — this is pure spawn-time env injection.
+    /// OpenTelemetry dependency — this configures the runtime's exporter.
     pub telemetry: Option<TelemetryConfig>,
     /// Disable Copilot-owned GitHub and Entra authentication telemetry at startup.
     ///
@@ -530,10 +549,19 @@ pub struct ClientOptions {
     /// Only used with [`Transport::InProcess`].
     #[doc(hidden)]
     pub in_process_server_id: Option<u32>,
+    /// Bind an existing native session to the SDK engine with its original callback authority.
+    /// Requires an attached in-process server and its already-loaded native image.
+    pub in_process_session_binding: Option<InProcessSessionBinding>,
     /// Native image the embedding host already loaded, required for an attached server.
     /// Otherwise defaults to the SDK's ordinary runtime resolver.
     #[doc(hidden)]
     pub in_process_runtime_library_path: Option<PathBuf>,
+    /// Original live process auth owner for SDK-owned in-process startup.
+    ///
+    /// The owner binds a one-use startup reservation through its existing
+    /// native binder. The SDK retains it until its host closes. This cannot
+    /// be combined with an attached server, a borrowed session, or [`Self::github_token`].
+    pub in_process_auth_owner: Option<Arc<dyn InProcessAuthOwner>>,
     /// Deprecated legacy v1 remote-control compatibility option. This enables
     /// export and polling-based steering for SDK-managed runtimes; it is
     /// ignored when connecting to an external server via [`Transport::External`].
@@ -766,6 +794,26 @@ pub trait UiThreadHandler: Send + Sync + 'static {
     async fn run_on_ui_thread(&self, action: UiThreadAction) -> Result<()>;
 }
 
+/// Admission of an existing native auth owner into an SDK-owned host.
+///
+/// The reservation is valid only during this call. Implementations invoke the
+/// original owner's native process-auth binder, without copying credentials or
+/// passing a runtime object across the ABI. The SDK calls this on its startup
+/// blocking thread before constructing the runtime host or issuing requests.
+pub trait InProcessAuthOwner: Send + Sync + 'static {
+    /// Bind this startup reservation through the original native auth owner.
+    fn bind_startup(&self, server: u32, connection: u32) -> Result<()>;
+}
+
+impl<F> InProcessAuthOwner for F
+where
+    F: Fn(u32, u32) -> Result<()> + Send + Sync + 'static,
+{
+    fn bind_startup(&self, server: u32, connection: u32) -> Result<()> {
+        self(server, connection)
+    }
+}
+
 #[async_trait]
 impl<F, Fut> UiThreadHandler for F
 where
@@ -867,14 +915,14 @@ impl OtlpHttpProtocol {
     }
 }
 
-/// OpenTelemetry configuration forwarded to the spawned GitHub Copilot CLI
-/// process.
+/// OpenTelemetry startup configuration for the owned Copilot runtime.
 ///
 /// When [`ClientOptions::telemetry`] is `Some(...)`, the SDK sets
 /// `COPILOT_OTEL_ENABLED=true` plus any populated fields below as the
 /// corresponding `OTEL_*` / `COPILOT_OTEL_*` environment variables. The
 /// CLI's built-in OpenTelemetry exporter consumes these at startup. The
-/// SDK itself takes no OpenTelemetry dependency.
+/// SDK itself takes no OpenTelemetry dependency. In-process hosts receive
+/// independent configuration snapshots without changing the process environment.
 ///
 /// Environment-variable mapping:
 ///
@@ -888,7 +936,7 @@ impl OtlpHttpProtocol {
 /// | [`source_name`]      | `COPILOT_OTEL_SOURCE_NAME`                            |
 /// | [`capture_content`]  | `OTEL_INSTRUMENTATION_GENAI_CAPTURE_CONTENT` (and legacy boolean alias) |
 ///
-/// Caller-supplied entries in [`ClientOptions::env`] override these, so a
+/// For subprocesses, caller-supplied entries in [`ClientOptions::env`] override these, so a
 /// developer can pin any individual variable to a different value while
 /// keeping the rest of the config managed by [`TelemetryConfig`].
 ///
@@ -1011,7 +1059,9 @@ impl Default for ClientOptions {
             disable_client_telemetry: false,
             base_directory: None,
             in_process_server_id: None,
+            in_process_session_binding: None,
             in_process_runtime_library_path: None,
+            in_process_auth_owner: None,
             enable_remote_sessions: false,
             bundled_cli_extract_dir: None,
             mode: ClientMode::default(),
@@ -1244,7 +1294,7 @@ impl ClientOptions {
         self
     }
 
-    /// OpenTelemetry config forwarded to the spawned CLI process.
+    /// OpenTelemetry startup config for the owned runtime.
     pub fn with_telemetry(mut self, config: TelemetryConfig) -> Self {
         self.telemetry = Some(config);
         self
@@ -1415,6 +1465,15 @@ fn inprocess_environment(options: &ClientOptions) -> Result<Vec<(String, String)
                 .map(|(key, value)| (key.to_owned(), value.to_owned())),
         );
     }
+    for (key, value) in telemetry_environment(options) {
+        let value = value.into_string().map_err(|_| {
+            Error::with_message(
+                ErrorKind::InvalidConfig,
+                format!("{key} must be valid UTF-8 for Transport::InProcess"),
+            )
+        })?;
+        environment.push((key.to_owned(), value));
+    }
     // The embedded host captures inheritance and normalizes platform-specific environment names.
     Ok(environment)
 }
@@ -1448,8 +1507,6 @@ fn validate_inprocess_options(options: &ClientOptions) -> Result<()> {
         Some("env")
     } else if !options.env_remove.is_empty() {
         Some("env_remove")
-    } else if options.telemetry.is_some() {
-        Some("telemetry")
     } else if !options.prefix_args.is_empty() {
         Some("prefix_args")
     } else {
@@ -1466,7 +1523,67 @@ fn validate_inprocess_options(options: &ClientOptions) -> Result<()> {
         ));
     }
 
+    if options.in_process_server_id.is_some() && options.telemetry.is_some() {
+        return Err(Error::with_message(
+            ErrorKind::InvalidConfig,
+            "ClientOptions::telemetry requires an owned runtime; \
+             it cannot configure an existing in_process_server_id",
+        ));
+    }
+
     Ok(())
+}
+
+#[cfg(any(feature = "runtime", feature = "in-process", test))]
+fn telemetry_environment(options: &ClientOptions) -> Vec<(&'static str, OsString)> {
+    let mut environment = Vec::new();
+    if let Some(telemetry) = &options.telemetry {
+        environment.push(("COPILOT_OTEL_ENABLED", "true".into()));
+        if let Some(endpoint) = &telemetry.otlp_endpoint {
+            environment.push(("OTEL_EXPORTER_OTLP_ENDPOINT", endpoint.into()));
+        }
+        if let Some(protocol) = telemetry.otlp_protocol {
+            environment.push(("OTEL_EXPORTER_OTLP_PROTOCOL", protocol.as_str().into()));
+        }
+        if let Some(path) = &telemetry.file_path {
+            environment.push(("COPILOT_OTEL_FILE_EXPORTER_PATH", path.as_os_str().into()));
+        }
+        if let Some(exporter) = telemetry.exporter_type {
+            environment.push(("COPILOT_OTEL_EXPORTER_TYPE", exporter.as_str().into()));
+        }
+        if let Some(source) = &telemetry.source_name {
+            environment.push(("COPILOT_OTEL_SOURCE_NAME", source.into()));
+        }
+        if let Some(capture) = telemetry.capture_content {
+            // A synthesized standard mode must not defeat an existing legacy env override.
+            let legacy_key = "OTEL_INSTRUMENTATION_GENAI_CAPTURE_MESSAGE_CONTENT";
+            let is_legacy_key = |key: &OsString| {
+                if cfg!(windows) {
+                    key.as_encoded_bytes()
+                        .eq_ignore_ascii_case(legacy_key.as_bytes())
+                } else {
+                    key == legacy_key
+                }
+            };
+            let capture = !options.env_remove.iter().any(is_legacy_key)
+                && options
+                    .env
+                    .iter()
+                    .rev()
+                    .find(|(key, _)| is_legacy_key(key))
+                    .map_or(capture, |(_, value)| {
+                        value
+                            .to_str()
+                            .is_some_and(|value| value.eq_ignore_ascii_case("true"))
+                    });
+            environment.push((
+                "OTEL_INSTRUMENTATION_GENAI_CAPTURE_CONTENT",
+                if capture { "SPAN_ONLY" } else { "NO_CONTENT" }.into(),
+            ));
+            environment.push((legacy_key, if capture { "true" } else { "false" }.into()));
+        }
+    }
+    environment
 }
 
 /// Connection to a GitHub Copilot CLI server (stdio, TCP, or external).
@@ -1585,6 +1702,19 @@ impl Drop for StdioShutdownGuard<'_> {
 
 impl Client {
     #[doc(hidden)]
+    /// The live server ID selected by the in-process transport.
+    pub fn in_process_server_id(&self) -> Option<u32> {
+        #[cfg(feature = "in-process")]
+        {
+            self.inner.ffi_host.lock().as_ref()?.server_id()
+        }
+        #[cfg(not(feature = "in-process"))]
+        {
+            None
+        }
+    }
+
+    #[doc(hidden)]
     /// Library path selected by the in-process transport, if this client uses it.
     pub fn in_process_library_path(&self) -> Option<PathBuf> {
         #[cfg(feature = "in-process")]
@@ -1615,6 +1745,106 @@ impl Client {
         }
     }
 
+    /// Create a native session from an embedding host's resolved construction options.
+    ///
+    /// The runtime creates and owns the resource. The host attaches its existing
+    /// facade using the returned construction plan, then completes host initialization.
+    #[doc(hidden)]
+    #[cfg(feature = "in-process")]
+    pub async fn create_host_session(&self, payload: &str) -> Result<serde_json::Value> {
+        let library = self.in_process_library_path().ok_or_else(|| {
+            Error::with_message(
+                ErrorKind::InvalidConfig,
+                "host construction requires in-process transport",
+            )
+        })?;
+        let connection_id = self.in_process_connection_id().ok_or_else(|| {
+            Error::with_message(
+                ErrorKind::InvalidConfig,
+                "the in-process connection is not active",
+            )
+        })?;
+        let construction =
+            ffi::prepare_host_session_construction(&library, connection_id, payload)?;
+        self.call(
+            "sessions.open",
+            Some(serde_json::json!({
+                "kind": "create",
+                "emitStart": false,
+                "hostConstructionToken": construction.token,
+            })),
+        )
+        .await
+    }
+
+    /// Prepare callback authority for an existing resource owned by this SDK connection.
+    #[doc(hidden)]
+    #[cfg(feature = "in-process")]
+    pub async fn prepare_session_host(&self, payload: String) -> Result<InProcessSessionHost> {
+        let library = self.in_process_library_path().ok_or_else(|| {
+            Error::with_message(
+                ErrorKind::InvalidConfig,
+                "The SDK runtime is no longer available",
+            )
+        })?;
+        let connection_id = self.in_process_connection_id().ok_or_else(|| {
+            Error::with_message(
+                ErrorKind::InvalidConfig,
+                "The SDK connection is no longer active",
+            )
+        })?;
+        tokio::task::spawn_blocking(move || {
+            ffi::prepare_session_host(&library, connection_id, &payload)
+        })
+        .await
+        .map_err(|error| Error::with_message(ErrorKind::InvalidConfig, error.to_string()))?
+    }
+
+    /// Replay an embedding host's prepared history into its SDK-owned native resource.
+    ///
+    /// The original facade must install its filesystem and callbacks before replay.
+    /// Construction and replay use the same in-process connection and credential owner.
+    #[doc(hidden)]
+    #[cfg(feature = "in-process")]
+    pub async fn complete_host_session_resume(
+        &self,
+        native_session_id: &str,
+        replay_plan_token: u32,
+        clear_external_tool_definitions: bool,
+    ) -> Result<()> {
+        let library = self.in_process_library_path().ok_or_else(|| {
+            Error::with_message(
+                ErrorKind::InvalidConfig,
+                "host resume requires in-process transport",
+            )
+        })?;
+        let connection_id = self.in_process_connection_id().ok_or_else(|| {
+            Error::with_message(
+                ErrorKind::InvalidConfig,
+                "the in-process connection is not active",
+            )
+        })?;
+        let payload = serde_json::json!({
+            "nativeSessionId": native_session_id,
+            "replayPlanToken": replay_plan_token,
+            "clearExternalToolDefinitions": clear_external_tool_definitions,
+        })
+        .to_string();
+        let construction =
+            ffi::prepare_host_session_construction(&library, connection_id, &payload)?;
+        self.call(
+            "sessions.open",
+            Some(serde_json::json!({
+                "kind": "resume",
+                "sessionId": native_session_id,
+                "resume": false,
+                "hostConstructionToken": construction.token,
+            })),
+        )
+        .await?;
+        Ok(())
+    }
+
     /// Start a CLI server process with the given options.
     ///
     /// For [`Transport::Stdio`], spawns the CLI with `--stdio` and communicates
@@ -1636,6 +1866,22 @@ impl Client {
         let mut options = options;
         if matches!(options.transport, Transport::Default) {
             options.transport = resolve_default_transport(&options)?;
+        }
+        if options.in_process_auth_owner.is_some()
+            && (!matches!(options.transport, Transport::InProcess)
+                || options.in_process_server_id.is_some()
+                || options.in_process_session_binding.is_some())
+        {
+            return Err(Error::with_message(
+                ErrorKind::InvalidConfig,
+                "a live auth owner requires SDK-owned in-process startup",
+            ));
+        }
+        if options.in_process_auth_owner.is_some() && options.github_token.is_some() {
+            return Err(Error::with_message(
+                ErrorKind::InvalidConfig,
+                "a live auth owner cannot be combined with github_token",
+            ));
         }
         if options.run_on_ui_thread.is_some() && !matches!(options.transport, Transport::InProcess)
         {
@@ -1770,39 +2016,47 @@ impl Client {
             .as_ref()
             .and_then(|c| c.capabilities.as_ref())
             .is_some_and(|caps| caps.read_file_range);
-        let program = match &options.program {
-            CliProgram::Path(path) => {
-                info!(path = %path.display(), "using explicit copilot CLI path");
-                path.clone()
-            }
-            CliProgram::Resolve => {
-                let resolve_start = Instant::now();
-                let resolved = resolve::copilot_binary_with_extract_dir(
-                    options.bundled_cli_extract_dir.as_deref(),
-                    true,
-                )?;
-                let resolve_elapsed = resolve_start.elapsed();
-                timings.program_resolve_ms = Some(StartupTimings::millis(resolve_elapsed));
-                debug!(
-                    elapsed_ms = resolve_elapsed.as_millis(),
-                    "Client::start CLI program resolution complete"
-                );
-                info!(path = %resolved.display(), "resolved copilot runtime");
-                #[cfg(windows)]
-                {
-                    if let Some(ext) = resolved.extension().and_then(|e| e.to_str()).filter(|ext| {
-                        ext.eq_ignore_ascii_case("cmd") || ext.eq_ignore_ascii_case("bat")
-                    }) {
-                        warn!(
-                            path = %resolved.display(),
-                            ext = %ext,
-                            "resolved copilot CLI is a .cmd/.bat wrapper; \
-                             this may cause console window flashes on Windows"
-                        );
-                    }
+        let program = if matches!(options.transport, Transport::InProcess)
+            && options.in_process_runtime_library_path.is_some()
+        {
+            None
+        } else {
+            Some(match &options.program {
+                CliProgram::Path(path) => {
+                    info!(path = %path.display(), "using explicit copilot CLI path");
+                    path.clone()
                 }
-                resolved
-            }
+                CliProgram::Resolve => {
+                    let resolve_start = Instant::now();
+                    let resolved = resolve::copilot_binary_with_extract_dir(
+                        options.bundled_cli_extract_dir.as_deref(),
+                        true,
+                    )?;
+                    let resolve_elapsed = resolve_start.elapsed();
+                    timings.program_resolve_ms = Some(StartupTimings::millis(resolve_elapsed));
+                    debug!(
+                        elapsed_ms = resolve_elapsed.as_millis(),
+                        "Client::start CLI program resolution complete"
+                    );
+                    info!(path = %resolved.display(), "resolved copilot runtime");
+                    #[cfg(windows)]
+                    {
+                        if let Some(ext) =
+                            resolved.extension().and_then(|e| e.to_str()).filter(|ext| {
+                                ext.eq_ignore_ascii_case("cmd") || ext.eq_ignore_ascii_case("bat")
+                            })
+                        {
+                            warn!(
+                                path = %resolved.display(),
+                                ext = %ext,
+                                "resolved copilot CLI is a .cmd/.bat wrapper; \
+                                 this may cause console window flashes on Windows"
+                            );
+                        }
+                    }
+                    resolved
+                }
+            })
         };
         let working_directory = {
             let cwd = options.working_directory.clone();
@@ -1856,8 +2110,15 @@ impl Client {
                 port,
                 connection_token: _,
             } => {
-                let (child, tree, actual_port, spawn_elapsed, port_wait_elapsed) =
-                    Self::spawn_tcp(&program, &options, &working_directory, port).await?;
+                let (child, tree, actual_port, spawn_elapsed, port_wait_elapsed) = Self::spawn_tcp(
+                    program
+                        .as_deref()
+                        .expect("spawned transports resolve a CLI program"),
+                    &options,
+                    &working_directory,
+                    port,
+                )
+                .await?;
                 timings.process_spawn_ms = Some(StartupTimings::millis(spawn_elapsed));
                 timings.port_wait_ms = Some(StartupTimings::millis(port_wait_elapsed));
                 let connect_start = Instant::now();
@@ -1890,8 +2151,13 @@ impl Client {
                 )?
             }
             Transport::Stdio => {
-                let (mut child, tree, spawn_elapsed) =
-                    Self::spawn_stdio(&program, &options, &working_directory)?;
+                let (mut child, tree, spawn_elapsed) = Self::spawn_stdio(
+                    program
+                        .as_deref()
+                        .expect("spawned transports resolve a CLI program"),
+                    &options,
+                    &working_directory,
+                )?;
                 timings.process_spawn_ms = Some(StartupTimings::millis(spawn_elapsed));
                 let stdin = child.stdin.take().expect("stdin is piped");
                 let stdout = child.stdout.take().expect("stdout is piped");
@@ -1920,7 +2186,11 @@ impl Client {
             Transport::InProcess => {
                 #[cfg(feature = "in-process")]
                 {
-                    info!(runtime_path = %program.display(), "hosting copilot runtime in-process (FFI)");
+                    if let Some(program) = &program {
+                        info!(runtime_path = %program.display(), "hosting copilot runtime in-process (FFI)");
+                    } else {
+                        info!("hosting copilot runtime in-process (FFI)");
+                    }
                     let environment = inprocess_environment(&options)?;
                     let mut args = Vec::new();
                     args.extend(
@@ -1950,13 +2220,17 @@ impl Client {
                         .map(PathBuf::from)
                         .filter(|path| path.is_file());
                     let host = crate::ffi::FfiHost::create(
-                        &program,
+                        program.as_deref(),
                         explicit_cli.as_deref(),
                         integration_id.as_deref(),
                         environment,
                         args,
-                        options.in_process_server_id,
-                        options.in_process_runtime_library_path.as_deref(),
+                        crate::ffi::FfiHostTarget {
+                            server_id: options.in_process_server_id,
+                            library_path: options.in_process_runtime_library_path.as_deref(),
+                            session_binding: options.in_process_session_binding,
+                            auth_owner: options.in_process_auth_owner,
+                        },
                     )?;
                     let (reader, shared) = host.start().await?;
                     let sender = shared.clone();
@@ -2677,55 +2951,7 @@ impl Client {
         }
         // Inject telemetry env vars before user env so callers can still
         // override individual variables via `options.env`.
-        if let Some(telemetry) = &options.telemetry {
-            command.env("COPILOT_OTEL_ENABLED", "true");
-            if let Some(endpoint) = &telemetry.otlp_endpoint {
-                command.env("OTEL_EXPORTER_OTLP_ENDPOINT", endpoint);
-            }
-            if let Some(protocol) = telemetry.otlp_protocol {
-                command.env("OTEL_EXPORTER_OTLP_PROTOCOL", protocol.as_str());
-            }
-            if let Some(path) = &telemetry.file_path {
-                command.env("COPILOT_OTEL_FILE_EXPORTER_PATH", path);
-            }
-            if let Some(exporter) = telemetry.exporter_type {
-                command.env("COPILOT_OTEL_EXPORTER_TYPE", exporter.as_str());
-            }
-            if let Some(source) = &telemetry.source_name {
-                command.env("COPILOT_OTEL_SOURCE_NAME", source);
-            }
-            if let Some(capture) = telemetry.capture_content {
-                // A synthesized standard mode must not defeat an existing legacy env override.
-                let legacy_key = "OTEL_INSTRUMENTATION_GENAI_CAPTURE_MESSAGE_CONTENT";
-                let is_legacy_key = |key: &OsString| {
-                    if cfg!(windows) {
-                        key.as_encoded_bytes()
-                            .eq_ignore_ascii_case(legacy_key.as_bytes())
-                    } else {
-                        key == legacy_key
-                    }
-                };
-                let capture = !options.env_remove.iter().any(is_legacy_key)
-                    && options
-                        .env
-                        .iter()
-                        .rev()
-                        .find(|(key, _)| is_legacy_key(key))
-                        .map_or(capture, |(_, value)| {
-                            value
-                                .to_str()
-                                .is_some_and(|value| value.eq_ignore_ascii_case("true"))
-                        });
-                command.env(
-                    "OTEL_INSTRUMENTATION_GENAI_CAPTURE_CONTENT",
-                    if capture { "SPAN_ONLY" } else { "NO_CONTENT" },
-                );
-                command.env(
-                    "OTEL_INSTRUMENTATION_GENAI_CAPTURE_MESSAGE_CONTENT",
-                    if capture { "true" } else { "false" },
-                );
-            }
-        }
+        command.envs(telemetry_environment(options));
         if let Some(dir) = &options.base_directory {
             command.env("COPILOT_HOME", dir);
         }
@@ -3074,6 +3300,25 @@ impl Client {
         self.call_with_inline_callback(method, params, None).await
     }
 
+    pub(crate) async fn call_typed<T: serde::de::DeserializeOwned>(
+        &self,
+        method: &str,
+        params: Option<serde_json::Value>,
+    ) -> Result<T> {
+        let is_repo_settings_write =
+            matches!(method, "repo.settings.writeKey" | "repo.settings.writeAll");
+        let session_id = params
+            .as_ref()
+            .and_then(|params| params.get("sessionId"))
+            .and_then(serde_json::Value::as_str)
+            .map(SessionId::from);
+        let mut response = self.inner.rpc.send_raw_request(method, params).await?;
+        if let Some(error) = response.error.take() {
+            return Err(Self::call_error(error, session_id, is_repo_settings_write));
+        }
+        response.deserialize()
+    }
+
     /// Submit a JSON-RPC request now and return its asynchronous completion.
     ///
     /// In-process clients submit the complete frame through the runtime C ABI
@@ -3109,13 +3354,12 @@ impl Client {
     }
 
     pub(crate) async fn detach_session(&self, session_id: &str) -> Result<()> {
-        let value = self
-            .call(
+        let response: SessionDetachResponse = self
+            .call_typed(
                 "session.detach",
                 Some(serde_json::json!({ "sessionId": session_id })),
             )
             .await?;
-        let response: SessionDetachResponse = serde_json::from_value(value)?;
         if response.success {
             return Ok(());
         }
@@ -3173,16 +3417,24 @@ impl Client {
         is_repo_settings_write: bool,
     ) -> Result<serde_json::Value> {
         if let Some(err) = response.error {
-            // Repository paths can contain this text without referring to a session.
-            if !is_repo_settings_write && err.message.contains("Session not found") {
-                return Err(ErrorKind::Session(SessionErrorKind::NotFound(
-                    session_id.unwrap_or_else(|| "unknown".into()),
-                ))
-                .into());
-            }
-            return Err(Error::from_rpc(err.code, err.message, err.data));
+            return Err(Self::call_error(err, session_id, is_repo_settings_write));
         }
         Ok(response.result.unwrap_or(serde_json::Value::Null))
+    }
+
+    fn call_error(
+        error: JsonRpcError,
+        session_id: Option<SessionId>,
+        is_repo_settings_write: bool,
+    ) -> Error {
+        // Repository paths can contain this text without referring to a session.
+        if !is_repo_settings_write && error.message.contains("Session not found") {
+            return ErrorKind::Session(SessionErrorKind::NotFound(
+                session_id.unwrap_or_else(|| "unknown".into()),
+            ))
+            .into();
+        }
+        Error::from_rpc(error.code, error.message, error.data)
     }
 
     /// Send a JSON-RPC response back to the CLI (e.g. for permission or tool call requests).
@@ -3440,13 +3692,12 @@ impl Client {
                 .as_ref()
                 .and_then(ClientInfo::to_wire),
         };
-        let value = self
-            .call(
+        let result: crate::generated::api_types::ConnectResult = self
+            .call_typed(
                 crate::generated::api_types::rpc_methods::CONNECT,
                 Some(serde_json::to_value(params)?),
             )
             .await?;
-        let result: crate::generated::api_types::ConnectResult = serde_json::from_value(value)?;
         if self
             .inner
             .entra
@@ -3478,10 +3729,8 @@ impl Client {
             Some(m) => serde_json::json!({ "message": m }),
             None => serde_json::json!({}),
         };
-        let value = self
-            .call(generated::api_types::rpc_methods::PING, Some(params))
-            .await?;
-        Ok(serde_json::from_value(value)?)
+        self.call_typed(generated::api_types::rpc_methods::PING, Some(params))
+            .await
     }
 
     /// List persisted sessions, optionally filtered by working directory,
@@ -3494,8 +3743,7 @@ impl Client {
             Some(f) => serde_json::json!({ "filter": f }),
             None => serde_json::json!({}),
         };
-        let result = self.call("session.list", Some(params)).await?;
-        let response: ListSessionsResponse = serde_json::from_value(result)?;
+        let response: ListSessionsResponse = self.call_typed("session.list", Some(params)).await?;
         Ok(response.sessions)
     }
 
@@ -3520,13 +3768,12 @@ impl Client {
         &self,
         session_id: &SessionId,
     ) -> Result<Option<SessionMetadata>> {
-        let result = self
-            .call(
+        let response: GetSessionMetadataResponse = self
+            .call_typed(
                 "session.getMetadata",
                 Some(serde_json::json!({ "sessionId": session_id })),
             )
             .await?;
-        let response: GetSessionMetadataResponse = serde_json::from_value(result)?;
         Ok(response.session)
     }
 
@@ -3542,13 +3789,12 @@ impl Client {
     }
 
     pub(crate) async fn delete_session_checked(&self, session_id: &SessionId) -> Result<()> {
-        let value = self
-            .call(
+        let response: SessionDeleteResponse = self
+            .call_typed(
                 "session.delete",
                 Some(serde_json::json!({ "sessionId": session_id })),
             )
             .await?;
-        let response: SessionDeleteResponse = serde_json::from_value(value)?;
         if response.success == Some(false) {
             return Err(Error::with_message(
                 ErrorKind::Session(SessionErrorKind::DeleteFailed),
@@ -3640,10 +3886,9 @@ impl Client {
     /// # }
     /// ```
     pub async fn get_last_session_id(&self) -> Result<Option<SessionId>> {
-        let result = self
-            .call("session.getLastId", Some(serde_json::json!({})))
+        let response: GetLastSessionIdResponse = self
+            .call_typed("session.getLastId", Some(serde_json::json!({})))
             .await?;
-        let response: GetLastSessionIdResponse = serde_json::from_value(result)?;
         Ok(response.session_id)
     }
 
@@ -3652,10 +3897,9 @@ impl Client {
     /// Only meaningful when connected to a server running in TUI+server mode
     /// (`--ui-server`). Returns `Ok(None)` if no foreground session is set.
     pub async fn get_foreground_session_id(&self) -> Result<Option<SessionId>> {
-        let result = self
-            .call("session.getForeground", Some(serde_json::json!({})))
+        let response: GetForegroundSessionResponse = self
+            .call_typed("session.getForeground", Some(serde_json::json!({})))
             .await?;
-        let response: GetForegroundSessionResponse = serde_json::from_value(result)?;
         Ok(response.session_id)
     }
 
@@ -3674,16 +3918,14 @@ impl Client {
 
     /// Get the CLI server status.
     pub async fn get_status(&self) -> Result<GetStatusResponse> {
-        let result = self.call("status.get", Some(serde_json::json!({}))).await?;
-        Ok(serde_json::from_value(result)?)
+        self.call_typed("status.get", Some(serde_json::json!({})))
+            .await
     }
 
     /// Get authentication status.
     pub async fn get_auth_status(&self) -> Result<GetAuthStatusResponse> {
-        let result = self
-            .call("auth.getStatus", Some(serde_json::json!({})))
-            .await?;
-        Ok(serde_json::from_value(result)?)
+        self.call_typed("auth.getStatus", Some(serde_json::json!({})))
+            .await
     }
 
     /// List available models.
@@ -4085,3 +4327,6 @@ impl Drop for ClientInner {
 
 #[cfg(all(test, feature = "runtime"))]
 mod tests;
+
+#[cfg(all(test, feature = "local-runtime"))]
+mod auth_owner_transport_tests;

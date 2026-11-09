@@ -758,7 +758,7 @@ internal sealed partial class FfiRuntimeHost : IDisposable
 
             var n = Math.Min(buffer.Length, _leftover.Length);
             _leftover.Span.Slice(0, n).CopyTo(buffer.Span);
-            _leftover = _leftover.Slice(n);
+            _leftover = n == _leftover.Length ? default : _leftover.Slice(n);
             return n;
         }
 

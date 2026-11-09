@@ -31,6 +31,7 @@ public record Tool(
     /** Description of what the tool does */
     @JsonProperty("description") String description,
     /** JSON Schema for the tool's input parameters */
+    @JsonInclude(value = JsonInclude.Include.NON_NULL, content = JsonInclude.Include.ALWAYS)
     @JsonProperty("parameters") Map<String, Object> parameters,
     /** Optional instructions for how to use this tool effectively */
     @JsonProperty("instructions") String instructions,

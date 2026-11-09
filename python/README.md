@@ -314,9 +314,8 @@ again to `resume_session()`. Cloud sessions do not support skill providers.
 Providers must be safe for concurrent calls because the runtime may list or read
 skills from multiple agent paths at the same time. When the runtime cancels a
 call, for example after its 30-second limit or when the session disconnects, an
-async provider's task is cancelled and receives `asyncio.CancelledError`. Closing
-the connection or force-stopping the client doesn't cancel a running call; it
-continues until it returns.
+async provider's task is cancelled and receives `asyncio.CancelledError`. The
+same happens when the connection closes or the client is force-stopped.
 
 #### Supporting files (experimental)
 
@@ -591,9 +590,9 @@ finally:
 - Set `COPILOT_CLI_PATH` only when using an externally provisioned compatible
   runtime package. In-process connections do not accept per-connection paths
   or raw process arguments.
-- Client-level `env`, `telemetry`, and `working_directory` raise `ValueError`
-  with `for_inprocess()`; use supported typed options and set working directories
-  on individual sessions.
+- Client-level `env` and `working_directory` raise `ValueError` with
+  `for_inprocess()`; typed `telemetry` is scoped to this runtime. Set working
+  directories on individual sessions.
 - Set `COPILOT_SDK_DEFAULT_CONNECTION=inprocess` to select the in-process
   transport by default when no explicit `connection` is supplied.
 
@@ -613,7 +612,7 @@ These are passed as keyword arguments to `create_session()`:
 - `autopilot` (AutopilotOptions, experimental): Autopilot policy, also accepted by `resume_session()`. `continuation_enabled` defaults to `True` and does not change session mode; `max_continues` limits continuations outside an active objective (non-negative integer, default five, zero allows none). Omitted fields preserve resident values on warm resume. Re-supply on cold resume.
 - `working_directory` (str | None): Working directory for the session (default: runtime process working directory).
 - `enable_session_store` (bool): Enables the cross-session store for search and retrieval across sessions. When unset in `"copilot-cli"` mode, the runtime default applies (enabled). In `"empty"` mode, defaults to disabled.
-- `github_token_provider` (callable): Acquires rotating, session-scoped GitHub tokens. Token results require a positive `expiresIn` value in seconds remaining when the callback completes; production tokens typically last eight hours. Cannot be combined with `github_token`.
+- `github_token_provider` (callable): Acquires rotating, session-scoped GitHub tokens. Token results require an `expiresIn` value in seconds remaining when the callback completes, of which more than one hour must still remain after the runtime validates the token; production tokens typically last eight hours. Cannot be combined with `github_token`.
 - `on_permission_request` (callable): Optional handler called before each tool execution to approve or deny it. When omitted, permission requests are emitted as events and left pending for manual resolution. `PermissionHandler.approve_all` approves requests when managed settings are disabled and raises an error when `enable_managed_settings` is true. Custom handlers can inspect `managed_approval_required` for human-facing confirmation logic. See [Permission Handling](#permission-handling) section.
 - `on_user_input_request` (callable): Handler for legacy question-and-answer requests from the agent. Enables the legacy `ask_user` tool. See [User Input Requests](#user-input-requests) section.
 - `ask_user_variant` (`"legacy"` | `"elicitation"`): Selects the model-facing shape of the `ask_user` tool. Defaults to `"legacy"`; use `"elicitation"` with `on_elicitation_request`. Re-supply this option when cold-resuming a session.

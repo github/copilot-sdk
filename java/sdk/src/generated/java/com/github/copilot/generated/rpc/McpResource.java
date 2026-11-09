@@ -40,8 +40,10 @@ public record McpResource(
     /** Model/client annotations associated with this resource */
     @JsonProperty("annotations") McpResourceAnnotations annotations,
     /** Resource-level metadata */
+    @JsonInclude(value = JsonInclude.Include.NON_NULL, content = JsonInclude.Include.ALWAYS)
     @JsonProperty("_meta") Map<String, Object> meta,
     /** Server-provided non-standard descriptor fields preserved from the MCP response */
+    @JsonInclude(value = JsonInclude.Include.NON_NULL, content = JsonInclude.Include.ALWAYS)
     @JsonProperty("additionalProperties") Map<String, Object> additionalProperties
 ) {
 

@@ -30,6 +30,7 @@ public record Model(
     /** Model capabilities and limits */
     @JsonProperty("capabilities") ModelCapabilities capabilities,
     /** Provider-supplied model metadata. Keys and JSON-compatible values are preserved unchanged. This is factual metadata published by the model provider; it carries no picker or UX semantics. */
+    @JsonInclude(value = JsonInclude.Include.NON_NULL, content = JsonInclude.Include.ALWAYS)
     @JsonProperty("metadata") Map<String, Object> metadata,
     /** Model vendor as the Copilot API reports it, for example "Anthropic" or "Azure OpenAI". Open vocabulary, passed through unchanged. It can name the vendor that serves the model instead of the one that built it, or a label that is not a vendor, such as "Experimental". Absent when the Copilot API reports no vendor. */
     @JsonProperty("vendor") String vendor,

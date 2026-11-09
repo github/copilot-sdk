@@ -266,7 +266,9 @@ class JsonRpcClient:
         }
 
         completion_cancellation = (
-            _CompletionCancellation() if method == "session.sendAndWait" else None
+            _CompletionCancellation()
+            if method in ("session.sendAndWait", "session.featureFlags.read", "localModels.watch")
+            else None
         )
         try:
             if completion_cancellation is None:

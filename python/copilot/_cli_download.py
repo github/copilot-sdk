@@ -231,18 +231,18 @@ def _runtime_bundle_lock(pair_dir: Path) -> Generator[None, None, None]:
     # Keep the Windows lock outside the replaceable tree, and never unlink its inode.
     lock_path = pair_dir.parent / f".runtime-bundle.{pair_dir.name}.lock"
     try:
-        lock = lock_path.open("a+b")
+        # Unbuffered writes keep initialization contention inside the retry loop.
+        lock = lock_path.open("a+b", buffering=0)
     except OSError:
         yield
         return
     with lock:
-        if lock.tell() == 0:
-            lock.write(b"\0")
-            lock.flush()
-        lock.seek(0)
         # LK_LOCK gives up after ten attempts; repairs can take longer.
         while True:
             try:
+                if lock.seek(0, os.SEEK_END) == 0:
+                    lock.write(b"\0")
+                lock.seek(0)
                 msvcrt.locking(lock.fileno(), msvcrt.LK_NBLCK, 1)
                 break
             except OSError as exc:

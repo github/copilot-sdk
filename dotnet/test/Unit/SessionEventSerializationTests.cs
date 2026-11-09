@@ -13,6 +13,8 @@ public class SessionEventSerializationTests
     [Theory]
     [InlineData("session.idle", "{}")]
     [InlineData("user.message", """{"content":"hello"}""")]
+    [InlineData("external_tool.requested", """{"requestId":"request-1","sessionId":"session-1","toolCallId":"call-1","toolName":"lookup","hasHandler":true}""")]
+    [InlineData("external_tool.requested", """{"requestId":"request-1","sessionId":"session-1","toolCallId":"call-1","toolName":"approval","hasHandler":false}""")]
     public void ObjectEvent_PreservesCompleteEnvelope(string eventType, string data)
     {
         var wire = $$"""
@@ -41,7 +43,7 @@ public class SessionEventSerializationTests
     [InlineData("sandbox.decision", "bypass_decided", """{"source":"user_prompted","deniedResource":"/example"}""")]
     [InlineData("sandbox.decision", "permissive_retry_decided", """{"source":"model_requested","command":"echo test"}""")]
     [InlineData("sandbox.decision", "permissive_retry_completed", """{"processName":"example","command":"echo test"}""")]
-    public void UnionEvent_PreservesCompleteEnvelope(string eventType, string kind, string fields)
+    public void UnionEvent_PreservesCompleteEnvelopeIncludingLegacyTypes(string eventType, string kind, string fields)
     {
         var data = eventType == "sandbox.decision"
             ? JsonNode.Parse("""{"control":"process","outcome":"resolved","platform":"macos","enforcementPoint":"shell","toolCallId":"tool-1"}""")!.AsObject()

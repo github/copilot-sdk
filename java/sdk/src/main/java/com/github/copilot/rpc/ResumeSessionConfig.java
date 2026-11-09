@@ -52,6 +52,7 @@ public class ResumeSessionConfig {
     private List<String> availableTools;
     private List<String> excludedTools;
     private List<String> excludedBuiltInAgents;
+    private List<String> includedBuiltInAgents;
     private ProviderConfig provider;
     private CapiSessionOptions capi;
     private List<NamedProviderConfig> providers;
@@ -167,7 +168,12 @@ public class ResumeSessionConfig {
      * When {@code true}, pending permission requests and external tool calls wait
      * for caller-supplied results via the corresponding low-level RPC methods.
      * Resuming does not re-emit restored permission requests or re-invoke
-     * permission handlers or already-dispatched external tool callbacks.
+     * permission handlers or already-dispatched external tool callbacks. If a
+     * pending call was recorded as SDK-handler-backed and resume registers a
+     * handler for that tool, the abandoned callback is interrupted, never replayed.
+     * Handlerless calls remain pending. To supply an abandoned callback's result
+     * manually, resume without a handler for it. Older requests without recorded
+     * callback ownership also remain pending.
      *
      * @return the explicit choice, or empty to use the runtime default
      */
@@ -372,6 +378,27 @@ public class ResumeSessionConfig {
      */
     public ResumeSessionConfig setExcludedBuiltInAgents(List<String> excludedBuiltInAgents) {
         this.excludedBuiltInAgents = excludedBuiltInAgents != null ? new ArrayList<>(excludedBuiltInAgents) : null;
+        return this;
+    }
+
+    /** Gets the built-in subagent allowlist. @return the allowlist, or null */
+    public List<String> getIncludedBuiltInAgents() {
+        return includedBuiltInAgents == null ? null : Collections.unmodifiableList(includedBuiltInAgents);
+    }
+
+    /**
+     * Allows only the named built-in subagents, subject to availability and
+     * exclusions. An empty list disables all built-in subagents; custom agents
+     * remain available, including same-name agents. Null uses defaults on cold
+     * resume and preserves the current allowlist on warm resume. Not persisted;
+     * re-supply on resume after restart.
+     *
+     * @param includedBuiltInAgents
+     *            the built-in subagent allowlist, or null to omit
+     * @return this config instance for method chaining
+     */
+    public ResumeSessionConfig setIncludedBuiltInAgents(List<String> includedBuiltInAgents) {
+        this.includedBuiltInAgents = includedBuiltInAgents != null ? new ArrayList<>(includedBuiltInAgents) : null;
         return this;
     }
 
@@ -2322,9 +2349,10 @@ public class ResumeSessionConfig {
      * Sets the rotating GitHub token provider for the resumed session.
      * <p>
      * The provider receives only the effective host, optional assigned session ID,
-     * and acquisition reason. It must return a positive remaining lifetime in
-     * seconds when its callback completes. Production GitHub tokens typically last
-     * eight hours. This option is mutually exclusive with
+     * and acquisition reason. It must return the remaining lifetime in seconds when
+     * its callback completes. More than 3600 seconds must still remain after token
+     * validation; validation time counts against the lifetime. Production GitHub
+     * tokens typically last eight hours. This option is mutually exclusive with
      * {@link #setGitHubToken(String)}.
      *
      * @param gitHubTokenProvider
@@ -2542,6 +2570,9 @@ public class ResumeSessionConfig {
         copy.excludedTools = this.excludedTools != null ? new ArrayList<>(this.excludedTools) : null;
         copy.excludedBuiltInAgents = this.excludedBuiltInAgents != null
                 ? new ArrayList<>(this.excludedBuiltInAgents)
+                : null;
+        copy.includedBuiltInAgents = this.includedBuiltInAgents != null
+                ? new ArrayList<>(this.includedBuiltInAgents)
                 : null;
         copy.provider = this.provider;
         copy.capi = this.capi;

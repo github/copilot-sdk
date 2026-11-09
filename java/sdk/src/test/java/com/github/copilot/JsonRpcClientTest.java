@@ -13,11 +13,13 @@ import java.net.InetAddress;
 import java.net.ServerSocket;
 import java.net.Socket;
 import java.nio.charset.StandardCharsets;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.logging.Handler;
 import java.util.logging.Level;
@@ -25,15 +27,49 @@ import java.util.logging.LogRecord;
 import java.util.logging.Logger;
 
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.node.ObjectNode;
+import com.github.copilot.generated.rpc.FeatureFlagAssignmentsUpdate;
 import com.github.copilot.generated.rpc.ServerRpc;
+import com.github.copilot.generated.rpc.LocalModelsWatchParams;
 import com.github.copilot.generated.rpc.SandboxProxyCaCheckRelevanceParams;
+import com.github.copilot.generated.rpc.SessionFeatureFlagsConfigureParams;
+import com.github.copilot.generated.rpc.SessionFeatureFlagsReadParams;
+import com.github.copilot.generated.rpc.SessionFeatureFlagsUpdateParams;
+import com.github.copilot.generated.rpc.SessionRpc;
 
 class JsonRpcClientTest {
 
     private static final ObjectMapper MAPPER = JsonRpcClient.getObjectMapper();
+
+    @Test
+    void testLocalModelWatchCancellationAndTimeoutRetireTheOriginalRequest() throws Exception {
+        for (boolean timeout : List.of(false, true)) {
+            try (var pair = createSocketPair()) {
+                pair.serverSide.setSoTimeout(5_000);
+                var rpc = new ServerRpc(pair.client::invoke);
+                var waiting = rpc.localModels.watch(LocalModelsWatchParams.builder().afterRevision(7L).build());
+                var request = MAPPER.readTree(readRpcMessage(pair.serverSide.getInputStream()));
+                assertEquals("localModels.watch", request.path("method").asText());
+                if (timeout) {
+                    waiting.orTimeout(1, TimeUnit.MILLISECONDS);
+                    assertThrows(ExecutionException.class, () -> waiting.get(5, TimeUnit.SECONDS));
+                } else {
+                    assertTrue(waiting.cancel(false));
+                }
+                var cancellation = MAPPER.readTree(readRpcMessage(pair.serverSide.getInputStream()));
+                assertEquals("$/cancelRequest", cancellation.path("method").asText());
+                assertEquals(request.path("id"), cancellation.path("params").path("id"));
+                writeRpcMessage(pair.serverSide.getOutputStream(),
+                        "{\"jsonrpc\":\"2.0\",\"id\":" + request.path("id") + ",\"result\":null}");
+                assertReaderResponsive(pair);
+            }
+        }
+    }
 
     // ---- Helpers ----
 
@@ -117,6 +153,87 @@ class JsonRpcClientTest {
     }
 
     // ---- notify() ----
+
+    @Test
+    @AllowCopilotExperimental
+    void testFeatureFlagConfigurePreservesExplicitNullOverridesOnWire() throws Exception {
+        try (var pair = createSocketPair()) {
+            var overrides = new LinkedHashMap<String, Object>();
+            overrides.put("cleared", null);
+            overrides.put("enabled", false);
+            overrides.put("variant", "treatment");
+            overrides.put("count", 3);
+            var session = new SessionRpc(pair.client::invoke, "feature-flags-session");
+            var result = session.featureFlags
+                    .configure(SessionFeatureFlagsConfigureParams.builder().isStaff(false).isExperimental(false)
+                            .isTeam(false).online(false).streamerMode(false).expFlagOverrides(overrides).build());
+
+            var request = MAPPER.readTree(readRpcMessage(pair.serverSide.getInputStream()));
+            writeRpcMessage(pair.serverSide.getOutputStream(),
+                    "{\"jsonrpc\":\"2.0\",\"id\":" + request.get("id") + ",\"result\":{}}");
+            assertNotNull(result.get(5, TimeUnit.SECONDS));
+            assertEquals("session.featureFlags.configure", request.get("method").asText());
+            assertEquals(MAPPER.readTree("""
+                    {"sessionId":"feature-flags-session","isStaff":false,"isExperimental":false,
+                     "isTeam":false,"online":false,"streamerMode":false,"expFlagOverrides":
+                      {"cleared":null,"enabled":false,"variant":"treatment","count":3}}
+                    """), request.get("params"));
+            assertTrue(overrides.containsKey("cleared"));
+            assertNull(overrides.get("cleared"));
+            assertEquals(4, overrides.size());
+        }
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {"configure", "update"})
+    @AllowCopilotExperimental
+    void testFeatureFlagAssignmentsPreserveNestedNullsOnWire(String method) throws Exception {
+        try (var pair = createSocketPair()) {
+            var parameters = new LinkedHashMap<String, Object>();
+            parameters.put("someFlag", null);
+            parameters.put("enabled", false);
+            parameters.put("variant", "treatment");
+            parameters.put("count", 3);
+            var response = Map.of("Configs", List.of(Map.of("Id", "assignment", "Parameters", parameters)),
+                    "AssignmentContext", "context");
+            var updates = new FeatureFlagAssignmentsUpdate[]{
+                    FeatureFlagAssignmentsUpdate.builder().response(response).build(),
+                    FeatureFlagAssignmentsUpdate.builder().response(null).build(), null};
+            var expectedParams = new String[]{"""
+                    {"sessionId":"feature-flags-session","assignments":{"response":{
+                      "Configs":[{"Id":"assignment","Parameters":{
+                        "someFlag":null,"enabled":false,"variant":"treatment","count":3}}],
+                      "AssignmentContext":"context"}}}
+                    """, """
+                    {"sessionId":"feature-flags-session","assignments":{"response":null}}
+                    """, """
+                    {"sessionId":"feature-flags-session"}
+                    """};
+            var session = new SessionRpc(pair.client::invoke, "feature-flags-session");
+            for (int index = 0; index < updates.length; index++) {
+                var result = method.equals("configure")
+                        ? session.featureFlags.configure(SessionFeatureFlagsConfigureParams.builder().isStaff(false)
+                                .isExperimental(false).isTeam(false).online(false).streamerMode(false)
+                                .assignments(updates[index]).build())
+                        : session.featureFlags
+                                .update(SessionFeatureFlagsUpdateParams.builder().assignments(updates[index]).build());
+                var request = MAPPER.readTree(readRpcMessage(pair.serverSide.getInputStream()));
+                writeRpcMessage(pair.serverSide.getOutputStream(),
+                        "{\"jsonrpc\":\"2.0\",\"id\":" + request.get("id") + ",\"result\":{}}");
+                assertNotNull(result.get(5, TimeUnit.SECONDS));
+                assertEquals("session.featureFlags." + method, request.get("method").asText());
+                var expected = MAPPER.readValue(expectedParams[index], ObjectNode.class);
+                if (method.equals("configure")) {
+                    expected.put("isStaff", false).put("isExperimental", false).put("isTeam", false)
+                            .put("online", false).put("streamerMode", false);
+                }
+                assertEquals(expected, request.get("params"));
+            }
+            assertTrue(parameters.containsKey("someFlag"));
+            assertNull(parameters.get("someFlag"));
+            assertEquals(4, parameters.size());
+        }
+    }
 
     @Test
     void sessionCallbackScopeLastsUntilEveryReplyOrConnectionClose() throws Exception {
@@ -365,6 +482,33 @@ class JsonRpcClientTest {
     }
 
     // ---- invoke() edge cases ----
+
+    @ParameterizedTest
+    @ValueSource(booleans = {false, true})
+    @AllowCopilotExperimental
+    void testAbandonedRevisionReadCancelsItsTransportRequest(boolean timeout) throws Exception {
+        try (var pair = createSocketPair()) {
+            pair.serverSide.setSoTimeout(2000);
+            var session = new SessionRpc(pair.client::invoke, "feature-flags-session");
+            var pending = session.featureFlags.read(SessionFeatureFlagsReadParams.builder().afterRevision(7L).build());
+            var request = MAPPER.readTree(readRpcMessage(pair.serverSide.getInputStream()));
+
+            if (timeout) {
+                var failure = assertThrows(ExecutionException.class,
+                        () -> pending.orTimeout(0, TimeUnit.MILLISECONDS).get(5, TimeUnit.SECONDS));
+                assertInstanceOf(TimeoutException.class, failure.getCause());
+            } else {
+                assertTrue(pending.cancel(false));
+            }
+
+            var cancellation = MAPPER.readTree(readRpcMessage(pair.serverSide.getInputStream()));
+            assertEquals("$/cancelRequest", cancellation.get("method").asText());
+            assertEquals(request.get("id"), cancellation.at("/params/id"));
+            writeRpcMessage(pair.serverSide.getOutputStream(),
+                    "{\"jsonrpc\":\"2.0\",\"id\":" + request.get("id") + ",\"result\":{}}");
+            assertReaderResponsive(pair);
+        }
+    }
 
     @Test
     void testInvokeWithVoidPrimitive() throws Exception {

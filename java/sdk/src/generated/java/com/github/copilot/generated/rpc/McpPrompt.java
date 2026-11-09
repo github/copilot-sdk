@@ -34,8 +34,10 @@ public record McpPrompt(
     /** Icons associated with this prompt */
     @JsonProperty("icons") List<McpPromptIcon> icons,
     /** Prompt-level metadata */
+    @JsonInclude(value = JsonInclude.Include.NON_NULL, content = JsonInclude.Include.ALWAYS)
     @JsonProperty("_meta") Map<String, Object> meta,
     /** Server-provided non-standard descriptor fields */
+    @JsonInclude(value = JsonInclude.Include.NON_NULL, content = JsonInclude.Include.ALWAYS)
     @JsonProperty("additionalProperties") Map<String, Object> additionalProperties
 ) {
 

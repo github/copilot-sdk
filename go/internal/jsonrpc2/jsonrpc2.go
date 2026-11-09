@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"io"
 	"log"
+	"net"
 	"os"
 	"reflect"
 	"sync"
@@ -156,7 +157,7 @@ func (c *Client) Stop() {
 	close(c.stopChan)
 	c.mu.Unlock()
 
-	if err := c.stdin.Close(); err != nil && !errors.Is(err, io.ErrClosedPipe) && !errors.Is(err, os.ErrClosed) {
+	if err := c.stdin.Close(); err != nil && !errors.Is(err, io.ErrClosedPipe) && !errors.Is(err, os.ErrClosed) && !errors.Is(err, net.ErrClosed) {
 		log.Printf("Failed to close JSON-RPC writer: %v", err)
 	}
 	// Close stdout to unblock the readLoop
@@ -353,7 +354,7 @@ func (c *Client) RequestWithInlineResponse(ctx context.Context, method string, p
 		}
 		return nil, fmt.Errorf("failed to send request: %w", err)
 	}
-	if method == "session.sendAndWait" {
+	if method == "session.sendAndWait" || method == "session.featureFlags.read" || method == "localModels.watch" {
 		defer func() {
 			if ctx.Err() != nil {
 				c.mu.Lock()
@@ -509,7 +510,7 @@ func (c *Client) readLoop() {
 		// Read the next frame.
 		data, err := c.reader.Read()
 		if err != nil {
-			if !errors.Is(err, io.EOF) && !errors.Is(err, io.ErrClosedPipe) && !errors.Is(err, os.ErrClosed) && c.running.Load() {
+			if !errors.Is(err, io.EOF) && !errors.Is(err, io.ErrClosedPipe) && !errors.Is(err, os.ErrClosed) && !errors.Is(err, net.ErrClosed) && c.running.Load() {
 				fmt.Printf("Error reading message: %v\n", err)
 			}
 			return

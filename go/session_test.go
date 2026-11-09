@@ -73,7 +73,7 @@ func TestPermissionHandlerReceivesDerivedPromptContext(t *testing.T) {
 			PromptRequest:              promptRequest,
 			AssistedApprovalAssessment: assessment,
 		},
-	})
+	}, nil)
 
 	if observed.PromptRequest != promptRequest {
 		t.Fatalf("expected derived prompt context, got %#v", observed.PromptRequest)
@@ -86,10 +86,79 @@ func TestPermissionHandlerReceivesDerivedPromptContext(t *testing.T) {
 	}
 }
 
-func TestPermissionInvocationPreservesPositionalFields(t *testing.T) {
-	invocation := PermissionInvocation{"session-1", true}
-	if invocation.SessionID != "session-1" || !invocation.ManagedSettingsEnabled {
-		t.Fatalf("unexpected legacy invocation: %#v", invocation)
+func (s *Session) dispatchEvent(event SessionEvent) {
+	s.dispatchEventWithPermissionEnvelope(event, nil, nil)
+}
+
+func TestPermissionInvocationWithoutProgramOwnership(t *testing.T) {
+	invocation := PermissionInvocation{SessionID: "session-1", ManagedSettingsEnabled: true}
+	if invocation.SessionID != "session-1" || !invocation.ManagedSettingsEnabled || invocation.ProgramToolCallID != nil {
+		t.Fatalf("unexpected ordinary invocation: %#v", invocation)
+	}
+}
+
+func TestExternalToolDispatchHonorsDeclaredOwnership(t *testing.T) {
+	for _, test := range []struct {
+		name       string
+		hasHandler *bool
+	}{
+		{"legacy", nil},
+		{"callback", ptr(true)},
+		{"declaration-only", ptr(false)},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			session, cleanup := newTestSession()
+			defer cleanup()
+			defer session.cancelPendingExternalTools()
+			session.SessionID = "session-1"
+			session.registerTools([]Tool{{
+				Name: "lookup",
+				Handler: func(invocation ToolInvocation) (ToolResult, error) {
+					<-invocation.TraceContext.Done()
+					return ToolResult{}, invocation.TraceContext.Err()
+				},
+			}})
+			delivered := make(chan SessionEvent, 1)
+			session.On(func(event SessionEvent) { delivered <- event })
+			data := map[string]any{
+				"requestId": "request-1", "sessionId": session.SessionID,
+				"toolCallId": "call-1", "toolName": "lookup", "arguments": map[string]any{},
+			}
+			if test.hasHandler != nil {
+				data["hasHandler"] = *test.hasHandler
+			}
+			payload, err := json.Marshal(map[string]any{
+				"sessionId": session.SessionID,
+				"event": map[string]any{
+					"id":        "00000000-0000-4000-8000-000000000001",
+					"timestamp": "2026-01-01T00:00:00Z",
+					"type":      "external_tool.requested", "data": data,
+				},
+			})
+			if err != nil {
+				t.Fatal(err)
+			}
+			var request sessionEventRequest
+			if err := json.Unmarshal(payload, &request); err != nil {
+				t.Fatal(err)
+			}
+			client := &Client{sessions: map[string]*Session{session.SessionID: session}}
+			client.handleSessionEvent(request)
+			session.pendingExternalToolsM.Lock()
+			_, started := session.pendingExternalTools["request-1"]
+			session.pendingExternalToolsM.Unlock()
+			if expected := test.hasHandler == nil || *test.hasHandler; started != expected {
+				t.Fatalf("SDK callback started = %v, want %v", started, expected)
+			}
+			select {
+			case event := <-delivered:
+				if data, ok := event.Data.(*ExternalToolRequestedData); !ok || data.RequestID != "request-1" {
+					t.Fatalf("unexpected subscriber event: %#v", event)
+				}
+			case <-time.After(time.Second):
+				t.Fatal("tool request was not delivered to subscribers")
+			}
+		})
 	}
 }
 
@@ -745,6 +814,7 @@ func TestSession_SetToolsSendsPayloadAndInstallsHandlers(t *testing.T) {
 			OverridesBuiltInTool: true,
 			SkipPermission:       true,
 			IsTerminal:           true,
+			Idempotent:           true,
 			Defer:                ToolDeferNever,
 			Metadata:             map[string]any{"x-test": "metadata"},
 			Namespace:            &ToolNamespace{Name: "fruit", Description: "Fruit lookups"},
@@ -779,7 +849,7 @@ func TestSession_SetToolsSendsPayloadAndInstallsHandlers(t *testing.T) {
 	if description, ok := first["description"].(string); !ok || description != "" {
 		t.Fatalf("description = %#v, want empty string", first["description"])
 	}
-	for _, key := range []string{"overridesBuiltInTool", "skipPermission", "isTerminal"} {
+	for _, key := range []string{"overridesBuiltInTool", "skipPermission", "isTerminal", "idempotent", "hasHandler"} {
 		if first[key] != true {
 			t.Fatalf("%s = %v, want true", key, first[key])
 		}
@@ -801,8 +871,13 @@ func TestSession_SetToolsSendsPayloadAndInstallsHandlers(t *testing.T) {
 	if !ok {
 		t.Fatalf("second tool = %#v, want object", wireTools[1])
 	}
-	if _, ok := second["namespace"]; ok {
-		t.Fatalf("namespace = %#v, want omitted", second["namespace"])
+	if second["hasHandler"] != false {
+		t.Fatalf("hasHandler = %#v, want false", second["hasHandler"])
+	}
+	for _, key := range []string{"namespace", "isTerminal", "idempotent"} {
+		if _, ok := second[key]; ok {
+			t.Fatalf("%s = %#v, want omitted", key, second[key])
+		}
 	}
 
 	server.respond(t, request.ID, map[string]any{})
@@ -1178,7 +1253,7 @@ func testSessionMCPAuthRequestResponse(t *testing.T, runtimeRefresh bool) {
 				ResourceMetadataURL: &resourceMetadataURL,
 			},
 		},
-	})
+	}, nil)
 	if observedRequest.ResourceMetadata == nil || *observedRequest.ResourceMetadata != `{"resource":"https://example.com/mcp"}` {
 		t.Fatalf("expected resource metadata to be propagated, got %#v", observedRequest.ResourceMetadata)
 	}
@@ -1438,7 +1513,7 @@ func captureMCPAuthPendingResult(t *testing.T, data *MCPOauthRequiredData, handl
 		RPC:       rpc.NewSessionRPC(client, "session-1"),
 	}
 	session.registerMCPAuthHandlers(handler, refreshHandler)
-	session.handleBroadcastEvent(SessionEvent{Data: data})
+	session.handleBroadcastEvent(SessionEvent{Data: data}, nil)
 
 	select {
 	case params := <-paramsCh:

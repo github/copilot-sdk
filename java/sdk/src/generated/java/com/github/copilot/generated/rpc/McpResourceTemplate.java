@@ -38,8 +38,10 @@ public record McpResourceTemplate(
     /** Model/client annotations associated with this template */
     @JsonProperty("annotations") McpResourceAnnotations annotations,
     /** Resource-template-level metadata */
+    @JsonInclude(value = JsonInclude.Include.NON_NULL, content = JsonInclude.Include.ALWAYS)
     @JsonProperty("_meta") Map<String, Object> meta,
     /** Server-provided non-standard descriptor fields preserved from the MCP response */
+    @JsonInclude(value = JsonInclude.Include.NON_NULL, content = JsonInclude.Include.ALWAYS)
     @JsonProperty("additionalProperties") Map<String, Object> additionalProperties
 ) {
 

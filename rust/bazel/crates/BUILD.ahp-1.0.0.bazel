@@ -61,7 +61,7 @@ rust_library(
     version = "1.0.0",
     deps = [
         "@sdk_vendor__ahp-types-1.0.0//:ahp_types",
-        "@sdk_vendor__jiff-0.2.39//:jiff",
+        "@sdk_vendor__jiff-0.2.40//:jiff",
         "@sdk_vendor__serde-1.0.229//:serde",
         "@sdk_vendor__serde_json-1.0.154//:serde_json",
         "@sdk_vendor__thiserror-2.0.21//:thiserror",

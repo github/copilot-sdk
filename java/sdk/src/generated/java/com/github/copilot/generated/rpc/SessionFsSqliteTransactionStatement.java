@@ -31,6 +31,7 @@ public record SessionFsSqliteTransactionStatement(
     /** How to execute the statement. */
     @JsonProperty("queryType") SessionFsSqliteQueryType queryType,
     /** Optional named bind parameters. */
+    @JsonInclude(value = JsonInclude.Include.NON_NULL, content = JsonInclude.Include.ALWAYS)
     @JsonProperty("params") Map<String, Object> params
 ) {
 

@@ -345,6 +345,40 @@ pub struct ModelProviderAdapterCatalog {
     pub providers: Vec<ModelProviderAdapterDescriptor>,
 }
 
+/// Reads current cached availability without fetching a remote model catalog.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ModelProviderAvailabilityRequest {
+    /// Optional provider identity used to disambiguate a selection.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub provider_id: Option<String>,
+    /// Provider-qualified model selection identifier.
+    pub selection_id: String,
+}
+
+/// Action-boundary availability of a registered provider model.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ModelProviderAvailabilityResult {
+    /// True for a selectable model, false for a blocked model, absent for a missing row.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub available: Option<bool>,
+}
+
 /// Provider configuration prepared from a discovered model. Preparing a plan changes nothing: it neither registers the model with the session nor writes durable configuration. To apply it, pass `provider` and `model` to `session.provider.add`, omitting whichever the dispositions report as already configured.
 ///
 /// <div class="warning">
@@ -643,9 +677,15 @@ pub struct ModelSwitchAutoTierResult {
     /// Auto preference currently committed for the session.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub effective_auto_tier: Option<AutoTier>,
+    /// Copilot Fusion tier that effectiveAutoTier serves, resolved from the session's Auto tier metadata. An open string: known values include `standard`, `high`, and `max`; other provider-defined values may appear. Omitted when no Auto preference is committed, it is not a Fusion tier, or Auto metadata has not been discovered (for example after cold resume, before session.model.list). Fusion fields cover only effective and pending preferences; resolve activatingAutoTier and supersededAutoTier against auto.tiers[].fusionTier from session.model.list.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub effective_fusion_tier: Option<String>,
     /// Latest unclaimed Auto preference waiting for a future user turn.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub pending_auto_tier: Option<AutoTier>,
+    /// Copilot Fusion tier that pendingAutoTier serves, resolved from the session's Auto tier metadata. An open string: known values include `standard`, `high`, and `max`; other provider-defined values may appear. Omitted when no preference is pending, it is not a Fusion tier, or Auto metadata has not been discovered (for example after cold resume, before session.model.list).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub pending_fusion_tier: Option<String>,
     /// Immediate request status. `pending` means accepted but not committed.
     pub status: ModelSwitchAutoTierStatus,
     /// Earlier unclaimed preference replaced by this request. This can be present with either status, including when selecting the effective preference cancels pending work.
@@ -1183,6 +1223,36 @@ pub struct ModelsGetBuiltInCatalogResult {
 pub struct ModelsListTokenPriceUnitsResult {
     /// One entry per model that publishes token prices, in catalog order. A model with no published prices is omitted.
     pub units: Vec<ModelTokenPriceUnit>,
+}
+
+/// Result of adding a model to the saved provider configuration.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ProvidersConfigAddModelResult {
+    /// Whether the provider was created along with the model.
+    pub provider_added: bool,
+}
+
+/// Result of adding a model to the saved provider configuration.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ProvidersSourceAddModelResult {
+    /// Whether the provider was created along with the model.
+    pub provider_added: bool,
 }
 
 /// A bearer token supplied by the SDK client for a BYOK provider. The runtime sets it as `Authorization: Bearer <token>` on the outbound request and does no caching; the SDK consumer owns token caching and refresh.

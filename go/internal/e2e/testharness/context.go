@@ -70,15 +70,15 @@ func isInProcessTransport() bool {
 }
 
 // IsInProcessTransport reports whether E2E tests run under the in-process (FFI)
-// transport. Tests that configure options unsupported in-process (e.g. per-client
-// telemetry) should skip when this returns true.
+// transport. Tests that configure options unsupported in-process should skip
+// when this returns true.
 func IsInProcessTransport() bool {
 	return isInProcessTransport()
 }
 
 // SkipIfInProcess skips the test when E2E tests run under the in-process (FFI)
 // transport, for behavior the shared in-process runtime cannot support (e.g. a
-// process-global LLM inference provider, or per-client telemetry). The reason is
+// process-global LLM inference provider). The reason is
 // surfaced in the test log so the skip is explicit rather than a silent transport
 // downgrade. Such tests still run over stdio in the default matrix cell.
 func SkipIfInProcess(t *testing.T, reason string) {
@@ -439,7 +439,7 @@ func withoutSigningKeys(env []string) []string {
 // connection is swapped; a test that pins a custom stdio path/args/env or a
 // TCP/URI connection is exercising behavior that must stay on its own transport.
 //
-// Options the in-process runtime cannot support (per-client telemetry, an LLM
+// Options the in-process runtime cannot support (an LLM
 // inference provider) are NOT silently downgraded here — the affected tests skip
 // explicitly via testharness.SkipIfInProcess so the limitation is visible rather
 // than masked by a quiet transport swap.

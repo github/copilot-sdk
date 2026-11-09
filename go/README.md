@@ -33,6 +33,22 @@ The manual permission/tool-result resume sample can be run from the same directo
 go run ./manual_tool_resume
 ```
 
+Print an edited permission request without starting the CLI:
+
+```bash
+go run chat.go --permission-envelope
+```
+
+The output retains unknown fields, explicit nulls, and large integers.
+
+Run both permission-envelope and MCP refresh callbacks on an isolated JSON-RPC session, without the CLI:
+
+```bash
+go run chat.go --permission-envelope-mcp-refresh
+```
+
+The output contains the original `futureDetails` value and the correlated `runtimeRefresh` response.
+
 ## Quick Start
 
 For experimental in-process AHP hosting, use `client.StartAhpHost(ctx, &copilot.AhpHostOptions{...})`.
@@ -257,7 +273,7 @@ Provider methods can be called concurrently by the runtime, including from
 sub-agents that inherit the root session binding. Implementations must be safe
 for concurrent calls and should observe the `context.Context`. The context is
 cancelled when the runtime abandons the request: the call times out, the
-session disconnects or is deleted, or a resume replaces the provider. It is not
+session disconnects or is deleted, or a resume replaces the provider. It is also
 cancelled when the connection closes or the client is force-stopped.
 
 ### Supporting files (experimental)
@@ -465,11 +481,10 @@ Resolution and requirements:
 - Linux in-process bundles include both glibc and musl runtime packages and select the matching package automatically at startup.
 - Only one native runtime version may be loaded per process.
 
-The in-process transport rejects options that cannot be honored by a runtime hosted in your shared process (each panics at `NewClient`):
+`Telemetry` configures per-runtime startup, including in-process. Omitted settings inherit the environment; policy takes precedence. `NewClient` rejects process-wide options:
 
 - `Env` — set variables in the host process environment instead.
 - `WorkingDirectory` — the runtime shares the host process's working directory. Set `SessionConfig.WorkingDirectory` instead.
-- `Telemetry` — per-client telemetry is lowered to native-runtime environment variables. Use a child-process transport for per-client telemetry.
 
 Implemented with pure-Go FFI (via [purego](https://github.com/ebitengine/purego)), so `CGO_ENABLED=0` and cross-compilation are preserved; no C toolchain is required.
 
@@ -564,7 +579,7 @@ Event types: `SessionLifecycleCreated`, `SessionLifecycleDeleted`, `SessionLifec
 - `Autopilot` (\*rpc.AutopilotOptions, experimental): Autopilot policy, also accepted by `ResumeSessionConfig` and options update. `ContinuationEnabled` defaults to true and does not change session mode; `MaxContinues` limits continuations outside an active objective (non-negative integer, default five, zero allows none). Updates and warm resumes preserve omitted fields; an empty object changes nothing. Re-supply on cold resume.
 - `WorkingDirectory` (string): Working directory for the session (default: runtime process working directory)
 - `EnableSessionStore` (\*bool): Enables the cross-session store for search and retrieval across sessions. When unset in `ModeCopilotCli`, the runtime default applies (enabled). In `ModeEmpty`, defaults to disabled.
-- `GitHubTokenProvider` (GitHubTokenProvider): Acquires session-scoped GitHub tokens on demand. Return `GitHubTokenResult` with a positive `ExpiresIn` value (production GitHub tokens typically use `8 * 60 * 60` seconds), or `GitHubTokenCancelled`. Cannot be combined with `GitHubToken`.
+- `GitHubTokenProvider` (GitHubTokenProvider): Acquires session-scoped GitHub tokens on demand. Return `GitHubTokenResult` with an `ExpiresIn` value that leaves more than one hour after the runtime validates the token (production GitHub tokens typically use `8 * 60 * 60` seconds), or `GitHubTokenCancelled`. Cannot be combined with `GitHubToken`.
 - `OnPermissionRequest` (PermissionHandlerFunc): Optional handler called before each tool execution to approve or deny it. When nil, permission requests are emitted as events and left pending for manual resolution. `copilot.PermissionHandler.ApproveAll` approves requests when managed settings are disabled and returns an error when `EnableManagedSettings` is true. Custom handlers can inspect `RequiresManagedApproval()` for human-facing confirmation logic. See [Permission Handling](#permission-handling) section.
 - `OnPermissionRequestWithPrompt` (PermissionHandlerWithPromptFunc): Optional compatibility-preserving alternative that also receives the derived user-facing prompt. Takes precedence when both permission handlers are set. See [Permission Handling](#permission-handling) section.
 - `OnUserInputRequest` (UserInputHandler): Handler for legacy question-and-answer requests from the agent. Enables the legacy `ask_user` tool. See [User Input Requests](#user-input-requests) section.
@@ -1513,7 +1528,7 @@ session, err := client.CreateSession(context.Background(), &copilot.SessionConfi
 
 ## Telemetry
 
-The SDK supports OpenTelemetry for distributed tracing. Provide a `Telemetry` config to enable trace export and automatic W3C Trace Context propagation.
+The SDK supports OpenTelemetry for distributed tracing. Provide a `Telemetry` config to enable trace export and W3C Trace Context propagation.
 
 ```go
 client := copilot.NewClient(&copilot.ClientOptions{
@@ -1532,17 +1547,43 @@ client := copilot.NewClient(&copilot.ClientOptions{
 - `SourceName` (string): Instrumentation scope name
 - `CaptureContent` (bool): Whether to capture message content
 
-Trace context (`traceparent`/`tracestate`) is automatically propagated between the SDK and CLI on `CreateSession`, `ResumeSession`, and `Send` calls, and inbound when the CLI invokes tool handlers.
+Trace context (`traceparent`/`tracestate`) is propagated between the SDK and CLI on `CreateSession`, `ResumeSession`, and `Send` calls, and inbound when the CLI invokes tool handlers. The SDK injects and extracts it with the global OpenTelemetry propagator, which drops trace context until your application installs one, so set a W3C Trace Context propagator at startup:
 
-> **Note:** The current `ToolHandler` signature does not accept a `context.Context`, so the inbound trace context cannot be passed to handler code. Spans created inside a tool handler will not be automatically parented to the CLI's `execute_tool` span. A future version may add a context parameter.
+```go
+import (
+    "go.opentelemetry.io/otel"
+    "go.opentelemetry.io/otel/propagation"
+)
+
+otel.SetTextMapPropagator(propagation.TraceContext{})
+```
+
+In a tool handler, `ToolInvocation.TraceContext` is a `context.Context` with the CLI's `execute_tool` span restored. Start your spans from it, for example with `otel.Tracer("my-app").Start(inv.TraceContext, "my-tool")`, so they are parented to that span.
 
 Dependency: `go.opentelemetry.io/otel`
 
 ## Permission Handling
 
-Permission handlers are optional when you create or resume a session. When provided, the selected handler is called before the agent executes each tool (file writes, shell commands, custom tools, etc.) and returns a decision. When both handlers are nil, permission requests are emitted as events and left pending for the consumer to resolve with the pending permission RPC.
+Permission handlers are optional when you create or resume a session. The selected handler returns a decision before each tool executes. With no handler, permission requests remain pending as events for manual resolution.
 
-Use `OnPermissionRequestWithPrompt` when the callback needs optional derived prompt context as `invocation.PromptRequest`, matching `PermissionRequestedData.PromptRequest`. The existing `OnPermissionRequest` callback remains available with its original two-field `PermissionInvocation` for source compatibility. The raw request's managed-approval marker remains managed-policy provenance and enforces one-shot restrictions. Only derived `commands`, `read`, `write`, `url`, and `workflow` prompts can clear the human requirement after Assisted approval; for missing or other prompt kinds, keep the raw marker authoritative.
+Use `OnPermissionRequestWithPrompt` when the callback needs optional derived prompt context as `invocation.PromptRequest`, matching `PermissionRequestedData.PromptRequest`. Both callbacks expose `ProgramToolCallID` (nil for ordinary requests); positional `PermissionInvocation` literals need updating. The raw request's managed-approval marker remains managed-policy provenance and enforces one-shot restrictions. Only derived `commands`, `read`, `write`, `url`, and `workflow` prompts can clear the human requirement after Assisted approval; for missing or other prompt kinds, keep the raw marker authoritative.
+
+Use `client.CreateSessionWithPermissionEnvelope(ctx, config, handler)` or `client.ResumeSessionWithPermissionEnvelope(ctx, sessionID, config, handler)` for lossless forwarding.
+The handler receives a `*copilot.PermissionRequestEnvelope` and `PermissionHandlerInvocation`; `envelope.Request` retains the concrete typed variant.
+It overrides the config's permission handlers; a nil handler retains their existing behavior without changing the config.
+
+Use `CreateSessionWithPermissionEnvelopeAndMCPAuthRuntimeRefresh` or `ResumeSessionWithPermissionEnvelopeAndMCPAuthRuntimeRefresh` when both opt-in callbacks must share a session.
+Pass the permission handler first and the MCP refresh handler second.
+Each nil handler retains the corresponding config callbacks without changing the config.
+
+Pass the envelope itself as `rpc.SessionPermissionsManagedReviewRequiredRequest.Request`, not `envelope.Request`.
+The envelope owns the original JSON and initial typed state, so it remains usable after the callback returns.
+
+Typed edits preserve untouched unknown fields, nulls, and numeric precision in objects and same-length arrays (by index).
+Nil optional fields are removed; resized arrays and scalars replace originals.
+Call `envelope.Replace(request)` to replace the entire payload and discard original unknown fields.
+
+Legacy callbacks and plain typed values keep their original field layout and encoding; they do not retain unknown JSON.
 
 ### Approve All (simplest)
 
@@ -1615,7 +1656,7 @@ Richer decisions (`PermissionDecisionApproveForSession`, `PermissionDecisionAppr
 
 ### Resuming Sessions
 
-You may pass either permission handler when resuming a session too:
+You may pass either config permission handler when resuming a session:
 
 ```go
 session, err := client.ResumeSession(context.Background(), sessionID, &copilot.ResumeSessionConfig{

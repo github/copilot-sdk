@@ -10,6 +10,7 @@ import java.util.Map;
 import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.annotation.JsonProperty;
+import com.fasterxml.jackson.databind.JsonNode;
 
 import com.github.copilot.CopilotExperimental;
 
@@ -41,6 +42,30 @@ import com.github.copilot.CopilotExperimental;
 @CopilotExperimental
 @JsonInclude(JsonInclude.Include.NON_NULL)
 public class NamedProviderConfig {
+
+    @JsonProperty("localModel")
+    private JsonNode localModel;
+
+    /**
+     * Gets runtime options for a local model.
+     *
+     * @return the options, or {@code null} if unset
+     */
+    public JsonNode getLocalModel() {
+        return localModel;
+    }
+
+    /**
+     * Sets runtime options without changing their JSON shape.
+     *
+     * @param localModel
+     *            the runtime options
+     * @return this config for method chaining
+     */
+    public NamedProviderConfig setLocalModel(JsonNode localModel) {
+        this.localModel = localModel;
+        return this;
+    }
 
     @JsonProperty("name")
     private String name;

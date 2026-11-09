@@ -228,7 +228,7 @@ In-process hosting has these current constraints:
 
 * **Experimental API**: behavior and packaging requirements can change between releases.
 * **Shared process state**: all clients share the host process environment, current working directory, native library, and runtime worker pool.
-* **Restricted process options**: arbitrary environment maps, client working directories, telemetry configuration, executable paths, and CLI arguments are rejected where applicable.
+* **Restricted process options**: arbitrary environment maps, client working directories, executable paths, and CLI arguments are rejected where applicable.
 * **No per-client working directory**: set working directories per session instead.
 * **One runtime version per process**: loading another native library path or version is not supported.
 * **Platform maturity varies**: some SDK and platform combinations have reduced model-turn or shutdown coverage. Validate the exact combination that you deploy.

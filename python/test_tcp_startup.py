@@ -3,10 +3,12 @@
 import asyncio
 import os
 import socket
+import subprocess
 import sys
 
 import pytest
 
+import copilot.client as client_module
 from copilot import CopilotClient, RuntimeConnection
 from copilot._jsonrpc import ProcessExitedError
 from copilot._sdk_protocol_version import get_sdk_protocol_version
@@ -82,6 +84,25 @@ def tcp_client(*args: str) -> CopilotClient:
     return CopilotClient(connection=RuntimeConnection.for_tcp(path=sys.executable, args=args))
 
 
+@pytest.fixture
+def spawned(monkeypatch):
+    """Every child the client spawns, still reachable after the client drops its reference."""
+    processes: list[subprocess.Popen] = []
+    popen = subprocess.Popen
+
+    def record(*args, **kwargs):
+        process = popen(*args, **kwargs)
+        processes.append(process)
+        return process
+
+    monkeypatch.setattr(client_module.subprocess, "Popen", record)
+    yield processes
+    for process in processes:
+        if process.poll() is None:
+            process.kill()
+            process.wait(timeout=5)
+
+
 async def test_tcp_startup_failure_reports_exit_code_and_stderr():
     client = tcp_client("-c", EXITS_EARLY)
     try:
@@ -143,6 +164,58 @@ async def test_tcp_startup_timeout_reports_bounded_stderr_from_live_child():
     assert "stderr:" in message
     assert "old diagnostic" not in message
     assert len(message) < 65 * 1024
+
+
+async def test_tcp_startup_timeout_stops_spawned_child(spawned):
+    client = tcp_client("-c", NEVER_ANNOUNCES_PORT)
+    try:
+        with pytest.raises(RuntimeError, match="Timeout waiting for CLI server to start") as error:
+            await client.start()
+        assert "stderr:" in str(error.value)
+        [process] = spawned
+        assert process.poll() is not None
+        assert client._cli_process is None
+        assert client._state == "error"
+    finally:
+        await client.force_stop()
+
+
+async def test_cancelled_tcp_startup_stops_spawned_child(spawned):
+    client = tcp_client("-c", NEVER_ANNOUNCES_PORT)
+    start = asyncio.create_task(client.start())
+    try:
+        async with asyncio.timeout(5):
+            while not spawned:
+                await asyncio.sleep(0.01)
+        start.cancel()
+        with pytest.raises(asyncio.CancelledError):
+            await start
+        [process] = spawned
+        assert process.poll() is not None
+        assert client._cli_process is None
+        assert client._state == "disconnected"
+    finally:
+        start.cancel()
+        await client.force_stop()
+
+
+async def test_tcp_connect_failure_stops_spawned_child(spawned, monkeypatch):
+    client = tcp_client(
+        "-c", "import time; print('listening on port 1', flush=True); time.sleep(60)"
+    )
+
+    def refuse_connection(*args, **kwargs):
+        raise ConnectionRefusedError("stub connection refused")
+
+    monkeypatch.setattr(socket, "create_connection", refuse_connection)
+    try:
+        with pytest.raises(RuntimeError, match="stub connection refused"):
+            await client.start()
+        [process] = spawned
+        assert process.poll() is not None
+        assert client._cli_process is None
+    finally:
+        await client.force_stop()
 
 
 async def test_tcp_pending_request_reports_exit_code_and_bounded_stderr():

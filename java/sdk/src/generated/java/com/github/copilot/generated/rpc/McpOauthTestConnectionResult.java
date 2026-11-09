@@ -17,7 +17,7 @@ import javax.annotation.processing.Generated;
  *
  * @since 1.0.0
  */
-@JsonTypeInfo(use = JsonTypeInfo.Id.NAME, property = "status", visible = true)
+@JsonTypeInfo(use = JsonTypeInfo.Id.NAME, include = JsonTypeInfo.As.EXISTING_PROPERTY, property = "status", visible = true)
 @JsonSubTypes({
     @JsonSubTypes.Type(value = McpOauthTestConnectionResultConnected.class, name = "connected"),
     @JsonSubTypes.Type(value = McpOauthTestConnectionResultNeedsAuth.class, name = "needs-auth"),

@@ -58,10 +58,15 @@ import com.github.copilot.generated.rpc.SessionModelGetReasoningSummariesResult;
 import com.github.copilot.generated.rpc.SessionModelSwitchToParams;
 import com.github.copilot.generated.rpc.SessionModelSwitchToRequest;
 import com.github.copilot.generated.rpc.SessionOptionsUpdateParams;
+import com.github.copilot.generated.rpc.SessionPermissionsManagedReviewRequiredParams;
 import com.github.copilot.generated.rpc.SessionRpc;
 import com.github.copilot.generated.rpc.SessionToolsUpdateSubagentSettingsParams;
 import com.github.copilot.generated.rpc.SubagentSettingsConfig;
 import com.github.copilot.rpc.AgentInfo;
+import com.github.copilot.rpc.PermissionHandler;
+import com.github.copilot.rpc.PermissionInvocation;
+import com.github.copilot.rpc.PermissionRequest;
+import com.github.copilot.rpc.PermissionRequestResult;
 
 /**
  * Unit tests for the generated RPC wrapper classes ({@link ServerRpc} and
@@ -198,6 +203,49 @@ class RpcWrappersTest {
     }
 
     // ── SessionRpc tests ──────────────────────────────────────────────────────
+
+    @ParameterizedTest
+    @ValueSource(booleans = {false, true})
+    void permissionHandler_forwards_original_request_fields_for_managed_review(boolean rawJson) throws Exception {
+        var mapper = new ObjectMapper();
+        var original = mapper.readTree("""
+                {
+                  "kind": "read",
+                  "toolCallId": "read-call",
+                  "managedApprovalRequired": false,
+                  "readOnlyDirectories": ["/workspace"],
+                  "path": "/workspace/file.txt",
+                  "futureDetails": {"enabled": true, "values": [1, null, "value"]}
+                }
+                """);
+        var request = PermissionRequest.fromJsonValue(original);
+        var extensions = new LinkedHashMap<>(request.getExtensionData());
+        var stub = new StubCaller();
+        stub.nextResult = false;
+        var session = new SessionRpc(stub, "permission-session");
+        var forwarded = new AtomicReference<SessionPermissionsManagedReviewRequiredParams>();
+        PermissionHandler handler = (permissionRequest, invocation) -> {
+            var params = SessionPermissionsManagedReviewRequiredParams.builder().sessionId("caller-session")
+                    .request(rawJson ? original : permissionRequest).build();
+            forwarded.set(params);
+            return session.permissions.managedReviewRequired(params).thenApply(
+                    required -> required ? PermissionRequestResult.noResult() : PermissionRequestResult.approveOnce());
+        };
+
+        assertEquals("approve-once", handler.handle(request, new PermissionInvocation()).get().getKind());
+
+        assertEquals(1, stub.calls.size());
+        var call = stub.calls.get(0);
+        assertEquals("session.permissions.managedReviewRequired", call.method());
+        assertEquals(Boolean.class, call.resultType());
+        var payload = assertInstanceOf(JsonNode.class, call.params());
+        assertEquals("permission-session", payload.path("sessionId").asText());
+        assertEquals(original, payload.path("request"));
+        assertFalse(payload.path("request").has("extensionData"));
+        assertEquals("caller-session", forwarded.get().sessionId());
+        assertSame(rawJson ? original : request, forwarded.get().request());
+        assertEquals(extensions, request.getExtensionData());
+    }
 
     @ParameterizedTest
     @NullSource

@@ -32,6 +32,10 @@ public final class SessionsOpenResume extends SessionsOpenParams {
     @JsonProperty("sessionId")
     private String sessionId;
 
+    /** Single-use capability for replay into an SDK-owned native resource after the original embedding facade installs its filesystem and callbacks. Issued through the runtime C ABI and bound to this connection. */
+    @JsonProperty("hostConstructionToken")
+    private Long hostConstructionToken;
+
     /** Session resume options. */
     @JsonProperty("options")
     private SessionOpenOptions options;
@@ -46,6 +50,9 @@ public final class SessionsOpenResume extends SessionsOpenParams {
 
     public String getSessionId() { return sessionId; }
     public void setSessionId(String sessionId) { this.sessionId = sessionId; }
+
+    public Long getHostConstructionToken() { return hostConstructionToken; }
+    public void setHostConstructionToken(Long hostConstructionToken) { this.hostConstructionToken = hostConstructionToken; }
 
     public SessionOpenOptions getOptions() { return options; }
     public void setOptions(SessionOpenOptions options) { this.options = options; }
@@ -71,6 +78,7 @@ public final class SessionsOpenResume extends SessionsOpenParams {
     public static final class Builder {
         private Builder() {}
         private String sessionId;
+        private Long hostConstructionToken;
         private SessionOpenOptions options;
         private Boolean resume;
         private Boolean suppressResumeWorkspaceMetadataWriteback;
@@ -83,6 +91,17 @@ public final class SessionsOpenResume extends SessionsOpenParams {
          */
         public Builder sessionId(String value) {
             this.sessionId = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code hostConstructionToken} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder hostConstructionToken(Long value) {
+            this.hostConstructionToken = value;
             return this;
         }
 
@@ -129,6 +148,7 @@ public final class SessionsOpenResume extends SessionsOpenParams {
             if (sessionId == null) throw new IllegalStateException("Missing required property: sessionId");
             SessionsOpenResume instance = new SessionsOpenResume();
             instance.setSessionId(sessionId);
+            instance.setHostConstructionToken(hostConstructionToken);
             instance.setOptions(options);
             instance.setResume(resume);
             instance.setSuppressResumeWorkspaceMetadataWriteback(suppressResumeWorkspaceMetadataWriteback);

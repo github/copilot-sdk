@@ -404,6 +404,15 @@ func TestCompletionCancellationDoesNotWaitForPeerToRead(t *testing.T) {
 }
 
 func TestCompletionCancellationUsesTheWrittenRequestID(t *testing.T) {
+	testCancellationUsesTheWrittenRequestID(t, "session.sendAndWait", nil)
+}
+
+func TestLocalModelWatchCancellationUsesTheWrittenRequestID(t *testing.T) {
+	testCancellationUsesTheWrittenRequestID(t, "localModels.watch", map[string]int{"afterRevision": 1})
+}
+
+func testCancellationUsesTheWrittenRequestID(t *testing.T, method string, params any) {
+	t.Helper()
 	stdinR, stdinW := io.Pipe()
 	stdoutR, stdoutW := io.Pipe()
 	t.Cleanup(func() {
@@ -417,7 +426,7 @@ func TestCompletionCancellationUsesTheWrittenRequestID(t *testing.T) {
 	defer cancel()
 	result := make(chan error, 1)
 	go func() {
-		_, err := client.Request(ctx, "session.sendAndWait", nil)
+		_, err := client.Request(ctx, method, params)
 		result <- err
 	}()
 	reader := newHeaderReader(stdinR)
@@ -430,7 +439,21 @@ func TestCompletionCancellationUsesTheWrittenRequestID(t *testing.T) {
 		t.Fatalf("Decode request: %v", err)
 	}
 	cancel()
-	frame, err = reader.Read()
+	type readResult struct {
+		frame []byte
+		err   error
+	}
+	cancellation := make(chan readResult, 1)
+	go func() {
+		frame, err := reader.Read()
+		cancellation <- readResult{frame, err}
+	}()
+	select {
+	case read := <-cancellation:
+		frame, err = read.frame, read.err
+	case <-time.After(5 * time.Second):
+		t.Fatal("The canceled wait did not send its cancellation frame")
+	}
 	if err != nil {
 		t.Fatalf("Read cancellation: %v", err)
 	}
@@ -448,6 +471,83 @@ func TestCompletionCancellationUsesTheWrittenRequestID(t *testing.T) {
 	}
 	if err := <-result; !errors.Is(err, context.Canceled) {
 		t.Fatalf("Request error = %v, want context.Canceled", err)
+	}
+}
+
+func TestAbandonedRevisionReadCancelsItsTransportRequest(t *testing.T) {
+	for _, abandon := range []string{"cancel", "deadline"} {
+		t.Run(abandon, func(t *testing.T) {
+			synctest.Test(t, func(t *testing.T) {
+				stdinR, stdinW := io.Pipe()
+				stdoutR, stdoutW := io.Pipe()
+				t.Cleanup(func() {
+					stdinR.Close()
+					stdoutW.Close()
+				})
+				client := NewClient(stdinW, stdoutR)
+				client.Start()
+				t.Cleanup(client.Stop)
+				var ctx context.Context
+				var cancel context.CancelFunc
+				want := context.Canceled
+				if abandon == "deadline" {
+					ctx, cancel = context.WithTimeout(t.Context(), 250*time.Millisecond)
+					want = context.DeadlineExceeded
+				} else {
+					ctx, cancel = context.WithCancel(t.Context())
+				}
+				defer cancel()
+				result := make(chan error, 1)
+				go func() {
+					_, err := client.Request(ctx, "session.featureFlags.read", map[string]any{"sessionId": "session", "afterRevision": 7})
+					result <- err
+				}()
+				reader := newHeaderReader(stdinR)
+				frame, err := reader.Read()
+				if err != nil {
+					t.Fatalf("Read request: %v", err)
+				}
+				var request Request
+				if err := json.Unmarshal(frame, &request); err != nil {
+					t.Fatalf("Decode request: %v", err)
+				}
+				// Admit the response wait before advancing the deadline or cancelling.
+				synctest.Wait()
+				if abandon == "cancel" {
+					cancel()
+				} else {
+					time.Sleep(250 * time.Millisecond)
+				}
+				frames := make(chan []byte, 1)
+				go func() {
+					frame, err := reader.Read()
+					if err != nil {
+						frame = nil
+					}
+					frames <- frame
+				}()
+				select {
+				case frame = <-frames:
+				case <-time.After(5 * time.Second):
+					t.Fatal("Abandoned revision read sent no $/cancelRequest")
+				}
+				var notification struct {
+					Method string `json:"method"`
+					Params struct {
+						ID json.RawMessage `json:"id"`
+					} `json:"params"`
+				}
+				if err := json.Unmarshal(frame, &notification); err != nil {
+					t.Fatalf("Decode cancellation %q: %v", frame, err)
+				}
+				if notification.Method != "$/cancelRequest" || !bytes.Equal(notification.Params.ID, request.ID) {
+					t.Fatalf("Cancellation = %s, want $/cancelRequest for ID %s", frame, request.ID)
+				}
+				if err := <-result; !errors.Is(err, want) {
+					t.Fatalf("Request error = %v, want %v", err, want)
+				}
+			})
+		})
 	}
 }
 func TestRequestUnacknowledgedShutdown(t *testing.T) {

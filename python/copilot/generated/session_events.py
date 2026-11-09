@@ -162,6 +162,7 @@ class SessionEventType(Enum):
     SESSION_USAGE_INFO = "session.usage_info"
     SESSION_CONTEXT_CLEARED = "session.context_cleared"
     SESSION_COMPACTION_START = "session.compaction_start"
+    SESSION_COMPACTION_SUMMARIZED = "session.compaction_summarized"
     SESSION_COMPACTION_COMPLETE = "session.compaction_complete"
     SESSION_TASK_COMPLETE = "session.task_complete"
     # Experimental: this event is part of an experimental API and may change or be removed.
@@ -1720,6 +1721,8 @@ class PermissionAssistedApproval:
     failure_reason: AssistedApprovalJudgeFailureReason | None = None
     model: str | None = None
     reason: str | None = None
+    # Experimental: this field is part of an experimental API and may change or be removed.
+    approval_required_command_segments: list[int] | None = None
 
     @staticmethod
     def from_dict(obj: Any) -> "PermissionAssistedApproval":
@@ -1730,6 +1733,7 @@ class PermissionAssistedApproval:
         failure_reason = from_union([from_none, lambda x: parse_enum(AssistedApprovalJudgeFailureReason, x)], obj.get("failureReason"))
         model = from_union([from_none, from_str], obj.get("model"))
         reason = from_union([from_none, from_str], obj.get("reason"))
+        approval_required_command_segments = from_union([from_none, lambda x: from_list(from_int, x)], obj.get("approvalRequiredCommandSegments"))
         return PermissionAssistedApproval(
             recommendation=recommendation,
             evaluation=evaluation,
@@ -1737,6 +1741,7 @@ class PermissionAssistedApproval:
             failure_reason=failure_reason,
             model=model,
             reason=reason,
+            approval_required_command_segments=approval_required_command_segments,
         )
 
     def to_dict(self) -> dict:
@@ -1752,6 +1757,8 @@ class PermissionAssistedApproval:
             result["model"] = from_union([from_none, from_str], self.model)
         if self.reason is not None:
             result["reason"] = from_union([from_none, from_str], self.reason)
+        if self.approval_required_command_segments is not None:
+            result["approvalRequiredCommandSegments"] = from_union([from_none, lambda x: from_list(to_int, x)], self.approval_required_command_segments)
         return result
 
 
@@ -6411,6 +6418,8 @@ class ExternalToolRequestedData:
     tool_call_id: str
     tool_name: str
     arguments: Any = None
+    # Internal: this field is an internal SDK API and is not part of the public surface.
+    _has_handler: bool | None = field(default=None, kw_only=True)
     provider_id: str | None = None
     traceparent: str | None = None
     tracestate: str | None = None
@@ -6424,6 +6433,7 @@ class ExternalToolRequestedData:
         tool_call_id = from_str(obj.get("toolCallId"))
         tool_name = from_str(obj.get("toolName"))
         arguments = obj.get("arguments")
+        _has_handler = from_union([from_none, from_bool], obj.get("hasHandler"))
         provider_id = from_union([from_none, from_str], obj.get("providerId"))
         traceparent = from_union([from_none, from_str], obj.get("traceparent"))
         tracestate = from_union([from_none, from_str], obj.get("tracestate"))
@@ -6434,6 +6444,7 @@ class ExternalToolRequestedData:
             tool_call_id=tool_call_id,
             tool_name=tool_name,
             arguments=arguments,
+            _has_handler=_has_handler,
             provider_id=provider_id,
             traceparent=traceparent,
             tracestate=tracestate,
@@ -6448,6 +6459,8 @@ class ExternalToolRequestedData:
         result["toolName"] = from_str(self.tool_name)
         if self.arguments is not None:
             result["arguments"] = self.arguments
+        if self._has_handler is not None:
+            result["hasHandler"] = from_union([from_none, from_bool], self._has_handler)
         if self.provider_id is not None:
             result["providerId"] = from_union([from_none, from_str], self.provider_id)
         if self.traceparent is not None:
@@ -8693,6 +8706,7 @@ class PermissionPromptRequestUrl:
     request_sandbox_bypass: bool | None = None
     request_sandbox_bypass_reason: str | None = None
     tool_call_id: str | None = None
+    parent_domain_pattern: str | None = None
 
     @staticmethod
     def from_dict(obj: Any) -> "PermissionPromptRequestUrl":
@@ -8705,6 +8719,7 @@ class PermissionPromptRequestUrl:
         request_sandbox_bypass = from_union([from_none, from_bool], obj.get("requestSandboxBypass"))
         request_sandbox_bypass_reason = from_union([from_none, from_str], obj.get("requestSandboxBypassReason"))
         tool_call_id = from_union([from_none, from_str], obj.get("toolCallId"))
+        parent_domain_pattern = from_union([from_none, from_str], obj.get("parentDomainPattern"))
         return PermissionPromptRequestUrl(
             intention=intention,
             url=url,
@@ -8714,6 +8729,7 @@ class PermissionPromptRequestUrl:
             request_sandbox_bypass=request_sandbox_bypass,
             request_sandbox_bypass_reason=request_sandbox_bypass_reason,
             tool_call_id=tool_call_id,
+            parent_domain_pattern=parent_domain_pattern,
         )
 
     def to_dict(self) -> dict:
@@ -8733,6 +8749,8 @@ class PermissionPromptRequestUrl:
             result["requestSandboxBypassReason"] = from_union([from_none, from_str], self.request_sandbox_bypass_reason)
         if self.tool_call_id is not None:
             result["toolCallId"] = from_union([from_none, from_str], self.tool_call_id)
+        if self.parent_domain_pattern is not None:
+            result["parentDomainPattern"] = from_union([from_none, from_str], self.parent_domain_pattern)
         return result
 
 
@@ -9771,6 +9789,7 @@ class PermissionRequestedData:
     owner_agent_id: str | None = None
     owner_session_id: str | None = None
     permission_mode: PermissionMode | None = None
+    program_tool_call_id: str | None = field(default=None, kw_only=True)
     prompt_request: PermissionPromptRequest | None = None
     recovery_episode_id: str | None = None
     resolved_by_hook: bool | None = None
@@ -9787,6 +9806,7 @@ class PermissionRequestedData:
         owner_agent_id = from_union([from_none, from_str], obj.get("ownerAgentId"))
         owner_session_id = from_union([from_none, from_str], obj.get("ownerSessionId"))
         permission_mode = from_union([from_none, lambda x: parse_enum(PermissionMode, x)], obj.get("permissionMode"))
+        program_tool_call_id = from_union([from_none, from_str], obj.get("programToolCallId"))
         prompt_request = from_union([from_none, _load_PermissionPromptRequest], obj.get("promptRequest"))
         recovery_episode_id = from_union([from_none, from_str], obj.get("recoveryEpisodeId"))
         resolved_by_hook = from_union([from_none, from_bool], obj.get("resolvedByHook"))
@@ -9800,6 +9820,7 @@ class PermissionRequestedData:
             owner_agent_id=owner_agent_id,
             owner_session_id=owner_session_id,
             permission_mode=permission_mode,
+            program_tool_call_id=program_tool_call_id,
             prompt_request=prompt_request,
             recovery_episode_id=recovery_episode_id,
             resolved_by_hook=resolved_by_hook,
@@ -9822,6 +9843,8 @@ class PermissionRequestedData:
             result["ownerSessionId"] = from_union([from_none, from_str], self.owner_session_id)
         if self.permission_mode is not None:
             result["permissionMode"] = from_union([from_none, lambda x: to_enum(PermissionMode, x)], self.permission_mode)
+        if self.program_tool_call_id is not None:
+            result["programToolCallId"] = from_union([from_none, from_str], self.program_tool_call_id)
         if self.prompt_request is not None:
             result["promptRequest"] = from_union([from_none, lambda x: x.to_dict()], self.prompt_request)
         if self.recovery_episode_id is not None:
@@ -10982,6 +11005,51 @@ class SessionCompactionStartData:
 
 
 @dataclass
+class SessionCompactionSummarizedData:
+    "A background compaction's summarizer settled; its summary is not applied to the conversation yet. The matching session.compaction_complete follows once it is applied (or discarded) and remains authoritative."
+    apply_pending: bool
+    compaction_attempt_id: str
+    execution: str
+    outcome: str
+    success: bool
+    error: str | None = None
+    failure_reason: str | None = None
+
+    @staticmethod
+    def from_dict(obj: Any) -> "SessionCompactionSummarizedData":
+        assert isinstance(obj, dict)
+        apply_pending = from_bool(obj.get("applyPending"))
+        compaction_attempt_id = from_str(obj.get("compactionAttemptId"))
+        execution = from_str(obj.get("execution"))
+        outcome = from_str(obj.get("outcome"))
+        success = from_bool(obj.get("success"))
+        error = from_union([from_none, from_str], obj.get("error"))
+        failure_reason = from_union([from_none, from_str], obj.get("failureReason"))
+        return SessionCompactionSummarizedData(
+            apply_pending=apply_pending,
+            compaction_attempt_id=compaction_attempt_id,
+            execution=execution,
+            outcome=outcome,
+            success=success,
+            error=error,
+            failure_reason=failure_reason,
+        )
+
+    def to_dict(self) -> dict:
+        result: dict = {}
+        result["applyPending"] = from_bool(self.apply_pending)
+        result["compactionAttemptId"] = from_str(self.compaction_attempt_id)
+        result["execution"] = from_str(self.execution)
+        result["outcome"] = from_str(self.outcome)
+        result["success"] = from_bool(self.success)
+        if self.error is not None:
+            result["error"] = from_union([from_none, from_str], self.error)
+        if self.failure_reason is not None:
+            result["failureReason"] = from_union([from_none, from_str], self.failure_reason)
+        return result
+
+
+@dataclass
 class SessionContextChangedData:
     "Working directory and git context at session start"
     cwd: str
@@ -11042,7 +11110,7 @@ class SessionContextChangedData:
 
 @dataclass
 class SessionContextClearedData:
-    "Context-cleared details emitted when the host clears the conversation (the session.history.clearContext RPC / Session.clearContextMessages)"
+    "Context-cleared details emitted when the conversation is cleared (the session.history.clearContext RPC, or the runtime starting a fresh context window)"
     messages_cleared: int
     initial_message: str | None = None
 
@@ -11130,7 +11198,7 @@ class SessionCustomNotificationData:
 
 @dataclass
 class SessionErrorData:
-    "Error details for timeline display including message and optional diagnostic information"
+    "Session error details for timeline display. Request-correlated completion RPC failures carry the terminal error's same fields in their error data, with stack and completionEventId."
     error_type: str
     message: str
     eligible_for_auto_switch: bool | None = None
@@ -11144,6 +11212,7 @@ class SessionErrorData:
     stack: str | None = None
     status_code: int | None = None
     url: str | None = None
+    provider_error_code: str | None = None
 
     @staticmethod
     def from_dict(obj: Any) -> "SessionErrorData":
@@ -11161,6 +11230,7 @@ class SessionErrorData:
         stack = from_union([from_none, from_str], obj.get("stack"))
         status_code = from_union([from_none, from_int], obj.get("statusCode"))
         url = from_union([from_none, from_str], obj.get("url"))
+        provider_error_code = from_union([from_none, from_str], obj.get("providerErrorCode"))
         return SessionErrorData(
             error_type=error_type,
             message=message,
@@ -11175,6 +11245,7 @@ class SessionErrorData:
             stack=stack,
             status_code=status_code,
             url=url,
+            provider_error_code=provider_error_code,
         )
 
     def to_dict(self) -> dict:
@@ -11203,6 +11274,8 @@ class SessionErrorData:
             result["statusCode"] = from_union([from_none, to_int], self.status_code)
         if self.url is not None:
             result["url"] = from_union([from_none, from_str], self.url)
+        if self.provider_error_code is not None:
+            result["providerErrorCode"] = from_union([from_none, from_str], self.provider_error_code)
         return result
 
 
@@ -14334,6 +14407,8 @@ class ToolExecutionCompleteData:
     model: str | None = None
     # Deprecated: this field is deprecated.
     parent_tool_call_id: str | None = None
+    # Experimental: this field is part of an experimental API and may change or be removed.
+    program_tool_call_id: str | None = field(default=None, kw_only=True)
     result: ToolExecutionCompleteResult | None = None
     rte: bool | None = None
     sandboxed: bool | None = None
@@ -14359,6 +14434,7 @@ class ToolExecutionCompleteData:
         mcp_meta = obj.get("mcpMeta")
         model = from_union([from_none, from_str], obj.get("model"))
         parent_tool_call_id = from_union([from_none, from_str], obj.get("parentToolCallId"))
+        program_tool_call_id = from_union([from_none, from_str], obj.get("programToolCallId"))
         result = from_union([from_none, ToolExecutionCompleteResult.from_dict], obj.get("result"))
         rte = from_union([from_none, from_bool], obj.get("rte"))
         sandboxed = from_union([from_none, from_bool], obj.get("sandboxed"))
@@ -14379,6 +14455,7 @@ class ToolExecutionCompleteData:
             mcp_meta=mcp_meta,
             model=model,
             parent_tool_call_id=parent_tool_call_id,
+            program_tool_call_id=program_tool_call_id,
             result=result,
             rte=rte,
             sandboxed=sandboxed,
@@ -14411,6 +14488,8 @@ class ToolExecutionCompleteData:
             result["model"] = from_union([from_none, from_str], self.model)
         if self.parent_tool_call_id is not None:
             result["parentToolCallId"] = from_union([from_none, from_str], self.parent_tool_call_id)
+        if self.program_tool_call_id is not None:
+            result["programToolCallId"] = from_union([from_none, from_str], self.program_tool_call_id)
         if self.result is not None:
             result["result"] = from_union([from_none, lambda x: to_class(ToolExecutionCompleteResult, x)], self.result)
         if self.rte is not None:
@@ -14853,6 +14932,8 @@ class ToolExecutionStartData:
     model: str | None = None
     # Deprecated: this field is deprecated.
     parent_tool_call_id: str | None = None
+    # Experimental: this field is part of an experimental API and may change or be removed.
+    program_tool_call_id: str | None = field(default=None, kw_only=True)
     rte: bool | None = None
     shell_tool_info: ToolExecutionStartShellToolInfo | None = None
     tool_description: ToolExecutionStartToolDescription | None = None
@@ -14876,6 +14957,7 @@ class ToolExecutionStartData:
         mcp_transport = from_union([from_none, lambda x: parse_enum(McpServerTransport, x)], obj.get("mcpTransport"))
         model = from_union([from_none, from_str], obj.get("model"))
         parent_tool_call_id = from_union([from_none, from_str], obj.get("parentToolCallId"))
+        program_tool_call_id = from_union([from_none, from_str], obj.get("programToolCallId"))
         rte = from_union([from_none, from_bool], obj.get("rte"))
         shell_tool_info = from_union([from_none, ToolExecutionStartShellToolInfo.from_dict], obj.get("shellToolInfo"))
         tool_description = from_union([from_none, ToolExecutionStartToolDescription.from_dict], obj.get("toolDescription"))
@@ -14896,6 +14978,7 @@ class ToolExecutionStartData:
             mcp_transport=mcp_transport,
             model=model,
             parent_tool_call_id=parent_tool_call_id,
+            program_tool_call_id=program_tool_call_id,
             rte=rte,
             shell_tool_info=shell_tool_info,
             tool_description=tool_description,
@@ -14929,6 +15012,8 @@ class ToolExecutionStartData:
             result["model"] = from_union([from_none, from_str], self.model)
         if self.parent_tool_call_id is not None:
             result["parentToolCallId"] = from_union([from_none, from_str], self.parent_tool_call_id)
+        if self.program_tool_call_id is not None:
+            result["programToolCallId"] = from_union([from_none, from_str], self.program_tool_call_id)
         if self.rte is not None:
             result["rte"] = from_union([from_none, from_bool], self.rte)
         if self.shell_tool_info is not None:
@@ -18014,7 +18099,7 @@ class WorkspaceFileChangedOperation(Enum):
     UPDATE = "update"
 
 
-SessionEventData = SessionJournalLinkData | SessionStartData | SessionResumeData | SessionRemoteSteerableChangedData | SessionErrorData | SessionIdleData | SessionAutopilotStoppedData | SessionTitleChangedData | SessionScheduleCreatedData | SessionScheduleCancelledData | SessionScheduleRearmedData | SessionAutopilotObjectiveChangedData | SessionInfoData | SessionIndexedSearchData | SessionWarningData | SessionModelChangeData | SessionModelDeselectedData | SessionAutoTierRecommendationData | SessionAutoTierSwitchFailedData | SessionModeChangedData | SessionModeNoticeDeliveredData | SessionSessionLimitsChangedData | SessionPermissionsChangedData | SessionPlanChangedData | SessionTodosChangedData | SessionWorkspaceFileChangedData | SessionHandoffData | SessionTruncationData | SessionSnapshotRewindData | SessionShutdownData | SessionUsageCheckpointData | SessionQuotaObservationData | SessionContextChangedData | SessionUsageInfoData | SessionContextClearedData | SessionCompactionStartData | SessionCompactionCompleteData | SessionTaskCompleteData | SessionCompletionReceiptData | SessionFusionRouteStartedData | SessionFusionRouteFailedData | SessionFusionResolvedData | SessionFusionCompletedData | SessionPermissionRecoveryData | UserMessageData | PendingMessagesModifiedData | AssistantTurnStartData | AssistantTurnRetryData | AgentInterruptedData | AssistantIntentData | AssistantFusionPhaseStartedData | AssistantFusionPhaseActivityData | AssistantFusionPhaseCompletedData | AssistantFusionPhaseFailedData | AssistantServerToolProgressData | AssistantReasoningData | AssistantReasoningDeltaData | AssistantToolCallDeltaData | AssistantStreamingDeltaData | AssistantMessageData | AssistantMessageStartData | AssistantMessageDeltaData | AssistantTurnEndData | AssistantIdleData | AssistantUsageData | PromptCacheBreakData | ModelCallFailureData | ModelCallFinalResultData | ModelCallFinishedData | ModelCallStartData | AbortData | ToolUserRequestedData | ToolExecutionStartData | ToolExecutionPartialResultData | ToolShellOutputData | ToolExecutionProgressData | ToolExecutionCompleteData | ToolSearchActivatedData | SkillInvokedData | SkillInvokedRefData | SkillContextDeliveredData | SkillContextDeliveredRefData | SandboxDecisionData | SubagentStartedData | SubagentConfiguredData | SubagentCompletedData | SubagentFailedData | SubagentSelectedData | SubagentDeselectedData | HookStartData | HookEndData | HookProgressData | SessionBinaryAssetData | SystemMessageData | InstructionUpdateData | SystemNotificationData | PermissionRequestedData | PermissionCompletedData | PermissionCarriedForwardData | PermissionMessageAuthorizationData | PermissionMessageAuthorizationReadData | PermissionMessageAuthorizationDegradedData | PermissionAssentDetectedData | PermissionContextualAuthorizationData | UserInputRequestedData | UserInputCompletedData | ElicitationRequestedData | ElicitationCompletedData | SamplingRequestedData | SamplingCompletedData | McpOauthRequiredData | McpOauthCompletedData | McpOauthRecoveryCompletedData | McpHeadersRefreshRequiredData | McpHeadersRefreshCompletedData | SessionCustomNotificationData | UiEphemeralQueryData | ExternalToolRequestedData | ExternalToolCompletedData | CommandQueuedData | CommandExecuteData | CommandCompletedData | AutoModeSwitchRequestedData | AutoModeSwitchCompletedData | AutoModeRecoveryConsentRequestedData | AutoModeRecoveryConsentCompletedData | AutoModeRecoveryOutcomeData | SessionLimitsExhaustedRequestedData | SessionLimitsExhaustedCompletedData | SessionAutoModeResolvedData | SessionManagedPluginProgressData | SessionManagedSettingsResolvedData | SessionManagedSettingsEnforcedData | CommandsChangedData | CapabilitiesChangedData | ExitPlanModeRequestedData | ExitPlanModeCompletedData | HumanResponseRecordedData | SessionToolsUpdatedData | SessionBackgroundTasksChangedData | WorkflowRunUpdatedData | WorkflowRunStartedData | WorkflowRunSettledData | SessionSkillsLoadedData | SessionCustomAgentsUpdatedData | SessionMcpServersLoadedData | SessionMcpServerStatusChangedData | SessionMcpServerToolsLoadedData | SessionMcpServerRemovedData | SessionMcpServerNeedsReconnectData | McpToolsListChangedData | McpResourcesListChangedData | McpPromptsListChangedData | SessionExtensionsLoadedData | SessionCanvasOpenedData | SessionCanvasRegistryChangedData | SessionCanvasClosedData | SessionCanvasUnavailableData | SessionCanvasRecordedData | SessionCanvasRemovedData | SessionExtensionsAttachmentsPushedData | McpAppToolCallCompleteData | RawSessionEventData | Data
+SessionEventData = SessionJournalLinkData | SessionStartData | SessionResumeData | SessionRemoteSteerableChangedData | SessionErrorData | SessionIdleData | SessionAutopilotStoppedData | SessionTitleChangedData | SessionScheduleCreatedData | SessionScheduleCancelledData | SessionScheduleRearmedData | SessionAutopilotObjectiveChangedData | SessionInfoData | SessionIndexedSearchData | SessionWarningData | SessionModelChangeData | SessionModelDeselectedData | SessionAutoTierRecommendationData | SessionAutoTierSwitchFailedData | SessionModeChangedData | SessionModeNoticeDeliveredData | SessionSessionLimitsChangedData | SessionPermissionsChangedData | SessionPlanChangedData | SessionTodosChangedData | SessionWorkspaceFileChangedData | SessionHandoffData | SessionTruncationData | SessionSnapshotRewindData | SessionShutdownData | SessionUsageCheckpointData | SessionQuotaObservationData | SessionContextChangedData | SessionUsageInfoData | SessionContextClearedData | SessionCompactionStartData | SessionCompactionSummarizedData | SessionCompactionCompleteData | SessionTaskCompleteData | SessionCompletionReceiptData | SessionFusionRouteStartedData | SessionFusionRouteFailedData | SessionFusionResolvedData | SessionFusionCompletedData | SessionPermissionRecoveryData | UserMessageData | PendingMessagesModifiedData | AssistantTurnStartData | AssistantTurnRetryData | AgentInterruptedData | AssistantIntentData | AssistantFusionPhaseStartedData | AssistantFusionPhaseActivityData | AssistantFusionPhaseCompletedData | AssistantFusionPhaseFailedData | AssistantServerToolProgressData | AssistantReasoningData | AssistantReasoningDeltaData | AssistantToolCallDeltaData | AssistantStreamingDeltaData | AssistantMessageData | AssistantMessageStartData | AssistantMessageDeltaData | AssistantTurnEndData | AssistantIdleData | AssistantUsageData | PromptCacheBreakData | ModelCallFailureData | ModelCallFinalResultData | ModelCallFinishedData | ModelCallStartData | AbortData | ToolUserRequestedData | ToolExecutionStartData | ToolExecutionPartialResultData | ToolShellOutputData | ToolExecutionProgressData | ToolExecutionCompleteData | ToolSearchActivatedData | SkillInvokedData | SkillInvokedRefData | SkillContextDeliveredData | SkillContextDeliveredRefData | SandboxDecisionData | SubagentStartedData | SubagentConfiguredData | SubagentCompletedData | SubagentFailedData | SubagentSelectedData | SubagentDeselectedData | HookStartData | HookEndData | HookProgressData | SessionBinaryAssetData | SystemMessageData | InstructionUpdateData | SystemNotificationData | PermissionRequestedData | PermissionCompletedData | PermissionCarriedForwardData | PermissionMessageAuthorizationData | PermissionMessageAuthorizationReadData | PermissionMessageAuthorizationDegradedData | PermissionAssentDetectedData | PermissionContextualAuthorizationData | UserInputRequestedData | UserInputCompletedData | ElicitationRequestedData | ElicitationCompletedData | SamplingRequestedData | SamplingCompletedData | McpOauthRequiredData | McpOauthCompletedData | McpOauthRecoveryCompletedData | McpHeadersRefreshRequiredData | McpHeadersRefreshCompletedData | SessionCustomNotificationData | UiEphemeralQueryData | ExternalToolRequestedData | ExternalToolCompletedData | CommandQueuedData | CommandExecuteData | CommandCompletedData | AutoModeSwitchRequestedData | AutoModeSwitchCompletedData | AutoModeRecoveryConsentRequestedData | AutoModeRecoveryConsentCompletedData | AutoModeRecoveryOutcomeData | SessionLimitsExhaustedRequestedData | SessionLimitsExhaustedCompletedData | SessionAutoModeResolvedData | SessionManagedPluginProgressData | SessionManagedSettingsResolvedData | SessionManagedSettingsEnforcedData | CommandsChangedData | CapabilitiesChangedData | ExitPlanModeRequestedData | ExitPlanModeCompletedData | HumanResponseRecordedData | SessionToolsUpdatedData | SessionBackgroundTasksChangedData | WorkflowRunUpdatedData | WorkflowRunStartedData | WorkflowRunSettledData | SessionSkillsLoadedData | SessionCustomAgentsUpdatedData | SessionMcpServersLoadedData | SessionMcpServerStatusChangedData | SessionMcpServerToolsLoadedData | SessionMcpServerRemovedData | SessionMcpServerNeedsReconnectData | McpToolsListChangedData | McpResourcesListChangedData | McpPromptsListChangedData | SessionExtensionsLoadedData | SessionCanvasOpenedData | SessionCanvasRegistryChangedData | SessionCanvasClosedData | SessionCanvasUnavailableData | SessionCanvasRecordedData | SessionCanvasRemovedData | SessionExtensionsAttachmentsPushedData | McpAppToolCallCompleteData | RawSessionEventData | Data
 
 
 @dataclass
@@ -18078,6 +18163,7 @@ class SessionEvent:
             case SessionEventType.SESSION_USAGE_INFO: data = SessionUsageInfoData.from_dict(data_obj)
             case SessionEventType.SESSION_CONTEXT_CLEARED: data = SessionContextClearedData.from_dict(data_obj)
             case SessionEventType.SESSION_COMPACTION_START: data = SessionCompactionStartData.from_dict(data_obj)
+            case SessionEventType.SESSION_COMPACTION_SUMMARIZED: data = SessionCompactionSummarizedData.from_dict(data_obj)
             case SessionEventType.SESSION_COMPACTION_COMPLETE: data = SessionCompactionCompleteData.from_dict(data_obj)
             case SessionEventType.SESSION_TASK_COMPLETE: data = SessionTaskCompleteData.from_dict(data_obj)
             case SessionEventType.SESSION_COMPLETION_RECEIPT: data = SessionCompletionReceiptData.from_dict(data_obj)
@@ -18593,6 +18679,7 @@ __all__ = [
     "SessionCanvasUnavailableData",
     "SessionCompactionCompleteData",
     "SessionCompactionStartData",
+    "SessionCompactionSummarizedData",
     "SessionCompletionReceiptData",
     "SessionContextChangedData",
     "SessionContextClearedData",

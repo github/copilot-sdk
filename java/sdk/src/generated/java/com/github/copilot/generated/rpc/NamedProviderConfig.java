@@ -21,6 +21,7 @@ import javax.annotation.processing.Generated;
 @javax.annotation.processing.Generated("copilot-sdk-codegen")
 @JsonInclude(JsonInclude.Include.NON_NULL)
 @JsonIgnoreProperties(ignoreUnknown = true)
+@com.fasterxml.jackson.databind.annotation.JsonDeserialize(using = NamedProviderConfig.$NullableDeserializer.class)
 public record NamedProviderConfig(
     /** Unique provider name used to qualify model selection IDs. */
     @JsonProperty("name") String name,
@@ -32,6 +33,8 @@ public record NamedProviderConfig(
     @JsonProperty("transport") ProviderConfigTransport transport,
     /** Base URL for provider API requests. */
     @JsonProperty("baseUrl") String baseUrl,
+    /** Local model runtime options for a WinML provider whose base URL is its GGUF path. */
+    @JsonProperty("localModel") Object localModel,
     /** Static API key used to authenticate provider requests. */
     @JsonProperty("apiKey") String apiKey,
     /** Static bearer token used to authenticate provider requests. */
@@ -43,7 +46,8 @@ public record NamedProviderConfig(
     /** The product serving the provider's models, reported in telemetry as `model_provider`. Only affects telemetry. */
     @JsonProperty("modelProvider") ProviderConfigModelProvider modelProvider,
     /** Whether the host supplies bearer tokens dynamically. */
-    @JsonProperty("hasBearerTokenProvider") Boolean hasBearerTokenProvider
+    @JsonProperty("hasBearerTokenProvider") Boolean hasBearerTokenProvider,
+    @com.fasterxml.jackson.annotation.JsonIgnore java.util.Set<String> $explicitNulls
 ) {
 
     /**
@@ -51,7 +55,16 @@ public record NamedProviderConfig(
      * @deprecated Use {@link #builder()} for named construction.
      */
     @Deprecated(since = "2.0.0", forRemoval = false)
-    public NamedProviderConfig {}
+    public NamedProviderConfig { $explicitNulls = $explicitNulls == null ? java.util.Set.of() : java.util.Set.copyOf($explicitNulls); }
+
+    /**
+     * Creates a record with legacy null-as-omission semantics.
+     * @deprecated Use {@link #builder()} for named construction.
+     */
+    @Deprecated(since = "2.0.0", forRemoval = false)
+    public NamedProviderConfig(String name, ProviderConfigType type, ProviderConfigWireApi wireApi, ProviderConfigTransport transport, String baseUrl, Object localModel, String apiKey, String bearerToken, ProviderConfigAzure azure, Map<String, String> headers, ProviderConfigModelProvider modelProvider, Boolean hasBearerTokenProvider) {
+        this(name, type, wireApi, transport, baseUrl, localModel, apiKey, bearerToken, azure, headers, modelProvider, hasBearerTokenProvider, java.util.Set.of());
+    }
 
     /**
      * Returns a named builder.
@@ -71,6 +84,8 @@ public record NamedProviderConfig(
         private ProviderConfigWireApi wireApi;
         private ProviderConfigTransport transport;
         private String baseUrl;
+        private Object localModel;
+        private boolean $presence5;
         private String apiKey;
         private String bearerToken;
         private ProviderConfigAzure azure;
@@ -130,6 +145,18 @@ public record NamedProviderConfig(
          */
         public Builder baseUrl(String value) {
             this.baseUrl = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code localModel} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder localModel(Object value) {
+            this.localModel = value;
+            this.$presence5 = true;
             return this;
         }
 
@@ -208,7 +235,68 @@ public record NamedProviderConfig(
         public NamedProviderConfig build() {
             if (name == null) throw new IllegalStateException("Missing required property: name");
             if (baseUrl == null) throw new IllegalStateException("Missing required property: baseUrl");
-            return new NamedProviderConfig(name, type, wireApi, transport, baseUrl, apiKey, bearerToken, azure, headers, modelProvider, hasBearerTokenProvider);
+            java.util.Set<String> $explicitNulls = new java.util.LinkedHashSet<>();
+            if ($presence5 && localModel == null) $explicitNulls.add("localModel");
+            return new NamedProviderConfig(name, type, wireApi, transport, baseUrl, localModel, apiKey, bearerToken, azure, headers, modelProvider, hasBearerTokenProvider, $explicitNulls);
         }
+    }
+
+    @com.fasterxml.jackson.annotation.JsonAnyGetter
+    @JsonInclude(value = JsonInclude.Include.ALWAYS, content = JsonInclude.Include.ALWAYS)
+    public java.util.Map<String, Object> $nullableProperties() {
+        java.util.Map<String, Object> values = new java.util.LinkedHashMap<>();
+        if ($explicitNulls.contains("localModel") && localModel == null) values.put("localModel", null);
+        return values;
+    }
+
+    public static final class $NullableDeserializer extends com.fasterxml.jackson.databind.JsonDeserializer<NamedProviderConfig> {
+        @Override
+        public NamedProviderConfig deserialize(com.fasterxml.jackson.core.JsonParser parser,
+                com.fasterxml.jackson.databind.DeserializationContext context) throws java.io.IOException {
+            com.fasterxml.jackson.databind.JsonNode tree = context.readTree(parser);
+            if (!tree.isObject()) return context.reportInputMismatch(NamedProviderConfig.class, "Expected a JSON object");
+            java.util.Set<String> $explicitNulls = new java.util.LinkedHashSet<>();
+            if (tree.has("localModel") && tree.get("localModel").isNull()) $explicitNulls.add("localModel");
+            return new NamedProviderConfig(readProperty(context, tree, "name", new com.fasterxml.jackson.core.type.TypeReference<String>() {}), readProperty(context, tree, "type", new com.fasterxml.jackson.core.type.TypeReference<ProviderConfigType>() {}), readProperty(context, tree, "wireApi", new com.fasterxml.jackson.core.type.TypeReference<ProviderConfigWireApi>() {}), readProperty(context, tree, "transport", new com.fasterxml.jackson.core.type.TypeReference<ProviderConfigTransport>() {}), readProperty(context, tree, "baseUrl", new com.fasterxml.jackson.core.type.TypeReference<String>() {}), readProperty(context, tree, "localModel", new com.fasterxml.jackson.core.type.TypeReference<Object>() {}), readProperty(context, tree, "apiKey", new com.fasterxml.jackson.core.type.TypeReference<String>() {}), readProperty(context, tree, "bearerToken", new com.fasterxml.jackson.core.type.TypeReference<String>() {}), readProperty(context, tree, "azure", new com.fasterxml.jackson.core.type.TypeReference<ProviderConfigAzure>() {}), readProperty(context, tree, "headers", new com.fasterxml.jackson.core.type.TypeReference<Map<String, String>>() {}), readProperty(context, tree, "modelProvider", new com.fasterxml.jackson.core.type.TypeReference<ProviderConfigModelProvider>() {}), readProperty(context, tree, "hasBearerTokenProvider", new com.fasterxml.jackson.core.type.TypeReference<Boolean>() {}), $explicitNulls);
+        }
+
+        private static <T> T readProperty(com.fasterxml.jackson.databind.DeserializationContext context,
+                com.fasterxml.jackson.databind.JsonNode tree, String name,
+                com.fasterxml.jackson.core.type.TypeReference<T> type) throws java.io.IOException {
+            if (!tree.has(name)) return null;
+            return context.readTreeAsValue(tree.get(name), context.getTypeFactory().constructType(type));
+        }
+    }
+
+    /**
+     * Creates a record with the components it had before later optional fields were added.
+     * @deprecated Use named construction via {@link #builder()}.
+     * @param name Unique provider name used to qualify model selection IDs.
+     * @param type Provider protocol family.
+     * @param wireApi Wire API used to communicate with the provider.
+     * @param transport Transport used to communicate with the provider.
+     * @param baseUrl Base URL for provider API requests.
+     * @param apiKey Static API key used to authenticate provider requests.
+     * @param bearerToken Static bearer token used to authenticate provider requests.
+     * @param azure Azure authentication configuration for the provider.
+     * @param headers Additional HTTP headers included with provider requests.
+     * @param modelProvider The product serving the provider's models, reported in telemetry as `model_provider`. Only affects telemetry.
+     * @param hasBearerTokenProvider Whether the host supplies bearer tokens dynamically.
+     */
+    @Deprecated(since = "2.0.0", forRemoval = false)
+    public NamedProviderConfig(
+        String name,
+        ProviderConfigType type,
+        ProviderConfigWireApi wireApi,
+        ProviderConfigTransport transport,
+        String baseUrl,
+        String apiKey,
+        String bearerToken,
+        ProviderConfigAzure azure,
+        Map<String, String> headers,
+        ProviderConfigModelProvider modelProvider,
+        Boolean hasBearerTokenProvider
+    ) {
+        this(name, type, wireApi, transport, baseUrl, null, apiKey, bearerToken, azure, headers, modelProvider, hasBearerTokenProvider);
     }
 }

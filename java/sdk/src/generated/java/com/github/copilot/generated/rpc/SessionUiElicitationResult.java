@@ -28,6 +28,7 @@ public record SessionUiElicitationResult(
     /** The user's response: accept (submitted), decline (rejected), or cancel (dismissed) */
     @JsonProperty("action") UIElicitationResponseAction action,
     /** The form values submitted by the user (present when action is 'accept') */
+    @JsonInclude(value = JsonInclude.Include.NON_NULL, content = JsonInclude.Include.ALWAYS)
     @JsonProperty("content") Map<String, Object> content,
     /** MCP response metadata. */
     @JsonProperty("_meta") Map<String, Object> meta

@@ -33,6 +33,30 @@ public class MultiProviderConfigTest {
     private static final ObjectMapper MAPPER = JsonRpcClient.getObjectMapper();
 
     @Test
+    void testLocalModelConfigurationRoundTripsThroughPublicSessionTypes() throws Exception {
+        var provider = MAPPER.readTree("""
+                {"name":"local","type":"winml","baseUrl":"model.gguf",
+                 "localModel":{"device":"gpu","future":[1,true]}}
+                """);
+        var model = MAPPER.readTree("""
+                {"id":"model","provider":"local",
+                 "autoLocal":{"source":"azureml","future":[1,true]},
+                 "metadata":{"autoLocal":{"source":"azureml"},"future":[1,true]}}
+                """);
+        var decodedProvider = MAPPER.treeToValue(provider, NamedProviderConfig.class);
+        var decodedModel = MAPPER.treeToValue(model, ProviderModelConfig.class);
+        assertEquals(provider, MAPPER.valueToTree(decodedProvider));
+        assertEquals(model, MAPPER.valueToTree(decodedModel));
+        var create = new SessionConfig().setProviders(List.of(decodedProvider)).setModels(List.of(decodedModel));
+        var resume = new ResumeSessionConfig().setProviders(List.of(decodedProvider)).setModels(List.of(decodedModel));
+        for (var config : List.of(create, resume)) {
+            JsonNode wire = MAPPER.valueToTree(config);
+            assertEquals(provider, wire.path("providers").get(0));
+            assertEquals(model, wire.path("models").get(0));
+        }
+    }
+
+    @Test
     void testNamedProviderConfigDefaultsAreNull() {
         var provider = new NamedProviderConfig();
 

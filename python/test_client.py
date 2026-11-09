@@ -145,6 +145,54 @@ async def test_internal_test_options_override_only_owned_runtime(monkeypatch, tm
     assert _InternalTestOptions()._to_environment() == {}
 
 
+@pytest.mark.parametrize("transport", ["stdio", "inprocess"])
+@pytest.mark.parametrize("capture_content", [True, False])
+async def test_telemetry_configures_only_owned_runtime(
+    monkeypatch, tmp_path, transport, capture_content
+):
+    runtime = tmp_path / "copilot-runtime"
+    runtime.touch()
+    monkeypatch.setattr("copilot._cli_download.ensure_runtime_wrapper", lambda: str(runtime))
+    original = os.environ.copy()
+    telemetry: client_module.TelemetryConfig = {
+        "otlp_endpoint": "http://collector:4318",
+        "otlp_protocol": "http/protobuf",
+        "file_path": "/telemetry.jsonl",
+        "exporter_type": "file",
+        "source_name": "inprocess-sdk",
+        "capture_content": capture_content,
+    }
+    captured = Mock(return_value=Mock())
+    if transport == "inprocess":
+        monkeypatch.setattr(client_module.FfiRuntimeHost, "create", captured)
+        client = CopilotClient(connection=RuntimeConnection.for_inprocess(), telemetry=telemetry)
+        await client._start_inprocess_ffi()
+        environment = captured.call_args.kwargs["environment"]
+    else:
+        monkeypatch.setattr(client_module.subprocess, "Popen", captured)
+        client = CopilotClient(
+            connection=RuntimeConnection.for_stdio(path=str(runtime)), telemetry=telemetry
+        )
+        await client._start_cli_server()
+        environment = captured.call_args.kwargs["env"]
+    assert (
+        environment.items()
+        >= {
+            "COPILOT_OTEL_ENABLED": "true",
+            "OTEL_EXPORTER_OTLP_ENDPOINT": "http://collector:4318",
+            "OTEL_EXPORTER_OTLP_PROTOCOL": "http/protobuf",
+            "COPILOT_OTEL_FILE_EXPORTER_PATH": "/telemetry.jsonl",
+            "COPILOT_OTEL_EXPORTER_TYPE": "file",
+            "COPILOT_OTEL_SOURCE_NAME": "inprocess-sdk",
+            "OTEL_INSTRUMENTATION_GENAI_CAPTURE_CONTENT": "SPAN_ONLY"
+            if capture_content
+            else "NO_CONTENT",
+            "OTEL_INSTRUMENTATION_GENAI_CAPTURE_MESSAGE_CONTENT": str(capture_content).lower(),
+        }.items()
+    )
+    assert os.environ == original
+
+
 @pytest.mark.parametrize("transport", ["stdio", "tcp"])
 @pytest.mark.parametrize("source", ["downloaded", "explicit", "environment"])
 async def test_only_the_downloaded_runtime_is_started_as_the_executable(
@@ -2811,7 +2859,7 @@ class TestCreateSessionConfig:
             await client.force_stop()
 
     @pytest.mark.asyncio
-    async def test_create_and_resume_session_forward_tool_is_terminal(self):
+    async def test_create_and_resume_session_forward_tool_is_terminal_and_annotations(self):
         client = CopilotClient(connection=RuntimeConnection.for_stdio(path=CLI_PATH))
         await client.start()
         try:
@@ -2828,7 +2876,12 @@ class TestCreateSessionConfig:
                 return {}
 
             client._client.request = mock_request
-            tool = Tool(name="my_tool", description="a tool", is_terminal=True)
+            tool = Tool(
+                name="my_tool",
+                description="a tool",
+                is_terminal=True,
+                idempotent=True,
+            )
             plain_tool = Tool(name="plain_tool", description="a tool")
 
             session = await client.create_session(
@@ -2846,6 +2899,10 @@ class TestCreateSessionConfig:
             # Omitted when left at its default.
             assert "isTerminal" not in create_tools[1]
             assert captured["session.resume"]["tools"][0]["isTerminal"] is True
+            for key in ("idempotent",):
+                assert create_tools[0][key] is True
+                assert key not in create_tools[1]
+                assert captured["session.resume"]["tools"][0][key] is True
         finally:
             await client.force_stop()
 
@@ -3729,6 +3786,7 @@ class TestOverridesBuiltInTool:
             assert len(tool_defs) == 1
             assert tool_defs[0]["name"] == "grep"
             assert tool_defs[0]["overridesBuiltInTool"] is True
+            assert tool_defs[0]["hasHandler"] is True
         finally:
             await client.force_stop()
 
@@ -3764,6 +3822,7 @@ class TestOverridesBuiltInTool:
             tool_defs = captured["session.resume"]["tools"]
             assert len(tool_defs) == 1
             assert tool_defs[0]["overridesBuiltInTool"] is True
+            assert tool_defs[0]["hasHandler"] is True
         finally:
             await client.force_stop()
 

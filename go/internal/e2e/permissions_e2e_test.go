@@ -24,6 +24,7 @@ func TestPermissionsE2E(t *testing.T) {
 		ctx.ConfigureForTest(t)
 
 		var permissionRequests []copilot.PermissionRequest
+		var reviewResults []error
 		var mu sync.Mutex
 
 		onPermissionRequest := func(request copilot.PermissionRequest, invocation copilot.PermissionInvocation) (rpc.PermissionDecision, error) {
@@ -44,6 +45,17 @@ func TestPermissionsE2E(t *testing.T) {
 		if err != nil {
 			t.Fatalf("Failed to create session: %v", err)
 		}
+		unsubscribe := session.OnWithPermissionEnvelope(func(event copilot.SessionEvent) {
+			if data, ok := event.Data.(*copilot.PermissionRequestedDataWithEnvelope); ok {
+				_, err := session.RPC.Permissions.ManagedReviewRequired(t.Context(), &rpc.SessionPermissionsManagedReviewRequiredRequest{
+					Request: data.Envelope,
+				})
+				mu.Lock()
+				reviewResults = append(reviewResults, err)
+				mu.Unlock()
+			}
+		})
+		defer unsubscribe()
 
 		testFile := filepath.Join(ctx.WorkDir, "test.txt")
 		err = os.WriteFile(testFile, []byte("original content"), 0644)
@@ -59,6 +71,14 @@ func TestPermissionsE2E(t *testing.T) {
 		}
 
 		mu.Lock()
+		if len(reviewResults) == 0 {
+			t.Error("Expected a lossless permission event for managed review")
+		}
+		for _, err := range reviewResults {
+			if err != nil {
+				t.Errorf("Managed review rejected the event envelope: %v", err)
+			}
+		}
 		if len(permissionRequests) == 0 {
 			t.Error("Expected at least one permission request")
 		}

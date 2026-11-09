@@ -57,6 +57,7 @@ public record ToolResultExpanded(
     /** Optional UI resource produced by the tool. */
     @JsonProperty("uiResource") Object uiResource,
     /** Metadata propagated with the tool result, including information-flow labels. */
+    @JsonInclude(value = JsonInclude.Include.NON_NULL, content = JsonInclude.Include.ALWAYS)
     @JsonProperty("mcpMeta") Map<String, Object> mcpMeta,
     /** Structured result content in addition to the model-facing text. */
     @JsonProperty("structuredContent") Object structuredContent,

@@ -4305,7 +4305,7 @@ pub(crate) struct McpShouldExcludeGitHubToolsRequest {
     /// The session's tool denylist, when it set one. Omitted means the session constrains nothing this way.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub excluded_tools: Option<Vec<String>>,
-    /// How the allowlist and denylist combine when both are set. Omitted means the default every session gets, so a caller that never chose a precedence is answered as its sessions behave.
+    /// How the allowlist and denylist combine when both are set. Omitted uses the default excluded precedence; supply the session's explicit Update selection when present.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub tool_filter_precedence: Option<OptionsUpdateToolFilterPrecedence>,
 }

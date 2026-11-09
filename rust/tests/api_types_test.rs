@@ -5,9 +5,146 @@
 use github_copilot_sdk::AutoTier;
 use github_copilot_sdk::rpc::{
     AcceptedEnqueueCommandResult, ConnectorConnectResult, EnqueueCommandResult,
-    ModelSwitchAutoTierRequest, UnsupportedEnqueueCommandResult,
+    ModelSwitchAutoTierRequest, ProtocolExternalToolDefinition, SessionsOpenCreate,
+    SessionsOpenCreateKind, SessionsOpenResume, SessionsOpenResumeKind,
+    UnsupportedEnqueueCommandResult,
 };
 use github_copilot_sdk::session_events::RecommendedAutoTier;
+
+macro_rules! filesystem_callback_result {
+    ($name:ident, $result:ty) => {
+        #[test]
+        fn $name() {
+            for wire in [
+                serde_json::Value::Null,
+                serde_json::json!({ "code": "ENOENT", "message": "missing file" }),
+            ] {
+                let result: $result = serde_json::from_value(wire.clone())
+                    .expect("filesystem callback results must accept success and failure");
+                assert_eq!(serde_json::to_value(result).unwrap(), wire);
+            }
+        }
+    };
+}
+
+filesystem_callback_result!(
+    filesystem_write_file_result_accepts_null_success,
+    github_copilot_sdk::rpc::SessionFsWriteFileResult
+);
+filesystem_callback_result!(
+    filesystem_write_file_bytes_result_accepts_null_success,
+    github_copilot_sdk::rpc::SessionFsWriteFileBytesResult
+);
+filesystem_callback_result!(
+    filesystem_append_file_result_accepts_null_success,
+    github_copilot_sdk::rpc::SessionFsAppendFileResult
+);
+filesystem_callback_result!(
+    filesystem_mkdir_result_accepts_null_success,
+    github_copilot_sdk::rpc::SessionFsMkdirResult
+);
+filesystem_callback_result!(
+    filesystem_rm_result_accepts_null_success,
+    github_copilot_sdk::rpc::SessionFsRmResult
+);
+filesystem_callback_result!(
+    filesystem_rename_result_accepts_null_success,
+    github_copilot_sdk::rpc::SessionFsRenameResult
+);
+
+#[test]
+fn session_open_create_preserves_external_struct_literals() {
+    let request = SessionsOpenCreate {
+        kind: SessionsOpenCreateKind::Create,
+        ..Default::default()
+    };
+    assert_eq!(
+        serde_json::to_value(request).unwrap(),
+        serde_json::json!({"kind": "create"})
+    );
+    let explicit = SessionsOpenCreate {
+        emit_start: Some(false),
+        kind: SessionsOpenCreateKind::Create,
+        options: None,
+    };
+    assert_eq!(
+        serde_json::to_value(explicit).unwrap(),
+        serde_json::json!({"kind": "create", "emitStart": false})
+    );
+    let decoded: SessionsOpenCreate = serde_json::from_value(serde_json::json!({
+        "kind": "create", "hostConstructionToken": 123
+    }))
+    .unwrap();
+    assert_eq!(
+        serde_json::to_value(decoded).unwrap(),
+        serde_json::json!({"kind": "create"})
+    );
+}
+
+#[test]
+fn session_open_resume_preserves_external_struct_literals() {
+    let request = SessionsOpenResume {
+        kind: SessionsOpenResumeKind::Resume,
+        session_id: "resume-session".into(),
+        ..Default::default()
+    };
+    assert_eq!(
+        serde_json::to_value(request).unwrap(),
+        serde_json::json!({"kind": "resume", "sessionId": "resume-session"})
+    );
+    let explicit = SessionsOpenResume {
+        kind: SessionsOpenResumeKind::Resume,
+        options: None,
+        resume: Some(false),
+        session_id: "resume-session".into(),
+        suppress_resume_workspace_metadata_writeback: Some(true),
+    };
+    assert_eq!(
+        serde_json::to_value(explicit).unwrap(),
+        serde_json::json!({
+            "kind": "resume", "sessionId": "resume-session", "resume": false,
+            "suppressResumeWorkspaceMetadataWriteback": true
+        })
+    );
+    let decoded: SessionsOpenResume = serde_json::from_value(serde_json::json!({
+        "kind": "resume", "sessionId": "resume-session", "hostConstructionToken": 123
+    }))
+    .unwrap();
+    assert_eq!(
+        serde_json::to_value(decoded).unwrap(),
+        serde_json::json!({"kind": "resume", "sessionId": "resume-session"})
+    );
+}
+
+#[test]
+fn external_tool_definitions_preserve_public_struct_literals() {
+    let definition = ProtocolExternalToolDefinition {
+        defer: None,
+        description: "Description".to_owned(),
+        idempotent: None,
+        is_terminal: Some(true),
+        metadata: None,
+        name: "lookup".to_owned(),
+        namespace: None,
+        overrides_built_in_tool: None,
+        parameters: None,
+        skip_permission: None,
+        title: None,
+    };
+    let defaults = ProtocolExternalToolDefinition {
+        name: definition.name.clone(),
+        ..Default::default()
+    };
+    assert_eq!(defaults.name, definition.name);
+    assert_eq!(
+        serde_json::to_value(&definition).unwrap(),
+        serde_json::json!({
+            "description": "Description",
+            "name": "lookup",
+            "isTerminal": true
+        })
+    );
+}
 
 #[test]
 fn extensible_tier_unknown_literal_retains_its_provider_identity() {

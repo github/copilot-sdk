@@ -28,6 +28,7 @@ record UserSettingsLoadAndMergeRepoParams(
     /** Absolute path of the repository root whose settings to read. When this is the user's home directory, the Claude-compatible configuration is skipped, so a home-directory session does not inherit a personal config as if it were repository policy. */
     @JsonProperty("repoRoot") String repoRoot,
     /** The user's own settings, keyed by setting name. The repository layer is merged over this; a repository may only add to the collection settings it is allowed to influence, so a user setting it does not name survives unchanged. */
+    @JsonInclude(value = JsonInclude.Include.NON_NULL, content = JsonInclude.Include.ALWAYS)
     @JsonProperty("userSettings") Map<String, Object> userSettings
 ) {
 

@@ -24,6 +24,7 @@ import javax.annotation.processing.Generated;
 @com.fasterxml.jackson.databind.annotation.JsonDeserialize(using = UserSettingsLoadWithWarningResult.$NullableDeserializer.class)
 record UserSettingsLoadWithWarningResult(
     /** The stored user settings document, keyed by setting name, with each value carried verbatim. Empty when the file could not be read at all. */
+    @JsonInclude(value = JsonInclude.Include.NON_NULL, content = JsonInclude.Include.ALWAYS)
     @JsonProperty("settings") Map<String, Object> settings,
     /** Why part of the document was ignored, phrased for display to the user. Null when the document loaded cleanly. The settings that did load are still reported, so a consumer may surface this and continue rather than treat it as a failure. */
     @JsonProperty("warning") String warning,

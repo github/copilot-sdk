@@ -109,6 +109,7 @@ namespace GitHub.Copilot;
 [JsonDerivedType(typeof(SessionCanvasUnavailableEvent), "session.canvas.unavailable")]
 [JsonDerivedType(typeof(SessionCompactionCompleteEvent), "session.compaction_complete")]
 [JsonDerivedType(typeof(SessionCompactionStartEvent), "session.compaction_start")]
+[JsonDerivedType(typeof(SessionCompactionSummarizedEvent), "session.compaction_summarized")]
 [JsonDerivedType(typeof(SessionCompletionReceiptEvent), "session.completion_receipt")]
 [JsonDerivedType(typeof(SessionContextChangedEvent), "session.context_changed")]
 [JsonDerivedType(typeof(SessionContextClearedEvent), "session.context_cleared")]
@@ -558,6 +559,8 @@ internal sealed partial class SessionEventJsonConverter : JsonConverter<SessionE
                     return SessionEventsJsonContext.Default.AssistantFusionPhaseFailedEvent;
                 if (type.SequenceEqual("mcp.headers_refresh_completed"u8))
                     return SessionEventsJsonContext.Default.McpHeadersRefreshCompletedEvent;
+                if (type.SequenceEqual("session.compaction_summarized"u8))
+                    return SessionEventsJsonContext.Default.SessionCompactionSummarizedEvent;
                 if (type.SequenceEqual("session.custom_agents_updated"u8))
                     return SessionEventsJsonContext.Default.SessionCustomAgentsUpdatedEvent;
                 if (type.SequenceEqual("session.mode_notice_delivered"u8))
@@ -827,7 +830,7 @@ public sealed partial class SessionRemoteSteerableChangedEvent : SessionEvent
     public required SessionRemoteSteerableChangedData Data { get; set; }
 }
 
-/// <summary>Error details for timeline display including message and optional diagnostic information.</summary>
+/// <summary>Session error details for timeline display. Request-correlated completion RPC failures carry the terminal error's same fields in their error data, with stack and completionEventId.</summary>
 /// <remarks>Represents the <c>session.error</c> event.</remarks>
 public sealed partial class SessionErrorEvent : SessionEvent
 {
@@ -1220,7 +1223,7 @@ public sealed partial class SessionUsageInfoEvent : SessionEvent
     public required SessionUsageInfoData Data { get; set; }
 }
 
-/// <summary>Context-cleared details emitted when the host clears the conversation (the session.history.clearContext RPC / Session.clearContextMessages).</summary>
+/// <summary>Context-cleared details emitted when the conversation is cleared (the session.history.clearContext RPC, or the runtime starting a fresh context window).</summary>
 /// <remarks>Represents the <c>session.context_cleared</c> event.</remarks>
 public sealed partial class SessionContextClearedEvent : SessionEvent
 {
@@ -1244,6 +1247,19 @@ public sealed partial class SessionCompactionStartEvent : SessionEvent
     /// <summary>The <c>session.compaction_start</c> event payload.</summary>
     [JsonPropertyName("data")]
     public required SessionCompactionStartData Data { get; set; }
+}
+
+/// <summary>A background compaction's summarizer settled; its summary is not applied to the conversation yet. The matching session.compaction_complete follows once it is applied (or discarded) and remains authoritative.</summary>
+/// <remarks>Represents the <c>session.compaction_summarized</c> event.</remarks>
+public sealed partial class SessionCompactionSummarizedEvent : SessionEvent
+{
+    /// <inheritdoc />
+    [JsonIgnore]
+    public override string Type => "session.compaction_summarized";
+
+    /// <summary>The <c>session.compaction_summarized</c> event payload.</summary>
+    [JsonPropertyName("data")]
+    public required SessionCompactionSummarizedData Data { get; set; }
 }
 
 /// <summary>Conversation compaction results including success status, metrics, and optional error details.</summary>
@@ -3158,7 +3174,7 @@ public sealed partial class SessionRemoteSteerableChangedData
     public required bool RemoteSteerable { get; set; }
 }
 
-/// <summary>Error details for timeline display including message and optional diagnostic information.</summary>
+/// <summary>Session error details for timeline display. Request-correlated completion RPC failures carry the terminal error's same fields in their error data, with stack and completionEventId.</summary>
 public sealed partial class SessionErrorData
 {
     /// <summary>Only set on `errorType: "rate_limit"`. When `true`, the runtime will follow this error with an `auto_mode_switch.requested` event (or silently switch if `continueOnAutoMode` is enabled). UI clients can use this flag to suppress duplicate rendering of the rate-limit error when they show their own auto-mode-switch prompt.</summary>
@@ -3188,6 +3204,11 @@ public sealed partial class SessionErrorData
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     [JsonPropertyName("providerCallId")]
     public string? ProviderCallId { get; set; }
+
+    /// <summary>Provider-defined error code, when available; unset otherwise. Unlike errorCode, this is not a runtime or Copilot API classification and does not imply a remediation or retry policy.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("providerErrorCode")]
+    public string? ProviderErrorCode { get; set; }
 
     /// <summary>Sanitized provider-defined error parameter preserved from a structured upstream error envelope, when available.</summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
@@ -3990,7 +4011,7 @@ public sealed partial class SessionUsageInfoData
     public long? ToolDefinitionsTokens { get; set; }
 }
 
-/// <summary>Context-cleared details emitted when the host clears the conversation (the session.history.clearContext RPC / Session.clearContextMessages).</summary>
+/// <summary>Context-cleared details emitted when the conversation is cleared (the session.history.clearContext RPC, or the runtime starting a fresh context window).</summary>
 public sealed partial class SessionContextClearedData
 {
     /// <summary>Optional initial message set after clearing.</summary>
@@ -4067,6 +4088,40 @@ public sealed partial class SessionCompactionStartData
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     [JsonPropertyName("trigger")]
     public CompactionTrigger? Trigger { get; set; }
+}
+
+/// <summary>A background compaction's summarizer settled; its summary is not applied to the conversation yet. The matching session.compaction_complete follows once it is applied (or discarded) and remains authoritative.</summary>
+public sealed partial class SessionCompactionSummarizedData
+{
+    /// <summary>Always true: the settled outcome still awaits being applied, which session.compaction_complete reports.</summary>
+    [JsonPropertyName("applyPending")]
+    public required bool ApplyPending { get; set; }
+
+    /// <summary>Identifier shared with the matching compaction start and completion events.</summary>
+    [JsonPropertyName("compactionAttemptId")]
+    public required string CompactionAttemptId { get; set; }
+
+    /// <summary>Error message if the summarizer failed.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("error")]
+    public string? Error { get; set; }
+
+    /// <summary>How the compaction ran relative to the conversation, as on the start event ("background"). Open set; readers must tolerate other values.</summary>
+    [JsonPropertyName("execution")]
+    public required string Execution { get; set; }
+
+    /// <summary>Bounded reason for a failed summarizer, using the same values as the completion event's failureReason. Unknown future values are preserved.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("failureReason")]
+    public string? FailureReason { get; set; }
+
+    /// <summary>How the summarizer settled: "succeeded", "failed", or "cancelled". Open set; readers must tolerate other values.</summary>
+    [JsonPropertyName("outcome")]
+    public required string Outcome { get; set; }
+
+    /// <summary>Whether the summarizer produced a summary that can be applied.</summary>
+    [JsonPropertyName("success")]
+    public required bool Success { get; set; }
 }
 
 /// <summary>Conversation compaction results including success status, metrics, and optional error details.</summary>
@@ -6356,6 +6411,12 @@ public sealed partial class ToolExecutionStartData
     [JsonPropertyName("parentToolCallId")]
     public string? ParentToolCallId { get; set; }
 
+    /// <summary>Host-owned call ID of the run_program invocation that requested this child tool. Its result is program input, not a model message; agent attribution remains independent.</summary>
+    [Experimental(global::GitHub.Copilot.Diagnostics.Experimental)]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("programToolCallId")]
+    public string? ProgramToolCallId { get; set; }
+
     /// <summary>Whether the selected tool descriptor explicitly classifies this call as read-only.</summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     [JsonPropertyName("readOnly")]
@@ -6514,6 +6575,12 @@ public sealed partial class ToolExecutionCompleteData
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     [JsonPropertyName("parentToolCallId")]
     public string? ParentToolCallId { get; set; }
+
+    /// <summary>Host-owned call ID of the run_program invocation that requested this child tool. Its result is program input, not a model message; agent attribution remains independent.</summary>
+    [Experimental(global::GitHub.Copilot.Diagnostics.Experimental)]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("programToolCallId")]
+    public string? ProgramToolCallId { get; set; }
 
     /// <summary>Tool execution result on success.</summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
@@ -7284,6 +7351,11 @@ public sealed partial class PermissionRequestedData
     [JsonPropertyName("permissionRequest")]
     public required PermissionRequest PermissionRequest { get; set; }
 
+    /// <summary>Program invocation owning this permission request. Its child call must not be resumed independently.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("programToolCallId")]
+    public string? ProgramToolCallId { get; set; }
+
     /// <summary>Derived user-facing permission prompt details for UI consumers.</summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     [JsonPropertyName("promptRequest")]
@@ -7800,6 +7872,12 @@ public sealed partial class ExternalToolRequestedData
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     [JsonPropertyName("arguments")]
     public JsonElement? Arguments { get; set; }
+
+    /// <summary>Whether the tool definition had an SDK handler when this request was dispatched.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonInclude]
+    [JsonPropertyName("hasHandler")]
+    internal bool? HasHandler { get; set; }
 
     /// <summary>Stable provider identity captured with an extension-owned tool definition; hosts use it to route the request to the same provider that was offered to the model.</summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
@@ -13600,6 +13678,12 @@ public sealed partial class PermissionApprovalEvaluation
 [Experimental(global::GitHub.Copilot.Diagnostics.Experimental)]
 public sealed partial class PermissionAssistedApproval
 {
+    /// <summary>Zero-based indexes into the shell request's `commandSegments` that a `requireApproval` recommendation identified as needing approval, validated by the runtime against that request. Absent when the recommendation did not attribute approval to specific segments; the whole command then needs approval.</summary>
+    [Experimental(global::GitHub.Copilot.Diagnostics.Experimental)]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("approvalRequiredCommandSegments")]
+    public long[]? ApprovalRequiredCommandSegments { get; set; }
+
     /// <summary>Runtime reason and judge-call metadata. Absent on older events; missing metadata means unknown, not that the judge was skipped.</summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     [JsonPropertyName("evaluation")]
@@ -14185,6 +14269,11 @@ public sealed partial class PermissionPromptRequestUrl : PermissionPromptRequest
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     [JsonPropertyName("managedApprovalRequired")]
     public bool? ManagedApprovalRequired { get; set; }
+
+    /// <summary>Wildcard pattern covering the registrable domain of the URL and its subdomains, for example https://*.example.com for https://api.example.com/x. The runtime computes it from the Public Suffix List, keeping the URL's scheme and non-default port, so every host offers the same scope. Absent when no parent-domain approval can be offered safely (IP addresses, private-network names, public suffixes) and for sandbox-bypass requests. Hosts may offer it as a broader alternative to approving the exact origin for the running session and, when the user chooses it, return it as the domain of an approve-for-session response. It is session-only: the runtime matches it by registrable domain, so a subdomain the Public Suffix List lists as a separate owner (for example a bucket under s3.amazonaws.com) is not covered, and the runtime never persists it. Do not offer it as a permanent approval; an approve-permanently response carrying this exact pattern is kept for the session only and writes nothing to settings. The pattern also matches the registrable domain itself.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("parentDomainPattern")]
+    public string? ParentDomainPattern { get; set; }
 
     /// <summary>Immediately preceding URL when this prompt is for a redirect target.</summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
@@ -25862,6 +25951,8 @@ public readonly struct ExtensionsLoadedExtensionStatus : IEquatable<ExtensionsLo
 [JsonSerializable(typeof(SessionCompactionCompleteEvent))]
 [JsonSerializable(typeof(SessionCompactionStartData))]
 [JsonSerializable(typeof(SessionCompactionStartEvent))]
+[JsonSerializable(typeof(SessionCompactionSummarizedData))]
+[JsonSerializable(typeof(SessionCompactionSummarizedEvent))]
 [JsonSerializable(typeof(SessionCompletionReceiptData))]
 [JsonSerializable(typeof(SessionCompletionReceiptEvent))]
 [JsonSerializable(typeof(SessionContextChangedData))]

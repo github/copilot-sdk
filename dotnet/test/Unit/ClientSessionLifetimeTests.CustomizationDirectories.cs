@@ -8,6 +8,46 @@ namespace GitHub.Copilot.Test.Unit;
 
 public sealed partial class ClientSessionLifetimeTests
 {
+    [Theory]
+    [InlineData(0)]
+    [InlineData(1)]
+    [InlineData(2)]
+    public async Task BuiltInAgentAllowlist_Is_Preserved_On_Create_Resume_And_Clone(int kind)
+    {
+        IList<string>? agents = kind switch
+        {
+            0 => null,
+            1 => [],
+            _ => ["explore"]
+        };
+        var createConfig = new SessionConfig { IncludedBuiltInAgents = agents };
+        var resumeConfig = new ResumeSessionConfig { IncludedBuiltInAgents = agents };
+        var createClone = createConfig.Clone();
+        var resumeClone = resumeConfig.Clone();
+        agents?.Add("task");
+        string[]? expected = kind == 0 ? null : kind == 1 ? Array.Empty<string>() : ["explore"];
+
+        await using var server = await FakeCopilotServer.StartAsync();
+        await using var client = new CopilotClient(new CopilotClientOptions
+        {
+            Connection = RuntimeConnection.ForUri(server.Url)
+        });
+        await using var created = await client.CreateSessionAsync(createClone);
+        await using var resumed = await client.ResumeSessionAsync("resumed", resumeClone);
+        foreach (var method in new[] { "session.create", "session.resume" })
+        {
+            var payload = Assert.Single(server.Requests, request => request.Method == method).Params;
+            if (expected is null)
+            {
+                Assert.False(payload.TryGetProperty("includedBuiltinAgents", out _));
+            }
+            else
+            {
+                Assert.Equal(expected, payload.GetProperty("includedBuiltinAgents").EnumerateArray().Select(item => item.GetString()));
+            }
+        }
+    }
+
     [Fact]
     public async Task CustomizationDirectories_Preserve_Positional_Discovery_Calls()
     {

@@ -33,6 +33,7 @@ public record CurrentToolMetadata(
     /** Tool description */
     @JsonProperty("description") String description,
     /** JSON Schema for tool input */
+    @JsonInclude(value = JsonInclude.Include.NON_NULL, content = JsonInclude.Include.ALWAYS)
     @JsonProperty("input_schema") Map<String, Object> inputSchema,
     /** Whether the tool is loaded on demand via tool search */
     @JsonProperty("deferLoading") Boolean deferLoading,

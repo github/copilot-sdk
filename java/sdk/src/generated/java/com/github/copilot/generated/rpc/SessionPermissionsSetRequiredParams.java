@@ -27,7 +27,9 @@ public record SessionPermissionsSetRequiredParams(
     /** Target session identifier */
     @JsonProperty("sessionId") String sessionId,
     /** Whether the client wants `permission.requested` events bridged from the session-owned permission service. CLI clients that render prompt UI set this to `true` for as long as their listener is mounted; headless callers leave it unset (the default is `false`). */
-    @JsonProperty("required") Boolean required
+    @JsonProperty("required") Boolean required,
+    /** Optional permission-provider identity, scoped to the calling connection and this session. With this field, true registers the provider and false releases it without overriding a later direct host requirement. The runtime releases these registrations when their connection detaches. Omit for a direct host requirement. */
+    @JsonProperty("providerId") String providerId
 ) {
 
     /**
@@ -54,6 +56,7 @@ public record SessionPermissionsSetRequiredParams(
         private Builder() {}
         private String sessionId;
         private Boolean required;
+        private String providerId;
 
         /**
          * Sets the {@code sessionId} property.
@@ -80,6 +83,18 @@ public record SessionPermissionsSetRequiredParams(
         }
 
         /**
+         * Sets the {@code providerId} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        @com.github.copilot.CopilotExperimental
+        public Builder providerId(String value) {
+            this.providerId = value;
+            return this;
+        }
+
+        /**
          * Builds a record after checking required property presence.
          * @return a new record
          * @throws IllegalStateException if a required property is missing
@@ -87,7 +102,21 @@ public record SessionPermissionsSetRequiredParams(
          */
         public SessionPermissionsSetRequiredParams build() {
             if (required == null) throw new IllegalStateException("Missing required property: required");
-            return new SessionPermissionsSetRequiredParams(sessionId, required);
+            return new SessionPermissionsSetRequiredParams(sessionId, required, providerId);
         }
+    }
+
+    /**
+     * Creates permission requirements without a provider identity.
+     * @deprecated Use named construction via {@link #builder()}.
+     * @param sessionId Target session identifier
+     * @param required Whether the client wants `permission.requested` events bridged from the session-owned permission service. CLI clients that render prompt UI set this to `true` for as long as their listener is mounted; headless callers leave it unset (the default is `false`).
+     */
+    @Deprecated(since = "2.0.0", forRemoval = false)
+    public SessionPermissionsSetRequiredParams(
+        String sessionId,
+        Boolean required
+    ) {
+        this(sessionId, required, null);
     }
 }

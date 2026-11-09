@@ -22,6 +22,31 @@ public final class PermissionInvocation {
     private boolean managedSettingsEnabled;
     private AssistedApprovalAssessment assistedApprovalAssessment;
     private PermissionRequest promptRequest;
+    private String programToolCallId;
+
+    /**
+     * Gets the program invocation owning this permission request.
+     *
+     * @return the owning program tool call ID, or {@code null} for ordinary
+     *         requests
+     */
+    @CopilotExperimental
+    public String getProgramToolCallId() {
+        return programToolCallId;
+    }
+
+    /**
+     * Sets the program invocation owning this permission request.
+     *
+     * @param programToolCallId
+     *            the owning program tool call ID, or {@code null}
+     * @return this invocation for method chaining
+     */
+    @CopilotExperimental
+    public PermissionInvocation setProgramToolCallId(String programToolCallId) {
+        this.programToolCallId = programToolCallId;
+        return this;
+    }
 
     /**
      * Gets the session ID where the permission was requested.

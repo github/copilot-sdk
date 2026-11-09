@@ -85,14 +85,49 @@ public sealed class InProcessRuntimeArgumentsTests
         Assert.Contains("SessionConfig.WorkingDirectory", exception.Message);
     }
 
-    [Fact]
-    public void InProcess_Telemetry_Remains_Unsupported()
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void InProcess_Telemetry_Configures_Only_The_Owned_Runtime(bool captureContent)
     {
-        var exception = Assert.Throws<ArgumentException>(() => new CopilotClient(new CopilotClientOptions
+        var before = Environment.GetEnvironmentVariables();
+        var options = new CopilotClientOptions
         {
             Connection = RuntimeConnection.ForInProcess(),
-            Telemetry = new TelemetryConfig(),
-        }));
-        Assert.Contains("CopilotClientOptions.Telemetry", exception.Message);
+            Telemetry = new TelemetryConfig
+            {
+                OtlpEndpoint = "http://collector:4318",
+                OtlpProtocol = "http/protobuf",
+                FilePath = "/telemetry.jsonl",
+                ExporterType = "file",
+                SourceName = "inprocess-sdk",
+                CaptureContent = captureContent,
+            },
+        };
+        using var client = new CopilotClient(options);
+        var method = typeof(CopilotClient).GetMethod(
+            "BuildInProcessRuntimeEnvironment", BindingFlags.Static | BindingFlags.NonPublic);
+        Assert.NotNull(method);
+        var environment = Assert.IsType<Dictionary<string, string>>(method!.Invoke(null, [options]));
+        var expected = new Dictionary<string, string>
+        {
+            ["COPILOT_OTEL_ENABLED"] = "true",
+            ["OTEL_EXPORTER_OTLP_ENDPOINT"] = "http://collector:4318",
+            ["OTEL_EXPORTER_OTLP_PROTOCOL"] = "http/protobuf",
+            ["COPILOT_OTEL_FILE_EXPORTER_PATH"] = "/telemetry.jsonl",
+            ["COPILOT_OTEL_EXPORTER_TYPE"] = "file",
+            ["COPILOT_OTEL_SOURCE_NAME"] = "inprocess-sdk",
+            ["OTEL_INSTRUMENTATION_GENAI_CAPTURE_CONTENT"] = captureContent ? "SPAN_ONLY" : "NO_CONTENT",
+            ["OTEL_INSTRUMENTATION_GENAI_CAPTURE_MESSAGE_CONTENT"] = captureContent ? "true" : "false",
+        };
+        foreach (var (key, value) in expected) Assert.Equal(value, environment[key]);
+        // The single-variable getter can report native empty values as missing on .NET Framework.
+        var after = Environment.GetEnvironmentVariables();
+        Assert.Equal(before.Count, after.Count);
+        foreach (System.Collections.DictionaryEntry entry in before)
+        {
+            Assert.True(after.Contains(entry.Key), $"Environment variable '{entry.Key}' was removed.");
+            Assert.Equal(entry.Value, after[entry.Key]);
+        }
     }
 }

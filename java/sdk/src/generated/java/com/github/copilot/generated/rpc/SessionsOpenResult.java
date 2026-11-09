@@ -24,7 +24,10 @@ import javax.annotation.processing.Generated;
 @javax.annotation.processing.Generated("copilot-sdk-codegen")
 @JsonInclude(JsonInclude.Include.NON_NULL)
 @JsonIgnoreProperties(ignoreUnknown = true)
+@com.fasterxml.jackson.databind.annotation.JsonDeserialize(using = SessionsOpenResult.$NullableDeserializer.class)
 public record SessionsOpenResult(
+    /** Native construction plan for an embedding host's facade. Present only when a transport-issued host construction capability creates the session. */
+    @JsonProperty("nativeConstructionPlan") Object nativeConstructionPlan,
     /** Outcome of the open request. */
     @JsonProperty("status") SessionsOpenStatus status,
     /** Opened session ID. Omitted when status is `not_found`. */
@@ -38,7 +41,8 @@ public record SessionsOpenResult(
     /** Remote session metadata, present when status is `connected`. */
     @JsonProperty("metadata") RemoteSessionMetadataValue metadata,
     /** Handoff progress steps, present when status is `handed_off`. */
-    @JsonProperty("progress") List<SessionsOpenProgress> progress
+    @JsonProperty("progress") List<SessionsOpenProgress> progress,
+    @com.fasterxml.jackson.annotation.JsonIgnore java.util.Set<String> $explicitNulls
 ) {
 
     /**
@@ -46,7 +50,16 @@ public record SessionsOpenResult(
      * @deprecated Use {@link #builder()} for named construction.
      */
     @Deprecated(since = "2.0.0", forRemoval = false)
-    public SessionsOpenResult {}
+    public SessionsOpenResult { $explicitNulls = $explicitNulls == null ? java.util.Set.of() : java.util.Set.copyOf($explicitNulls); }
+
+    /**
+     * Creates a record with legacy null-as-omission semantics.
+     * @deprecated Use {@link #builder()} for named construction.
+     */
+    @Deprecated(since = "2.0.0", forRemoval = false)
+    public SessionsOpenResult(Object nativeConstructionPlan, SessionsOpenStatus status, String sessionId, Object sessionApi, List<String> startupPrompts, String remoteSessionId, RemoteSessionMetadataValue metadata, List<SessionsOpenProgress> progress) {
+        this(nativeConstructionPlan, status, sessionId, sessionApi, startupPrompts, remoteSessionId, metadata, progress, java.util.Set.of());
+    }
 
     /**
      * Returns a named builder.
@@ -61,6 +74,8 @@ public record SessionsOpenResult(
      */
     public static final class Builder {
         private Builder() {}
+        private Object nativeConstructionPlan;
+        private boolean $presence0;
         private SessionsOpenStatus status;
         private String sessionId;
         private Object sessionApi;
@@ -68,6 +83,18 @@ public record SessionsOpenResult(
         private String remoteSessionId;
         private RemoteSessionMetadataValue metadata;
         private List<SessionsOpenProgress> progress;
+
+        /**
+         * Sets the {@code nativeConstructionPlan} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder nativeConstructionPlan(Object value) {
+            this.nativeConstructionPlan = value;
+            this.$presence0 = true;
+            return this;
+        }
 
         /**
          * Sets the {@code status} property.
@@ -154,7 +181,60 @@ public record SessionsOpenResult(
          */
         public SessionsOpenResult build() {
             if (status == null) throw new IllegalStateException("Missing required property: status");
-            return new SessionsOpenResult(status, sessionId, sessionApi, startupPrompts, remoteSessionId, metadata, progress);
+            java.util.Set<String> $explicitNulls = new java.util.LinkedHashSet<>();
+            if ($presence0 && nativeConstructionPlan == null) $explicitNulls.add("nativeConstructionPlan");
+            return new SessionsOpenResult(nativeConstructionPlan, status, sessionId, sessionApi, startupPrompts, remoteSessionId, metadata, progress, $explicitNulls);
         }
+    }
+
+    @com.fasterxml.jackson.annotation.JsonAnyGetter
+    @JsonInclude(value = JsonInclude.Include.ALWAYS, content = JsonInclude.Include.ALWAYS)
+    public java.util.Map<String, Object> $nullableProperties() {
+        java.util.Map<String, Object> values = new java.util.LinkedHashMap<>();
+        if ($explicitNulls.contains("nativeConstructionPlan") && nativeConstructionPlan == null) values.put("nativeConstructionPlan", null);
+        return values;
+    }
+
+    public static final class $NullableDeserializer extends com.fasterxml.jackson.databind.JsonDeserializer<SessionsOpenResult> {
+        @Override
+        public SessionsOpenResult deserialize(com.fasterxml.jackson.core.JsonParser parser,
+                com.fasterxml.jackson.databind.DeserializationContext context) throws java.io.IOException {
+            com.fasterxml.jackson.databind.JsonNode tree = context.readTree(parser);
+            if (!tree.isObject()) return context.reportInputMismatch(SessionsOpenResult.class, "Expected a JSON object");
+            java.util.Set<String> $explicitNulls = new java.util.LinkedHashSet<>();
+            if (tree.has("nativeConstructionPlan") && tree.get("nativeConstructionPlan").isNull()) $explicitNulls.add("nativeConstructionPlan");
+            return new SessionsOpenResult(readProperty(context, tree, "nativeConstructionPlan", new com.fasterxml.jackson.core.type.TypeReference<Object>() {}), readProperty(context, tree, "status", new com.fasterxml.jackson.core.type.TypeReference<SessionsOpenStatus>() {}), readProperty(context, tree, "sessionId", new com.fasterxml.jackson.core.type.TypeReference<String>() {}), readProperty(context, tree, "sessionApi", new com.fasterxml.jackson.core.type.TypeReference<Object>() {}), readProperty(context, tree, "startupPrompts", new com.fasterxml.jackson.core.type.TypeReference<List<String>>() {}), readProperty(context, tree, "remoteSessionId", new com.fasterxml.jackson.core.type.TypeReference<String>() {}), readProperty(context, tree, "metadata", new com.fasterxml.jackson.core.type.TypeReference<RemoteSessionMetadataValue>() {}), readProperty(context, tree, "progress", new com.fasterxml.jackson.core.type.TypeReference<List<SessionsOpenProgress>>() {}), $explicitNulls);
+        }
+
+        private static <T> T readProperty(com.fasterxml.jackson.databind.DeserializationContext context,
+                com.fasterxml.jackson.databind.JsonNode tree, String name,
+                com.fasterxml.jackson.core.type.TypeReference<T> type) throws java.io.IOException {
+            if (!tree.has(name)) return null;
+            return context.readTreeAsValue(tree.get(name), context.getTypeFactory().constructType(type));
+        }
+    }
+
+    /**
+     * Creates a session-open result without a host construction plan.
+     * @deprecated Use named construction via {@link #builder()}.
+     * @param status Outcome of the open request.
+     * @param sessionId Opened session ID. Omitted when status is `not_found`.
+     * @param sessionApi In-process SessionClientApi handle for the opened session, returned to CLI callers as a transitional shortcut. Marked internal so the public SDK surface does not expose it; SDK consumers should construct per-session clients from `sessionId` instead.
+     * @param startupPrompts Startup prompts queued by user-level hook configs at session creation. Only populated when status is `created`; resumed sessions return an empty array.
+     * @param remoteSessionId Remote session ID, present when status is `connected`.
+     * @param metadata Remote session metadata, present when status is `connected`.
+     * @param progress Handoff progress steps, present when status is `handed_off`.
+     */
+    @Deprecated(since = "2.0.0", forRemoval = false)
+    public SessionsOpenResult(
+        SessionsOpenStatus status,
+        String sessionId,
+        Object sessionApi,
+        List<String> startupPrompts,
+        String remoteSessionId,
+        RemoteSessionMetadataValue metadata,
+        List<SessionsOpenProgress> progress
+    ) {
+        this(null, status, sessionId, sessionApi, startupPrompts, remoteSessionId, metadata, progress);
     }
 }

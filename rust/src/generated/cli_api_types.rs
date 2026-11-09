@@ -14,6 +14,8 @@ use crate::types::SessionId;
 
 /// JSON-RPC method name constants.
 pub mod rpc_methods {
+    /// `providersSource.addModel`
+    pub const PROVIDERSSOURCE_ADDMODEL: &str = "providersSource.addModel";
     /// `cafeMetrics.start`
     pub const CAFEMETRICS_START: &str = "cafeMetrics.start";
     /// `cafeMetrics.resolveAdmission`
@@ -47,6 +49,243 @@ pub mod rpc_methods {
     pub const SESSION_CAFEMETRICS_ATTACH: &str = "session.cafeMetrics.attach";
     /// `session.cafeMetrics.detach`
     pub const SESSION_CAFEMETRICS_DETACH: &str = "session.cafeMetrics.detach";
+}
+
+/// Vision-specific limits
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ModelCapabilitiesOverrideLimitsVision {
+    /// Maximum image size in bytes
+    #[serde(
+        rename = "max_prompt_image_size",
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub max_prompt_image_size: Option<i64>,
+    /// Maximum number of images per prompt
+    #[serde(rename = "max_prompt_images", skip_serializing_if = "Option::is_none")]
+    pub max_prompt_images: Option<i64>,
+    /// MIME types the model accepts
+    #[serde(
+        rename = "supported_media_types",
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub supported_media_types: Option<Vec<String>>,
+}
+
+/// Token limits for prompts, outputs, and context window
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ModelCapabilitiesOverrideLimits {
+    /// Maximum total context window size in tokens
+    #[serde(
+        rename = "max_context_window_tokens",
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub max_context_window_tokens: Option<i64>,
+    /// Maximum number of output/completion tokens
+    #[serde(rename = "max_output_tokens", skip_serializing_if = "Option::is_none")]
+    pub max_output_tokens: Option<i64>,
+    /// Maximum number of prompt/input tokens
+    #[serde(rename = "max_prompt_tokens", skip_serializing_if = "Option::is_none")]
+    pub max_prompt_tokens: Option<i64>,
+    /// Vision-specific limits
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub vision: Option<ModelCapabilitiesOverrideLimitsVision>,
+}
+
+/// Feature flags indicating what the model supports
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ModelCapabilitiesOverrideSupports {
+    /// Resolved Anthropic adaptive-thinking capability — unsupported / optional / required / adaptive_only. 'required' models reject thinking.type='enabled' with HTTP 400 but still accept 'disabled' (e.g. opus-4.7/4.8/5, sonnet-5); 'adaptive_only' models accept nothing but 'adaptive' (e.g. fable, mythos).
+    #[serde(rename = "adaptive_thinking", skip_serializing_if = "Option::is_none")]
+    pub adaptive_thinking: Option<AdaptiveThinkingSupport>,
+    /// Whether this model supports reasoning effort configuration
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub reasoning_effort: Option<bool>,
+    /// Whether this model supports canonical tool calling
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub tool_calls: Option<bool>,
+    /// Whether this model supports vision/image input
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub vision: Option<bool>,
+}
+
+/// Optional capability overrides (vision, tool_calls, reasoning, etc.).
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ModelCapabilitiesOverride {
+    /// Token limits for prompts, outputs, and context window
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub limits: Option<ModelCapabilitiesOverrideLimits>,
+    /// Feature flags indicating what the model supports
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub supports: Option<ModelCapabilitiesOverrideSupports>,
+}
+
+/// A BYOK model definition referencing a named provider.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ProviderModelConfig {
+    /// Forward-compatible persisted on-device Auto annotation. The live counterpart is metadata.autoLocal.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub auto_local: Option<serde_json::Value>,
+    /// Optional capability overrides (vision, tool_calls, reasoning, etc.).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub capabilities: Option<ModelCapabilitiesOverride>,
+    /// Provider-local model id, unique within its provider. The session-wide selection id (shown in the model list and passed to switchTo) is the provider-qualified `provider/id`.
+    pub id: String,
+    /// Maximum context window tokens for the model.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub max_context_window_tokens: Option<i64>,
+    /// Maximum output tokens for the model.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub max_output_tokens: Option<i64>,
+    /// Maximum prompt/input tokens for the model.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub max_prompt_tokens: Option<i64>,
+    /// Provider-published model metadata, preserved verbatim as the public Model.metadata object.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub metadata: Option<HashMap<String, serde_json::Value>>,
+    /// Well-known base model id used for behavior/capability/config lookup. Defaults to `id`.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub model_id: Option<String>,
+    /// Display name for model pickers. Defaults to the provider-qualified selection id (`provider/id`).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub name: Option<String>,
+    /// Name of the configured provider that serves this model.
+    pub provider: String,
+    /// System-message configuration used when the runtime builds the standard prompt for this provider-qualified model, including general-purpose subagents. It uses the same object hierarchy as session-level systemMessage configuration, except transform actions are rejected because the current callback protocol is not model-scoped. When present, it overrides the session-wide configuration on those prompt paths. Selected custom-agent and specialized-subagent prompts remain authoritative.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub system_message: Option<serde_json::Value>,
+    /// The model name sent to the provider API for inference. Defaults to `id`.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub wire_model: Option<String>,
+}
+
+/// Azure-specific provider options.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ProviderConfigAzure {
+    /// API version. When set, uses the versioned deployment route. When omitted, uses the GA versionless v1 route.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub api_version: Option<String>,
+}
+
+/// Editable provider settings, without credential values or custom headers.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SavedProviderConfigurationProviderInput {
+    /// Safe Azure connection settings, including API version.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub azure: Option<ProviderConfigAzure>,
+    /// Provider endpoint.
+    pub base_url: String,
+    /// Non-secret local model runtime options, such as the WinML device.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub local_model: Option<serde_json::Value>,
+    /// Serving product used for attribution.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub model_provider: Option<ProviderConfigModelProvider>,
+    /// Provider name used to qualify model selection ids.
+    pub name: String,
+    /// HTTP or WebSocket transport.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub transport: Option<ProviderConfigTransport>,
+    /// Provider protocol family.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub r#type: Option<SavedProviderConfigurationType>,
+    /// OpenAI-compatible wire API.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub wire_api: Option<ProviderConfigWireApi>,
+}
+
+/// Request to add a model to the server-owned saved provider configuration.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SavedProviderConfigurationAddModelRequest {
+    /// Optional replacement API key. Stored in the OS keychain and never returned.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub credential: Option<String>,
+    /// Model to add to the provider.
+    pub model: ProviderModelConfig,
+    /// Provider settings to create when this provider is not already saved.
+    pub provider: SavedProviderConfigurationProviderInput,
+}
+
+/// Saves through the exact authenticated local attachment that discovered a model.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct AttachedProviderConfigurationAddModelRequest {
+    /// Original authenticated local attachment, not a replacement with the same session id.
+    pub attach_id: i64,
+    /// The ordinary server-owned save request, without a caller-selected destination.
+    pub configuration: SavedProviderConfigurationAddModelRequest,
+    /// Session whose owning server receives the save.
+    pub session_id: SessionId,
 }
 
 /// Terminal result of one resume attempt.
@@ -289,6 +528,130 @@ pub struct McpOauthTestConnectionResultFailed {
     /// Transport or session policy failure detail.
     pub error: String,
     pub status: McpOauthTestConnectionResultFailedStatus,
+}
+
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ProtocolStaticSectionOverride {
+    /// Declarative operation applied to the section.
+    pub action: ProtocolStaticSectionAction,
+    /// Optional content used by replace, append, and prepend operations.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub content: Option<String>,
+}
+
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ProtocolSystemMessageAppendConfig {
+    /// Text appended to the standard system prompt.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub content: Option<String>,
+    /// Append-mode discriminator. Omission also selects append mode.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub mode: Option<ProtocolAppendMode>,
+}
+
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ProtocolSystemMessageCustomizeConfig {
+    /// Text appended after the customized sections.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub content: Option<String>,
+    /// Customize-mode discriminator.
+    pub mode: ProtocolCustomizeMode,
+    /// Named standard-prompt section overrides.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub sections: Option<HashMap<String, serde_json::Value>>,
+}
+
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SystemMessageBlock {
+    /// Whether providers with explicit prompt caching should place a cache breakpoint after this block.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub cache_breakpoint: Option<bool>,
+    /// Text content for this system-message block.
+    pub content: String,
+    /// Whether the block is static and may be cached independently of dynamic prompt content.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub is_static: Option<bool>,
+}
+
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ProtocolSystemMessageReplaceConfig {
+    /// Complete replacement system-message text.
+    pub content: String,
+    /// Optional structured blocks corresponding to the replacement content.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub content_blocks: Option<Vec<SystemMessageBlock>>,
+    /// Replace-mode discriminator.
+    pub mode: ProtocolReplaceMode,
+}
+
+/// Result of adding a model to the saved provider configuration.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SavedProviderConfigurationAddModelResult {
+    /// Whether the provider was created along with the model.
+    pub provider_added: bool,
+}
+
+/// Result of adding a model to the saved provider configuration.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ProvidersSourceAddModelResult {
+    /// Whether the provider was created along with the model.
+    pub provider_added: bool,
 }
 
 /// Preliminary flush or final disposal.
@@ -669,6 +1032,146 @@ pub type SessionMcpOauthTryRefreshTokensResult = bool;
 /// </div>
 pub type SessionMcpOauthStoreKeyResult = String;
 
+/// Resolved Anthropic adaptive-thinking capability for a model.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub enum AdaptiveThinkingSupport {
+    /// The model does not accept thinking.type='adaptive'
+    #[serde(rename = "unsupported")]
+    Unsupported,
+    /// The model accepts adaptive thinking but also accepts thinking.type='enabled'
+    #[serde(rename = "optional")]
+    Optional,
+    /// The model defaults to adaptive thinking and rejects thinking.type='enabled' with HTTP 400, but still accepts thinking.type='disabled' (e.g. opus-4.7/4.8/5, sonnet-5)
+    #[serde(rename = "required")]
+    Required,
+    /// The model accepts only thinking.type='adaptive'; 'enabled', 'disabled', and an omitted thinking block all fail with HTTP 400 (e.g. fable, mythos)
+    #[serde(rename = "adaptive_only")]
+    AdaptiveOnly,
+    /// Unknown variant for forward compatibility.
+    #[default]
+    #[serde(other)]
+    Unknown,
+}
+
+/// The product serving the model, reported in telemetry as `model_provider`.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub enum ProviderConfigModelProvider {
+    /// OpenAI API.
+    #[serde(rename = "openai")]
+    Openai,
+    /// Anthropic API.
+    #[serde(rename = "anthropic")]
+    Anthropic,
+    /// Azure OpenAI Service.
+    #[serde(rename = "azure_openai")]
+    AzureOpenai,
+    /// Ollama.
+    #[serde(rename = "ollama")]
+    Ollama,
+    /// LM Studio.
+    #[serde(rename = "lm_studio")]
+    LmStudio,
+    /// Foundry Local.
+    #[serde(rename = "foundry_local")]
+    FoundryLocal,
+    /// llama.cpp server.
+    #[serde(rename = "llama_cpp")]
+    LlamaCpp,
+    /// Unknown variant for forward compatibility.
+    #[default]
+    #[serde(other)]
+    Unknown,
+}
+
+/// Provider transport. Defaults to "http".
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub enum ProviderConfigTransport {
+    /// HTTP request/streaming transport.
+    #[serde(rename = "http")]
+    Http,
+    /// WebSocket transport.
+    #[serde(rename = "websockets")]
+    Websockets,
+    /// Unknown variant for forward compatibility.
+    #[default]
+    #[serde(other)]
+    Unknown,
+}
+
+/// Provider families supported by saved configuration.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub enum SavedProviderConfigurationType {
+    /// Generic OpenAI-compatible API.
+    #[serde(rename = "openai")]
+    Openai,
+    /// Azure OpenAI Service endpoint.
+    #[serde(rename = "azure")]
+    Azure,
+    /// Anthropic API endpoint.
+    #[serde(rename = "anthropic")]
+    Anthropic,
+    /// Runtime-managed local model server.
+    #[serde(rename = "local_model")]
+    LocalModel,
+    /// Windows ML local model provider.
+    #[serde(rename = "winml")]
+    Winml,
+    /// Unknown variant for forward compatibility.
+    #[default]
+    #[serde(other)]
+    Unknown,
+}
+
+/// Wire API format (openai/azure only). Defaults to "completions".
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub enum ProviderConfigWireApi {
+    /// OpenAI Chat Completions wire format.
+    #[serde(rename = "completions")]
+    Completions,
+    /// OpenAI Responses API wire format.
+    #[serde(rename = "responses")]
+    Responses,
+    /// Unknown variant for forward compatibility.
+    #[default]
+    #[serde(other)]
+    Unknown,
+}
+
 /// Embedded package identity.
 ///
 /// <div class="warning">
@@ -1009,6 +1512,84 @@ pub enum McpOauthTestConnectionTransport {
     /// Legacy HTTP with server-sent events.
     #[serde(rename = "sse")]
     Sse,
+    /// Unknown variant for forward compatibility.
+    #[default]
+    #[serde(other)]
+    Unknown,
+}
+
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub enum ProtocolAppendMode {
+    #[serde(rename = "append")]
+    Append,
+    /// Unknown variant for forward compatibility.
+    #[default]
+    #[serde(other)]
+    Unknown,
+}
+
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub enum ProtocolCustomizeMode {
+    #[serde(rename = "customize")]
+    Customize,
+    /// Unknown variant for forward compatibility.
+    #[default]
+    #[serde(other)]
+    Unknown,
+}
+
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub enum ProtocolReplaceMode {
+    #[serde(rename = "replace")]
+    Replace,
+    /// Unknown variant for forward compatibility.
+    #[default]
+    #[serde(other)]
+    Unknown,
+}
+
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub enum ProtocolStaticSectionAction {
+    /// Replace the section content.
+    #[serde(rename = "replace")]
+    Replace,
+    /// Remove the section content.
+    #[serde(rename = "remove")]
+    Remove,
+    /// Append content to the section.
+    #[serde(rename = "append")]
+    Append,
+    /// Prepend content to the section.
+    #[serde(rename = "prepend")]
+    Prepend,
     /// Unknown variant for forward compatibility.
     #[default]
     #[serde(other)]

@@ -13,7 +13,7 @@ import com.fasterxml.jackson.annotation.JsonProperty;
 import javax.annotation.processing.Generated;
 
 /**
- * Session event "session.error". Error details for timeline display including message and optional diagnostic information
+ * Session event "session.error". Session error details for timeline display. Request-correlated completion RPC failures carry the terminal error's same fields in their error data, with stack and completionEventId.
  * @since 1.0.0
  */
 @JsonIgnoreProperties(ignoreUnknown = true)
@@ -40,6 +40,8 @@ public final class SessionErrorEvent extends SessionEvent {
         @JsonProperty("errorType") String errorType,
         /** Fine-grained error code from the upstream provider, when available. For `errorType: "rate_limit"`, this is one of the `RateLimitErrorCode` values (e.g., `"user_weekly_rate_limited"`, `"user_global_rate_limited"`, `"rate_limited"`, `"user_model_rate_limited"`, `"integration_rate_limited"`). For `errorType: "quota"`, this is the CAPI quota error code (e.g., `"quota_exceeded"`, `"session_quota_exceeded"`, `"billing_not_configured"`). */
         @JsonProperty("errorCode") String errorCode,
+        /** Provider-defined error code, when available; unset otherwise. Unlike errorCode, this is not a runtime or Copilot API classification and does not imply a remediation or retry policy. */
+        @JsonProperty("providerErrorCode") String providerErrorCode,
         /** Provider-defined error type preserved from a structured upstream error envelope, when available (for example, `invalid_request_error`). */
         @JsonProperty("providerErrorType") String providerErrorType,
         /** Sanitized provider-defined error parameter preserved from a structured upstream error envelope, when available. */
@@ -61,6 +63,42 @@ public final class SessionErrorEvent extends SessionEvent {
         /** Optional URL associated with this error that the user can open in a browser */
         @JsonProperty("url") String url
     ) {
+
+        /**
+         * Creates a record with the components it had before later optional fields were added.
+         * @deprecated Use named construction via {@link #builder()}.
+         * @param originatingMessageId Original root user-message ID of the failed request, including failures before user.message is emitted. Absent for session-wide errors or legacy hosts.
+         * @param errorType Category of error (e.g., "authentication", "authorization", "policy", "quota", "rate_limit", "context_limit", "query")
+         * @param errorCode Fine-grained error code from the upstream provider, when available. For `errorType: "rate_limit"`, this is one of the `RateLimitErrorCode` values (e.g., `"user_weekly_rate_limited"`, `"user_global_rate_limited"`, `"rate_limited"`, `"user_model_rate_limited"`, `"integration_rate_limited"`). For `errorType: "quota"`, this is the CAPI quota error code (e.g., `"quota_exceeded"`, `"session_quota_exceeded"`, `"billing_not_configured"`).
+         * @param providerErrorType Provider-defined error type preserved from a structured upstream error envelope, when available (for example, `invalid_request_error`).
+         * @param providerErrorParam Sanitized provider-defined error parameter preserved from a structured upstream error envelope, when available.
+         * @param eligibleForAutoSwitch Only set on `errorType: "rate_limit"`. When `true`, the runtime will follow this error with an `auto_mode_switch.requested` event (or silently switch if `continueOnAutoMode` is enabled). UI clients can use this flag to suppress duplicate rendering of the rate-limit error when they show their own auto-mode-switch prompt.
+         * @param message Human-readable error message
+         * @param remediation What the user must do to recover, when the runtime knows of an action. The `message` never names a client affordance, so a client that offers one — a slash command, a settings pane, a link — renders it from this value.
+         * @param stack Error stack trace, when available
+         * @param statusCode HTTP status code from the upstream request, if applicable
+         * @param providerCallId GitHub request tracing ID (x-github-request-id header) for correlating with server-side logs
+         * @param serviceRequestId Copilot service request ID (x-copilot-service-request-id header) for CAPI log correlation
+         * @param url Optional URL associated with this error that the user can open in a browser
+         */
+        @Deprecated(since = "2.0.0", forRemoval = false)
+        public SessionErrorEventData(
+            String originatingMessageId,
+            String errorType,
+            String errorCode,
+            String providerErrorType,
+            String providerErrorParam,
+            Boolean eligibleForAutoSwitch,
+            String message,
+            RemediationAction remediation,
+            String stack,
+            Long statusCode,
+            String providerCallId,
+            String serviceRequestId,
+            String url
+        ) {
+            this(originatingMessageId, errorType, errorCode, null, providerErrorType, providerErrorParam, eligibleForAutoSwitch, message, remediation, stack, statusCode, providerCallId, serviceRequestId, url);
+        }
 
         /**
          * Creates a record positionally.
@@ -85,6 +123,7 @@ public final class SessionErrorEvent extends SessionEvent {
             private String originatingMessageId;
             private String errorType;
             private String errorCode;
+            private String providerErrorCode;
             private String providerErrorType;
             private String providerErrorParam;
             private Boolean eligibleForAutoSwitch;
@@ -126,6 +165,17 @@ public final class SessionErrorEvent extends SessionEvent {
              */
             public Builder errorCode(String value) {
                 this.errorCode = value;
+                return this;
+            }
+
+            /**
+             * Sets the {@code providerErrorCode} property.
+             * @param value the property value
+             * @return this builder
+             * @since 2.0.0
+             */
+            public Builder providerErrorCode(String value) {
+                this.providerErrorCode = value;
                 return this;
             }
 
@@ -248,7 +298,7 @@ public final class SessionErrorEvent extends SessionEvent {
             public SessionErrorEventData build() {
                 if (errorType == null) throw new IllegalStateException("Missing required property: errorType");
                 if (message == null) throw new IllegalStateException("Missing required property: message");
-                return new SessionErrorEventData(originatingMessageId, errorType, errorCode, providerErrorType, providerErrorParam, eligibleForAutoSwitch, message, remediation, stack, statusCode, providerCallId, serviceRequestId, url);
+                return new SessionErrorEventData(originatingMessageId, errorType, errorCode, providerErrorCode, providerErrorType, providerErrorParam, eligibleForAutoSwitch, message, remediation, stack, statusCode, providerCallId, serviceRequestId, url);
             }
         }
     }

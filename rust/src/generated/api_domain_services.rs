@@ -963,6 +963,80 @@ impl Default for AgentsGetDiscoveryPathsOptions {
     }
 }
 
+/// Editable provider settings, without credential values or custom headers.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SavedProviderConfigurationProviderInput {
+    /// Safe Azure connection settings, including API version.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub azure: Option<ProviderConfigAzure>,
+    /// Provider endpoint.
+    pub base_url: String,
+    /// Non-secret local model runtime options, such as the WinML device.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub local_model: Option<serde_json::Value>,
+    /// Serving product used for attribution.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub model_provider: Option<ProviderConfigModelProvider>,
+    /// Provider name used to qualify model selection ids.
+    pub name: String,
+    /// HTTP or WebSocket transport.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub transport: Option<ProviderConfigTransport>,
+    /// Provider protocol family.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub r#type: Option<SavedProviderConfigurationType>,
+    /// OpenAI-compatible wire API.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub wire_api: Option<ProviderConfigWireApi>,
+}
+
+/// Request to add a model to the server-owned saved provider configuration.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SavedProviderConfigurationAddModelRequest {
+    /// Optional replacement API key. Stored in the OS keychain and never returned.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub credential: Option<String>,
+    /// Model to add to the provider.
+    pub model: ProviderModelConfig,
+    /// Provider settings to create when this provider is not already saved.
+    pub provider: SavedProviderConfigurationProviderInput,
+}
+
+/// Saves through the exact authenticated local attachment that discovered a model.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct AttachedProviderConfigurationAddModelRequest {
+    /// Original authenticated local attachment, not a replacement with the same session id.
+    pub attach_id: i64,
+    /// The ordinary server-owned save request, without a caller-selected destination.
+    pub configuration: SavedProviderConfigurationAddModelRequest,
+    /// Session whose owning server receives the save.
+    pub session_id: SessionId,
+}
+
 /// Blob attachment with inline base64-encoded data
 ///
 /// <div class="warning">
@@ -1467,25 +1541,6 @@ pub struct AttachmentSessionReference {
     pub r#type: AttachmentSessionReferenceType,
 }
 
-/// Credential-free identity metadata.
-///
-/// <div class="warning">
-///
-/// **Experimental.** This type is part of an experimental wire-protocol surface
-/// and may change or be removed in future SDK or CLI releases.
-///
-/// </div>
-#[derive(Debug, Clone, Default, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub struct AuthIdentityMetadata {
-    /// Identity host.
-    pub host: String,
-    /// User login.
-    pub login: String,
-    /// Authentication type.
-    pub r#type: AuthInfoType,
-}
-
 /// Result of applying the ordinary session-idle Autopilot continuation decision.
 ///
 /// <div class="warning">
@@ -1840,6 +1895,43 @@ pub struct AzureMlFamilyRequest {
     pub registry: AzureMlRegistry,
 }
 
+/// Graphics memory available for an on-device model.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct AzureMlGpuMemory {
+    /// Dedicated graphics memory, in bytes.
+    pub dedicated_bytes: f64,
+    /// Adapter description reported by the host.
+    pub description: String,
+    /// Shared memory usable by a unified adapter, in bytes.
+    pub shared_bytes: f64,
+    /// Dedicated and usable shared memory, in bytes.
+    pub total_bytes: f64,
+}
+
+/// Measured graphics capability; missing memory means the adapter is unknown.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct AzureMlHardwareResult {
+    /// Selected hardware adapter, absent when the platform cannot measure it.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub gpu_memory: Option<AzureMlGpuMemory>,
+}
+
 /// Selects an Azure ML model family.
 ///
 /// <div class="warning">
@@ -1855,6 +1947,56 @@ pub struct AzureMlLatestRequest {
     pub name: String,
     /// Registry that owns the model.
     pub registry: AzureMlRegistry,
+}
+
+/// Managed Azure ML registration changes under a connection-owned family lease.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct AzureMlRegistrationRequest {
+    /// Exact prior rows returned by a successful upsert, required for restoration.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub before: Option<serde_json::Value>,
+    /// Provider and model entries for an upsert.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub entries: Option<ModelProviderSaveConfigurationRequest>,
+    /// Lease retained through transfer, registration, activation, and compensation.
+    pub lease_id: String,
+    /// Exact model family associated with the lease.
+    pub name: String,
+    /// Scoped registration change to perform.
+    pub operation: AzureMlRegistrationOperation,
+    /// Registry associated with the acquired family lease.
+    pub registry: AzureMlRegistry,
+}
+
+/// Observable outcome of a scoped registration change.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct AzureMlRegistrationResult {
+    /// Prior managed rows captured under the write lock, for an upsert.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub before: Option<serde_json::Value>,
+    /// Refusal reason or write error, absent after success.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub detail: Option<String>,
+    /// Whether the change succeeded, was refused, or failed.
+    pub kind: AzureMlRegistrationKind,
+    /// Effective providers file, including the configured environment override.
+    pub path: String,
 }
 
 /// Selects an immutable model version.
@@ -4606,23 +4748,6 @@ impl ConnectorReconcileOptions {
         self.force_connector_name = Some(value.into());
         self
     }
-}
-
-/// Session account selection.
-///
-/// <div class="warning">
-///
-/// **Experimental.** This type is part of an experimental wire-protocol surface
-/// and may change or be removed in future SDK or CLI releases.
-///
-/// </div>
-#[derive(Debug, Clone, Default, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub struct ConnectorSessionAccount {
-    /// Opaque session-scoped account selection ID.
-    pub account_id: String,
-    /// Credential-free identity metadata.
-    pub auth_info: AuthIdentityMetadata,
 }
 
 /// Remote session connection parameters.
@@ -8086,6 +8211,548 @@ pub struct LlmInferenceSetProviderResult {
     pub success: bool,
 }
 
+/// Automatic registration identity and concurrency.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct LocalModelAutoRegistration {
+    /// Corresponding Copilot model identifier.
+    pub capi_id: String,
+    /// Maximum simultaneous inference requests.
+    pub max_concurrent: f64,
+}
+
+/// Exact registry identity of a downloadable model.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct LocalModelAzureMlIdentity {
+    /// Exact model family name.
+    pub name: String,
+    /// Azure ML registry name.
+    pub registry: String,
+    /// Exact model asset version.
+    pub version: String,
+}
+
+/// Published token limits of a local model.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct LocalModelLimits {
+    /// Maximum context tokens.
+    pub max_context_window_tokens: f64,
+    /// Maximum output tokens.
+    pub max_output_tokens: f64,
+    /// Maximum prompt tokens.
+    pub max_prompt_tokens: f64,
+}
+
+/// Catalog source and its display order.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct LocalModelSource {
+    /// Stable source identifier.
+    pub id: String,
+    /// Source display name.
+    pub label: String,
+    /// Display order among catalog sources.
+    pub ordering: f64,
+}
+
+/// Runtime catalog entry, including installation and inference metadata.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct LocalModelDescriptor {
+    /// Published download size, when known.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub approximate_bytes: Option<f64>,
+    /// Recommended graphics memory, when published.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub approximate_vram_bytes: Option<f64>,
+    /// Automatic registration metadata, when applicable.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub auto_local: Option<LocalModelAutoRegistration>,
+    /// Exact registry asset identity.
+    pub azure_ml: LocalModelAzureMlIdentity,
+    /// Model display name.
+    pub display_name: String,
+    /// Default primary filename.
+    pub file_name: String,
+    /// Catalog identifier, distinct from the inference selection identifier.
+    pub id: String,
+    /// Published license name.
+    pub license: String,
+    /// Catalog lifecycle category.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub lifecycle: Option<String>,
+    /// Published token limits.
+    pub limits: LocalModelLimits,
+    /// Registry metadata, preserved without mutation.
+    pub metadata: serde_json::Value,
+    /// Published peak installation size, when known.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub peak_disk_bytes: Option<f64>,
+    /// Model publisher display name.
+    pub provider: String,
+    /// Stable BYOK provider name.
+    pub provider_name: String,
+    /// Inference runtime name.
+    pub runtime: String,
+    /// Whether acquisition installs the inference runtime.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub runtime_provisioned: Option<bool>,
+    /// Provider-qualified selection identifier.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub selection_id: Option<String>,
+    /// Published inference options, preserved without mutation.
+    pub serve_options: serde_json::Value,
+    /// Source and display order.
+    pub source: LocalModelSource,
+    /// Registry display label.
+    pub source_label: String,
+    /// Whether the model supports tool calls.
+    pub supports_tool_calls: bool,
+}
+
+/// Available space could not be determined.
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct LocalModelDiskRequirementUnknown {
+    /// Local disk requirement evaluation.
+    pub kind: LocalModelDiskRequirementUnknownKind,
+}
+
+/// Known disk space meets the installation requirement.
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct LocalModelDiskRequirementOk {
+    /// Available bytes on the destination filesystem.
+    pub free_bytes: f64,
+    /// Local disk requirement evaluation.
+    pub kind: LocalModelDiskRequirementOkKind,
+}
+
+/// Known disk space does not meet the installation requirement.
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct LocalModelDiskRequirementInsufficient {
+    /// Destination used for the disk evaluation.
+    pub directory: String,
+    /// Available bytes on the destination filesystem.
+    pub free_bytes: f64,
+    /// Local disk requirement evaluation.
+    pub kind: LocalModelDiskRequirementInsufficientKind,
+    /// Required bytes, including the safety allowance.
+    pub required_bytes: f64,
+}
+
+/// Current transfer progress.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct LocalModelDownloadProgress {
+    /// Bytes received so far.
+    pub received_bytes: f64,
+    /// Inference engine installation, when applicable.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub stage: Option<String>,
+    /// Total transfer bytes, when known.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub total_bytes: Option<f64>,
+}
+
+/// Graphics memory could not be determined.
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct LocalModelGpuRequirementUnknown {
+    /// Graphics memory requirement evaluation.
+    pub kind: LocalModelGpuRequirementUnknownKind,
+}
+
+/// The catalog publishes no graphics memory requirement.
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct LocalModelGpuRequirementUnspecified {
+    /// Graphics memory requirement evaluation.
+    pub kind: LocalModelGpuRequirementUnspecifiedKind,
+}
+
+/// Detected graphics memory meets the published requirement.
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct LocalModelGpuRequirementOk {
+    /// Available graphics memory.
+    pub available_bytes: f64,
+    /// Graphics adapter description.
+    pub description: String,
+    /// Graphics memory requirement evaluation.
+    pub kind: LocalModelGpuRequirementOkKind,
+    /// Published recommended graphics memory.
+    pub required_bytes: f64,
+}
+
+/// Detected graphics memory falls below the published requirement.
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct LocalModelGpuRequirementInsufficient {
+    /// Available graphics memory.
+    pub available_bytes: f64,
+    /// Graphics adapter description.
+    pub description: String,
+    /// Graphics memory requirement evaluation.
+    pub kind: LocalModelGpuRequirementInsufficientKind,
+    /// Published recommended graphics memory.
+    pub required_bytes: f64,
+}
+
+/// No active installation exists.
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct LocalModelStatusNotDownloaded {
+    /// Effective local installation or transfer state.
+    pub kind: LocalModelStatusNotDownloadedKind,
+}
+
+/// A valid activation references the local model files.
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct LocalModelStatusDownloaded {
+    /// Effective local installation or transfer state.
+    pub kind: LocalModelStatusDownloadedKind,
+    /// Local file size, when known.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub size_bytes: Option<f64>,
+    /// Whether the catalog offers another version.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub update_available: Option<bool>,
+}
+
+/// A transfer or inference engine installation is active.
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct LocalModelStatusDownloading {
+    /// Effective local installation or transfer state.
+    pub kind: LocalModelStatusDownloadingKind,
+    /// Bytes received so far.
+    pub received_bytes: f64,
+    /// Inference engine installation, when applicable.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub stage: Option<String>,
+    /// Total transfer bytes, when known.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub total_bytes: Option<f64>,
+}
+
+/// One local model and its current files, progress, and requirements.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct LocalModelMachineRow {
+    /// Resolved catalog model.
+    pub descriptor: LocalModelDescriptor,
+    /// Disk availability and required space.
+    pub disk: LocalModelDiskRequirement,
+    /// Whether known disk facts permit installation.
+    pub disk_met: bool,
+    /// Remaining peak space with the existing safety allowance.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub disk_required_bytes: Option<f64>,
+    /// Graphics memory availability and required space.
+    pub gpu: LocalModelGpuRequirement,
+    /// Published recommended graphics memory.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub gpu_required_bytes: Option<f64>,
+    /// Bytes in inactive version directories.
+    pub leftover_bytes: f64,
+    /// Partial bytes in the selected version directory.
+    pub staged_bytes: f64,
+    /// Effective installation or download state.
+    pub status: LocalModelStatus,
+}
+
+/// Detected files and resource requirements.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct LocalModelMachineView {
+    /// Detected standalone llama-server executable, if available.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub llama_server_path: Option<String>,
+    /// Models directory under the connection's configuration root.
+    pub models_directory: String,
+    /// Catalog models with their current local state.
+    pub rows: Vec<LocalModelMachineRow>,
+}
+
+/// A notice that remains visible until dismissed or replaced.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct LocalModelNotice {
+    /// Catalog identifier associated with this notice.
+    pub model_id: String,
+    /// Notice text.
+    pub text: String,
+    /// Information, warning, or error.
+    pub tone: String,
+}
+
+/// Host preferences for its connection-owned manager, not authorization claims.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct LocalModelsConfigureRequest {
+    /// Whether the host currently displays the downloadable catalog.
+    pub catalog_enabled: bool,
+    /// Host diagnostic log path, used only in failure guidance.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub diagnostic_log_path: Option<String>,
+    /// Whether the host currently offers local model management.
+    pub enabled: bool,
+    /// Request the internal registry only when runtime-owned staff admission also permits it.
+    pub include_dev: bool,
+    /// Attached source session for live registration and selection. Its lifetime does not change.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub session_id: Option<SessionId>,
+    /// Suppress internal model facts while the host displays shared content.
+    pub streamer_mode: bool,
+}
+
+/// A message for a host's activity view.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct LocalModelTimelineMessage {
+    /// Whether the text uses Markdown.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub markdown: Option<bool>,
+    /// Message text.
+    pub text: String,
+    /// Information, warning, or error.
+    pub r#type: LocalModelTimelineMessageType,
+}
+
+/// A transient presentation update. Logs and telemetry remain runtime-owned.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct LocalModelsEvent {
+    /// Message absent for a model-list refresh.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub message: Option<LocalModelTimelineMessage>,
+    /// Whether current internal-registry access is necessary to display this notification.
+    pub requires_dev_access: bool,
+    /// Monotonic manager revision associated with this update.
+    pub revision: i64,
+    /// Host notification or model-list refresh.
+    pub r#type: LocalModelsEventType,
+}
+
+/// Identifier of a job or notice owned by this connection.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct LocalModelsModelIdRequest {
+    /// Catalog identifier. Identifiers from another connection confer no access.
+    pub model_id: String,
+}
+
+/// A model returned by this connection's catalog.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct LocalModelsModelRequest {
+    /// Model whose acquisition or registration the runtime manages.
+    pub model: LocalModelDescriptor,
+}
+
+/// Catalog refresh intent.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct LocalModelsRefreshRequest {
+    /// Use the background catalog policy instead of an explicit user refresh.
+    pub background: bool,
+}
+
+/// Setup intent for one catalog model.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct LocalModelsSetupRequest {
+    /// Download, update, or repair intent.
+    pub intent: LocalModelsSetupRequestIntent,
+    /// Requested catalog model. The runtime validates its identity and resolves current artifact access.
+    pub model: LocalModelDescriptor,
+}
+
+/// Connection-owned local model state.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct LocalModelsView {
+    /// Catalog error, when the refresh failed.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub catalog_error: Option<String>,
+    /// Whether a catalog refresh is active.
+    pub catalog_loading: bool,
+    /// Active download progress by catalog identifier.
+    pub downloads: HashMap<String, LocalModelDownloadProgress>,
+    /// Whether the host offers local model management.
+    pub enabled: bool,
+    /// Whether internal registry models must remain hidden.
+    pub hide_dev_models: bool,
+    /// Whether the downloadable catalog must remain hidden.
+    pub hide_win_ml_models: bool,
+    /// Local files, runtime detection, and resource requirements.
+    pub machine: LocalModelMachineView,
+    /// Persistent presentation notices by catalog identifier.
+    pub notices: HashMap<String, LocalModelNotice>,
+    /// Active setup or removal stage by catalog identifier.
+    pub operations: HashMap<String, LocalModelOperation>,
+    /// Inference runtime prerequisite guidance.
+    pub prerequisite_notice: String,
+}
+
+/// Snapshot and transient notifications for one connection-owned manager.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct LocalModelsSnapshot {
+    /// Transient host notifications since the acknowledged revision.
+    pub events: Vec<LocalModelsEvent>,
+    /// Revision to acknowledge in the next watch call.
+    pub revision: i64,
+    /// Current catalog, machine state, active operations, progress, and notices.
+    pub state: LocalModelsView,
+}
+
+/// Acknowledged position in this connection's manager updates.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct LocalModelsWatchRequest {
+    /// Last consumed revision. The call waits when no newer update exists.
+    pub after_revision: i64,
+}
+
 /// Which stored location permissions were dropped because their directory is gone.
 ///
 /// <div class="warning">
@@ -8604,6 +9271,63 @@ pub struct MetadataContextInfoResultContextInfo {
 pub struct MetadataContextInfoResult {
     /// Token breakdown for the current context window, or null if the session has not yet been initialized (no system prompt or tool metadata cached).
     pub context_info: Option<MetadataContextInfoResultContextInfo>,
+}
+
+/// Working directory context options. Git access follows the original session host's authority.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct MetadataGetWorkingDirectoryContextRequest {
+    /// Requested working directory, echoed without normalization.
+    pub cwd: String,
+    /// Resolve the default branch when true; defaults to false.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub include_default_branch: Option<bool>,
+}
+
+/// Session host's working directory and optional repository context.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct MetadataGetWorkingDirectoryContextResult {
+    /// Merge-base commit, when available.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub base_commit: Option<String>,
+    /// Current branch, when available.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub branch: Option<String>,
+    /// Requested working directory.
+    pub cwd: String,
+    /// Default branch, only when requested and available.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub default_branch: Option<String>,
+    /// Repository working tree root.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub git_root: Option<String>,
+    /// Current HEAD commit, when available.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub head_commit: Option<String>,
+    /// Recognized repository host platform.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub host_type: Option<SessionWorkingDirectoryContextHostType>,
+    /// Repository identifier from the existing Git owner.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub repository: Option<String>,
+    /// Repository remote host.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub repository_host: Option<String>,
 }
 
 /// Indicates whether the local session is currently processing a turn or background continuation.
@@ -10451,6 +11175,21 @@ pub struct ResponseFormat {
 pub struct RuntimeOpenBrowserRequest {
     /// The URL to open.
     pub url: String,
+}
+
+/// Result of adding a model to the saved provider configuration.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SavedProviderConfigurationAddModelResult {
+    /// Whether the provider was created along with the model.
+    pub provider_added: bool,
 }
 
 /// Register an absolute-time scheduled prompt.
@@ -12386,6 +13125,125 @@ pub struct VisibilitySetResult {
     pub synced: bool,
 }
 
+/// Snapshot and transient notifications for one connection-owned manager.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct LocalModelsConfigureResult {
+    /// Transient host notifications since the acknowledged revision.
+    pub events: Vec<LocalModelsEvent>,
+    /// Revision to acknowledge in the next watch call.
+    pub revision: i64,
+    /// Current catalog, machine state, active operations, progress, and notices.
+    pub state: LocalModelsView,
+}
+
+/// Snapshot and transient notifications for one connection-owned manager.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct LocalModelsInspectResult {
+    /// Transient host notifications since the acknowledged revision.
+    pub events: Vec<LocalModelsEvent>,
+    /// Revision to acknowledge in the next watch call.
+    pub revision: i64,
+    /// Current catalog, machine state, active operations, progress, and notices.
+    pub state: LocalModelsView,
+}
+
+/// Snapshot and transient notifications for one connection-owned manager.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct LocalModelsWatchResult {
+    /// Transient host notifications since the acknowledged revision.
+    pub events: Vec<LocalModelsEvent>,
+    /// Revision to acknowledge in the next watch call.
+    pub revision: i64,
+    /// Current catalog, machine state, active operations, progress, and notices.
+    pub state: LocalModelsView,
+}
+
+/// Runtime catalog entry, including installation and inference metadata.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct LocalModelsPrepareResult {
+    /// Published download size, when known.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub approximate_bytes: Option<f64>,
+    /// Recommended graphics memory, when published.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub approximate_vram_bytes: Option<f64>,
+    /// Automatic registration metadata, when applicable.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub auto_local: Option<LocalModelAutoRegistration>,
+    /// Exact registry asset identity.
+    pub azure_ml: LocalModelAzureMlIdentity,
+    /// Model display name.
+    pub display_name: String,
+    /// Default primary filename.
+    pub file_name: String,
+    /// Catalog identifier, distinct from the inference selection identifier.
+    pub id: String,
+    /// Published license name.
+    pub license: String,
+    /// Catalog lifecycle category.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub lifecycle: Option<String>,
+    /// Published token limits.
+    pub limits: LocalModelLimits,
+    /// Registry metadata, preserved without mutation.
+    pub metadata: serde_json::Value,
+    /// Published peak installation size, when known.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub peak_disk_bytes: Option<f64>,
+    /// Model publisher display name.
+    pub provider: String,
+    /// Stable BYOK provider name.
+    pub provider_name: String,
+    /// Inference runtime name.
+    pub runtime: String,
+    /// Whether acquisition installs the inference runtime.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub runtime_provisioned: Option<bool>,
+    /// Provider-qualified selection identifier.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub selection_id: Option<String>,
+    /// Published inference options, preserved without mutation.
+    pub serve_options: serde_json::Value,
+    /// Source and display order.
+    pub source: LocalModelSource,
+    /// Registry display label.
+    pub source_label: String,
+    /// Whether the model supports tool calls.
+    pub supports_tool_calls: bool,
+}
+
 /// Outcome of an atomic user or repository settings edit.
 ///
 /// <div class="warning">
@@ -13368,6 +14226,37 @@ pub enum AgentRegistrySpawnResult {
     ValidationError(AgentRegistrySpawnValidationError),
 }
 
+/// Provider families supported by saved configuration.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub enum SavedProviderConfigurationType {
+    /// Generic OpenAI-compatible API.
+    #[serde(rename = "openai")]
+    Openai,
+    /// Azure OpenAI Service endpoint.
+    #[serde(rename = "azure")]
+    Azure,
+    /// Anthropic API endpoint.
+    #[serde(rename = "anthropic")]
+    Anthropic,
+    /// Runtime-managed local model server.
+    #[serde(rename = "local_model")]
+    LocalModel,
+    /// Windows ML local model provider.
+    #[serde(rename = "winml")]
+    Winml,
+    /// Unknown variant for forward compatibility.
+    #[default]
+    #[serde(other)]
+    Unknown,
+}
+
 /// Attachment type discriminator
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
 pub enum AttachmentBlobType {
@@ -13551,6 +14440,56 @@ pub enum AzureMlRegistry {
     /// Microsoft staff development registry.
     #[serde(rename = "azureml-dev")]
     AzuremlDev,
+    /// Unknown variant for forward compatibility.
+    #[default]
+    #[serde(other)]
+    Unknown,
+}
+
+/// Result category of a managed provider configuration change.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub enum AzureMlRegistrationKind {
+    /// The requested managed rows now exist or are removed.
+    #[serde(rename = "written")]
+    Written,
+    /// The document is malformed and remains unchanged.
+    #[serde(rename = "skipped")]
+    Skipped,
+    /// A read, transaction, or write failed.
+    #[serde(rename = "failed")]
+    Failed,
+    /// Unknown variant for forward compatibility.
+    #[default]
+    #[serde(other)]
+    Unknown,
+}
+
+/// A managed registration change that leaves unrelated provider rows unchanged.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub enum AzureMlRegistrationOperation {
+    /// Replace the managed rows and return their prior contents.
+    #[serde(rename = "upsert")]
+    Upsert,
+    /// Remove this model and remove its provider only when unreferenced.
+    #[serde(rename = "remove")]
+    Remove,
+    /// Restore the prior managed rows without changing unrelated entries.
+    #[serde(rename = "restore")]
+    Restore,
     /// Unknown variant for forward compatibility.
     #[default]
     #[serde(other)]
@@ -15915,6 +16854,217 @@ pub enum LlmInferenceHttpRequestStartTransport {
     /// Full-duplex WebSocket channel. Each body chunk maps to exactly one WebSocket message and the `binary` flag distinguishes text from binary frames; request and response chunks flow concurrently.
     #[serde(rename = "websocket")]
     Websocket,
+    /// Unknown variant for forward compatibility.
+    #[default]
+    #[serde(other)]
+    Unknown,
+}
+
+/// Local disk requirement evaluation.
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub enum LocalModelDiskRequirementUnknownKind {
+    #[serde(rename = "unknown")]
+    #[default]
+    Unknown,
+}
+
+/// Local disk requirement evaluation.
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub enum LocalModelDiskRequirementOkKind {
+    #[serde(rename = "ok")]
+    #[default]
+    Ok,
+}
+
+/// Local disk requirement evaluation.
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub enum LocalModelDiskRequirementInsufficientKind {
+    #[serde(rename = "insufficient")]
+    #[default]
+    Insufficient,
+}
+
+/// Local disk requirement evaluation.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(untagged)]
+pub enum LocalModelDiskRequirement {
+    Unknown(LocalModelDiskRequirementUnknown),
+    Ok(LocalModelDiskRequirementOk),
+    Insufficient(LocalModelDiskRequirementInsufficient),
+}
+
+/// Graphics memory requirement evaluation.
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub enum LocalModelGpuRequirementUnknownKind {
+    #[serde(rename = "unknown")]
+    #[default]
+    Unknown,
+}
+
+/// Graphics memory requirement evaluation.
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub enum LocalModelGpuRequirementUnspecifiedKind {
+    #[serde(rename = "unspecified")]
+    #[default]
+    Unspecified,
+}
+
+/// Graphics memory requirement evaluation.
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub enum LocalModelGpuRequirementOkKind {
+    #[serde(rename = "ok")]
+    #[default]
+    Ok,
+}
+
+/// Graphics memory requirement evaluation.
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub enum LocalModelGpuRequirementInsufficientKind {
+    #[serde(rename = "insufficient")]
+    #[default]
+    Insufficient,
+}
+
+/// Graphics memory requirement evaluation.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(untagged)]
+pub enum LocalModelGpuRequirement {
+    Unknown(LocalModelGpuRequirementUnknown),
+    Unspecified(LocalModelGpuRequirementUnspecified),
+    Ok(LocalModelGpuRequirementOk),
+    Insufficient(LocalModelGpuRequirementInsufficient),
+}
+
+/// Effective local installation or transfer state.
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub enum LocalModelStatusNotDownloadedKind {
+    #[serde(rename = "not-downloaded")]
+    #[default]
+    NotDownloaded,
+}
+
+/// Effective local installation or transfer state.
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub enum LocalModelStatusDownloadedKind {
+    #[serde(rename = "downloaded")]
+    #[default]
+    Downloaded,
+}
+
+/// Effective local installation or transfer state.
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub enum LocalModelStatusDownloadingKind {
+    #[serde(rename = "downloading")]
+    #[default]
+    Downloading,
+}
+
+/// Effective file or download state.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(untagged)]
+pub enum LocalModelStatus {
+    NotDownloaded(LocalModelStatusNotDownloaded),
+    Downloaded(LocalModelStatusDownloaded),
+    Downloading(LocalModelStatusDownloading),
+}
+
+/// Active acquisition or removal stage.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub enum LocalModelOperation {
+    /// Install the inference engine.
+    #[serde(rename = "installing")]
+    Installing,
+    /// Resolve the model and inspect existing files.
+    #[serde(rename = "probing")]
+    Probing,
+    /// Transfer the model files.
+    #[serde(rename = "downloading")]
+    Downloading,
+    /// Save or activate the model registration.
+    #[serde(rename = "registering")]
+    Registering,
+    /// Remove registration and files.
+    #[serde(rename = "deleting")]
+    Deleting,
+    /// Unknown variant for forward compatibility.
+    #[default]
+    #[serde(other)]
+    Unknown,
+}
+
+/// Information, warning, or error.
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub enum LocalModelTimelineMessageType {
+    /// Inform the user about progress or completion.
+    #[serde(rename = "info")]
+    Info,
+    /// Report a condition that requires attention.
+    #[serde(rename = "warning")]
+    Warning,
+    /// Report a failed operation.
+    #[serde(rename = "error")]
+    Error,
+    /// Unknown variant for forward compatibility.
+    #[default]
+    #[serde(other)]
+    Unknown,
+}
+
+/// Host notification or model-list refresh.
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub enum LocalModelsEventType {
+    /// Display a model-management message.
+    #[serde(rename = "notify")]
+    Notify,
+    /// Refresh the host's available model list.
+    #[serde(rename = "refresh")]
+    Refresh,
+    /// Unknown variant for forward compatibility.
+    #[default]
+    #[serde(other)]
+    Unknown,
+}
+
+/// Download, update, or repair intent.
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub enum LocalModelsSetupRequestIntent {
+    /// Acquire and register an available model.
+    #[serde(rename = "download")]
+    Download,
+    /// Acquire the latest version of an installed model.
+    #[serde(rename = "update")]
+    Update,
+    /// Restore registration for an existing installation without downloading a missing model.
+    #[serde(rename = "repair")]
+    Repair,
     /// Unknown variant for forward compatibility.
     #[default]
     #[serde(other)]

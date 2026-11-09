@@ -27,6 +27,14 @@ import javax.annotation.processing.Generated;
 @JsonIgnoreProperties(ignoreUnknown = true)
 @com.fasterxml.jackson.databind.annotation.JsonDeserialize(using = FeatureFlagsResolveStartupGatesParams.$NullableDeserializer.class)
 record FeatureFlagsResolveStartupGatesParams(
+    /** Repository directory whose team membership the runtime resolves. */
+    @JsonProperty("workingDirectory") String workingDirectory,
+    /** Existing host owner authorized for this connection. Omit to use its bound owner. */
+    @JsonProperty("authOwnerId") String authOwnerId,
+    /** Explicit static overrides applied after environment and configuration. */
+    @JsonProperty("flagOverrides") Map<String, Boolean> flagOverrides,
+    /** Explicit experiment overrides applied after cached assignments. */
+    @JsonProperty("expFlagOverrides") Object expFlagOverrides,
     /** The feature flags to resolve. A name this runtime does not declare is reported as an error rather than as a disabled flag. */
     @JsonProperty("flags") List<String> flags,
     /** Whether the caller is GitHub or Microsoft staff. */
@@ -49,6 +57,8 @@ record FeatureFlagsResolveStartupGatesParams(
     @JsonProperty("firstLaunchAtMillis") Double firstLaunchAtMillis,
     /** Whether the runtime may refresh the cached assignment over the network without an active session. The refresh never blocks this call: the answer comes from the cache either way, so a refresh only affects a later launch. */
     @JsonProperty("refreshWithoutSession") Boolean refreshWithoutSession,
+    /** Include isTeamRepository beside the requested gates. One launch can then share its fresh audience with static resolution. An empty flags list reads no authentication or experiment assignments. */
+    @JsonProperty("includeTeamMembership") Boolean includeTeamMembership,
     @com.fasterxml.jackson.annotation.JsonIgnore java.util.Set<String> $explicitNulls
 ) {
 
@@ -64,8 +74,8 @@ record FeatureFlagsResolveStartupGatesParams(
      * @deprecated Use {@link #builder()} for named construction.
      */
     @Deprecated(since = "2.0.0", forRemoval = false)
-    FeatureFlagsResolveStartupGatesParams(List<String> flags, Boolean isStaff, Boolean isExperimental, Boolean isTeam, Boolean isStaffGitHub, Boolean isStaffMicrosoft, Map<String, String> environment, Object config, Boolean streamerMode, Double firstLaunchAtMillis, Boolean refreshWithoutSession) {
-        this(flags, isStaff, isExperimental, isTeam, isStaffGitHub, isStaffMicrosoft, environment, config, streamerMode, firstLaunchAtMillis, refreshWithoutSession, java.util.Set.of());
+    FeatureFlagsResolveStartupGatesParams(String workingDirectory, String authOwnerId, Map<String, Boolean> flagOverrides, Object expFlagOverrides, List<String> flags, Boolean isStaff, Boolean isExperimental, Boolean isTeam, Boolean isStaffGitHub, Boolean isStaffMicrosoft, Map<String, String> environment, Object config, Boolean streamerMode, Double firstLaunchAtMillis, Boolean refreshWithoutSession, Boolean includeTeamMembership) {
+        this(workingDirectory, authOwnerId, flagOverrides, expFlagOverrides, flags, isStaff, isExperimental, isTeam, isStaffGitHub, isStaffMicrosoft, environment, config, streamerMode, firstLaunchAtMillis, refreshWithoutSession, includeTeamMembership, java.util.Set.of());
     }
 
     /**
@@ -81,6 +91,11 @@ record FeatureFlagsResolveStartupGatesParams(
      */
     public static final class Builder {
         private Builder() {}
+        private String workingDirectory;
+        private String authOwnerId;
+        private Map<String, Boolean> flagOverrides;
+        private Object expFlagOverrides;
+        private boolean $presence3;
         private List<String> flags;
         private Boolean isStaff;
         private Boolean isExperimental;
@@ -89,10 +104,56 @@ record FeatureFlagsResolveStartupGatesParams(
         private Boolean isStaffMicrosoft;
         private Map<String, String> environment;
         private Object config;
-        private boolean $presence7;
+        private boolean $presence11;
         private Boolean streamerMode;
         private Double firstLaunchAtMillis;
         private Boolean refreshWithoutSession;
+        private Boolean includeTeamMembership;
+
+        /**
+         * Sets the {@code workingDirectory} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder workingDirectory(String value) {
+            this.workingDirectory = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code authOwnerId} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder authOwnerId(String value) {
+            this.authOwnerId = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code flagOverrides} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder flagOverrides(Map<String, Boolean> value) {
+            this.flagOverrides = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code expFlagOverrides} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder expFlagOverrides(Object value) {
+            this.expFlagOverrides = value;
+            this.$presence3 = true;
+            return this;
+        }
 
         /**
          * Sets the {@code flags} property.
@@ -179,7 +240,7 @@ record FeatureFlagsResolveStartupGatesParams(
          */
         public Builder config(Object value) {
             this.config = value;
-            this.$presence7 = true;
+            this.$presence11 = true;
             return this;
         }
 
@@ -217,6 +278,17 @@ record FeatureFlagsResolveStartupGatesParams(
         }
 
         /**
+         * Sets the {@code includeTeamMembership} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder includeTeamMembership(Boolean value) {
+            this.includeTeamMembership = value;
+            return this;
+        }
+
+        /**
          * Builds a record after checking required property presence.
          * @return a new record
          * @throws IllegalStateException if a required property is missing
@@ -230,8 +302,9 @@ record FeatureFlagsResolveStartupGatesParams(
             if (streamerMode == null) throw new IllegalStateException("Missing required property: streamerMode");
             if (refreshWithoutSession == null) throw new IllegalStateException("Missing required property: refreshWithoutSession");
             java.util.Set<String> $explicitNulls = new java.util.LinkedHashSet<>();
-            if ($presence7 && config == null) $explicitNulls.add("config");
-            return new FeatureFlagsResolveStartupGatesParams(flags, isStaff, isExperimental, isTeam, isStaffGitHub, isStaffMicrosoft, environment, config, streamerMode, firstLaunchAtMillis, refreshWithoutSession, $explicitNulls);
+            if ($presence3 && expFlagOverrides == null) $explicitNulls.add("expFlagOverrides");
+            if ($presence11 && config == null) $explicitNulls.add("config");
+            return new FeatureFlagsResolveStartupGatesParams(workingDirectory, authOwnerId, flagOverrides, expFlagOverrides, flags, isStaff, isExperimental, isTeam, isStaffGitHub, isStaffMicrosoft, environment, config, streamerMode, firstLaunchAtMillis, refreshWithoutSession, includeTeamMembership, $explicitNulls);
         }
     }
 
@@ -239,6 +312,7 @@ record FeatureFlagsResolveStartupGatesParams(
     @JsonInclude(value = JsonInclude.Include.ALWAYS, content = JsonInclude.Include.ALWAYS)
     public java.util.Map<String, Object> $nullableProperties() {
         java.util.Map<String, Object> values = new java.util.LinkedHashMap<>();
+        if ($explicitNulls.contains("expFlagOverrides") && expFlagOverrides == null) values.put("expFlagOverrides", null);
         if ($explicitNulls.contains("config") && config == null) values.put("config", null);
         return values;
     }
@@ -250,8 +324,9 @@ record FeatureFlagsResolveStartupGatesParams(
             com.fasterxml.jackson.databind.JsonNode tree = context.readTree(parser);
             if (!tree.isObject()) return context.reportInputMismatch(FeatureFlagsResolveStartupGatesParams.class, "Expected a JSON object");
             java.util.Set<String> $explicitNulls = new java.util.LinkedHashSet<>();
+            if (tree.has("expFlagOverrides") && tree.get("expFlagOverrides").isNull()) $explicitNulls.add("expFlagOverrides");
             if (tree.has("config") && tree.get("config").isNull()) $explicitNulls.add("config");
-            return new FeatureFlagsResolveStartupGatesParams(readProperty(context, tree, "flags", new com.fasterxml.jackson.core.type.TypeReference<List<String>>() {}), readProperty(context, tree, "isStaff", new com.fasterxml.jackson.core.type.TypeReference<Boolean>() {}), readProperty(context, tree, "isExperimental", new com.fasterxml.jackson.core.type.TypeReference<Boolean>() {}), readProperty(context, tree, "isTeam", new com.fasterxml.jackson.core.type.TypeReference<Boolean>() {}), readProperty(context, tree, "isStaffGithub", new com.fasterxml.jackson.core.type.TypeReference<Boolean>() {}), readProperty(context, tree, "isStaffMicrosoft", new com.fasterxml.jackson.core.type.TypeReference<Boolean>() {}), readProperty(context, tree, "environment", new com.fasterxml.jackson.core.type.TypeReference<Map<String, String>>() {}), readProperty(context, tree, "config", new com.fasterxml.jackson.core.type.TypeReference<Object>() {}), readProperty(context, tree, "streamerMode", new com.fasterxml.jackson.core.type.TypeReference<Boolean>() {}), readProperty(context, tree, "firstLaunchAtMillis", new com.fasterxml.jackson.core.type.TypeReference<Double>() {}), readProperty(context, tree, "refreshWithoutSession", new com.fasterxml.jackson.core.type.TypeReference<Boolean>() {}), $explicitNulls);
+            return new FeatureFlagsResolveStartupGatesParams(readProperty(context, tree, "workingDirectory", new com.fasterxml.jackson.core.type.TypeReference<String>() {}), readProperty(context, tree, "authOwnerId", new com.fasterxml.jackson.core.type.TypeReference<String>() {}), readProperty(context, tree, "flagOverrides", new com.fasterxml.jackson.core.type.TypeReference<Map<String, Boolean>>() {}), readProperty(context, tree, "expFlagOverrides", new com.fasterxml.jackson.core.type.TypeReference<Object>() {}), readProperty(context, tree, "flags", new com.fasterxml.jackson.core.type.TypeReference<List<String>>() {}), readProperty(context, tree, "isStaff", new com.fasterxml.jackson.core.type.TypeReference<Boolean>() {}), readProperty(context, tree, "isExperimental", new com.fasterxml.jackson.core.type.TypeReference<Boolean>() {}), readProperty(context, tree, "isTeam", new com.fasterxml.jackson.core.type.TypeReference<Boolean>() {}), readProperty(context, tree, "isStaffGithub", new com.fasterxml.jackson.core.type.TypeReference<Boolean>() {}), readProperty(context, tree, "isStaffMicrosoft", new com.fasterxml.jackson.core.type.TypeReference<Boolean>() {}), readProperty(context, tree, "environment", new com.fasterxml.jackson.core.type.TypeReference<Map<String, String>>() {}), readProperty(context, tree, "config", new com.fasterxml.jackson.core.type.TypeReference<Object>() {}), readProperty(context, tree, "streamerMode", new com.fasterxml.jackson.core.type.TypeReference<Boolean>() {}), readProperty(context, tree, "firstLaunchAtMillis", new com.fasterxml.jackson.core.type.TypeReference<Double>() {}), readProperty(context, tree, "refreshWithoutSession", new com.fasterxml.jackson.core.type.TypeReference<Boolean>() {}), readProperty(context, tree, "includeTeamMembership", new com.fasterxml.jackson.core.type.TypeReference<Boolean>() {}), $explicitNulls);
         }
 
         private static <T> T readProperty(com.fasterxml.jackson.databind.DeserializationContext context,

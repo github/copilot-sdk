@@ -40,8 +40,9 @@ pub struct GitHubTokenProviderArgs {
 
 /// A GitHub access token returned by a session token provider.
 ///
-/// `expires_in_seconds` is the positive remaining lifetime when the callback
-/// completes. Production GitHub tokens typically last eight hours.
+/// `expires_in_seconds` is the remaining lifetime when the callback completes.
+/// More than one hour must still remain after the runtime validates the token.
+/// Production GitHub tokens typically last eight hours.
 pub struct GitHubToken {
     access_token: String,
     expires_in_seconds: i64,

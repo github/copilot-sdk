@@ -200,26 +200,26 @@ alias(
 )
 
 alias(
-    name = "openssl-0.10.81",
-    actual = "@sdk_vendor__openssl-0.10.81//:openssl",
+    name = "openssl-0.10.82",
+    actual = "@sdk_vendor__openssl-0.10.82//:openssl",
     tags = ["manual"],
 )
 
 alias(
     name = "openssl",
-    actual = "@sdk_vendor__openssl-0.10.81//:openssl",
+    actual = "@sdk_vendor__openssl-0.10.82//:openssl",
     tags = ["manual"],
 )
 
 alias(
-    name = "openssl-sys-0.9.117",
-    actual = "@sdk_vendor__openssl-sys-0.9.117//:openssl_sys",
+    name = "openssl-sys-0.9.118",
+    actual = "@sdk_vendor__openssl-sys-0.9.118//:openssl_sys",
     tags = ["manual"],
 )
 
 alias(
     name = "openssl-sys",
-    actual = "@sdk_vendor__openssl-sys-0.9.117//:openssl_sys",
+    actual = "@sdk_vendor__openssl-sys-0.9.118//:openssl_sys",
     tags = ["manual"],
 )
 
@@ -488,14 +488,14 @@ alias(
 )
 
 alias(
-    name = "uuid-1.29.0",
-    actual = "@sdk_vendor__uuid-1.29.0//:uuid",
+    name = "uuid-1.29.1",
+    actual = "@sdk_vendor__uuid-1.29.1//:uuid",
     tags = ["manual"],
 )
 
 alias(
     name = "uuid",
-    actual = "@sdk_vendor__uuid-1.29.0//:uuid",
+    actual = "@sdk_vendor__uuid-1.29.1//:uuid",
     tags = ["manual"],
 )
 
@@ -512,13 +512,13 @@ alias(
 )
 
 alias(
-    name = "zip-9.4.1",
-    actual = "@sdk_vendor__zip-9.4.1//:zip",
+    name = "zip-9.4.2",
+    actual = "@sdk_vendor__zip-9.4.2//:zip",
     tags = ["manual"],
 )
 
 alias(
     name = "zip",
-    actual = "@sdk_vendor__zip-9.4.1//:zip",
+    actual = "@sdk_vendor__zip-9.4.2//:zip",
     tags = ["manual"],
 )

@@ -7,6 +7,9 @@ package com.github.copilot;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.NullSource;
+import org.junit.jupiter.params.provider.ValueSource;
 
 import com.github.copilot.generated.ExternalToolRequestedEvent;
 import com.github.copilot.generated.PermissionRequestedEvent;
@@ -172,8 +175,10 @@ public class CopilotClientTest {
         assertFalse(lateStarted.await(100, TimeUnit.MILLISECONDS));
     }
 
-    @Test
-    void testPermissionHandlerReceivesDerivedPromptContext() throws Exception {
+    @ParameterizedTest
+    @NullSource
+    @ValueSource(strings = {"program-parent"})
+    void testPermissionHandlerReceivesDerivedPromptContext(String programToolCallId) throws Exception {
         var rpc = mock(JsonRpcClient.class);
         var session = new CopilotSession("permission-session", rpc);
         session.setManagedSettingsEnabled(true);
@@ -191,7 +196,8 @@ public class CopilotClientTest {
                 .build();
         assistedApprovalAssessment.setRationale("The command modifies protected files.");
         var event = new PermissionRequestedEvent();
-        event.setData(PermissionRequestedEvent.PermissionRequestedEventData.builder().requestId("permission-1")
+        event.setData(PermissionRequestedEvent.PermissionRequestedEventData.builder()
+                .programToolCallId(programToolCallId).requestId("permission-1")
                 .permissionRequest(Map.of("kind", "shell", "managedApprovalRequired", true, "fullCommandText", "ls"))
                 .promptRequest(Map.of("kind", "commands", "fullCommandText", "ls", "intention", "List files",
                         "commandIdentifiers", List.of("ls"), "canOfferSessionApproval", false, "assistedApproval",
@@ -205,6 +211,7 @@ public class CopilotClientTest {
         assertTrue(invoked.await(1, TimeUnit.SECONDS));
         var observed = invocation.get();
         assertTrue(observed.isManagedSettingsEnabled());
+        assertEquals(programToolCallId, observed.getProgramToolCallId());
         assertNotNull(observed.getPromptRequest());
         assertNull(observed.getPromptRequest().getManagedApprovalRequired());
         assertEquals("commands", observed.getPromptRequest().getKind());

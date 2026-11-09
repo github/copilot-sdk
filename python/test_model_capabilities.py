@@ -219,3 +219,45 @@ def test_named_model_capabilities_use_the_same_wire_contract():
         "provider": "example",
         "capabilities": {"limits": {"max_context_window_tokens": 1_048_576}},
     }
+
+
+@pytest.mark.parametrize("operation", ["create", "resume"])
+@pytest.mark.asyncio
+async def test_session_operations_preserve_local_model_metadata(operation):
+    async def request(method, params, **kwargs):
+        response = {"sessionId": params["sessionId"]}
+        if callback := kwargs.get("on_response_inline"):
+            callback(response)
+        return response
+
+    rpc = Mock(request=AsyncMock(side_effect=request))
+    client = CopilotClient(connection=RuntimeConnection.for_uri("localhost:1234"))
+    client._client = rpc
+    client._state = "connected"
+    annotation = {"source": "azureml", "future": [None, True, 9007199254740993]}
+    metadata = {"autoLocal": annotation, "future": {"enabled": False}}
+    config = {
+        "models": [
+            {
+                "id": "model",
+                "provider": "local",
+                "auto_local": annotation,
+                "metadata": metadata,
+            }
+        ],
+        "on_permission_request": PermissionHandler.approve_all,
+    }
+
+    if operation == "create":
+        await client.create_session(session_id="local-model-session", **config)
+    else:
+        await client.resume_session("local-model-session", **config)
+
+    payload = next(
+        call.args[1]
+        for call in rpc.request.await_args_list
+        if call.args[0] == f"session.{operation}"
+    )
+    assert payload["models"] == [
+        {"id": "model", "provider": "local", "autoLocal": annotation, "metadata": metadata}
+    ]

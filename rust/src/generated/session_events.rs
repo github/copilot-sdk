@@ -104,6 +104,8 @@ pub enum SessionEventType {
     SessionContextCleared,
     #[serde(rename = "session.compaction_start")]
     SessionCompactionStart,
+    #[serde(rename = "session.compaction_summarized")]
+    SessionCompactionSummarized,
     #[serde(rename = "session.compaction_complete")]
     SessionCompactionComplete,
     #[serde(rename = "session.task_complete")]
@@ -694,6 +696,8 @@ pub enum SessionEventData {
     SessionContextCleared(SessionContextClearedData),
     #[serde(rename = "session.compaction_start")]
     SessionCompactionStart(SessionCompactionStartData),
+    #[serde(rename = "session.compaction_summarized")]
+    SessionCompactionSummarized(SessionCompactionSummarizedData),
     #[serde(rename = "session.compaction_complete")]
     SessionCompactionComplete(SessionCompactionCompleteData),
     #[serde(rename = "session.task_complete")]
@@ -1390,7 +1394,7 @@ pub struct SessionRemoteSteerableChangedData {
     pub remote_steerable: bool,
 }
 
-/// Session event "session.error". Error details for timeline display including message and optional diagnostic information
+/// Session event "session.error". Session error details for timeline display. Request-correlated completion RPC failures carry the terminal error's same fields in their error data, with stack and completionEventId.
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct SessionErrorData {
@@ -1410,6 +1414,9 @@ pub struct SessionErrorData {
     /// GitHub request tracing ID (x-github-request-id header) for correlating with server-side logs
     #[serde(skip_serializing_if = "Option::is_none")]
     pub provider_call_id: Option<String>,
+    /// Provider-defined error code, when available; unset otherwise. Unlike errorCode, this is not a runtime or Copilot API classification and does not imply a remediation or retry policy.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub provider_error_code: Option<String>,
     /// Sanitized provider-defined error parameter preserved from a structured upstream error envelope, when available.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub provider_error_param: Option<String>,
@@ -2543,7 +2550,7 @@ pub struct SessionUsageInfoData {
     pub tool_definitions_tokens: Option<i64>,
 }
 
-/// Session event "session.context_cleared". Context-cleared details emitted when the host clears the conversation (the session.history.clearContext RPC / Session.clearContextMessages)
+/// Session event "session.context_cleared". Context-cleared details emitted when the conversation is cleared (the session.history.clearContext RPC, or the runtime starting a fresh context window)
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct SessionContextClearedData {
@@ -2596,6 +2603,28 @@ pub struct SessionCompactionStartData {
     /// What initiated this compaction, when known
     #[serde(skip_serializing_if = "Option::is_none")]
     pub trigger: Option<CompactionTrigger>,
+}
+
+/// Session event "session.compaction_summarized". A background compaction's summarizer settled; its summary is not applied to the conversation yet. The matching session.compaction_complete follows once it is applied (or discarded) and remains authoritative.
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SessionCompactionSummarizedData {
+    /// Always true: the settled outcome still awaits being applied, which session.compaction_complete reports
+    pub apply_pending: bool,
+    /// Identifier shared with the matching compaction start and completion events
+    pub compaction_attempt_id: String,
+    /// Error message if the summarizer failed
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub error: Option<String>,
+    /// How the compaction ran relative to the conversation, as on the start event ("background"). Open set; readers must tolerate other values.
+    pub execution: String,
+    /// Bounded reason for a failed summarizer, using the same values as the completion event's failureReason. Unknown future values are preserved.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub failure_reason: Option<String>,
+    /// How the summarizer settled: "succeeded", "failed", or "cancelled". Open set; readers must tolerate other values.
+    pub outcome: String,
+    /// Whether the summarizer produced a summary that can be applied
+    pub success: bool,
 }
 
 /// End-to-end timing of a compaction attempt and the configuration it ran under, measured from the start of the compaction to its terminal event.
@@ -7082,6 +7111,16 @@ pub struct PermissionApprovalEvaluation {
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct PermissionAssistedApproval {
+    /// Zero-based indexes into the shell request's `commandSegments` that a `requireApproval` recommendation identified as needing approval, validated by the runtime against that request. Absent when the recommendation did not attribute approval to specific segments; the whole command then needs approval.
+    ///
+    /// <div class="warning">
+    ///
+    /// **Experimental.** This type is part of an experimental wire-protocol surface
+    /// and may change or be removed in future SDK or CLI releases.
+    ///
+    /// </div>
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub approval_required_command_segments: Option<Vec<i64>>,
     /// Runtime reason and judge-call metadata. Absent on older events; missing metadata means unknown, not that the judge was skipped.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub evaluation: Option<PermissionApprovalEvaluation>,
@@ -7517,6 +7556,9 @@ pub struct PermissionPromptRequestUrl {
     /// Whether managed policy requires a human response and forbids host auto-approval
     #[serde(skip_serializing_if = "Option::is_none")]
     pub managed_approval_required: Option<bool>,
+    /// Wildcard pattern covering the registrable domain of the URL and its subdomains, for example https://*.example.com for https://api.example.com/x. The runtime computes it from the Public Suffix List, keeping the URL's scheme and non-default port, so every host offers the same scope. Absent when no parent-domain approval can be offered safely (IP addresses, private-network names, public suffixes) and for sandbox-bypass requests. Hosts may offer it as a broader alternative to approving the exact origin for the running session and, when the user chooses it, return it as the domain of an approve-for-session response. It is session-only: the runtime matches it by registrable domain, so a subdomain the Public Suffix List lists as a separate owner (for example a bucket under s3.amazonaws.com) is not covered, and the runtime never persists it. Do not offer it as a permanent approval; an approve-permanently response carrying this exact pattern is kept for the session only and writes nothing to settings. The pattern also matches the registrable domain itself.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub parent_domain_pattern: Option<String>,
     /// Immediately preceding URL when this prompt is for a redirect target
     #[serde(skip_serializing_if = "Option::is_none")]
     pub redirected_from: Option<String>,

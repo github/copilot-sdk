@@ -68,6 +68,23 @@ class DeclarationOnlyToolTest {
     }
 
     @Test
+    void leavesADeclarationOnlyRequestPendingBeforeReplacementAcknowledgement() {
+        var acknowledgement = new CompletableFuture<Void>();
+        when(rpc.invoke(eq("session.tools.set"), any(), eq(Void.class))).thenReturn(acknowledgement);
+        session.registerTools(List.of(served("lookup_status"), served("calc")));
+        var replacement = session.setTools(List.of(declarationOnly("lookup_status")));
+        try {
+            assertFalse(replacement.isDone());
+            session.dispatchEvent(externalToolRequested("req-declared", "lookup_status", false));
+            session.dispatchEvent(externalToolRequested("req-served", "calc", true));
+            assertEquals(List.of("req-served"), answeredRequestIds());
+        } finally {
+            acknowledgement.complete(null);
+            replacement.join();
+        }
+    }
+
+    @Test
     void leavesCallsToADeclarationOnlyReplacementToolPending() throws Exception {
         session.registerTools(List.of(served("lookup_status")));
         session.setTools(List.of(declarationOnly("lookup_status"), served("calc"))).get();
@@ -92,10 +109,15 @@ class DeclarationOnlyToolTest {
     }
 
     private static ExternalToolRequestedEvent externalToolRequested(String requestId, String toolName) {
+        return externalToolRequested(requestId, toolName, null);
+    }
+
+    private static ExternalToolRequestedEvent externalToolRequested(String requestId, String toolName,
+            Boolean hasHandler) {
         var event = new ExternalToolRequestedEvent();
-        event.setData(ExternalToolRequestedEvent.ExternalToolRequestedEventData.builder().requestId(requestId)
-                .sessionId("session-1").toolCallId("tool-call-" + requestId).toolName(toolName).arguments(Map.of())
-                .build());
+        event.setData(ExternalToolRequestedEvent.ExternalToolRequestedEventData.builder().hasHandler(hasHandler)
+                .requestId(requestId).sessionId("session-1").toolCallId("tool-call-" + requestId).toolName(toolName)
+                .arguments(Map.of()).build());
         return event;
     }
 }

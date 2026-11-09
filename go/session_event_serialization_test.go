@@ -379,7 +379,7 @@ func TestSessionRootUnionEventRoundTrips(t *testing.T) {
 					}
 				case SessionEventTypeSandboxDecision:
 					if _, ok := event.Data.(*SandboxDecisionData); !ok {
-						t.Fatalf("expected sandbox decision data, got %T", event.Data)
+						t.Fatalf("expected legacy sandbox decision data, got %T", event.Data)
 					}
 				}
 				roundTripped, err := event.Marshal()

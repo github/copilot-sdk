@@ -10,6 +10,6 @@ package(default_visibility = ["//visibility:public"])
 
 alias(
     name = "openssl-sys",
-    actual = "@sdk_vendor__openssl-sys-0.9.117//:openssl_sys",
+    actual = "@sdk_vendor__openssl-sys-0.9.118//:openssl_sys",
     tags = ["manual"],
 )

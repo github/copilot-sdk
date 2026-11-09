@@ -38,6 +38,8 @@ import type {
     DiagnosticsConfiguration,
     LifecycleDiagnosticsConfiguration,
     OpenCanvasInstance,
+    NamedProviderConfig as GeneratedNamedProviderConfig,
+    ProviderConfigType,
     ProtocolExternalToolNamespace,
     CurrentToolMetadata,
     NetworkAuthenticateNegotiateRequest,
@@ -136,8 +138,9 @@ export type GitHubTokenProviderResult = GitHubTokenAcquireResult;
 /**
  * Acquires a GitHub token for one session.
  *
- * A token result must include `expiresIn`: the positive number of seconds of
- * remaining lifetime when the callback completes. Production GitHub tokens
+ * A token result must include `expiresIn`: the number of seconds of remaining
+ * lifetime when the callback completes. More than one hour must still remain
+ * after the runtime validates the token. Production GitHub tokens
  * typically last eight hours. Initial cancellation, callback errors, and
  * invalid token responses reject session creation or resume instead of falling
  * back to ambient authentication.
@@ -209,8 +212,8 @@ export type TraceContextProvider = () => TraceContext | Promise<TraceContext>;
  * Configuration for OpenTelemetry instrumentation.
  *
  * When provided via {@link CopilotClientOptions.telemetry}, the SDK sets
- * the corresponding environment variables on the spawned CLI process so
- * that the CLI's built-in OTel exporter is configured automatically.
+ * the corresponding startup configuration on the owned runtime, including
+ * in-process hosts, without changing the application's environment.
  */
 export interface TelemetryConfig {
     /** OTLP HTTP endpoint URL for trace/metric export. Sets OTEL_EXPORTER_OTLP_ENDPOINT. */
@@ -270,10 +273,10 @@ export interface StdioRuntimeConnection extends ChildProcessRuntimeConnection {
  * {@link RuntimeConnection.forInProcess}.
  *
  * @experimental The in-process (FFI) transport is experimental and its behavior may
- * change. Typed authentication and {@link CopilotClientOptions.baseDirectory}
- * are scoped to this host. Client-level `env`, `workingDirectory` and
- * `telemetry` are unsupported; set working directories
- * on individual sessions.
+ * change. Typed authentication, {@link CopilotClientOptions.telemetry} and
+ * {@link CopilotClientOptions.baseDirectory} are host-scoped.
+ * `env` and `workingDirectory` are unsupported; use
+ * per-session working directories.
  */
 export interface InProcessRuntimeConnection {
     readonly kind: "inprocess";
@@ -366,9 +369,9 @@ export const RuntimeConnection = {
     /**
      * Host the runtime in-process over the native runtime library's C ABI (FFI).
      *
-     * @experimental Runtime configuration from `gitHubToken` and
+     * @experimental Runtime configuration from `gitHubToken`, `telemetry` and
      * `baseDirectory` is scoped to this host, not the process environment.
-     * Client-level `env`, `telemetry` and `workingDirectory` are unsupported.
+     * Client-level `env` and `workingDirectory` are unsupported.
      */
     forInProcess(
         options: Pick<InProcessRuntimeConnection, "runOnUiThread"> = {}
@@ -594,9 +597,9 @@ export interface CopilotClientOptions {
     onListModels?: () => Promise<ModelInfo[]> | ModelInfo[];
 
     /**
-     * OpenTelemetry configuration for the runtime process.
-     * When provided, the corresponding OTel environment variables are set
-     * on the spawned runtime.
+     * OpenTelemetry startup configuration for the owned runtime.
+     * Supports child-process and in-process hosts; omitted settings inherit
+     * the application environment and runtime policy still takes precedence.
      */
     telemetry?: TelemetryConfig;
 
@@ -1006,6 +1009,13 @@ export interface Tool<TArgs = unknown> {
      */
     isTerminal?: boolean;
     /**
+     * When true, declares that repeating a call with the same arguments has no
+     * additional effect beyond the first call, as is true of any tool without
+     * side effects. The runtime may use this to decide that a call whose outcome
+     * was lost can be safely repeated. It does not affect permission checks.
+     */
+    idempotent?: boolean;
+    /**
      * Groups this tool with related tools for model tool discovery.
      *
      * On models and providers that support native tool namespaces, deferred
@@ -1045,6 +1055,7 @@ export function defineTool<T = unknown>(
         defer?: "auto" | "never";
         metadata?: Record<string, unknown>;
         isTerminal?: boolean;
+        idempotent?: boolean;
         namespace?: ToolNamespace;
     }
 ): Tool<T> {
@@ -1591,6 +1602,11 @@ export function createAttributedPermissionResult(
 export interface PermissionHandlerInvocation {
     sessionId: string;
     managedSettingsEnabled?: boolean;
+    /**
+     * Program invocation owning this permission request; absent for ordinary requests.
+     * @experimental
+     */
+    programToolCallId?: string;
     /**
      * Canonical runtime-owned Assisted Permissions assessment.
      *
@@ -3049,6 +3065,15 @@ export interface SessionConfigBase {
     excludedBuiltinAgents?: string[];
 
     /**
+     * Built-in subagent names to allow, subject to availability and
+     * {@link excludedBuiltinAgents}. An empty array disables all built-in
+     * subagents; custom agents remain available, including same-name agents.
+     * Omission uses defaults on create or cold resume and preserves the current
+     * allowlist on warm resume. Not persisted; re-supply on resume after restart.
+     */
+    includedBuiltinAgents?: string[];
+
+    /**
      * Built-in skill names to include in the session. In `mode: "empty"`,
      * omitting this option excludes all runtime-bundled skills; specifying names
      * opts those built-ins back in. Skills from other sources remain eligible.
@@ -3708,6 +3733,11 @@ export interface ResumeSessionConfig extends SessionConfigBase {
      * caller-supplied results via the corresponding low-level RPC methods. Resuming
      * does not re-emit restored permission requests or re-invoke permission handlers
      * or already-dispatched external tool callbacks.
+     * If a pending call was recorded as SDK-handler-backed and resume registers a
+     * handler for that tool, the abandoned callback is interrupted, never replayed.
+     * Handlerless calls remain pending. To supply an abandoned callback's result
+     * manually, resume without a handler for it. Older requests without recorded
+     * callback ownership also remain pending.
      * @default false
      */
     continuePendingWork?: boolean;
@@ -3805,7 +3835,7 @@ export interface ProviderConfig {
     /**
      * Provider type. Defaults to "openai" for generic OpenAI-compatible APIs.
      */
-    type?: "openai" | "azure" | "anthropic";
+    type?: ProviderConfigType;
 
     /**
      * API format (openai/azure only). Defaults to "completions".
@@ -3935,7 +3965,12 @@ export interface NamedProviderConfig {
     /**
      * Provider type. Defaults to "openai" for generic OpenAI-compatible APIs.
      */
-    type?: "openai" | "azure" | "anthropic";
+    type?: ProviderConfigType;
+
+    /**
+     * Runtime options for a local model. The SDK forwards these options unchanged.
+     */
+    localModel?: GeneratedNamedProviderConfig["localModel"];
 
     /**
      * Wire API format (openai/azure only). Defaults to "completions".
@@ -3992,7 +4027,7 @@ export interface NamedProviderConfig {
     /**
      * Custom HTTP headers to include in all outbound requests to the provider.
      */
-    headers?: Record<string, string>;
+    headers?: GeneratedNamedProviderConfig["headers"];
 }
 
 /**
@@ -4012,6 +4047,16 @@ export interface NamedProviderConfig {
  * and may change or be removed in future SDK or CLI releases.
  */
 export interface ProviderModelConfig {
+    /**
+     * Forward-compatible persisted on-device Auto annotation.
+     */
+    autoLocal?: JsonValue;
+
+    /**
+     * Provider-published model metadata, including live Auto routing annotations.
+     */
+    metadata?: Record<string, JsonValue | undefined>;
+
     /**
      * Provider-local model id, unique within its provider. The session-wide
      * selection id is the provider-qualified `provider/id`.

@@ -439,10 +439,6 @@ fn inprocess_rejects_process_scoped_options() {
         ("env", ClientOptions::new().with_env([("KEY", "value")])),
         ("env_remove", ClientOptions::new().with_env_remove(["KEY"])),
         (
-            "telemetry",
-            ClientOptions::new().with_telemetry(TelemetryConfig::default()),
-        ),
-        (
             "prefix_args",
             ClientOptions::new().with_prefix_args(["index.js"]),
         ),
@@ -799,6 +795,20 @@ fn build_command_sets_otel_env_when_telemetry_enabled() {
         env_value(&cmd, "OTEL_INSTRUMENTATION_GENAI_CAPTURE_MESSAGE_CONTENT"),
         Some(std::ffi::OsStr::new("true")),
     );
+    validate_inprocess_options(&opts).unwrap();
+    let environment = inprocess_environment(&opts).unwrap();
+    for (key, value) in cmd.as_std().get_envs().filter(|(key, _)| {
+        key.to_string_lossy().starts_with("OTEL_")
+            || key.to_string_lossy().starts_with("COPILOT_OTEL_")
+    }) {
+        assert!(
+            environment.contains(&(
+                key.to_str().unwrap().to_owned(),
+                value.unwrap().to_str().unwrap().to_owned()
+            )),
+            "missing in-process telemetry setting {key:?}={value:?}"
+        );
+    }
 }
 
 #[test]
@@ -823,6 +833,25 @@ fn build_command_omits_otel_env_when_telemetry_none() {
 }
 
 #[test]
+fn inprocess_telemetry_requires_an_owned_runtime() {
+    let mut opts = ClientOptions::new().with_telemetry(TelemetryConfig::default());
+    validate_inprocess_options(&opts).unwrap();
+    assert_eq!(
+        inprocess_environment(&opts).unwrap(),
+        vec![("COPILOT_OTEL_ENABLED".to_owned(), "true".to_owned())]
+    );
+    opts.in_process_server_id = Some(42);
+    let error = validate_inprocess_options(&opts).unwrap_err();
+    assert_eq!(*error.kind(), ErrorKind::InvalidConfig);
+    assert!(
+        error
+            .message()
+            .unwrap()
+            .contains("requires an owned runtime")
+    );
+}
+
+#[test]
 fn build_command_sets_standard_and_legacy_capture_modes() {
     for (capture, mode) in [(true, "SPAN_ONLY"), (false, "NO_CONTENT")] {
         let opts = ClientOptions {
@@ -838,6 +867,15 @@ fn build_command_sets_standard_and_legacy_capture_modes() {
             env_value(&cmd, "OTEL_INSTRUMENTATION_GENAI_CAPTURE_MESSAGE_CONTENT"),
             Some(std::ffi::OsStr::new(if capture { "true" } else { "false" })),
         );
+        let environment = inprocess_environment(&opts).unwrap();
+        assert!(environment.contains(&(
+            "OTEL_INSTRUMENTATION_GENAI_CAPTURE_CONTENT".to_owned(),
+            mode.to_owned()
+        )));
+        assert!(environment.contains(&(
+            "OTEL_INSTRUMENTATION_GENAI_CAPTURE_MESSAGE_CONTENT".to_owned(),
+            capture.to_string()
+        )));
     }
 }
 

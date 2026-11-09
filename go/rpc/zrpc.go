@@ -886,6 +886,18 @@ type AgentsGetDiscoveryPathsRequest struct {
 	ProjectPaths []string `json:"projectPaths,omitzero"`
 }
 
+// Saves through the exact authenticated local attachment that discovered a model.
+// Experimental: AttachedProviderConfigurationAddModelRequest is part of an experimental API
+// and may change or be removed.
+type AttachedProviderConfigurationAddModelRequest struct {
+	// Original authenticated local attachment, not a replacement with the same session id.
+	AttachID int64 `json:"attachId"`
+	// The ordinary server-owned save request, without a caller-selected destination.
+	Configuration SavedProviderConfigurationAddModelRequest `json:"configuration"`
+	// Session whose owning server receives the save.
+	SessionID string `json:"sessionId"`
+}
+
 // A user message attachment — a file, directory, code selection, blob, GitHub-anchored
 // pointer, or extension-supplied context payload
 // Experimental: Attachment is part of an experimental API and may change or be removed.
@@ -1299,8 +1311,10 @@ type AttachmentSelectionDetailsStart struct {
 // Bounded, lifecycle-fenced host authority rendered to the Assisted Permissions judge.
 // Source-specific meaning and scope remain opaque data interpreted by the judge. The source
 // must match the enclosing update source. At most 8 statements of up to 1,024 characters
-// each (4,096 total); scope follows the assisted-approval context JSON bounds. A session
-// holds at most 8 active sources and 32 KiB of rendered grants.
+// each (4,096 total), and at most 8 user messages of 16,384 characters in total; a grant
+// needs at least one statement or user message. Scope follows the assisted-approval context
+// JSON bounds. A session holds at most 8 active sources and 32 KiB of rendered grants, not
+// counting user messages, and at most one active source may quote user messages.
 // Experimental: AuthenticatedAuthorityGrant is part of an experimental API and may change
 // or be removed.
 type AuthenticatedAuthorityGrant struct {
@@ -1308,12 +1322,25 @@ type AuthenticatedAuthorityGrant struct {
 	ExpiresAt string `json:"expiresAt"`
 	// Stable host-issued identifier for this authority.
 	GrantID string `json:"grantId"`
-	// Structured scope facts constraining the authority statements.
+	// Structured scope facts constraining the authority statements. Must be an empty object
+	// when `statements` is empty.
 	Scope any `json:"scope"`
 	// Stable identifier for the trusted authority source; must match the update source.
 	Source string `json:"source"`
-	// Bounded human-readable authority statements rendered to the judge.
+	// Bounded human-readable authority statements rendered to the judge. May be an empty array,
+	// never null, only when `userMessages` is not empty; a grant without statements adds no
+	// grant record to the judge's system prompt, so its `scope` must then be an empty object.
 	Statements []string `json:"statements"`
+	// The user's own messages in another session, verbatim and oldest first, that the host
+	// authenticates as the user's, such as what the user wrote to the session that delegated
+	// work to this one. The judge transcript shows each as one of the user's own messages,
+	// written in another session, before this session's own user messages. Never include text
+	// an agent, tool, or file wrote. Only one active source may quote user messages, because
+	// quotes from different sources have no order, and only while the session has no human
+	// messages of its own, which could be older or newer than the quotes; human messages the
+	// session receives later render after the quotes. Omit when the grant quotes no user
+	// messages.
+	UserMessages []string `json:"userMessages,omitzero"`
 }
 
 // Replaces or revokes one source's revocable session-scoped authority from the owning host.
@@ -2358,6 +2385,28 @@ type AzureMlFamilyRequest struct {
 	Registry AzureMlRegistry `json:"registry"`
 }
 
+// Graphics memory available for an on-device model.
+// Experimental: AzureMlGpuMemory is part of an experimental API and may change or be
+// removed.
+type AzureMlGpuMemory struct {
+	// Dedicated graphics memory, in bytes.
+	DedicatedBytes float64 `json:"dedicatedBytes"`
+	// Adapter description reported by the host.
+	Description string `json:"description"`
+	// Shared memory usable by a unified adapter, in bytes.
+	SharedBytes float64 `json:"sharedBytes"`
+	// Dedicated and usable shared memory, in bytes.
+	TotalBytes float64 `json:"totalBytes"`
+}
+
+// Measured graphics capability; missing memory means the adapter is unknown.
+// Experimental: AzureMlHardwareResult is part of an experimental API and may change or be
+// removed.
+type AzureMlHardwareResult struct {
+	// Selected hardware adapter, absent when the platform cannot measure it.
+	GpuMemory *AzureMlGpuMemory `json:"gpuMemory,omitempty"`
+}
+
 // Selects an Azure ML model family.
 // Experimental: AzureMlLatestRequest is part of an experimental API and may change or be
 // removed.
@@ -2429,6 +2478,38 @@ type AzureMlProfile struct {
 	ServeOptions any `json:"serveOptions"`
 	// Whether the model supports tool calls.
 	SupportsToolCalls bool `json:"supportsToolCalls"`
+}
+
+// Managed Azure ML registration changes under a connection-owned family lease.
+// Experimental: AzureMlRegistrationRequest is part of an experimental API and may change or
+// be removed.
+type AzureMlRegistrationRequest struct {
+	// Exact prior rows returned by a successful upsert, required for restoration.
+	Before json.RawMessage `json:"before,omitempty"`
+	// Provider and model entries for an upsert.
+	Entries *ModelProviderSaveConfigurationRequest `json:"entries,omitempty"`
+	// Lease retained through transfer, registration, activation, and compensation.
+	LeaseID string `json:"leaseId"`
+	// Exact model family associated with the lease.
+	Name string `json:"name"`
+	// Scoped registration change to perform.
+	Operation AzureMlRegistrationOperation `json:"operation"`
+	// Registry associated with the acquired family lease.
+	Registry AzureMlRegistry `json:"registry"`
+}
+
+// Observable outcome of a scoped registration change.
+// Experimental: AzureMlRegistrationResult is part of an experimental API and may change or
+// be removed.
+type AzureMlRegistrationResult struct {
+	// Prior managed rows captured under the write lock, for an upsert.
+	Before json.RawMessage `json:"before,omitempty"`
+	// Refusal reason or write error, absent after success.
+	Detail *string `json:"detail,omitempty"`
+	// Whether the change succeeded, was refused, or failed.
+	Kind AzureMlRegistrationKind `json:"kind"`
+	// Effective providers file, including the configured environment override.
+	Path string `json:"path"`
 }
 
 // Empty acknowledgement for a completed host lifecycle operation.
@@ -5903,6 +5984,14 @@ type CurrentModel struct {
 	AutoTier *AutoTier `json:"autoTier,omitempty"`
 	// Context tier for models that support multiple context-window sizes.
 	ContextTier *ContextTier `json:"contextTier,omitempty"`
+	// Copilot Fusion tier that the committed autoTier serves, resolved from the session's Auto
+	// tier metadata. An open string: known values include `standard`, `high`, and `max`; other
+	// provider-defined values may appear. Omitted when autoTier is unset, is not a Fusion tier,
+	// or Auto metadata has not been discovered (for example after cold resume, before
+	// session.model.list). This snapshot reports only the committed Fusion tier; resolve
+	// pendingAutoTier and activatingAutoTier against auto.tiers[].fusionTier from
+	// session.model.list.
+	FusionTier *string `json:"fusionTier,omitempty"`
 	// Currently active model identifier
 	ModelID *string `json:"modelId,omitempty"`
 	// Latest unclaimed Auto preference waiting for a future user turn. Null means the pending
@@ -7474,6 +7563,44 @@ type ExternalToolTextResultForLlmContentResourceLinkIcon struct {
 	Theme *ExternalToolTextResultForLlmContentResourceLinkIconTheme `json:"theme,omitempty"`
 }
 
+// An explicit replacement or clear of the current assignments.
+// Experimental: FeatureFlagAssignmentsUpdate is part of an experimental API and may change
+// or be removed.
+type FeatureFlagAssignmentsUpdate struct {
+	// The original assignment response; null clears delivered assignments.
+	Response *any `json:"response"`
+}
+
+// A patch to retained user settings, without a disk write.
+// Experimental: FeatureFlagConfigPatch is part of an experimental API and may change or be
+// removed.
+type FeatureFlagConfigPatch struct {
+	// Top-level keys to remove after the merge.
+	UndefinedKeys []string `json:"undefinedKeys"`
+	// Settings keys to merge. Null has the original empty-patch semantics.
+	Values any `json:"values"`
+}
+
+// One persisted feature preference.
+// Experimental: FeatureFlagEnabledOverride is part of an experimental API and may change or
+// be removed.
+type FeatureFlagEnabledOverride struct {
+	// Null removes the preference and restores lower-precedence behavior.
+	Enabled *bool `json:"enabled"`
+	// A runtime-defined feature name. Unknown names fail.
+	Name string `json:"name"`
+}
+
+// A boolean experiment value with a static feature fallback.
+// Experimental: FeatureFlagExpOverrideQuery is part of an experimental API and may change
+// or be removed.
+type FeatureFlagExpOverrideQuery struct {
+	// Experiment key whose boolean value takes precedence.
+	ExpFlag string `json:"expFlag"`
+	// Static feature name.
+	Flag string `json:"flag"`
+}
+
 // The declared shape of one feature flag, independent of any caller population.
 // Experimental: FeatureFlagMetadata is part of an experimental API and may change or be
 // removed.
@@ -7499,6 +7626,129 @@ type FeatureFlagMetadata struct {
 	ExpFlagEnvVar *string `json:"expFlagEnvVar,omitempty"`
 	// The flag's name, matching the key it is listed under.
 	Name string `json:"name"`
+}
+
+// The runtime's interpretation of the reasoning-summary arm.
+// Experimental: FeatureFlagReasoningSummariesArm is part of an experimental API and may
+// change or be removed.
+type FeatureFlagReasoningSummariesArm struct {
+	// Whether the hidden-summary hint is enabled.
+	HintEnabled bool `json:"hintEnabled"`
+	// Whether summaries are hidden by default.
+	OffByDefault bool `json:"offByDefault"`
+}
+
+// Evaluation inputs for the bound session's feature service, not authentication claims.
+// Experimental: FeatureFlagServiceConfigureParams is part of an experimental API and may
+// change or be removed.
+type FeatureFlagServiceConfigureParams struct {
+	// Explicit assignment replacement or clear; omission retains current assignments.
+	Assignments *FeatureFlagAssignmentsUpdate `json:"assignments,omitempty"`
+	// The retained user-settings snapshot.
+	Config any `json:"config,omitempty"`
+	// Host environment snapshot; omit to use the live process environment.
+	Environment map[string]string `json:"environment,omitzero"`
+	// Explicit experiment overrides, after delivered assignments.
+	ExpFlagOverrides map[string]FeatureFlagValue `json:"expFlagOverrides,omitzero"`
+	// Installation first-launch time in Unix milliseconds, when known.
+	FirstLaunchAtMillis *float64 `json:"firstLaunchAtMillis,omitempty"`
+	// Explicit static overrides, after environment and user settings.
+	FlagOverrides map[string]bool `json:"flagOverrides,omitzero"`
+	// Constructor scalar seed; omission retains the existing constructor snapshot.
+	InitialSessionFlags map[string]bool `json:"initialSessionFlags,omitzero"`
+	// Whether experimental features are enabled.
+	IsExperimental bool `json:"isExperimental"`
+	// Static staff availability; this does not establish staff authentication.
+	IsStaff bool `json:"isStaff"`
+	// GitHub staff population, when the host recorded split populations.
+	IsStaffGitHub *bool `json:"isStaffGithub,omitempty"`
+	// Microsoft staff population, when the host recorded split populations.
+	IsStaffMicrosoft *bool `json:"isStaffMicrosoft,omitempty"`
+	// Static team availability; this does not select the authenticated account.
+	IsTeam bool `json:"isTeam"`
+	// Install the existing online assignment source unless assignments are explicit.
+	Online bool `json:"online"`
+	// Whether online segmentation withholds audience populations.
+	StreamerMode bool `json:"streamerMode"`
+}
+
+// Optional evaluations and readiness barriers for one feature snapshot.
+// Experimental: FeatureFlagServiceReadParams is part of an experimental API and may change
+// or be removed.
+type FeatureFlagServiceReadParams struct {
+	// Wait for a different revision or service disposal using the existing change notification.
+	AfterRevision *int64 `json:"afterRevision,omitempty"`
+	// Return only the redacted UI projection, without assignment data or requested evaluations.
+	DisplayOnly *bool `json:"displayOnly,omitempty"`
+	// Feature names evaluated with their canonical experiment mappings.
+	Flags []string `json:"flags,omitzero"`
+	// Explicit experiment/static queries, in result order.
+	Overrides []FeatureFlagExpOverrideQuery `json:"overrides,omitzero"`
+	// Original display generation; a replaced service returns an unavailable projection.
+	ServiceID *string `json:"serviceId,omitempty"`
+	// Wait for the current assignment. Omission does not wait.
+	WaitForExpResponse *bool `json:"waitForExpResponse,omitempty"`
+}
+
+// One authoritative snapshot and the requested evaluations.
+// Experimental: FeatureFlagServiceReadResult is part of an experimental API and may change
+// or be removed.
+type FeatureFlagServiceReadResult struct {
+	// Redacted runtime decisions for UI presentation, present only for an available display
+	// read.
+	DisplayState any `json:"displayState,omitempty"`
+	// Requested feature values. Unknown or unset values are absent.
+	Flags map[string]bool `json:"flags"`
+	// Explicit override results; null means neither source supplies a boolean.
+	Overrides []*bool `json:"overrides"`
+	// The state used by these evaluations.
+	Snapshot FeatureFlagServiceSnapshot `json:"snapshot"`
+}
+
+// Current service state, without configuration documents or credentials.
+// Experimental: FeatureFlagServiceSnapshot is part of an experimental API and may change or
+// be removed.
+type FeatureFlagServiceSnapshot struct {
+	// Whether the service remains active.
+	Active bool `json:"active"`
+	// Latest nonempty assignment context.
+	AssignmentContext *string `json:"assignmentContext,omitempty"`
+	// Organization targeting derived from the authenticated account.
+	AutoApprovalTargeted bool `json:"autoApprovalTargeted"`
+	// Validated instruction-retrieval arm, when present.
+	DynamicInstructionsRetrievalArm *string `json:"dynamicInstructionsRetrievalArm,omitempty"`
+	// Effective experiment values.
+	ExpFlags map[string]FeatureFlagValue `json:"expFlags"`
+	// Whether the current audience assignment has resolved.
+	ExpResponseResolved bool `json:"expResponseResolved"`
+	// Static flags after availability, environment, settings, and explicit overrides.
+	Flags map[string]bool `json:"flags"`
+	// Original runtime interpretation of the GPT default-model treatment.
+	GptDefaultModelEnabled bool `json:"gptDefaultModelEnabled"`
+	// Original runtime interpretation of the reasoning-summary treatment.
+	ReasoningSummariesArm FeatureFlagReasoningSummariesArm `json:"reasoningSummariesArm"`
+	// Original assignment document, including its optional fields.
+	Response any `json:"response"`
+	// Service revision, with unsigned 32-bit wraparound.
+	Revision int64 `json:"revision"`
+	// Latest nonempty secondary assignment context.
+	SecondaryAssignmentContext *string `json:"secondaryAssignmentContext,omitempty"`
+	// Decimal instance identity, without integer precision loss.
+	ServiceID string `json:"serviceId"`
+}
+
+// Changes apply in field order: config, preference, assignments, secondary context.
+// Experimental: FeatureFlagServiceUpdateParams is part of an experimental API and may
+// change or be removed.
+type FeatureFlagServiceUpdateParams struct {
+	// Replace or clear delivered assignments.
+	Assignments *FeatureFlagAssignmentsUpdate `json:"assignments,omitempty"`
+	// Patch the retained configuration.
+	ConfigPatch *FeatureFlagConfigPatch `json:"configPatch,omitempty"`
+	// Apply or remove one preference.
+	EnabledOverride *FeatureFlagEnabledOverride `json:"enabledOverride,omitempty"`
+	// Retain a nonempty secondary context using the original whitespace rules.
+	SecondaryAssignmentContext *string `json:"secondaryAssignmentContext,omitempty"`
 }
 
 // Every feature flag this runtime declares, with the shape each one was declared with.
@@ -7543,6 +7793,9 @@ type FeatureFlagsResolveRequest struct {
 	IsStaffMicrosoft *bool `json:"isStaffMicrosoft,omitempty"`
 	// Whether the caller belongs to the team population used by feature availability.
 	IsTeam bool `json:"isTeam"`
+	// Resolve repository team membership in the runtime instead of accepting a host
+	// classification.
+	WorkingDirectory *string `json:"workingDirectory,omitempty"`
 }
 
 // The resolved feature flags, keyed by flag name.
@@ -7558,17 +7811,27 @@ type FeatureFlagsResolveResult map[string]bool
 // Internal: FeatureFlagsResolveStartupGatesRequest is an internal SDK API and is not part
 // of the public surface.
 type FeatureFlagsResolveStartupGatesRequest struct {
+	// Existing host owner authorized for this connection. Omit to use its bound owner.
+	AuthOwnerID *string `json:"authOwnerId,omitempty"`
 	// User settings document whose `featureFlags` block is layered on top of the resolved set.
 	Config any `json:"config,omitempty"`
 	// Environment to read flag overrides from. Defaults to this runtime process's own
 	// environment.
 	Environment map[string]string `json:"environment,omitzero"`
+	// Explicit experiment overrides applied after cached assignments.
+	ExpFlagOverrides any `json:"expFlagOverrides,omitempty"`
 	// When this installation first launched, in milliseconds since the Unix epoch. Experiments
 	// that segment on installation age read it. Omit when the first launch was never recorded.
 	FirstLaunchAtMillis *float64 `json:"firstLaunchAtMillis,omitempty"`
+	// Explicit static overrides applied after environment and configuration.
+	FlagOverrides map[string]bool `json:"flagOverrides,omitzero"`
 	// The feature flags to resolve. A name this runtime does not declare is reported as an
 	// error rather than as a disabled flag.
 	Flags []string `json:"flags"`
+	// Include isTeamRepository beside the requested gates. One launch can then share its fresh
+	// audience with static resolution. An empty flags list reads no authentication or
+	// experiment assignments.
+	IncludeTeamMembership *bool `json:"includeTeamMembership,omitempty"`
 	// Whether the caller is in an experimental population.
 	IsExperimental bool `json:"isExperimental"`
 	// Whether the caller is GitHub or Microsoft staff.
@@ -7587,12 +7850,33 @@ type FeatureFlagsResolveStartupGatesRequest struct {
 	// Whether streamer mode is on, which withholds the populations an experiment would
 	// otherwise segment on.
 	StreamerMode bool `json:"streamerMode"`
+	// Repository directory whose team membership the runtime resolves.
+	WorkingDirectory *string `json:"workingDirectory,omitempty"`
 }
 
 // The resolved gates, keyed by flag name.
 // Experimental: FeatureFlagsResolveStartupGatesResult is part of an experimental API and
 // may change or be removed.
 type FeatureFlagsResolveStartupGatesResult map[string]bool
+
+// A scalar experiment assignment. Null is an explicit value.
+// Experimental: FeatureFlagValue is part of an experimental API and may change or be
+// removed.
+type FeatureFlagValue interface {
+	featureFlagValue()
+}
+
+type FeatureFlagBooleanValue bool
+
+func (FeatureFlagBooleanValue) featureFlagValue() {}
+
+type FeatureFlagNumberValue float64
+
+func (FeatureFlagNumberValue) featureFlagValue() {}
+
+type FeatureFlagStringValue string
+
+func (FeatureFlagStringValue) featureFlagValue() {}
 
 // Content filtering mode to apply to all tools, or a map of tool name to content filtering
 // mode.
@@ -8692,7 +8976,9 @@ type GitHubTokenAcquireResultToken struct {
 	// GitHub access token acquired by the SDK host.
 	AccessToken string `json:"accessToken"`
 	// Remaining token lifetime in seconds when callback execution completes. It must exceed the
-	// one-hour preflight refresh threshold.
+	// one-hour preflight refresh threshold, and still exceed it after the runtime validates the
+	// token: validation time counts against this lifetime, so a value just above 3600 can be
+	// rejected.
 	ExpiresIn int64 `json:"expiresIn"`
 	// OAuth token type. Defaults to bearer when omitted.
 	TokenType *string `json:"tokenType,omitempty"`
@@ -10547,6 +10833,541 @@ type LlmInferenceSetProviderResult struct {
 	Success bool `json:"success"`
 }
 
+// Automatic registration identity and concurrency.
+// Experimental: LocalModelAutoRegistration is part of an experimental API and may change or
+// be removed.
+type LocalModelAutoRegistration struct {
+	// Corresponding Copilot model identifier.
+	CapiID string `json:"capiId"`
+	// Maximum simultaneous inference requests.
+	MaxConcurrent float64 `json:"maxConcurrent"`
+}
+
+// Exact registry identity of a downloadable model.
+// Experimental: LocalModelAzureMlIdentity is part of an experimental API and may change or
+// be removed.
+type LocalModelAzureMlIdentity struct {
+	// Exact model family name.
+	Name string `json:"name"`
+	// Azure ML registry name.
+	Registry string `json:"registry"`
+	// Exact model asset version.
+	Version string `json:"version"`
+}
+
+// Runtime catalog entry, including installation and inference metadata.
+// Experimental: LocalModelDescriptor is part of an experimental API and may change or be
+// removed.
+type LocalModelDescriptor struct {
+	// Published download size, when known.
+	ApproximateBytes *float64 `json:"approximateBytes,omitempty"`
+	// Recommended graphics memory, when published.
+	ApproximateVramBytes *float64 `json:"approximateVramBytes,omitempty"`
+	// Automatic registration metadata, when applicable.
+	AutoLocal *LocalModelAutoRegistration `json:"autoLocal,omitempty"`
+	// Exact registry asset identity.
+	AzureMl LocalModelAzureMlIdentity `json:"azureMl"`
+	// Model display name.
+	DisplayName string `json:"displayName"`
+	// Default primary filename.
+	FileName string `json:"fileName"`
+	// Catalog identifier, distinct from the inference selection identifier.
+	ID string `json:"id"`
+	// Published license name.
+	License string `json:"license"`
+	// Catalog lifecycle category.
+	Lifecycle *string `json:"lifecycle,omitempty"`
+	// Published token limits.
+	Limits LocalModelLimits `json:"limits"`
+	// Registry metadata, preserved without mutation.
+	Metadata json.RawMessage `json:"metadata"`
+	// Published peak installation size, when known.
+	PeakDiskBytes *float64 `json:"peakDiskBytes,omitempty"`
+	// Model publisher display name.
+	Provider string `json:"provider"`
+	// Stable BYOK provider name.
+	ProviderName string `json:"providerName"`
+	// Inference runtime name.
+	Runtime string `json:"runtime"`
+	// Whether acquisition installs the inference runtime.
+	RuntimeProvisioned *bool `json:"runtimeProvisioned,omitempty"`
+	// Provider-qualified selection identifier.
+	SelectionID *string `json:"selectionId,omitempty"`
+	// Published inference options, preserved without mutation.
+	ServeOptions json.RawMessage `json:"serveOptions"`
+	// Source and display order.
+	Source LocalModelSource `json:"source"`
+	// Registry display label.
+	SourceLabel string `json:"sourceLabel"`
+	// Whether the model supports tool calls.
+	SupportsToolCalls bool `json:"supportsToolCalls"`
+}
+
+// Local disk requirement evaluation.
+// Experimental: LocalModelDiskRequirement is part of an experimental API and may change or
+// be removed.
+type LocalModelDiskRequirement interface {
+	localModelDiskRequirement()
+	Kind() LocalModelDiskRequirementKind
+}
+
+type RawLocalModelDiskRequirementData struct {
+	Discriminator LocalModelDiskRequirementKind
+	Raw           json.RawMessage
+}
+
+func (RawLocalModelDiskRequirementData) localModelDiskRequirement() {}
+func (r RawLocalModelDiskRequirementData) Kind() LocalModelDiskRequirementKind {
+	return r.Discriminator
+}
+
+// Known disk space does not meet the installation requirement.
+type LocalModelDiskRequirementInsufficient struct {
+	// Destination used for the disk evaluation.
+	Directory string `json:"directory"`
+	// Available bytes on the destination filesystem.
+	FreeBytes float64 `json:"freeBytes"`
+	// Required bytes, including the safety allowance.
+	RequiredBytes float64 `json:"requiredBytes"`
+}
+
+func (LocalModelDiskRequirementInsufficient) localModelDiskRequirement() {}
+func (LocalModelDiskRequirementInsufficient) Kind() LocalModelDiskRequirementKind {
+	return LocalModelDiskRequirementKindInsufficient
+}
+
+// Known disk space meets the installation requirement.
+type LocalModelDiskRequirementOk struct {
+	// Available bytes on the destination filesystem.
+	FreeBytes float64 `json:"freeBytes"`
+}
+
+func (LocalModelDiskRequirementOk) localModelDiskRequirement() {}
+func (LocalModelDiskRequirementOk) Kind() LocalModelDiskRequirementKind {
+	return LocalModelDiskRequirementKindOk
+}
+
+// Available space could not be determined.
+type LocalModelDiskRequirementUnknown struct {
+}
+
+func (LocalModelDiskRequirementUnknown) localModelDiskRequirement() {}
+func (LocalModelDiskRequirementUnknown) Kind() LocalModelDiskRequirementKind {
+	return LocalModelDiskRequirementKindUnknown
+}
+
+// Current transfer progress.
+// Experimental: LocalModelDownloadProgress is part of an experimental API and may change or
+// be removed.
+type LocalModelDownloadProgress struct {
+	// Bytes received so far.
+	ReceivedBytes float64 `json:"receivedBytes"`
+	// Inference engine installation, when applicable.
+	Stage *string `json:"stage,omitempty"`
+	// Total transfer bytes, when known.
+	TotalBytes *float64 `json:"totalBytes,omitempty"`
+}
+
+// Graphics memory requirement evaluation.
+// Experimental: LocalModelGpuRequirement is part of an experimental API and may change or
+// be removed.
+type LocalModelGpuRequirement interface {
+	localModelGpuRequirement()
+	Kind() LocalModelGpuRequirementKind
+}
+
+type RawLocalModelGpuRequirementData struct {
+	Discriminator LocalModelGpuRequirementKind
+	Raw           json.RawMessage
+}
+
+func (RawLocalModelGpuRequirementData) localModelGpuRequirement() {}
+func (r RawLocalModelGpuRequirementData) Kind() LocalModelGpuRequirementKind {
+	return r.Discriminator
+}
+
+// Detected graphics memory falls below the published requirement.
+type LocalModelGpuRequirementInsufficient struct {
+	// Available graphics memory.
+	AvailableBytes float64 `json:"availableBytes"`
+	// Graphics adapter description.
+	Description string `json:"description"`
+	// Published recommended graphics memory.
+	RequiredBytes float64 `json:"requiredBytes"`
+}
+
+func (LocalModelGpuRequirementInsufficient) localModelGpuRequirement() {}
+func (LocalModelGpuRequirementInsufficient) Kind() LocalModelGpuRequirementKind {
+	return LocalModelGpuRequirementKindInsufficient
+}
+
+// Detected graphics memory meets the published requirement.
+type LocalModelGpuRequirementOk struct {
+	// Available graphics memory.
+	AvailableBytes float64 `json:"availableBytes"`
+	// Graphics adapter description.
+	Description string `json:"description"`
+	// Published recommended graphics memory.
+	RequiredBytes float64 `json:"requiredBytes"`
+}
+
+func (LocalModelGpuRequirementOk) localModelGpuRequirement() {}
+func (LocalModelGpuRequirementOk) Kind() LocalModelGpuRequirementKind {
+	return LocalModelGpuRequirementKindOk
+}
+
+// Graphics memory could not be determined.
+type LocalModelGpuRequirementUnknown struct {
+}
+
+func (LocalModelGpuRequirementUnknown) localModelGpuRequirement() {}
+func (LocalModelGpuRequirementUnknown) Kind() LocalModelGpuRequirementKind {
+	return LocalModelGpuRequirementKindUnknown
+}
+
+// The catalog publishes no graphics memory requirement.
+type LocalModelGpuRequirementUnspecified struct {
+}
+
+func (LocalModelGpuRequirementUnspecified) localModelGpuRequirement() {}
+func (LocalModelGpuRequirementUnspecified) Kind() LocalModelGpuRequirementKind {
+	return LocalModelGpuRequirementKindUnspecified
+}
+
+// Published token limits of a local model.
+// Experimental: LocalModelLimits is part of an experimental API and may change or be
+// removed.
+type LocalModelLimits struct {
+	// Maximum context tokens.
+	MaxContextWindowTokens float64 `json:"maxContextWindowTokens"`
+	// Maximum output tokens.
+	MaxOutputTokens float64 `json:"maxOutputTokens"`
+	// Maximum prompt tokens.
+	MaxPromptTokens float64 `json:"maxPromptTokens"`
+}
+
+// One local model and its current files, progress, and requirements.
+// Experimental: LocalModelMachineRow is part of an experimental API and may change or be
+// removed.
+type LocalModelMachineRow struct {
+	// Resolved catalog model.
+	Descriptor LocalModelDescriptor `json:"descriptor"`
+	// Disk availability and required space.
+	Disk LocalModelDiskRequirement `json:"disk"`
+	// Whether known disk facts permit installation.
+	DiskMet bool `json:"diskMet"`
+	// Remaining peak space with the existing safety allowance.
+	DiskRequiredBytes *float64 `json:"diskRequiredBytes,omitempty"`
+	// Graphics memory availability and required space.
+	Gpu LocalModelGpuRequirement `json:"gpu"`
+	// Published recommended graphics memory.
+	GpuRequiredBytes *float64 `json:"gpuRequiredBytes,omitempty"`
+	// Bytes in inactive version directories.
+	LeftoverBytes float64 `json:"leftoverBytes"`
+	// Partial bytes in the selected version directory.
+	StagedBytes float64 `json:"stagedBytes"`
+	// Effective installation or download state.
+	Status LocalModelStatus `json:"status"`
+}
+
+// Detected files and resource requirements.
+// Experimental: LocalModelMachineView is part of an experimental API and may change or be
+// removed.
+type LocalModelMachineView struct {
+	// Detected standalone llama-server executable, if available.
+	LlamaServerPath *string `json:"llamaServerPath,omitempty"`
+	// Models directory under the connection's configuration root.
+	ModelsDirectory string `json:"modelsDirectory"`
+	// Catalog models with their current local state.
+	Rows []LocalModelMachineRow `json:"rows"`
+}
+
+// A notice that remains visible until dismissed or replaced.
+// Experimental: LocalModelNotice is part of an experimental API and may change or be
+// removed.
+type LocalModelNotice struct {
+	// Catalog identifier associated with this notice.
+	ModelID string `json:"modelId"`
+	// Notice text.
+	Text string `json:"text"`
+	// Information, warning, or error.
+	Tone string `json:"tone"`
+}
+
+// Experimental: LocalModelsCancelAllResult is part of an experimental API and may change or
+// be removed.
+type LocalModelsCancelAllResult struct {
+}
+
+// Experimental: LocalModelsCancelResult is part of an experimental API and may change or be
+// removed.
+type LocalModelsCancelResult struct {
+}
+
+// Host preferences for its connection-owned manager, not authorization claims.
+// Experimental: LocalModelsConfigureRequest is part of an experimental API and may change
+// or be removed.
+type LocalModelsConfigureRequest struct {
+	// Whether the host currently displays the downloadable catalog.
+	CatalogEnabled bool `json:"catalogEnabled"`
+	// Host diagnostic log path, used only in failure guidance.
+	DiagnosticLogPath *string `json:"diagnosticLogPath,omitempty"`
+	// Whether the host currently offers local model management.
+	Enabled bool `json:"enabled"`
+	// Request the internal registry only when runtime-owned staff admission also permits it.
+	IncludeDev bool `json:"includeDev"`
+	// Attached source session for live registration and selection. Its lifetime does not change.
+	SessionID *string `json:"sessionId,omitempty"`
+	// Suppress internal model facts while the host displays shared content.
+	StreamerMode bool `json:"streamerMode"`
+}
+
+// Experimental: LocalModelsDeleteModelResult is part of an experimental API and may change
+// or be removed.
+type LocalModelsDeleteModelResult struct {
+}
+
+// Experimental: LocalModelsDismissNoticeResult is part of an experimental API and may
+// change or be removed.
+type LocalModelsDismissNoticeResult struct {
+}
+
+// A transient presentation update. Logs and telemetry remain runtime-owned.
+// Experimental: LocalModelsEvent is part of an experimental API and may change or be
+// removed.
+type LocalModelsEvent struct {
+	// Message absent for a model-list refresh.
+	Message *LocalModelTimelineMessage `json:"message,omitempty"`
+	// Whether current internal-registry access is necessary to display this notification.
+	RequiresDevAccess bool `json:"requiresDevAccess"`
+	// Monotonic manager revision associated with this update.
+	Revision int64 `json:"revision"`
+	// Host notification or model-list refresh.
+	Type LocalModelsEventType `json:"type"`
+}
+
+// Identifier of a job or notice owned by this connection.
+// Experimental: LocalModelsModelIDRequest is part of an experimental API and may change or
+// be removed.
+type LocalModelsModelIDRequest struct {
+	// Catalog identifier. Identifiers from another connection confer no access.
+	ModelID string `json:"modelId"`
+}
+
+// A model returned by this connection's catalog.
+// Experimental: LocalModelsModelRequest is part of an experimental API and may change or be
+// removed.
+type LocalModelsModelRequest struct {
+	// Model whose acquisition or registration the runtime manages.
+	Model LocalModelDescriptor `json:"model"`
+}
+
+// Catalog source and its display order.
+// Experimental: LocalModelSource is part of an experimental API and may change or be
+// removed.
+type LocalModelSource struct {
+	// Stable source identifier.
+	ID string `json:"id"`
+	// Source display name.
+	Label string `json:"label"`
+	// Display order among catalog sources.
+	Ordering float64 `json:"ordering"`
+}
+
+// Experimental: LocalModelsPrefetchResult is part of an experimental API and may change or
+// be removed.
+type LocalModelsPrefetchResult struct {
+}
+
+// Runtime catalog entry, including installation and inference metadata.
+// Experimental: LocalModelsPrepareResult is part of an experimental API and may change or
+// be removed.
+type LocalModelsPrepareResult struct {
+	// Published download size, when known.
+	ApproximateBytes *float64 `json:"approximateBytes,omitempty"`
+	// Recommended graphics memory, when published.
+	ApproximateVramBytes *float64 `json:"approximateVramBytes,omitempty"`
+	// Automatic registration metadata, when applicable.
+	AutoLocal *LocalModelAutoRegistration `json:"autoLocal,omitempty"`
+	// Exact registry asset identity.
+	AzureMl LocalModelAzureMlIdentity `json:"azureMl"`
+	// Model display name.
+	DisplayName string `json:"displayName"`
+	// Default primary filename.
+	FileName string `json:"fileName"`
+	// Catalog identifier, distinct from the inference selection identifier.
+	ID string `json:"id"`
+	// Published license name.
+	License string `json:"license"`
+	// Catalog lifecycle category.
+	Lifecycle *string `json:"lifecycle,omitempty"`
+	// Published token limits.
+	Limits LocalModelLimits `json:"limits"`
+	// Registry metadata, preserved without mutation.
+	Metadata json.RawMessage `json:"metadata"`
+	// Published peak installation size, when known.
+	PeakDiskBytes *float64 `json:"peakDiskBytes,omitempty"`
+	// Model publisher display name.
+	Provider string `json:"provider"`
+	// Stable BYOK provider name.
+	ProviderName string `json:"providerName"`
+	// Inference runtime name.
+	Runtime string `json:"runtime"`
+	// Whether acquisition installs the inference runtime.
+	RuntimeProvisioned *bool `json:"runtimeProvisioned,omitempty"`
+	// Provider-qualified selection identifier.
+	SelectionID *string `json:"selectionId,omitempty"`
+	// Published inference options, preserved without mutation.
+	ServeOptions json.RawMessage `json:"serveOptions"`
+	// Source and display order.
+	Source LocalModelSource `json:"source"`
+	// Registry display label.
+	SourceLabel string `json:"sourceLabel"`
+	// Whether the model supports tool calls.
+	SupportsToolCalls bool `json:"supportsToolCalls"`
+}
+
+// Catalog refresh intent.
+// Experimental: LocalModelsRefreshRequest is part of an experimental API and may change or
+// be removed.
+type LocalModelsRefreshRequest struct {
+	// Use the background catalog policy instead of an explicit user refresh.
+	Background bool `json:"background"`
+}
+
+// Experimental: LocalModelsRefreshResult is part of an experimental API and may change or
+// be removed.
+type LocalModelsRefreshResult struct {
+}
+
+// Setup intent for one catalog model.
+// Experimental: LocalModelsSetupRequest is part of an experimental API and may change or be
+// removed.
+type LocalModelsSetupRequest struct {
+	// Download, update, or repair intent.
+	Intent LocalModelsSetupRequestIntent `json:"intent"`
+	// Requested catalog model. The runtime validates its identity and resolves current artifact
+	// access.
+	Model LocalModelDescriptor `json:"model"`
+}
+
+// Experimental: LocalModelsSetupResult is part of an experimental API and may change or be
+// removed.
+type LocalModelsSetupResult struct {
+}
+
+// Snapshot and transient notifications for one connection-owned manager.
+// Experimental: LocalModelsSnapshot is part of an experimental API and may change or be
+// removed.
+type LocalModelsSnapshot struct {
+	// Transient host notifications since the acknowledged revision.
+	Events []LocalModelsEvent `json:"events"`
+	// Revision to acknowledge in the next watch call.
+	Revision int64 `json:"revision"`
+	// Current catalog, machine state, active operations, progress, and notices.
+	State LocalModelsView `json:"state"`
+}
+
+// Effective file or download state.
+// Experimental: LocalModelStatus is part of an experimental API and may change or be
+// removed.
+type LocalModelStatus interface {
+	localModelStatus()
+	Kind() LocalModelStatusKind
+}
+
+type RawLocalModelStatusData struct {
+	Discriminator LocalModelStatusKind
+	Raw           json.RawMessage
+}
+
+func (RawLocalModelStatusData) localModelStatus() {}
+func (r RawLocalModelStatusData) Kind() LocalModelStatusKind {
+	return r.Discriminator
+}
+
+// A valid activation references the local model files.
+type LocalModelStatusDownloaded struct {
+	// Local file size, when known.
+	SizeBytes *float64 `json:"sizeBytes,omitempty"`
+	// Whether the catalog offers another version.
+	UpdateAvailable *bool `json:"updateAvailable,omitempty"`
+}
+
+func (LocalModelStatusDownloaded) localModelStatus() {}
+func (LocalModelStatusDownloaded) Kind() LocalModelStatusKind {
+	return LocalModelStatusKindDownloaded
+}
+
+// A transfer or inference engine installation is active.
+type LocalModelStatusDownloading struct {
+	// Bytes received so far.
+	ReceivedBytes float64 `json:"receivedBytes"`
+	// Inference engine installation, when applicable.
+	Stage *string `json:"stage,omitempty"`
+	// Total transfer bytes, when known.
+	TotalBytes *float64 `json:"totalBytes,omitempty"`
+}
+
+func (LocalModelStatusDownloading) localModelStatus() {}
+func (LocalModelStatusDownloading) Kind() LocalModelStatusKind {
+	return LocalModelStatusKindDownloading
+}
+
+// No active installation exists.
+type LocalModelStatusNotDownloaded struct {
+}
+
+func (LocalModelStatusNotDownloaded) localModelStatus() {}
+func (LocalModelStatusNotDownloaded) Kind() LocalModelStatusKind {
+	return LocalModelStatusKindNotDownloaded
+}
+
+// Connection-owned local model state.
+// Experimental: LocalModelsView is part of an experimental API and may change or be removed.
+type LocalModelsView struct {
+	// Catalog error, when the refresh failed.
+	CatalogError *string `json:"catalogError,omitempty"`
+	// Whether a catalog refresh is active.
+	CatalogLoading bool `json:"catalogLoading"`
+	// Active download progress by catalog identifier.
+	Downloads map[string]LocalModelDownloadProgress `json:"downloads"`
+	// Whether the host offers local model management.
+	Enabled bool `json:"enabled"`
+	// Whether internal registry models must remain hidden.
+	HideDevModels bool `json:"hideDevModels"`
+	// Whether the downloadable catalog must remain hidden.
+	HideWinMlModels bool `json:"hideWinMlModels"`
+	// Local files, runtime detection, and resource requirements.
+	Machine LocalModelMachineView `json:"machine"`
+	// Persistent presentation notices by catalog identifier.
+	Notices map[string]LocalModelNotice `json:"notices"`
+	// Active setup or removal stage by catalog identifier.
+	Operations map[string]LocalModelOperation `json:"operations"`
+	// Inference runtime prerequisite guidance.
+	PrerequisiteNotice string `json:"prerequisiteNotice"`
+}
+
+// Acknowledged position in this connection's manager updates.
+// Experimental: LocalModelsWatchRequest is part of an experimental API and may change or be
+// removed.
+type LocalModelsWatchRequest struct {
+	// Last consumed revision. The call waits when no newer update exists.
+	AfterRevision int64 `json:"afterRevision"`
+}
+
+// A message for a host's activity view.
+// Experimental: LocalModelTimelineMessage is part of an experimental API and may change or
+// be removed.
+type LocalModelTimelineMessage struct {
+	// Whether the text uses Markdown.
+	Markdown *bool `json:"markdown,omitempty"`
+	// Message text.
+	Text string `json:"text"`
+	// Information, warning, or error.
+	Type LocalModelTimelineMessageType `json:"type"`
+}
+
 // Persisted local session metadata, including identifiers, timestamps, summary/name,
 // client, context, detached state, and task ID.
 // Experimental: LocalSessionMetadataValue is part of an experimental API and may change or
@@ -11035,6 +11856,11 @@ type ManagedSettingsComposeResult struct {
 	// Typed effective values, as in `managedSettings.resolve`.
 	Values *ManagedSettingsValues `json:"values,omitempty"`
 }
+
+// Current retained policy event payload, or null before policy resolution.
+// Experimental: ManagedSettingsCurrentSnapshotResult is part of an experimental API and may
+// change or be removed.
+type ManagedSettingsCurrentSnapshotResult = *ManagedSettingsResolvedData
 
 // One validation finding for a managed-settings document.
 // Experimental: ManagedSettingsDiagnostic is part of an experimental API and may change or
@@ -15212,9 +16038,8 @@ type MCPShouldExcludeGitHubToolsRequest struct {
 	// The session's tool denylist, when it set one. Omitted means the session constrains
 	// nothing this way.
 	ExcludedTools []string `json:"excludedTools,omitzero"`
-	// How the allowlist and denylist combine when both are set. Omitted means the default every
-	// session gets, so a caller that never chose a precedence is answered as its sessions
-	// behave.
+	// How the allowlist and denylist combine when both are set. Omitted uses the default
+	// excluded precedence; supply the session's explicit Update selection when present.
 	ToolFilterPrecedence *OptionsUpdateToolFilterPrecedence `json:"toolFilterPrecedence,omitempty"`
 }
 
@@ -15464,6 +16289,41 @@ type MetadataContextInfoResult struct {
 	// Token breakdown for the current context window, or null if the session has not yet been
 	// initialized (no system prompt or tool metadata cached).
 	ContextInfo *SessionContextInfo `json:"contextInfo,omitempty"`
+}
+
+// Working directory context options. Git access follows the original session host's
+// authority.
+// Experimental: MetadataGetWorkingDirectoryContextRequest is part of an experimental API
+// and may change or be removed.
+type MetadataGetWorkingDirectoryContextRequest struct {
+	// Requested working directory, echoed without normalization.
+	Cwd string `json:"cwd"`
+	// Resolve the default branch when true; defaults to false.
+	IncludeDefaultBranch *bool `json:"includeDefaultBranch,omitempty"`
+}
+
+// Session host's working directory and optional repository context.
+// Experimental: MetadataGetWorkingDirectoryContextResult is part of an experimental API and
+// may change or be removed.
+type MetadataGetWorkingDirectoryContextResult struct {
+	// Merge-base commit, when available.
+	BaseCommit *string `json:"baseCommit,omitempty"`
+	// Current branch, when available.
+	Branch *string `json:"branch,omitempty"`
+	// Requested working directory.
+	Cwd string `json:"cwd"`
+	// Default branch, only when requested and available.
+	DefaultBranch *string `json:"defaultBranch,omitempty"`
+	// Repository working tree root.
+	GitRoot *string `json:"gitRoot,omitempty"`
+	// Current HEAD commit, when available.
+	HeadCommit *string `json:"headCommit,omitempty"`
+	// Recognized repository host platform.
+	HostType *SessionWorkingDirectoryContextHostType `json:"hostType,omitempty"`
+	// Repository identifier from the existing Git owner.
+	Repository *string `json:"repository,omitempty"`
+	// Repository remote host.
+	RepositoryHost *string `json:"repositoryHost,omitempty"`
 }
 
 // Indicates whether the local session is currently processing a turn or background
@@ -16144,6 +17004,24 @@ type ModelProviderAutomaticDiscoveryPolicy struct {
 	RequiresTrust bool `json:"requiresTrust"`
 }
 
+// Reads current cached availability without fetching a remote model catalog.
+// Experimental: ModelProviderAvailabilityRequest is part of an experimental API and may
+// change or be removed.
+type ModelProviderAvailabilityRequest struct {
+	// Optional provider identity used to disambiguate a selection.
+	ProviderID *string `json:"providerId,omitempty"`
+	// Provider-qualified model selection identifier.
+	SelectionID string `json:"selectionId"`
+}
+
+// Action-boundary availability of a registered provider model.
+// Experimental: ModelProviderAvailabilityResult is part of an experimental API and may
+// change or be removed.
+type ModelProviderAvailabilityResult struct {
+	// True for a selectable model, false for a blocked model, absent for a missing row.
+	Available *bool `json:"available,omitempty"`
+}
+
 // Provider configuration prepared from a discovered model. Preparing a plan changes
 // nothing: it neither registers the model with the session nor writes durable
 // configuration. To apply it, pass `provider` and `model` to `session.provider.add`,
@@ -16324,6 +17202,16 @@ type ModelProviderRef struct {
 	Label string `json:"label"`
 }
 
+// Provider and model rows prepared by provider discovery to save for future sessions.
+// Experimental: ModelProviderSaveConfigurationRequest is part of an experimental API and
+// may change or be removed.
+type ModelProviderSaveConfigurationRequest struct {
+	// Discovered model definition. If both saved rows exist, neither row changes.
+	Model ProviderModelConfig `json:"model"`
+	// Discovered provider connection. An existing saved provider remains unchanged.
+	Provider NamedProviderConfig `json:"provider"`
+}
+
 // Current health information for a provider instance.
 // Experimental: ModelProviderStatus is part of an experimental API and may change or be
 // removed.
@@ -16474,8 +17362,22 @@ type ModelSwitchAutoTierResult struct {
 	ActivatingAutoTier *AutoTier `json:"activatingAutoTier,omitempty"`
 	// Auto preference currently committed for the session.
 	EffectiveAutoTier *AutoTier `json:"effectiveAutoTier,omitempty"`
+	// Copilot Fusion tier that effectiveAutoTier serves, resolved from the session's Auto tier
+	// metadata. An open string: known values include `standard`, `high`, and `max`; other
+	// provider-defined values may appear. Omitted when no Auto preference is committed, it is
+	// not a Fusion tier, or Auto metadata has not been discovered (for example after cold
+	// resume, before session.model.list). Fusion fields cover only effective and pending
+	// preferences; resolve activatingAutoTier and supersededAutoTier against
+	// auto.tiers[].fusionTier from session.model.list.
+	EffectiveFusionTier *string `json:"effectiveFusionTier,omitempty"`
 	// Latest unclaimed Auto preference waiting for a future user turn.
 	PendingAutoTier *AutoTier `json:"pendingAutoTier,omitempty"`
+	// Copilot Fusion tier that pendingAutoTier serves, resolved from the session's Auto tier
+	// metadata. An open string: known values include `standard`, `high`, and `max`; other
+	// provider-defined values may appear. Omitted when no preference is pending, it is not a
+	// Fusion tier, or Auto metadata has not been discovered (for example after cold resume,
+	// before session.model.list).
+	PendingFusionTier *string `json:"pendingFusionTier,omitempty"`
 	// Immediate request status. `pending` means accepted but not committed.
 	Status ModelSwitchAutoTierStatus `json:"status"`
 	// Earlier unclaimed preference replaced by this request. This can be present with either
@@ -16702,6 +17604,8 @@ type NamedProviderConfig struct {
 	HasBearerTokenProvider *bool `json:"hasBearerTokenProvider,omitempty"`
 	// Additional HTTP headers included with provider requests.
 	Headers map[string]string `json:"headers,omitzero"`
+	// Local model runtime options for a WinML provider whose base URL is its GGUF path.
+	LocalModel json.RawMessage `json:"localModel,omitempty"`
 	// The product serving the provider's models, reported in telemetry as `model_provider`.
 	// Only affects telemetry.
 	ModelProvider *ProviderConfigModelProvider `json:"modelProvider,omitempty"`
@@ -17832,6 +18736,27 @@ type PermissionRulesSet struct {
 	Denied []PermissionRule `json:"denied"`
 }
 
+// The session's model-facing additional directory ledger, separate from its tool-access
+// grants.
+// Experimental: PermissionsAdditionalDirectoriesListResult is part of an experimental API
+// and may change or be removed.
+type PermissionsAdditionalDirectoriesListResult struct {
+	// Additional directories included in the session's model context.
+	Directories []string `json:"directories"`
+}
+
+// Original launch permissions, before runtime escalation.
+// Experimental: PermissionsAllowAllBaseline is part of an experimental API and may change
+// or be removed.
+type PermissionsAllowAllBaseline struct {
+	// Whether launch options permit all paths.
+	Paths bool `json:"paths"`
+	// Whether launch options permit all tools.
+	Tools bool `json:"tools"`
+	// Whether launch options permit all URLs.
+	URLs bool `json:"urls"`
+}
+
 // Available permission modes, derived from current session policy.
 // Experimental: PermissionsCapabilities is part of an experimental API and may change or be
 // removed.
@@ -18012,6 +18937,22 @@ type PermissionsEvaluateManagedPolicyResult struct {
 type PermissionsFolderTrustAddTrustedResult struct {
 	// Whether the operation succeeded
 	Success bool `json:"success"`
+}
+
+// Effective permission escalation and the original launch baseline.
+// Experimental: PermissionsGetAllowAllResult is part of an experimental API and may change
+// or be removed.
+type PermissionsGetAllowAllResult struct {
+	// Whether allow-all permissions are currently effective.
+	Active bool `json:"active"`
+	// Whether automatic permission approval is active.
+	AutoApproval bool `json:"autoApproval"`
+	// Original launch permissions, unchanged by runtime escalation.
+	Baseline PermissionsAllowAllBaseline `json:"baseline"`
+	// Whether an invocation changed the launch permission posture.
+	RuntimeOverride bool `json:"runtimeOverride"`
+	// Whether automatic permission approval is stored before the managed-policy cap.
+	StoredAutoApproval bool `json:"storedAutoApproval"`
 }
 
 // No parameters.
@@ -18211,6 +19152,14 @@ type PermissionsLocationsAddToolApprovalResult struct {
 	Success bool `json:"success"`
 }
 
+// Permission request to evaluate against the session's current managed policy.
+// Experimental: PermissionsManagedReviewRequiredRequest is part of an experimental API and
+// may change or be removed.
+type PermissionsManagedReviewRequiredRequest struct {
+	// Original permission request, including all request-specific fields.
+	Request any `json:"request"`
+}
+
 // Scope and add/remove instructions for modifying session- or location-scoped permission
 // rules.
 // Experimental: PermissionsModifyRulesParams is part of an experimental API and may change
@@ -18334,6 +19283,21 @@ type PermissionsSetModeResult struct {
 	Mode PermissionMode `json:"mode"`
 	// Whether the operation succeeded
 	Success bool `json:"success"`
+}
+
+// Toggles whether permission prompts should be bridged into session events for this client.
+// Experimental: PermissionsSetRequiredOptions is part of an experimental API and may change
+// or be removed.
+type PermissionsSetRequiredOptions struct {
+	// Optional permission-provider identity, scoped to the calling connection and this session.
+	// With this field, true registers the provider and false releases it without overriding a
+	// later direct host requirement. The runtime releases these registrations when their
+	// connection detaches. Omit for a direct host requirement.
+	ProviderID *string `json:"providerId,omitempty"`
+	// Whether the client wants `permission.requested` events bridged from the session-owned
+	// permission service. CLI clients that render prompt UI set this to `true` for as long as
+	// their listener is mounted; headless callers leave it unset (the default is `false`).
+	Required bool `json:"required"`
 }
 
 // Toggles whether permission prompts should be bridged into session events for this client.
@@ -19222,6 +20186,11 @@ type ProtocolExternalToolDefinition struct {
 	Defer *ProtocolExternalToolDefer `json:"defer,omitempty"`
 	// Model-visible explanation of what the tool does.
 	Description string `json:"description"`
+	// Whether repeating a call with the same arguments has no additional effect
+	// beyond the first call, as is true of any tool without side effects. Hosts
+	// may use this to safely repeat a call whose outcome was lost. It does not
+	// affect permission checks.
+	Idempotent *bool `json:"idempotent,omitempty"`
 	// Whether the tool executes commands in a terminal.
 	IsTerminal *bool `json:"isTerminal,omitempty"`
 	// Optional caller-defined metadata associated with the tool.
@@ -19517,6 +20486,9 @@ type ProviderGetEndpointRequest struct {
 // Experimental: ProviderModelConfig is part of an experimental API and may change or be
 // removed.
 type ProviderModelConfig struct {
+	// Forward-compatible persisted on-device Auto annotation. The live counterpart is
+	// metadata.autoLocal.
+	AutoLocal json.RawMessage `json:"autoLocal,omitempty"`
 	// Optional capability overrides (vision, tool_calls, reasoning, etc.).
 	Capabilities *ModelCapabilitiesOverride `json:"capabilities,omitempty"`
 	// Provider-local model id, unique within its provider. The session-wide selection id (shown
@@ -19656,6 +20628,14 @@ type ProviderQuotaState struct {
 	Unit ProviderQuotaUnit `json:"unit"`
 }
 
+// Result of adding a model to the saved provider configuration.
+// Experimental: ProvidersConfigAddModelResult is part of an experimental API and may change
+// or be removed.
+type ProvidersConfigAddModelResult struct {
+	// Whether the provider was created along with the model.
+	ProviderAdded bool `json:"providerAdded"`
+}
+
 // Short-lived, rotating credential the caller must send on every request, in addition to
 // `apiKey` if one is present. Omitted when the endpoint does not require one.
 // Experimental: ProviderSessionToken is part of an experimental API and may change or be
@@ -19671,6 +20651,14 @@ type ProviderSessionToken struct {
 	Model *string `json:"model,omitempty"`
 	// The short-lived token value.
 	Token string `json:"token"`
+}
+
+// Result of adding a model to the saved provider configuration.
+// Experimental: ProvidersSourceAddModelResult is part of an experimental API and may change
+// or be removed.
+type ProvidersSourceAddModelResult struct {
+	// Whether the provider was created along with the model.
+	ProviderAdded bool `json:"providerAdded"`
 }
 
 // Credential-free provider configuration status for the selected model.
@@ -21259,6 +22247,26 @@ type SandboxFilterPickerCandidatesResult struct {
 	Allowed []bool `json:"allowed"`
 }
 
+// Remote MCP endpoint and the host's existing proxy secret directory.
+// Experimental: SandboxGetRemoteMCPEgressRequest is part of an experimental API and may
+// change or be removed.
+type SandboxGetRemoteMCPEgressRequest struct {
+	// Existing proxy secret directory on the runtime host.
+	SecretConfigDir *string `json:"secretConfigDir,omitempty"`
+	// Target endpoint for the session network policy decision.
+	URL *string `json:"url,omitempty"`
+}
+
+// Session-owned remote MCP egress decision. A denial forbids connection.
+// Experimental: SandboxGetRemoteMCPEgressResult is part of an experimental API and may
+// change or be removed.
+type SandboxGetRemoteMCPEgressResult struct {
+	// Reason a connection is forbidden; absent when allowed.
+	DeniedReason *string `json:"deniedReason,omitempty"`
+	// Authorized proxy URL; absent for a direct connection or a denial.
+	ProxyURL *string `json:"proxyUrl,omitempty"`
+}
+
 // The user-facing refusal, including the platform remedy and the documentation link.
 // Experimental: SandboxGetUnsupportedMessageResult is part of an experimental API and may
 // change or be removed.
@@ -21583,6 +22591,48 @@ type SandboxUnsupportedStartupNoticeResult struct {
 	// force actually allows. Absent when this machine supports a sandbox, so a host can call
 	// unconditionally and print only what it gets.
 	Notice *string `json:"notice,omitempty"`
+}
+
+// Request to add a model to the server-owned saved provider configuration.
+// Experimental: SavedProviderConfigurationAddModelRequest is part of an experimental API
+// and may change or be removed.
+type SavedProviderConfigurationAddModelRequest struct {
+	// Optional replacement API key. Stored in the OS keychain and never returned.
+	Credential *string `json:"credential,omitempty"`
+	// Model to add to the provider.
+	Model ProviderModelConfig `json:"model"`
+	// Provider settings to create when this provider is not already saved.
+	Provider SavedProviderConfigurationProviderInput `json:"provider"`
+}
+
+// Result of adding a model to the saved provider configuration.
+// Experimental: SavedProviderConfigurationAddModelResult is part of an experimental API and
+// may change or be removed.
+type SavedProviderConfigurationAddModelResult struct {
+	// Whether the provider was created along with the model.
+	ProviderAdded bool `json:"providerAdded"`
+}
+
+// Editable provider settings, without credential values or custom headers.
+// Experimental: SavedProviderConfigurationProviderInput is part of an experimental API and
+// may change or be removed.
+type SavedProviderConfigurationProviderInput struct {
+	// Safe Azure connection settings, including API version.
+	Azure *ProviderConfigAzure `json:"azure,omitempty"`
+	// Provider endpoint.
+	BaseURL string `json:"baseUrl"`
+	// Non-secret local model runtime options, such as the WinML device.
+	LocalModel json.RawMessage `json:"localModel,omitempty"`
+	// Serving product used for attribution.
+	ModelProvider *ProviderConfigModelProvider `json:"modelProvider,omitempty"`
+	// Provider name used to qualify model selection ids.
+	Name string `json:"name"`
+	// HTTP or WebSocket transport.
+	Transport *ProviderConfigTransport `json:"transport,omitempty"`
+	// Provider protocol family.
+	Type *SavedProviderConfigurationType `json:"type,omitempty"`
+	// OpenAI-compatible wire API.
+	WireAPI *ProviderConfigWireAPI `json:"wireApi,omitempty"`
 }
 
 // Register an absolute-time scheduled prompt.
@@ -22333,6 +23383,44 @@ type SessionContextInfo struct {
 	TotalTokens int64 `json:"totalTokens"`
 }
 
+// Per-session context-board metadata. Configuration does not open the store or grant a
+// store capability.
+// Experimental: SessionDynamicContextConfig is part of an experimental API and may change
+// or be removed.
+type SessionDynamicContextConfig struct {
+	// Branch identifier for the context board.
+	Branch string `json:"branch"`
+	// Repository identifier for the context board.
+	Repository string `json:"repository"`
+	// Session-store path on the runtime host, preserved as supplied.
+	StorePath string `json:"storePath"`
+}
+
+// Current context-board metadata, with an explicit null when absent or incomplete.
+// Experimental: SessionDynamicContextGetConfigResponse is part of an experimental API and
+// may change or be removed.
+type SessionDynamicContextGetConfigResponse struct {
+	// Configuration metadata, or null when any stored field is absent or empty.
+	Config *SessionDynamicContextConfig `json:"config"`
+}
+
+// Context-board configuration for the bound session. This operation does not open the store.
+// Experimental: SessionDynamicContextSetConfigRequest is part of an experimental API and
+// may change or be removed.
+type SessionDynamicContextSetConfigRequest struct {
+	// Branch identifier for the context board.
+	Branch string `json:"branch"`
+	// Repository identifier for the context board.
+	Repository string `json:"repository"`
+	// Session-store path on the runtime host, preserved as supplied.
+	StorePath string `json:"storePath"`
+}
+
+// Experimental: SessionDynamicContextSetConfigResult is part of an experimental API and may
+// change or be removed.
+type SessionDynamicContextSetConfigResult struct {
+}
+
 // The enriched metadata records, with summary and context fields backfilled where
 // available. Sessions confirmed empty and unnamed are omitted.
 // Experimental: SessionEnrichMetadataResult is part of an experimental API and may change
@@ -22361,6 +23449,170 @@ type SessionExtensionsReloadResult struct {
 // Experimental: SessionExtensionsSendAttachmentsToMessageResult is part of an experimental
 // API and may change or be removed.
 type SessionExtensionsSendAttachmentsToMessageResult struct {
+}
+
+// Experimental: SessionFeatureFlagConfiguration is part of an experimental API and may
+// change or be removed.
+// Internal: SessionFeatureFlagConfiguration is an internal SDK API and is not part of the
+// public surface.
+type SessionFeatureFlagConfiguration struct {
+	// Installation first-launch time for experiment segmentation.
+	FirstLaunchAtMillis *float64 `json:"firstLaunchAtMillis,omitempty"`
+	// Host defaults applied during construction, before live flag reads.
+	InitOptions any `json:"initOptions"`
+	// Assignment source owned by the session lifecycle.
+	// Internal: Mode is part of the SDK's internal API surface and is not intended for external
+	// use.
+	Mode SessionFeatureFlagsMode `json:"mode"`
+	// Whether the defaults came from the live settings document.
+	SettingsAreLive *bool `json:"settingsAreLive,omitempty"`
+	// Whether experiment requests suppress account segmentation.
+	StreamerMode *bool `json:"streamerMode,omitempty"`
+}
+
+// Evaluation inputs for the bound session's feature service, not authentication claims.
+// Experimental: SessionFeatureFlagsConfigureRequest is part of an experimental API and may
+// change or be removed.
+type SessionFeatureFlagsConfigureRequest struct {
+	// Explicit assignment replacement or clear; omission retains current assignments.
+	Assignments *FeatureFlagAssignmentsUpdate `json:"assignments,omitempty"`
+	// The retained user-settings snapshot.
+	Config any `json:"config,omitempty"`
+	// Host environment snapshot; omit to use the live process environment.
+	Environment map[string]string `json:"environment,omitzero"`
+	// Explicit experiment overrides, after delivered assignments.
+	ExpFlagOverrides map[string]FeatureFlagValue `json:"expFlagOverrides,omitzero"`
+	// Installation first-launch time in Unix milliseconds, when known.
+	FirstLaunchAtMillis *float64 `json:"firstLaunchAtMillis,omitempty"`
+	// Explicit static overrides, after environment and user settings.
+	FlagOverrides map[string]bool `json:"flagOverrides,omitzero"`
+	// Constructor scalar seed; omission retains the existing constructor snapshot.
+	InitialSessionFlags map[string]bool `json:"initialSessionFlags,omitzero"`
+	// Whether experimental features are enabled.
+	IsExperimental bool `json:"isExperimental"`
+	// Static staff availability; this does not establish staff authentication.
+	IsStaff bool `json:"isStaff"`
+	// GitHub staff population, when the host recorded split populations.
+	IsStaffGitHub *bool `json:"isStaffGithub,omitempty"`
+	// Microsoft staff population, when the host recorded split populations.
+	IsStaffMicrosoft *bool `json:"isStaffMicrosoft,omitempty"`
+	// Static team availability; this does not select the authenticated account.
+	IsTeam bool `json:"isTeam"`
+	// Install the existing online assignment source unless assignments are explicit.
+	Online bool `json:"online"`
+	// Whether online segmentation withholds audience populations.
+	StreamerMode bool `json:"streamerMode"`
+}
+
+// Current service state, without configuration documents or credentials.
+// Experimental: SessionFeatureFlagsConfigureResult is part of an experimental API and may
+// change or be removed.
+type SessionFeatureFlagsConfigureResult struct {
+	// Whether the service remains active.
+	Active bool `json:"active"`
+	// Latest nonempty assignment context.
+	AssignmentContext *string `json:"assignmentContext,omitempty"`
+	// Organization targeting derived from the authenticated account.
+	AutoApprovalTargeted bool `json:"autoApprovalTargeted"`
+	// Validated instruction-retrieval arm, when present.
+	DynamicInstructionsRetrievalArm *string `json:"dynamicInstructionsRetrievalArm,omitempty"`
+	// Effective experiment values.
+	ExpFlags map[string]FeatureFlagValue `json:"expFlags"`
+	// Whether the current audience assignment has resolved.
+	ExpResponseResolved bool `json:"expResponseResolved"`
+	// Static flags after availability, environment, settings, and explicit overrides.
+	Flags map[string]bool `json:"flags"`
+	// Original runtime interpretation of the GPT default-model treatment.
+	GptDefaultModelEnabled bool `json:"gptDefaultModelEnabled"`
+	// Original runtime interpretation of the reasoning-summary treatment.
+	ReasoningSummariesArm FeatureFlagReasoningSummariesArm `json:"reasoningSummariesArm"`
+	// Original assignment document, including its optional fields.
+	Response any `json:"response"`
+	// Service revision, with unsigned 32-bit wraparound.
+	Revision int64 `json:"revision"`
+	// Latest nonempty secondary assignment context.
+	SecondaryAssignmentContext *string `json:"secondaryAssignmentContext,omitempty"`
+	// Decimal instance identity, without integer precision loss.
+	ServiceID string `json:"serviceId"`
+}
+
+// Optional evaluations and readiness barriers for one feature snapshot.
+// Experimental: SessionFeatureFlagsReadRequest is part of an experimental API and may
+// change or be removed.
+type SessionFeatureFlagsReadRequest struct {
+	// Wait for a different revision or service disposal using the existing change notification.
+	AfterRevision *int64 `json:"afterRevision,omitempty"`
+	// Return only the redacted UI projection, without assignment data or requested evaluations.
+	DisplayOnly *bool `json:"displayOnly,omitempty"`
+	// Feature names evaluated with their canonical experiment mappings.
+	Flags []string `json:"flags,omitzero"`
+	// Explicit experiment/static queries, in result order.
+	Overrides []FeatureFlagExpOverrideQuery `json:"overrides,omitzero"`
+	// Original display generation; a replaced service returns an unavailable projection.
+	ServiceID *string `json:"serviceId,omitempty"`
+	// Wait for the current assignment. Omission does not wait.
+	WaitForExpResponse *bool `json:"waitForExpResponse,omitempty"`
+}
+
+// One authoritative snapshot and the requested evaluations.
+// Experimental: SessionFeatureFlagsReadResult is part of an experimental API and may change
+// or be removed.
+type SessionFeatureFlagsReadResult struct {
+	// Redacted runtime decisions for UI presentation, present only for an available display
+	// read.
+	DisplayState any `json:"displayState,omitempty"`
+	// Requested feature values. Unknown or unset values are absent.
+	Flags map[string]bool `json:"flags"`
+	// Explicit override results; null means neither source supplies a boolean.
+	Overrides []*bool `json:"overrides"`
+	// The state used by these evaluations.
+	Snapshot FeatureFlagServiceSnapshot `json:"snapshot"`
+}
+
+// Changes apply in field order: config, preference, assignments, secondary context.
+// Experimental: SessionFeatureFlagsUpdateRequest is part of an experimental API and may
+// change or be removed.
+type SessionFeatureFlagsUpdateRequest struct {
+	// Replace or clear delivered assignments.
+	Assignments *FeatureFlagAssignmentsUpdate `json:"assignments,omitempty"`
+	// Patch the retained configuration.
+	ConfigPatch *FeatureFlagConfigPatch `json:"configPatch,omitempty"`
+	// Apply or remove one preference.
+	EnabledOverride *FeatureFlagEnabledOverride `json:"enabledOverride,omitempty"`
+	// Retain a nonempty secondary context using the original whitespace rules.
+	SecondaryAssignmentContext *string `json:"secondaryAssignmentContext,omitempty"`
+}
+
+// Current service state, without configuration documents or credentials.
+// Experimental: SessionFeatureFlagsUpdateResult is part of an experimental API and may
+// change or be removed.
+type SessionFeatureFlagsUpdateResult struct {
+	// Whether the service remains active.
+	Active bool `json:"active"`
+	// Latest nonempty assignment context.
+	AssignmentContext *string `json:"assignmentContext,omitempty"`
+	// Organization targeting derived from the authenticated account.
+	AutoApprovalTargeted bool `json:"autoApprovalTargeted"`
+	// Validated instruction-retrieval arm, when present.
+	DynamicInstructionsRetrievalArm *string `json:"dynamicInstructionsRetrievalArm,omitempty"`
+	// Effective experiment values.
+	ExpFlags map[string]FeatureFlagValue `json:"expFlags"`
+	// Whether the current audience assignment has resolved.
+	ExpResponseResolved bool `json:"expResponseResolved"`
+	// Static flags after availability, environment, settings, and explicit overrides.
+	Flags map[string]bool `json:"flags"`
+	// Original runtime interpretation of the GPT default-model treatment.
+	GptDefaultModelEnabled bool `json:"gptDefaultModelEnabled"`
+	// Original runtime interpretation of the reasoning-summary treatment.
+	ReasoningSummariesArm FeatureFlagReasoningSummariesArm `json:"reasoningSummariesArm"`
+	// Original assignment document, including its optional fields.
+	Response any `json:"response"`
+	// Service revision, with unsigned 32-bit wraparound.
+	Revision int64 `json:"revision"`
+	// Latest nonempty secondary assignment context.
+	SecondaryAssignmentContext *string `json:"secondaryAssignmentContext,omitempty"`
+	// Decimal instance identity, without integer precision loss.
+	ServiceID string `json:"serviceId"`
 }
 
 // File path, content to append, and optional mode for the client-provided session
@@ -23232,6 +24484,16 @@ type SessionManagedSettings struct {
 	Permissions *SessionManagedPermissions `json:"permissions,omitempty"`
 }
 
+// Experimental: SessionManagedSettingsAwaitAppliedResult is part of an experimental API and
+// may change or be removed.
+type SessionManagedSettingsAwaitAppliedResult struct {
+}
+
+// Experimental: SessionManagedSettingsAwaitPublishedResult is part of an experimental API
+// and may change or be removed.
+type SessionManagedSettingsAwaitPublishedResult struct {
+}
+
 // Closes one live opted-in descendant without deleting its saved history or closing its
 // children.
 // Experimental: SessionManagementCloseRequest is part of an experimental API and may change
@@ -23779,6 +25041,41 @@ type SessionMCPStopServerResult struct {
 type SessionMCPUnregisterExternalClientResult struct {
 }
 
+// Working directory context options. Git access follows the original session host's
+// authority.
+// Experimental: SessionMetadataGetWorkingDirectoryContextRequest is part of an experimental
+// API and may change or be removed.
+type SessionMetadataGetWorkingDirectoryContextRequest struct {
+	// Requested working directory, echoed without normalization.
+	Cwd string `json:"cwd"`
+	// Resolve the default branch when true; defaults to false.
+	IncludeDefaultBranch *bool `json:"includeDefaultBranch,omitempty"`
+}
+
+// Session host's working directory and optional repository context.
+// Experimental: SessionMetadataGetWorkingDirectoryContextResult is part of an experimental
+// API and may change or be removed.
+type SessionMetadataGetWorkingDirectoryContextResult struct {
+	// Merge-base commit, when available.
+	BaseCommit *string `json:"baseCommit,omitempty"`
+	// Current branch, when available.
+	Branch *string `json:"branch,omitempty"`
+	// Requested working directory.
+	Cwd string `json:"cwd"`
+	// Default branch, only when requested and available.
+	DefaultBranch *string `json:"defaultBranch,omitempty"`
+	// Repository working tree root.
+	GitRoot *string `json:"gitRoot,omitempty"`
+	// Current HEAD commit, when available.
+	HeadCommit *string `json:"headCommit,omitempty"`
+	// Recognized repository host platform.
+	HostType *SessionWorkingDirectoryContextHostType `json:"hostType,omitempty"`
+	// Repository identifier from the existing Git owner.
+	Repository *string `json:"repository,omitempty"`
+	// Repository remote host.
+	RepositoryHost *string `json:"repositoryHost,omitempty"`
+}
+
 // Point-in-time snapshot of slow-changing session identifier and state fields
 // Experimental: SessionMetadataSnapshot is part of an experimental API and may change or be
 // removed.
@@ -24052,6 +25349,10 @@ type SessionOpenOptions struct {
 	// Internal: ExpAssignments is part of the SDK's internal API surface and is not intended
 	// for external use.
 	ExpAssignments any `json:"expAssignments,omitempty"`
+	// Trusted host defaults consumed by the runtime during session construction.
+	// Internal: FeatureFlagConfiguration is part of the SDK's internal API surface and is not
+	// intended for external use.
+	FeatureFlagConfiguration *SessionFeatureFlagConfiguration `json:"featureFlagConfiguration,omitempty"`
 	// Feature-flag values resolved by the host.
 	FeatureFlags map[string]bool `json:"featureFlags,omitzero"`
 	// Whether the requesting SDK session has a skill provider. The provider remains ephemeral
@@ -24421,6 +25722,40 @@ type SessionOpenResult struct {
 	Status SessionsOpenStatus `json:"status"`
 }
 
+// Effective permission escalation and the original launch baseline.
+// Experimental: SessionPermissionsGetAllowAllResult is part of an experimental API and may
+// change or be removed.
+type SessionPermissionsGetAllowAllResult struct {
+	// Whether allow-all permissions are currently effective.
+	Active bool `json:"active"`
+	// Whether automatic permission approval is active.
+	AutoApproval bool `json:"autoApproval"`
+	// Original launch permissions, unchanged by runtime escalation.
+	Baseline PermissionsAllowAllBaseline `json:"baseline"`
+	// Whether an invocation changed the launch permission posture.
+	RuntimeOverride bool `json:"runtimeOverride"`
+	// Whether automatic permission approval is stored before the managed-policy cap.
+	StoredAutoApproval bool `json:"storedAutoApproval"`
+}
+
+// Whether permission prompts must produce session events.
+// Experimental: SessionPermissionsGetRequiredResult is part of an experimental API and may
+// change or be removed.
+type SessionPermissionsGetRequiredResult bool
+
+// Permission request to evaluate against the session's current managed policy.
+// Experimental: SessionPermissionsManagedReviewRequiredRequest is part of an experimental
+// API and may change or be removed.
+type SessionPermissionsManagedReviewRequiredRequest struct {
+	// Original permission request, including all request-specific fields.
+	Request any `json:"request"`
+}
+
+// True when the session's current managed policy requires review.
+// Experimental: SessionPermissionsManagedReviewRequiredResult is part of an experimental
+// API and may change or be removed.
+type SessionPermissionsManagedReviewRequiredResult bool
+
 // Experimental: SessionPlanDeleteResult is part of an experimental API and may change or be
 // removed.
 type SessionPlanDeleteResult struct {
@@ -24552,6 +25887,24 @@ type SessionProviderGetEndpointRequest struct {
 	// Model identifier the caller intends to use against the returned endpoint. Used to pick
 	// the correct wire shape. Omit to use whichever model the session is currently using.
 	ModelID *string `json:"modelId,omitempty"`
+}
+
+// Reads current cached availability without fetching a remote model catalog.
+// Experimental: SessionProvidersModelsDiagnoseRequest is part of an experimental API and
+// may change or be removed.
+type SessionProvidersModelsDiagnoseRequest struct {
+	// Optional provider identity used to disambiguate a selection.
+	ProviderID *string `json:"providerId,omitempty"`
+	// Provider-qualified model selection identifier.
+	SelectionID string `json:"selectionId"`
+}
+
+// Action-boundary availability of a registered provider model.
+// Experimental: SessionProvidersModelsDiagnoseResult is part of an experimental API and may
+// change or be removed.
+type SessionProvidersModelsDiagnoseResult struct {
+	// True for a selectable model, false for a blocked model, absent for a missing row.
+	Available *bool `json:"available,omitempty"`
 }
 
 // Outcome of the prune operation: deleted IDs, dry-run candidates, skipped IDs, total bytes
@@ -24737,6 +26090,31 @@ type SessionQuotaTakeWarningsResult []QuotaWarningProjection
 type SessionRemoteDisableResult struct {
 }
 
+// Experimental: SessionSandboxEnsureEnforcementAvailableResult is part of an experimental
+// API and may change or be removed.
+type SessionSandboxEnsureEnforcementAvailableResult struct {
+}
+
+// Remote MCP endpoint and the host's existing proxy secret directory.
+// Experimental: SessionSandboxGetRemoteMCPEgressRequest is part of an experimental API and
+// may change or be removed.
+type SessionSandboxGetRemoteMCPEgressRequest struct {
+	// Existing proxy secret directory on the runtime host.
+	SecretConfigDir *string `json:"secretConfigDir,omitempty"`
+	// Target endpoint for the session network policy decision.
+	URL *string `json:"url,omitempty"`
+}
+
+// Session-owned remote MCP egress decision. A denial forbids connection.
+// Experimental: SessionSandboxGetRemoteMCPEgressResult is part of an experimental API and
+// may change or be removed.
+type SessionSandboxGetRemoteMCPEgressResult struct {
+	// Reason a connection is forbidden; absent when allowed.
+	DeniedReason *string `json:"deniedReason,omitempty"`
+	// Authorized proxy URL; absent for a direct connection or a denial.
+	ProxyURL *string `json:"proxyUrl,omitempty"`
+}
+
 // Session IDs to close, deactivate, and delete from disk.
 // Experimental: SessionsBulkDeleteRequest is part of an experimental API and may change or
 // be removed.
@@ -24840,6 +26218,17 @@ type SessionsClientMetadataEntryUnsupportedVersion struct {
 func (SessionsClientMetadataEntryUnsupportedVersion) sessionsClientMetadataEntry() {}
 func (SessionsClientMetadataEntryUnsupportedVersion) Status() SessionsClientMetadataEntryStatus {
 	return SessionsClientMetadataEntryStatusUnsupportedVersion
+}
+
+// Session ID to close.
+// Experimental: SessionsCloseOptions is part of an experimental API and may change or be
+// removed.
+type SessionsCloseOptions struct {
+	// Run deferred session-end hooks with their full configured timeout when the host stays
+	// alive.
+	DetachSessionEndHooks *bool `json:"detachSessionEndHooks,omitempty"`
+	// Session ID to close
+	SessionID string `json:"sessionId"`
 }
 
 // Session ID to close.
@@ -25016,6 +26405,17 @@ type SessionSettingsOnlineEvaluationSnapshot struct {
 	DisableOnlineEvaluation *bool `json:"disableOnlineEvaluation,omitempty"`
 	// Whether online-evaluation output-file generation is enabled.
 	EnableOnlineEvaluationOutputFile *bool `json:"enableOnlineEvaluationOutputFile,omitempty"`
+}
+
+// Experimental: SessionSettingsPatch is part of an experimental API and may change or be
+// removed.
+type SessionSettingsPatch struct {
+	// Explicit feature preferences. A null value removes that preference.
+	EnabledFeatureFlags map[string]*bool `json:"enabledFeatureFlags,omitzero"`
+	// Whether this session enables memory, without changing the saved preference.
+	Memory *bool `json:"memory,omitempty"`
+	// Optional generation guard for a live configuration view.
+	ServiceID *string `json:"serviceId,omitempty"`
 }
 
 // Redacted repository and GitHub host settings for a session.
@@ -25734,6 +27134,8 @@ type SessionUpdateOptionsParams struct {
 	SessionCapabilities []SessionCapability `json:"sessionCapabilities,omitzero"`
 	// Optional session limits. Pass null to clear the session limits.
 	SessionLimits *SessionLimitsConfig `json:"sessionLimits,omitempty"`
+	// Session-only user preferences. Omitted preferences keep their current values.
+	Settings *SessionSettingsPatch `json:"settings,omitempty"`
 	// Per-session settings for built-in shell tools.
 	Shell *ShellOptions `json:"shell,omitempty"`
 	// Use shell.initProfile instead. Shell init profile (`None` or `NonInteractive`).
@@ -25756,7 +27158,7 @@ type SessionUpdateOptionsParams struct {
 	// already in the problem statement.
 	SuppressCustomAgentPrompt *bool `json:"suppressCustomAgentPrompt,omitempty"`
 	// Controls how availableTools (allowlist) and excludedTools (denylist) combine when both
-	// are set.
+	// are set. Omitted updates preserve the current setting; new sessions default to excluded.
 	ToolFilterPrecedence *OptionsUpdateToolFilterPrecedence `json:"toolFilterPrecedence,omitempty"`
 	// Optional path for trajectory output.
 	TrajectoryFile *string `json:"trajectoryFile,omitempty"`
@@ -28193,6 +29595,14 @@ type ToolsExecuteRequest struct {
 	ToolCallID *string `json:"toolCallId,omitempty"`
 }
 
+// Session-latched flags for built-in agent availability.
+// Experimental: ToolsGetBuiltinAgentFlagOverridesResult is part of an experimental API and
+// may change or be removed.
+type ToolsGetBuiltinAgentFlagOverridesResult struct {
+	// Whether the session hides the task subagent.
+	RemoveTaskSubagent bool `json:"removeTaskSubagent"`
+}
+
 // Options controlling how Rust-owned built-in tool descriptors are materialized.
 // Experimental: ToolsGetBuiltinDescriptorsRequest is part of an experimental API and may
 // change or be removed.
@@ -29703,6 +31113,9 @@ type UserSettingsWriteKeyRequest struct {
 	Key string `json:"key"`
 	// Refuse to replace an unreadable or invalid file. Defaults to false.
 	RefuseOnReadFailure *bool `json:"refuseOnReadFailure,omitempty"`
+	// Refuse content no JSONC recovery pass reads as an object. Defaults to false.
+	// Recoverable content can still be repaired when refuseOnReadFailure is false.
+	RefuseOnUnrecoverableReadFailure *bool `json:"refuseOnUnrecoverableReadFailure,omitempty"`
 	// The value to store. Explicit null is retained. Pass null when deleting.
 	Value *any `json:"value"`
 }
@@ -31561,6 +32974,34 @@ const (
 	AzureMlCatalogRetryModeBackground AzureMlCatalogRetryMode = "background"
 	// Retry sign-in after an explicit refresh.
 	AzureMlCatalogRetryModeExplicit AzureMlCatalogRetryMode = "explicit"
+)
+
+// Result category of a managed provider configuration change.
+// Experimental: AzureMlRegistrationKind is part of an experimental API and may change or be
+// removed.
+type AzureMlRegistrationKind string
+
+const (
+	// A read, transaction, or write failed.
+	AzureMlRegistrationKindFailed AzureMlRegistrationKind = "failed"
+	// The document is malformed and remains unchanged.
+	AzureMlRegistrationKindSkipped AzureMlRegistrationKind = "skipped"
+	// The requested managed rows now exist or are removed.
+	AzureMlRegistrationKindWritten AzureMlRegistrationKind = "written"
+)
+
+// A managed registration change that leaves unrelated provider rows unchanged.
+// Experimental: AzureMlRegistrationOperation is part of an experimental API and may change
+// or be removed.
+type AzureMlRegistrationOperation string
+
+const (
+	// Remove this model and remove its provider only when unreferenced.
+	AzureMlRegistrationOperationRemove AzureMlRegistrationOperation = "remove"
+	// Restore the prior managed rows without changing unrelated entries.
+	AzureMlRegistrationOperationRestore AzureMlRegistrationOperation = "restore"
+	// Replace the managed rows and return their prior contents.
+	AzureMlRegistrationOperationUpsert AzureMlRegistrationOperation = "upsert"
 )
 
 // Registry that owns an Azure ML model version.
@@ -33844,6 +35285,86 @@ const (
 	LlmInferenceHTTPRequestStartTransportWebsocket LlmInferenceHTTPRequestStartTransport = "websocket"
 )
 
+// Kind discriminator for LocalModelDiskRequirement.
+type LocalModelDiskRequirementKind string
+
+const (
+	LocalModelDiskRequirementKindInsufficient LocalModelDiskRequirementKind = "insufficient"
+	LocalModelDiskRequirementKindOk           LocalModelDiskRequirementKind = "ok"
+	LocalModelDiskRequirementKindUnknown      LocalModelDiskRequirementKind = "unknown"
+)
+
+// Kind discriminator for LocalModelGpuRequirement.
+type LocalModelGpuRequirementKind string
+
+const (
+	LocalModelGpuRequirementKindInsufficient LocalModelGpuRequirementKind = "insufficient"
+	LocalModelGpuRequirementKindOk           LocalModelGpuRequirementKind = "ok"
+	LocalModelGpuRequirementKindUnknown      LocalModelGpuRequirementKind = "unknown"
+	LocalModelGpuRequirementKindUnspecified  LocalModelGpuRequirementKind = "unspecified"
+)
+
+// Active acquisition or removal stage.
+// Experimental: LocalModelOperation is part of an experimental API and may change or be
+// removed.
+type LocalModelOperation string
+
+const (
+	// Remove registration and files.
+	LocalModelOperationDeleting LocalModelOperation = "deleting"
+	// Transfer the model files.
+	LocalModelOperationDownloading LocalModelOperation = "downloading"
+	// Install the inference engine.
+	LocalModelOperationInstalling LocalModelOperation = "installing"
+	// Resolve the model and inspect existing files.
+	LocalModelOperationProbing LocalModelOperation = "probing"
+	// Save or activate the model registration.
+	LocalModelOperationRegistering LocalModelOperation = "registering"
+)
+
+// Host notification or model-list refresh.
+type LocalModelsEventType string
+
+const (
+	// Display a model-management message.
+	LocalModelsEventTypeNotify LocalModelsEventType = "notify"
+	// Refresh the host's available model list.
+	LocalModelsEventTypeRefresh LocalModelsEventType = "refresh"
+)
+
+// Download, update, or repair intent.
+type LocalModelsSetupRequestIntent string
+
+const (
+	// Acquire and register an available model.
+	LocalModelsSetupRequestIntentDownload LocalModelsSetupRequestIntent = "download"
+	// Restore registration for an existing installation without downloading a missing model.
+	LocalModelsSetupRequestIntentRepair LocalModelsSetupRequestIntent = "repair"
+	// Acquire the latest version of an installed model.
+	LocalModelsSetupRequestIntentUpdate LocalModelsSetupRequestIntent = "update"
+)
+
+// Kind discriminator for LocalModelStatus.
+type LocalModelStatusKind string
+
+const (
+	LocalModelStatusKindDownloaded    LocalModelStatusKind = "downloaded"
+	LocalModelStatusKindDownloading   LocalModelStatusKind = "downloading"
+	LocalModelStatusKindNotDownloaded LocalModelStatusKind = "not-downloaded"
+)
+
+// Information, warning, or error.
+type LocalModelTimelineMessageType string
+
+const (
+	// Report a failed operation.
+	LocalModelTimelineMessageTypeError LocalModelTimelineMessageType = "error"
+	// Inform the user about progress or completion.
+	LocalModelTimelineMessageTypeInfo LocalModelTimelineMessageType = "info"
+	// Report a condition that requires attention.
+	LocalModelTimelineMessageTypeWarning LocalModelTimelineMessageType = "warning"
+)
+
 // A provider a consumer may interactively sign in with.
 // Experimental: LoginProviderKind is part of an experimental API and may change or be
 // removed.
@@ -35221,11 +36742,10 @@ type OptionsUpdateToolFilterPrecedence string
 
 const (
 	// If availableTools is set, it is the only constraint that applies (excludedTools is
-	// ignored). Preserves CLI / pre-existing client behavior. Default.
+	// ignored). Explicitly opts into allowlist precedence.
 	OptionsUpdateToolFilterPrecedenceAvailable OptionsUpdateToolFilterPrecedence = "available"
 	// A tool is enabled if and only if it matches the allowlist (or the allowlist is unset) AND
-	// it does not match the denylist. Makes 'all except X' expressible by combining the two
-	// lists.
+	// it does not match the denylist. Default for new sessions.
 	OptionsUpdateToolFilterPrecedenceExcluded OptionsUpdateToolFilterPrecedence = "excluded"
 )
 
@@ -35825,6 +37345,8 @@ const (
 	ProviderConfigTypeAzure ProviderConfigType = "azure"
 	// Generic OpenAI-compatible API.
 	ProviderConfigTypeOpenai ProviderConfigType = "openai"
+	// On-device Windows ML model with a local GGUF path.
+	ProviderConfigTypeWinml ProviderConfigType = "winml"
 )
 
 // Wire API format (openai/azure only). Defaults to "completions".
@@ -36235,6 +37757,24 @@ const (
 	SandboxSessionChangeRestored SandboxSessionChange = "restored"
 )
 
+// Provider families supported by saved configuration.
+// Experimental: SavedProviderConfigurationType is part of an experimental API and may
+// change or be removed.
+type SavedProviderConfigurationType string
+
+const (
+	// Anthropic API endpoint.
+	SavedProviderConfigurationTypeAnthropic SavedProviderConfigurationType = "anthropic"
+	// Azure OpenAI Service endpoint.
+	SavedProviderConfigurationTypeAzure SavedProviderConfigurationType = "azure"
+	// Runtime-managed local model server.
+	SavedProviderConfigurationTypeLocalModel SavedProviderConfigurationType = "local_model"
+	// Generic OpenAI-compatible API.
+	SavedProviderConfigurationTypeOpenai SavedProviderConfigurationType = "openai"
+	// Windows ML local model provider.
+	SavedProviderConfigurationTypeWinml SavedProviderConfigurationType = "winml"
+)
+
 // The UI mode the agent was in when this message was sent. Defaults to the session's
 // current mode.
 // Experimental: SendAgentMode is part of an experimental API and may change or be removed.
@@ -36303,6 +37843,17 @@ const (
 	SessionContextHostTypeADO SessionContextHostType = "ado"
 	// Session repository is hosted on GitHub.
 	SessionContextHostTypeGitHub SessionContextHostType = "github"
+)
+
+// Experimental: SessionFeatureFlagsMode is part of an experimental API and may change or be
+// removed.
+type SessionFeatureFlagsMode string
+
+const (
+	// Retains the CLI assignment source and its refresh lifecycle.
+	SessionFeatureFlagsModeCLI SessionFeatureFlagsMode = "cli"
+	// Creates static local flags without an online assignment source.
+	SessionFeatureFlagsModeLocal SessionFeatureFlagsMode = "local"
 )
 
 // Error classification
@@ -36631,6 +38182,8 @@ const (
 	SessionSettingsPredicateNameDependabotCheckerEnabled SessionSettingsPredicateName = "dependabotCheckerEnabled"
 	// Whether the dependency checker is enabled.
 	SessionSettingsPredicateNameDependencyCheckerEnabled SessionSettingsPredicateName = "dependencyCheckerEnabled"
+	// Whether GitHub IQ is available for the session's current account and repository.
+	SessionSettingsPredicateNameGitHubIqEnabled SessionSettingsPredicateName = "githubIqEnabled"
 	// Whether validation may run in parallel.
 	SessionSettingsPredicateNameParallelValidationEnabled SessionSettingsPredicateName = "parallelValidationEnabled"
 	// Whether runtime timing telemetry is enabled.
@@ -38053,6 +39606,25 @@ func (a *ServerAzureMlAPI) Download(ctx context.Context, params *AzureMlDownload
 	return &result, nil
 }
 
+// Hardware reads local graphics memory off the caller thread for on-device model
+// eligibility. Does not start a model server, resolve credentials, or contact a model
+// registry.
+//
+// RPC method: azureMl.hardware.
+//
+// Returns: Measured graphics capability; missing memory means the adapter is unknown.
+func (a *ServerAzureMlAPI) Hardware(ctx context.Context) (*AzureMlHardwareResult, error) {
+	raw, err := a.client.Request(ctx, "azureMl.hardware", nil)
+	if err != nil {
+		return nil, err
+	}
+	var result AzureMlHardwareResult
+	if err := json.Unmarshal(raw, &result); err != nil {
+		return nil, err
+	}
+	return &result, nil
+}
+
 // Latest revalidates the newest eligible version of one Azure ML model family.
 //
 // RPC method: azureMl.latest.
@@ -38066,6 +39638,28 @@ func (a *ServerAzureMlAPI) Latest(ctx context.Context, params *AzureMlLatestRequ
 		return nil, err
 	}
 	var result AzureMlLatestResult
+	if err := json.Unmarshal(raw, &result); err != nil {
+		return nil, err
+	}
+	return &result, nil
+}
+
+// Registration updates one managed model's persisted registration under its
+// connection-owned Azure ML family lease. Captures prior rows for compensation, preserves
+// unrelated configuration, and remains available after the originating chat session closes.
+// Does not change a live session registry or selection.
+//
+// RPC method: azureMl.registration.
+//
+// Parameters: Managed Azure ML registration changes under a connection-owned family lease.
+//
+// Returns: Observable outcome of a scoped registration change.
+func (a *ServerAzureMlAPI) Registration(ctx context.Context, params *AzureMlRegistrationRequest) (*AzureMlRegistrationResult, error) {
+	raw, err := a.client.Request(ctx, "azureMl.registration", params)
+	if err != nil {
+		return nil, err
+	}
+	var result AzureMlRegistrationResult
 	if err := json.Unmarshal(raw, &result); err != nil {
 		return nil, err
 	}
@@ -38854,6 +40448,213 @@ func (a *ServerLlmInferenceAPI) SetProvider(ctx context.Context) (*LlmInferenceS
 		return nil, err
 	}
 	var result LlmInferenceSetProviderResult
+	if err := json.Unmarshal(raw, &result); err != nil {
+		return nil, err
+	}
+	return &result, nil
+}
+
+// Experimental: ServerLocalModelsAPI contains experimental APIs that may change or be
+// removed.
+type ServerLocalModelsAPI serverAPI
+
+// Cancel requests cancellation of this connection's setup job for the given catalog
+// identifier. An identifier never grants access to another connection's jobs.
+//
+// RPC method: localModels.cancel.
+//
+// Parameters: Identifier of a job or notice owned by this connection.
+func (a *ServerLocalModelsAPI) Cancel(ctx context.Context, params *LocalModelsModelIDRequest) (*LocalModelsCancelResult, error) {
+	raw, err := a.client.Request(ctx, "localModels.cancel", params)
+	if err != nil {
+		return nil, err
+	}
+	var result LocalModelsCancelResult
+	if err := json.Unmarshal(raw, &result); err != nil {
+		return nil, err
+	}
+	return &result, nil
+}
+
+// CancelAll cancels this connection's active setup jobs and waits for their cleanup.
+// Removal jobs finish instead of stopping halfway through registration cleanup.
+//
+// RPC method: localModels.cancelAll.
+func (a *ServerLocalModelsAPI) CancelAll(ctx context.Context) (*LocalModelsCancelAllResult, error) {
+	raw, err := a.client.Request(ctx, "localModels.cancelAll", nil)
+	if err != nil {
+		return nil, err
+	}
+	var result LocalModelsCancelAllResult
+	if err := json.Unmarshal(raw, &result); err != nil {
+		return nil, err
+	}
+	return &result, nil
+}
+
+// Configures this SDK connection's local model manager. Runtime admission, credentials,
+// jobs, files, progress, and cancellation remain connection-owned. A source session
+// supplies live registration and selection without extending its lifetime.
+//
+// RPC method: localModels.configure.
+//
+// Parameters: Host preferences for its connection-owned manager, not authorization claims.
+//
+// Returns: Snapshot and transient notifications for one connection-owned manager.
+func (a *ServerLocalModelsAPI) Configure(ctx context.Context, params *LocalModelsConfigureRequest) (*LocalModelsSnapshot, error) {
+	raw, err := a.client.Request(ctx, "localModels.configure", params)
+	if err != nil {
+		return nil, err
+	}
+	var result LocalModelsSnapshot
+	if err := json.Unmarshal(raw, &result); err != nil {
+		return nil, err
+	}
+	return &result, nil
+}
+
+// DeleteModel removes a managed model's live and saved registration and local files under
+// the connection-owned family lease. Preserves files if registration cleanup cannot safely
+// finish.
+//
+// RPC method: localModels.deleteModel.
+//
+// Parameters: A model returned by this connection's catalog.
+func (a *ServerLocalModelsAPI) DeleteModel(ctx context.Context, params *LocalModelsModelRequest) (*LocalModelsDeleteModelResult, error) {
+	raw, err := a.client.Request(ctx, "localModels.deleteModel", params)
+	if err != nil {
+		return nil, err
+	}
+	var result LocalModelsDeleteModelResult
+	if err := json.Unmarshal(raw, &result); err != nil {
+		return nil, err
+	}
+	return &result, nil
+}
+
+// DismissNotice dismisses one notice from this connection's local model state.
+//
+// RPC method: localModels.dismissNotice.
+//
+// Parameters: Identifier of a job or notice owned by this connection.
+func (a *ServerLocalModelsAPI) DismissNotice(ctx context.Context, params *LocalModelsModelIDRequest) (*LocalModelsDismissNoticeResult, error) {
+	raw, err := a.client.Request(ctx, "localModels.dismissNotice", params)
+	if err != nil {
+		return nil, err
+	}
+	var result LocalModelsDismissNoticeResult
+	if err := json.Unmarshal(raw, &result); err != nil {
+		return nil, err
+	}
+	return &result, nil
+}
+
+// Inspect reads this connection's local model state without scanning files or contacting a
+// registry. Does not expose another connection's jobs.
+//
+// RPC method: localModels.inspect.
+//
+// Returns: Snapshot and transient notifications for one connection-owned manager.
+func (a *ServerLocalModelsAPI) Inspect(ctx context.Context) (*LocalModelsSnapshot, error) {
+	raw, err := a.client.Request(ctx, "localModels.inspect", nil)
+	if err != nil {
+		return nil, err
+	}
+	var result LocalModelsSnapshot
+	if err := json.Unmarshal(raw, &result); err != nil {
+		return nil, err
+	}
+	return &result, nil
+}
+
+// Prefetch loads the local model catalog under the background policy without repeating a
+// completed successful fetch for unchanged access.
+//
+// RPC method: localModels.prefetch.
+func (a *ServerLocalModelsAPI) Prefetch(ctx context.Context) (*LocalModelsPrefetchResult, error) {
+	raw, err := a.client.Request(ctx, "localModels.prefetch", nil)
+	if err != nil {
+		return nil, err
+	}
+	var result LocalModelsPrefetchResult
+	if err := json.Unmarshal(raw, &result); err != nil {
+		return nil, err
+	}
+	return &result, nil
+}
+
+// Prepare resolves current artifact access and resource requirements without changing the
+// caller's descriptor or starting a download.
+//
+// RPC method: localModels.prepare.
+//
+// Parameters: A model returned by this connection's catalog.
+//
+// Returns: Runtime catalog entry, including installation and inference metadata.
+func (a *ServerLocalModelsAPI) Prepare(ctx context.Context, params *LocalModelsModelRequest) (*LocalModelsPrepareResult, error) {
+	raw, err := a.client.Request(ctx, "localModels.prepare", params)
+	if err != nil {
+		return nil, err
+	}
+	var result LocalModelsPrepareResult
+	if err := json.Unmarshal(raw, &result); err != nil {
+		return nil, err
+	}
+	return &result, nil
+}
+
+// Refresh scans this connection's model files and schedules a catalog refresh under its
+// current preferences and runtime admission.
+//
+// RPC method: localModels.refresh.
+//
+// Parameters: Catalog refresh intent.
+func (a *ServerLocalModelsAPI) Refresh(ctx context.Context, params *LocalModelsRefreshRequest) (*LocalModelsRefreshResult, error) {
+	raw, err := a.client.Request(ctx, "localModels.refresh", params)
+	if err != nil {
+		return nil, err
+	}
+	var result LocalModelsRefreshResult
+	if err := json.Unmarshal(raw, &result); err != nil {
+		return nil, err
+	}
+	return &result, nil
+}
+
+// Setup downloads, updates, or repairs a model through runtime-owned acquisition,
+// registration, activation, and compensation. The connection-owned job can finish its saved
+// registration after its source session closes. The call completes with that job.
+//
+// RPC method: localModels.setup.
+//
+// Parameters: Setup intent for one catalog model.
+func (a *ServerLocalModelsAPI) Setup(ctx context.Context, params *LocalModelsSetupRequest) (*LocalModelsSetupResult, error) {
+	raw, err := a.client.Request(ctx, "localModels.setup", params)
+	if err != nil {
+		return nil, err
+	}
+	var result LocalModelsSetupResult
+	if err := json.Unmarshal(raw, &result); err != nil {
+		return nil, err
+	}
+	return &result, nil
+}
+
+// Watch waits for a newer local model revision and returns current state plus
+// unacknowledged host notifications. Only this SDK connection's manager is visible.
+// Connection closure cancels the wait.
+//
+// RPC method: localModels.watch.
+//
+// Parameters: Acknowledged position in this connection's manager updates.
+//
+// Returns: Snapshot and transient notifications for one connection-owned manager.
+func (a *ServerLocalModelsAPI) Watch(ctx context.Context, params *LocalModelsWatchRequest) (*LocalModelsSnapshot, error) {
+	raw, err := a.client.Request(ctx, "localModels.watch", params)
+	if err != nil {
+		return nil, err
+	}
+	var result LocalModelsSnapshot
 	if err := json.Unmarshal(raw, &result); err != nil {
 		return nil, err
 	}
@@ -39845,6 +41646,38 @@ func (s *ServerPluginsAPI) Marketplaces() *ServerPluginsMarketplacesAPI {
 	return (*ServerPluginsMarketplacesAPI)(s)
 }
 
+// Experimental: ServerProvidersAPI contains experimental APIs that may change or be removed.
+type ServerProvidersAPI serverAPI
+
+// Experimental: ServerProvidersConfigAPI contains experimental APIs that may change or be
+// removed.
+type ServerProvidersConfigAPI serverAPI
+
+// AddModel adds a model to the server's saved provider configuration. This durable
+// operation does not change any live session.
+//
+// RPC method: providers.config.addModel.
+//
+// Parameters: Request to add a model to the server-owned saved provider configuration.
+//
+// Returns: Result of adding a model to the saved provider configuration.
+func (a *ServerProvidersConfigAPI) AddModel(ctx context.Context, params *SavedProviderConfigurationAddModelRequest) (*ProvidersConfigAddModelResult, error) {
+	raw, err := a.client.Request(ctx, "providers.config.addModel", params)
+	if err != nil {
+		return nil, err
+	}
+	var result ProvidersConfigAddModelResult
+	if err := json.Unmarshal(raw, &result); err != nil {
+		return nil, err
+	}
+	return &result, nil
+}
+
+// Experimental: Config returns experimental APIs that may change or be removed.
+func (s *ServerProvidersAPI) Config() *ServerProvidersConfigAPI {
+	return (*ServerProvidersConfigAPI)(s)
+}
+
 // Experimental: ServerRuntimeAPI contains experimental APIs that may change or be removed.
 type ServerRuntimeAPI serverAPI
 
@@ -40162,6 +41995,28 @@ func (a *ServerSessionsAPI) CheckInUse(ctx context.Context, params *SessionsChec
 // in-use lock, disposes the active session. Idempotent: succeeds even if the session is not
 // currently active.
 func (a *ServerSessionsAPI) Close(ctx context.Context, params *SessionsCloseRequest) (*SessionsCloseResult, error) {
+	raw, err := a.client.Request(ctx, "sessions.close", params)
+	if err != nil {
+		return nil, err
+	}
+	var result SessionsCloseResult
+	if err := json.Unmarshal(raw, &result); err != nil {
+		return nil, err
+	}
+	return &result, nil
+}
+
+// CloseWithOptions closes a session: emits shutdown, flushes pending events, releases the
+// in-use lock, and disposes the active session.
+//
+// RPC method: sessions.close.
+//
+// Parameters: Session ID to close.
+//
+// Returns: Closes a session: emits shutdown, flushes pending events to disk, releases the
+// in-use lock, disposes the active session. Idempotent: succeeds even if the session is not
+// currently active.
+func (a *ServerSessionsAPI) CloseWithOptions(ctx context.Context, params *SessionsCloseOptions) (*SessionsCloseResult, error) {
 	raw, err := a.client.Request(ctx, "sessions.close", params)
 	if err != nil {
 		return nil, err
@@ -41063,12 +42918,14 @@ type ServerRPC struct {
 	Host             *ServerHostAPI
 	Instructions     *ServerInstructionsAPI
 	LlmInference     *ServerLlmInferenceAPI
+	LocalModels      *ServerLocalModelsAPI
 	Lsp              *ServerLspAPI
 	ManagedSettings  *ServerManagedSettingsAPI
 	MCP              *ServerMCPAPI
 	Models           *ServerModelsAPI
 	Network          *ServerNetworkAPI
 	Plugins          *ServerPluginsAPI
+	Providers        *ServerProvidersAPI
 	Runtime          *ServerRuntimeAPI
 	Sandbox          *ServerSandboxAPI
 	Secrets          *ServerSecretsAPI
@@ -41137,12 +42994,14 @@ func NewServerRPC(client *jsonrpc2.Client) *ServerRPC {
 	r.Host = (*ServerHostAPI)(&r.common)
 	r.Instructions = (*ServerInstructionsAPI)(&r.common)
 	r.LlmInference = (*ServerLlmInferenceAPI)(&r.common)
+	r.LocalModels = (*ServerLocalModelsAPI)(&r.common)
 	r.Lsp = (*ServerLspAPI)(&r.common)
 	r.ManagedSettings = (*ServerManagedSettingsAPI)(&r.common)
 	r.MCP = (*ServerMCPAPI)(&r.common)
 	r.Models = (*ServerModelsAPI)(&r.common)
 	r.Network = (*ServerNetworkAPI)(&r.common)
 	r.Plugins = (*ServerPluginsAPI)(&r.common)
+	r.Providers = (*ServerProvidersAPI)(&r.common)
 	r.Runtime = (*ServerRuntimeAPI)(&r.common)
 	r.Sandbox = (*ServerSandboxAPI)(&r.common)
 	r.Secrets = (*ServerSecretsAPI)(&r.common)
@@ -43605,6 +45464,34 @@ func (a *InternalServerPersistenceAPI) WriteRawJsonLocked(ctx context.Context, p
 	return &result, nil
 }
 
+// Experimental: InternalServerProvidersSourceAPI contains experimental APIs that may change
+// or be removed.
+type InternalServerProvidersSourceAPI internalServerAPI
+
+// AddModel forwards a saved-model addition over the original authenticated local attachment
+// to its owning server. Requires private CLI-host admission and fails if that attachment is
+// no longer active; never saves to the controller as a fallback.
+//
+// RPC method: providersSource.addModel.
+//
+// Parameters: Saves through the exact authenticated local attachment that discovered a
+// model.
+//
+// Returns: Result of adding a model to the saved provider configuration.
+// Internal: AddModel is part of the SDK's internal handshake/plumbing; external callers
+// should not use it.
+func (a *InternalServerProvidersSourceAPI) AddModel(ctx context.Context, params *AttachedProviderConfigurationAddModelRequest) (*ProvidersSourceAddModelResult, error) {
+	raw, err := a.client.Request(ctx, "providersSource.addModel", params)
+	if err != nil {
+		return nil, err
+	}
+	var result ProvidersSourceAddModelResult
+	if err := json.Unmarshal(raw, &result); err != nil {
+		return nil, err
+	}
+	return &result, nil
+}
+
 // Experimental: InternalServerRepoAPI contains experimental APIs that may change or be
 // removed.
 type InternalServerRepoAPI internalServerAPI
@@ -45199,7 +47086,9 @@ func (a *InternalServerUserSettingsAPI) WriteAll(ctx context.Context, params *Us
 // startup cleanup cannot delete the user's choice. Unlike applyTopKey, this operation does
 // not validate or canonicalize settings. Invalid or unreadable files are replaced by
 // default, matching the existing raw writer; set refuseOnReadFailure=true to reject
-// instead. Deletion requires delete=true; otherwise value must be present.
+// instead. Set refuseOnUnrecoverableReadFailure=true to refuse content no JSONC recovery
+// pass can read as an object, while retaining lenient recovery unless refuseOnReadFailure
+// is also true. Deletion requires delete=true; otherwise value must be present.
 //
 // RPC method: user.settings.writeKey.
 //
@@ -45247,6 +47136,7 @@ type InternalServerRPC struct {
 	MCP              *InternalServerMCPAPI
 	Permissions      *InternalServerPermissionsAPI
 	Persistence      *InternalServerPersistenceAPI
+	ProvidersSource  *InternalServerProvidersSourceAPI
 	Repo             *InternalServerRepoAPI
 	Runtime          *InternalServerRuntimeAPI
 	Sandbox          *InternalServerSandboxAPI
@@ -45306,6 +47196,7 @@ func NewInternalServerRPC(client *jsonrpc2.Client) *InternalServerRPC {
 	r.MCP = (*InternalServerMCPAPI)(&r.common)
 	r.Permissions = (*InternalServerPermissionsAPI)(&r.common)
 	r.Persistence = (*InternalServerPersistenceAPI)(&r.common)
+	r.ProvidersSource = (*InternalServerProvidersSourceAPI)(&r.common)
 	r.Repo = (*InternalServerRepoAPI)(&r.common)
 	r.Runtime = (*InternalServerRuntimeAPI)(&r.common)
 	r.Sandbox = (*InternalServerSandboxAPI)(&r.common)
@@ -46452,6 +48343,54 @@ func (a *DiagnosticsAPI) Read(ctx context.Context, params *DiagnosticsReadReques
 	return &result, nil
 }
 
+// Experimental: DynamicContextAPI contains experimental APIs that may change or be removed.
+type DynamicContextAPI sessionAPI
+
+// GetConfig reads this session's context-board metadata, or null when absent or incomplete.
+// Metadata is not a store capability.
+//
+// RPC method: session.dynamicContext.getConfig.
+//
+// Returns: Current context-board metadata, with an explicit null when absent or incomplete.
+func (a *DynamicContextAPI) GetConfig(ctx context.Context) (*SessionDynamicContextGetConfigResponse, error) {
+	req := map[string]any{"sessionId": a.sessionID}
+	raw, err := a.client.Request(ctx, "session.dynamicContext.getConfig", req)
+	if err != nil {
+		return nil, err
+	}
+	var result SessionDynamicContextGetConfigResponse
+	if err := json.Unmarshal(raw, &result); err != nil {
+		return nil, err
+	}
+	return &result, nil
+}
+
+// SetConfig sets this session's context-board metadata and its internal default-agent tool
+// exclusion. Empty fields retain their existing semantics. This operation does not open the
+// store.
+//
+// RPC method: session.dynamicContext.setConfig.
+//
+// Parameters: Context-board configuration for the bound session. This operation does not
+// open the store.
+func (a *DynamicContextAPI) SetConfig(ctx context.Context, params *SessionDynamicContextSetConfigRequest) (*SessionDynamicContextSetConfigResult, error) {
+	req := map[string]any{"sessionId": a.sessionID}
+	if params != nil {
+		req["branch"] = params.Branch
+		req["repository"] = params.Repository
+		req["storePath"] = params.StorePath
+	}
+	raw, err := a.client.Request(ctx, "session.dynamicContext.setConfig", req)
+	if err != nil {
+		return nil, err
+	}
+	var result SessionDynamicContextSetConfigResult
+	if err := json.Unmarshal(raw, &result); err != nil {
+		return nil, err
+	}
+	return &result, nil
+}
+
 // Experimental: EventLogAPI contains experimental APIs that may change or be removed.
 type EventLogAPI sessionAPI
 
@@ -46734,6 +48673,148 @@ func (a *ExtensionsAPI) SendAttachmentsToMessage(ctx context.Context, params *Se
 		return nil, err
 	}
 	var result SessionExtensionsSendAttachmentsToMessageResult
+	if err := json.Unmarshal(raw, &result); err != nil {
+		return nil, err
+	}
+	return &result, nil
+}
+
+// Experimental: FeatureFlagsAPI contains experimental APIs that may change or be removed.
+type FeatureFlagsAPI sessionAPI
+
+// Configures the bound session's original feature service without changing its owner or
+// assignment account. Explicit assignments disable online fetching. Configuration does not
+// write user settings. Extensions and unrelated external peers cannot access this service.
+//
+// RPC method: session.featureFlags.configure.
+//
+// Parameters: Evaluation inputs for the bound session's feature service, not authentication
+// claims.
+//
+// Returns: Current service state, without configuration documents or credentials.
+func (a *FeatureFlagsAPI) Configure(ctx context.Context, params *SessionFeatureFlagsConfigureRequest) (*SessionFeatureFlagsConfigureResult, error) {
+	req := map[string]any{"sessionId": a.sessionID}
+	if params != nil {
+		if params.Assignments != nil {
+			req["assignments"] = *params.Assignments
+		}
+		if params.Config != nil {
+			req["config"] = params.Config
+		}
+		if params.Environment != nil {
+			req["environment"] = params.Environment
+		}
+		if params.ExpFlagOverrides != nil {
+			req["expFlagOverrides"] = params.ExpFlagOverrides
+		}
+		if params.FirstLaunchAtMillis != nil {
+			req["firstLaunchAtMillis"] = *params.FirstLaunchAtMillis
+		}
+		if params.FlagOverrides != nil {
+			req["flagOverrides"] = params.FlagOverrides
+		}
+		if params.InitialSessionFlags != nil {
+			req["initialSessionFlags"] = params.InitialSessionFlags
+		}
+		req["isExperimental"] = params.IsExperimental
+		req["isStaff"] = params.IsStaff
+		if params.IsStaffGitHub != nil {
+			req["isStaffGithub"] = *params.IsStaffGitHub
+		}
+		if params.IsStaffMicrosoft != nil {
+			req["isStaffMicrosoft"] = *params.IsStaffMicrosoft
+		}
+		req["isTeam"] = params.IsTeam
+		req["online"] = params.Online
+		req["streamerMode"] = params.StreamerMode
+	}
+	raw, err := a.client.Request(ctx, "session.featureFlags.configure", req)
+	if err != nil {
+		return nil, err
+	}
+	var result SessionFeatureFlagsConfigureResult
+	if err := json.Unmarshal(raw, &result); err != nil {
+		return nil, err
+	}
+	return &result, nil
+}
+
+// Reads the bound session's feature service and requested runtime evaluations. Omission of
+// readiness options returns the current snapshot without waiting for online assignments. A
+// revision barrier uses the original service notification and ends when this attachment
+// closes. The opt-in displayOnly mode returns a redacted UI projection without assignment
+// data or requested evaluations. Only the trusted runtime host can read that
+// generation-bound projection.
+//
+// RPC method: session.featureFlags.read.
+//
+// Parameters: Optional evaluations and readiness barriers for one feature snapshot.
+//
+// Returns: One authoritative snapshot and the requested evaluations.
+func (a *FeatureFlagsAPI) Read(ctx context.Context, params *SessionFeatureFlagsReadRequest) (*SessionFeatureFlagsReadResult, error) {
+	req := map[string]any{"sessionId": a.sessionID}
+	if params != nil {
+		if params.AfterRevision != nil {
+			req["afterRevision"] = *params.AfterRevision
+		}
+		if params.DisplayOnly != nil {
+			req["displayOnly"] = *params.DisplayOnly
+		}
+		if params.Flags != nil {
+			req["flags"] = params.Flags
+		}
+		if params.Overrides != nil {
+			req["overrides"] = params.Overrides
+		}
+		if params.ServiceID != nil {
+			req["serviceId"] = *params.ServiceID
+		}
+		if params.WaitForExpResponse != nil {
+			req["waitForExpResponse"] = *params.WaitForExpResponse
+		}
+	}
+	raw, err := a.client.Request(ctx, "session.featureFlags.read", req)
+	if err != nil {
+		return nil, err
+	}
+	var result SessionFeatureFlagsReadResult
+	if err := json.Unmarshal(raw, &result); err != nil {
+		return nil, err
+	}
+	return &result, nil
+}
+
+// Updates the original session feature service through its existing config merge, explicit
+// unset, assignment replacement, and context operations. Changes apply in request field
+// order and do not write settings to disk.
+//
+// RPC method: session.featureFlags.update.
+//
+// Parameters: Changes apply in field order: config, preference, assignments, secondary
+// context.
+//
+// Returns: Current service state, without configuration documents or credentials.
+func (a *FeatureFlagsAPI) Update(ctx context.Context, params *SessionFeatureFlagsUpdateRequest) (*SessionFeatureFlagsUpdateResult, error) {
+	req := map[string]any{"sessionId": a.sessionID}
+	if params != nil {
+		if params.Assignments != nil {
+			req["assignments"] = *params.Assignments
+		}
+		if params.ConfigPatch != nil {
+			req["configPatch"] = *params.ConfigPatch
+		}
+		if params.EnabledOverride != nil {
+			req["enabledOverride"] = *params.EnabledOverride
+		}
+		if params.SecondaryAssignmentContext != nil {
+			req["secondaryAssignmentContext"] = *params.SecondaryAssignmentContext
+		}
+	}
+	raw, err := a.client.Request(ctx, "session.featureFlags.update", req)
+	if err != nil {
+		return nil, err
+	}
+	var result SessionFeatureFlagsUpdateResult
 	if err := json.Unmarshal(raw, &result); err != nil {
 		return nil, err
 	}
@@ -47330,6 +49411,42 @@ func (a *LspAPI) Stop(ctx context.Context) (*SessionLspStopResult, error) {
 // Experimental: ManagedSettingsAPI contains experimental APIs that may change or be removed.
 type ManagedSettingsAPI sessionAPI
 
+// AwaitApplied waits for the session's existing policy ingest and tracked applications.
+// Preserves enforcement failures, detached event delivery, and resource replacement checks
+// without starting a new fetch.
+//
+// RPC method: session.managedSettings.awaitApplied.
+func (a *ManagedSettingsAPI) AwaitApplied(ctx context.Context) (*SessionManagedSettingsAwaitAppliedResult, error) {
+	req := map[string]any{"sessionId": a.sessionID}
+	raw, err := a.client.Request(ctx, "session.managedSettings.awaitApplied", req)
+	if err != nil {
+		return nil, err
+	}
+	var result SessionManagedSettingsAwaitAppliedResult
+	if err := json.Unmarshal(raw, &result); err != nil {
+		return nil, err
+	}
+	return &result, nil
+}
+
+// AwaitPublished waits only for the existing policy commit, not enforcement or MCP startup.
+// This barrier permits extension admission without a policy enforcement cycle. Preserves
+// errors and generation checks without starting a new fetch.
+//
+// RPC method: session.managedSettings.awaitPublished.
+func (a *ManagedSettingsAPI) AwaitPublished(ctx context.Context) (*SessionManagedSettingsAwaitPublishedResult, error) {
+	req := map[string]any{"sessionId": a.sessionID}
+	raw, err := a.client.Request(ctx, "session.managedSettings.awaitPublished", req)
+	if err != nil {
+		return nil, err
+	}
+	var result SessionManagedSettingsAwaitPublishedResult
+	if err := json.Unmarshal(raw, &result); err != nil {
+		return nil, err
+	}
+	return &result, nil
+}
+
 // Get waits for the live session's in-flight managed-settings application, then returns the
 // retained effective snapshot used by runtime enforcement and by
 // `session.managed_settings_resolved`. It does not perform another account, device, or
@@ -47354,6 +49471,26 @@ func (a *ManagedSettingsAPI) Get(ctx context.Context) (*ManagedSettingsResolvedD
 		return nil, err
 	}
 	return &result, nil
+}
+
+// GetCurrentSnapshot reads the current retained managed-settings event payload without
+// waiting for application or publication. Returns null when no snapshot exists. It does not
+// fetch policy or alter startup ordering.
+//
+// RPC method: session.managedSettings.getCurrentSnapshot.
+//
+// Returns: Current retained policy event payload, or null before policy resolution.
+func (a *ManagedSettingsAPI) GetCurrentSnapshot(ctx context.Context) (*ManagedSettingsResolvedData, error) {
+	req := map[string]any{"sessionId": a.sessionID}
+	raw, err := a.client.Request(ctx, "session.managedSettings.getCurrentSnapshot", req)
+	if err != nil {
+		return nil, err
+	}
+	var result *ManagedSettingsResolvedData
+	if err := json.Unmarshal(raw, &result); err != nil {
+		return nil, err
+	}
+	return result, nil
 }
 
 // RecheckPolicyHelper runs a fresh Policy Helper evaluation for the live session's current
@@ -48598,6 +50735,34 @@ func (a *MetadataAPI) GetContextHeaviestMessages(ctx context.Context, params *Me
 	return &result, nil
 }
 
+// GetWorkingDirectoryContext reads repository context only when the session host permits
+// local Git operations.
+//
+// RPC method: session.metadata.getWorkingDirectoryContext.
+//
+// Parameters: Working directory context options. Git access follows the original session
+// host's authority.
+//
+// Returns: Session host's working directory and optional repository context.
+func (a *MetadataAPI) GetWorkingDirectoryContext(ctx context.Context, params *SessionMetadataGetWorkingDirectoryContextRequest) (*SessionMetadataGetWorkingDirectoryContextResult, error) {
+	req := map[string]any{"sessionId": a.sessionID}
+	if params != nil {
+		req["cwd"] = params.Cwd
+		if params.IncludeDefaultBranch != nil {
+			req["includeDefaultBranch"] = *params.IncludeDefaultBranch
+		}
+	}
+	raw, err := a.client.Request(ctx, "session.metadata.getWorkingDirectoryContext", req)
+	if err != nil {
+		return nil, err
+	}
+	var result SessionMetadataGetWorkingDirectoryContextResult
+	if err := json.Unmarshal(raw, &result); err != nil {
+		return nil, err
+	}
+	return &result, nil
+}
+
 // IsProcessing reports whether the local session is currently processing user/agent
 // messages.
 //
@@ -49382,6 +51547,9 @@ func (a *OptionsAPI) Update(ctx context.Context, params *SessionUpdateOptionsPar
 		if params.SessionLimits != nil {
 			req["sessionLimits"] = *params.SessionLimits
 		}
+		if params.Settings != nil {
+			req["settings"] = *params.Settings
+		}
 		if params.Shell != nil {
 			req["shell"] = *params.Shell
 		}
@@ -49507,6 +51675,25 @@ func (a *PermissionsAPI) Configure(ctx context.Context, params *PermissionsConfi
 	return &result, nil
 }
 
+// GetAllowAll reads effective escalation and the original launch baseline from the session
+// permission owner.
+//
+// RPC method: session.permissions.getAllowAll.
+//
+// Returns: Effective permission escalation and the original launch baseline.
+func (a *PermissionsAPI) GetAllowAll(ctx context.Context) (*SessionPermissionsGetAllowAllResult, error) {
+	req := map[string]any{"sessionId": a.sessionID}
+	raw, err := a.client.Request(ctx, "session.permissions.getAllowAll", req)
+	if err != nil {
+		return nil, err
+	}
+	var result SessionPermissionsGetAllowAllResult
+	if err := json.Unmarshal(raw, &result); err != nil {
+		return nil, err
+	}
+	return &result, nil
+}
+
 // GetCapabilities returns the approval modes currently available under the session's
 // feature and managed permission policy. This read does not change permissions; mutations
 // must still check their authoritative result because policy may change.
@@ -49545,6 +51732,26 @@ func (a *PermissionsAPI) GetMode(ctx context.Context) (*PermissionsGetModeResult
 	return &result, nil
 }
 
+// GetRequired reads whether permission prompts must produce session events after pending
+// original-host permission updates settle. Hosts use this authoritative state before a
+// temporary permission provider takes ownership.
+//
+// RPC method: session.permissions.getRequired.
+//
+// Returns: Whether permission prompts must produce session events.
+func (a *PermissionsAPI) GetRequired(ctx context.Context) (*SessionPermissionsGetRequiredResult, error) {
+	req := map[string]any{"sessionId": a.sessionID}
+	raw, err := a.client.Request(ctx, "session.permissions.getRequired", req)
+	if err != nil {
+		return nil, err
+	}
+	var result SessionPermissionsGetRequiredResult
+	if err := json.Unmarshal(raw, &result); err != nil {
+		return nil, err
+	}
+	return &result, nil
+}
+
 // HandlePendingPermissionRequest provides a decision for a pending tool permission request.
 //
 // RPC method: session.permissions.handlePendingPermissionRequest.
@@ -49568,6 +51775,30 @@ func (a *PermissionsAPI) HandlePendingPermissionRequest(ctx context.Context, par
 		return nil, err
 	}
 	var result PermissionRequestResult
+	if err := json.Unmarshal(raw, &result); err != nil {
+		return nil, err
+	}
+	return &result, nil
+}
+
+// ManagedReviewRequired checks whether the session's current managed policy requires review
+// of a permission request.
+//
+// RPC method: session.permissions.managedReviewRequired.
+//
+// Parameters: Permission request to evaluate against the session's current managed policy.
+//
+// Returns: True when the session's current managed policy requires review.
+func (a *PermissionsAPI) ManagedReviewRequired(ctx context.Context, params *SessionPermissionsManagedReviewRequiredRequest) (*SessionPermissionsManagedReviewRequiredResult, error) {
+	req := map[string]any{"sessionId": a.sessionID}
+	if params != nil {
+		req["request"] = params.Request
+	}
+	raw, err := a.client.Request(ctx, "session.permissions.managedReviewRequired", req)
+	if err != nil {
+		return nil, err
+	}
+	var result SessionPermissionsManagedReviewRequiredResult
 	if err := json.Unmarshal(raw, &result); err != nil {
 		return nil, err
 	}
@@ -49740,7 +51971,8 @@ func (a *PermissionsAPI) SetMode(ctx context.Context, params *PermissionsSetMode
 	return &result, nil
 }
 
-// SetRequired sets whether the client wants permission prompts bridged into session events.
+// SetRequired sets a direct host requirement for permission events, or registers and
+// releases a connection-scoped provider without overriding later host controls.
 //
 // RPC method: session.permissions.setRequired.
 //
@@ -49762,6 +51994,64 @@ func (a *PermissionsAPI) SetRequired(ctx context.Context, params *PermissionsSet
 		return nil, err
 	}
 	return &result, nil
+}
+
+// SetRequiredWithOptions sets a direct host requirement for permission events, or registers
+// and releases a connection-scoped provider without overriding later host controls.
+//
+// RPC method: session.permissions.setRequired.
+//
+// Parameters: Toggles whether permission prompts should be bridged into session events for
+// this client.
+//
+// Returns: Indicates whether the operation succeeded.
+func (a *PermissionsAPI) SetRequiredWithOptions(ctx context.Context, params *PermissionsSetRequiredOptions) (*PermissionsSetRequiredResult, error) {
+	req := map[string]any{"sessionId": a.sessionID}
+	if params != nil {
+		if params.ProviderID != nil {
+			req["providerId"] = *params.ProviderID
+		}
+		req["required"] = params.Required
+	}
+	raw, err := a.client.Request(ctx, "session.permissions.setRequired", req)
+	if err != nil {
+		return nil, err
+	}
+	var result PermissionsSetRequiredResult
+	if err := json.Unmarshal(raw, &result); err != nil {
+		return nil, err
+	}
+	return &result, nil
+}
+
+// Experimental: PermissionsAdditionalDirectoriesAPI contains experimental APIs that may
+// change or be removed.
+type PermissionsAdditionalDirectoriesAPI sessionAPI
+
+// List returns the session's model-facing additional directory ledger, separate from its
+// tool-access grants.
+//
+// RPC method: session.permissions.additionalDirectories.list.
+//
+// Returns: The session's model-facing additional directory ledger, separate from its
+// tool-access grants.
+func (a *PermissionsAdditionalDirectoriesAPI) List(ctx context.Context) (*PermissionsAdditionalDirectoriesListResult, error) {
+	req := map[string]any{"sessionId": a.sessionID}
+	raw, err := a.client.Request(ctx, "session.permissions.additionalDirectories.list", req)
+	if err != nil {
+		return nil, err
+	}
+	var result PermissionsAdditionalDirectoriesListResult
+	if err := json.Unmarshal(raw, &result); err != nil {
+		return nil, err
+	}
+	return &result, nil
+}
+
+// Experimental: AdditionalDirectories returns experimental APIs that may change or be
+// removed.
+func (s *PermissionsAPI) AdditionalDirectories() *PermissionsAdditionalDirectoriesAPI {
+	return (*PermissionsAdditionalDirectoriesAPI)(s)
 }
 
 // Experimental: PermissionsFolderTrustAPI contains experimental APIs that may change or be
@@ -50755,6 +53045,34 @@ func (a *ProvidersAPI) GetStatus(ctx context.Context, params *ModelProviderGetSt
 // Experimental: ProvidersModelsAPI contains experimental APIs that may change or be removed.
 type ProvidersModelsAPI sessionAPI
 
+// Diagnose reads current cached provider-model availability under the session's
+// allowed-model policy. Does not fetch a catalog or change registration, selection, or
+// configuration.
+//
+// RPC method: session.providers.models.diagnose.
+//
+// Parameters: Reads current cached availability without fetching a remote model catalog.
+//
+// Returns: Action-boundary availability of a registered provider model.
+func (a *ProvidersModelsAPI) Diagnose(ctx context.Context, params *SessionProvidersModelsDiagnoseRequest) (*SessionProvidersModelsDiagnoseResult, error) {
+	req := map[string]any{"sessionId": a.sessionID}
+	if params != nil {
+		if params.ProviderID != nil {
+			req["providerId"] = *params.ProviderID
+		}
+		req["selectionId"] = params.SelectionID
+	}
+	raw, err := a.client.Request(ctx, "session.providers.models.diagnose", req)
+	if err != nil {
+		return nil, err
+	}
+	var result SessionProvidersModelsDiagnoseResult
+	if err := json.Unmarshal(raw, &result); err != nil {
+		return nil, err
+	}
+	return &result, nil
+}
+
 // Lists models installed or otherwise available from a discovered model-provider instance.
 //
 // RPC method: session.providers.models.list.
@@ -51269,6 +53587,23 @@ func (a *SandboxAPI) DisableForSession(ctx context.Context, params *SandboxDisab
 	return &result, nil
 }
 
+// EnsureEnforcementAvailable checks fresh sandbox admission against the session's existing
+// enforcement owner.
+//
+// RPC method: session.sandbox.ensureEnforcementAvailable.
+func (a *SandboxAPI) EnsureEnforcementAvailable(ctx context.Context) (*SessionSandboxEnsureEnforcementAvailableResult, error) {
+	req := map[string]any{"sessionId": a.sessionID}
+	raw, err := a.client.Request(ctx, "session.sandbox.ensureEnforcementAvailable", req)
+	if err != nil {
+		return nil, err
+	}
+	var result SessionSandboxEnsureEnforcementAvailableResult
+	if err := json.Unmarshal(raw, &result); err != nil {
+		return nil, err
+	}
+	return &result, nil
+}
+
 // GetCredentialSuggestions lists possible secret-bearing environment variables available to
 // new sandboxed shells that are not already covered by credential masking. Uses local name
 // rules and known-provider host suggestions, never returns secret values, and changes no
@@ -51305,6 +53640,35 @@ func (a *SandboxAPI) GetEnforcementStatus(ctx context.Context) (*SandboxEnforcem
 		return nil, err
 	}
 	var result SandboxEnforcementStatus
+	if err := json.Unmarshal(raw, &result); err != nil {
+		return nil, err
+	}
+	return &result, nil
+}
+
+// GetRemoteMcpEgress resolves endpoint-specific egress under the session sandbox and
+// retains the original proxy lease.
+//
+// RPC method: session.sandbox.getRemoteMcpEgress.
+//
+// Parameters: Remote MCP endpoint and the host's existing proxy secret directory.
+//
+// Returns: Session-owned remote MCP egress decision. A denial forbids connection.
+func (a *SandboxAPI) GetRemoteMcpEgress(ctx context.Context, params *SessionSandboxGetRemoteMCPEgressRequest) (*SessionSandboxGetRemoteMCPEgressResult, error) {
+	req := map[string]any{"sessionId": a.sessionID}
+	if params != nil {
+		if params.SecretConfigDir != nil {
+			req["secretConfigDir"] = *params.SecretConfigDir
+		}
+		if params.URL != nil {
+			req["url"] = *params.URL
+		}
+	}
+	raw, err := a.client.Request(ctx, "session.sandbox.getRemoteMcpEgress", req)
+	if err != nil {
+		return nil, err
+	}
+	var result SessionSandboxGetRemoteMCPEgressResult
 	if err := json.Unmarshal(raw, &result); err != nil {
 		return nil, err
 	}
@@ -52045,6 +54409,25 @@ func (a *ToolsAPI) Execute(ctx context.Context, params *ToolsExecuteRequest) (To
 		return nil, err
 	}
 	return result, nil
+}
+
+// GetBuiltinAgentFlagOverrides returns the session-latched flags for built-in agent
+// availability without filtering disabled agents.
+//
+// RPC method: session.tools.getBuiltinAgentFlagOverrides.
+//
+// Returns: Session-latched flags for built-in agent availability.
+func (a *ToolsAPI) GetBuiltinAgentFlagOverrides(ctx context.Context) (*ToolsGetBuiltinAgentFlagOverridesResult, error) {
+	req := map[string]any{"sessionId": a.sessionID}
+	raw, err := a.client.Request(ctx, "session.tools.getBuiltinAgentFlagOverrides", req)
+	if err != nil {
+		return nil, err
+	}
+	var result ToolsGetBuiltinAgentFlagOverridesResult
+	if err := json.Unmarshal(raw, &result); err != nil {
+		return nil, err
+	}
+	return &result, nil
 }
 
 // GetBuiltinDescriptors returns the Rust-owned built-in tool descriptors used to construct
@@ -53471,8 +55854,10 @@ type SessionRPC struct {
 	Customizations     *CustomizationsAPI
 	Debug              *DebugAPI
 	Diagnostics        *DiagnosticsAPI
+	DynamicContext     *DynamicContextAPI
 	EventLog           *EventLogAPI
 	Extensions         *ExtensionsAPI
+	FeatureFlags       *FeatureFlagsAPI
 	Fleet              *FleetAPI
 	GitHubAuth         *GitHubAuthAPI
 	History            *HistoryAPI
@@ -53817,8 +56202,10 @@ func NewSessionRPC(client *jsonrpc2.Client, sessionID string) *SessionRPC {
 	r.Customizations = (*CustomizationsAPI)(&r.common)
 	r.Debug = (*DebugAPI)(&r.common)
 	r.Diagnostics = (*DiagnosticsAPI)(&r.common)
+	r.DynamicContext = (*DynamicContextAPI)(&r.common)
 	r.EventLog = (*EventLogAPI)(&r.common)
 	r.Extensions = (*ExtensionsAPI)(&r.common)
+	r.FeatureFlags = (*FeatureFlagsAPI)(&r.common)
 	r.Fleet = (*FleetAPI)(&r.common)
 	r.GitHubAuth = (*GitHubAuthAPI)(&r.common)
 	r.History = (*HistoryAPI)(&r.common)

@@ -77,9 +77,8 @@ public final class ResumeSessionRequest {
 
     @JsonProperty("excludedBuiltinAgents")
     private List<String> excludedBuiltInAgents;
-
-    @JsonProperty("toolFilterPrecedence")
-    private String toolFilterPrecedence;
+    @JsonProperty("includedBuiltinAgents")
+    private List<String> includedBuiltInAgents;
 
     @JsonProperty("provider")
     private ProviderConfig provider;
@@ -494,17 +493,17 @@ public final class ResumeSessionRequest {
         this.excludedBuiltInAgents = excludedBuiltInAgents;
     }
 
-    /** Gets the tool filter precedence. @return the precedence value */
-    public String getToolFilterPrecedence() {
-        return toolFilterPrecedence;
+    /** Gets the built-in subagent allowlist. @return the allowlist, or null */
+    public List<String> getIncludedBuiltInAgents() {
+        return includedBuiltInAgents == null ? null : Collections.unmodifiableList(includedBuiltInAgents);
     }
 
     /**
-     * Sets the tool filter precedence. @param toolFilterPrecedence the precedence
-     * ("excluded" or null)
+     * Sets the built-in subagent allowlist. @param includedBuiltInAgents the
+     * allowlist
      */
-    public void setToolFilterPrecedence(String toolFilterPrecedence) {
-        this.toolFilterPrecedence = toolFilterPrecedence;
+    public void setIncludedBuiltInAgents(List<String> includedBuiltInAgents) {
+        this.includedBuiltInAgents = includedBuiltInAgents;
     }
 
     /** Gets the provider config. @return the provider */

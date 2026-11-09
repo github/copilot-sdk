@@ -39,6 +39,8 @@ public record SessionModelGetCurrentResult(
     @JsonProperty("contextTier") ContextTier contextTier,
     /** Auto preference currently committed for the session. This can remain available while another model is selected so a later switch to `auto` can reuse it. */
     @JsonProperty("autoTier") AutoTier autoTier,
+    /** Copilot Fusion tier that the committed autoTier serves, resolved from the session's Auto tier metadata. An open string: known values include `standard`, `high`, and `max`; other provider-defined values may appear. Omitted when autoTier is unset, is not a Fusion tier, or Auto metadata has not been discovered (for example after cold resume, before session.model.list). This snapshot reports only the committed Fusion tier; resolve pendingAutoTier and activatingAutoTier against auto.tiers[].fusionTier from session.model.list. */
+    @JsonProperty("fusionTier") String fusionTier,
     /** Latest unclaimed Auto preference waiting for a future user turn. Null means the pending request is returning to provider-default routing. */
     @JsonProperty("pendingAutoTier") AutoTier pendingAutoTier,
     /** Auto preference currently claimed by an in-progress activation. Null means the activation is returning to provider-default routing. */
@@ -58,8 +60,8 @@ public record SessionModelGetCurrentResult(
      * @deprecated Use {@link #builder()} for named construction.
      */
     @Deprecated(since = "2.0.0", forRemoval = false)
-    public SessionModelGetCurrentResult(String modelId, String providerId, String planBaseModelId, String planBaseProviderId, String reasoningEffort, ContextTier contextTier, AutoTier autoTier, AutoTier pendingAutoTier, AutoTier activatingAutoTier) {
-        this(modelId, providerId, planBaseModelId, planBaseProviderId, reasoningEffort, contextTier, autoTier, pendingAutoTier, activatingAutoTier, java.util.Set.of());
+    public SessionModelGetCurrentResult(String modelId, String providerId, String planBaseModelId, String planBaseProviderId, String reasoningEffort, ContextTier contextTier, AutoTier autoTier, String fusionTier, AutoTier pendingAutoTier, AutoTier activatingAutoTier) {
+        this(modelId, providerId, planBaseModelId, planBaseProviderId, reasoningEffort, contextTier, autoTier, fusionTier, pendingAutoTier, activatingAutoTier, java.util.Set.of());
     }
 
     /**
@@ -82,10 +84,11 @@ public record SessionModelGetCurrentResult(
         private String reasoningEffort;
         private ContextTier contextTier;
         private AutoTier autoTier;
+        private String fusionTier;
         private AutoTier pendingAutoTier;
-        private boolean $presence7;
-        private AutoTier activatingAutoTier;
         private boolean $presence8;
+        private AutoTier activatingAutoTier;
+        private boolean $presence9;
 
         /**
          * Sets the {@code modelId} property.
@@ -165,6 +168,17 @@ public record SessionModelGetCurrentResult(
         }
 
         /**
+         * Sets the {@code fusionTier} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder fusionTier(String value) {
+            this.fusionTier = value;
+            return this;
+        }
+
+        /**
          * Sets the {@code pendingAutoTier} property.
          * @param value the property value
          * @return this builder
@@ -172,7 +186,7 @@ public record SessionModelGetCurrentResult(
          */
         public Builder pendingAutoTier(AutoTier value) {
             this.pendingAutoTier = value;
-            this.$presence7 = true;
+            this.$presence8 = true;
             return this;
         }
 
@@ -184,7 +198,7 @@ public record SessionModelGetCurrentResult(
          */
         public Builder activatingAutoTier(AutoTier value) {
             this.activatingAutoTier = value;
-            this.$presence8 = true;
+            this.$presence9 = true;
             return this;
         }
 
@@ -196,9 +210,9 @@ public record SessionModelGetCurrentResult(
          */
         public SessionModelGetCurrentResult build() {
             java.util.Set<String> $explicitNulls = new java.util.LinkedHashSet<>();
-            if ($presence7 && pendingAutoTier == null) $explicitNulls.add("pendingAutoTier");
-            if ($presence8 && activatingAutoTier == null) $explicitNulls.add("activatingAutoTier");
-            return new SessionModelGetCurrentResult(modelId, providerId, planBaseModelId, planBaseProviderId, reasoningEffort, contextTier, autoTier, pendingAutoTier, activatingAutoTier, $explicitNulls);
+            if ($presence8 && pendingAutoTier == null) $explicitNulls.add("pendingAutoTier");
+            if ($presence9 && activatingAutoTier == null) $explicitNulls.add("activatingAutoTier");
+            return new SessionModelGetCurrentResult(modelId, providerId, planBaseModelId, planBaseProviderId, reasoningEffort, contextTier, autoTier, fusionTier, pendingAutoTier, activatingAutoTier, $explicitNulls);
         }
     }
 
@@ -220,7 +234,7 @@ public record SessionModelGetCurrentResult(
             java.util.Set<String> $explicitNulls = new java.util.LinkedHashSet<>();
             if (tree.has("pendingAutoTier") && tree.get("pendingAutoTier").isNull()) $explicitNulls.add("pendingAutoTier");
             if (tree.has("activatingAutoTier") && tree.get("activatingAutoTier").isNull()) $explicitNulls.add("activatingAutoTier");
-            return new SessionModelGetCurrentResult(readProperty(context, tree, "modelId", new com.fasterxml.jackson.core.type.TypeReference<String>() {}), readProperty(context, tree, "providerId", new com.fasterxml.jackson.core.type.TypeReference<String>() {}), readProperty(context, tree, "planBaseModelId", new com.fasterxml.jackson.core.type.TypeReference<String>() {}), readProperty(context, tree, "planBaseProviderId", new com.fasterxml.jackson.core.type.TypeReference<String>() {}), readProperty(context, tree, "reasoningEffort", new com.fasterxml.jackson.core.type.TypeReference<String>() {}), readProperty(context, tree, "contextTier", new com.fasterxml.jackson.core.type.TypeReference<ContextTier>() {}), readProperty(context, tree, "autoTier", new com.fasterxml.jackson.core.type.TypeReference<AutoTier>() {}), readProperty(context, tree, "pendingAutoTier", new com.fasterxml.jackson.core.type.TypeReference<AutoTier>() {}), readProperty(context, tree, "activatingAutoTier", new com.fasterxml.jackson.core.type.TypeReference<AutoTier>() {}), $explicitNulls);
+            return new SessionModelGetCurrentResult(readProperty(context, tree, "modelId", new com.fasterxml.jackson.core.type.TypeReference<String>() {}), readProperty(context, tree, "providerId", new com.fasterxml.jackson.core.type.TypeReference<String>() {}), readProperty(context, tree, "planBaseModelId", new com.fasterxml.jackson.core.type.TypeReference<String>() {}), readProperty(context, tree, "planBaseProviderId", new com.fasterxml.jackson.core.type.TypeReference<String>() {}), readProperty(context, tree, "reasoningEffort", new com.fasterxml.jackson.core.type.TypeReference<String>() {}), readProperty(context, tree, "contextTier", new com.fasterxml.jackson.core.type.TypeReference<ContextTier>() {}), readProperty(context, tree, "autoTier", new com.fasterxml.jackson.core.type.TypeReference<AutoTier>() {}), readProperty(context, tree, "fusionTier", new com.fasterxml.jackson.core.type.TypeReference<String>() {}), readProperty(context, tree, "pendingAutoTier", new com.fasterxml.jackson.core.type.TypeReference<AutoTier>() {}), readProperty(context, tree, "activatingAutoTier", new com.fasterxml.jackson.core.type.TypeReference<AutoTier>() {}), $explicitNulls);
         }
 
         private static <T> T readProperty(com.fasterxml.jackson.databind.DeserializationContext context,
@@ -229,5 +243,33 @@ public record SessionModelGetCurrentResult(
             if (!tree.has(name)) return null;
             return context.readTreeAsValue(tree.get(name), context.getTypeFactory().constructType(type));
         }
+    }
+
+    /**
+     * Creates a record with the components it had before later optional fields were added.
+     * @deprecated Use named construction via {@link #builder()}.
+     * @param modelId Currently active model identifier
+     * @param providerId Provider selected for this model. Together with modelId, identifies a catalog entry even when providers serve the same model. Omitted for unattributed legacy selections.
+     * @param planBaseModelId Captured base model to restore when leaving plan mode. Omitted outside plan mode or when no plan override has captured a base model. Persistent agent model requirements apply to this model rather than the temporary plan model.
+     * @param planBaseProviderId Provider of planBaseModelId, when that saved selection is provider-qualified.
+     * @param reasoningEffort Reasoning effort level currently applied to the active model, when one is set. Reads `Session.getReasoningEffort()` synchronously after `getSelectedModel()` resolves so the two values are reported as a snapshot.
+     * @param contextTier Context tier for models that support multiple context-window sizes.
+     * @param autoTier Auto preference currently committed for the session. This can remain available while another model is selected so a later switch to `auto` can reuse it.
+     * @param pendingAutoTier Latest unclaimed Auto preference waiting for a future user turn. Null means the pending request is returning to provider-default routing.
+     * @param activatingAutoTier Auto preference currently claimed by an in-progress activation. Null means the activation is returning to provider-default routing.
+     */
+    @Deprecated(since = "2.0.0", forRemoval = false)
+    public SessionModelGetCurrentResult(
+        String modelId,
+        String providerId,
+        String planBaseModelId,
+        String planBaseProviderId,
+        String reasoningEffort,
+        ContextTier contextTier,
+        AutoTier autoTier,
+        AutoTier pendingAutoTier,
+        AutoTier activatingAutoTier
+    ) {
+        this(modelId, providerId, planBaseModelId, planBaseProviderId, reasoningEffort, contextTier, autoTier, null, pendingAutoTier, activatingAutoTier);
     }
 }

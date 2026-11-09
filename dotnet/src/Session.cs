@@ -581,6 +581,12 @@ public sealed partial class CopilotSession : IAsyncDisposable
             }
             await Task.WhenAny(delivered.Task, _eventDispatchStopped.Task, JsonRpc.Completion)
                 .WaitAsync(Timeout.InfiniteTimeSpan, cancellationToken);
+            if (!delivered.Task.IsCompleted && !_eventDispatchStopped.Task.IsCompleted)
+            {
+                // The transport closed, but the boundary may already be queued behind a slow handler.
+                await Task.WhenAny(delivered.Task, _eventDispatchStopped.Task, DispatchQueuedEventsAsync())
+                    .WaitAsync(Timeout.InfiniteTimeSpan, cancellationToken);
+            }
             if (!delivered.Task.IsCompleted)
             {
                 throw new IOException("The session closed before a final response was received.");
@@ -884,11 +890,19 @@ public sealed partial class CopilotSession : IAsyncDisposable
     /// </summary>
     private async Task ProcessEventsAsync()
     {
+        // Event handlers run in this loop's context for the session's lifetime, so they must not
+        // inherit the Activity that was current when the session was created or resumed.
+        Activity.Current = null;
         await foreach (var sessionEvent in _eventChannel.Reader.ReadAllAsync())
         {
             if (_eventDispatchStopped.Task.IsCompleted)
             {
                 return;
+            }
+            if (sessionEvent is EventQueueBarrier barrier)
+            {
+                barrier.Reach();
+                continue;
             }
             var dispatchTimestamp = Stopwatch.GetTimestamp();
             var eventType = sessionEvent.GetType();
@@ -921,6 +935,26 @@ public sealed partial class CopilotSession : IAsyncDisposable
                 SessionId,
                 sessionEvent.Type);
         }
+    }
+
+    /// <summary>
+    /// Completes once the consumer has dispatched every event queued before this call.
+    /// Completes immediately when the queue no longer accepts events; a stopped consumer never completes it.
+    /// </summary>
+    private Task DispatchQueuedEventsAsync()
+    {
+        var barrier = new EventQueueBarrier();
+        return _eventChannel.Writer.TryWrite(barrier) ? barrier.Reached : Task.CompletedTask;
+    }
+
+    /// <summary>A queue position the consumer reaches in order but never dispatches to handlers.</summary>
+    private sealed class EventQueueBarrier : SessionEvent
+    {
+        private readonly TaskCompletionSource _reached = new(TaskCreationOptions.RunContinuationsAsynchronously);
+
+        public Task Reached => _reached.Task;
+
+        public void Reach() => _reached.TrySetResult();
     }
 
     /// <summary>
@@ -971,6 +1005,7 @@ public sealed partial class CopilotSession : IAsyncDisposable
             Parameters = ToJsonElementDictionary(definition.Parameters),
             OverridesBuiltInTool = definition.OverridesBuiltInTool,
             SkipPermission = definition.SkipPermission,
+            HasHandler = definition.HasHandler,
             Defer = definition.Defer switch
             {
                 CopilotToolDefer.Auto => ProtocolExternalToolDefer.Auto,
@@ -980,6 +1015,7 @@ public sealed partial class CopilotSession : IAsyncDisposable
             Metadata = definition.Metadata is { } metadata ? ToJsonElementDictionary(metadata) : null,
             IsTerminal = definition.IsTerminal,
             Namespace = definition.Namespace,
+            Idempotent = definition.Idempotent,
         };
     }
 
@@ -1156,7 +1192,7 @@ public sealed partial class CopilotSession : IAsyncDisposable
             return PermissionDecision.UserNotAvailable();
         }
 
-        var request = JsonSerializer.Deserialize(permissionRequestData.GetRawText(), SessionEventsJsonContext.Default.PermissionRequest)
+        var request = permissionRequestData.Deserialize(SessionEventsJsonContext.Default.PermissionRequest)
             ?? throw new InvalidOperationException("Failed to deserialize permission request");
 
         var invocation = new PermissionInvocation
@@ -1189,7 +1225,7 @@ public sealed partial class CopilotSession : IAsyncDisposable
                 case ExternalToolRequestedEvent toolEvent:
                     {
                         var data = toolEvent.Data;
-                        if (string.IsNullOrEmpty(data.RequestId) || string.IsNullOrEmpty(data.ToolName))
+                        if (data.HasHandler == false || string.IsNullOrEmpty(data.RequestId) || string.IsNullOrEmpty(data.ToolName))
                             return;
 
                         var tool = GetTool(data.ToolName);
@@ -1228,6 +1264,7 @@ public sealed partial class CopilotSession : IAsyncDisposable
                             data.PermissionRequest,
                             data.PromptRequest,
                             data.AssistedApprovalAssessment,
+                            data.ProgramToolCallId,
                             handler);
                         break;
                     }
@@ -1733,6 +1770,7 @@ public sealed partial class CopilotSession : IAsyncDisposable
         PermissionRequest permissionRequest,
         PermissionPromptRequest? promptRequest,
         AssistedApprovalAssessment? assistedApprovalAssessment,
+        string? programToolCallId,
         Func<PermissionRequest, PermissionInvocation, Task<PermissionDecision>> handler)
     {
         try
@@ -1742,6 +1780,7 @@ public sealed partial class CopilotSession : IAsyncDisposable
                 SessionId = SessionId,
                 ManagedSettingsEnabled = _managedSettingsEnabled,
                 AssistedApprovalAssessment = assistedApprovalAssessment,
+                ProgramToolCallId = programToolCallId,
                 PromptRequest = promptRequest
             };
 
@@ -2557,6 +2596,23 @@ public sealed partial class CopilotSession : IAsyncDisposable
             SessionId = SessionId
         };
 
+        // The runtime puts the trace context of the span a hook belongs to in the hook input.
+        string? traceparent = null;
+        string? tracestate = null;
+        if (input.ValueKind == JsonValueKind.Object)
+        {
+            if (input.TryGetProperty("traceparent", out var traceparentElement) && traceparentElement.ValueKind == JsonValueKind.String)
+            {
+                traceparent = traceparentElement.GetString();
+            }
+
+            if (input.TryGetProperty("tracestate", out var tracestateElement) && tracestateElement.ValueKind == JsonValueKind.String)
+            {
+                tracestate = tracestateElement.GetString();
+            }
+        }
+
+        using var hookActivity = TelemetryHelpers.RestoreHandlerTraceContext(traceparent, tracestate, "copilot.hook_handler");
         var hookTimestamp = Stopwatch.GetTimestamp();
         try
         {
@@ -2564,62 +2620,62 @@ public sealed partial class CopilotSession : IAsyncDisposable
             {
                 "preToolUse" => hooks.OnPreToolUse != null
                     ? SerializeHookOutputWithPayload(await hooks.OnPreToolUse(
-                        JsonSerializer.Deserialize(input.GetRawText(), SessionJsonContext.Default.PreToolUseHookInput)!,
+                        input.Deserialize(SessionJsonContext.Default.PreToolUseHookInput)!,
                         invocation))
                     : null,
                 "preMcpToolCall" => hooks.OnPreMcpToolCall != null
                     ? SerializeHookOutput(await hooks.OnPreMcpToolCall(
-                        JsonSerializer.Deserialize(input.GetRawText(), SessionJsonContext.Default.PreMcpToolCallHookInput)!,
+                        input.Deserialize(SessionJsonContext.Default.PreMcpToolCallHookInput)!,
                         invocation))
                     : null,
                 "postToolUse" => hooks.OnPostToolUse != null
                     ? SerializeHookOutputWithPayload(await hooks.OnPostToolUse(
-                        JsonSerializer.Deserialize(input.GetRawText(), SessionJsonContext.Default.PostToolUseHookInput)!,
+                        input.Deserialize(SessionJsonContext.Default.PostToolUseHookInput)!,
                         invocation))
                     : null,
                 "postToolUseFailure" => hooks.OnPostToolUseFailure != null
                     ? await hooks.OnPostToolUseFailure(
-                        JsonSerializer.Deserialize(input.GetRawText(), SessionJsonContext.Default.PostToolUseFailureHookInput)!,
+                        input.Deserialize(SessionJsonContext.Default.PostToolUseFailureHookInput)!,
                         invocation)
                     : null,
                 "userPromptSubmitted" => hooks.OnUserPromptSubmitted != null
                     ? await hooks.OnUserPromptSubmitted(
-                        JsonSerializer.Deserialize(input.GetRawText(), SessionJsonContext.Default.UserPromptSubmittedHookInput)!,
+                        input.Deserialize(SessionJsonContext.Default.UserPromptSubmittedHookInput)!,
                         invocation)
                     : null,
                 "userPromptTransformed" => hooks.OnUserPromptTransformed != null
                     ? await hooks.OnUserPromptTransformed(
-                        JsonSerializer.Deserialize(input.GetRawText(), SessionJsonContext.Default.UserPromptTransformedHookInput)!,
+                        input.Deserialize(SessionJsonContext.Default.UserPromptTransformedHookInput)!,
                         invocation)
                     : null,
                 "sessionStart" => hooks.OnSessionStart != null
                     ? await hooks.OnSessionStart(
-                        JsonSerializer.Deserialize(input.GetRawText(), SessionJsonContext.Default.SessionStartHookInput)!,
+                        input.Deserialize(SessionJsonContext.Default.SessionStartHookInput)!,
                         invocation)
                     : null,
                 "sessionEnd" => hooks.OnSessionEnd != null
                     ? await hooks.OnSessionEnd(
-                        JsonSerializer.Deserialize(input.GetRawText(), SessionJsonContext.Default.SessionEndHookInput)!,
+                        input.Deserialize(SessionJsonContext.Default.SessionEndHookInput)!,
                         invocation)
                     : null,
                 "errorOccurred" => hooks.OnErrorOccurred != null
                     ? await hooks.OnErrorOccurred(
-                        JsonSerializer.Deserialize(input.GetRawText(), SessionJsonContext.Default.ErrorOccurredHookInput)!,
+                        input.Deserialize(SessionJsonContext.Default.ErrorOccurredHookInput)!,
                         invocation)
                     : null,
                 "agentStop" => hooks.OnAgentStop != null
                     ? await hooks.OnAgentStop(
-                        JsonSerializer.Deserialize(input.GetRawText(), SessionJsonContext.Default.AgentStopHookInput)!,
+                        input.Deserialize(SessionJsonContext.Default.AgentStopHookInput)!,
                         invocation)
                     : null,
                 "subagentStart" => hooks.OnSubagentStart != null
                     ? await hooks.OnSubagentStart(
-                        JsonSerializer.Deserialize(input.GetRawText(), SessionJsonContext.Default.SubagentStartHookInput)!,
+                        input.Deserialize(SessionJsonContext.Default.SubagentStartHookInput)!,
                         invocation)
                     : null,
                 "subagentStop" => hooks.OnSubagentStop != null
                     ? await hooks.OnSubagentStop(
-                        JsonSerializer.Deserialize(input.GetRawText(), SessionJsonContext.Default.SubagentStopHookInput)!,
+                        input.Deserialize(SessionJsonContext.Default.SubagentStopHookInput)!,
                         invocation)
                     : null,
                 _ => null
@@ -2699,8 +2755,7 @@ public sealed partial class CopilotSession : IAsyncDisposable
             callbacks = _transformCallbacks;
         }
 
-        var parsed = JsonSerializer.Deserialize(
-            sections.GetRawText(),
+        var parsed = sections.Deserialize(
             SessionJsonContext.Default.DictionaryStringSystemMessageTransformSection) ?? new();
 
         var result = new Dictionary<string, SystemMessageTransformSection>();
@@ -2759,10 +2814,22 @@ public sealed partial class CopilotSession : IAsyncDisposable
         var response = await InvokeRpcAsync<GetMessagesResponse>(
             "session.getMessages", [new GetMessagesRequest { SessionId = SessionId }], cancellationToken);
 
-        return response.Events
-            .Select(static e => SessionEvent.FromJson(e.ToJsonString()))
-            .OfType<SessionEvent>()
-            .ToList();
+        if (response.Events.ValueKind is JsonValueKind.Undefined or JsonValueKind.Null)
+        {
+            return [];
+        }
+        if (response.Events.ValueKind != JsonValueKind.Array)
+        {
+            throw new JsonException("Expected session events to be a JSON array.");
+        }
+
+        var eventTypeInfo = (JsonTypeInfo<SessionEvent>)CopilotClient.SerializerOptionsForMessageFormatter.GetTypeInfo(typeof(SessionEvent));
+        var events = new List<SessionEvent>(response.Events.GetArrayLength());
+        foreach (var sessionEvent in response.Events.EnumerateArray())
+        {
+            events.Add(sessionEvent.Deserialize(eventTypeInfo) ?? throw new JsonException("Session event cannot be null."));
+        }
+        return events;
     }
 
     /// <summary>
@@ -3123,7 +3190,7 @@ public sealed partial class CopilotSession : IAsyncDisposable
 
     internal record GetMessagesResponse
     {
-        public IList<JsonObject> Events { get => field ??= []; init; }
+        public JsonElement Events { get; init; }
     }
 
     internal record SessionAbortRequest

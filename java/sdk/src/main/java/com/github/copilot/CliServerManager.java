@@ -481,29 +481,7 @@ final class CliServerManager {
 
         // Set telemetry environment variables if configured
         if (options.getTelemetry() != null) {
-            var telemetry = options.getTelemetry();
-            pb.environment().put("COPILOT_OTEL_ENABLED", "true");
-            if (telemetry.getOtlpEndpoint() != null) {
-                pb.environment().put("OTEL_EXPORTER_OTLP_ENDPOINT", telemetry.getOtlpEndpoint());
-            }
-            if (telemetry.getOtlpProtocol() != null) {
-                pb.environment().put("OTEL_EXPORTER_OTLP_PROTOCOL", telemetry.getOtlpProtocol());
-            }
-            if (telemetry.getFilePath() != null) {
-                pb.environment().put("COPILOT_OTEL_FILE_EXPORTER_PATH", telemetry.getFilePath());
-            }
-            if (telemetry.getExporterType() != null) {
-                pb.environment().put("COPILOT_OTEL_EXPORTER_TYPE", telemetry.getExporterType());
-            }
-            if (telemetry.getSourceName() != null) {
-                pb.environment().put("COPILOT_OTEL_SOURCE_NAME", telemetry.getSourceName());
-            }
-            if (telemetry.getCaptureContent().isPresent()) {
-                pb.environment().put("OTEL_INSTRUMENTATION_GENAI_CAPTURE_CONTENT",
-                        telemetry.getCaptureContent().get() ? "SPAN_ONLY" : "NO_CONTENT");
-                pb.environment().put("OTEL_INSTRUMENTATION_GENAI_CAPTURE_MESSAGE_CONTENT",
-                        telemetry.getCaptureContent().get() ? "true" : "false");
-            }
+            pb.environment().putAll(options.getTelemetry().toEnvironment());
         }
     }
 

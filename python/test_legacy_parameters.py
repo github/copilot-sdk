@@ -7,7 +7,13 @@ import dataclasses
 import pytest
 
 from copilot.generated import rpc
-from copilot.generated.session_events import SessionInfoData, UserMessageData, UserMessageDelivery
+from copilot.generated.session_events import (
+    AssistedApprovalRecommendation,
+    PermissionAssistedApproval,
+    SessionInfoData,
+    UserMessageData,
+    UserMessageDelivery,
+)
 
 
 def _contract() -> rpc.CatalogClientContract:
@@ -328,6 +334,34 @@ def test_user_message_client_turn_id_round_trips_by_keyword():
 
     assert encoded == {"content": "hi", "clientTurnId": "host-turn-1"}
     assert UserMessageData.from_dict(encoded) == message
+
+
+def test_permission_assisted_approval_positional_arguments_keep_their_meaning():
+    approval = PermissionAssistedApproval(
+        AssistedApprovalRecommendation.REQUIRE_APPROVAL, None, "evaluation-1"
+    )
+
+    assert approval.evaluation_id == "evaluation-1"
+    assert approval.approval_required_command_segments is None
+    assert _positional(PermissionAssistedApproval) == [
+        "recommendation",
+        "evaluation",
+        "evaluation_id",
+        "failure_reason",
+        "model",
+        "reason",
+        "approval_required_command_segments",
+    ]
+    attributed = PermissionAssistedApproval(
+        AssistedApprovalRecommendation.REQUIRE_APPROVAL,
+        approval_required_command_segments=[1],
+    )
+    encoded = attributed.to_dict()
+    assert encoded == {
+        "recommendation": "requireApproval",
+        "approvalRequiredCommandSegments": [1],
+    }
+    assert PermissionAssistedApproval.from_dict(encoded) == attributed
 
 
 def test_send_positional_arguments_keep_their_meaning():

@@ -29,8 +29,10 @@ public record McpPromptArgument(
     /** Whether the argument is required; omission is distinct from false */
     @JsonProperty("required") Boolean required,
     /** Argument-level metadata */
+    @JsonInclude(value = JsonInclude.Include.NON_NULL, content = JsonInclude.Include.ALWAYS)
     @JsonProperty("_meta") Map<String, Object> meta,
     /** Server-provided non-standard argument fields */
+    @JsonInclude(value = JsonInclude.Include.NON_NULL, content = JsonInclude.Include.ALWAYS)
     @JsonProperty("additionalProperties") Map<String, Object> additionalProperties
 ) {
 

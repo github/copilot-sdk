@@ -440,6 +440,13 @@ pub struct Tool {
     /// model can read the error and retry.
     #[serde(default, skip_serializing_if = "is_false")]
     pub is_terminal: bool,
+    /// When `true`, declares that repeating a call with the same arguments
+    /// has no additional effect beyond the first call, as is true of any tool
+    /// without side effects. The runtime may use this to decide that a call
+    /// whose outcome was lost can be safely repeated. It does not affect
+    /// permission checks.
+    #[serde(default, skip_serializing_if = "is_false")]
+    pub idempotent: bool,
     /// Controls whether the tool may be deferred (loaded lazily via tool
     /// search) rather than always pre-loaded. When [`DeferMode::Auto`], the
     /// tool can be deferred and surfaced through tool search. When
@@ -465,15 +472,25 @@ pub struct Tool {
     /// matching `external_tool.requested` broadcasts to this handler.
     /// When `None`, the tool is declaration-only.
     ///
-    /// Skipped during serialization — the handler is runtime behavior,
-    /// not part of the wire representation.
+    /// Serialized only as a boolean `hasHandler` ownership marker.
     ///
     /// Crate-private to enforce builder semantics: external callers must
     /// install a handler through [`Tool::with_handler`] and inspect via
     /// [`Tool::handler`], so an already-attached handler cannot be
     /// silently overwritten by direct field assignment.
-    #[serde(skip)]
+    #[serde(
+        rename = "hasHandler",
+        serialize_with = "serialize_tool_handler",
+        skip_deserializing
+    )]
     pub(crate) handler: Option<Arc<dyn crate::tool::ToolHandler>>,
+}
+
+fn serialize_tool_handler<S: serde::Serializer>(
+    handler: &Option<Arc<dyn crate::tool::ToolHandler>>,
+    serializer: S,
+) -> Result<S::Ok, S::Error> {
+    serializer.serialize_bool(handler.is_some())
 }
 
 #[inline]
@@ -614,6 +631,18 @@ impl Tool {
         self
     }
 
+    /// Declares whether repeating a call with the same arguments has no
+    /// additional effect beyond the first call, as is true of any tool
+    /// without side effects.
+    ///
+    /// The runtime may use this to decide that a call whose outcome was lost
+    /// can be safely repeated. It does not affect permission checks.
+    #[must_use]
+    pub fn with_idempotent(mut self, idempotent: bool) -> Self {
+        self.idempotent = idempotent;
+        self
+    }
+
     /// Set the deferral mode controlling whether the tool may be loaded
     /// lazily via tool search ([`DeferMode::Auto`]) or always pre-loaded
     /// ([`DeferMode::Never`]).
@@ -657,16 +686,18 @@ impl Tool {
 /// Handlers for a session's client-supplied tools, keyed by tool name.
 pub(crate) type ToolHandlerMap = HashMap<String, Arc<dyn crate::tool::ToolHandler>>;
 
-/// Move each tool's handler into a [`ToolHandlerMap`], leaving declaration-only
-/// definitions to send on the wire.
+/// Collect each tool's handler into a [`ToolHandlerMap`], preserving handler
+/// presence for the wire ownership marker.
 ///
 /// Two handlers for one name are rejected because dispatch, which is keyed by
 /// name, could only ever reach one of them.
-pub(crate) fn take_tool_handlers(tools: &mut [Tool]) -> Result<ToolHandlerMap, crate::Error> {
+pub(crate) fn collect_tool_handlers(tools: &[Tool]) -> Result<ToolHandlerMap, crate::Error> {
     let mut handlers = ToolHandlerMap::new();
     for tool in tools {
-        if let Some(handler) = tool.handler.take()
-            && handlers.insert(tool.name.clone(), handler).is_some()
+        if let Some(handler) = &tool.handler
+            && handlers
+                .insert(tool.name.clone(), handler.clone())
+                .is_some()
         {
             return Err(crate::Error::with_message(
                 crate::ErrorKind::InvalidConfig,
@@ -688,6 +719,7 @@ impl std::fmt::Debug for Tool {
             .field("overrides_built_in_tool", &self.overrides_built_in_tool)
             .field("skip_permission", &self.skip_permission)
             .field("is_terminal", &self.is_terminal)
+            .field("idempotent", &self.idempotent)
             .field("defer", &self.defer)
             .field("metadata", &self.metadata)
             .field("namespace", &self.namespace)
@@ -1779,6 +1811,9 @@ pub struct AzureProviderOptions {
 #[serde(rename_all = "camelCase")]
 #[non_exhaustive]
 pub struct NamedProviderConfig {
+    /// Forward-compatible runtime options for a local model.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub local_model: Option<serde_json::Value>,
     /// Unique name used by [`ProviderModelConfig::provider`] to reference
     /// this connection.
     pub name: String,
@@ -1841,6 +1876,12 @@ impl std::fmt::Debug for NamedProviderConfig {
 }
 
 impl NamedProviderConfig {
+    /// Set runtime options for a local model without changing their JSON shape.
+    pub fn with_local_model(mut self, options: serde_json::Value) -> Self {
+        self.local_model = Some(options);
+        self
+    }
+
     /// Construct a [`NamedProviderConfig`] with the required `name` and
     /// `base_url` set; all other fields default to unset.
     pub fn new(name: impl Into<String>, base_url: impl Into<String>) -> Self {
@@ -1943,6 +1984,12 @@ fn prepare_bearer_token_providers(
 #[serde(rename_all = "camelCase")]
 #[non_exhaustive]
 pub struct ProviderModelConfig {
+    /// Persisted on-device Auto annotation.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub auto_local: Option<serde_json::Value>,
+    /// Provider-published model metadata, including live Auto routing annotations.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub metadata: Option<HashMap<String, serde_json::Value>>,
     /// Model identifier, unique within its provider. Combined with
     /// [`provider`](Self::provider) to form the selection id `provider/id`.
     pub id: String,
@@ -1975,6 +2022,18 @@ pub struct ProviderModelConfig {
 }
 
 impl ProviderModelConfig {
+    /// Set the persisted on-device Auto annotation.
+    pub fn with_auto_local(mut self, annotation: serde_json::Value) -> Self {
+        self.auto_local = Some(annotation);
+        self
+    }
+
+    /// Set provider-published model metadata.
+    pub fn with_metadata(mut self, metadata: HashMap<String, serde_json::Value>) -> Self {
+        self.metadata = Some(metadata);
+        self
+    }
+
     /// Construct a [`ProviderModelConfig`] with the required `id` and
     /// `provider` set; all other fields default to unset.
     pub fn new(id: impl Into<String>, provider: impl Into<String>) -> Self {
@@ -2352,6 +2411,12 @@ pub struct SessionConfig {
     /// selected or invoked unless a custom agent with the same name is
     /// configured.
     pub excluded_builtin_agents: Option<Vec<String>>,
+    /// Built-in subagent names to allow, subject to availability and exclusions.
+    /// `Some(vec![])` disables all built-in subagents; custom agents remain
+    /// available, including same-name agents. `None` uses defaults on create or
+    /// cold resume and preserves the current allowlist on warm resume.
+    /// Not persisted; re-supply on resume after restart.
+    pub included_builtin_agents: Option<Vec<String>>,
     /// Built-in skill names to include in the session. In
     /// [`ClientMode::Empty`](crate::ClientMode::Empty), `None` excludes all
     /// runtime-bundled skills; `Some` opts the named built-ins back in.
@@ -2771,6 +2836,7 @@ impl std::fmt::Debug for SessionConfig {
             .field("available_tools", &self.available_tools)
             .field("excluded_tools", &self.excluded_tools)
             .field("excluded_builtin_agents", &self.excluded_builtin_agents)
+            .field("included_builtin_agents", &self.included_builtin_agents)
             .field("included_builtin_skills", &self.included_builtin_skills)
             .field("mcp_servers", &self.mcp_servers)
             .field("diagnostics", &self.diagnostics)
@@ -2945,6 +3011,7 @@ impl Default for SessionConfig {
             available_tools: None,
             excluded_tools: None,
             excluded_builtin_agents: None,
+            included_builtin_agents: None,
             included_builtin_skills: None,
             mcp_servers: None,
             diagnostics: None,
@@ -3068,10 +3135,9 @@ impl SessionConfig {
     /// the runtime-only fields (handlers, transforms, providers).
     ///
     /// Wire-format flags are derived from handler presence and the policy
-    /// field; runtime fields are moved out into the returned runtime so
-    /// the deep `Vec<Tool>` / `IndexMap<String, Value>` clones the previous
-    /// `&self`-based shape required are eliminated, and the order of
-    /// reading-vs-moving is enforced at compile time.
+    /// field. Tool handler Arcs are shared until wire serialization completes;
+    /// other runtime fields are moved into the returned runtime, avoiding deep
+    /// `Vec<Tool>` / `IndexMap<String, Value>` clones.
     ///
     /// [`SessionCreateWire`]: crate::wire::SessionCreateWire
     pub(crate) fn into_wire(
@@ -3100,7 +3166,7 @@ impl SessionConfig {
         let has_skill_provider = self.skill_provider.is_some();
         let has_memory_store = self.memory_store.is_some();
 
-        let tool_handlers = take_tool_handlers(self.tools.as_deref_mut().unwrap_or_default())?;
+        let tool_handlers = collect_tool_handlers(self.tools.as_deref().unwrap_or_default())?;
 
         let wire_commands = self.commands.as_ref().map(|cmds| {
             cmds.iter()
@@ -3138,7 +3204,7 @@ impl SessionConfig {
             available_tools: self.available_tools,
             excluded_tools: self.excluded_tools,
             excluded_builtin_agents: self.excluded_builtin_agents,
-            tool_filter_precedence: "excluded",
+            included_builtin_agents: self.included_builtin_agents,
             mcp_servers: self.mcp_servers,
             diagnostics: self.diagnostics,
             lifecycle_diagnostics: self.lifecycle_diagnostics,
@@ -3509,6 +3575,17 @@ impl SessionConfig {
         S: Into<String>,
     {
         self.excluded_builtin_agents = Some(agents.into_iter().map(Into::into).collect());
+        self
+    }
+
+    /// Set the built-in subagent allowlist. An empty iterator disables all
+    /// built-in subagents without restricting custom agents.
+    pub fn with_included_builtin_agents<I, S>(mut self, agents: I) -> Self
+    where
+        I: IntoIterator<Item = S>,
+        S: Into<String>,
+    {
+        self.included_builtin_agents = Some(agents.into_iter().map(Into::into).collect());
         self
     }
 
@@ -3898,9 +3975,11 @@ impl SessionConfig {
 
     /// Install a rotating GitHub token provider for this session.
     ///
-    /// The provider must return a positive remaining lifetime in seconds when
-    /// its callback completes. Production GitHub tokens typically last eight
-    /// hours. This option is mutually exclusive with [`with_github_token`](Self::with_github_token).
+    /// The provider must return the remaining lifetime in seconds when its callback
+    /// completes. More than 3600 seconds must still remain after token validation;
+    /// validation time counts against the lifetime. Production GitHub tokens
+    /// typically last eight hours. This option is mutually exclusive with
+    /// [`with_github_token`](Self::with_github_token).
     pub fn with_github_token_provider(mut self, provider: Arc<dyn GitHubTokenProvider>) -> Self {
         self.github_token_provider = Some(provider);
         self
@@ -4117,6 +4196,12 @@ pub struct ResumeSessionConfig {
     /// selected or invoked unless a custom agent with the same name is
     /// configured.
     pub excluded_builtin_agents: Option<Vec<String>>,
+    /// Built-in subagent names to allow, subject to availability and exclusions.
+    /// `Some(vec![])` disables all built-in subagents; custom agents remain
+    /// available, including same-name agents. `None` uses defaults on cold
+    /// resume and preserves the current allowlist on warm resume.
+    /// Not persisted; re-supply on resume after restart.
+    pub included_builtin_agents: Option<Vec<String>>,
     /// Built-in skill names to include in the resumed session. In
     /// [`ClientMode::Empty`](crate::ClientMode::Empty), `None` excludes all
     /// runtime-bundled skills; `Some` opts the named built-ins back in.
@@ -4363,6 +4448,11 @@ pub struct ResumeSessionConfig {
     /// caller-supplied results via the corresponding low-level RPC methods. Resuming
     /// does not re-emit restored permission requests or re-invoke permission handlers
     /// or already-dispatched external tool callbacks.
+    /// If a pending call was recorded as SDK-handler-backed and resume registers a
+    /// handler for that tool, the abandoned callback is interrupted, never replayed.
+    /// Handlerless calls remain pending. To supply an abandoned callback's result
+    /// manually, resume without a handler for it. Older requests without recorded
+    /// callback ownership also remain pending.
     ///
     /// [`Client::stop`]: crate::Client::stop
     /// [`Client::force_stop`]: crate::Client::force_stop
@@ -4441,6 +4531,7 @@ impl std::fmt::Debug for ResumeSessionConfig {
             .field("available_tools", &self.available_tools)
             .field("excluded_tools", &self.excluded_tools)
             .field("excluded_builtin_agents", &self.excluded_builtin_agents)
+            .field("included_builtin_agents", &self.included_builtin_agents)
             .field("included_builtin_skills", &self.included_builtin_skills)
             .field("mcp_servers", &self.mcp_servers)
             .field("diagnostics", &self.diagnostics)
@@ -4620,7 +4711,7 @@ impl ResumeSessionConfig {
         let has_skill_provider = self.skill_provider.is_some();
         let has_memory_store = self.memory_store.is_some();
 
-        let tool_handlers = take_tool_handlers(self.tools.as_deref_mut().unwrap_or_default())?;
+        let tool_handlers = collect_tool_handlers(self.tools.as_deref().unwrap_or_default())?;
 
         let wire_commands = self.commands.as_ref().map(|cmds| {
             cmds.iter()
@@ -4658,7 +4749,7 @@ impl ResumeSessionConfig {
             available_tools: self.available_tools,
             excluded_tools: self.excluded_tools,
             excluded_builtin_agents: self.excluded_builtin_agents,
-            tool_filter_precedence: "excluded",
+            included_builtin_agents: self.included_builtin_agents,
             mcp_servers: self.mcp_servers,
             diagnostics: self.diagnostics,
             lifecycle_diagnostics: self.lifecycle_diagnostics,
@@ -4787,6 +4878,7 @@ impl ResumeSessionConfig {
             available_tools: None,
             excluded_tools: None,
             excluded_builtin_agents: None,
+            included_builtin_agents: None,
             included_builtin_skills: None,
             mcp_servers: None,
             diagnostics: None,
@@ -5131,6 +5223,17 @@ impl ResumeSessionConfig {
         S: Into<String>,
     {
         self.excluded_builtin_agents = Some(agents.into_iter().map(Into::into).collect());
+        self
+    }
+
+    /// Set the built-in subagent allowlist. An empty iterator disables all
+    /// built-in subagents without restricting custom agents.
+    pub fn with_included_builtin_agents<I, S>(mut self, agents: I) -> Self
+    where
+        I: IntoIterator<Item = S>,
+        S: Into<String>,
+    {
+        self.included_builtin_agents = Some(agents.into_iter().map(Into::into).collect());
         self
     }
 
@@ -5491,9 +5594,11 @@ impl ResumeSessionConfig {
 
     /// Install a rotating GitHub token provider for the resumed session.
     ///
-    /// The provider must return a positive remaining lifetime in seconds when
-    /// its callback completes. Production GitHub tokens typically last eight
-    /// hours. Mutually exclusive with [`with_github_token`](Self::with_github_token).
+    /// The provider must return the remaining lifetime in seconds when its callback
+    /// completes. More than 3600 seconds must still remain after token validation;
+    /// validation time counts against the lifetime. Production GitHub tokens
+    /// typically last eight hours. Mutually exclusive with
+    /// [`with_github_token`](Self::with_github_token).
     pub fn with_github_token_provider(mut self, provider: Arc<dyn GitHubTokenProvider>) -> Self {
         self.github_token_provider = Some(provider);
         self
@@ -6733,6 +6838,86 @@ pub struct CapabilitiesChangedDataWithAutoModeRecovery {
     pub ui: Option<CapabilitiesChangedUIWithAutoModeRecovery>,
 }
 
+/// An event payload with experimental programmatic tool-call provenance.
+///
+/// Deserialize [`SessionEvent::data`] into this wrapper around
+/// [`PermissionRequestedData`](crate::session_events::PermissionRequestedData),
+/// [`ToolExecutionStartData`](crate::session_events::ToolExecutionStartData), or
+/// [`ToolExecutionCompleteData`](crate::session_events::ToolExecutionCompleteData)
+/// to retain provenance without changing those payloads' existing struct literals
+/// or exhaustive destructuring.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ProgrammaticToolCallData<T> {
+    /// The existing event payload.
+    #[serde(flatten)]
+    pub data: T,
+    /// Host-owned ID of the `run_program` invocation that owns this child call or permission.
+    /// Absent for ordinary tool calls and permissions.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub program_tool_call_id: Option<String>,
+}
+
+/// An experimental typed session event retaining programmatic tool-call provenance.
+///
+/// Deserialize the whole wire event into this projection before converting to
+/// [`TypedSessionEvent`](crate::session_events::TypedSessionEvent), whose legacy
+/// payload structs cannot retain program ownership. Serialization restores the
+/// ownership field inside `data`, preserving the session-event wire format.
+/// Nest in [`SessionEventWithMetadata`] to also retain journal checkpoint markers.
+#[derive(Debug, Clone)]
+pub struct ProgrammaticToolCallEvent {
+    /// The existing typed event envelope and payload.
+    pub event: crate::session_events::TypedSessionEvent,
+    /// Host-owned ID of the program invocation owning this call or permission.
+    /// Absent for ordinary events.
+    pub program_tool_call_id: Option<String>,
+}
+
+impl Serialize for ProgrammaticToolCallEvent {
+    fn serialize<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
+        let mut wire =
+            serde_json::to_value(&self.event).map_err(<S::Error as serde::ser::Error>::custom)?;
+        if self.event.parent_id.is_none() {
+            wire["parentId"] = Value::Null;
+        }
+        if let Some(parent_id) = &self.program_tool_call_id {
+            let data = wire
+                .get_mut("data")
+                .and_then(Value::as_object_mut)
+                .ok_or_else(|| {
+                    <S::Error as serde::ser::Error>::custom(
+                        "program-owned event data must be an object",
+                    )
+                })?;
+            data.insert(
+                "programToolCallId".to_owned(),
+                Value::String(parent_id.clone()),
+            );
+        }
+        wire.serialize(serializer)
+    }
+}
+
+impl<'de> Deserialize<'de> for ProgrammaticToolCallEvent {
+    fn deserialize<D: serde::Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
+        let mut wire = Value::deserialize(deserializer)?;
+        let program_tool_call_id = wire
+            .get_mut("data")
+            .and_then(Value::as_object_mut)
+            .and_then(|data| data.remove("programToolCallId"))
+            .map(serde_json::from_value::<Option<String>>)
+            .transpose()
+            .map_err(<D::Error as serde::de::Error>::custom)?
+            .flatten();
+        let event = serde_json::from_value(wire).map_err(<D::Error as serde::de::Error>::custom)?;
+        Ok(Self {
+            event,
+            program_tool_call_id,
+        })
+    }
+}
+
 /// An event-log record with optional journal replay metadata.
 ///
 /// Deserialize replay-view records into this wrapper to retain their checkpoint
@@ -6748,6 +6933,26 @@ pub struct SessionEventWithMetadata<T = SessionEvent> {
     /// Whether this record is synthetic replay state in a linked journal head.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub checkpoint: Option<bool>,
+}
+
+/// A feature-flag read with optional runtime display state.
+///
+/// Returned by
+/// [`read_with_options`](crate::rpc::SessionRpcFeatureFlags::read_with_options).
+/// The legacy [`SessionFeatureFlagsReadResult`](crate::rpc::SessionFeatureFlagsReadResult)
+/// retains its complete struct literals and patterns.
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SessionFeatureFlagsReadResultWithDisplayState {
+    /// Requested feature values. Unknown or unset values are absent.
+    pub flags: HashMap<String, bool>,
+    /// Explicit override results; null means neither source supplies a boolean.
+    pub overrides: Vec<Option<bool>>,
+    /// The state used by these evaluations.
+    pub snapshot: crate::rpc::FeatureFlagServiceSnapshot,
+    /// Redacted runtime decisions, present only for an available display read.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub display_state: Option<Value>,
 }
 
 /// An event-log page retaining checkpoint markers on replay-view records.
@@ -7307,6 +7512,28 @@ pub enum PermissionRequestKind {
 /// Used for both the `permission.request` RPC call (which expects a response)
 /// and `permission.requested` notifications (fire-and-forget). Contains the
 /// full params object.
+///
+/// Convert handler data into the original request for managed-policy review.
+/// The borrowed conversion leaves the handler data unchanged:
+///
+/// ```
+/// use github_copilot_sdk::PermissionRequestData;
+/// use github_copilot_sdk::rpc::SessionPermissionsManagedReviewRequiredParams;
+/// use serde_json::json;
+///
+/// let data = PermissionRequestData {
+///     extra: json!({
+///         "requestId": "permission-1",
+///         "permissionRequest": {"kind": "write", "path": "/workspace/report.txt"}
+///     }),
+///     ..Default::default()
+/// };
+/// let params = SessionPermissionsManagedReviewRequiredParams {
+///     request: (&data).into(),
+/// };
+/// assert_eq!(params.request, json!({"kind": "write", "path": "/workspace/report.txt"}));
+/// println!("{}", params.request);
+/// ```
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct PermissionRequestData {
@@ -7330,6 +7557,32 @@ pub struct PermissionRequestData {
     /// CLI version, so we preserve it as `Value`.
     #[serde(flatten)]
     pub extra: Value,
+}
+
+impl From<&PermissionRequestData> for Value {
+    /// Copies the original request, without the permission event envelope.
+    ///
+    /// Legacy callbacks without `permissionRequest` retain their full raw data.
+    fn from(data: &PermissionRequestData) -> Self {
+        data.extra
+            .get("permissionRequest")
+            .unwrap_or(&data.extra)
+            .clone()
+    }
+}
+
+impl From<PermissionRequestData> for Value {
+    /// Moves the original request, without the permission event envelope.
+    ///
+    /// Legacy callbacks without `permissionRequest` retain their full raw data.
+    fn from(data: PermissionRequestData) -> Self {
+        match data.extra {
+            Value::Object(mut fields) => fields
+                .remove("permissionRequest")
+                .unwrap_or(Value::Object(fields)),
+            value => value,
+        }
+    }
 }
 
 impl PermissionRequestData {

@@ -64,6 +64,6 @@ rust_library(
     version = "0.6.1",
     deps = [
         "@sdk_vendor__crypto-common-0.2.2//:crypto_common",
-        "@sdk_vendor__inout-0.2.5//:inout",
+        "@sdk_vendor__inout-0.2.6//:inout",
     ],
 )

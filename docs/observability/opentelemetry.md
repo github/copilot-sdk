@@ -221,7 +221,7 @@ const client = new CopilotClient({
 });
 ```
 
-For **Python**, **Go**, and **.NET**, trace context injection is automatic when the respective OpenTelemetry/Activity API is configured—no callback is needed.
+For **Python**, **Go**, and **.NET**, trace context injection is automatic when the respective OpenTelemetry/Activity API is configured—no callback is needed. Go injects and extracts trace context with the global propagator, which drops it until the application installs one, for example with `otel.SetTextMapPropagator(propagation.TraceContext{})`.
 
 #### CLI → SDK (inbound)
 

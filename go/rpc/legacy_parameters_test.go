@@ -3,6 +3,7 @@ package rpc
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"net"
 	"reflect"
 	"testing"
@@ -44,11 +45,151 @@ func TestLegacyParameterRequestsKeepKeyedLiterals(t *testing.T) {
 	}
 }
 
+func TestExternalToolDefinitionPreservesPositionalLiteral(t *testing.T) {
+	definition := ProtocolExternalToolDefinition{
+		nil, "Description", nil, nil, map[string]any{"custom": "kept"}, "lookup",
+		nil, nil, nil, nil, nil,
+	}
+	data, err := json.Marshal(definition)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if want := `{"description":"Description","metadata":{"custom":"kept"},"name":"lookup"}`; string(data) != want {
+		t.Fatalf("positional definition = %s, want %s", data, want)
+	}
+}
+
 func TestLoginBeginKeepsPositionalLiterals(t *testing.T) {
 	request := AuthLoginBeginRequest{nil, LoginProviderKindGitHubDotCom, nil}
 	wire := encodeRequest(t, request)
 	if len(wire) != 1 || wire["kind"] != "githubDotCom" {
 		t.Fatalf("legacy login request changed: %v", wire)
+	}
+}
+
+func TestPermissionRequiredKeepsPositionalLiterals(t *testing.T) {
+	request := PermissionsSetRequiredRequest{true}
+	wire := encodeRequest(t, request)
+	if len(wire) != 1 || wire["required"] != true {
+		t.Fatalf("legacy permission requirement changed: %v", wire)
+	}
+}
+
+func TestPermissionRequiredOptionsOnWire(t *testing.T) {
+	for _, provider := range []bool{false, true} {
+		for _, required := range []bool{false, true} {
+			t.Run(fmt.Sprintf("provider=%t/required=%t", provider, required), func(t *testing.T) {
+				clientConn, serverConn := net.Pipe()
+				defer clientConn.Close()
+				defer serverConn.Close()
+				client := jsonrpc2.NewClient(clientConn, clientConn)
+				server := jsonrpc2.NewClient(serverConn, serverConn)
+				requests := make(chan json.RawMessage, 1)
+				server.SetRequestHandler("session.permissions.setRequired", func(params json.RawMessage) (json.RawMessage, *jsonrpc2.Error) {
+					requests <- params
+					return json.RawMessage(`{"success":true}`), nil
+				})
+				client.Start()
+				server.Start()
+				defer client.Stop()
+				defer server.Stop()
+				ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+				defer cancel()
+				api := NewSessionRPC(client, "permission-session").Permissions
+				expected := map[string]any{"sessionId": "permission-session", "required": required}
+				var result *PermissionsSetRequiredResult
+				var err error
+				if provider {
+					providerID := "provider"
+					options := PermissionsSetRequiredOptions{Required: required, ProviderID: &providerID}
+					result, err = api.SetRequiredWithOptions(ctx, &options)
+					expected["providerId"] = providerID
+				} else {
+					result, err = api.SetRequired(ctx, &PermissionsSetRequiredRequest{required})
+				}
+				if err != nil {
+					t.Fatal(err)
+				}
+				if result == nil || !result.Success {
+					t.Fatalf("permission requirement result = %#v", result)
+				}
+				select {
+				case raw := <-requests:
+					var actual map[string]any
+					if err := json.Unmarshal(raw, &actual); err != nil {
+						t.Fatal(err)
+					}
+					if !reflect.DeepEqual(actual, expected) {
+						t.Fatalf("permission requirement = %v, want %v", actual, expected)
+					}
+				case <-ctx.Done():
+					t.Fatal(ctx.Err())
+				}
+			})
+		}
+	}
+}
+
+func TestPermissionRequirementsKeepPositionalLiteralsAndProviderOptions(t *testing.T) {
+	request := PermissionsSetRequiredRequest{true}
+	if wire := encodeRequest(t, request); !reflect.DeepEqual(wire, map[string]any{"required": true}) {
+		t.Fatalf("legacy permission requirement changed: %v", wire)
+	}
+	options := PermissionsSetRequiredOptions{Required: false}
+	if wire := encodeRequest(t, options); !reflect.DeepEqual(wire, map[string]any{"required": false}) {
+		t.Fatalf("provider identity must be omitted by default: %v", wire)
+	}
+	provider := "provider"
+	options.ProviderID = &provider
+	expected := map[string]any{"required": false, "providerId": provider}
+	if wire := encodeRequest(t, options); !reflect.DeepEqual(wire, expected) {
+		t.Fatalf("provider requirement = %v, want %v", wire, expected)
+	}
+}
+
+func TestPermissionRequirementOptionsOnWire(t *testing.T) {
+	clientConn, serverConn := net.Pipe()
+	defer clientConn.Close()
+	defer serverConn.Close()
+	client := jsonrpc2.NewClient(clientConn, clientConn)
+	server := jsonrpc2.NewClient(serverConn, serverConn)
+	requests := make(chan json.RawMessage, 2)
+	server.SetRequestHandler("session.permissions.setRequired", func(params json.RawMessage) (json.RawMessage, *jsonrpc2.Error) {
+		requests <- params
+		return json.RawMessage(`{"success":true}`), nil
+	})
+	client.Start()
+	server.Start()
+	defer client.Stop()
+	defer server.Stop()
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	api := NewSessionRPC(client, "permission-session").Permissions
+	if _, err := api.SetRequired(ctx, &PermissionsSetRequiredRequest{true}); err != nil {
+		t.Fatal(err)
+	}
+	provider := "provider"
+	if _, err := api.SetRequiredWithOptions(ctx, &PermissionsSetRequiredOptions{
+		Required: false, ProviderID: &provider,
+	}); err != nil {
+		t.Fatal(err)
+	}
+	for _, expected := range []map[string]any{
+		{"sessionId": "permission-session", "required": true},
+		{"sessionId": "permission-session", "required": false, "providerId": provider},
+	} {
+		select {
+		case raw := <-requests:
+			var actual map[string]any
+			if err := json.Unmarshal(raw, &actual); err != nil {
+				t.Fatal(err)
+			}
+			if !reflect.DeepEqual(actual, expected) {
+				t.Fatalf("permission requirement = %v, want %v", actual, expected)
+			}
+		case <-ctx.Done():
+			t.Fatal(ctx.Err())
+		}
 	}
 }
 

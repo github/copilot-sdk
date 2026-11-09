@@ -3,7 +3,9 @@
 package copilot_test
 
 import (
+	"bytes"
 	"context"
+	"fmt"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -124,4 +126,60 @@ check();
 	if output, err := cmd.CombinedOutput(); err != nil {
 		t.Fatalf("child process did not exit: %v\n%s", err, output)
 	}
+}
+
+// Stopping a client attached to an external server closes the client's own TCP
+// connection. That close is expected, so shutdown must not report it on stdout
+// or through the standard logger. The shutdown runs in a child process so the
+// assertion sees exactly what it wrote to the process streams.
+func TestExternalServerShutdownWritesNothing(t *testing.T) {
+	const childKey = "COPILOT_SDK_TEST_EXTERNAL_SHUTDOWN"
+	const marker = "external-server-shutdown"
+	mode := os.Getenv(childKey)
+	if mode == "" {
+		for _, mode := range []string{"stop", "force"} {
+			t.Run(mode, func(t *testing.T) {
+				cmd := exec.CommandContext(t.Context(), os.Args[0], "-test.run=^TestExternalServerShutdownWritesNothing$")
+				cmd.Env = append(os.Environ(), childKey+"="+mode)
+				var stdout, stderr bytes.Buffer
+				cmd.Stdout, cmd.Stderr = &stdout, &stderr
+				if err := cmd.Run(); err != nil {
+					t.Fatalf("shutdown child: %v\nstdout:\n%s\nstderr:\n%s", err, &stdout, &stderr)
+				}
+				for _, stream := range []struct {
+					name   string
+					output string
+				}{{"stdout", stdout.String()}, {"stderr", stderr.String()}} {
+					parts := strings.Split(stream.output, marker+"\n")
+					if len(parts) != 3 {
+						t.Fatalf("%s lacks the shutdown markers:\n%s", stream.name, stream.output)
+					}
+					if parts[1] != "" {
+						t.Errorf("%s shutdown wrote to %s:\n%s", mode, stream.name, parts[1])
+					}
+				}
+			})
+		}
+		return
+	}
+
+	peer := newResponseRetirementPeer(t, 0)
+	client := copilot.NewClient(&copilot.ClientOptions{
+		Connection: copilot.URIConnection{URL: peer.listener.Addr().String()},
+	})
+	ctx, cancel := context.WithTimeout(t.Context(), 10*time.Second)
+	defer cancel()
+	if err := client.Start(ctx); err != nil {
+		t.Fatal("start:", err)
+	}
+
+	fmt.Fprintln(os.Stdout, marker)
+	fmt.Fprintln(os.Stderr, marker)
+	if mode == "force" {
+		client.ForceStop()
+	} else if err := client.Stop(); err != nil {
+		t.Error("stop:", err)
+	}
+	fmt.Fprintln(os.Stdout, marker)
+	fmt.Fprintln(os.Stderr, marker)
 }

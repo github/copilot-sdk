@@ -1,9 +1,36 @@
+// Copyright (c) Microsoft Corporation. All rights reserved.
 // Unit tests for event-envelope compatibility and payload layout regressions.
 
 #![allow(clippy::unwrap_used)]
 
-use github_copilot_sdk::session_events::{SessionEventData, TypedSessionEvent};
+use github_copilot_sdk::session_events::{SessionEventData, SessionEventType, TypedSessionEvent};
 use github_copilot_sdk::{SessionEvent, SessionEventWithMetadata};
+
+#[test]
+fn external_tool_requests_preserve_public_struct_literals() {
+    use github_copilot_sdk::session_events::ExternalToolRequestedData;
+
+    let request = ExternalToolRequestedData {
+        request_id: "request".into(),
+        session_id: "session".into(),
+        tool_call_id: "call".to_owned(),
+        tool_name: "tool".to_owned(),
+        arguments: None,
+        provider_id: None,
+        traceparent: None,
+        tracestate: None,
+        working_directory: None,
+    };
+    let defaults = ExternalToolRequestedData {
+        request_id: request.request_id.clone(),
+        ..Default::default()
+    };
+    assert_eq!(defaults.request_id, request.request_id);
+    let mut wire = serde_json::to_value(&request).unwrap();
+    wire["hasHandler"] = true.into();
+    let decoded: ExternalToolRequestedData = serde_json::from_value(wire).unwrap();
+    assert_eq!(decoded.tool_call_id, request.tool_call_id);
+}
 
 fn event_envelope(event_type: &str, data: serde_json::Value) -> serde_json::Value {
     serde_json::json!({
@@ -102,6 +129,23 @@ fn image_tool_usage_round_trips_without_inline_payload_storage() {
             data.tool_usage.as_ref().unwrap().model,
             "gpt-image-2.5-flare"
         );
+        assert_eq!(serde_json::to_value(event).unwrap(), wire);
+    }
+}
+
+#[test]
+fn unpublished_program_receipts_remain_untyped() {
+    for event_type in [
+        "program.execution",
+        "program.tool_execution_start",
+        "program.tool_execution_complete",
+        "program.permission_requested",
+    ] {
+        let wire = event_envelope(event_type, serde_json::json!({"toolCallId": "tool-1"}));
+        let event: SessionEvent = serde_json::from_value(wire.clone()).unwrap();
+        assert_eq!(event.parsed_type(), SessionEventType::Unknown);
+        assert_eq!(event.event_type, event_type);
+        assert!(serde_json::from_value::<TypedSessionEvent>(wire.clone()).is_err());
         assert_eq!(serde_json::to_value(event).unwrap(), wire);
     }
 }

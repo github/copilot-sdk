@@ -20,7 +20,7 @@ import javax.annotation.processing.Generated;
  *
  * @since 1.0.0
  */
-@JsonTypeInfo(use = JsonTypeInfo.Id.NAME, property = "kind", visible = true)
+@JsonTypeInfo(use = JsonTypeInfo.Id.NAME, include = JsonTypeInfo.As.EXISTING_PROPERTY, property = "kind", visible = true)
 @JsonSubTypes({
     @JsonSubTypes.Type(value = AuthLoginStepOpenUrl.class, name = "open-url"),
     @JsonSubTypes.Type(value = AuthLoginStepInputRequired.class, name = "input-required"),

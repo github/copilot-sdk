@@ -207,8 +207,9 @@ GitHubTokenProvider = Callable[
 ]
 """Acquire a GitHub credential for one session.
 
-Token results require ``expiresIn`` to be the positive number of seconds of
-remaining lifetime when the callback completes. Production GitHub tokens
+Token results require ``expiresIn`` to be the number of seconds of remaining
+lifetime when the callback completes. More than one hour must still remain
+after the runtime validates the token. Production GitHub tokens
 typically last eight hours. Initial cancellation, callback errors, and invalid
 token responses reject session creation or resume instead of falling back to
 ambient authentication.
@@ -609,6 +610,29 @@ class TelemetryConfig(TypedDict, total=False):
     """Whether to capture span content. Sets OTEL_INSTRUMENTATION_GENAI_CAPTURE_CONTENT and its legacy alias."""  # noqa: E501
 
 
+def _apply_telemetry_environment(env: dict[str, str], telemetry: TelemetryConfig | None) -> None:
+    if telemetry is None:
+        return
+    env["COPILOT_OTEL_ENABLED"] = "true"
+    if "otlp_endpoint" in telemetry:
+        env["OTEL_EXPORTER_OTLP_ENDPOINT"] = telemetry["otlp_endpoint"]
+    if "otlp_protocol" in telemetry:
+        env["OTEL_EXPORTER_OTLP_PROTOCOL"] = telemetry["otlp_protocol"]
+    if "file_path" in telemetry:
+        env["COPILOT_OTEL_FILE_EXPORTER_PATH"] = telemetry["file_path"]
+    if "exporter_type" in telemetry:
+        env["COPILOT_OTEL_EXPORTER_TYPE"] = telemetry["exporter_type"]
+    if "source_name" in telemetry:
+        env["COPILOT_OTEL_SOURCE_NAME"] = telemetry["source_name"]
+    if "capture_content" in telemetry:
+        env["OTEL_INSTRUMENTATION_GENAI_CAPTURE_CONTENT"] = (
+            "SPAN_ONLY" if telemetry["capture_content"] else "NO_CONTENT"
+        )
+        env["OTEL_INSTRUMENTATION_GENAI_CAPTURE_MESSAGE_CONTENT"] = str(
+            telemetry["capture_content"]
+        ).lower()
+
+
 class ClientInfo(TypedDict, total=False):
     """Identity of the integrating application, declared on ``server.connect``.
 
@@ -811,8 +835,8 @@ class RuntimeConnection:
         runtime's native shared library into this process and drives JSON-RPC
         over its C ABI.
 
-        Typed authentication and ``base_directory`` are scoped to this host.
-        Client-level ``env``, ``telemetry`` and ``working_directory`` are
+        Typed authentication, telemetry and ``base_directory`` are scoped to this host.
+        Client-level ``env`` and ``working_directory`` are
         unsupported; set working directories on individual sessions.
         Set ``COPILOT_CLI_PATH`` only when using an externally provisioned
         compatible runtime package.
@@ -1928,7 +1952,7 @@ def _resolve_default_connection(env: Mapping[str, str]) -> RuntimeConnection:
 def _validate_environment_options(
     options: _CopilotClientOptions, connection: RuntimeConnection
 ) -> None:
-    """Validate env/telemetry/working-directory options against the transport.
+    """Validate env/working-directory options against the transport.
 
     In-process hosts cannot accept arbitrary process-wide configuration.
     """
@@ -1940,14 +1964,6 @@ def _validate_environment_options(
                 "env is not supported with RuntimeConnection.for_inprocess(): environment "
                 "variables belong to the shared host process. Use typed client/session "
                 "options or a child-process transport."
-            )
-        if options.telemetry is not None:
-            raise ValueError(
-                "telemetry is not supported with RuntimeConnection.for_inprocess(): "
-                "telemetry configuration is lowered to environment variables read by "
-                "native runtime code running in the shared host process, so per-client "
-                "telemetry cannot be honored in-process. Configure telemetry via the "
-                "host process environment, or use a child-process transport."
             )
         if options.working_directory is not None:
             raise ValueError(
@@ -2039,8 +2055,8 @@ class CopilotClient:
 
         Runtime options apply to locally hosted connections. The in-process
         transport supports typed runtime options such as ``log_level``,
-        ``github_token``, and ``base_directory``, but rejects per-client
-        ``working_directory``, ``env``, and ``telemetry``. Options are ignored
+        ``github_token``, ``telemetry``, and ``base_directory``, but rejects per-client
+        ``working_directory`` and ``env``. Options are ignored
         when connecting to an existing runtime via
         :meth:`RuntimeConnection.for_uri`.
 
@@ -2466,26 +2482,27 @@ class CopilotClient:
         self._state = "connecting"
 
         try:
-            # Only start CLI server process if not connecting to external server
-            if not self._is_external_server:
-                await self._start_cli_server()
-
-            # Connect to the server
-            await self._connect_to_server()
-            log_timing(
-                logger,
-                logging.DEBUG,
-                "CopilotClient.start transport setup complete",
-                start_time,
-            )
-
             try:
+                # Only start CLI server process if not connecting to external server
+                if not self._is_external_server:
+                    await self._start_cli_server()
+
+                # Connect to the server
+                await self._connect_to_server()
+                log_timing(
+                    logger,
+                    logging.DEBUG,
+                    "CopilotClient.start transport setup complete",
+                    start_time,
+                )
                 await self._initialize_connection(start_time)
             except BaseException as startup_error:
-                # The runtime keeps registrations made on this connection, such as an exclusive
-                # runtime-scoped network registration, until it closes. Cancellation bypasses the
-                # outer startup cleanup, so close the connection here for every outcome and never
-                # let a cleanup error mask the startup error.
+                # A runtime this client spawned must not outlive a failed start: a retry spawns
+                # a new one and replaces the only reference to it. The runtime also keeps
+                # registrations made on this connection, such as an exclusive runtime-scoped
+                # network registration, until it closes. Cancellation bypasses the outer startup
+                # cleanup, so stop the runtime and close the connection here for every outcome
+                # and never let a cleanup error mask the startup error.
                 try:
                     await self.force_stop()
                 except Exception as cleanup_error:
@@ -2930,6 +2947,7 @@ class CopilotClient:
         enable_citations: bool | None = None,
         enable_file_change_tracking: bool | None = None,
         excluded_builtin_agents: list[str] | None = None,
+        included_builtin_agents: list[str] | None = None,
         session_limits: SessionLimitsConfig | None = None,
         autopilot: AutopilotOptions | None = None,
         skip_custom_instructions: bool | None = None,
@@ -3088,6 +3106,11 @@ class CopilotClient:
                 session. Excluded built-in agents are hidden from discovery and
                 cannot be selected or invoked unless a custom agent with the same
                 name is configured.
+            included_builtin_agents: Built-in subagent names to allow, subject to
+                availability and exclusions. An empty list disables all built-in
+                subagents; custom agents remain available, including same-name
+                agents. Omission uses defaults. Not persisted; re-supply on resume
+                after restart.
             session_limits: **Experimental.** Limits applied to this session's
                 current accounting window.
             autopilot: **Experimental.** Autopilot policy, independent of session mode.
@@ -3355,9 +3378,6 @@ class CopilotClient:
             payload["availableTools"] = available_tools
         if excluded_tools is not None:
             payload["excludedTools"] = excluded_tools
-        # Always emit "excluded" precedence so caller-supplied excludedTools win
-        # over any built-in availableTools defaults the runtime applies.
-        payload["toolFilterPrecedence"] = "excluded"
 
         # Enable permission request callback if handler provided
         payload["requestPermission"] = bool(on_permission_request)
@@ -3466,6 +3486,8 @@ class CopilotClient:
             payload["enableFileChangeTracking"] = enable_file_change_tracking
         if excluded_builtin_agents is not None:
             payload["excludedBuiltinAgents"] = excluded_builtin_agents
+        if included_builtin_agents is not None:
+            payload["includedBuiltinAgents"] = included_builtin_agents
         if session_limits is not None:
             payload["sessionLimits"] = _session_limits_to_wire(session_limits)
         if autopilot is not None:
@@ -4010,6 +4032,7 @@ class CopilotClient:
         enable_citations: bool | None = None,
         enable_file_change_tracking: bool | None = None,
         excluded_builtin_agents: list[str] | None = None,
+        included_builtin_agents: list[str] | None = None,
         session_limits: SessionLimitsConfig | None = None,
         autopilot: AutopilotOptions | None = None,
         skip_custom_instructions: bool | None = None,
@@ -4166,6 +4189,12 @@ class CopilotClient:
                 resumed session. Excluded built-in agents are hidden from discovery
                 and cannot be selected or invoked unless a custom agent with the
                 same name is configured.
+            included_builtin_agents: Built-in subagent names to allow, subject to
+                availability and exclusions. An empty list disables all built-in
+                subagents; custom agents remain available, including same-name
+                agents. Omission uses defaults on cold resume and preserves the
+                current allowlist on warm resume. Not persisted; re-supply on
+                resume after restart.
             session_limits: **Experimental.** Limits applied to this session's
                 current accounting window.
             autopilot: **Experimental.** Patch resident Autopilot policy on warm
@@ -4272,6 +4301,12 @@ class CopilotClient:
                 for caller-supplied results via the corresponding low-level RPC methods.
                 Resuming does not re-emit restored permission requests or re-invoke
                 permission handlers or already-dispatched external tool callbacks.
+                If a pending call was recorded as SDK-handler-backed and resume
+                registers a handler for that tool, the abandoned callback is
+                interrupted, never replayed. Handlerless calls remain pending.
+                To supply an abandoned callback's result manually, resume without
+                a handler for it. Older requests without recorded callback
+                ownership also remain pending.
             suppress_resume_event: When True, skips emitting the session.resume
                 event when attaching to an existing session. Defaults to False.
             allow_transcript_recovery: Whether to repair a damaged transcript on
@@ -4417,7 +4452,6 @@ class CopilotClient:
             payload["availableTools"] = available_tools
         if excluded_tools is not None:
             payload["excludedTools"] = excluded_tools
-        payload["toolFilterPrecedence"] = "excluded"
         if provider:
             payload["provider"] = self._convert_provider_to_wire_format(provider)
         if capi is not None:
@@ -4436,6 +4470,8 @@ class CopilotClient:
             payload["enableFileChangeTracking"] = enable_file_change_tracking
         if excluded_builtin_agents is not None:
             payload["excludedBuiltinAgents"] = excluded_builtin_agents
+        if included_builtin_agents is not None:
+            payload["includedBuiltinAgents"] = included_builtin_agents
         if session_limits is not None:
             payload["sessionLimits"] = _session_limits_to_wire(session_limits)
         if autopilot is not None:
@@ -5534,6 +5570,10 @@ class CopilotClient:
             wire["id"] = model["id"]
         if "provider" in model:
             wire["provider"] = model["provider"]
+        if "auto_local" in model:
+            wire["autoLocal"] = model["auto_local"]
+        if "metadata" in model:
+            wire["metadata"] = model["metadata"]
         if "wire_model" in model:
             wire["wireModel"] = model["wire_model"]
         if "model_id" in model:
@@ -5699,27 +5739,7 @@ class CopilotClient:
         if opts.base_directory:
             env["COPILOT_HOME"] = opts.base_directory
 
-        # Set OpenTelemetry environment variables if telemetry config is provided
-        telemetry = opts.telemetry
-        if telemetry is not None:
-            env["COPILOT_OTEL_ENABLED"] = "true"
-            if "otlp_endpoint" in telemetry:
-                env["OTEL_EXPORTER_OTLP_ENDPOINT"] = telemetry["otlp_endpoint"]
-            if "otlp_protocol" in telemetry:
-                env["OTEL_EXPORTER_OTLP_PROTOCOL"] = telemetry["otlp_protocol"]
-            if "file_path" in telemetry:
-                env["COPILOT_OTEL_FILE_EXPORTER_PATH"] = telemetry["file_path"]
-            if "exporter_type" in telemetry:
-                env["COPILOT_OTEL_EXPORTER_TYPE"] = telemetry["exporter_type"]
-            if "source_name" in telemetry:
-                env["COPILOT_OTEL_SOURCE_NAME"] = telemetry["source_name"]
-            if "capture_content" in telemetry:
-                env["OTEL_INSTRUMENTATION_GENAI_CAPTURE_CONTENT"] = (
-                    "SPAN_ONLY" if telemetry["capture_content"] else "NO_CONTENT"
-                )
-                env["OTEL_INSTRUMENTATION_GENAI_CAPTURE_MESSAGE_CONTENT"] = str(
-                    telemetry["capture_content"]
-                ).lower()
+        _apply_telemetry_environment(env, opts.telemetry)
 
         # On Windows, hide the console window to avoid distracting users in GUI apps
         creationflags = subprocess.CREATE_NO_WINDOW if sys.platform == "win32" else 0
@@ -5936,6 +5956,7 @@ class CopilotClient:
             environment["COPILOT_CACHE_HOME"] = str(Path(opts.base_directory) / "cache")
         if opts.mode == "empty":
             environment["COPILOT_DISABLE_KEYTAR"] = "1"
+        _apply_telemetry_environment(environment, opts.telemetry)
 
         host = FfiRuntimeHost.create(
             runtime_path,

@@ -24,6 +24,7 @@ import javax.annotation.processing.Generated;
 @com.fasterxml.jackson.databind.annotation.JsonDeserialize(using = UserSettingsLoadAndMergeRepoResult.$NullableDeserializer.class)
 record UserSettingsLoadAndMergeRepoResult(
     /** The merged settings document, keyed by setting name. Equals the supplied user layer when the repository declares no settings. */
+    @JsonInclude(value = JsonInclude.Include.NON_NULL, content = JsonInclude.Include.ALWAYS)
     @JsonProperty("settings") Map<String, Object> settings,
     /** Why part of the repository document was ignored, as a single human-readable string joining every diagnostic with `; `. Null when it loaded cleanly. The settings that did load are still merged, so a consumer should surface this and continue rather than treat it as a failure. */
     @JsonProperty("warning") String warning,

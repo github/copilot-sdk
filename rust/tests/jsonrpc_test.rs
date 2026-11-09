@@ -371,6 +371,174 @@ async fn write_actor_completes_on_caller_cancel() {
     assert_eq!(frames[1].id, 101);
 }
 
+#[tokio::test]
+async fn write_failure_stops_writer_and_preserves_pending_response() {
+    use std::error::Error as _;
+    use std::future::Future;
+    use std::io;
+    use std::pin::Pin;
+    use std::sync::Arc;
+    use std::sync::atomic::{AtomicUsize, Ordering};
+    use std::task::{Context, Poll};
+    use tokio::sync::oneshot;
+
+    struct FailingWriter {
+        inner: tokio::io::DuplexStream,
+        first_frame_flushed: bool,
+        partial_written: bool,
+        failed: bool,
+        partial_tx: Option<oneshot::Sender<()>>,
+        release_rx: oneshot::Receiver<()>,
+        dropped_tx: Option<oneshot::Sender<()>>,
+        writes_after_failure: Arc<AtomicUsize>,
+    }
+
+    impl AsyncWrite for FailingWriter {
+        fn poll_write(
+            mut self: Pin<&mut Self>,
+            cx: &mut Context<'_>,
+            buf: &[u8],
+        ) -> Poll<io::Result<usize>> {
+            if self.failed {
+                self.writes_after_failure.fetch_add(1, Ordering::SeqCst);
+                return Poll::Ready(Err(io::Error::other("write attempted after failure")));
+            }
+            if !self.first_frame_flushed {
+                return Pin::new(&mut self.inner).poll_write(cx, buf);
+            }
+            if !self.partial_written {
+                let result = Pin::new(&mut self.inner).poll_write(cx, &buf[..1]);
+                if matches!(result, Poll::Ready(Ok(1))) {
+                    self.partial_written = true;
+                    self.partial_tx.take().unwrap().send(()).unwrap();
+                }
+                return result;
+            }
+            match Pin::new(&mut self.release_rx).poll(cx) {
+                Poll::Pending => Poll::Pending,
+                Poll::Ready(result) => {
+                    result.unwrap();
+                    self.failed = true;
+                    Poll::Ready(Err(io::Error::new(
+                        io::ErrorKind::ConnectionReset,
+                        "injected partial-frame failure",
+                    )))
+                }
+            }
+        }
+
+        fn poll_flush(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<io::Result<()>> {
+            let result = Pin::new(&mut self.inner).poll_flush(cx);
+            if matches!(result, Poll::Ready(Ok(()))) {
+                self.first_frame_flushed = true;
+            }
+            result
+        }
+
+        fn poll_shutdown(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<io::Result<()>> {
+            Pin::new(&mut self.inner).poll_shutdown(cx)
+        }
+    }
+
+    impl Drop for FailingWriter {
+        fn drop(&mut self) {
+            let _ = self.dropped_tx.take().unwrap().send(());
+        }
+    }
+
+    let (client_write, mut server_read) = duplex(4096);
+    let (mut server_write, client_read) = duplex(4096);
+    let (partial_tx, partial_rx) = oneshot::channel();
+    let (release_tx, release_rx) = oneshot::channel();
+    let (dropped_tx, dropped_rx) = oneshot::channel();
+    let writes_after_failure = Arc::new(AtomicUsize::new(0));
+    let writer = FailingWriter {
+        inner: client_write,
+        first_frame_flushed: false,
+        partial_written: false,
+        failed: false,
+        partial_tx: Some(partial_tx),
+        release_rx,
+        dropped_tx: Some(dropped_tx),
+        writes_after_failure: writes_after_failure.clone(),
+    };
+    let (notification_tx, _) = broadcast::channel(16);
+    let (request_tx, _request_rx) = mpsc::unbounded_channel();
+    let client = JsonRpcClient::new(writer, client_read, notification_tx, request_tx);
+
+    tokio::time::timeout(std::time::Duration::from_secs(5), async {
+        let first = client.send_request("test.first", None);
+        tokio::pin!(first);
+        assert!(futures_util::poll!(&mut first).is_pending());
+        let request: JsonRpcRequest =
+            serde_json::from_slice(&read_framed(&mut server_read).await).unwrap();
+        assert_eq!(request.method, "test.first");
+
+        let second = client.send_request("test.second", None);
+        tokio::pin!(second);
+        assert!(futures_util::poll!(&mut second).is_pending());
+        partial_rx.await.expect("second frame partially written");
+
+        // Polling enqueues the third frame while the writer is held at the failure.
+        let third = client.send_request("test.third", None);
+        tokio::pin!(third);
+        assert!(futures_util::poll!(&mut third).is_pending());
+        release_tx.send(()).unwrap();
+
+        let error = second.await.expect_err("partial-frame write must fail");
+        assert_eq!(error.kind(), &ErrorKind::Io);
+        let source = error.source().unwrap().downcast_ref::<io::Error>().unwrap();
+        assert_eq!(source.kind(), io::ErrorKind::ConnectionReset);
+        assert_eq!(source.to_string(), "injected partial-frame failure");
+
+        let queued = third.await.expect_err("queued frame must not be written");
+        assert_eq!(queued.kind(), &ErrorKind::Io);
+        assert_eq!(
+            queued
+                .source()
+                .unwrap()
+                .downcast_ref::<io::Error>()
+                .unwrap()
+                .kind(),
+            io::ErrorKind::BrokenPipe
+        );
+        dropped_rx.await.expect("failed writer must be dropped");
+        assert_eq!(writes_after_failure.load(Ordering::SeqCst), 0);
+
+        let late = client.send_request("test.late", None).await.unwrap_err();
+        assert_eq!(
+            late.source()
+                .unwrap()
+                .downcast_ref::<io::Error>()
+                .unwrap()
+                .kind(),
+            io::ErrorKind::BrokenPipe
+        );
+
+        // Writer failure must not cancel the reader or discard already-sent replies.
+        let response = serde_json::json!({
+            "jsonrpc": "2.0",
+            "id": request.id,
+            "result": { "drained": true }
+        });
+        write_framed(&mut server_write, &serde_json::to_vec(&response).unwrap()).await;
+        let response = first.await.expect("pending response must still be drained");
+        assert_eq!(
+            response.result,
+            Some(serde_json::json!({ "drained": true }))
+        );
+
+        let mut remaining = Vec::new();
+        server_read.read_to_end(&mut remaining).await.unwrap();
+        assert_eq!(
+            remaining, b"C",
+            "only the second frame's prefix was written"
+        );
+    })
+    .await
+    .expect("writer failure and pending response must settle");
+}
+
 /// Cancel-safety regression: cancelling a `send_request` future before the
 /// response arrives must NOT leak the pending-requests entry. The RAII
 /// `PendingGuard` removes the entry on drop.

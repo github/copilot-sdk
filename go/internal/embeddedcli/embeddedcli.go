@@ -5,6 +5,7 @@ import (
 	"bytes"
 	"compress/gzip"
 	"crypto/sha256"
+	"errors"
 	"fmt"
 	"io"
 	"os"
@@ -80,6 +81,14 @@ func Setup(cfg Config) {
 	validateRuntimePairConfig(cfg.LinuxMuslRuntimeExecutable, cfg.LinuxMuslRuntimeExecutableHash, cfg.LinuxMuslRuntimeNode, cfg.LinuxMuslRuntimeNodeHash, "LinuxMusl")
 	validateOptionalHash(cfg.RuntimeAssets, cfg.RuntimeAssetsHash, "RuntimeAssetsHash")
 	validateOptionalHash(cfg.LinuxMuslRuntimeAssets, cfg.LinuxMuslRuntimeAssetsHash, "LinuxMuslRuntimeAssetsHash")
+	cfg.Cli = newRetryableReader(cfg.Cli)
+	cfg.RuntimeLib = newRetryableReader(cfg.RuntimeLib)
+	cfg.RuntimeExecutable = newRetryableReader(cfg.RuntimeExecutable)
+	cfg.RuntimeNode = newRetryableReader(cfg.RuntimeNode)
+	cfg.LinuxMuslCli = newRetryableReader(cfg.LinuxMuslCli)
+	cfg.LinuxMuslRuntimeLib = newRetryableReader(cfg.LinuxMuslRuntimeLib)
+	cfg.LinuxMuslRuntimeExecutable = newRetryableReader(cfg.LinuxMuslRuntimeExecutable)
+	cfg.LinuxMuslRuntimeNode = newRetryableReader(cfg.LinuxMuslRuntimeNode)
 	setupMu.Lock()
 	defer setupMu.Unlock()
 	if setupDone {
@@ -90,6 +99,111 @@ func Setup(cfg Config) {
 	}
 	config = cfg
 	setupDone = true
+}
+
+// retryableReader lets a failed installation attempt be retried. A reader that
+// can seek streams again from the offset it had at Setup, so a large artifact
+// is never held in memory. Any other reader is buffered when first read, which
+// is the only way to replay it. Bundles generated before the bundler emitted
+// seekable readers take that path.
+type retryableReader struct {
+	source io.Reader
+	start  int64
+	buffer *bytes.Reader
+	// used reports whether any install attempt has read from the source. An
+	// unused reader is never released, so an artifact that a warm cache made
+	// unnecessary can still be replayed into a different cache later.
+	used bool
+}
+
+func newRetryableReader(r io.Reader) io.Reader {
+	if r == nil {
+		return nil
+	}
+	if seeker, ok := r.(io.Seeker); ok {
+		if start, err := seeker.Seek(0, io.SeekCurrent); err == nil {
+			return &retryableReader{source: r, start: start}
+		}
+		// A reader that cannot report its position, like the bundler's zstd
+		// reader, can still rewind to its beginning.
+		if _, err := seeker.Seek(0, io.SeekStart); err == nil {
+			return &retryableReader{source: r, start: 0}
+		}
+	}
+	return &retryableReader{source: r, start: -1}
+}
+
+func (r *retryableReader) Read(p []byte) (int, error) {
+	r.used = true
+	if r.start >= 0 {
+		return r.source.Read(p)
+	}
+	if r.buffer == nil {
+		content, err := io.ReadAll(r.source)
+		if closer, ok := r.source.(io.Closer); ok {
+			closer.Close()
+		}
+		if err != nil {
+			return 0, err
+		}
+		r.buffer = bytes.NewReader(content)
+	}
+	return r.buffer.Read(p)
+}
+
+func (r *retryableReader) Seek(offset int64, whence int) (int64, error) {
+	if offset != 0 || whence != io.SeekStart {
+		return 0, errors.New("only Seek(0, io.SeekStart) is supported")
+	}
+	if r.start >= 0 {
+		return r.source.(io.Seeker).Seek(r.start, io.SeekStart)
+	}
+	if r.buffer == nil {
+		return 0, nil
+	}
+	return r.buffer.Seek(0, io.SeekStart)
+}
+
+// release drops the replay buffer and closes the source of a reader that an
+// installation consumed, once that installation has committed, so neither stays
+// reachable for the life of the process.
+func (r *retryableReader) release() {
+	if !r.used {
+		return
+	}
+	r.buffer = nil
+	r.Close()
+}
+
+// releaseReaders releases every configured artifact reader after a complete
+// installation. Failed attempts keep them so a retry can replay the artifact.
+func releaseReaders() {
+	releaseRuntimeReaders()
+	for _, reader := range []io.Reader{
+		config.Cli, config.RuntimeLib, config.LinuxMuslCli, config.LinuxMuslRuntimeLib,
+	} {
+		if r, ok := reader.(*retryableReader); ok {
+			r.release()
+		}
+	}
+}
+
+func releaseRuntimeReaders() {
+	for _, reader := range []io.Reader{
+		config.RuntimeExecutable, config.RuntimeNode,
+		config.LinuxMuslRuntimeExecutable, config.LinuxMuslRuntimeNode,
+	} {
+		if r, ok := reader.(*retryableReader); ok {
+			r.release()
+		}
+	}
+}
+
+func (r *retryableReader) Close() error {
+	if closer, ok := r.source.(io.Closer); ok {
+		return closer.Close()
+	}
+	return nil
 }
 
 func Path() string {
@@ -110,8 +224,12 @@ func Path() string {
 		}
 		return ""
 	}
-	cliPathCached = true
-	cliPath = install(installDir)
+	// Cache only a successful installation so a later call can retry after the
+	// environment is corrected.
+	if path := install(installDir); path != "" {
+		cliPathCached = true
+		cliPath = path
+	}
 	return cliPath
 }
 
@@ -159,6 +277,7 @@ var (
 	runtimeLibPath         string
 	runtimePath            string
 	runtimeAssetsInstalled bool
+	runtimeAssetsBytes     []byte
 	linuxMuslBundle        bool
 )
 
@@ -233,7 +352,7 @@ func configuredInstallDir() (string, error) {
 }
 
 func selectLinuxMuslBundle() {
-	if runtime.GOOS != "linux" || config.LinuxMuslCli == nil || !isMusl() {
+	if linuxMuslBundle || runtime.GOOS != "linux" || config.LinuxMuslCli == nil || !isMusl() {
 		return
 	}
 	config = linuxMuslConfig(config)
@@ -290,12 +409,16 @@ func installAt(installDir string) (string, error) {
 		if !bytes.Equal(existingHash, config.CliHash) {
 			return "", fmt.Errorf("existing binary hash mismatch")
 		}
+		if err := installLicense(finalPath); err != nil {
+			return "", err
+		}
+		var installedRuntimePath string
 		if config.RuntimeExecutable != nil {
 			path, err := installRuntimePair(installDir)
 			if err != nil {
 				return "", err
 			}
-			runtimePath = path
+			installedRuntimePath = path
 		}
 		if config.RuntimeLib != nil {
 			libPath, err := installRuntimeLib(installDir)
@@ -307,25 +430,25 @@ func installAt(installDir string) (string, error) {
 		if err := installRuntimeAssets(installDir); err != nil {
 			return "", err
 		}
+		runtimePath = installedRuntimePath
+		releaseReaders()
 		return finalPath, nil
 	}
 
 	if err := installVerifiedFile(finalPath, config.Cli, config.CliHash, 0755, "CLI binary"); err != nil {
 		return "", err
 	}
-	if len(config.License) > 0 {
-		licensePath := finalPath + ".license"
-		if err := os.WriteFile(licensePath, config.License, 0644); err != nil {
-			return "", fmt.Errorf("writing license file: %w", err)
-		}
+	if err := installLicense(finalPath); err != nil {
+		return "", err
 	}
 
+	var installedRuntimePath string
 	if config.RuntimeExecutable != nil {
 		path, err := installRuntimePair(installDir)
 		if err != nil {
 			return "", err
 		}
-		runtimePath = path
+		installedRuntimePath = path
 	}
 
 	// Install the native in-process runtime library (if bundled) next to the CLI.
@@ -340,8 +463,29 @@ func installAt(installDir string) (string, error) {
 	if err := installRuntimeAssets(installDir); err != nil {
 		return "", err
 	}
+	runtimePath = installedRuntimePath
+	releaseReaders()
 
 	return finalPath, nil
+}
+
+// installLicense ensures the license sits next to the CLI. It runs on every
+// install attempt so a retry after a failed write does not report success
+// without it.
+func installLicense(finalPath string) error {
+	if len(config.License) == 0 {
+		return nil
+	}
+	licensePath := finalPath + ".license"
+	// Accept a matching existing license, which may be read-only or owned by
+	// another user, and write it only when missing or different.
+	if existing, err := os.ReadFile(licensePath); err == nil && bytes.Equal(existing, config.License) {
+		return nil
+	}
+	if err := os.WriteFile(licensePath, config.License, 0644); err != nil {
+		return fmt.Errorf("writing license file: %w", err)
+	}
+	return nil
 }
 
 func installRuntimeAt(installDir string) (string, error) {
@@ -366,6 +510,7 @@ func installRuntimeAt(installDir string) (string, error) {
 	if err := installRuntimeAssets(installDir); err != nil {
 		return "", err
 	}
+	releaseRuntimeReaders()
 	return path, nil
 }
 
@@ -379,12 +524,19 @@ func installRuntimeAssets(installDir string) error {
 	if config.RuntimeAssets == nil || runtimeAssetsInstalled {
 		return nil
 	}
-	archiveBytes, err := io.ReadAll(config.RuntimeAssets)
-	if closer, ok := config.RuntimeAssets.(io.Closer); ok {
-		closer.Close()
-	}
-	if err != nil {
-		return fmt.Errorf("reading runtime assets: %w", err)
+	// The reader is single-use, so keep its bytes until the assets are installed.
+	// A failed write can then be retried without re-reading an exhausted reader.
+	archiveBytes := runtimeAssetsBytes
+	if archiveBytes == nil {
+		var err error
+		archiveBytes, err = io.ReadAll(config.RuntimeAssets)
+		if closer, ok := config.RuntimeAssets.(io.Closer); ok {
+			closer.Close()
+		}
+		if err != nil {
+			return fmt.Errorf("reading runtime assets: %w", err)
+		}
+		runtimeAssetsBytes = archiveBytes
 	}
 	actual := sha256.Sum256(archiveBytes)
 	if !bytes.Equal(actual[:], config.RuntimeAssetsHash) {
@@ -426,6 +578,7 @@ func installRuntimeAssets(installDir string) error {
 		}
 	}
 	runtimeAssetsInstalled = true
+	runtimeAssetsBytes = nil
 	return nil
 }
 
@@ -479,6 +632,14 @@ func installVerifiedFile(path string, reader io.Reader, expectedHash []byte, mod
 		return nil
 	}
 
+	// Setup wraps every artifact reader so it can rewind, which lets a failed
+	// attempt be retried without buffering a seekable artifact in memory.
+	if seeker, ok := reader.(io.Seeker); ok {
+		if _, err := seeker.Seek(0, io.SeekStart); err != nil {
+			return fmt.Errorf("rewinding %s: %w", label, err)
+		}
+	}
+
 	tmp, err := os.CreateTemp(filepath.Dir(path), ".copilot-runtime-pair-*.tmp")
 	if err != nil {
 		return fmt.Errorf("creating temporary %s: %w", label, err)
@@ -492,8 +653,14 @@ func installVerifiedFile(path string, reader io.Reader, expectedHash []byte, mod
 	if err1 := tmp.Close(); err1 != nil && err == nil {
 		err = err1
 	}
+	// A rewindable reader stays open: it is released once the whole
+	// installation has succeeded (releaseReaders), so a failure anywhere in the
+	// attempt, even in a different install directory, can still be retried.
+	// Other readers cannot be replayed and are released now.
 	if closer, ok := reader.(io.Closer); ok {
-		closer.Close()
+		if _, rewindable := reader.(io.Seeker); !rewindable {
+			closer.Close()
+		}
 	}
 	if err != nil {
 		os.Remove(tmpPath)
@@ -503,11 +670,47 @@ func installVerifiedFile(path string, reader io.Reader, expectedHash []byte, mod
 		os.Remove(tmpPath)
 		return fmt.Errorf("%s hash mismatch", label)
 	}
-	if err := os.Rename(tmpPath, path); err != nil {
+	if err := publishStaged(tmpPath, path, expectedHash, mode); err != nil {
 		os.Remove(tmpPath)
 		return fmt.Errorf("installing %s: %w", label, err)
 	}
 	return nil
+}
+
+// publishStaged moves the verified staged file at tmpPath to path, keeping a
+// file already there when it holds the expected bytes and permission bits.
+//
+// Installers that start on a cold cache at the same time all miss the fast
+// path and stage their own copy. The install lock normally serializes them,
+// but it is best effort: when it cannot be taken (for example because another
+// user created the lock file), renaming each copy into place replaces the file
+// an earlier installer already returned, and a process started from it keeps
+// running an unlinked executable. Outside Windows the staged file is therefore
+// hard-linked into place, which never replaces an existing file; an identical
+// file found there is kept and the staged copy discarded. A different file is
+// replaced by the rename as before, as is any target when the filesystem
+// cannot hard-link. Windows keeps the rename, because a running executable
+// cannot be replaced there.
+func publishStaged(tmpPath, path string, expectedHash []byte, mode os.FileMode) error {
+	if runtime.GOOS != "windows" {
+		err := os.Link(tmpPath, path)
+		if err == nil || (errors.Is(err, os.ErrExist) && isVerifiedFile(path, expectedHash, mode)) {
+			os.Remove(tmpPath)
+			return nil
+		}
+	}
+	return os.Rename(tmpPath, path)
+}
+
+// isVerifiedFile reports whether path is a regular file with the expected
+// SHA-256 hash and permission bits.
+func isVerifiedFile(path string, expectedHash []byte, mode os.FileMode) bool {
+	info, err := os.Lstat(path)
+	if err != nil || !info.Mode().IsRegular() || info.Mode().Perm() != mode.Perm() {
+		return false
+	}
+	hash, err := hashFile(path)
+	return err == nil && bytes.Equal(hash, expectedHash)
 }
 
 func runtimeExecutableName() string {
@@ -537,31 +740,8 @@ func installRuntimeLib(installDir string) (string, error) {
 		return libPath, nil
 	}
 
-	// Write to a temp file in the same directory, verify, then atomically rename.
-	tmp, err := os.CreateTemp(installDir, ".copilot-runtime-*.tmp")
-	if err != nil {
-		return "", fmt.Errorf("creating temp runtime library: %w", err)
-	}
-	tmpPath := tmp.Name()
-	h := sha256.New()
-	_, err = io.Copy(io.MultiWriter(tmp, h), config.RuntimeLib)
-	if err1 := tmp.Close(); err1 != nil && err == nil {
-		err = err1
-	}
-	if closer, ok := config.RuntimeLib.(io.Closer); ok {
-		closer.Close()
-	}
-	if err != nil {
-		os.Remove(tmpPath)
-		return "", fmt.Errorf("writing runtime library: %w", err)
-	}
-	if !bytes.Equal(h.Sum(nil), config.RuntimeLibHash) {
-		os.Remove(tmpPath)
-		return "", fmt.Errorf("runtime library hash mismatch")
-	}
-	if err := os.Rename(tmpPath, libPath); err != nil {
-		os.Remove(tmpPath)
-		return "", fmt.Errorf("installing runtime library: %w", err)
+	if err := installVerifiedFile(libPath, config.RuntimeLib, config.RuntimeLibHash, 0600, "runtime library"); err != nil {
+		return "", err
 	}
 	return libPath, nil
 }

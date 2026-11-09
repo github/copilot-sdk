@@ -47,6 +47,32 @@ public final class GeneratedConstructorMigrationGuard {
     private static final List<CompatibilityConstruction> APPROVED = List.of(
             new CompatibilityConstruction(
                     new Construction(
+                            "src/test/java/com/github/copilot/ProviderConfigurationLegacyConstructorTest.java",
+                            "com.github.copilot.ProviderConfigurationLegacyConstructorTest"
+                                    + "#providerKeepsItsReleasedConstructorAndOmitsUnspecifiedRuntimeOptions()V",
+                            "com.github.copilot.generated.rpc.NamedProviderConfig",
+                            "(Ljava/lang/String;Lcom/github/copilot/generated/rpc/ProviderConfigType;"
+                                    + "Lcom/github/copilot/generated/rpc/ProviderConfigWireApi;"
+                                    + "Lcom/github/copilot/generated/rpc/ProviderConfigTransport;Ljava/lang/String;"
+                                    + "Ljava/lang/String;Ljava/lang/String;"
+                                    + "Lcom/github/copilot/generated/rpc/ProviderConfigAzure;Ljava/util/Map;"
+                                    + "Lcom/github/copilot/generated/rpc/ProviderConfigModelProvider;Ljava/lang/Boolean;)V",
+                            "new"),
+                    "Protects the released provider constructor and omission of the later local runtime options."),
+            new CompatibilityConstruction(
+                    new Construction(
+                            "src/test/java/com/github/copilot/ProviderConfigurationLegacyConstructorTest.java",
+                            "com.github.copilot.ProviderConfigurationLegacyConstructorTest"
+                                    + "#modelKeepsItsReleasedConstructorAndOmitsUnspecifiedAutoMetadata()V",
+                            "com.github.copilot.generated.rpc.ProviderModelConfig",
+                            "(Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;"
+                                    + "Ljava/lang/String;Ljava/lang/Long;Ljava/lang/Long;Ljava/lang/Long;"
+                                    + "Lcom/github/copilot/generated/rpc/ModelCapabilitiesOverride;"
+                                    + "Ljava/lang/Object;Ljava/util/Map;)V",
+                            "new"),
+                    "Protects the released model constructor and omission of the later Auto registration metadata."),
+            new CompatibilityConstruction(
+                    new Construction(
                             "src/main/java/com/github/copilot/CopilotSession.java",
                             "com.github.copilot.CopilotSession#setModel(Ljava/lang/String;Ljava/lang/String;)"
                                     + "Ljava/util/concurrent/CompletableFuture;",
@@ -140,6 +166,71 @@ public final class GeneratedConstructorMigrationGuard {
             new CompatibilityConstruction(
                     new Construction(
                             "src/test/java/com/github/copilot/LegacyRequestCompatibilityTest.java",
+                            "com.github.copilot.LegacyRequestCompatibilityTest"
+                                    + "#featureFlagReadPreservesExistingConstructorsAndDefaultWireMode()V",
+                            "com.github.copilot.generated.rpc.SessionFeatureFlagsReadParams",
+                            "(Ljava/lang/String;Ljava/lang/Boolean;Ljava/util/List;Ljava/util/List;Ljava/lang/Long;)V",
+                            "new"),
+                    "Protects the released flag-read request descriptor and omission of optional display fields."),
+            new CompatibilityConstruction(
+                    new Construction(
+                            "src/test/java/com/github/copilot/LegacyRequestCompatibilityTest.java",
+                            "com.github.copilot.LegacyRequestCompatibilityTest"
+                                    + "#featureFlagReadPreservesExistingConstructorsAndDefaultWireMode()V",
+                            "com.github.copilot.generated.rpc.SessionFeatureFlagsReadResult",
+                            "(Lcom/github/copilot/generated/rpc/FeatureFlagServiceSnapshot;Ljava/util/Map;Ljava/util/List;)V",
+                            "new"),
+                    "Protects the released flag-read result descriptor and its default wire shape."),
+            new CompatibilityConstruction(
+                    new Construction(
+                            "src/test/java/com/github/copilot/LegacyRequestCompatibilityTest.java",
+                            "com.github.copilot.LegacyRequestCompatibilityTest"
+                                    + "#permissionRequiredPreservesThePublishedConstructor()V",
+                            "com.github.copilot.generated.rpc.SessionPermissionsSetRequiredParams",
+                            "(Ljava/lang/String;Ljava/lang/Boolean;)V",
+                            "new"),
+                    "Protects the original permission constructor and omission of the later provider identity."),
+            new CompatibilityConstruction(
+                    new Construction(
+                            "src/test/java/com/github/copilot/generated/rpc/GeneratedRpcApiCoverageTest.java",
+                            "com.github.copilot.generated.rpc.GeneratedRpcApiCoverageTest"
+                                    + "#permission_requirements_preserve_original_constructor_and_provider_identity()V",
+                            "com.github.copilot.generated.rpc.SessionPermissionsSetRequiredParams",
+                            "(Ljava/lang/String;Ljava/lang/Boolean;)V",
+                            "new"),
+                    "Protects the original permission request descriptor and wire shape without a provider identity."),
+            new CompatibilityConstruction(
+                    new Construction(
+                            "src/test/java/com/github/copilot/generated/rpc/GeneratedRpcApiCoverageTest.java",
+                            "com.github.copilot.generated.rpc.GeneratedRpcApiCoverageTest"
+                                    + "#sessions_open_preserves_original_result_constructor_and_construction_plan()V",
+                            "com.github.copilot.generated.rpc.SessionsOpenResult",
+                            "(Lcom/github/copilot/generated/rpc/SessionsOpenStatus;Ljava/lang/String;Ljava/lang/Object;"
+                                    + "Ljava/util/List;Ljava/lang/String;"
+                                    + "Lcom/github/copilot/generated/rpc/RemoteSessionMetadataValue;Ljava/util/List;)V",
+                            "new"),
+                    "Protects the original session-open result descriptor and omission of the native construction plan."),
+            new CompatibilityConstruction(
+                    new Construction(
+                            "src/test/java/com/github/copilot/generated/rpc/GeneratedRpcApiCoverageTest.java",
+                            "com.github.copilot.generated.rpc.GeneratedRpcApiCoverageTest"
+                                    + "#sessions_close_preserves_original_constructor_and_detach_option()V",
+                            "com.github.copilot.generated.rpc.SessionsCloseParams",
+                            "(Ljava/lang/String;)V",
+                            "new"),
+                    "Protects the original session-close descriptor and omission of the later hook-detachment option."),
+            new CompatibilityConstruction(
+                    new Construction(
+                            "src/test/java/com/github/copilot/generated/rpc/GeneratedRpcApiCoverageTest.java",
+                            "com.github.copilot.generated.rpc.GeneratedRpcApiCoverageTest"
+                                    + "#sessions_close_preserves_original_constructor_and_detach_option()V",
+                            "com.github.copilot.generated.rpc.SessionsCloseParams",
+                            "(Ljava/lang/String;Ljava/lang/Boolean;)V",
+                            "new"),
+                    "Protects legacy null-as-omission construction, unlike the builder's explicit-null semantics."),
+            new CompatibilityConstruction(
+                    new Construction(
+                            "src/test/java/com/github/copilot/LegacyRequestCompatibilityTest.java",
                             "com.github.copilot.LegacyRequestCompatibilityTest#existingRecordCallsOmitTheAddedFields()V",
                             "com.github.copilot.generated.rpc.McpPlanInstallParams",
                             "(Lcom/github/copilot/generated/rpc/CatalogClientContract;Ljava/lang/Object;"
@@ -155,6 +246,39 @@ public final class GeneratedConstructorMigrationGuard {
                                     + "Ljava/util/List;Lcom/github/copilot/generated/rpc/CatalogSearchPage;)V",
                             "new"),
                     "Protects the released record descriptor and omission of the later policy-session field."),
+            new CompatibilityConstruction(
+                    new Construction(
+                            "src/test/java/com/github/copilot/LegacyRequestCompatibilityTest.java",
+                            "com.github.copilot.LegacyRequestCompatibilityTest"
+                                    + "#sessionOptionsRetainThePreFeatureFlagConstructor()V",
+                            "com.github.copilot.generated.rpc.SessionOpenOptions",
+                            "(Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;"
+                                    + "Lcom/github/copilot/generated/rpc/SessionOpenOptionsReasoningSummary;"
+                                    + "Lcom/github/copilot/generated/rpc/Verbosity;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;"
+                                    + "Ljava/lang/String;Ljava/lang/String;Ljava/lang/Object;Ljava/lang/Boolean;Ljava/util/List;"
+                                    + "Ljava/lang/Boolean;Lcom/github/copilot/generated/rpc/SessionManagedSettings;Ljava/lang/Boolean;"
+                                    + "Ljava/lang/Boolean;Ljava/util/Map;Ljava/lang/Boolean;Ljava/lang/Object;"
+                                    + "Lcom/github/copilot/generated/rpc/ProviderConfig;"
+                                    + "Lcom/github/copilot/generated/rpc/CapiSessionOptions;Ljava/lang/Boolean;Ljava/util/List;"
+                                    + "Ljava/util/List;Ljava/lang/String;Ljava/util/List;Lcom/github/copilot/generated/rpc/SessionContext;"
+                                    + "Ljava/lang/Boolean;Ljava/lang/Boolean;Ljava/lang/Boolean;Ljava/lang/String;Ljava/lang/String;"
+                                    + "Ljava/util/List;Ljava/util/List;Ljava/util/List;Ljava/util/List;Ljava/lang/Boolean;"
+                                    + "Lcom/github/copilot/generated/rpc/ShellOptions;Ljava/lang/String;Ljava/util/List;"
+                                    + "Lcom/github/copilot/generated/rpc/SandboxConfig;"
+                                    + "Lcom/github/copilot/generated/rpc/SandboxConfigSource;Ljava/lang/Boolean;"
+                                    + "Lcom/github/copilot/generated/rpc/SessionOpenOptionsEnvValueMode;Ljava/util/List;Ljava/util/Map;"
+                                    + "Ljava/lang/Boolean;Ljava/util/List;Ljava/util/List;Ljava/util/List;Ljava/util/List;Ljava/util/List;"
+                                    + "Ljava/lang/Boolean;Ljava/lang/Boolean;Ljava/util/List;Ljava/util/List;Ljava/util/List;"
+                                    + "Ljava/lang/Boolean;Ljava/lang/Boolean;Ljava/lang/Boolean;Ljava/util/List;Ljava/lang/Boolean;"
+                                    + "Ljava/lang/String;Ljava/lang/Boolean;Ljava/lang/Boolean;Ljava/lang/Boolean;Ljava/lang/String;"
+                                    + "Ljava/lang/Boolean;Ljava/lang/Boolean;Ljava/lang/Boolean;Ljava/lang/Boolean;Ljava/lang/Long;"
+                                    + "Lcom/github/copilot/generated/rpc/ModelCapabilitiesOverride;"
+                                    + "Lcom/github/copilot/generated/rpc/SessionLimitsConfig;"
+                                    + "Lcom/github/copilot/generated/rpc/AutopilotOptions;Ljava/lang/String;Ljava/lang/String;"
+                                    + "Ljava/lang/Boolean;Ljava/lang/String;Ljava/util/List;Ljava/lang/Boolean;"
+                                    + "Lcom/github/copilot/generated/rpc/MemoryConfiguration;Ljava/util/List;)V",
+                            "new"),
+                    "Protects the previous session-open constructor and omission of host flag configuration."),
             new CompatibilityConstruction(
                     new Construction(
                             "src/test/java/com/github/copilot/ImageGenerationConfigTest.java",
@@ -219,6 +343,21 @@ public final class GeneratedConstructorMigrationGuard {
                     "Protects the mainline filesystem constructor and omission of the later enumerate-only paths."),
             new CompatibilityConstruction(
                     new Construction(
+                            "src/test/java/com/github/copilot/SessionEventDeserializationTest.java",
+                            "com.github.copilot.SessionEventDeserializationTest"
+                                    + "#testLegacyToolStartCanonicalConstructorAcceptsNullOptionalArguments()V",
+                            "com.github.copilot.generated.ToolExecutionStartEvent$ToolExecutionStartEventData",
+                            "(Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/lang/Boolean;"
+                                    + "Ljava/lang/Object;Lcom/github/copilot/generated/ToolExecutionStartShellToolInfo;"
+                                    + "Ljava/lang/String;Ljava/lang/Boolean;Ljava/lang/String;Ljava/lang/String;"
+                                    + "Ljava/lang/String;Lcom/github/copilot/generated/McpServerTransport;"
+                                    + "Lcom/github/copilot/generated/McpServerSource;Ljava/lang/String;Ljava/lang/Boolean;"
+                                    + "Lcom/github/copilot/generated/ToolExecutionStartToolDescription;Ljava/lang/String;"
+                                    + "Lcom/github/copilot/generated/FusionAttribution;Ljava/lang/String;Ljava/util/Set;)V",
+                            "new"),
+                    "Protects the pre-program canonical constructor with null optional arguments and a null presence set."),
+            new CompatibilityConstruction(
+                    new Construction(
                             "src/test/java/com/github/copilot/SessionInfoConstructorCompatibilityTest.java",
                             "com.github.copilot.SessionInfoConstructorCompatibilityTest"
                                     + "#releasedConstructorPreservesUrlAndTip()V",
@@ -258,6 +397,41 @@ public final class GeneratedConstructorMigrationGuard {
                             "(Ljava/lang/String;Ljava/lang/String;)V",
                             "new"),
                     "Protects the released MarketplacePluginInfo descriptor and omission of the later managed assignment."),
+            new CompatibilityConstruction(
+                    new Construction(
+                            "src/test/java/com/github/copilot/SessionEventHandlingTest.java",
+                            "com.github.copilot.SessionEventHandlingTest"
+                                    + "#externalToolRequestPreservesPositionalConstructors()V",
+                            "com.github.copilot.generated.ExternalToolRequestedEvent$ExternalToolRequestedEventData",
+                            "(Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;"
+                                    + "Ljava/lang/String;Ljava/lang/Object;Ljava/lang/String;Ljava/lang/String;"
+                                    + "Ljava/lang/String;)V",
+                            "new"),
+                    "Protects the released external-tool event descriptor without SDK ownership metadata."),
+            new CompatibilityConstruction(
+                    new Construction(
+                            "src/test/java/com/github/copilot/SessionEventHandlingTest.java",
+                            "com.github.copilot.SessionEventHandlingTest"
+                                    + "#externalToolRequestPreservesPositionalConstructors()V",
+                            "com.github.copilot.generated.ExternalToolRequestedEvent$ExternalToolRequestedEventData",
+                            "(Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;"
+                                    + "Ljava/lang/String;Ljava/lang/Object;Ljava/lang/String;Ljava/lang/String;"
+                                    + "Ljava/lang/String;Ljava/util/Set;)V",
+                            "new"),
+                    "Protects the released external-tool event presence constructor without SDK ownership metadata."),
+            new CompatibilityConstruction(
+                    new Construction(
+                            "src/test/java/com/github/copilot/SessionRequestBuilderTest.java",
+                            "com.github.copilot.SessionRequestBuilderTest"
+                                    + "#externalToolDefinitionPreservesPositionalConstructor()V",
+                            "com.github.copilot.generated.rpc.ProtocolExternalToolDefinition",
+                            "(Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/util/Map;"
+                                    + "Ljava/lang/Boolean;Ljava/lang/Boolean;"
+                                    + "Lcom/github/copilot/generated/rpc/ProtocolExternalToolDefer;"
+                                    + "Ljava/lang/Boolean;Ljava/util/Map;"
+                                    + "Lcom/github/copilot/generated/rpc/ProtocolExternalToolNamespace;)V",
+                            "new"),
+                    "Protects the released external-tool definition descriptor and omission of SDK ownership metadata."),
             new CompatibilityConstruction(
                     new Construction(
                             "src/test/java/com/github/copilot/SessionEventHandlingTest.java",

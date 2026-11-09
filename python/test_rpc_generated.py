@@ -21,6 +21,7 @@ from copilot.generated.rpc import (
 )
 from copilot.rpc import (
     AgentInfo,
+    AuthEnumerateQuery,
     AuthReadValue,
     BuiltinToolInputSchemaType,
     CatalogInvalidRequestError,
@@ -34,8 +35,13 @@ from copilot.rpc import (
     InstalledPluginInfo,
     InstructionSource,
     LocalSessionMetadataValue,
+    LogResult,
+    MCPGrantType,
     MCPServerConfigHTTP,
+    PendingPermissionRequest,
     Plugin,
+    ProtocolExternalToolDefinition,
+    ProtocolSystemMessageConfig,
     QueuedCommandHandled,
     QueuedCommandNotHandled,
     QuotaWarningProjection,
@@ -56,6 +62,135 @@ from copilot.rpc import (
     UIElicitationSchemaType,
     UpdateSubagentSettingsRequest,
 )
+
+
+@pytest.mark.parametrize("value", ["anthropic", "azure", "openai"])
+def test_legacy_provider_type_remains_compatible_with_config_and_endpoint(value):
+    from copilot import rpc
+
+    kind = rpc.ProviderType(value)
+    config = rpc.ProviderConfig(base_url="http://localhost:1234", type=kind)
+    endpoint = rpc.ProviderEndpoint(base_url="http://localhost:1234", headers={}, type=kind)
+
+    assert "ProviderType" in rpc.__all__
+    assert config.to_dict()["type"] == value
+    assert endpoint.to_dict()["type"] == value
+    assert rpc.ProviderConfig.from_dict(config.to_dict()).type is kind
+    assert rpc.ProviderEndpoint.from_dict(endpoint.to_dict()).type is kind
+    assert config.type is kind
+    assert endpoint.type is kind
+    named = rpc.NamedProviderConfig.from_dict(
+        {"name": "local", "baseUrl": config.base_url, "type": value}
+    )
+    assert named.type is kind
+    assert named.to_dict()["type"] == value
+    current = rpc.ProviderConfig(base_url=config.base_url, type=rpc.ProviderConfigType(value))
+    assert current.to_dict()["type"] == value
+    assert current.type is rpc.ProviderConfigType(value)
+    restored = rpc.ProviderConfig.from_dict(current.to_dict())
+    assert restored.type is current.type
+    assert restored == current
+    named_current = rpc.NamedProviderConfig(
+        name="local", base_url=config.base_url, type=current.type
+    )
+    assert rpc.NamedProviderConfig.from_dict(named_current.to_dict()) == named_current
+
+
+def test_winml_provider_type_keeps_its_new_config_representation():
+    from copilot import rpc
+
+    config = rpc.ProviderConfig(base_url="model.gguf", type=rpc.ProviderConfigType.WINML)
+    assert config.to_dict()["type"] == "winml"
+    assert rpc.ProviderConfig.from_dict(config.to_dict()).type is rpc.ProviderConfigType.WINML
+    with pytest.raises(ValueError):
+        rpc.ProviderEndpoint.from_dict({"baseUrl": config.base_url, "headers": {}, "type": "winml"})
+    with pytest.raises(ValueError):
+        rpc.ProviderEndpoint(
+            base_url=config.base_url, headers={}, type=rpc.ProviderConfigType.WINML
+        ).to_dict()
+
+
+@pytest.mark.parametrize(
+    "model_name,enum_name,field,payload",
+    [
+        (
+            "LocalModelGPURequirement",
+            "LocalModelGPURequirementKind",
+            "kind",
+            {"kind": "unknown"},
+        ),
+        (
+            "LocalModelTimelineMessage",
+            "SessionLogLevel",
+            "type",
+            {"type": "info", "text": "Model ready"},
+        ),
+    ],
+)
+def test_local_model_values_preserve_published_types_and_enum_identities(
+    model_name, enum_name, field, payload
+):
+    from copilot import rpc
+
+    restored = getattr(rpc, model_name).from_dict(payload)
+
+    assert getattr(restored, field) is getattr(rpc, enum_name)(payload[field])
+    assert restored.to_dict() == payload
+
+
+@pytest.mark.parametrize(
+    "model,fields,payload",
+    [
+        (
+            AuthEnumerateQuery,
+            "kind refresh broker_available provider",
+            {"kind": "accounts", "refresh": True, "brokerAvailable": False, "provider": "entra"},
+        ),
+        (
+            ProtocolSystemMessageConfig,
+            "content mode content_blocks sections",
+            {"content": "Additional instructions", "mode": "append"},
+        ),
+    ],
+)
+def test_flat_union_positional_constructors_preserve_branch_field_order(model, fields, payload):
+    restored = model.from_dict(payload)
+    positional = model(*(getattr(restored, name) for name in fields.split()))
+
+    assert positional.to_dict() == payload
+
+
+def test_http_oauth_grant_uses_the_published_shared_enum():
+    payload = {"url": "https://example.test/mcp", "oauthGrantType": "client_credentials"}
+    restored = MCPServerConfigHTTP.from_dict(payload)
+
+    assert restored.oauth_grant_type is MCPGrantType.CLIENT_CREDENTIALS
+    configured = MCPServerConfigHTTP(
+        url=payload["url"], oauth_grant_type=MCPGrantType.CLIENT_CREDENTIALS
+    )
+    assert configured.to_dict() == payload
+
+
+def test_shared_permission_union_rejects_an_unrelated_dataclass():
+    request = PendingPermissionRequest(request=HostEmptyResult(), request_id="request")
+
+    with pytest.raises(AssertionError):
+        request.to_dict()
+
+
+@pytest.mark.parametrize("value,error", [(42, AttributeError), (None, TypeError)])
+def test_uuid_rpc_field_preserves_stdlib_conversion_errors(value, error):
+    with pytest.raises(error):
+        LogResult.from_dict({"eventId": value})
+
+
+def test_external_tool_definition_preserves_positional_constructor():
+    definition = ProtocolExternalToolDefinition("Description", "lookup", None, True)
+    assert definition.is_terminal is True
+    expected = {"description": "Description", "name": "lookup", "isTerminal": True}
+    assert definition.to_dict() == expected
+    owned = expected | {"hasHandler": True}
+    assert ProtocolExternalToolDefinition.from_dict(owned).to_dict() == owned
 
 
 @pytest.mark.asyncio

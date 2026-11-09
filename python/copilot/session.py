@@ -249,10 +249,12 @@ def _tool_to_wire_definition(tool: Tool) -> ProtocolExternalToolDefinition:
         parameters=tool.parameters or None,
         overrides_built_in_tool=True if tool.overrides_built_in_tool else None,
         skip_permission=True if tool.skip_permission else None,
+        has_handler=tool.handler is not None,
         defer=defer,
         metadata=tool.metadata,
         is_terminal=True if tool.is_terminal else None,
         namespace=tool.namespace,
+        idempotent=True if tool.idempotent else None,
     )
 
 
@@ -612,6 +614,8 @@ def create_attributed_permission_result(
 class PermissionInvocation(TypedDict, total=False):
     session_id: Required[str]
     managed_settings_enabled: NotRequired[bool]
+    # Experimental: owning program invocation, absent for ordinary requests.
+    program_tool_call_id: NotRequired[str]
     assisted_approval_assessment: NotRequired[AssistedApprovalAssessment]
     # Only standard prompt kinds can clear a raw managed-approval requirement.
     # Missing and other prompt kinds must remain conservative.
@@ -1954,6 +1958,10 @@ class ProviderModelConfig(TypedDict, total=False):
     id: str
     # Name of the NamedProviderConfig that serves this model.
     provider: str
+    # Persisted on-device Auto annotation.
+    auto_local: Any
+    # Provider-published model metadata, including live Auto routing annotations.
+    metadata: dict[str, Any]
     # Model name sent to the provider API for inference. Defaults to id.
     wire_model: str
     # Well-known base model id used for behavior/capability/config lookup. Defaults to id.
@@ -3028,13 +3036,15 @@ class CopilotSession:
         """
         match event.data:
             case ExternalToolRequestedData() as data:
+                if data._has_handler is False:
+                    return
                 request_id = data.request_id
                 tool_name = data.tool_name
                 if self._destroyed or not request_id or not tool_name:
                     return
 
                 handler = self._get_tool_handler(tool_name)
-                if not handler:
+                if handler is None:
                     return  # This client doesn't handle this tool; another client will.
 
                 tool_call_id = data.tool_call_id or ""
@@ -3099,6 +3109,7 @@ class CopilotSession:
                         perm_handler,
                         data.prompt_request,
                         data.assisted_approval_assessment,
+                        data.program_tool_call_id,
                     )
                 )
 
@@ -3399,6 +3410,7 @@ class CopilotSession:
         handler: _PermissionHandlerFn,
         prompt_request: PermissionPromptRequest | None = None,
         assisted_approval_assessment: AssistedApprovalAssessment | None = None,
+        program_tool_call_id: str | None = None,
     ) -> None:
         """Execute a permission handler and respond via RPC."""
         try:
@@ -3411,6 +3423,8 @@ class CopilotSession:
                 invocation["prompt_request"] = prompt_request
             if assisted_approval_assessment is not None:
                 invocation["assisted_approval_assessment"] = assisted_approval_assessment
+            if program_tool_call_id is not None:
+                invocation["program_tool_call_id"] = program_tool_call_id
             result = await _run_handler(handler, permission_request, invocation)
             log_timing(
                 logger,
@@ -4209,9 +4223,10 @@ class CopilotSession:
             # normalized dict; cast to ``Any`` so ty doesn't try to narrow the
             # specific TypedDict variant from the runtime ``dict``.
             input_data = cast(Any, transformed)
-            result = handler(input_data, {"session_id": self.session_id})
-            if inspect.isawaitable(result):
-                result = await result
+            with trace_context(transformed.get("traceparent"), transformed.get("tracestate")):
+                result = handler(input_data, {"session_id": self.session_id})
+                if inspect.isawaitable(result):
+                    result = await result
             log_timing(
                 logger,
                 logging.DEBUG,

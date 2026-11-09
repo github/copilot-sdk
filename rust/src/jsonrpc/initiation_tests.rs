@@ -142,10 +142,19 @@ async fn initiation_submits_before_return_and_unpolled_drop_removes_registration
 
 #[tokio::test]
 async fn unpolled_send_and_wait_drop_cancels_only_its_completion_wait() {
+    assert_unpolled_wait_cancellation("session.sendAndWait", None).await;
+}
+
+#[tokio::test]
+async fn unpolled_local_models_watch_drop_cancels_only_its_wait() {
+    assert_unpolled_wait_cancellation("localModels.watch", Some(json!({"afterRevision": 1}))).await;
+}
+
+async fn assert_unpolled_wait_cancellation(method: &str, params: Option<Value>) {
     let peer = Peer::new(false);
     let pending = peer
         .rpc
-        .begin_request_with_inline_callback("session.sendAndWait", None, None)
+        .begin_request_with_inline_callback(method, params, None)
         .unwrap();
     let request_id = peer.sink.frames.lock()[0]["id"].clone();
     drop(pending);
@@ -153,11 +162,74 @@ async fn unpolled_send_and_wait_drop_cancels_only_its_completion_wait() {
     assert!(peer.rpc.pending_requests.read().is_empty());
     let frames = peer.sink.frames.lock().clone();
     assert_eq!(frames.len(), 2);
-    assert_eq!(frames[0]["method"], "session.sendAndWait");
+    assert_eq!(frames[0]["method"], method);
     assert_eq!(frames[1]["method"], "$/cancelRequest");
     assert_eq!(frames[1]["params"], json!({"id": request_id}));
     assert!(frames[1].get("id").is_none());
     peer.finish().await;
+}
+
+#[tokio::test]
+async fn dropped_feature_flag_request_cancels_only_its_admitted_wait() {
+    for (method, params) in [
+        (
+            "session.featureFlags.read",
+            json!({"sessionId": "owner", "afterRevision": 0}),
+        ),
+        (
+            "session.featureFlags.read",
+            json!({"sessionId": "owner", "waitForAssignments": true}),
+        ),
+    ] {
+        let peer = Peer::new(false);
+        let unrelated = peer
+            .rpc
+            .begin_request_with_inline_callback("ping", None, None)
+            .unwrap();
+        let mut pending = Box::pin(peer.rpc.send_request_with_inline_callback(
+            method,
+            Some(params),
+            None,
+        ));
+        let mut context = std::task::Context::from_waker(std::task::Waker::noop());
+        assert!(pending.as_mut().poll(&mut context).is_pending());
+        let request_id = peer.sink.frames.lock()[1]["id"].clone();
+        assert_eq!(peer.rpc.pending_requests.read().len(), 2);
+
+        drop(pending);
+
+        assert_eq!(peer.rpc.pending_requests.read().len(), 1);
+        let frames = peer.sink.frames.lock().clone();
+        assert_eq!(frames.len(), 3, "{method}: {frames:?}");
+        assert_eq!(frames[2]["method"], "$/cancelRequest");
+        assert_eq!(frames[2]["params"], json!({"id": request_id}));
+        assert!(!peer.rpc.connection_closed.is_cancelled());
+        drop(unrelated);
+        assert_eq!(peer.sink.frames.lock().len(), 3);
+        peer.finish().await;
+    }
+}
+
+#[tokio::test]
+async fn dropped_settings_updates_do_not_send_cancellation() {
+    for settings in [
+        json!({"enabledFeatureFlags": {"CATALOG_SEARCH": true}}),
+        json!({"memory": false}),
+    ] {
+        let peer = Peer::new(false);
+        let pending = peer
+            .rpc
+            .begin_request_with_inline_callback(
+                "session.options.update",
+                Some(json!({"sessionId": "owner", "settings": settings})),
+                None,
+            )
+            .unwrap();
+        drop(pending);
+        assert!(peer.rpc.pending_requests.read().is_empty());
+        assert_eq!(peer.sink.frames.lock().len(), 1, "{settings}");
+        peer.finish().await;
+    }
 }
 
 #[tokio::test]
@@ -317,7 +389,7 @@ async fn stream_initiation_enqueues_without_polling_completion() {
     let mut reader = BufReader::new(reader);
     let request = tokio::time::timeout(
         Duration::from_secs(5),
-        JsonRpcClient::read_message(&mut reader),
+        JsonRpcClient::read_message(&mut reader, &rpc.pending_requests, &rpc.raw_requests),
     )
     .await
     .unwrap()
@@ -345,7 +417,11 @@ async fn unpolled_public_completion_cleans_up_without_retracting_stream_frame() 
     let mut reader = BufReader::new(reader);
     let request = tokio::time::timeout(
         Duration::from_secs(5),
-        JsonRpcClient::read_message(&mut reader),
+        JsonRpcClient::read_message(
+            &mut reader,
+            &client.inner.rpc.pending_requests,
+            &client.inner.rpc.raw_requests,
+        ),
     )
     .await
     .unwrap()

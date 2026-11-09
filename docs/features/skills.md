@@ -713,7 +713,7 @@ The runtime validates the provider's catalog and content:
   | Java | The returned `CompletableFuture` is cancelled with `cancel(true)`, which doesn't interrupt running work. |
   | Rust | The provider future is dropped. |
 
-  These signals cover calls that the runtime cancels. When the connection closes or the client is force-stopped, the .NET, Java, and Rust SDKs also cancel calls that are still running. The Node.js, Python, and Go SDKs don't: a running call continues until it returns, and the SDK discards its result.
+  These signals cover calls that the runtime cancels. When the connection closes or the client is force-stopped, the Python, Go, .NET, Java, and Rust SDKs also cancel calls that are still running. The Node.js SDK doesn't: a running call continues until it returns, and the SDK discards its result.
 
 If listing fails or returns an invalid catalog, the runtime reports the problem in the `errors` list returned by `skills.reload`. A failed reload keeps the provider skills from the last successful list. If reading a skill fails, the `skill` tool reports a generic load failure to the model. The SDK never forwards the text of errors your provider throws or returns, so that text can't leak into the conversation.
 

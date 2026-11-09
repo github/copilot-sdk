@@ -59,13 +59,39 @@ impl CapturedTraceEvent {
     }
 }
 
+/// A recorded span, its parent resolved the way a registry resolves it.
+#[derive(Clone, Copy)]
+struct CapturedSpan {
+    name: &'static str,
+    parent: Option<u64>,
+}
+
 #[derive(Clone, Default)]
 struct TraceCapture {
     events: Arc<std::sync::Mutex<Vec<CapturedTraceEvent>>>,
+    spans: Arc<std::sync::Mutex<HashMap<u64, CapturedSpan>>>,
     changed: Arc<Notify>,
 }
 
 impl TraceCapture {
+    /// The ancestor names, nearest first, of every recorded span called `name`.
+    fn span_ancestors(&self, name: &str) -> Vec<Vec<&'static str>> {
+        let spans = self.spans.lock().unwrap();
+        spans
+            .values()
+            .filter(|span| span.name == name)
+            .map(|span| {
+                let mut ancestors = Vec::new();
+                let mut next = span.parent;
+                while let Some(id) = next {
+                    ancestors.push(spans[&id].name);
+                    next = spans[&id].parent;
+                }
+                ancestors
+            })
+            .collect()
+    }
+
     fn permission_outcome(&self, request_id: &str) -> Option<CapturedTraceEvent> {
         self.events
             .lock()
@@ -132,6 +158,10 @@ impl Visit for TraceFieldVisitor {
 struct CaptureSubscriber {
     capture: TraceCapture,
     next_span_id: AtomicU64,
+    /// Spans currently entered. `capture_traces` installs this subscriber as
+    /// the thread's default and `#[tokio::test]` polls every task on that
+    /// thread, so one stack is the thread's stack.
+    entered: std::sync::Mutex<Vec<u64>>,
 }
 
 impl CaptureSubscriber {
@@ -139,6 +169,7 @@ impl CaptureSubscriber {
         Self {
             capture,
             next_span_id: AtomicU64::new(1),
+            entered: std::sync::Mutex::new(Vec::new()),
         }
     }
 }
@@ -148,8 +179,23 @@ impl Subscriber for CaptureSubscriber {
         true
     }
 
-    fn new_span(&self, _span: &Attributes<'_>) -> Id {
-        Id::from_u64(self.next_span_id.fetch_add(1, Ordering::Relaxed))
+    fn new_span(&self, span: &Attributes<'_>) -> Id {
+        let id = self.next_span_id.fetch_add(1, Ordering::Relaxed);
+        let parent = if span.is_root() {
+            None
+        } else if let Some(parent) = span.parent() {
+            Some(parent.into_u64())
+        } else {
+            self.entered.lock().unwrap().last().copied()
+        };
+        self.capture.spans.lock().unwrap().insert(
+            id,
+            CapturedSpan {
+                name: span.metadata().name(),
+                parent,
+            },
+        );
+        Id::from_u64(id)
     }
 
     fn record(&self, _span: &Id, _values: &Record<'_>) {}
@@ -169,9 +215,16 @@ impl Subscriber for CaptureSubscriber {
         self.capture.changed.notify_one();
     }
 
-    fn enter(&self, _span: &Id) {}
+    fn enter(&self, span: &Id) {
+        self.entered.lock().unwrap().push(span.into_u64());
+    }
 
-    fn exit(&self, _span: &Id) {}
+    fn exit(&self, span: &Id) {
+        let mut entered = self.entered.lock().unwrap();
+        if let Some(position) = entered.iter().rposition(|id| *id == span.into_u64()) {
+            entered.remove(position);
+        }
+    }
 }
 
 fn capture_traces() -> (TraceCapture, tracing::dispatcher::DefaultGuard) {
@@ -1088,6 +1141,7 @@ async fn create_session_mcp_auth_registration_failure_cancels_external_tools() {
     });
 
     let create_req = read_framed(&mut server_read).await;
+    assert_eq!(create_req["params"]["tools"][0]["hasHandler"], true);
     let session_id = requested_session_id(&create_req).to_string();
     server_respond_create(&mut server_write, &create_req, &session_id).await;
     let interest_req = read_framed(&mut server_read).await;
@@ -3013,6 +3067,135 @@ async fn user_input_requested_notification_does_not_double_dispatch() {
 }
 
 #[tokio::test]
+async fn managed_review_forwards_original_typed_permission_handler_request() {
+    use github_copilot_sdk::PermissionRequestData;
+    use github_copilot_sdk::rpc::SessionPermissionsManagedReviewRequiredParams;
+
+    struct ForwardingHandler {
+        session: Arc<std::sync::OnceLock<std::sync::Weak<github_copilot_sdk::session::Session>>>,
+        completed: tokio::sync::mpsc::UnboundedSender<(bool, bool)>,
+    }
+
+    #[async_trait]
+    impl PermissionHandler for ForwardingHandler {
+        async fn handle(
+            &self,
+            session_id: SessionId,
+            _request_id: RequestId,
+            data: PermissionRequestData,
+        ) -> PermissionResult {
+            let session = self.session.get().unwrap().upgrade().unwrap();
+            assert_eq!(session.id(), &session_id);
+            let original = serde_json::to_value(&data).unwrap();
+            let borrowed = session
+                .rpc()
+                .permissions()
+                .managed_review_required(SessionPermissionsManagedReviewRequiredParams {
+                    request: (&data).into(),
+                })
+                .await
+                .unwrap();
+            assert_eq!(serde_json::to_value(&data).unwrap(), original);
+            let owned = session
+                .rpc()
+                .permissions()
+                .managed_review_required(SessionPermissionsManagedReviewRequiredParams {
+                    request: data.into(),
+                })
+                .await
+                .unwrap();
+            self.completed.send((borrowed, owned)).unwrap();
+            PermissionResult::no_result()
+        }
+    }
+
+    let session_slot = Arc::new(std::sync::OnceLock::new());
+    let (completed, mut results) = tokio::sync::mpsc::unbounded_channel();
+    let handler = Arc::new(ForwardingHandler {
+        session: session_slot.clone(),
+        completed,
+    });
+    let (session, mut server) =
+        create_session_pair_with_config(move |cfg| cfg.with_permission_handler(handler)).await;
+    let session = Arc::new(session);
+    assert!(session_slot.set(Arc::downgrade(&session)).is_ok());
+
+    for (kind, nested) in [
+        ("write", true),
+        ("future-permission", true),
+        ("write", false),
+    ] {
+        let original = serde_json::json!({
+            "kind": kind,
+            "path": "/workspace/protected.txt",
+            "requestId": "permission-forward",
+            "toolCallId": "tool-forward",
+            "managedApprovalRequired": true,
+            "sessionId": "request-specific-session",
+            "future": {"nullable": null, "values": [false, 0, {"key": "value"}]},
+        });
+        let event_data = if nested {
+            serde_json::json!({
+                "requestId": "permission-forward",
+                "sessionId": "envelope-session",
+                "permissionRequest": original,
+                "futureEnvelopeField": "not part of the original request",
+            })
+        } else {
+            original.clone()
+        };
+        server.send_event("permission.requested", event_data).await;
+
+        for required in [true, false] {
+            let request = timeout(TIMEOUT, server.read_request()).await.unwrap();
+            assert_eq!(
+                request["method"],
+                "session.permissions.managedReviewRequired"
+            );
+            assert_eq!(
+                request["params"],
+                serde_json::json!({"sessionId": session.id(), "request": original}),
+            );
+            server.respond(&request, serde_json::json!(required)).await;
+        }
+        assert_eq!(
+            timeout(TIMEOUT, results.recv()).await.unwrap(),
+            Some((true, false)),
+        );
+    }
+
+    let raw = serde_json::json!({
+        "kind": "future-permission",
+        "permissionRequest": {"requestSpecific": [null, {"future": true}]},
+    });
+    let call = tokio::spawn({
+        let session = session.clone();
+        let raw = raw.clone();
+        async move {
+            session
+                .rpc()
+                .permissions()
+                .managed_review_required(SessionPermissionsManagedReviewRequiredParams {
+                    request: raw,
+                })
+                .await
+                .unwrap()
+        }
+    });
+    let request = timeout(TIMEOUT, server.read_request()).await.unwrap();
+    assert_eq!(
+        request["method"],
+        "session.permissions.managedReviewRequired"
+    );
+    assert_eq!(
+        request["params"],
+        serde_json::json!({"sessionId": session.id(), "request": raw}),
+    );
+    server.respond(&request, serde_json::json!(true)).await;
+    assert!(timeout(TIMEOUT, call).await.unwrap().unwrap());
+}
+
+#[tokio::test]
 async fn permission_confirmation_success_behavior_is_unchanged() {
     let (capture, _guard) = capture_traces();
     let (_session, mut server) = create_session_pair_with_config(|cfg| {
@@ -3044,6 +3227,112 @@ async fn permission_confirmation_success_behavior_is_unchanged() {
     assert!(outcome.message_contains("Session::handle_notification response sent successfully"));
     assert!(outcome.field_is("session_id", &server.session_id));
     assert!(outcome.field_is("request_id", "perm-auto"));
+}
+
+/// Creates or cold-resumes a session from inside the application's own
+/// `app_request` span, lets that span finish, then has the runtime ask for a
+/// permission decision.
+async fn request_permission_after_session_start_in_app_span(resume: bool) {
+    use github_copilot_sdk::types::ResumeSessionConfig;
+    use tracing::Instrument;
+
+    let (client, server_read, server_write) = make_client();
+    let mut server = FakeServer {
+        read: server_read,
+        write: server_write,
+        session_id: String::new(),
+    };
+    let start = {
+        let client = client.clone();
+        async move {
+            let handler = Arc::new(ApproveAllHandler);
+            let session = if resume {
+                client
+                    .resume_session(
+                        ResumeSessionConfig::new(SessionId::from("resumed-in-app-span"))
+                            .with_permission_handler(handler),
+                    )
+                    .await
+            } else {
+                client
+                    .create_session(SessionConfig::default().with_permission_handler(handler))
+                    .await
+            };
+            // A span the application itself opens here must stay its child.
+            drop(tracing::info_span!("app_work"));
+            session.unwrap()
+        }
+        .instrument(tracing::info_span!("app_request"))
+    };
+    let start_handle = tokio::spawn(start);
+
+    let request = timeout(TIMEOUT, server.read_request()).await.unwrap();
+    let method = if resume {
+        "session.resume"
+    } else {
+        "session.create"
+    };
+    assert_eq!(request["method"], method);
+    server.session_id = requested_session_id(&request).to_string();
+    let result = serde_json::json!({
+        "sessionId": server.session_id.clone(),
+        "workspacePath": "/tmp/workspace",
+    });
+    server.respond(&request, result).await;
+    if resume {
+        let reload = timeout(TIMEOUT, server.read_request()).await.unwrap();
+        assert_eq!(reload["method"], "session.skills.reload");
+        server.respond(&reload, serde_json::json!({})).await;
+    }
+    let _session = timeout(TIMEOUT, start_handle).await.unwrap().unwrap();
+
+    server
+        .send_event(
+            "permission.requested",
+            serde_json::json!({
+                "requestId": "perm-after-app-span",
+                "sessionId": server.session_id,
+                "permissionRequest": { "kind": "shell" },
+            }),
+        )
+        .await;
+    let request = timeout(TIMEOUT, server.read_request()).await.unwrap();
+    assert_eq!(request["method"], PERMISSION_CONFIRMATION_METHOD);
+    assert_eq!(request["params"]["requestId"], "perm-after-app-span");
+    server.respond(&request, serde_json::json!({})).await;
+}
+
+fn assert_session_spans_are_not_under_app_span(capture: &TraceCapture) {
+    // The subscriber does resolve contextual parents, so the checks below
+    // cannot pass just because no span ever had one.
+    assert_eq!(
+        capture.span_ancestors("app_work"),
+        vec![vec!["app_request"]]
+    );
+    assert_eq!(
+        capture.span_ancestors("session_event_loop"),
+        vec![Vec::<&str>::new()],
+        "the session event loop span must be a root"
+    );
+    assert_eq!(
+        capture.span_ancestors("permission_request_handler"),
+        vec![vec!["session_event_loop"]],
+        "a later callback span must sit under the session loop only"
+    );
+}
+
+#[tokio::test]
+async fn session_callbacks_are_not_traced_under_the_span_current_at_create() {
+    let (capture, _guard) = capture_traces();
+    request_permission_after_session_start_in_app_span(false).await;
+    assert_session_spans_are_not_under_app_span(&capture);
+}
+
+#[tokio::test]
+async fn session_callbacks_are_not_traced_under_the_span_current_at_resume() {
+    let (capture, _guard) = capture_traces();
+    request_permission_after_session_start_in_app_span(true).await;
+    assert_session_spans_are_not_under_app_span(&capture);
 }
 
 #[tokio::test]
@@ -3567,8 +3856,16 @@ async fn send_and_wait_completion_preserves_agent_and_admission_error_kinds() {
             .await
             .unwrap();
         assert_eq!(request["method"], "session.sendAndWait");
-        let data =
-            execution_failure.then(|| serde_json::json!({ "completionEventId": "owned-error" }));
+        let data = execution_failure.then(|| {
+            serde_json::json!({
+                "completionEventId": "owned-error",
+                "errorType": "query",
+                "statusCode": 400,
+                "providerErrorCode": "provider_rejected",
+                "providerErrorType": "invalid_request_error",
+                "providerErrorParam": "input",
+            })
+        });
         let response = serde_json::json!({
             "jsonrpc": "2.0", "id": request["id"],
             "error": { "code": -32603, "message": "owned failure", "data": data },
@@ -3608,6 +3905,7 @@ async fn send_and_wait_completion_preserves_agent_and_admission_error_kinds() {
             );
         }
         assert_eq!(error.message(), Some("owned failure"));
+        assert_eq!(error.rpc_data(), data.as_ref());
     }
 }
 
@@ -6747,8 +7045,8 @@ async fn set_tools_replaces_the_definitions_and_handlers_together() {
         serde_json::json!({
             "sessionId": server.session_id,
             "tools": [
-                { "name": "new", "description": "new tool", "parameters": { "type": "object" } },
-                { "name": "declared", "description": "Declared only" },
+                { "name": "new", "description": "new tool", "parameters": { "type": "object" }, "hasHandler": true },
+                { "name": "declared", "description": "Declared only", "hasHandler": false },
             ],
         })
     );
@@ -7259,6 +7557,7 @@ async fn set_tools_replaces_the_tools_of_a_resumed_session() {
     });
     let resume_request = timeout(TIMEOUT, server.read_request()).await.unwrap();
     assert_eq!(resume_request["method"], "session.resume");
+    assert_eq!(resume_request["params"]["tools"][0]["hasHandler"], true);
     server_respond_create(&mut server.write, &resume_request, "resumed-with-tools").await;
     respond_to_reload(&mut server.read, &mut server.write).await;
     let session = Arc::new(timeout(TIMEOUT, resume).await.unwrap().unwrap());

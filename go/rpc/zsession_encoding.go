@@ -4,8 +4,10 @@
 package rpc
 
 import (
+	"bytes"
 	"encoding/json"
 	"errors"
+	"reflect"
 	"time"
 )
 
@@ -525,6 +527,12 @@ func (e *SessionEvent) UnmarshalJSON(data []byte) error {
 		e.Data = &d
 	case SessionEventTypeSessionCompactionStart:
 		var d SessionCompactionStartData
+		if err := json.Unmarshal(raw.Data, &d); err != nil {
+			return err
+		}
+		e.Data = &d
+	case SessionEventTypeSessionCompactionSummarized:
+		var d SessionCompactionSummarizedData
 		if err := json.Unmarshal(raw.Data, &d); err != nil {
 			return err
 		}
@@ -2159,6 +2167,101 @@ func unmarshalPermissionRequest(data []byte) (PermissionRequest, error) {
 	}
 }
 
+func marshalPermissionRequestWithOriginalFields(original, previous, current json.RawMessage) ([]byte, error) {
+	if string(previous) == string(current) {
+		return original, nil
+	}
+	if bytes.HasPrefix(bytes.TrimSpace(original), []byte("[")) &&
+		bytes.HasPrefix(bytes.TrimSpace(previous), []byte("[")) &&
+		bytes.HasPrefix(bytes.TrimSpace(current), []byte("[")) {
+		var items, before, after []json.RawMessage
+		if err := json.Unmarshal(original, &items); err != nil {
+			return nil, err
+		}
+		if err := json.Unmarshal(previous, &before); err != nil {
+			return nil, err
+		}
+		if err := json.Unmarshal(current, &after); err != nil {
+			return nil, err
+		}
+		// Resizing replaces the array; otherwise merge a single entry edit by index.
+		if len(items) != len(before) || len(before) != len(after) {
+			return current, nil
+		}
+		// Typed array values have no stable identity after multiple edits.
+		changed := 0
+		for i := range after {
+			if !bytes.Equal(before[i], after[i]) {
+				changed++
+				for j := range before {
+					if i != j && bytes.Equal(before[j], after[i]) {
+						return nil, errors.New("ambiguous array edits: edit the original JSON and decode a new PermissionRequestEnvelope")
+					}
+				}
+			}
+		}
+		if changed > 1 {
+			return nil, errors.New("ambiguous array edits: edit the original JSON and decode a new PermissionRequestEnvelope")
+		}
+		if changed == 1 && len(before) > 1 {
+			// Hidden metadata makes copies followed by field edits ambiguous too.
+			var originalValue, projectedValue any
+			originalDecoder := json.NewDecoder(bytes.NewReader(original))
+			originalDecoder.UseNumber()
+			if err := originalDecoder.Decode(&originalValue); err != nil {
+				return nil, err
+			}
+			projectedDecoder := json.NewDecoder(bytes.NewReader(previous))
+			projectedDecoder.UseNumber()
+			if err := projectedDecoder.Decode(&projectedValue); err != nil {
+				return nil, err
+			}
+			if !reflect.DeepEqual(originalValue, projectedValue) {
+				return nil, errors.New("ambiguous array edits: edit the original JSON and decode a new PermissionRequestEnvelope")
+			}
+		}
+		for i, value := range after {
+			merged, err := marshalPermissionRequestWithOriginalFields(items[i], before[i], value)
+			if err != nil {
+				return nil, err
+			}
+			items[i] = merged
+		}
+		return json.Marshal(items)
+	}
+	if !bytes.HasPrefix(bytes.TrimSpace(original), []byte("{")) ||
+		!bytes.HasPrefix(bytes.TrimSpace(previous), []byte("{")) ||
+		!bytes.HasPrefix(bytes.TrimSpace(current), []byte("{")) {
+		return current, nil
+	}
+	var fields, before, after map[string]json.RawMessage
+	if err := json.Unmarshal(original, &fields); err != nil {
+		return nil, err
+	}
+	if err := json.Unmarshal(previous, &before); err != nil {
+		return nil, err
+	}
+	if err := json.Unmarshal(current, &after); err != nil {
+		return nil, err
+	}
+	// Apply typed field edits without changing untouched original JSON values.
+	for key := range before {
+		if _, present := after[key]; !present {
+			delete(fields, key)
+		}
+	}
+	for key, value := range after {
+		if string(value) != string(before[key]) {
+			merged, err := marshalPermissionRequestWithOriginalFields(fields[key], before[key], value)
+			if err != nil {
+				return nil, err
+			}
+			fields[key] = merged
+		}
+	}
+	return json.Marshal(fields)
+}
+
 func (r RawPermissionRequest) MarshalJSON() ([]byte, error) {
 	if r.Raw != nil {
 		return r.Raw, nil
@@ -2561,6 +2664,7 @@ func (r *PermissionRequestedData) UnmarshalJSON(data []byte) error {
 		OwnerSessionID             *string            `json:"ownerSessionId,omitempty"`
 		PermissionMode             *PermissionMode    `json:"permissionMode,omitempty"`
 		PermissionRequest          json.RawMessage    `json:"permissionRequest"`
+		ProgramToolCallID          *string            `json:"programToolCallId,omitempty"`
 		PromptRequest              json.RawMessage    `json:"promptRequest,omitempty"`
 		RecoveryEpisodeID          *string            `json:"recoveryEpisodeId,omitempty"`
 		RequestID                  string             `json:"requestId"`
@@ -2590,6 +2694,7 @@ func (r *PermissionRequestedData) UnmarshalJSON(data []byte) error {
 		}
 		r.PermissionRequest = value
 	}
+	r.ProgramToolCallID = raw.ProgramToolCallID
 	if raw.PromptRequest != nil {
 		value, err := unmarshalPermissionPromptRequest(raw.PromptRequest)
 		if err != nil {

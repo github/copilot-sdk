@@ -26,6 +26,7 @@ public record ElicitationRequestedSchema(
     /** Schema type indicator (always 'object') */
     @JsonProperty("type") String type,
     /** Form field definitions, keyed by field name */
+    @JsonInclude(value = JsonInclude.Include.NON_NULL, content = JsonInclude.Include.ALWAYS)
     @JsonProperty("properties") Map<String, Object> properties,
     /** List of required field names */
     @JsonProperty("required") List<String> required

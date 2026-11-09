@@ -34,7 +34,10 @@ record UserSettingsWriteKeyParams(
     /** Remove the key instead of writing it. Defaults to false. */
     @JsonProperty("delete") Boolean delete,
     /** Refuse to replace an unreadable or invalid file. Defaults to false. */
-    @JsonProperty("refuseOnReadFailure") Boolean refuseOnReadFailure
+    @JsonProperty("refuseOnReadFailure") Boolean refuseOnReadFailure,
+    /** Refuse content no JSONC recovery pass reads as an object. Defaults to false.
+Recoverable content can still be repaired when refuseOnReadFailure is false. */
+    @JsonProperty("refuseOnUnrecoverableReadFailure") Boolean refuseOnUnrecoverableReadFailure
 ) {
 
     /**
@@ -63,6 +66,7 @@ record UserSettingsWriteKeyParams(
         private boolean $presence2;
         private Boolean delete;
         private Boolean refuseOnReadFailure;
+        private Boolean refuseOnUnrecoverableReadFailure;
 
         /**
          * Sets the {@code key} property.
@@ -121,6 +125,17 @@ record UserSettingsWriteKeyParams(
         }
 
         /**
+         * Sets the {@code refuseOnUnrecoverableReadFailure} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder refuseOnUnrecoverableReadFailure(Boolean value) {
+            this.refuseOnUnrecoverableReadFailure = value;
+            return this;
+        }
+
+        /**
          * Builds a record after checking required property presence.
          * @return a new record
          * @throws IllegalStateException if a required property is missing
@@ -129,7 +144,7 @@ record UserSettingsWriteKeyParams(
         public UserSettingsWriteKeyParams build() {
             if (key == null) throw new IllegalStateException("Missing required property: key");
             if (!$presence2) throw new IllegalStateException("Missing required property: value");
-            return new UserSettingsWriteKeyParams(key, context, value, delete, refuseOnReadFailure);
+            return new UserSettingsWriteKeyParams(key, context, value, delete, refuseOnReadFailure, refuseOnUnrecoverableReadFailure);
         }
     }
 }

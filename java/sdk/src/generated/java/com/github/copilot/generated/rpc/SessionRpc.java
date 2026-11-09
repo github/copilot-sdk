@@ -50,6 +50,10 @@ public final class SessionRpc {
     public final SessionWorkflowApi workflow;
     /** API methods for the {@code model} namespace. */
     public final SessionModelApi model;
+    /** API methods for the {@code featureFlags} namespace. */
+    public final SessionFeatureFlagsApi featureFlags;
+    /** API methods for the {@code dynamicContext} namespace. */
+    public final SessionDynamicContextApi dynamicContext;
     /** API methods for the {@code mode} namespace. */
     public final SessionModeApi mode;
     /** API methods for the {@code name} namespace. */
@@ -152,6 +156,8 @@ public final class SessionRpc {
         this.canvasSource = new SessionCanvasSourceApi(caller, sessionId);
         this.workflow = new SessionWorkflowApi(caller, sessionId);
         this.model = new SessionModelApi(caller, sessionId);
+        this.featureFlags = new SessionFeatureFlagsApi(caller, sessionId);
+        this.dynamicContext = new SessionDynamicContextApi(caller, sessionId);
         this.mode = new SessionModeApi(caller, sessionId);
         this.name = new SessionNameApi(caller, sessionId);
         this.plan = new SessionPlanApi(caller, sessionId);

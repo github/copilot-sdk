@@ -1244,15 +1244,24 @@ public sealed partial class ClientSessionLifetimeTests
                 {
                     Assert.True(error.Message.Contains("disposed object", StringComparison.OrdinalIgnoreCase)
                         || error.Message.Contains("unknown session", StringComparison.OrdinalIgnoreCase), error.Message);
+                    if (!failDelete)
+                    {
+                        // Callback retirement precedes release of the cleanup reservation.
+                        try
+                        {
+                            await using var replacement = await client.ResumeSessionAsync(sessionId, new ResumeSessionConfig()).WaitAsync(settlement.Token);
+                        }
+                        catch (InvalidOperationException pending) when (pending.Message ==
+                            $"Session '{sessionId}' has a pending operation or rejected AutoModeRecovery cleanup.")
+                        {
+                            continue;
+                        }
+                    }
                     break;
                 }
             }
             Assert.True(creation.IsCanceled);
             Assert.Single(server.Requests, request => request.Method == "session.delete");
-            if (!failDelete)
-            {
-                await using var replacement = await client.ResumeSessionAsync(sessionId, new ResumeSessionConfig()).WaitAsync(timeout);
-            }
         }
         finally
         {

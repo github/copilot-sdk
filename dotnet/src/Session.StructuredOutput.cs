@@ -213,6 +213,11 @@ public sealed partial class CopilotSession
                 pendingEvents.Clear();
             }
             await Task.WhenAny(completion.Task, _eventDispatchStopped.Task, JsonRpc.Completion, _eventChannel.Reader.Completion);
+            if (!completion.Task.IsCompleted && !_eventDispatchStopped.Task.IsCompleted && JsonRpc.Completion.IsCompleted)
+            {
+                // The transport closed, but the final events may already be queued behind a slow handler.
+                await Task.WhenAny(completion.Task, _eventDispatchStopped.Task, DispatchQueuedEventsAsync());
+            }
             if (!completion.Task.IsCompleted)
             {
                 completion.TrySetException(new IOException("The session closed before a final structured response was received."));

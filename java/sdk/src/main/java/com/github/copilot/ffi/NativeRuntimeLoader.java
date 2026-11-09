@@ -21,6 +21,8 @@ import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
 import java.nio.file.StandardOpenOption;
 import java.util.Properties;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.locks.ReentrantLock;
 
 /**
  * Locates the {@code runtime.node} native binary, extracts it to a versioned
@@ -53,6 +55,9 @@ public final class NativeRuntimeLoader {
     /** Environment variable that overrides where the runtime is loaded from. */
     public static final String COPILOT_CLI_PATH_ENV = "COPILOT_CLI_PATH";
     static final String VERSION_RESOURCE = "copilot-runtime.properties";
+
+    /** One extraction at a time per cache directory within this JVM. */
+    private static final ConcurrentHashMap<Path, ReentrantLock> EXTRACTION_LOCKS = new ConcurrentHashMap<>();
 
     /**
      * Abstraction for the atomic publish step, enabling deterministic failure
@@ -412,9 +417,25 @@ public final class NativeRuntimeLoader {
 
     private static Path extractRuntimeToCache(Path cacheBase, ClassLoader loader, String classifier, String version,
             AtomicPublisher publisher, boolean extractCli) throws IOException {
-        String resourcePath = "native/" + classifier + "/" + RUNTIME_FILENAME;
         String nativeVersion = readNativePackageVersion(loader, classifier);
         Path cacheDir = cacheBase.resolve(version).resolve(nativeVersion).resolve(classifier);
+        // Clients that start together on a cold cache would otherwise each copy the
+        // runtime and every asset; atomic publication keeps that correct, but the
+        // duplicate copies multiply first-start time. Later callers wait, then find
+        // the published files on the fast path.
+        ReentrantLock lock = EXTRACTION_LOCKS.computeIfAbsent(cacheDir.toAbsolutePath().normalize(),
+                ignored -> new ReentrantLock());
+        lock.lock();
+        try {
+            return extractRuntimeToCacheDir(cacheDir, loader, classifier, publisher, extractCli);
+        } finally {
+            lock.unlock();
+        }
+    }
+
+    private static Path extractRuntimeToCacheDir(Path cacheDir, ClassLoader loader, String classifier,
+            AtomicPublisher publisher, boolean extractCli) throws IOException {
+        String resourcePath = "native/" + classifier + "/" + RUNTIME_FILENAME;
         Path cached = cacheDir.resolve(RUNTIME_FILENAME);
 
         // Step 1 — fast path: return an existing valid cache entry.

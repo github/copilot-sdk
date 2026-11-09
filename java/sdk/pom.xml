@@ -260,6 +260,25 @@
                 <artifactId>maven-dependency-plugin</artifactId>
                 <version>3.11.0</version>
                 <executions>
+                    <!-- Stage a stable path for direct Surefire goals on JDK 17 too. -->
+                    <execution>
+                        <id>prepare-mockito-agent</id>
+                        <phase>generate-test-resources</phase>
+                        <goals>
+                            <goal>copy</goal>
+                        </goals>
+                        <configuration>
+                            <skip>${maven.test.skip}</skip>
+                            <artifactItems>
+                                <artifactItem>
+                                    <groupId>org.mockito</groupId>
+                                    <artifactId>mockito-core</artifactId>
+                                    <outputDirectory>${project.build.directory}</outputDirectory>
+                                    <destFileName>mockito-agent.jar</destFileName>
+                                </artifactItem>
+                            </artifactItems>
+                        </configuration>
+                    </execution>
                     <execution>
                         <id>packaged-consumer-dependencies</id>
                         <phase>generate-test-resources</phase>
@@ -323,8 +342,8 @@
                     <runOrder>alphabetical</runOrder>
                     <excludedGroups>${java.test.excluded.groups}</excludedGroups>
                     <forkNode implementation="org.apache.maven.plugin.surefire.extensions.SurefireForkNodeFactory" />
-                    <!-- Inject JaCoCo agent + any JDK-version-specific flags -->
-                    <argLine>${testExecutionAgentArgs} ${surefire.jvm.args} --add-opens com.github.copilot.java/com.github.copilot.e2e=ALL-UNNAMED</argLine>
+                    <!-- Initialize inline mocking without Mockito's external self-attachment. -->
+                    <argLine>${testExecutionAgentArgs} -javaagent:"${project.build.directory}/mockito-agent.jar" ${surefire.jvm.args} --add-opens com.github.copilot.java/com.github.copilot.e2e=ALL-UNNAMED</argLine>
                     <rerunFailingTestsCount>0</rerunFailingTestsCount>
                     <systemPropertyVariables>
                         <copilot.tests.dir>${copilot.tests.dir}</copilot.tests.dir>
@@ -621,9 +640,8 @@
                 </plugins>
             </build>
         </profile>
-        <!-- Enable dynamic agent loading on JDK 21+ so Mockito/ByteBuddy
-             can attach at runtime (JEP 451). The flag does not exist on
-             earlier JDKs, so it must be conditional. -->
+        <!-- Retain dynamic agent loading on JDK 21+ (JEP 451).
+             The flag does not exist on earlier JDKs, so it must be conditional. -->
         <profile>
             <id>jdk21+</id>
             <activation>

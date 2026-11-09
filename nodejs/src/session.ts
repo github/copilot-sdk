@@ -143,9 +143,11 @@ function toToolDefinition(tool: Tool): ProtocolExternalToolDefinition {
         parameters: toJsonSchema(tool.parameters) as ProtocolExternalToolDefinition["parameters"],
         overridesBuiltInTool: tool.overridesBuiltInTool,
         skipPermission: tool.skipPermission,
+        hasHandler: !!tool.handler,
         defer: tool.defer,
         metadata: tool.metadata as ProtocolExternalToolDefinition["metadata"],
         isTerminal: tool.isTerminal,
+        idempotent: tool.idempotent,
         namespace: tool.namespace,
     };
 }
@@ -1081,7 +1083,13 @@ export class CopilotSession {
                 event.type === "session.error" &&
                 (!event.data.originatingMessageId || event.data.originatingMessageId === messageId)
             ) {
-                const error = new Error(event.data.message);
+                const error = Object.assign(new Error(event.data.message), {
+                    data: {
+                        ...event.data,
+                        stack: event.data.stack ?? null,
+                        completionEventId: event.id,
+                    },
+                });
                 error.stack = event.data.stack;
                 resolveOutcome({ kind: "error", error });
             }
@@ -1293,7 +1301,13 @@ export class CopilotSession {
                     ? event.data.originatingMessageId === messageId
                     : consumed)
             ) {
-                const error = new Error(event.data.message);
+                const error = Object.assign(new Error(event.data.message), {
+                    data: {
+                        ...event.data,
+                        stack: event.data.stack ?? null,
+                        completionEventId: event.id,
+                    },
+                });
                 error.stack = event.data.stack;
                 fail(error);
             }
@@ -1562,6 +1576,9 @@ export class CopilotSession {
             return;
         }
         if (event.type === "external_tool.requested") {
+            if (event.data.hasHandler === false) {
+                return;
+            }
             const { requestId, toolName } = event.data as {
                 requestId: string;
                 toolName: string;
@@ -1602,6 +1619,7 @@ export class CopilotSession {
                 promptRequest,
                 assistedApprovalAssessment,
                 resolvedByHook,
+                programToolCallId,
             } = event.data as PermissionRequestedData;
             if (resolvedByHook) {
                 return; // Already resolved by a permissionRequest hook; no client action needed.
@@ -1611,7 +1629,8 @@ export class CopilotSession {
                     requestId,
                     permissionRequest,
                     promptRequest,
-                    assistedApprovalAssessment
+                    assistedApprovalAssessment,
+                    programToolCallId
                 );
             }
         } else if (event.type === "mcp.oauth_required") {
@@ -1869,7 +1888,8 @@ export class CopilotSession {
         requestId: string,
         permissionRequest: PermissionRequest,
         promptRequest?: PermissionRequestedData["promptRequest"],
-        assistedApprovalAssessment?: PermissionRequestedData["assistedApprovalAssessment"]
+        assistedApprovalAssessment?: PermissionRequestedData["assistedApprovalAssessment"],
+        programToolCallId?: string
     ): Promise<void> {
         try {
             const invocation: PermissionHandlerInvocation = {
@@ -1877,6 +1897,7 @@ export class CopilotSession {
                 managedSettingsEnabled: this.managedSettingsEnabled,
                 ...(promptRequest === undefined ? {} : { promptRequest }),
                 ...(assistedApprovalAssessment === undefined ? {} : { assistedApprovalAssessment }),
+                ...(programToolCallId === undefined ? {} : { programToolCallId }),
             };
             const handlerResult = await this.permissionHandler!(permissionRequest, invocation);
             const isAttributed = isAttributedPermissionResult(handlerResult);

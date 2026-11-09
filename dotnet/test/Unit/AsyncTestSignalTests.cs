@@ -64,7 +64,10 @@ public class AsyncTestSignalTests
         try
         {
             signal.Pulse();
-            await Task.WhenAll(firstCheckedAgain.Task, secondCheckedAgain.Task).WaitAsync(TimeSpan.FromSeconds(1));
+            // Observe both rechecks, or an invalid early exit, without timing worker scheduling.
+            await Task.WhenAny(Task.WhenAll(firstCheckedAgain.Task, secondCheckedAgain.Task), first, second);
+            Assert.True(firstCheckedAgain.Task.IsCompleted);
+            Assert.True(secondCheckedAgain.Task.IsCompleted);
             Assert.False(first.IsCompleted);
             Assert.False(second.IsCompleted);
             lock (gate)
@@ -72,7 +75,7 @@ public class AsyncTestSignalTests
                 ready = true;
             }
             signal.Pulse();
-            await Task.WhenAll(first, second).WaitAsync(TimeSpan.FromSeconds(1));
+            await Task.WhenAll(first, second);
         }
         finally
         {

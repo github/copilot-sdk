@@ -25,6 +25,8 @@ public final class ServerRpc {
 
     private final RpcCaller caller;
 
+    /** API methods for the {@code localModels} namespace. */
+    public final ServerLocalModelsApi localModels;
     /** API methods for the {@code sandbox} namespace. */
     public final ServerSandboxApi sandbox;
     /** API methods for the {@code persistence} namespace. */
@@ -47,10 +49,14 @@ public final class ServerRpc {
     public final ServerHooksApi hooks;
     /** API methods for the {@code models} namespace. */
     public final ServerModelsApi models;
-    /** API methods for the {@code decisions} namespace. */
-    public final ServerDecisionsApi decisions;
     /** API methods for the {@code azureMl} namespace. */
     public final ServerAzureMlApi azureMl;
+    /** API methods for the {@code decisions} namespace. */
+    public final ServerDecisionsApi decisions;
+    /** API methods for the {@code providers} namespace. */
+    public final ServerProvidersApi providers;
+    /** API methods for the {@code providersSource} namespace. */
+    final ServerProvidersSourceApi providersSource;
     /** API methods for the {@code contentExclusion} namespace. */
     public final ServerContentExclusionApi contentExclusion;
     /** API methods for the {@code tools} namespace. */
@@ -117,6 +123,7 @@ public final class ServerRpc {
      */
     public ServerRpc(RpcCaller caller) {
         this.caller = caller;
+        this.localModels = new ServerLocalModelsApi(caller);
         this.sandbox = new ServerSandboxApi(caller);
         this.persistence = new ServerPersistenceApi(caller);
         this.user = new ServerUserApi(caller);
@@ -128,8 +135,10 @@ public final class ServerRpc {
         this.host = new ServerHostApi(caller);
         this.hooks = new ServerHooksApi(caller);
         this.models = new ServerModelsApi(caller);
-        this.decisions = new ServerDecisionsApi(caller);
         this.azureMl = new ServerAzureMlApi(caller);
+        this.decisions = new ServerDecisionsApi(caller);
+        this.providers = new ServerProvidersApi(caller);
+        this.providersSource = new ServerProvidersSourceApi(caller);
         this.contentExclusion = new ServerContentExclusionApi(caller);
         this.tools = new ServerToolsApi(caller);
         this.account = new ServerAccountApi(caller);

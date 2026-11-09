@@ -5,6 +5,8 @@
 package com.github.copilot.rpc;
 
 import java.util.Optional;
+import java.util.LinkedHashMap;
+import java.util.Map;
 
 import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.fasterxml.jackson.annotation.JsonInclude;
@@ -187,6 +189,33 @@ public class TelemetryConfig {
     public TelemetryConfig clearCaptureContent() {
         this.captureContent = null;
         return this;
+    }
+
+    /**
+     * Converts these settings to environment values for an owned runtime.
+     *
+     * @return the startup configuration, without changing the process environment
+     * @hidden
+     */
+    @JsonIgnore
+    public Map<String, String> toEnvironment() {
+        Map<String, String> env = new LinkedHashMap<>();
+        env.put("COPILOT_OTEL_ENABLED", "true");
+        if (otlpEndpoint != null)
+            env.put("OTEL_EXPORTER_OTLP_ENDPOINT", otlpEndpoint);
+        if (otlpProtocol != null)
+            env.put("OTEL_EXPORTER_OTLP_PROTOCOL", otlpProtocol);
+        if (filePath != null)
+            env.put("COPILOT_OTEL_FILE_EXPORTER_PATH", filePath);
+        if (exporterType != null)
+            env.put("COPILOT_OTEL_EXPORTER_TYPE", exporterType);
+        if (sourceName != null)
+            env.put("COPILOT_OTEL_SOURCE_NAME", sourceName);
+        if (captureContent != null) {
+            env.put("OTEL_INSTRUMENTATION_GENAI_CAPTURE_CONTENT", captureContent ? "SPAN_ONLY" : "NO_CONTENT");
+            env.put("OTEL_INSTRUMENTATION_GENAI_CAPTURE_MESSAGE_CONTENT", captureContent.toString());
+        }
+        return env;
     }
 
 }

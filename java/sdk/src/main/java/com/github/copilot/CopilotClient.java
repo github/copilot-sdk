@@ -529,8 +529,6 @@ public final class CopilotClient implements AutoCloseable {
 
         rejectInProcessOption("Environment", options.getEnvironment() != null,
                 "use typed client/session options or a child-process transport");
-        rejectInProcessOption("Telemetry", options.getTelemetry() != null,
-                "configure telemetry through the host process environment or use a child-process transport");
         rejectInProcessOption("Cwd", options.getCwd() != null, "set SessionConfig.workingDirectory instead");
         rejectInProcessOption("CliArgs", options.getCliArgs() != null && options.getCliArgs().length > 0,
                 "use the typed client options instead");
@@ -621,6 +619,8 @@ public final class CopilotClient implements AutoCloseable {
 
     /**
      * Starts the Copilot client and connects to the server.
+     * <p>
+     * If a previous start failed, calling this method again starts the client anew.
      *
      * @return A future that completes when the connection is established
      */
@@ -631,10 +631,17 @@ public final class CopilotClient implements AutoCloseable {
     private CompletableFuture<Connection> startConnection() {
         CompletableFuture<Connection> future = connectionFuture;
         StartupFuture startup = null;
-        if (future == null) {
+        // A failed startup leaves the client disconnected, so start again instead of
+        // replaying its failure.
+        if (future == null || future.isCompletedExceptionally()) {
             synchronized (this) {
                 future = connectionFuture;
-                if (future == null) {
+                if (future == null || future.isCompletedExceptionally()) {
+                    // Shutdown must capture the retiring startup before a retry replaces it.
+                    if (retiringConnection != null) {
+                        return CompletableFuture.failedFuture(
+                                new IllegalStateException("Client is stopping. Retry after stop() completes."));
+                    }
                     startup = new StartupFuture();
                     connectionFuture = startup;
                     future = startup;
@@ -2412,8 +2419,13 @@ public final class CopilotClient implements AutoCloseable {
     }
 
     private CompletableFuture<Connection> ensureConnected() {
-        if (connectionFuture == null && !options.isAutoStart()) {
-            throw new IllegalStateException("Client not connected. Call start() first.");
+        if (!options.isAutoStart()) {
+            // Only an explicit start() connects, or retries a failed start.
+            CompletableFuture<Connection> future = connectionFuture;
+            if (future == null) {
+                throw new IllegalStateException("Client not connected. Call start() first.");
+            }
+            return future;
         }
 
         return startConnection();

@@ -76,7 +76,9 @@ def _event(data, event_type: SessionEventType) -> SessionEvent:
     )
 
 
-def _external_tool_request(tool_name: str, request_id: str = "request-1") -> SessionEvent:
+def _external_tool_request(
+    tool_name: str, request_id: str = "request-1", has_handler: bool | None = None
+) -> SessionEvent:
     return _event(
         ExternalToolRequestedData(
             request_id=request_id,
@@ -84,6 +86,7 @@ def _external_tool_request(tool_name: str, request_id: str = "request-1") -> Ses
             tool_call_id=f"{request_id}-tool-call",
             tool_name=tool_name,
             arguments={},
+            _has_handler=has_handler,
         ),
         SessionEventType.EXTERNAL_TOOL_REQUESTED,
     )
@@ -789,14 +792,73 @@ async def test_set_tools_sends_complete_wire_payload_and_installs_handlers_on_su
                     "overridesBuiltInTool": True,
                     "parameters": {"type": "object"},
                     "skipPermission": True,
+                    "hasHandler": True,
                 },
-                {"description": "", "name": "declaration_only"},
+                {"description": "", "name": "declaration_only", "hasHandler": False},
             ],
         },
     )
 
     assert session._get_tool_handler("new_tool") is handled
     assert session._get_tool_handler("declaration_only") is None
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("has_handler", [None, True])
+async def test_falsey_tool_handler_is_advertised_and_dispatched(has_handler):
+    class FalseyHandler:
+        def __bool__(self):
+            return False
+
+        def __call__(self, _invocation):
+            return ToolResult(text_result_for_llm="falsey handler result")
+
+    client = Mock()
+    client.request = AsyncMock(side_effect=[{}, {"success": True}])
+    session = CopilotSession("session-1", client)
+    await session.set_tools([Tool("lookup", "Lookup", FalseyHandler())])
+    assert client.request.await_args.args[1]["tools"][0]["hasHandler"] is True
+
+    session._dispatch_event(_external_tool_request("lookup", has_handler=has_handler))
+    result = await _wait_for_tool_result(session, client, "request-1")
+    assert result["result"]["textResultForLlm"] == "falsey handler result"
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("has_handler", [None, True, False])
+async def test_set_tools_dispatch_honors_request_ownership_before_acknowledgement(has_handler):
+    rpc_started = asyncio.Event()
+    release_rpc = asyncio.Event()
+    client = Mock()
+
+    async def request(method, _params):
+        if method == "session.tools.set":
+            rpc_started.set()
+            await release_rpc.wait()
+            return {}
+        return {"success": True}
+
+    client.request = AsyncMock(side_effect=request)
+    session = CopilotSession("session-1", client)
+    handler = AsyncMock(return_value=ToolResult(text_result_for_llm="old result"))
+    session._register_tools([Tool("lookup", "Lookup", handler)])
+    replacement = asyncio.create_task(session.set_tools([Tool("lookup", "Answered by the host")]))
+    try:
+        await asyncio.wait_for(rpc_started.wait(), timeout=1)
+        session._dispatch_event(
+            _external_tool_request("lookup", "admission-request", has_handler=has_handler)
+        )
+        await asyncio.wait_for(asyncio.gather(*session._pending_external_tools.values()), timeout=1)
+        assert handler.await_count == (0 if has_handler is False else 1)
+        answers = [
+            call
+            for call in client.request.await_args_list
+            if call.args[0] == "session.tools.handlePendingToolCall"
+        ]
+        assert len(answers) == (0 if has_handler is False else 1)
+    finally:
+        release_rpc.set()
+        await replacement
 
 
 @pytest.mark.asyncio

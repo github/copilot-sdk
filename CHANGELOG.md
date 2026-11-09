@@ -7,6 +7,24 @@ See [GitHub Releases](https://github.com/github/copilot-sdk/releases) for the fu
 
 ## [Unreleased]
 
+### Feature: idempotent external tools
+
+External tool definitions accept an optional `idempotent` hint. Set it when repeating a call with the same arguments has no further effect, so the runtime can safely re-run a programmatic tool call whose outcome was lost to a crash. It does not affect permission checks.
+
+**Source break:** `ProtocolExternalToolDefinition` gains a field, as does Go's `copilot.Tool`. Go positional literals of either type and exhaustive Rust struct literals of the experimental `ProtocolExternalToolDefinition` must add it; keyed Go literals and Rust literals using `..Default::default()` are unaffected.
+
+### Fix: compatible Go permission forwarding
+
+Go hosts can combine lossless permission requests with runtime-owned MCP refresh.
+Use `CreateSessionWithPermissionEnvelopeAndMCPAuthRuntimeRefresh` or `ResumeSessionWithPermissionEnvelopeAndMCPAuthRuntimeRefresh`.
+Each nil callback retains the corresponding config handlers.
+
+Go permission variants retain their original field layout and comparability.
+Use `CreateSessionWithPermissionEnvelope` or `ResumeSessionWithPermissionEnvelope` to retain unknown JSON during managed review.
+Pass its envelope to `ManagedReviewRequired`; typed edits preserve untouched nested fields, nulls, and numeric precision.
+Use `Replace` for an explicit complete replacement.
+Plain typed values and legacy callbacks keep their original encoding.
+
 ### Feature: structured Policy Helper failures and scoped recheck
 
 Managed-settings snapshots across all six SDKs expose bounded Policy Helper failures: messages, remediation, details, help links, and diagnostics. Only applicable `session.create`/`session.resume` errors attach the DTO to `error.data.policyHelperFailure`, preserving primary code/message. Activation callers read `managedSettings.resolve(...).resolved.policyHelperFailure`.

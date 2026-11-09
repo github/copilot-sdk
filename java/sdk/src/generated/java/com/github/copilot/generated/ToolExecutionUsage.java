@@ -47,6 +47,7 @@ public record ToolExecutionUsage(
     /** Server-reported charge. Divide totalNanoAiu by 1,000,000,000 for AI credits; do not calculate customer cost from token prices. */
     @JsonProperty("copilotUsage") AssistantUsageCopilotUsage copilotUsage,
     /** Account quota snapshots, not per-operation cost deltas. */
+    @JsonInclude(value = JsonInclude.Include.NON_NULL, content = JsonInclude.Include.ALWAYS)
     @JsonProperty("quotaSnapshots") Map<String, Object> quotaSnapshots
 ) {
 

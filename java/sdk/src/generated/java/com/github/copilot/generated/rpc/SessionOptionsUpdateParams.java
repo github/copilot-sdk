@@ -29,6 +29,8 @@ import javax.annotation.processing.Generated;
 public record SessionOptionsUpdateParams(
     /** Target session identifier */
     @JsonProperty("sessionId") String sessionId,
+    /** Session-only user preferences. Omitted preferences keep their current values. */
+    @JsonProperty("settings") SessionSettingsPatch settings,
     /** Enable or disable the native image tool for this session without changing the conversation model.
 Omitted values preserve the current setting. Re-supply consent on cold resume. */
     @JsonProperty("imageGeneration") ProtocolImageGenerationOptions imageGeneration,
@@ -66,7 +68,7 @@ Omitted values preserve the current setting. Re-supply consent on cold resume. *
     @JsonProperty("includedBuiltinAgents") List<String> includedBuiltinAgents,
     /** Built-in subagent names to exclude from this session. Excluded built-ins are hidden from agent discovery and cannot be dispatched unless a custom agent with the same name is available. */
     @JsonProperty("excludedBuiltinAgents") List<String> excludedBuiltinAgents,
-    /** Controls how availableTools (allowlist) and excludedTools (denylist) combine when both are set. */
+    /** Controls how availableTools (allowlist) and excludedTools (denylist) combine when both are set. Omitted updates preserve the current setting; new sessions default to excluded. */
     @JsonProperty("toolFilterPrecedence") OptionsUpdateToolFilterPrecedence toolFilterPrecedence,
     /** Deprecated and ignored. Shell command analysis is always enabled; retained for wire compatibility. */
     @Deprecated
@@ -175,15 +177,6 @@ Omitted values preserve the current setting. Re-supply consent on cold resume. *
     public SessionOptionsUpdateParams { $explicitNulls = $explicitNulls == null ? java.util.Set.of() : java.util.Set.copyOf($explicitNulls); }
 
     /**
-     * Creates a record with legacy null-as-omission semantics.
-     * @deprecated Use {@link #builder()} for named construction.
-     */
-    @Deprecated(since = "2.0.0", forRemoval = false)
-    public SessionOptionsUpdateParams(String sessionId, ProtocolImageGenerationOptions imageGeneration, String model, ModelCapabilitiesOverride modelCapabilitiesOverrides, String reasoningEffort, OptionsUpdateReasoningSummary reasoningSummary, Verbosity verbosity, String clientName, String lspClientName, String integrationId, Map<String, Boolean> featureFlags, Boolean isExperimentalMode, ProviderConfig provider, CapiSessionOptions capi, String workingDirectory, List<String> availableTools, List<String> excludedTools, List<String> includedBuiltinAgents, List<String> excludedBuiltinAgents, OptionsUpdateToolFilterPrecedence toolFilterPrecedence, Boolean enableScriptSafety, ShellOptions shell, String shellInitProfile, List<String> shellProcessFlags, SandboxConfig sandboxConfig, SandboxConfigSource sandboxConfigSource, Boolean logInteractiveShells, OptionsUpdateEnvValueMode envValueMode, Boolean allowAllMcpServerInstructions, List<String> skillDirectories, List<String> agentDirectories, List<String> instructionDirectories, List<String> hookDirectories, List<String> ignoredSkillsLocations, List<String> includedBuiltinSkills, List<String> disabledSkills, Boolean enableOnDemandInstructionDiscovery, Long maxInlineBinaryBytes, List<SessionInstalledPlugin> installedPlugins, Boolean customAgentsLocalOnly, Boolean suppressCustomAgentPrompt, Boolean skipCustomInstructions, List<String> disabledInstructionSources, Boolean coauthorEnabled, String trajectoryFile, Boolean enableStreaming, String copilotUrl, Boolean askUserDisabled, Boolean continueOnAutoMode, Boolean runningInInteractiveMode, Boolean enableReasoningSummaries, String agentContext, String eventsLogDirectory, Boolean eventsLogIncludesSubagents, List<OptionsUpdateAdditionalContentExclusionPolicy> additionalContentExclusionPolicies, Boolean manageScheduleEnabled, List<SessionCapability> sessionCapabilities, Boolean skipEmbeddingRetrieval, String organizationCustomInstructions, Boolean enableFileHooks, Boolean enableHostGitOperations, Boolean enableSessionStore, Boolean enableSkills, OptionsUpdateContextTier contextTier, SessionLimitsConfig sessionLimits, AutopilotOptions autopilot) {
-        this(sessionId, imageGeneration, model, modelCapabilitiesOverrides, reasoningEffort, reasoningSummary, verbosity, clientName, lspClientName, integrationId, featureFlags, isExperimentalMode, provider, capi, workingDirectory, availableTools, excludedTools, includedBuiltinAgents, excludedBuiltinAgents, toolFilterPrecedence, enableScriptSafety, shell, shellInitProfile, shellProcessFlags, sandboxConfig, sandboxConfigSource, logInteractiveShells, envValueMode, allowAllMcpServerInstructions, skillDirectories, agentDirectories, instructionDirectories, hookDirectories, ignoredSkillsLocations, includedBuiltinSkills, disabledSkills, enableOnDemandInstructionDiscovery, maxInlineBinaryBytes, installedPlugins, customAgentsLocalOnly, suppressCustomAgentPrompt, skipCustomInstructions, disabledInstructionSources, coauthorEnabled, trajectoryFile, enableStreaming, copilotUrl, askUserDisabled, continueOnAutoMode, runningInInteractiveMode, enableReasoningSummaries, agentContext, eventsLogDirectory, eventsLogIncludesSubagents, additionalContentExclusionPolicies, manageScheduleEnabled, sessionCapabilities, skipEmbeddingRetrieval, organizationCustomInstructions, enableFileHooks, enableHostGitOperations, enableSessionStore, enableSkills, contextTier, sessionLimits, autopilot, java.util.Set.of());
-    }
-
-    /**
      * Returns a named builder.
      * @return a new builder
      * @since 2.0.0
@@ -199,6 +192,7 @@ Omitted values preserve the current setting. Re-supply consent on cold resume. *
     public static final class Builder {
         private Builder() {}
         private String sessionId;
+        private SessionSettingsPatch settings;
         private ProtocolImageGenerationOptions imageGeneration;
         private String model;
         private ModelCapabilitiesOverride modelCapabilitiesOverrides;
@@ -216,7 +210,7 @@ Omitted values preserve the current setting. Re-supply consent on cold resume. *
         private List<String> availableTools;
         private List<String> excludedTools;
         private List<String> includedBuiltinAgents;
-        private boolean $presence17;
+        private boolean $presence18;
         private List<String> excludedBuiltinAgents;
         private OptionsUpdateToolFilterPrecedence toolFilterPrecedence;
         private Boolean enableScriptSafety;
@@ -234,7 +228,7 @@ Omitted values preserve the current setting. Re-supply consent on cold resume. *
         private List<String> hookDirectories;
         private List<String> ignoredSkillsLocations;
         private List<String> includedBuiltinSkills;
-        private boolean $presence34;
+        private boolean $presence35;
         private List<String> disabledSkills;
         private Boolean enableOnDemandInstructionDiscovery;
         private Long maxInlineBinaryBytes;
@@ -265,7 +259,7 @@ Omitted values preserve the current setting. Re-supply consent on cold resume. *
         private Boolean enableSkills;
         private OptionsUpdateContextTier contextTier;
         private SessionLimitsConfig sessionLimits;
-        private boolean $presence64;
+        private boolean $presence65;
         private AutopilotOptions autopilot;
 
         /**
@@ -277,6 +271,18 @@ Omitted values preserve the current setting. Re-supply consent on cold resume. *
         @com.github.copilot.CopilotExperimental
         public Builder sessionId(String value) {
             this.sessionId = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code settings} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        @com.github.copilot.CopilotExperimental
+        public Builder settings(SessionSettingsPatch value) {
+            this.settings = value;
             return this;
         }
 
@@ -481,7 +487,7 @@ Omitted values preserve the current setting. Re-supply consent on cold resume. *
         @com.github.copilot.CopilotExperimental
         public Builder includedBuiltinAgents(List<String> value) {
             this.includedBuiltinAgents = value;
-            this.$presence17 = true;
+            this.$presence18 = true;
             return this;
         }
 
@@ -686,7 +692,7 @@ Omitted values preserve the current setting. Re-supply consent on cold resume. *
         @com.github.copilot.CopilotExperimental
         public Builder includedBuiltinSkills(List<String> value) {
             this.includedBuiltinSkills = value;
-            this.$presence34 = true;
+            this.$presence35 = true;
             return this;
         }
 
@@ -1047,7 +1053,7 @@ Omitted values preserve the current setting. Re-supply consent on cold resume. *
         @com.github.copilot.CopilotExperimental
         public Builder sessionLimits(SessionLimitsConfig value) {
             this.sessionLimits = value;
-            this.$presence64 = true;
+            this.$presence65 = true;
             return this;
         }
 
@@ -1071,10 +1077,10 @@ Omitted values preserve the current setting. Re-supply consent on cold resume. *
          */
         public SessionOptionsUpdateParams build() {
             java.util.Set<String> $explicitNulls = new java.util.LinkedHashSet<>();
-            if ($presence17 && includedBuiltinAgents == null) $explicitNulls.add("includedBuiltinAgents");
-            if ($presence34 && includedBuiltinSkills == null) $explicitNulls.add("includedBuiltinSkills");
-            if ($presence64 && sessionLimits == null) $explicitNulls.add("sessionLimits");
-            return new SessionOptionsUpdateParams(sessionId, imageGeneration, model, modelCapabilitiesOverrides, reasoningEffort, reasoningSummary, verbosity, clientName, lspClientName, integrationId, featureFlags, isExperimentalMode, provider, capi, workingDirectory, availableTools, excludedTools, includedBuiltinAgents, excludedBuiltinAgents, toolFilterPrecedence, enableScriptSafety, shell, shellInitProfile, shellProcessFlags, sandboxConfig, sandboxConfigSource, logInteractiveShells, envValueMode, allowAllMcpServerInstructions, skillDirectories, agentDirectories, instructionDirectories, hookDirectories, ignoredSkillsLocations, includedBuiltinSkills, disabledSkills, enableOnDemandInstructionDiscovery, maxInlineBinaryBytes, installedPlugins, customAgentsLocalOnly, suppressCustomAgentPrompt, skipCustomInstructions, disabledInstructionSources, coauthorEnabled, trajectoryFile, enableStreaming, copilotUrl, askUserDisabled, continueOnAutoMode, runningInInteractiveMode, enableReasoningSummaries, agentContext, eventsLogDirectory, eventsLogIncludesSubagents, additionalContentExclusionPolicies, manageScheduleEnabled, sessionCapabilities, skipEmbeddingRetrieval, organizationCustomInstructions, enableFileHooks, enableHostGitOperations, enableSessionStore, enableSkills, contextTier, sessionLimits, autopilot, $explicitNulls);
+            if ($presence18 && includedBuiltinAgents == null) $explicitNulls.add("includedBuiltinAgents");
+            if ($presence35 && includedBuiltinSkills == null) $explicitNulls.add("includedBuiltinSkills");
+            if ($presence65 && sessionLimits == null) $explicitNulls.add("sessionLimits");
+            return new SessionOptionsUpdateParams(sessionId, settings, imageGeneration, model, modelCapabilitiesOverrides, reasoningEffort, reasoningSummary, verbosity, clientName, lspClientName, integrationId, featureFlags, isExperimentalMode, provider, capi, workingDirectory, availableTools, excludedTools, includedBuiltinAgents, excludedBuiltinAgents, toolFilterPrecedence, enableScriptSafety, shell, shellInitProfile, shellProcessFlags, sandboxConfig, sandboxConfigSource, logInteractiveShells, envValueMode, allowAllMcpServerInstructions, skillDirectories, agentDirectories, instructionDirectories, hookDirectories, ignoredSkillsLocations, includedBuiltinSkills, disabledSkills, enableOnDemandInstructionDiscovery, maxInlineBinaryBytes, installedPlugins, customAgentsLocalOnly, suppressCustomAgentPrompt, skipCustomInstructions, disabledInstructionSources, coauthorEnabled, trajectoryFile, enableStreaming, copilotUrl, askUserDisabled, continueOnAutoMode, runningInInteractiveMode, enableReasoningSummaries, agentContext, eventsLogDirectory, eventsLogIncludesSubagents, additionalContentExclusionPolicies, manageScheduleEnabled, sessionCapabilities, skipEmbeddingRetrieval, organizationCustomInstructions, enableFileHooks, enableHostGitOperations, enableSessionStore, enableSkills, contextTier, sessionLimits, autopilot, $explicitNulls);
         }
     }
 
@@ -1098,7 +1104,7 @@ Omitted values preserve the current setting. Re-supply consent on cold resume. *
             if (tree.has("includedBuiltinAgents") && tree.get("includedBuiltinAgents").isNull()) $explicitNulls.add("includedBuiltinAgents");
             if (tree.has("includedBuiltinSkills") && tree.get("includedBuiltinSkills").isNull()) $explicitNulls.add("includedBuiltinSkills");
             if (tree.has("sessionLimits") && tree.get("sessionLimits").isNull()) $explicitNulls.add("sessionLimits");
-            return new SessionOptionsUpdateParams(readProperty(context, tree, "sessionId", new com.fasterxml.jackson.core.type.TypeReference<String>() {}), readProperty(context, tree, "imageGeneration", new com.fasterxml.jackson.core.type.TypeReference<ProtocolImageGenerationOptions>() {}), readProperty(context, tree, "model", new com.fasterxml.jackson.core.type.TypeReference<String>() {}), readProperty(context, tree, "modelCapabilitiesOverrides", new com.fasterxml.jackson.core.type.TypeReference<ModelCapabilitiesOverride>() {}), readProperty(context, tree, "reasoningEffort", new com.fasterxml.jackson.core.type.TypeReference<String>() {}), readProperty(context, tree, "reasoningSummary", new com.fasterxml.jackson.core.type.TypeReference<OptionsUpdateReasoningSummary>() {}), readProperty(context, tree, "verbosity", new com.fasterxml.jackson.core.type.TypeReference<Verbosity>() {}), readProperty(context, tree, "clientName", new com.fasterxml.jackson.core.type.TypeReference<String>() {}), readProperty(context, tree, "lspClientName", new com.fasterxml.jackson.core.type.TypeReference<String>() {}), readProperty(context, tree, "integrationId", new com.fasterxml.jackson.core.type.TypeReference<String>() {}), readProperty(context, tree, "featureFlags", new com.fasterxml.jackson.core.type.TypeReference<Map<String, Boolean>>() {}), readProperty(context, tree, "isExperimentalMode", new com.fasterxml.jackson.core.type.TypeReference<Boolean>() {}), readProperty(context, tree, "provider", new com.fasterxml.jackson.core.type.TypeReference<ProviderConfig>() {}), readProperty(context, tree, "capi", new com.fasterxml.jackson.core.type.TypeReference<CapiSessionOptions>() {}), readProperty(context, tree, "workingDirectory", new com.fasterxml.jackson.core.type.TypeReference<String>() {}), readProperty(context, tree, "availableTools", new com.fasterxml.jackson.core.type.TypeReference<List<String>>() {}), readProperty(context, tree, "excludedTools", new com.fasterxml.jackson.core.type.TypeReference<List<String>>() {}), readProperty(context, tree, "includedBuiltinAgents", new com.fasterxml.jackson.core.type.TypeReference<List<String>>() {}), readProperty(context, tree, "excludedBuiltinAgents", new com.fasterxml.jackson.core.type.TypeReference<List<String>>() {}), readProperty(context, tree, "toolFilterPrecedence", new com.fasterxml.jackson.core.type.TypeReference<OptionsUpdateToolFilterPrecedence>() {}), readProperty(context, tree, "enableScriptSafety", new com.fasterxml.jackson.core.type.TypeReference<Boolean>() {}), readProperty(context, tree, "shell", new com.fasterxml.jackson.core.type.TypeReference<ShellOptions>() {}), readProperty(context, tree, "shellInitProfile", new com.fasterxml.jackson.core.type.TypeReference<String>() {}), readProperty(context, tree, "shellProcessFlags", new com.fasterxml.jackson.core.type.TypeReference<List<String>>() {}), readProperty(context, tree, "sandboxConfig", new com.fasterxml.jackson.core.type.TypeReference<SandboxConfig>() {}), readProperty(context, tree, "sandboxConfigSource", new com.fasterxml.jackson.core.type.TypeReference<SandboxConfigSource>() {}), readProperty(context, tree, "logInteractiveShells", new com.fasterxml.jackson.core.type.TypeReference<Boolean>() {}), readProperty(context, tree, "envValueMode", new com.fasterxml.jackson.core.type.TypeReference<OptionsUpdateEnvValueMode>() {}), readProperty(context, tree, "allowAllMcpServerInstructions", new com.fasterxml.jackson.core.type.TypeReference<Boolean>() {}), readProperty(context, tree, "skillDirectories", new com.fasterxml.jackson.core.type.TypeReference<List<String>>() {}), readProperty(context, tree, "agentDirectories", new com.fasterxml.jackson.core.type.TypeReference<List<String>>() {}), readProperty(context, tree, "instructionDirectories", new com.fasterxml.jackson.core.type.TypeReference<List<String>>() {}), readProperty(context, tree, "hookDirectories", new com.fasterxml.jackson.core.type.TypeReference<List<String>>() {}), readProperty(context, tree, "ignoredSkillsLocations", new com.fasterxml.jackson.core.type.TypeReference<List<String>>() {}), readProperty(context, tree, "includedBuiltinSkills", new com.fasterxml.jackson.core.type.TypeReference<List<String>>() {}), readProperty(context, tree, "disabledSkills", new com.fasterxml.jackson.core.type.TypeReference<List<String>>() {}), readProperty(context, tree, "enableOnDemandInstructionDiscovery", new com.fasterxml.jackson.core.type.TypeReference<Boolean>() {}), readProperty(context, tree, "maxInlineBinaryBytes", new com.fasterxml.jackson.core.type.TypeReference<Long>() {}), readProperty(context, tree, "installedPlugins", new com.fasterxml.jackson.core.type.TypeReference<List<SessionInstalledPlugin>>() {}), readProperty(context, tree, "customAgentsLocalOnly", new com.fasterxml.jackson.core.type.TypeReference<Boolean>() {}), readProperty(context, tree, "suppressCustomAgentPrompt", new com.fasterxml.jackson.core.type.TypeReference<Boolean>() {}), readProperty(context, tree, "skipCustomInstructions", new com.fasterxml.jackson.core.type.TypeReference<Boolean>() {}), readProperty(context, tree, "disabledInstructionSources", new com.fasterxml.jackson.core.type.TypeReference<List<String>>() {}), readProperty(context, tree, "coauthorEnabled", new com.fasterxml.jackson.core.type.TypeReference<Boolean>() {}), readProperty(context, tree, "trajectoryFile", new com.fasterxml.jackson.core.type.TypeReference<String>() {}), readProperty(context, tree, "enableStreaming", new com.fasterxml.jackson.core.type.TypeReference<Boolean>() {}), readProperty(context, tree, "copilotUrl", new com.fasterxml.jackson.core.type.TypeReference<String>() {}), readProperty(context, tree, "askUserDisabled", new com.fasterxml.jackson.core.type.TypeReference<Boolean>() {}), readProperty(context, tree, "continueOnAutoMode", new com.fasterxml.jackson.core.type.TypeReference<Boolean>() {}), readProperty(context, tree, "runningInInteractiveMode", new com.fasterxml.jackson.core.type.TypeReference<Boolean>() {}), readProperty(context, tree, "enableReasoningSummaries", new com.fasterxml.jackson.core.type.TypeReference<Boolean>() {}), readProperty(context, tree, "agentContext", new com.fasterxml.jackson.core.type.TypeReference<String>() {}), readProperty(context, tree, "eventsLogDirectory", new com.fasterxml.jackson.core.type.TypeReference<String>() {}), readProperty(context, tree, "eventsLogIncludesSubagents", new com.fasterxml.jackson.core.type.TypeReference<Boolean>() {}), readProperty(context, tree, "additionalContentExclusionPolicies", new com.fasterxml.jackson.core.type.TypeReference<List<OptionsUpdateAdditionalContentExclusionPolicy>>() {}), readProperty(context, tree, "manageScheduleEnabled", new com.fasterxml.jackson.core.type.TypeReference<Boolean>() {}), readProperty(context, tree, "sessionCapabilities", new com.fasterxml.jackson.core.type.TypeReference<List<SessionCapability>>() {}), readProperty(context, tree, "skipEmbeddingRetrieval", new com.fasterxml.jackson.core.type.TypeReference<Boolean>() {}), readProperty(context, tree, "organizationCustomInstructions", new com.fasterxml.jackson.core.type.TypeReference<String>() {}), readProperty(context, tree, "enableFileHooks", new com.fasterxml.jackson.core.type.TypeReference<Boolean>() {}), readProperty(context, tree, "enableHostGitOperations", new com.fasterxml.jackson.core.type.TypeReference<Boolean>() {}), readProperty(context, tree, "enableSessionStore", new com.fasterxml.jackson.core.type.TypeReference<Boolean>() {}), readProperty(context, tree, "enableSkills", new com.fasterxml.jackson.core.type.TypeReference<Boolean>() {}), readProperty(context, tree, "contextTier", new com.fasterxml.jackson.core.type.TypeReference<OptionsUpdateContextTier>() {}), readProperty(context, tree, "sessionLimits", new com.fasterxml.jackson.core.type.TypeReference<SessionLimitsConfig>() {}), readProperty(context, tree, "autopilot", new com.fasterxml.jackson.core.type.TypeReference<AutopilotOptions>() {}), $explicitNulls);
+            return new SessionOptionsUpdateParams(readProperty(context, tree, "sessionId", new com.fasterxml.jackson.core.type.TypeReference<String>() {}), readProperty(context, tree, "settings", new com.fasterxml.jackson.core.type.TypeReference<SessionSettingsPatch>() {}), readProperty(context, tree, "imageGeneration", new com.fasterxml.jackson.core.type.TypeReference<ProtocolImageGenerationOptions>() {}), readProperty(context, tree, "model", new com.fasterxml.jackson.core.type.TypeReference<String>() {}), readProperty(context, tree, "modelCapabilitiesOverrides", new com.fasterxml.jackson.core.type.TypeReference<ModelCapabilitiesOverride>() {}), readProperty(context, tree, "reasoningEffort", new com.fasterxml.jackson.core.type.TypeReference<String>() {}), readProperty(context, tree, "reasoningSummary", new com.fasterxml.jackson.core.type.TypeReference<OptionsUpdateReasoningSummary>() {}), readProperty(context, tree, "verbosity", new com.fasterxml.jackson.core.type.TypeReference<Verbosity>() {}), readProperty(context, tree, "clientName", new com.fasterxml.jackson.core.type.TypeReference<String>() {}), readProperty(context, tree, "lspClientName", new com.fasterxml.jackson.core.type.TypeReference<String>() {}), readProperty(context, tree, "integrationId", new com.fasterxml.jackson.core.type.TypeReference<String>() {}), readProperty(context, tree, "featureFlags", new com.fasterxml.jackson.core.type.TypeReference<Map<String, Boolean>>() {}), readProperty(context, tree, "isExperimentalMode", new com.fasterxml.jackson.core.type.TypeReference<Boolean>() {}), readProperty(context, tree, "provider", new com.fasterxml.jackson.core.type.TypeReference<ProviderConfig>() {}), readProperty(context, tree, "capi", new com.fasterxml.jackson.core.type.TypeReference<CapiSessionOptions>() {}), readProperty(context, tree, "workingDirectory", new com.fasterxml.jackson.core.type.TypeReference<String>() {}), readProperty(context, tree, "availableTools", new com.fasterxml.jackson.core.type.TypeReference<List<String>>() {}), readProperty(context, tree, "excludedTools", new com.fasterxml.jackson.core.type.TypeReference<List<String>>() {}), readProperty(context, tree, "includedBuiltinAgents", new com.fasterxml.jackson.core.type.TypeReference<List<String>>() {}), readProperty(context, tree, "excludedBuiltinAgents", new com.fasterxml.jackson.core.type.TypeReference<List<String>>() {}), readProperty(context, tree, "toolFilterPrecedence", new com.fasterxml.jackson.core.type.TypeReference<OptionsUpdateToolFilterPrecedence>() {}), readProperty(context, tree, "enableScriptSafety", new com.fasterxml.jackson.core.type.TypeReference<Boolean>() {}), readProperty(context, tree, "shell", new com.fasterxml.jackson.core.type.TypeReference<ShellOptions>() {}), readProperty(context, tree, "shellInitProfile", new com.fasterxml.jackson.core.type.TypeReference<String>() {}), readProperty(context, tree, "shellProcessFlags", new com.fasterxml.jackson.core.type.TypeReference<List<String>>() {}), readProperty(context, tree, "sandboxConfig", new com.fasterxml.jackson.core.type.TypeReference<SandboxConfig>() {}), readProperty(context, tree, "sandboxConfigSource", new com.fasterxml.jackson.core.type.TypeReference<SandboxConfigSource>() {}), readProperty(context, tree, "logInteractiveShells", new com.fasterxml.jackson.core.type.TypeReference<Boolean>() {}), readProperty(context, tree, "envValueMode", new com.fasterxml.jackson.core.type.TypeReference<OptionsUpdateEnvValueMode>() {}), readProperty(context, tree, "allowAllMcpServerInstructions", new com.fasterxml.jackson.core.type.TypeReference<Boolean>() {}), readProperty(context, tree, "skillDirectories", new com.fasterxml.jackson.core.type.TypeReference<List<String>>() {}), readProperty(context, tree, "agentDirectories", new com.fasterxml.jackson.core.type.TypeReference<List<String>>() {}), readProperty(context, tree, "instructionDirectories", new com.fasterxml.jackson.core.type.TypeReference<List<String>>() {}), readProperty(context, tree, "hookDirectories", new com.fasterxml.jackson.core.type.TypeReference<List<String>>() {}), readProperty(context, tree, "ignoredSkillsLocations", new com.fasterxml.jackson.core.type.TypeReference<List<String>>() {}), readProperty(context, tree, "includedBuiltinSkills", new com.fasterxml.jackson.core.type.TypeReference<List<String>>() {}), readProperty(context, tree, "disabledSkills", new com.fasterxml.jackson.core.type.TypeReference<List<String>>() {}), readProperty(context, tree, "enableOnDemandInstructionDiscovery", new com.fasterxml.jackson.core.type.TypeReference<Boolean>() {}), readProperty(context, tree, "maxInlineBinaryBytes", new com.fasterxml.jackson.core.type.TypeReference<Long>() {}), readProperty(context, tree, "installedPlugins", new com.fasterxml.jackson.core.type.TypeReference<List<SessionInstalledPlugin>>() {}), readProperty(context, tree, "customAgentsLocalOnly", new com.fasterxml.jackson.core.type.TypeReference<Boolean>() {}), readProperty(context, tree, "suppressCustomAgentPrompt", new com.fasterxml.jackson.core.type.TypeReference<Boolean>() {}), readProperty(context, tree, "skipCustomInstructions", new com.fasterxml.jackson.core.type.TypeReference<Boolean>() {}), readProperty(context, tree, "disabledInstructionSources", new com.fasterxml.jackson.core.type.TypeReference<List<String>>() {}), readProperty(context, tree, "coauthorEnabled", new com.fasterxml.jackson.core.type.TypeReference<Boolean>() {}), readProperty(context, tree, "trajectoryFile", new com.fasterxml.jackson.core.type.TypeReference<String>() {}), readProperty(context, tree, "enableStreaming", new com.fasterxml.jackson.core.type.TypeReference<Boolean>() {}), readProperty(context, tree, "copilotUrl", new com.fasterxml.jackson.core.type.TypeReference<String>() {}), readProperty(context, tree, "askUserDisabled", new com.fasterxml.jackson.core.type.TypeReference<Boolean>() {}), readProperty(context, tree, "continueOnAutoMode", new com.fasterxml.jackson.core.type.TypeReference<Boolean>() {}), readProperty(context, tree, "runningInInteractiveMode", new com.fasterxml.jackson.core.type.TypeReference<Boolean>() {}), readProperty(context, tree, "enableReasoningSummaries", new com.fasterxml.jackson.core.type.TypeReference<Boolean>() {}), readProperty(context, tree, "agentContext", new com.fasterxml.jackson.core.type.TypeReference<String>() {}), readProperty(context, tree, "eventsLogDirectory", new com.fasterxml.jackson.core.type.TypeReference<String>() {}), readProperty(context, tree, "eventsLogIncludesSubagents", new com.fasterxml.jackson.core.type.TypeReference<Boolean>() {}), readProperty(context, tree, "additionalContentExclusionPolicies", new com.fasterxml.jackson.core.type.TypeReference<List<OptionsUpdateAdditionalContentExclusionPolicy>>() {}), readProperty(context, tree, "manageScheduleEnabled", new com.fasterxml.jackson.core.type.TypeReference<Boolean>() {}), readProperty(context, tree, "sessionCapabilities", new com.fasterxml.jackson.core.type.TypeReference<List<SessionCapability>>() {}), readProperty(context, tree, "skipEmbeddingRetrieval", new com.fasterxml.jackson.core.type.TypeReference<Boolean>() {}), readProperty(context, tree, "organizationCustomInstructions", new com.fasterxml.jackson.core.type.TypeReference<String>() {}), readProperty(context, tree, "enableFileHooks", new com.fasterxml.jackson.core.type.TypeReference<Boolean>() {}), readProperty(context, tree, "enableHostGitOperations", new com.fasterxml.jackson.core.type.TypeReference<Boolean>() {}), readProperty(context, tree, "enableSessionStore", new com.fasterxml.jackson.core.type.TypeReference<Boolean>() {}), readProperty(context, tree, "enableSkills", new com.fasterxml.jackson.core.type.TypeReference<Boolean>() {}), readProperty(context, tree, "contextTier", new com.fasterxml.jackson.core.type.TypeReference<OptionsUpdateContextTier>() {}), readProperty(context, tree, "sessionLimits", new com.fasterxml.jackson.core.type.TypeReference<SessionLimitsConfig>() {}), readProperty(context, tree, "autopilot", new com.fasterxml.jackson.core.type.TypeReference<AutopilotOptions>() {}), $explicitNulls);
         }
 
         private static <T> T readProperty(com.fasterxml.jackson.databind.DeserializationContext context,
@@ -1107,5 +1113,291 @@ Omitted values preserve the current setting. Re-supply consent on cold resume. *
             if (!tree.has(name)) return null;
             return context.readTreeAsValue(tree.get(name), context.getTypeFactory().constructType(type));
         }
+    }
+
+    /**
+     * Retains the constructor published in Java SDK 1.0.28.
+     * @deprecated Use named construction via {@link #builder()}.
+     * @param sessionId Target session identifier
+     * @param imageGeneration Enable or disable the native image tool for this session without changing the conversation model. Omitted values preserve the current setting. Re-supply consent on cold resume.
+     * @param model The model ID to use for assistant turns.
+     * @param modelCapabilitiesOverrides Per-property model capability overrides for the selected model.
+     * @param reasoningEffort Reasoning effort for the selected model. CAPI values are model-defined and validated against the selected model; BYOK providers may define additional values. When omitted, no effort override is applied.
+     * @param reasoningSummary Reasoning summary mode for supported model clients.
+     * @param verbosity Output verbosity level for supported models.
+     * @param clientName Identifier of the client driving the session.
+     * @param lspClientName Identifier sent to LSP-style integrations.
+     * @param integrationId Stable integration identifier used for analytics and rate-limit attribution.
+     * @param featureFlags Map of feature-flag IDs to their boolean enabled state.
+     * @param isExperimentalMode Whether experimental capabilities are enabled.
+     * @param provider Custom model-provider configuration (BYOK).
+     * @param capi Options scoped to the built-in CAPI (Copilot API) provider.
+     * @param workingDirectory Absolute working-directory path for shell tools.
+     * @param availableTools Allowlist of tool names available to this session.
+     * @param excludedTools Denylist of tool names for this session.
+     * @param includedBuiltinAgents Built-in subagent names to include in this session. When specified, only these built-ins are available, subject to runtime availability and exclusions. Custom agents with the same name remain available. Set to null to remove the allowlist restriction.
+     * @param excludedBuiltinAgents Built-in subagent names to exclude from this session. Excluded built-ins are hidden from agent discovery and cannot be dispatched unless a custom agent with the same name is available.
+     * @param toolFilterPrecedence Controls how availableTools (allowlist) and excludedTools (denylist) combine when both are set. Omitted updates preserve the current setting; new sessions default to excluded.
+     * @param enableScriptSafety Deprecated and ignored. Shell command analysis is always enabled; retained for wire compatibility.
+     * @param shell Per-session settings for built-in shell tools.
+     * @param shellInitProfile Use shell.initProfile instead. Shell init profile (`None` or `NonInteractive`).
+     * @param shellProcessFlags PowerShell process flags applied to built-in and user-requested shell commands.
+     * @param sandboxConfig Resolved sandbox configuration.
+     * @param sandboxConfigSource Origin of the sandbox choice. Settings-derived origins (never_configured, user_enabled, user_disabled, repository_policy) let managed policy floor a host preference; explicit below-floor changes remain policy conflicts unless a session opt-out is authorized. Also used for telemetry provenance.
+     * @param logInteractiveShells Whether interactive shell sessions are logged.
+     * @param envValueMode How env values are passed to MCP servers (`direct` inlines literal values; `indirect` resolves at launch).
+     * @param allowAllMcpServerInstructions Whether to include instructions from every MCP server in the system prompt instead of only allowlisted servers.
+     * @param skillDirectories Explicit discovery-only skill roots, not filesystem grants. Available without enableConfigDiscovery, subject to skill/managed disables. Relative SDK paths resolve once when supplied against the request's effective workingDirectory; retained roots do not move on cwd changes. Null and omission are equivalent; [] clears only the explicit SDK contribution.
+     * @param agentDirectories Explicit discovery-only agent roots, separate from customAgents and filesystem grants. Available without enableConfigDiscovery, subject to managed/source disables. Relative SDK paths resolve once when supplied against the request's effective workingDirectory; retained roots do not move on cwd changes. Null and omission are equivalent; [] clears only the explicit SDK contribution.
+     * @param instructionDirectories Explicit discovery-only instruction roots using existing SDK instruction formats, not filesystem grants. Available without enableConfigDiscovery, subject to instruction/managed disables. Relative SDK paths resolve once when supplied against the request's effective workingDirectory; retained roots do not move on cwd changes. Null and omission are equivalent; [] clears only the explicit SDK contribution.
+     * @param hookDirectories Explicit discovery-only file-hook roots, separate from callback hooks and filesystem grants. Available without enableConfigDiscovery or enableFileHooks, which controls repository-origin hooks only; hook/managed disables still apply. Relative SDK paths resolve once when supplied against the request's effective workingDirectory; retained roots do not move on cwd changes. Null and omission are equivalent; [] clears only the explicit SDK contribution.
+     * @param ignoredSkillsLocations Skill scan directories and descendants excluded from discovery. Supports `~`-relative paths.
+     * @param includedBuiltinSkills Built-in skill names to include in this session. When specified, only these runtime-bundled skills are available. Skills from other sources with the same name remain available. Set to null to remove the allowlist restriction.
+     * @param disabledSkills Skill IDs that should be excluded from this session.
+     * @param enableOnDemandInstructionDiscovery Whether to discover custom instructions on demand after successful file views (AGENTS.md / CLAUDE.md / .github/copilot-instructions.md surfacing). Combined with `skipCustomInstructions`.
+     * @param maxInlineBinaryBytes Maximum decoded byte size of a single model-facing binary tool result (e.g. an image) persisted inline in session events and re-presented to the model on later turns / resume. Larger results are persisted as a metadata-only marker and shown to the model as a short text note. Defaults to 10 MB.
+     * @param installedPlugins Full set of installed plugins for the session. Replaces the existing list; the runtime invalidates the skills cache only when the list materially changes.
+     * @param customAgentsLocalOnly Whether to default custom agents to local-only execution.
+     * @param suppressCustomAgentPrompt When true, the selected custom agent's prompt is not injected into the user message (skill context is still injected). Used by automation triggers where the agent prompt is already in the problem statement.
+     * @param skipCustomInstructions Whether to skip loading custom instruction sources.
+     * @param disabledInstructionSources Instruction source IDs to exclude from the system prompt.
+     * @param coauthorEnabled Whether to include the `Co-authored-by` trailer in commit messages.
+     * @param trajectoryFile Optional path for trajectory output.
+     * @param enableStreaming Whether to stream model responses.
+     * @param copilotUrl Override URL for the Copilot API endpoint.
+     * @param askUserDisabled Whether to disable the `ask_user` tool (encourages autonomous behavior).
+     * @param continueOnAutoMode Whether to allow auto-mode continuation across turns.
+     * @param runningInInteractiveMode Whether the session is running in an interactive UI.
+     * @param enableReasoningSummaries Whether to surface reasoning-summary events from the model.
+     * @param agentContext Runtime context discriminator (e.g., `cli`, `actions`).
+     * @param eventsLogDirectory Override directory for the session-events log. When unset, the runtime's default events log directory is used.
+     * @param eventsLogIncludesSubagents Whether subagent callback events should be forwarded into the session event log sink.
+     * @param additionalContentExclusionPolicies Additional content-exclusion policies to merge into the session's policy set.
+     * @param manageScheduleEnabled Whether to expose the `manage_schedule` tool to the agent. The runtime always owns the per-session schedule registry; this flag only controls tool exposure (typically gated to staff users).
+     * @param sessionCapabilities Replaces the session's capability set with the given list. Use to enable or disable capabilities mid-session (e.g., remove `memory` for reproducible scripted runs). Omit the field to leave the existing capability set unchanged.
+     * @param skipEmbeddingRetrieval Whether to skip embedding retrieval pipeline initialization and execution.
+     * @param organizationCustomInstructions Organization-level custom instructions to inject into the system prompt.
+     * @param enableFileHooks Whether to enable repository-origin file hooks from `.github/hooks/` and trusted repository-configured roots. Does not control explicit hookDirectories or SDK callback hooks.
+     * @param enableHostGitOperations Whether to enable host git operations (context resolution, child repo scanning, git info in system prompt).
+     * @param enableSessionStore Whether to enable cross-session store writes and reads.
+     * @param enableSkills Whether skill loading is enabled. Explicit false disables every source, including explicit SDK roots and a bound SDK provider; changing the value invalidates the loaded skill snapshot. When omitted, creation falls back to enableConfigDiscovery unless explicit SDK skill roots or an SDK skill provider are supplied.
+     * @param contextTier Context tier for models with tiered pricing. The session uses this to derive effective `modelCapabilitiesOverrides` so compaction, truncation, token display, and request limits honor the selected tier.
+     * @param sessionLimits Optional session limits. Pass null to clear the session limits.
+     * @param autopilot Patch the Autopilot policy. Omitted fields retain their current values; an empty object makes no changes. Does not change the session mode.
+     */
+    @Deprecated(since = "2.0.0", forRemoval = false)
+    public SessionOptionsUpdateParams(
+        String sessionId,
+        ProtocolImageGenerationOptions imageGeneration,
+        String model,
+        ModelCapabilitiesOverride modelCapabilitiesOverrides,
+        String reasoningEffort,
+        OptionsUpdateReasoningSummary reasoningSummary,
+        Verbosity verbosity,
+        String clientName,
+        String lspClientName,
+        String integrationId,
+        Map<String, Boolean> featureFlags,
+        Boolean isExperimentalMode,
+        ProviderConfig provider,
+        CapiSessionOptions capi,
+        String workingDirectory,
+        List<String> availableTools,
+        List<String> excludedTools,
+        List<String> includedBuiltinAgents,
+        List<String> excludedBuiltinAgents,
+        OptionsUpdateToolFilterPrecedence toolFilterPrecedence,
+        Boolean enableScriptSafety,
+        ShellOptions shell,
+        String shellInitProfile,
+        List<String> shellProcessFlags,
+        SandboxConfig sandboxConfig,
+        SandboxConfigSource sandboxConfigSource,
+        Boolean logInteractiveShells,
+        OptionsUpdateEnvValueMode envValueMode,
+        Boolean allowAllMcpServerInstructions,
+        List<String> skillDirectories,
+        List<String> agentDirectories,
+        List<String> instructionDirectories,
+        List<String> hookDirectories,
+        List<String> ignoredSkillsLocations,
+        List<String> includedBuiltinSkills,
+        List<String> disabledSkills,
+        Boolean enableOnDemandInstructionDiscovery,
+        Long maxInlineBinaryBytes,
+        List<SessionInstalledPlugin> installedPlugins,
+        Boolean customAgentsLocalOnly,
+        Boolean suppressCustomAgentPrompt,
+        Boolean skipCustomInstructions,
+        List<String> disabledInstructionSources,
+        Boolean coauthorEnabled,
+        String trajectoryFile,
+        Boolean enableStreaming,
+        String copilotUrl,
+        Boolean askUserDisabled,
+        Boolean continueOnAutoMode,
+        Boolean runningInInteractiveMode,
+        Boolean enableReasoningSummaries,
+        String agentContext,
+        String eventsLogDirectory,
+        Boolean eventsLogIncludesSubagents,
+        List<OptionsUpdateAdditionalContentExclusionPolicy> additionalContentExclusionPolicies,
+        Boolean manageScheduleEnabled,
+        List<SessionCapability> sessionCapabilities,
+        Boolean skipEmbeddingRetrieval,
+        String organizationCustomInstructions,
+        Boolean enableFileHooks,
+        Boolean enableHostGitOperations,
+        Boolean enableSessionStore,
+        Boolean enableSkills,
+        OptionsUpdateContextTier contextTier,
+        SessionLimitsConfig sessionLimits,
+        AutopilotOptions autopilot
+    ) {
+        this(sessionId, null, imageGeneration, model, modelCapabilitiesOverrides, reasoningEffort, reasoningSummary, verbosity, clientName, lspClientName, integrationId, featureFlags, isExperimentalMode, provider, capi, workingDirectory, availableTools, excludedTools, includedBuiltinAgents, excludedBuiltinAgents, toolFilterPrecedence, enableScriptSafety, shell, shellInitProfile, shellProcessFlags, sandboxConfig, sandboxConfigSource, logInteractiveShells, envValueMode, allowAllMcpServerInstructions, skillDirectories, agentDirectories, instructionDirectories, hookDirectories, ignoredSkillsLocations, includedBuiltinSkills, disabledSkills, enableOnDemandInstructionDiscovery, maxInlineBinaryBytes, installedPlugins, customAgentsLocalOnly, suppressCustomAgentPrompt, skipCustomInstructions, disabledInstructionSources, coauthorEnabled, trajectoryFile, enableStreaming, copilotUrl, askUserDisabled, continueOnAutoMode, runningInInteractiveMode, enableReasoningSummaries, agentContext, eventsLogDirectory, eventsLogIncludesSubagents, additionalContentExclusionPolicies, manageScheduleEnabled, sessionCapabilities, skipEmbeddingRetrieval, organizationCustomInstructions, enableFileHooks, enableHostGitOperations, enableSessionStore, enableSkills, contextTier, sessionLimits, autopilot, java.util.Set.of());
+    }
+
+    /**
+     * Retains the constructor published in Java SDK 1.0.28.
+     * @deprecated Use named construction via {@link #builder()}.
+     * @param sessionId Target session identifier
+     * @param imageGeneration Enable or disable the native image tool for this session without changing the conversation model. Omitted values preserve the current setting. Re-supply consent on cold resume.
+     * @param model The model ID to use for assistant turns.
+     * @param modelCapabilitiesOverrides Per-property model capability overrides for the selected model.
+     * @param reasoningEffort Reasoning effort for the selected model. CAPI values are model-defined and validated against the selected model; BYOK providers may define additional values. When omitted, no effort override is applied.
+     * @param reasoningSummary Reasoning summary mode for supported model clients.
+     * @param verbosity Output verbosity level for supported models.
+     * @param clientName Identifier of the client driving the session.
+     * @param lspClientName Identifier sent to LSP-style integrations.
+     * @param integrationId Stable integration identifier used for analytics and rate-limit attribution.
+     * @param featureFlags Map of feature-flag IDs to their boolean enabled state.
+     * @param isExperimentalMode Whether experimental capabilities are enabled.
+     * @param provider Custom model-provider configuration (BYOK).
+     * @param capi Options scoped to the built-in CAPI (Copilot API) provider.
+     * @param workingDirectory Absolute working-directory path for shell tools.
+     * @param availableTools Allowlist of tool names available to this session.
+     * @param excludedTools Denylist of tool names for this session.
+     * @param includedBuiltinAgents Built-in subagent names to include in this session. When specified, only these built-ins are available, subject to runtime availability and exclusions. Custom agents with the same name remain available. Set to null to remove the allowlist restriction.
+     * @param excludedBuiltinAgents Built-in subagent names to exclude from this session. Excluded built-ins are hidden from agent discovery and cannot be dispatched unless a custom agent with the same name is available.
+     * @param toolFilterPrecedence Controls how availableTools (allowlist) and excludedTools (denylist) combine when both are set. Omitted updates preserve the current setting; new sessions default to excluded.
+     * @param enableScriptSafety Deprecated and ignored. Shell command analysis is always enabled; retained for wire compatibility.
+     * @param shell Per-session settings for built-in shell tools.
+     * @param shellInitProfile Use shell.initProfile instead. Shell init profile (`None` or `NonInteractive`).
+     * @param shellProcessFlags PowerShell process flags applied to built-in and user-requested shell commands.
+     * @param sandboxConfig Resolved sandbox configuration.
+     * @param sandboxConfigSource Origin of the sandbox choice. Settings-derived origins (never_configured, user_enabled, user_disabled, repository_policy) let managed policy floor a host preference; explicit below-floor changes remain policy conflicts unless a session opt-out is authorized. Also used for telemetry provenance.
+     * @param logInteractiveShells Whether interactive shell sessions are logged.
+     * @param envValueMode How env values are passed to MCP servers (`direct` inlines literal values; `indirect` resolves at launch).
+     * @param allowAllMcpServerInstructions Whether to include instructions from every MCP server in the system prompt instead of only allowlisted servers.
+     * @param skillDirectories Explicit discovery-only skill roots, not filesystem grants. Available without enableConfigDiscovery, subject to skill/managed disables. Relative SDK paths resolve once when supplied against the request's effective workingDirectory; retained roots do not move on cwd changes. Null and omission are equivalent; [] clears only the explicit SDK contribution.
+     * @param agentDirectories Explicit discovery-only agent roots, separate from customAgents and filesystem grants. Available without enableConfigDiscovery, subject to managed/source disables. Relative SDK paths resolve once when supplied against the request's effective workingDirectory; retained roots do not move on cwd changes. Null and omission are equivalent; [] clears only the explicit SDK contribution.
+     * @param instructionDirectories Explicit discovery-only instruction roots using existing SDK instruction formats, not filesystem grants. Available without enableConfigDiscovery, subject to instruction/managed disables. Relative SDK paths resolve once when supplied against the request's effective workingDirectory; retained roots do not move on cwd changes. Null and omission are equivalent; [] clears only the explicit SDK contribution.
+     * @param hookDirectories Explicit discovery-only file-hook roots, separate from callback hooks and filesystem grants. Available without enableConfigDiscovery or enableFileHooks, which controls repository-origin hooks only; hook/managed disables still apply. Relative SDK paths resolve once when supplied against the request's effective workingDirectory; retained roots do not move on cwd changes. Null and omission are equivalent; [] clears only the explicit SDK contribution.
+     * @param ignoredSkillsLocations Skill scan directories and descendants excluded from discovery. Supports `~`-relative paths.
+     * @param includedBuiltinSkills Built-in skill names to include in this session. When specified, only these runtime-bundled skills are available. Skills from other sources with the same name remain available. Set to null to remove the allowlist restriction.
+     * @param disabledSkills Skill IDs that should be excluded from this session.
+     * @param enableOnDemandInstructionDiscovery Whether to discover custom instructions on demand after successful file views (AGENTS.md / CLAUDE.md / .github/copilot-instructions.md surfacing). Combined with `skipCustomInstructions`.
+     * @param maxInlineBinaryBytes Maximum decoded byte size of a single model-facing binary tool result (e.g. an image) persisted inline in session events and re-presented to the model on later turns / resume. Larger results are persisted as a metadata-only marker and shown to the model as a short text note. Defaults to 10 MB.
+     * @param installedPlugins Full set of installed plugins for the session. Replaces the existing list; the runtime invalidates the skills cache only when the list materially changes.
+     * @param customAgentsLocalOnly Whether to default custom agents to local-only execution.
+     * @param suppressCustomAgentPrompt When true, the selected custom agent's prompt is not injected into the user message (skill context is still injected). Used by automation triggers where the agent prompt is already in the problem statement.
+     * @param skipCustomInstructions Whether to skip loading custom instruction sources.
+     * @param disabledInstructionSources Instruction source IDs to exclude from the system prompt.
+     * @param coauthorEnabled Whether to include the `Co-authored-by` trailer in commit messages.
+     * @param trajectoryFile Optional path for trajectory output.
+     * @param enableStreaming Whether to stream model responses.
+     * @param copilotUrl Override URL for the Copilot API endpoint.
+     * @param askUserDisabled Whether to disable the `ask_user` tool (encourages autonomous behavior).
+     * @param continueOnAutoMode Whether to allow auto-mode continuation across turns.
+     * @param runningInInteractiveMode Whether the session is running in an interactive UI.
+     * @param enableReasoningSummaries Whether to surface reasoning-summary events from the model.
+     * @param agentContext Runtime context discriminator (e.g., `cli`, `actions`).
+     * @param eventsLogDirectory Override directory for the session-events log. When unset, the runtime's default events log directory is used.
+     * @param eventsLogIncludesSubagents Whether subagent callback events should be forwarded into the session event log sink.
+     * @param additionalContentExclusionPolicies Additional content-exclusion policies to merge into the session's policy set.
+     * @param manageScheduleEnabled Whether to expose the `manage_schedule` tool to the agent. The runtime always owns the per-session schedule registry; this flag only controls tool exposure (typically gated to staff users).
+     * @param sessionCapabilities Replaces the session's capability set with the given list. Use to enable or disable capabilities mid-session (e.g., remove `memory` for reproducible scripted runs). Omit the field to leave the existing capability set unchanged.
+     * @param skipEmbeddingRetrieval Whether to skip embedding retrieval pipeline initialization and execution.
+     * @param organizationCustomInstructions Organization-level custom instructions to inject into the system prompt.
+     * @param enableFileHooks Whether to enable repository-origin file hooks from `.github/hooks/` and trusted repository-configured roots. Does not control explicit hookDirectories or SDK callback hooks.
+     * @param enableHostGitOperations Whether to enable host git operations (context resolution, child repo scanning, git info in system prompt).
+     * @param enableSessionStore Whether to enable cross-session store writes and reads.
+     * @param enableSkills Whether skill loading is enabled. Explicit false disables every source, including explicit SDK roots and a bound SDK provider; changing the value invalidates the loaded skill snapshot. When omitted, creation falls back to enableConfigDiscovery unless explicit SDK skill roots or an SDK skill provider are supplied.
+     * @param contextTier Context tier for models with tiered pricing. The session uses this to derive effective `modelCapabilitiesOverrides` so compaction, truncation, token display, and request limits honor the selected tier.
+     * @param sessionLimits Optional session limits. Pass null to clear the session limits.
+     * @param autopilot Patch the Autopilot policy. Omitted fields retain their current values; an empty object makes no changes. Does not change the session mode.
+     * @param $explicitNulls nullable properties explicitly set to null
+     */
+    @Deprecated(since = "2.0.0", forRemoval = false)
+    public SessionOptionsUpdateParams(
+        String sessionId,
+        ProtocolImageGenerationOptions imageGeneration,
+        String model,
+        ModelCapabilitiesOverride modelCapabilitiesOverrides,
+        String reasoningEffort,
+        OptionsUpdateReasoningSummary reasoningSummary,
+        Verbosity verbosity,
+        String clientName,
+        String lspClientName,
+        String integrationId,
+        Map<String, Boolean> featureFlags,
+        Boolean isExperimentalMode,
+        ProviderConfig provider,
+        CapiSessionOptions capi,
+        String workingDirectory,
+        List<String> availableTools,
+        List<String> excludedTools,
+        List<String> includedBuiltinAgents,
+        List<String> excludedBuiltinAgents,
+        OptionsUpdateToolFilterPrecedence toolFilterPrecedence,
+        Boolean enableScriptSafety,
+        ShellOptions shell,
+        String shellInitProfile,
+        List<String> shellProcessFlags,
+        SandboxConfig sandboxConfig,
+        SandboxConfigSource sandboxConfigSource,
+        Boolean logInteractiveShells,
+        OptionsUpdateEnvValueMode envValueMode,
+        Boolean allowAllMcpServerInstructions,
+        List<String> skillDirectories,
+        List<String> agentDirectories,
+        List<String> instructionDirectories,
+        List<String> hookDirectories,
+        List<String> ignoredSkillsLocations,
+        List<String> includedBuiltinSkills,
+        List<String> disabledSkills,
+        Boolean enableOnDemandInstructionDiscovery,
+        Long maxInlineBinaryBytes,
+        List<SessionInstalledPlugin> installedPlugins,
+        Boolean customAgentsLocalOnly,
+        Boolean suppressCustomAgentPrompt,
+        Boolean skipCustomInstructions,
+        List<String> disabledInstructionSources,
+        Boolean coauthorEnabled,
+        String trajectoryFile,
+        Boolean enableStreaming,
+        String copilotUrl,
+        Boolean askUserDisabled,
+        Boolean continueOnAutoMode,
+        Boolean runningInInteractiveMode,
+        Boolean enableReasoningSummaries,
+        String agentContext,
+        String eventsLogDirectory,
+        Boolean eventsLogIncludesSubagents,
+        List<OptionsUpdateAdditionalContentExclusionPolicy> additionalContentExclusionPolicies,
+        Boolean manageScheduleEnabled,
+        List<SessionCapability> sessionCapabilities,
+        Boolean skipEmbeddingRetrieval,
+        String organizationCustomInstructions,
+        Boolean enableFileHooks,
+        Boolean enableHostGitOperations,
+        Boolean enableSessionStore,
+        Boolean enableSkills,
+        OptionsUpdateContextTier contextTier,
+        SessionLimitsConfig sessionLimits,
+        AutopilotOptions autopilot,
+        java.util.Set<String> $explicitNulls
+    ) {
+        this(sessionId, null, imageGeneration, model, modelCapabilitiesOverrides, reasoningEffort, reasoningSummary, verbosity, clientName, lspClientName, integrationId, featureFlags, isExperimentalMode, provider, capi, workingDirectory, availableTools, excludedTools, includedBuiltinAgents, excludedBuiltinAgents, toolFilterPrecedence, enableScriptSafety, shell, shellInitProfile, shellProcessFlags, sandboxConfig, sandboxConfigSource, logInteractiveShells, envValueMode, allowAllMcpServerInstructions, skillDirectories, agentDirectories, instructionDirectories, hookDirectories, ignoredSkillsLocations, includedBuiltinSkills, disabledSkills, enableOnDemandInstructionDiscovery, maxInlineBinaryBytes, installedPlugins, customAgentsLocalOnly, suppressCustomAgentPrompt, skipCustomInstructions, disabledInstructionSources, coauthorEnabled, trajectoryFile, enableStreaming, copilotUrl, askUserDisabled, continueOnAutoMode, runningInInteractiveMode, enableReasoningSummaries, agentContext, eventsLogDirectory, eventsLogIncludesSubagents, additionalContentExclusionPolicies, manageScheduleEnabled, sessionCapabilities, skipEmbeddingRetrieval, organizationCustomInstructions, enableFileHooks, enableHostGitOperations, enableSessionStore, enableSkills, contextTier, sessionLimits, autopilot, $explicitNulls);
     }
 }

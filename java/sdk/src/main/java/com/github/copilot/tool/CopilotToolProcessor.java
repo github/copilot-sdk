@@ -338,6 +338,7 @@ public class CopilotToolProcessor extends AbstractProcessor {
         boolean overridesBuiltIn = annotation.overridesBuiltInTool();
         boolean skipPermission = annotation.skipPermission();
         boolean isTerminal = annotation.isTerminal();
+        boolean idempotent = annotation.idempotent();
         com.github.copilot.rpc.ToolDefer defer = annotation.defer();
 
         // Generate schema with @CopilotToolParam metadata (descriptions, names,
@@ -364,7 +365,14 @@ public class CopilotToolProcessor extends AbstractProcessor {
         out.println("                " + skipPermArg + ",");
         out.println("                " + deferArg + ",");
         out.println("                " + metadataSource(annotation) + ",");
-        out.println("                " + isTerminalArg);
+        if (idempotent) {
+            // Namespace is not expressible on the annotation, so it stays null.
+            out.println("                " + isTerminalArg + ",");
+            out.println("                null,");
+            out.println("                Boolean.TRUE");
+        } else {
+            out.println("                " + isTerminalArg);
+        }
         out.print("            )");
     }
 

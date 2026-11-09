@@ -59,6 +59,24 @@ current value; after a cold resume, supply it again. Changing it on resume can
 invalidate the provider's prompt cache. There is no separate runtime execution
 mode or live-update option.
 
+## Tool side-effect hints
+
+Custom tools can declare an optional idempotent hint, mirroring MCP's
+`idempotentHint`: repeating a call with the same arguments has no additional
+effect beyond the first call. A tool with no side effects is idempotent, so a
+read-only tool should set it too. The runtime's programmatic tool calling uses
+it to decide whether a call whose outcome was lost can be safely repeated. It
+does not affect permission checks. Leave it unset unless it is true.
+
+| SDK | Idempotent |
+|---|---|
+| Node.js | `idempotent` |
+| Python | `idempotent` |
+| Go | `Idempotent` |
+| .NET | `CopilotToolOptions.Idempotent` |
+| Java | `ToolDefinition.idempotent(true)` or `@CopilotTool(idempotent = true)` |
+| Rust | `with_idempotent(true)` |
+
 ## Turns—what they are
 
 A **turn** is a single LLM API call and its consequences:

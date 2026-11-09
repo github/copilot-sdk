@@ -302,7 +302,7 @@ Create a new conversation session.
 - `Autopilot` - Experimental `AutopilotOptions`, also accepted on resume and by `session.Rpc.Options.UpdateAsync`. `ContinuationEnabled` defaults to true and does not change session mode; `MaxContinues` limits continuations outside an active objective (non-negative integer, default five, zero allows none). Updates and warm resumes preserve omitted fields; an empty object changes nothing. Re-supply on cold resume.
 - `WorkingDirectory` - Working directory for the session. When not set, the runtime uses its own process working directory.
 - `EnableSessionStore` - Enables the cross-session store for search and retrieval across sessions. When unset in `CopilotClientMode.CopilotCli`, the runtime default applies (enabled). In `CopilotClientMode.Empty`, defaults to disabled.
-- `GitHubTokenProvider` - Acquires session-scoped GitHub tokens on demand. Return `GitHubTokenProviderResult.FromToken` with a positive `ExpiresIn` value (production GitHub tokens typically use `8 * 60 * 60` seconds), or `GitHubTokenProviderResult.Cancel()`. Cannot be combined with `GitHubToken`.
+- `GitHubTokenProvider` - Acquires session-scoped GitHub tokens on demand. Return `GitHubTokenProviderResult.FromToken` with an `ExpiresIn` value that leaves more than one hour after the runtime validates the token (production GitHub tokens typically use `8 * 60 * 60` seconds), or `GitHubTokenProviderResult.Cancel()`. Cannot be combined with `GitHubToken`.
 - `SkillProvider` - Experimental session-scoped skill provider. See [Skill providers (experimental)](#skill-providers-experimental).
 - `OnPermissionRequest` - Optional handler called before each tool execution to approve or deny it. When omitted, permission requests are emitted as events and left pending for manual resolution. `PermissionHandler.ApproveAll` approves requests when managed settings are disabled and throws when `EnableManagedSettings` is true. Custom handlers can inspect `ManagedApprovalRequired` for human-facing confirmation logic. See [Permission Handling](#permission-handling) section.
 - `OnUserInputRequest` - Handler for legacy question-and-answer requests from the agent. Enables the legacy `ask_user` tool. See [User Input Requests](#user-input-requests) section.
@@ -470,7 +470,27 @@ To give a provider skill supporting files, such as scripts, references,
 templates, and assets, set its descriptor's `Directory` to the absolute path of
 the folder that holds them:
 
-<!-- docs-validate: skip -->
+<!-- docs-validate: hidden -->
+<!--
+```csharp
+#pragma warning disable GHCP001 // Skill providers are experimental.
+
+public static class DotnetSkillProviderSupportingFilesExample
+{
+    public static IReadOnlyList<SkillProviderDescriptor> Skills() =>
+    [
+        new SkillProviderDescriptor
+        {
+            Name = "release-notes",
+            Description = "Writes release notes in the team's format.",
+            Directory = "/srv/skills/release-notes",
+        }
+    ];
+}
+```
+-->
+<!-- /docs-validate: hidden -->
+
 ```csharp
 new SkillProviderDescriptor
 {

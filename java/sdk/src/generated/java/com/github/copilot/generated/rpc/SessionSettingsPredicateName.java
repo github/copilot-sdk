@@ -16,6 +16,8 @@ import javax.annotation.processing.Generated;
  */
 @javax.annotation.processing.Generated("copilot-sdk-codegen")
 enum SessionSettingsPredicateName {
+    /** The {@code githubIqEnabled} variant. */
+    GITHUBIQENABLED("githubIqEnabled"),
     /** The {@code securityToolsEnabled} variant. */
     SECURITYTOOLSENABLED("securityToolsEnabled"),
     /** The {@code thirdPartySecurityPromptEnabled} variant. */

@@ -29,8 +29,12 @@ public record SessionModelSwitchAutoTierResult(
     @JsonProperty("status") ModelSwitchAutoTierStatus status,
     /** Auto preference currently committed for the session. */
     @JsonProperty("effectiveAutoTier") AutoTier effectiveAutoTier,
+    /** Copilot Fusion tier that effectiveAutoTier serves, resolved from the session's Auto tier metadata. An open string: known values include `standard`, `high`, and `max`; other provider-defined values may appear. Omitted when no Auto preference is committed, it is not a Fusion tier, or Auto metadata has not been discovered (for example after cold resume, before session.model.list). Fusion fields cover only effective and pending preferences; resolve activatingAutoTier and supersededAutoTier against auto.tiers[].fusionTier from session.model.list. */
+    @JsonProperty("effectiveFusionTier") String effectiveFusionTier,
     /** Latest unclaimed Auto preference waiting for a future user turn. */
     @JsonProperty("pendingAutoTier") AutoTier pendingAutoTier,
+    /** Copilot Fusion tier that pendingAutoTier serves, resolved from the session's Auto tier metadata. An open string: known values include `standard`, `high`, and `max`; other provider-defined values may appear. Omitted when no preference is pending, it is not a Fusion tier, or Auto metadata has not been discovered (for example after cold resume, before session.model.list). */
+    @JsonProperty("pendingFusionTier") String pendingFusionTier,
     /** Auto preference currently claimed by an in-progress activation. Null means the activation is returning to provider-default routing. */
     @JsonProperty("activatingAutoTier") AutoTier activatingAutoTier,
     /** Earlier unclaimed preference replaced by this request. This can be present with either status, including when selecting the effective preference cancels pending work. */
@@ -50,8 +54,8 @@ public record SessionModelSwitchAutoTierResult(
      * @deprecated Use {@link #builder()} for named construction.
      */
     @Deprecated(since = "2.0.0", forRemoval = false)
-    public SessionModelSwitchAutoTierResult(ModelSwitchAutoTierStatus status, AutoTier effectiveAutoTier, AutoTier pendingAutoTier, AutoTier activatingAutoTier, AutoTier supersededAutoTier) {
-        this(status, effectiveAutoTier, pendingAutoTier, activatingAutoTier, supersededAutoTier, java.util.Set.of());
+    public SessionModelSwitchAutoTierResult(ModelSwitchAutoTierStatus status, AutoTier effectiveAutoTier, String effectiveFusionTier, AutoTier pendingAutoTier, String pendingFusionTier, AutoTier activatingAutoTier, AutoTier supersededAutoTier) {
+        this(status, effectiveAutoTier, effectiveFusionTier, pendingAutoTier, pendingFusionTier, activatingAutoTier, supersededAutoTier, java.util.Set.of());
     }
 
     /**
@@ -71,12 +75,14 @@ public record SessionModelSwitchAutoTierResult(
         private Builder() {}
         private ModelSwitchAutoTierStatus status;
         private AutoTier effectiveAutoTier;
+        private String effectiveFusionTier;
         private AutoTier pendingAutoTier;
-        private boolean $presence2;
-        private AutoTier activatingAutoTier;
         private boolean $presence3;
+        private String pendingFusionTier;
+        private AutoTier activatingAutoTier;
+        private boolean $presence5;
         private AutoTier supersededAutoTier;
-        private boolean $presence4;
+        private boolean $presence6;
 
         /**
          * Sets the {@code status} property.
@@ -103,6 +109,18 @@ public record SessionModelSwitchAutoTierResult(
         }
 
         /**
+         * Sets the {@code effectiveFusionTier} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        @com.github.copilot.CopilotExperimental
+        public Builder effectiveFusionTier(String value) {
+            this.effectiveFusionTier = value;
+            return this;
+        }
+
+        /**
          * Sets the {@code pendingAutoTier} property.
          * @param value the property value
          * @return this builder
@@ -111,7 +129,19 @@ public record SessionModelSwitchAutoTierResult(
         @com.github.copilot.CopilotExperimental
         public Builder pendingAutoTier(AutoTier value) {
             this.pendingAutoTier = value;
-            this.$presence2 = true;
+            this.$presence3 = true;
+            return this;
+        }
+
+        /**
+         * Sets the {@code pendingFusionTier} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        @com.github.copilot.CopilotExperimental
+        public Builder pendingFusionTier(String value) {
+            this.pendingFusionTier = value;
             return this;
         }
 
@@ -124,7 +154,7 @@ public record SessionModelSwitchAutoTierResult(
         @com.github.copilot.CopilotExperimental
         public Builder activatingAutoTier(AutoTier value) {
             this.activatingAutoTier = value;
-            this.$presence3 = true;
+            this.$presence5 = true;
             return this;
         }
 
@@ -137,7 +167,7 @@ public record SessionModelSwitchAutoTierResult(
         @com.github.copilot.CopilotExperimental
         public Builder supersededAutoTier(AutoTier value) {
             this.supersededAutoTier = value;
-            this.$presence4 = true;
+            this.$presence6 = true;
             return this;
         }
 
@@ -150,10 +180,10 @@ public record SessionModelSwitchAutoTierResult(
         public SessionModelSwitchAutoTierResult build() {
             if (status == null) throw new IllegalStateException("Missing required property: status");
             java.util.Set<String> $explicitNulls = new java.util.LinkedHashSet<>();
-            if ($presence2 && pendingAutoTier == null) $explicitNulls.add("pendingAutoTier");
-            if ($presence3 && activatingAutoTier == null) $explicitNulls.add("activatingAutoTier");
-            if ($presence4 && supersededAutoTier == null) $explicitNulls.add("supersededAutoTier");
-            return new SessionModelSwitchAutoTierResult(status, effectiveAutoTier, pendingAutoTier, activatingAutoTier, supersededAutoTier, $explicitNulls);
+            if ($presence3 && pendingAutoTier == null) $explicitNulls.add("pendingAutoTier");
+            if ($presence5 && activatingAutoTier == null) $explicitNulls.add("activatingAutoTier");
+            if ($presence6 && supersededAutoTier == null) $explicitNulls.add("supersededAutoTier");
+            return new SessionModelSwitchAutoTierResult(status, effectiveAutoTier, effectiveFusionTier, pendingAutoTier, pendingFusionTier, activatingAutoTier, supersededAutoTier, $explicitNulls);
         }
     }
 
@@ -177,7 +207,7 @@ public record SessionModelSwitchAutoTierResult(
             if (tree.has("pendingAutoTier") && tree.get("pendingAutoTier").isNull()) $explicitNulls.add("pendingAutoTier");
             if (tree.has("activatingAutoTier") && tree.get("activatingAutoTier").isNull()) $explicitNulls.add("activatingAutoTier");
             if (tree.has("supersededAutoTier") && tree.get("supersededAutoTier").isNull()) $explicitNulls.add("supersededAutoTier");
-            return new SessionModelSwitchAutoTierResult(readProperty(context, tree, "status", new com.fasterxml.jackson.core.type.TypeReference<ModelSwitchAutoTierStatus>() {}), readProperty(context, tree, "effectiveAutoTier", new com.fasterxml.jackson.core.type.TypeReference<AutoTier>() {}), readProperty(context, tree, "pendingAutoTier", new com.fasterxml.jackson.core.type.TypeReference<AutoTier>() {}), readProperty(context, tree, "activatingAutoTier", new com.fasterxml.jackson.core.type.TypeReference<AutoTier>() {}), readProperty(context, tree, "supersededAutoTier", new com.fasterxml.jackson.core.type.TypeReference<AutoTier>() {}), $explicitNulls);
+            return new SessionModelSwitchAutoTierResult(readProperty(context, tree, "status", new com.fasterxml.jackson.core.type.TypeReference<ModelSwitchAutoTierStatus>() {}), readProperty(context, tree, "effectiveAutoTier", new com.fasterxml.jackson.core.type.TypeReference<AutoTier>() {}), readProperty(context, tree, "effectiveFusionTier", new com.fasterxml.jackson.core.type.TypeReference<String>() {}), readProperty(context, tree, "pendingAutoTier", new com.fasterxml.jackson.core.type.TypeReference<AutoTier>() {}), readProperty(context, tree, "pendingFusionTier", new com.fasterxml.jackson.core.type.TypeReference<String>() {}), readProperty(context, tree, "activatingAutoTier", new com.fasterxml.jackson.core.type.TypeReference<AutoTier>() {}), readProperty(context, tree, "supersededAutoTier", new com.fasterxml.jackson.core.type.TypeReference<AutoTier>() {}), $explicitNulls);
         }
 
         private static <T> T readProperty(com.fasterxml.jackson.databind.DeserializationContext context,
@@ -186,5 +216,25 @@ public record SessionModelSwitchAutoTierResult(
             if (!tree.has(name)) return null;
             return context.readTreeAsValue(tree.get(name), context.getTypeFactory().constructType(type));
         }
+    }
+
+    /**
+     * Creates a record with the components it had before later optional fields were added.
+     * @deprecated Use named construction via {@link #builder()}.
+     * @param status Immediate request status. `pending` means accepted but not committed.
+     * @param effectiveAutoTier Auto preference currently committed for the session.
+     * @param pendingAutoTier Latest unclaimed Auto preference waiting for a future user turn.
+     * @param activatingAutoTier Auto preference currently claimed by an in-progress activation. Null means the activation is returning to provider-default routing.
+     * @param supersededAutoTier Earlier unclaimed preference replaced by this request. This can be present with either status, including when selecting the effective preference cancels pending work.
+     */
+    @Deprecated(since = "2.0.0", forRemoval = false)
+    public SessionModelSwitchAutoTierResult(
+        ModelSwitchAutoTierStatus status,
+        AutoTier effectiveAutoTier,
+        AutoTier pendingAutoTier,
+        AutoTier activatingAutoTier,
+        AutoTier supersededAutoTier
+    ) {
+        this(status, effectiveAutoTier, null, pendingAutoTier, null, activatingAutoTier, supersededAutoTier);
     }
 }

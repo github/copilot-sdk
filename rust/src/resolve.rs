@@ -51,24 +51,8 @@ pub(crate) fn copilot_binary_with_extract_dir(
     }
 
     #[cfg(feature = "bundled-cli")]
-    {
-        let bundled = if use_runtime_wrapper {
-            match extract_dir {
-                Some(dir) => Ok(crate::embeddedcli::install_runtime_at(dir)),
-                None => crate::embeddedcli::runtime_path(),
-            }
-        } else {
-            match extract_dir {
-                Some(dir) => Ok(crate::embeddedcli::install_at(dir)),
-                None => crate::embeddedcli::path(),
-            }
-        }?;
-        if let Some(path) = bundled {
-            if use_runtime_wrapper {
-                validate_runtime_pair(&path)?;
-            }
-            return Ok(path);
-        }
+    if let Some(path) = bundled_program(extract_dir, use_runtime_wrapper)? {
+        return Ok(path);
     }
 
     #[cfg(not(feature = "bundled-cli"))]
@@ -95,6 +79,32 @@ pub(crate) fn copilot_binary_with_extract_dir(
         ),
     }
     .into())
+}
+
+/// Install (or find) the bundled program. `Ok(None)` means nothing is bundled;
+/// an installation failure is an error that names the directory.
+#[cfg(feature = "bundled-cli")]
+fn bundled_program(
+    extract_dir: Option<&Path>,
+    use_runtime_wrapper: bool,
+) -> Result<Option<PathBuf>, Error> {
+    let bundled = if use_runtime_wrapper {
+        match extract_dir {
+            Some(dir) => crate::embeddedcli::install_runtime_at(dir),
+            None => crate::embeddedcli::runtime_path(),
+        }
+    } else {
+        match extract_dir {
+            Some(dir) => crate::embeddedcli::install_at(dir),
+            None => crate::embeddedcli::path(),
+        }
+    }?;
+    if let Some(path) = &bundled
+        && use_runtime_wrapper
+    {
+        validate_runtime_pair(path)?;
+    }
+    Ok(bundled)
 }
 
 /// Path to the program extracted into the per-user cache by `build.rs` when

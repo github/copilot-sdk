@@ -274,7 +274,7 @@ new CopilotClient(options?: CopilotClientOptions)
     - `RuntimeConnection.forStdio({ path?, args?, env? })` (default) — spawn the runtime and communicate over its stdin/stdout.
     - `RuntimeConnection.forTcp({ port?, connectionToken?, path?, args?, env? })` — spawn the runtime as a TCP server.
     - `RuntimeConnection.forUri(url, { connectionToken? })` — connect to an already-running runtime (mutually exclusive with `gitHubToken`/`useLoggedInUser`). There is no top-level `cliUrl` shortcut; use this factory for URL-based connections.
-    - `RuntimeConnection.forInProcess()` — host the runtime in-process over its native C ABI (FFI). **Experimental.** Client-level `env`, `telemetry`, and `workingDirectory` are rejected; use supported typed options and configure working directories per session.
+    - `RuntimeConnection.forInProcess()` — host the runtime in-process over its native C ABI (FFI). **Experimental.** Typed `telemetry` is host-scoped; client-level `env` and `workingDirectory` are rejected. Configure working directories per session.
     - The child-process transports (`forStdio`/`forTcp`) also accept a per-connection `env`. Set it there or via the top-level `env` option — not both (setting both throws).
     - Managed child-process connections materialize the bundled `copilot-runtime` and adjacent `runtime.node`, then launch the wrapper by default. An explicit connection `path` or `COPILOT_CLI_PATH` overrides the bundled runtime.
 - `mode?: "empty" | "copilot-cli"` - Defaulting strategy. Use `"empty"` for multi-user server mode; defaults to `"copilot-cli"`.
@@ -399,7 +399,7 @@ Create a new conversation session.
 - `refreshCustomInstructions?: boolean` - Invalidates the process-wide custom-instruction discovery cache before creating this session, so instruction-file edits made in the same runtime are read again. Defaults to `false` (cache reuse). Other sessions in this runtime may observe updated instructions on later turns or discovery. This does not watch files or enable disabled instruction loading. Available on `SessionConfig`, not `ResumeSessionConfig`.
 - `enableSessionStore?: boolean` - Enables the cross-session store for search and retrieval across sessions. When unset in `"copilot-cli"` mode, the runtime default applies (enabled). In `"empty"` mode, defaults to disabled.
 - `enableSessionTelemetry?: boolean` - Disables internal session telemetry only when set to `false`. Omission or `true` enables it for eligible GitHub-authenticated sessions, including custom-provider (BYOK) sessions. Host and account policies still control uploads; this is separate from OpenTelemetry configuration.
-- `gitHubTokenProvider?: GitHubTokenProvider` - Acquires rotating, session-scoped GitHub tokens. Token results require a positive `expiresIn` value in seconds remaining when the callback completes; production tokens typically last eight hours. Cannot be combined with `gitHubToken`.
+- `gitHubTokenProvider?: GitHubTokenProvider` - Acquires rotating, session-scoped GitHub tokens. Token results require an `expiresIn` value in seconds remaining when the callback completes, of which more than one hour must still remain after the runtime validates the token; production tokens typically last eight hours. Cannot be combined with `gitHubToken`.
 - `provider?: ProviderConfig` - Custom API provider configuration (BYOK - Bring Your Own Key). See [Custom Providers](#custom-providers) section.
 - `onPermissionRequest?: PermissionHandler` - Optional handler called before each tool execution to approve or deny it. When omitted, permission requests are emitted as events and left pending for manual resolution. `approveAll` approves requests when managed settings are disabled and throws when `enableManagedSettings` is true. Custom handlers can inspect `managedApprovalRequired` for human-facing confirmation logic. See [Permission Handling](#permission-handling) section.
 - `onUserInputRequest?: UserInputHandler` - Handler for legacy question-and-answer requests from the agent. Enables the legacy `ask_user` tool. See [User Input Requests](#user-input-requests) section.
@@ -1937,6 +1937,7 @@ With just this configuration, the CLI emits spans for every session, message, an
 If you're already using `@opentelemetry/api` in your app and want this linkage, provide a callback:
 
 ```typescript
+import { CopilotClient } from "@github/copilot-sdk";
 import { propagation, context } from "@opentelemetry/api";
 
 const client = new CopilotClient({
@@ -2458,10 +2459,13 @@ npm test
 ### Internal feature-flag example
 
 [`examples/internal-feature-flags.ts`](examples/internal-feature-flags.ts) uses
-the generated internal RPC factory against a real runtime over stdio.
+the generated RPC factories against a real runtime over stdio.
 It lists the catalog and shows environment, settings, and explicit-override
 precedence. It also checks that static resolution does not apply `COPILOT_EXP_*`
-experiment assignments. It creates no session and sends no model request.
+experiment assignments. It then creates a session with a feature-flag
+configuration, checks that the session's `githubIqEnabled` setting predicate
+keeps its value after `options.update` changes `enabledFeatureFlags`, and
+destroys the session. It sends no model request.
 
 After you prepare matching runtime artifacts, run this from the runtime repository root:
 
@@ -2473,7 +2477,8 @@ COPILOT_RUNTIME_PROVIDER_LIB="$PWD/bazel-bin/src/native/runtime/runtime.node" \
 ```
 
 The JSON output includes `staticResolution` values of `false`, `true`, `false`,
-and `true`, in that order. These methods are internal, not public SDK APIs.
+and `true`, in that order, and `lifecycleViaExistingMethods` of `[true, true]`.
+The feature-flag and settings-predicate methods are internal, not public SDK APIs.
 
 ## License
 

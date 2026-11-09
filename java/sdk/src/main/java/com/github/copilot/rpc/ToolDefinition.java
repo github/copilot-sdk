@@ -88,6 +88,12 @@ import com.github.copilot.tool.Param;
  *            where the model provider supports native tool namespaces, deferred
  *            tools sharing a namespace are presented as one group, elsewhere
  *            the tool stays flat; {@code null} when unset
+ * @param idempotent
+ *            when {@code true}, declares that repeating a call with the same
+ *            arguments has no additional effect beyond the first call, as is
+ *            true of any tool without side effects; the runtime may use this to
+ *            decide that a call whose outcome was lost can be safely repeated;
+ *            it does not affect permission checks; {@code null} when unset
  * @see SessionConfig#setTools(java.util.List)
  * @see ToolHandler
  * @since 1.0.0
@@ -98,7 +104,50 @@ public record ToolDefinition(@JsonProperty("name") String name, @JsonProperty("d
         @JsonProperty("overridesBuiltInTool") Boolean overridesBuiltInTool,
         @JsonProperty("skipPermission") Boolean skipPermission, @JsonProperty("defer") ToolDefer defer,
         @JsonProperty("metadata") Map<String, Object> metadata, @JsonProperty("isTerminal") Boolean isTerminal,
-        @JsonProperty("namespace") ToolNamespace namespace) {
+        @JsonProperty("namespace") ToolNamespace namespace, @JsonProperty("idempotent") Boolean idempotent) {
+
+    @JsonProperty("hasHandler")
+    private boolean hasHandler() {
+        return handler != null;
+    }
+
+    /**
+     * Creates a tool definition without an idempotency hint.
+     * <p>
+     * Convenience overload equivalent to the canonical constructor with
+     * {@code idempotent} set to {@code null}.
+     *
+     * @param name
+     *            the unique name of the tool
+     * @param description
+     *            a description of what the tool does
+     * @param parameters
+     *            the JSON Schema for the tool's parameters
+     * @param handler
+     *            the handler function to execute when invoked
+     * @param overridesBuiltInTool
+     *            whether this tool overrides a built-in tool; {@code null} for the
+     *            default
+     * @param skipPermission
+     *            whether the tool may run without a permission check; {@code null}
+     *            for the default
+     * @param defer
+     *            the deferral mode; {@code null} lets the runtime decide
+     * @param metadata
+     *            the opaque, host-defined metadata; {@code null} when unset
+     * @param isTerminal
+     *            whether a successful call ends the agent turn; {@code null} for
+     *            the default
+     * @param namespace
+     *            the namespace grouping this tool with related tools; {@code null}
+     *            when unset
+     */
+    public ToolDefinition(String name, String description, Object parameters, ToolHandler handler,
+            Boolean overridesBuiltInTool, Boolean skipPermission, ToolDefer defer, Map<String, Object> metadata,
+            Boolean isTerminal, ToolNamespace namespace) {
+        this(name, description, parameters, handler, overridesBuiltInTool, skipPermission, defer, metadata, isTerminal,
+                namespace, null);
+    }
 
     /**
      * Creates a tool definition without a namespace.
@@ -381,7 +430,7 @@ public record ToolDefinition(@JsonProperty("name") String name, @JsonProperty("d
     @CopilotExperimental
     public ToolDefinition overridesBuiltInTool(boolean value) {
         return new ToolDefinition(name, description, parameters, handler, value, skipPermission, defer, metadata,
-                isTerminal, namespace);
+                isTerminal, namespace, idempotent);
     }
 
     /**
@@ -396,7 +445,7 @@ public record ToolDefinition(@JsonProperty("name") String name, @JsonProperty("d
     @CopilotExperimental
     public ToolDefinition skipPermission(boolean value) {
         return new ToolDefinition(name, description, parameters, handler, overridesBuiltInTool, value, defer, metadata,
-                isTerminal, namespace);
+                isTerminal, namespace, idempotent);
     }
 
     /**
@@ -411,7 +460,7 @@ public record ToolDefinition(@JsonProperty("name") String name, @JsonProperty("d
     @CopilotExperimental
     public ToolDefinition defer(ToolDefer value) {
         return new ToolDefinition(name, description, parameters, handler, overridesBuiltInTool, skipPermission, value,
-                metadata, isTerminal, namespace);
+                metadata, isTerminal, namespace, idempotent);
     }
 
     /**
@@ -426,7 +475,7 @@ public record ToolDefinition(@JsonProperty("name") String name, @JsonProperty("d
     @CopilotExperimental
     public ToolDefinition metadata(Map<String, Object> value) {
         return new ToolDefinition(name, description, parameters, handler, overridesBuiltInTool, skipPermission, defer,
-                value, isTerminal, namespace);
+                value, isTerminal, namespace, idempotent);
     }
 
     /**
@@ -441,7 +490,7 @@ public record ToolDefinition(@JsonProperty("name") String name, @JsonProperty("d
     @CopilotExperimental
     public ToolDefinition isTerminal(boolean value) {
         return new ToolDefinition(name, description, parameters, handler, overridesBuiltInTool, skipPermission, defer,
-                metadata, value, namespace);
+                metadata, value, namespace, idempotent);
     }
 
     /**
@@ -456,7 +505,26 @@ public record ToolDefinition(@JsonProperty("name") String name, @JsonProperty("d
     @CopilotExperimental
     public ToolDefinition namespace(ToolNamespace value) {
         return new ToolDefinition(name, description, parameters, handler, overridesBuiltInTool, skipPermission, defer,
-                metadata, isTerminal, value);
+                metadata, isTerminal, value, idempotent);
+    }
+
+    /**
+     * Returns a copy with the {@code idempotent} hint set.
+     * <p>
+     * The runtime may use this hint to decide that a call whose outcome was lost
+     * can be safely repeated. It does not affect permission checks.
+     *
+     * @param value
+     *            {@code true} to declare that repeating a call with the same
+     *            arguments has no additional effect beyond the first call, as is
+     *            true of any tool without side effects
+     * @return a new {@code ToolDefinition} with the hint applied
+     * @since 1.0.15-preview.1
+     */
+    @CopilotExperimental
+    public ToolDefinition idempotent(boolean value) {
+        return new ToolDefinition(name, description, parameters, handler, overridesBuiltInTool, skipPermission, defer,
+                metadata, isTerminal, namespace, value);
     }
 
     // ------------------------------------------------------------------

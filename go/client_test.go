@@ -1559,6 +1559,78 @@ func newRuntimeShutdownRpcPairWithPeer(t *testing.T) (*jsonrpc2.Client, *jsonrpc
 	return rpcClient, server, shutdownCalled, serverConn
 }
 
+func TestClient_ForwardsToolOwnershipToSessionRequests(t *testing.T) {
+	tests := []struct {
+		name  string
+		tools []Tool
+	}{
+		{name: "omitted"},
+		{name: "explicit empty", tools: []Tool{}},
+		{name: "handler and declaration", tools: []Tool{
+			{Name: "lookup", Handler: func(ToolInvocation) (ToolResult, error) { return ToolResult{}, nil }},
+			{Name: "approval"},
+		}},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			rpcClient, server, _ := newRuntimeShutdownRpcPair(t)
+			t.Cleanup(server.Stop)
+			client := &Client{
+				client:   rpcClient,
+				RPC:      rpc.NewServerRPC(rpcClient),
+				sessions: make(map[string]*Session),
+			}
+			t.Cleanup(func() { client.ForceStop() })
+
+			requests := make(chan json.RawMessage, 1)
+			for _, method := range []string{"session.create", "session.resume"} {
+				server.SetRequestHandler(method, func(params json.RawMessage) (json.RawMessage, *jsonrpc2.Error) {
+					requests <- append(json.RawMessage(nil), params...)
+					return []byte(`{"sessionId":"` + sessionIDFromParams(t, params) + `","workspacePath":"/workspace"}`), nil
+				})
+			}
+			for _, method := range []string{"session.create", "session.resume"} {
+				var err error
+				if method == "session.create" {
+					_, err = client.CreateSession(t.Context(), &SessionConfig{Tools: tt.tools})
+				} else {
+					_, err = client.ResumeSessionWithOptions(t.Context(), "resumed-tools", &ResumeSessionConfig{Tools: tt.tools})
+				}
+				if err != nil {
+					t.Fatalf("%s failed: %v", method, err)
+				}
+				var wire map[string]json.RawMessage
+				if err := json.Unmarshal(<-requests, &wire); err != nil {
+					t.Fatal(err)
+				}
+				rawTools, present := wire["tools"]
+				if present != (tt.tools != nil) {
+					t.Fatalf("%s tools presence = %v, want %v", method, present, tt.tools != nil)
+				}
+				if !present {
+					continue
+				}
+				var tools []map[string]any
+				if err := json.Unmarshal(rawTools, &tools); err != nil {
+					t.Fatal(err)
+				}
+				if tools == nil || len(tools) != len(tt.tools) {
+					t.Fatalf("%s tools = %s, want %d definitions", method, rawTools, len(tt.tools))
+				}
+				for i, tool := range tools {
+					if tool["name"] != tt.tools[i].Name || tool["hasHandler"] != (tt.tools[i].Handler != nil) {
+						t.Errorf("%s tool %d = %#v, want name %q and hasHandler %v",
+							method, i, tool, tt.tools[i].Name, tt.tools[i].Handler != nil)
+					}
+					if _, present := tool["handler"]; present {
+						t.Errorf("%s tool %d serialized its handler", method, i)
+					}
+				}
+			}
+		})
+	}
+}
+
 func TestClient_ForwardsCapiOptionsToSessionRequests(t *testing.T) {
 	tests := []struct {
 		name string
@@ -2279,6 +2351,62 @@ func TestClient_ForwardsNewSessionOptionsToSessionRequests(t *testing.T) {
 	}
 	assertNewSessionOptions(t, <-resumeParams, true, false, false, "task", 15, false,
 		map[string]any{"maxContinues": float64(2)})
+}
+
+func TestClient_PreservesIncludedBuiltInAgentsOnCreateAndResume(t *testing.T) {
+	for _, tc := range []struct {
+		name   string
+		agents []string
+	}{
+		{"omitted", nil},
+		{"empty", []string{}},
+		{"subset", []string{"explore"}},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			rpcClient, server, _ := newRuntimeShutdownRpcPair(t)
+			t.Cleanup(server.Stop)
+			client := &Client{
+				client: rpcClient, RPC: rpc.NewServerRPC(rpcClient),
+				sessions: make(map[string]*Session),
+			}
+			params := make(chan json.RawMessage, 2)
+			for _, method := range []string{"session.create", "session.resume"} {
+				server.SetRequestHandler(method, func(request json.RawMessage) (json.RawMessage, *jsonrpc2.Error) {
+					params <- append(json.RawMessage(nil), request...)
+					sessionID := sessionIDFromParams(t, request)
+					return []byte(`{"sessionId":"` + sessionID + `"}`), nil
+				})
+			}
+			session, err := client.CreateSession(t.Context(), &SessionConfig{IncludedBuiltInAgents: tc.agents})
+			if err != nil {
+				t.Fatal(err)
+			}
+			_, err = client.ResumeSessionWithOptions(t.Context(), session.SessionID, &ResumeSessionConfig{IncludedBuiltInAgents: tc.agents})
+			if err != nil {
+				t.Fatal(err)
+			}
+			for range 2 {
+				var payload map[string]json.RawMessage
+				if err := json.Unmarshal(<-params, &payload); err != nil {
+					t.Fatal(err)
+				}
+				value, present := payload["includedBuiltinAgents"]
+				if tc.agents == nil {
+					if present {
+						t.Fatalf("expected omitted allowlist, got %s", value)
+					}
+				} else {
+					want, err := json.Marshal(tc.agents)
+					if err != nil {
+						t.Fatal(err)
+					}
+					if string(value) != string(want) {
+						t.Fatalf("expected allowlist %s, got %s", want, value)
+					}
+				}
+			}
+		})
+	}
 }
 
 func assertCapiOptions(t *testing.T, params json.RawMessage, want map[string]any) {
@@ -3233,16 +3361,84 @@ func TestClient_InProcessConnection(t *testing.T) {
 		})
 	})
 
-	t.Run("panics when Telemetry is set", func(t *testing.T) {
+	t.Run("rejects non-UTF-8 telemetry file paths", func(t *testing.T) {
 		defer func() {
-			if r := recover(); r == nil {
-				t.Error("Expected panic when Telemetry is set with InProcessConnection")
+			if got := recover(); got != "Telemetry.FilePath must be valid UTF-8 with InProcessConnection" {
+				t.Fatalf("Expected non-UTF-8 telemetry path rejection, got %v", got)
 			}
 		}()
 		NewClient(&ClientOptions{
 			Connection: InProcessConnection{},
-			Telemetry:  &TelemetryConfig{ExporterType: "file"},
+			Telemetry:  &TelemetryConfig{FilePath: filepath.Join(t.TempDir(), "telemetry-\xff.jsonl")},
 		})
+	})
+
+	t.Run("preserves non-UTF-8 telemetry file paths for subprocesses", func(t *testing.T) {
+		path := filepath.Join(t.TempDir(), "telemetry-\xff.jsonl")
+		client := NewClient(&ClientOptions{
+			Connection:       StdioConnection{Path: os.Args[0]},
+			WorkingDirectory: filepath.Join(t.TempDir(), "missing"),
+			Telemetry:        &TelemetryConfig{FilePath: path},
+		})
+		if err := client.startCLIServer(context.Background()); err == nil {
+			t.Fatal("expected process start to fail in missing working directory")
+		}
+		if got := getEnvValue(client.process.Env, "COPILOT_OTEL_FILE_EXPORTER_PATH"); got != path {
+			t.Fatalf("Telemetry file path = %q; want %q", got, path)
+		}
+	})
+
+	t.Run("snapshots telemetry configuration", func(t *testing.T) {
+		path := filepath.Join(t.TempDir(), "telemetry.jsonl")
+		captureContent := false
+		telemetry := &TelemetryConfig{FilePath: path, CaptureContent: &captureContent}
+		client := NewClient(&ClientOptions{
+			Connection: InProcessConnection{},
+			Telemetry:  telemetry,
+		})
+		telemetry.FilePath = filepath.Join(t.TempDir(), "telemetry-\xff.jsonl")
+		captureContent = true
+		environment := client.inProcessHostConfig("").Environment
+		if got := environment["COPILOT_OTEL_FILE_EXPORTER_PATH"]; got != path {
+			t.Fatalf("Telemetry file path = %q; want validated path %q", got, path)
+		}
+		if got := environment["OTEL_INSTRUMENTATION_GENAI_CAPTURE_CONTENT"]; got != "NO_CONTENT" {
+			t.Fatalf("Telemetry content capture = %q; want NO_CONTENT", got)
+		}
+	})
+
+	t.Run("configures per-runtime telemetry without changing the process", func(t *testing.T) {
+		before := os.Environ()
+		client := NewClient(&ClientOptions{
+			Connection: InProcessConnection{},
+			Telemetry: &TelemetryConfig{
+				OTLPEndpoint:   "http://collector:4318",
+				OTLPProtocol:   "http/protobuf",
+				FilePath:       "/telemetry-\u00e9.jsonl",
+				ExporterType:   "file",
+				SourceName:     "inprocess-sdk",
+				CaptureContent: Bool(false),
+			},
+		})
+		expected := map[string]string{
+			"COPILOT_OTEL_ENABLED":                               "true",
+			"OTEL_EXPORTER_OTLP_ENDPOINT":                        "http://collector:4318",
+			"OTEL_EXPORTER_OTLP_PROTOCOL":                        "http/protobuf",
+			"COPILOT_OTEL_FILE_EXPORTER_PATH":                    "/telemetry-\u00e9.jsonl",
+			"COPILOT_OTEL_EXPORTER_TYPE":                         "file",
+			"COPILOT_OTEL_SOURCE_NAME":                           "inprocess-sdk",
+			"OTEL_INSTRUMENTATION_GENAI_CAPTURE_CONTENT":         "NO_CONTENT",
+			"OTEL_INSTRUMENTATION_GENAI_CAPTURE_MESSAGE_CONTENT": "false",
+		}
+		environment := client.inProcessHostConfig("").Environment
+		for key, want := range expected {
+			if got := environment[key]; got != want {
+				t.Fatalf("Telemetry environment %s = %q; want %q", key, got, want)
+			}
+		}
+		if !reflect.DeepEqual(os.Environ(), before) {
+			t.Fatal("Telemetry configuration changed the process environment")
+		}
 	})
 
 	t.Run("forwards typed runtime options", func(t *testing.T) {
@@ -4041,7 +4237,7 @@ func TestClient_ForwardsToolsPresenceToSessionRequests(t *testing.T) {
 		// session's external tools with none, which omitting the key cannot express.
 		{"empty", []Tool{}, []any{}},
 		{"one tool", []Tool{{Name: "probe_echo", Description: "echo"}}, []any{
-			map[string]any{"name": "probe_echo", "description": "echo"},
+			map[string]any{"name": "probe_echo", "description": "echo", "hasHandler": false},
 		}},
 	}
 
@@ -5101,7 +5297,7 @@ func TestClient_MCPAuthRuntimeRefreshRegistration(t *testing.T) {
 					ServerURL:               "https://example.com/mcp",
 					Reason:                  rpc.MCPOauthRequestReasonRefresh,
 					RuntimeRefreshSupported: capability,
-				}})
+				}}, nil)
 				if calls != i+1 || legacyCalls != 0 || observedCapability != (capability != nil && *capability) {
 					t.Fatalf("opt-in dispatch calls=%d legacy=%d capability=%v", calls, legacyCalls, observedCapability)
 				}
@@ -5144,7 +5340,7 @@ func TestClient_MCPAuthRuntimeRefreshRegistration(t *testing.T) {
 			assertRequestMethod(t, requests.snapshot(), "session.eventLog.registerInterest")
 			session.handleBroadcastEvent(SessionEvent{Data: &MCPOauthRequiredData{
 				RequestID: "legacy-request", Reason: rpc.MCPOauthRequestReasonRefresh, RuntimeRefreshSupported: Bool(true),
-			}})
+			}}, nil)
 			result, ok := findRequest(requests.snapshot(), "session.mcp.oauth.handlePendingRequest")
 			if !ok || calls != 1 || result.Params["result"].(map[string]any)["kind"] != "cancelled" {
 				t.Fatalf("legacy handler changed: calls=%d requests=%+v", calls, requests.snapshot())

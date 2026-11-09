@@ -282,7 +282,7 @@ For more information, see [GitHub OAuth](../setup/github-oauth.md).
 
 For multi-user services and integrations, set a token provider on each session instead of storing one long-lived token. The runtime calls the provider for the effective GitHub host and identifies the request as `initial` or `refresh`. The session ID is absent only when a cloud session has not received its ID yet.
 
-Return a tagged token result or an explicit cancellation. Every token result must include `expiresIn`: the positive number of seconds remaining when the callback completes. Production GitHub tokens typically last eight hours, so `8 * 60 * 60` is a common value. Do not set both the static per-session token and the provider.
+Return a tagged token result or an explicit cancellation. Every token result must include `expiresIn`: the number of seconds remaining when the callback completes. More than one hour (3600 seconds) must still remain after the runtime validates the token, and validation time counts against it, so a value just above 3600 can be rejected. Production GitHub tokens typically last eight hours, so `8 * 60 * 60` is a common value. Do not set both the static per-session token and the provider.
 
 <details open>
 <summary><strong>TypeScript</strong></summary>

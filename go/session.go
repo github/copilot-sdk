@@ -976,6 +976,17 @@ func (s *Session) On(handler SessionEventHandler) func() {
 }
 
 func (s *Session) on(handler SessionEventHandler, prepend bool) func() {
+	return s.onWithPermissionEnvelope(legacyPermissionEventHandler(handler), prepend)
+}
+
+// OnWithPermissionEnvelope subscribes to lossless permission events.
+// Permission requests use *PermissionRequestedDataWithEnvelope; other data types
+// match On. Dispatch order and unsubscribe behavior are identical to On.
+func (s *Session) OnWithPermissionEnvelope(handler SessionEventHandler) func() {
+	return s.onWithPermissionEnvelope(handler, false)
+}
+
+func (s *Session) onWithPermissionEnvelope(handler SessionEventHandler, prepend bool) func() {
 	if handler == nil {
 		return s.registerEventHandler(nil, prepend)
 	}
@@ -992,7 +1003,7 @@ func (s *Session) on(handler SessionEventHandler, prepend bool) func() {
 // use *CapabilitiesChangedDataWithAutoModeRecovery; On retains legacy data types.
 // Dispatch order and unsubscribe behavior are identical to On.
 func (s *Session) OnWithAutoModeRecovery(handler SessionEventHandler) func() {
-	return s.registerEventHandler(handler, false)
+	return s.registerEventHandler(legacyPermissionEventHandler(handler), false)
 }
 
 func (s *Session) registerEventHandler(handler SessionEventHandler, prepend bool) func() {
@@ -1079,6 +1090,7 @@ type permissionHandlerFunc func(
 	invocation PermissionInvocation,
 	promptRequest rpc.PermissionPromptRequest,
 	assistedApprovalAssessment rpc.AssistedApprovalAssessment,
+	envelope *PermissionRequestEnvelope,
 ) (rpc.PermissionDecision, error)
 
 // registerPermissionHandler registers a permission handler for this session.
@@ -1099,6 +1111,7 @@ func (s *Session) registerPermissionHandler(handler PermissionHandlerFunc) {
 		invocation PermissionInvocation,
 		_ rpc.PermissionPromptRequest,
 		_ rpc.AssistedApprovalAssessment,
+		_ *PermissionRequestEnvelope,
 	) (rpc.PermissionDecision, error) {
 		return handler(request, invocation)
 	}
@@ -1115,8 +1128,33 @@ func (s *Session) registerPermissionHandlerWithPrompt(handler PermissionHandlerW
 		invocation PermissionInvocation,
 		promptRequest rpc.PermissionPromptRequest,
 		assistedApprovalAssessment rpc.AssistedApprovalAssessment,
+		_ *PermissionRequestEnvelope,
 	) (rpc.PermissionDecision, error) {
 		return handler(request, PermissionHandlerInvocation{
+			PermissionInvocation:       invocation,
+			AssistedApprovalAssessment: assistedApprovalAssessment,
+			PromptRequest:              promptRequest,
+		})
+	}
+}
+
+func (s *Session) registerPermissionHandlerWithEnvelope(handler PermissionHandlerWithEnvelopeFunc) {
+	if handler == nil {
+		return
+	}
+	s.permissionMux.Lock()
+	defer s.permissionMux.Unlock()
+	s.permissionHandler = func(
+		request PermissionRequest,
+		invocation PermissionInvocation,
+		promptRequest rpc.PermissionPromptRequest,
+		assistedApprovalAssessment rpc.AssistedApprovalAssessment,
+		envelope *PermissionRequestEnvelope,
+	) (rpc.PermissionDecision, error) {
+		if envelope == nil {
+			envelope = &PermissionRequestEnvelope{Request: request}
+		}
+		return handler(envelope, PermissionHandlerInvocation{
 			PermissionInvocation:       invocation,
 			AssistedApprovalAssessment: assistedApprovalAssessment,
 			PromptRequest:              promptRequest,
@@ -2006,14 +2044,18 @@ func fromRPCElicitationRequestedSchema(schema *rpc.ElicitationRequestedSchema) *
 	}
 }
 
-// dispatchEvent enqueues an event for delivery to user handlers and fires
+// dispatchEventWithPermissionEnvelope enqueues an event for delivery to user handlers and fires
 // broadcast handlers concurrently.
 //
 // Broadcast work (tool calls, permission requests) is fired in a separate
 // goroutine so it does not block the JSON-RPC read loop. User event handlers
 // are delivered by a single consumer goroutine (processEvents), guaranteeing
 // serial, FIFO dispatch without blocking the read loop.
-func (s *Session) dispatchEvent(event SessionEvent) {
+func (s *Session) dispatchEventWithPermissionEnvelope(event SessionEvent, envelope *PermissionRequestEnvelope, sdkHasHandler *bool) {
+	subscriberEvent := event
+	if data, ok := event.Data.(*PermissionRequestedDataWithEnvelope); ok {
+		event.Data = data.PermissionRequestedData
+	}
 	s.updateOpenCanvasesFromEvent(event)
 
 	broadcastHandled := false
@@ -2038,17 +2080,19 @@ func (s *Session) dispatchEvent(event SessionEvent) {
 		if event.AgentID != nil {
 			agentID = *event.AgentID
 		}
-		s.startExternalTool(data, agentID)
+		if sdkHasHandler == nil || *sdkHasHandler {
+			s.startExternalTool(data, agentID)
+		}
 		broadcastHandled = true
 	case *ExternalToolCompletedData:
 		s.cancelExternalTool(data.RequestID)
 		broadcastHandled = true
 	}
 	if !broadcastHandled {
-		go s.handleBroadcastEvent(event)
+		go s.handleBroadcastEvent(event, envelope)
 	}
 
-	s.enqueueEvent(event)
+	s.enqueueEvent(subscriberEvent)
 }
 
 // enqueueEvent hands event to processEvents without blocking the caller, which
@@ -2233,7 +2277,7 @@ func (s *Session) retireEventProcessing(graceful bool) {
 // Handlers are executed in their own goroutine (not the JSON-RPC read loop or the
 // event consumer loop) so that a stalled handler does not block event delivery or
 // cause RPC deadlocks.
-func (s *Session) handleBroadcastEvent(event SessionEvent) {
+func (s *Session) handleBroadcastEvent(event SessionEvent, envelope *PermissionRequestEnvelope) {
 	switch d := event.Data.(type) {
 	case *PermissionRequestedData:
 		if d.ResolvedByHook != nil && *d.ResolvedByHook {
@@ -2248,6 +2292,8 @@ func (s *Session) handleBroadcastEvent(event SessionEvent) {
 			d.PermissionRequest,
 			d.PromptRequest,
 			d.AssistedApprovalAssessment,
+			envelope,
+			d.ProgramToolCallID,
 			handler,
 		)
 
@@ -2557,6 +2603,8 @@ func (s *Session) executePermissionAndRespond(
 	permissionRequest PermissionRequest,
 	promptRequest rpc.PermissionPromptRequest,
 	assistedApprovalAssessment rpc.AssistedApprovalAssessment,
+	envelope *PermissionRequestEnvelope,
+	programToolCallID *string,
 	handler permissionHandlerFunc,
 ) {
 	defer func() {
@@ -2571,6 +2619,7 @@ func (s *Session) executePermissionAndRespond(
 	invocation := PermissionInvocation{
 		SessionID:              s.SessionID,
 		ManagedSettingsEnabled: s.managedSettings,
+		ProgramToolCallID:      programToolCallID,
 	}
 
 	decision, err := handler(
@@ -2578,6 +2627,7 @@ func (s *Session) executePermissionAndRespond(
 		invocation,
 		promptRequest,
 		assistedApprovalAssessment,
+		envelope,
 	)
 	if err != nil {
 		log.Printf("permission handler failed: session_id=%s request_id=%s error=%v", s.SessionID, requestID, err)
@@ -2851,14 +2901,22 @@ func (s *Session) setToolsSemaphore() chan struct{} {
 	return s.setToolsGate
 }
 
-func toolDefinitionsForSetTools(tools []Tool) []rpc.ProtocolExternalToolDefinition {
-	definitions := make([]rpc.ProtocolExternalToolDefinition, 0, len(tools))
+type sdkToolDefinition struct {
+	rpc.ProtocolExternalToolDefinition
+	HasHandler bool `json:"hasHandler"`
+}
+
+func toolDefinitionsForWire(tools []Tool) []sdkToolDefinition {
+	definitions := make([]sdkToolDefinition, 0, len(tools))
 	for _, tool := range tools {
-		definition := rpc.ProtocolExternalToolDefinition{
-			Name:        tool.Name,
-			Description: tool.Description,
-			Parameters:  tool.Parameters,
-			Metadata:    tool.Metadata,
+		definition := sdkToolDefinition{
+			ProtocolExternalToolDefinition: rpc.ProtocolExternalToolDefinition{
+				Name:        tool.Name,
+				Description: tool.Description,
+				Parameters:  tool.Parameters,
+				Metadata:    tool.Metadata,
+			},
+			HasHandler: tool.Handler != nil,
 		}
 		if tool.OverridesBuiltInTool {
 			definition.OverridesBuiltInTool = &tool.OverridesBuiltInTool
@@ -2868,6 +2926,9 @@ func toolDefinitionsForSetTools(tools []Tool) []rpc.ProtocolExternalToolDefiniti
 		}
 		if tool.IsTerminal {
 			definition.IsTerminal = &tool.IsTerminal
+		}
+		if tool.Idempotent {
+			definition.Idempotent = &tool.Idempotent
 		}
 		if tool.Defer != "" {
 			deferPolicy := rpc.ProtocolExternalToolDefer(tool.Defer)
@@ -2915,7 +2976,7 @@ func toolDefinitionsForSetTools(tools []Tool) []rpc.ProtocolExternalToolDefiniti
 // Experimental: SetTools wraps the experimental session.tools.set RPC and may
 // change or be removed.
 func (s *Session) SetTools(ctx context.Context, tools []Tool) error {
-	definitions := toolDefinitionsForSetTools(tools)
+	definitions := toolDefinitionsForWire(tools)
 	handlers := buildToolHandlerMap(tools)
 
 	gate := s.setToolsSemaphore()
@@ -2934,9 +2995,14 @@ func (s *Session) SetTools(ctx context.Context, tools []Tool) error {
 	go func() {
 		defer func() { gate <- struct{}{} }()
 
-		_, err := s.RPC.Tools.Set(context.WithoutCancel(ctx), &rpc.ToolsSetRequest{
-			Tools: definitions,
+		raw, err := s.client.Request(context.WithoutCancel(ctx), "session.tools.set", map[string]any{
+			"sessionId": s.SessionID,
+			"tools":     definitions,
 		})
+		if err == nil {
+			var result rpc.ToolsSetResult
+			err = json.Unmarshal(raw, &result)
+		}
 		if err != nil {
 			done <- fmt.Errorf("failed to set tools: %w", err)
 			return

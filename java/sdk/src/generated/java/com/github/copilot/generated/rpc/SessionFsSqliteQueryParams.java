@@ -32,6 +32,7 @@ public record SessionFsSqliteQueryParams(
     /** How to execute the query: 'exec' for DDL/multi-statement (no results), 'query' for SELECT (returns rows), 'run' for INSERT/UPDATE/DELETE (returns rowsAffected) */
     @JsonProperty("queryType") SessionFsSqliteQueryType queryType,
     /** Optional named bind parameters */
+    @JsonInclude(value = JsonInclude.Include.NON_NULL, content = JsonInclude.Include.ALWAYS)
     @JsonProperty("params") Map<String, Object> params
 ) {
 

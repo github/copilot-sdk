@@ -56,22 +56,21 @@ func validateToolFilterList(field string, list []string) error {
 // resolveToolFilterOptions validates the configured tool filters and applies
 // empty-mode invariants. Returns the (possibly-mutated) request fields to set.
 func (c *Client) resolveToolFilterOptions(availableTools, excludedTools []string) (
-	[]string, []string, *rpc.OptionsUpdateToolFilterPrecedence, error,
+	[]string, []string, error,
 ) {
 	if err := validateToolFilterList("availableTools", availableTools); err != nil {
-		return nil, nil, nil, err
+		return nil, nil, err
 	}
 	if err := validateToolFilterList("excludedTools", excludedTools); err != nil {
-		return nil, nil, nil, err
+		return nil, nil, err
 	}
 	if c.options.Mode == ModeEmpty && availableTools == nil {
-		return nil, nil, nil, errors.New(
+		return nil, nil, errors.New(
 			"Client is in Mode=ModeEmpty but the session config did not specify AvailableTools. " +
 				"Empty mode requires every session to explicitly opt into the tools it wants — " +
 				"e.g. NewToolSet().AddBuiltIn(BuiltInToolsIsolated...).ToSlice()")
 	}
-	precedence := rpc.OptionsUpdateToolFilterPrecedenceExcluded
-	return availableTools, excludedTools, &precedence, nil
+	return availableTools, excludedTools, nil
 }
 
 // systemMessageForMode applies empty-mode environment_context stripping to

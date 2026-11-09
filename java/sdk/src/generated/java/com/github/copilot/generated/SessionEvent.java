@@ -23,7 +23,7 @@ import javax.annotation.processing.Generated;
  */
 @JsonIgnoreProperties(ignoreUnknown = true)
 @JsonInclude(JsonInclude.Include.NON_NULL)
-@JsonTypeInfo(use = JsonTypeInfo.Id.NAME, property = "type", visible = true, defaultImpl = UnknownSessionEvent.class)
+@JsonTypeInfo(use = JsonTypeInfo.Id.NAME, include = JsonTypeInfo.As.EXISTING_PROPERTY, property = "type", visible = true, defaultImpl = UnknownSessionEvent.class)
 @JsonSubTypes({
     @JsonSubTypes.Type(value = SessionJournalLinkEvent.class, name = "session.journal_link"),
     @JsonSubTypes.Type(value = SessionStartEvent.class, name = "session.start"),
@@ -61,6 +61,7 @@ import javax.annotation.processing.Generated;
     @JsonSubTypes.Type(value = SessionUsageInfoEvent.class, name = "session.usage_info"),
     @JsonSubTypes.Type(value = SessionContextClearedEvent.class, name = "session.context_cleared"),
     @JsonSubTypes.Type(value = SessionCompactionStartEvent.class, name = "session.compaction_start"),
+    @JsonSubTypes.Type(value = SessionCompactionSummarizedEvent.class, name = "session.compaction_summarized"),
     @JsonSubTypes.Type(value = SessionCompactionCompleteEvent.class, name = "session.compaction_complete"),
     @JsonSubTypes.Type(value = SessionTaskCompleteEvent.class, name = "session.task_complete"),
     @JsonSubTypes.Type(value = SessionCompletionReceiptEvent.class, name = "session.completion_receipt"),
@@ -226,6 +227,7 @@ public abstract sealed class SessionEvent permits
         SessionUsageInfoEvent,
         SessionContextClearedEvent,
         SessionCompactionStartEvent,
+        SessionCompactionSummarizedEvent,
         SessionCompactionCompleteEvent,
         SessionTaskCompleteEvent,
         SessionCompletionReceiptEvent,

@@ -1580,7 +1580,8 @@ public final class CopilotSession implements AutoCloseable {
 
         if (event instanceof ExternalToolRequestedEvent toolEvent) {
             var data = toolEvent.getData();
-            if (data == null || data.requestId() == null || data.toolName() == null) {
+            if (data == null || Boolean.FALSE.equals(data.hasHandler()) || data.requestId() == null
+                    || data.toolName() == null) {
                 return;
             }
             ToolDefinition tool = getTool(data.toolName());
@@ -1614,7 +1615,7 @@ public final class CopilotSession implements AutoCloseable {
             executePermissionAndRespondAsync(data.requestId(),
                     MAPPER.convertValue(data.permissionRequest(), PermissionRequest.class),
                     data.promptRequest() == null ? null : PermissionRequest.fromJsonValue(data.promptRequest()),
-                    data.assistedApprovalAssessment(), handler);
+                    data.assistedApprovalAssessment(), data.programToolCallId(), handler);
         } else if (event instanceof McpOauthRequiredEvent authEvent) {
             var data = authEvent.getData();
             if (data == null || data.requestId() == null) {
@@ -1896,7 +1897,7 @@ public final class CopilotSession implements AutoCloseable {
     private void executePermissionAndRespondAsync(String requestId, PermissionRequest permissionRequest,
             PermissionRequest promptRequest,
             com.github.copilot.generated.AssistedApprovalAssessment assistedApprovalAssessment,
-            PermissionHandler handler) {
+            String programToolCallId, PermissionHandler handler) {
         Runnable task = () -> {
             try {
                 var invocation = new PermissionInvocation();
@@ -1904,6 +1905,7 @@ public final class CopilotSession implements AutoCloseable {
                 invocation.setManagedSettingsEnabled(managedSettingsEnabled);
                 invocation.setAssistedApprovalAssessment(assistedApprovalAssessment);
                 invocation.setPromptRequest(promptRequest);
+                invocation.setProgramToolCallId(programToolCallId);
                 handler.handle(permissionRequest, invocation).thenAccept(result -> {
                     try {
                         PermissionRequestResultKind kind = new PermissionRequestResultKind(result.getKind());

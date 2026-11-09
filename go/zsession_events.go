@@ -363,6 +363,7 @@ type (
 	SessionCanvasUnavailableData                                   = rpc.SessionCanvasUnavailableData
 	SessionCompactionCompleteData                                  = rpc.SessionCompactionCompleteData
 	SessionCompactionStartData                                     = rpc.SessionCompactionStartData
+	SessionCompactionSummarizedData                                = rpc.SessionCompactionSummarizedData
 	SessionCompletionReceiptData                                   = rpc.SessionCompletionReceiptData
 	SessionContextChangedData                                      = rpc.SessionContextChangedData
 	SessionContextClearedData                                      = rpc.SessionContextClearedData
@@ -1105,6 +1106,7 @@ const (
 	SessionEventTypeSessionCanvasUnavailable                             = rpc.SessionEventTypeSessionCanvasUnavailable
 	SessionEventTypeSessionCompactionComplete                            = rpc.SessionEventTypeSessionCompactionComplete
 	SessionEventTypeSessionCompactionStart                               = rpc.SessionEventTypeSessionCompactionStart
+	SessionEventTypeSessionCompactionSummarized                          = rpc.SessionEventTypeSessionCompactionSummarized
 	SessionEventTypeSessionCompletionReceipt                             = rpc.SessionEventTypeSessionCompletionReceipt
 	SessionEventTypeSessionContextChanged                                = rpc.SessionEventTypeSessionContextChanged
 	SessionEventTypeSessionContextCleared                                = rpc.SessionEventTypeSessionContextCleared

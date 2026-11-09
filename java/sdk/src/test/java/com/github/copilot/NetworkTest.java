@@ -45,6 +45,7 @@ import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.Arguments;
 import org.junit.jupiter.params.provider.EnumSource;
 import org.junit.jupiter.params.provider.MethodSource;
+import org.junit.jupiter.params.provider.ValueSource;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.github.copilot.generated.rpc.NetworkScope;
@@ -173,6 +174,89 @@ class NetworkTest {
 
             var cause = assertInstanceOf(JsonRpcException.class, unwrap(error));
             assertEquals("provider already registered", cause.getMessage());
+        }
+    }
+
+    @Test
+    void startAfterFailedStartupRegistersAgain() throws Exception {
+        var config = new NetworkConfig().setResolveProxy(request -> CompletableFuture.completedFuture(null));
+
+        try (var server = new FakeRuntimeServer("provider already registered", false);
+                var client = server.createClient(config)) {
+            assertThrows(ExecutionException.class, () -> client.start().get(TIMEOUT_SECONDS, TimeUnit.SECONDS));
+            assertEquals(ConnectionState.ERROR, client.getState());
+
+            server.acceptRegistrations();
+            client.start().get(TIMEOUT_SECONDS, TimeUnit.SECONDS);
+
+            assertEquals(ConnectionState.CONNECTED, client.getState());
+            assertEquals(List.of("network.setProvider", "network.setProvider"), server.order());
+        }
+    }
+
+    @ParameterizedTest
+    @ValueSource(booleans = {true, false})
+    void sessionAfterFailedStartupStartsAgainOnlyWithAutoStart(boolean autoStart) throws Exception {
+        var config = new NetworkConfig().setResolveProxy(request -> CompletableFuture.completedFuture(null));
+
+        try (var server = new FakeRuntimeServer("provider already registered", false);
+                var client = server.createClient(options -> options.setNetwork(config).setAutoStart(autoStart))) {
+            assertThrows(ExecutionException.class, () -> client.start().get(TIMEOUT_SECONDS, TimeUnit.SECONDS));
+
+            server.acceptRegistrations();
+            var session = client
+                    .createSession(new SessionConfig().setOnPermissionRequest(PermissionHandler.APPROVE_ALL));
+
+            if (autoStart) {
+                session.get(TIMEOUT_SECONDS, TimeUnit.SECONDS);
+                assertEquals(List.of("network.setProvider", "network.setProvider", "session.create"), server.order());
+            } else {
+                // Without auto-start, only an explicit start() retries.
+                var error = assertThrows(ExecutionException.class,
+                        () -> session.get(TIMEOUT_SECONDS, TimeUnit.SECONDS));
+                assertEquals("provider already registered", unwrap(error).getMessage());
+                assertEquals(List.of("network.setProvider"), server.order());
+            }
+        }
+    }
+
+    @ParameterizedTest
+    @ValueSource(booleans = {true, false})
+    void failedStartupRetryRespectsStopCompletion(boolean explicitStart) throws Exception {
+        var config = new NetworkConfig().setResolveProxy(request -> CompletableFuture.completedFuture(null));
+
+        try (var server = new FakeRuntimeServer("provider already registered", false);
+                var client = server.createClient(config)) {
+            assertThrows(ExecutionException.class, () -> client.start().get(TIMEOUT_SECONDS, TimeUnit.SECONDS));
+            server.acceptRegistrations();
+
+            CompletableFuture<Void> stopping;
+            synchronized (client) {
+                // The monitor blocks cleanup on another thread, but stop() can also
+                // finish inline. Only a pending stop must reject the retry.
+                stopping = client.stop();
+                if (!stopping.isDone()) {
+                    var retry = explicitStart
+                            ? client.start()
+                            : client.createSession(
+                                    new SessionConfig().setOnPermissionRequest(PermissionHandler.APPROVE_ALL));
+                    var error = assertThrows(ExecutionException.class,
+                            () -> retry.get(TIMEOUT_SECONDS, TimeUnit.SECONDS));
+                    assertEquals("Client is stopping. Retry after stop() completes.",
+                            assertInstanceOf(IllegalStateException.class, unwrap(error)).getMessage());
+                    assertEquals(ConnectionState.ERROR, client.getState());
+                }
+            }
+            stopping.get(TIMEOUT_SECONDS, TimeUnit.SECONDS);
+            assertEquals(ConnectionState.DISCONNECTED, client.getState());
+
+            if (explicitStart) {
+                client.start().get(TIMEOUT_SECONDS, TimeUnit.SECONDS);
+            }
+            client.createSession(new SessionConfig().setOnPermissionRequest(PermissionHandler.APPROVE_ALL))
+                    .get(TIMEOUT_SECONDS, TimeUnit.SECONDS);
+            assertEquals(ConnectionState.CONNECTED, client.getState());
+            assertEquals(List.of("network.setProvider", "network.setProvider", "session.create"), server.order());
         }
     }
 
@@ -520,7 +604,7 @@ class NetworkTest {
         /** Leaves {@code network.setProvider} unanswered. */
         static final String UNANSWERED = "<unanswered>";
 
-        private final String setProviderError;
+        private volatile String setProviderError;
         private final boolean holdConnect;
         private final ServerSocket serverSocket;
         private final Thread acceptThread;
@@ -590,6 +674,11 @@ class NetworkTest {
 
         List<String> order() {
             return List.copyOf(order);
+        }
+
+        /** Accepts every later {@code network.setProvider}. */
+        void acceptRegistrations() {
+            setProviderError = null;
         }
 
         /**

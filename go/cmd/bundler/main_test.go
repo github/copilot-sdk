@@ -366,6 +366,9 @@ func TestGenerateGoFileEmbedsRuntimeWrapperPair(t *testing.T) {
 	if !strings.Contains(string(defaultSource), "localEmbeddedCopilotRuntimeLibLinuxMusl") {
 		t.Fatal("default embed file does not include the Linux musl runtime")
 	}
+	if strings.Contains(string(defaultSource), "zstd.NewReader(bytes.NewReader(localEmbedded") || !strings.Contains(string(defaultSource), "func (r *zstdReader) Seek(") {
+		t.Fatal("default embed file must build its readers through the rewindable zstdReader")
+	}
 	if _, err := parser.ParseFile(token.NewFileSet(), "zcopilot_linux_amd64.go", defaultSource, parser.AllErrors); err != nil {
 		t.Fatalf("default generated source is invalid: %v", err)
 	}

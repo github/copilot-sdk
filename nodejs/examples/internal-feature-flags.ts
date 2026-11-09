@@ -8,10 +8,17 @@ import { once } from "node:events";
 import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
-import { createMessageConnection } from "vscode-jsonrpc/node";
-import { createInternalServerRpc } from "../src/generated/rpc.js";
+import { createMessageConnection, type MessageConnection } from "vscode-jsonrpc/node";
+import {
+    createInternalServerRpc,
+    createInternalSessionRpc,
+    createSessionRpc,
+} from "../src/generated/rpc.js";
 
-async function showFeatureFlags(rpc: ReturnType<typeof createInternalServerRpc>) {
+async function showFeatureFlags(
+    rpc: ReturnType<typeof createInternalServerRpc>,
+    connection: MessageConnection
+) {
     await rpc.connect({});
     const { flags } = await rpc.featureFlags.listMetadata();
     assert.equal(
@@ -47,6 +54,29 @@ async function showFeatureFlags(rpc: ReturnType<typeof createInternalServerRpc>)
     assert.deepEqual(settings, { DYNAMIC_INSTRUCTIONS_RETRIEVAL_MCP: false });
     assert.deepEqual(explicit, { DYNAMIC_INSTRUCTIONS_RETRIEVAL_MCP: true });
 
+    const { sessionId } = await connection.sendRequest<{ sessionId: string }>("session.create", {
+        featureFlagConfiguration: {
+            initOptions: {
+                isStaff: false,
+                isExperimental: true,
+                isTeam: false,
+                environment: {},
+                config: { enabledFeatureFlags: { GITHUB_IQ_ENABLED: true } },
+            },
+            mode: "local",
+            streamerMode: false,
+        },
+        expAssignments: { Features: [], Flights: {}, Configs: [], AssignmentContext: "example" },
+    });
+    const session = createInternalSessionRpc(connection, sessionId);
+    const initial = await session.settings.evaluatePredicate({ name: "githubIqEnabled" });
+    await createSessionRpc(connection, sessionId).options.update({
+        settings: { enabledFeatureFlags: { GITHUB_IQ_ENABLED: false } },
+    });
+    const updated = await session.settings.evaluatePredicate({ name: "githubIqEnabled" });
+    assert.deepEqual([initial.enabled, updated.enabled], [true, true]);
+    await connection.sendRequest("session.destroy", { sessionId });
+
     console.log(
         JSON.stringify({
             declaredFlags: Object.keys(flags).length,
@@ -57,6 +87,7 @@ async function showFeatureFlags(rpc: ReturnType<typeof createInternalServerRpc>)
                 settings: settings.DYNAMIC_INSTRUCTIONS_RETRIEVAL_MCP,
                 explicit: explicit.DYNAMIC_INSTRUCTIONS_RETRIEVAL_MCP,
             },
+            lifecycleViaExistingMethods: [initial.enabled, updated.enabled],
         })
     );
 }
@@ -69,7 +100,7 @@ if (!runtimePath) {
 const home = await mkdtemp(join(tmpdir(), "copilot-feature-flags-"));
 const child = spawn(
     resolve(runtimePath),
-    ["--server", "--stdio", "--no-auto-login", "--no-auto-update", "--no-remote"],
+    ["--server", "--stdio", "--no-auto-login", "--no-auto-update"],
     {
         cwd: home,
         env: { ...process.env, COPILOT_HOME: home, COPILOT_CONNECTION_TOKEN: "" },
@@ -82,7 +113,7 @@ const connection = createMessageConnection(child.stdout, child.stdin);
 connection.listen();
 try {
     await Promise.race([
-        showFeatureFlags(createInternalServerRpc(connection)),
+        showFeatureFlags(createInternalServerRpc(connection), connection),
         closed.then(([code, signal]) => {
             throw new Error(
                 `Runtime exited before the example completed: code=${code}, signal=${signal}`

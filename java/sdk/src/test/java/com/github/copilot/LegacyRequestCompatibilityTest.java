@@ -9,8 +9,10 @@ import static org.junit.jupiter.api.Assertions.*;
 import java.lang.reflect.InvocationTargetException;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.CompletableFuture;
 
 import org.junit.jupiter.api.Test;
@@ -27,6 +29,13 @@ import com.github.copilot.generated.rpc.McpPlanScope;
 import com.github.copilot.generated.rpc.RpcCaller;
 import com.github.copilot.generated.rpc.ServerRpc;
 import com.github.copilot.generated.rpc.SessionAccountsSetParams;
+import com.github.copilot.generated.rpc.FeatureFlagServiceSnapshot;
+import com.github.copilot.generated.rpc.SessionFeatureFlagsReadParams;
+import com.github.copilot.generated.rpc.SessionFeatureFlagsReadResult;
+import com.github.copilot.generated.rpc.SessionOpenOptions;
+import com.github.copilot.generated.rpc.SessionOptionsUpdateParams;
+import com.github.copilot.generated.rpc.SessionPermissionsSetRequiredParams;
+import com.github.copilot.generated.rpc.SessionRpc;
 
 /**
  * Existing callers of requests that gained fields keep their records, while new
@@ -35,6 +44,56 @@ import com.github.copilot.generated.rpc.SessionAccountsSetParams;
 class LegacyRequestCompatibilityTest {
 
     private static final ObjectMapper MAPPER = new ObjectMapper();
+
+    @Test
+    void featureFlagReadPreservesExistingConstructorsAndDefaultWireMode() throws Exception {
+        var params = new SessionFeatureFlagsReadParams("legacy", true, List.of("CONTROLLED"), List.of(), 4L);
+        assertEquals(
+                MAPPER.valueToTree(Map.of("sessionId", "legacy", "waitForExpResponse", true, "flags",
+                        List.of("CONTROLLED"), "overrides", List.of(), "afterRevision", 4L)),
+                MAPPER.valueToTree(params));
+        assertNotNull(SessionFeatureFlagsReadParams.class.getConstructor(String.class, Boolean.class, List.class,
+                List.class, Long.class));
+
+        var snapshot = MAPPER.readValue("""
+                {"serviceId":"local","revision":1,"active":true,"expResponseResolved":true,"flags":{"CONTROLLED":false},
+                 "expFlags":{},"response":{},"autoApprovalTargeted":false,
+                 "reasoningSummariesArm":{"offByDefault":false,"hintEnabled":false},
+                 "gptDefaultModelEnabled":false}
+                """, FeatureFlagServiceSnapshot.class);
+        var result = new SessionFeatureFlagsReadResult(snapshot, Map.of("CONTROLLED", false), List.of(false));
+        assertEquals(MAPPER.valueToTree(
+                Map.of("snapshot", snapshot, "flags", Map.of("CONTROLLED", false), "overrides", List.of(false))),
+                MAPPER.valueToTree(result));
+        assertNotNull(SessionFeatureFlagsReadResult.class.getConstructor(FeatureFlagServiceSnapshot.class, Map.class,
+                List.class));
+    }
+
+    @Test
+    void permissionRequiredPreservesThePublishedConstructor() throws Exception {
+        var params = new SessionPermissionsSetRequiredParams("legacy", true);
+        assertEquals("legacy", params.sessionId());
+        assertTrue(params.required());
+        assertNull(params.providerId());
+        assertEquals(MAPPER.valueToTree(Map.of("sessionId", "legacy", "required", true)), MAPPER.valueToTree(params));
+        assertNotNull(SessionPermissionsSetRequiredParams.class.getConstructor(String.class, Boolean.class));
+    }
+
+    @Test
+    void permissionProviderUsesTheSameMethodAndPreservesBothBooleanValues() {
+        var caller = new RecordingCaller();
+        var session = new SessionRpc(caller, "permission-session");
+        for (boolean required : new boolean[]{false, true}) {
+            session.permissions.setRequired(SessionPermissionsSetRequiredParams.builder()
+                    .sessionId("permission-session").required(required).providerId("provider").build());
+            var call = caller.calls.get(caller.calls.size() - 1);
+            assertEquals("session.permissions.setRequired", call.method());
+            assertEquals(
+                    MAPPER.valueToTree(
+                            Map.of("sessionId", "permission-session", "required", required, "providerId", "provider")),
+                    call.params());
+        }
+    }
 
     private static final class RecordingCaller implements RpcCaller {
         record Call(String method, JsonNode params) {
@@ -56,6 +115,63 @@ class LegacyRequestCompatibilityTest {
 
     private static Map<String, String> candidate() {
         return Map.of("kind", "candidate", "candidateHandle", "candidate", "searchId", "search");
+    }
+
+    @Test
+    void sessionOptionsRetainThePreFeatureFlagConstructor() {
+        var options = new SessionOpenOptions("session", null, null, null, null, null, null, null, null, null, null,
+                null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null,
+                null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null,
+                null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null,
+                null, null, null, null, null, false, null, null, null, null, null, null, null, null, null, null, null,
+                null, null, null, null, null, null);
+
+        assertEquals("session", options.sessionId());
+        assertEquals(Boolean.FALSE, options.allowMultipleToolCalls());
+        assertNull(options.featureFlagConfiguration());
+        assertFalse(MAPPER.valueToTree(options).has("featureFlagConfiguration"));
+    }
+
+    @Test
+    void sessionOptionsRetainThePreviousCanonicalConstructor() throws ReflectiveOperationException {
+        assertPreviousCanonicalConstructor(SessionOpenOptions.class, 85, "expAssignments", "featureFlagConfiguration");
+    }
+
+    @Test
+    void sessionUpdatesRetainThePreviousCanonicalConstructor() throws ReflectiveOperationException {
+        assertPreviousCanonicalConstructor(SessionOptionsUpdateParams.class, 66, "includedBuiltinAgents", "settings");
+    }
+
+    private static void assertPreviousCanonicalConstructor(Class<?> type, int previousFieldCount, String nullableField,
+            String addedField) throws ReflectiveOperationException {
+        var omissionConstructor = Arrays.stream(type.getConstructors())
+                .filter(constructor -> constructor.getParameterCount() == previousFieldCount)
+                .filter(constructor -> constructor.getParameterTypes()[previousFieldCount - 1] != Set.class).findFirst()
+                .orElseThrow();
+        var previousTypes = Arrays.copyOf(omissionConstructor.getParameterTypes(), previousFieldCount + 1);
+        previousTypes[previousFieldCount] = Set.class;
+        var canonicalConstructor = type.getConstructor(previousTypes);
+        var arguments = new Object[previousFieldCount + 1];
+        arguments[0] = "session";
+        var omitted = MAPPER.valueToTree(omissionConstructor.newInstance(Arrays.copyOf(arguments, previousFieldCount)));
+        assertFalse(omitted.has(nullableField));
+        assertFalse(omitted.has(addedField));
+
+        for (Set<String> explicitNulls : Arrays.<Set<String>>asList(new HashSet<>(Set.of(nullableField)), null)) {
+            arguments[previousFieldCount] = explicitNulls;
+            var value = canonicalConstructor.newInstance(arguments);
+            assertEquals(explicitNulls == null ? Set.of() : Set.of(nullableField),
+                    type.getMethod("$explicitNulls").invoke(value));
+            var wire = MAPPER.valueToTree(value);
+            assertFalse(wire.has(addedField));
+            if (explicitNulls == null) {
+                assertFalse(wire.has(nullableField));
+            } else {
+                assertEquals(Set.of(nullableField), explicitNulls);
+                assertTrue(wire.has(nullableField));
+                assertTrue(wire.get(nullableField).isNull());
+            }
+        }
     }
 
     @Test

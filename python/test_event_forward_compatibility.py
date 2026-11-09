@@ -20,6 +20,7 @@ from copilot.session_events import (
     ElicitationCompletedAction,
     ElicitationRequestedMode,
     ElicitationRequestedSchema,
+    ExternalToolRequestedData,
     ManagedSettingsResolvedSource,
     PermissionApprovalEvaluationReasonCode,
     PermissionPromptRequestMemory,
@@ -27,6 +28,7 @@ from copilot.session_events import (
     PermissionRequestMemory,
     PermissionRequestMemoryAction,
     SessionAutoTierSwitchFailedData,
+    SessionErrorData,
     SessionEvent,
     SessionEventType,
     SessionManagedSettingsResolvedData,
@@ -42,6 +44,50 @@ from copilot.session_events import (
 
 class TestEventForwardCompatibility:
     """Test forward compatibility for unknown event types."""
+
+    def test_external_tool_request_preserves_positional_provider(self):
+        data = ExternalToolRequestedData("request", "session", "call", "tool", {}, "provider")
+        assert data.provider_id == "provider"
+        assert data.to_dict()["providerId"] == "provider"
+        owned = ExternalToolRequestedData.from_dict({**data.to_dict(), "hasHandler": True})
+        assert owned.provider_id == "provider"
+        assert owned.to_dict()["hasHandler"] is True
+
+    def test_error_data_preserves_legacy_positional_constructor(self):
+        data = SessionErrorData(
+            "query",
+            "provider failed",
+            None,
+            None,
+            "message-1",
+            "provider-call-1",
+            "max_tokens",
+            "invalid_request_error",
+            None,
+            "service-request-1",
+            "provider stack",
+            400,
+            "https://provider.example/error",
+        )
+
+        assert data.provider_error_param == "max_tokens"
+        assert data.provider_error_code is None
+        data.provider_error_code = "unsupported_parameter"
+        wire = data.to_dict()
+        assert wire == {
+            "errorType": "query",
+            "message": "provider failed",
+            "originatingMessageId": "message-1",
+            "providerCallId": "provider-call-1",
+            "providerErrorCode": "unsupported_parameter",
+            "providerErrorParam": "max_tokens",
+            "providerErrorType": "invalid_request_error",
+            "serviceRequestId": "service-request-1",
+            "stack": "provider stack",
+            "statusCode": 400,
+            "url": "https://provider.example/error",
+        }
+        assert SessionErrorData.from_dict(wire) == data
 
     @pytest.mark.parametrize("ephemeral", [False, True])
     def test_event_preserves_legacy_positional_constructor(self, ephemeral):
@@ -412,19 +458,29 @@ class TestEventForwardCompatibility:
         event = session_event_from_dict(unknown_event)
         assert event.type == SessionEventType.UNKNOWN, f"Expected UNKNOWN, got {event.type}"
 
-    def test_internal_event_type_maps_to_unknown(self):
+    @pytest.mark.parametrize(
+        "event_type",
+        [
+            "session.memory_changed",
+            "program.execution",
+            "program.tool_execution_start",
+            "program.tool_execution_complete",
+            "program.permission_requested",
+        ],
+    )
+    def test_internal_event_type_maps_to_unknown(self, event_type):
         """Internal events should use the forward-compatible raw event path."""
         internal_event = {
             "id": str(uuid4()),
             "timestamp": datetime.now().isoformat(),
             "parentId": None,
-            "type": "session.memory_changed",
+            "type": event_type,
             "data": {},
         }
 
         event = session_event_from_dict(internal_event)
         assert event.type == SessionEventType.UNKNOWN
-        assert session_event_to_dict(event)["type"] == "session.memory_changed"
+        assert session_event_to_dict(event)["type"] == event_type
 
     def test_known_event_preserves_top_level_agent_id(self):
         """Known events should preserve the top-level sub-agent envelope ID."""

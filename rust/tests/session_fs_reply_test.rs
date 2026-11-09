@@ -361,6 +361,13 @@ async fn write_file_stat_and_readdir_replies_are_written_as_published() {
     )
     .await;
     assert_eq!(written, Value::Null);
+    let typed: github_copilot_sdk::rpc::SessionFsWriteFileResult =
+        serde_json::from_value(written.clone())
+            .expect("the public result alias accepts null success");
+    assert_eq!(
+        serde_json::to_value(typed).expect("the public result alias preserves null success"),
+        written
+    );
     let path = json!({"path": "/file.txt"});
     let stat = reply_to(&mut server, 10, "sessionFs.stat", path).await;
     assert_eq!(stat["size"], 42);

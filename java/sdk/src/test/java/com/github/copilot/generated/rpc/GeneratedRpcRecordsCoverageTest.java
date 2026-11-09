@@ -106,6 +106,33 @@ class GeneratedRpcRecordsCoverageTest {
     }
 
     @Test
+    void localModelMachineRow_preserves_typed_state_and_resource_requirements() throws Exception {
+        var mapper = new ObjectMapper();
+        var expected = mapper.readTree("""
+                {"status":{"kind":"downloading","receivedBytes":37.0,"totalBytes":100.0,"stage":"download"},
+                 "disk":{"kind":"insufficient","freeBytes":2.0,"requiredBytes":4.0,"directory":"models"},
+                 "gpu":{"kind":"insufficient","availableBytes":8.0,"requiredBytes":16.0,"description":"Adapter"}}
+                """);
+        var row = mapper.treeToValue(expected, LocalModelMachineRow.class);
+        var status = assertInstanceOf(LocalModelStatusDownloading.class, row.status());
+        var disk = assertInstanceOf(LocalModelDiskRequirementInsufficient.class, row.disk());
+        var gpu = assertInstanceOf(LocalModelGpuRequirementInsufficient.class, row.gpu());
+        assertEquals(37.0, status.getReceivedBytes());
+        assertEquals(100.0, status.getTotalBytes());
+        assertEquals("download", status.getStage());
+        assertEquals(2.0, disk.getFreeBytes());
+        assertEquals(4.0, disk.getRequiredBytes());
+        assertEquals("models", disk.getDirectory());
+        assertEquals(8.0, gpu.getAvailableBytes());
+        assertEquals(16.0, gpu.getRequiredBytes());
+        assertEquals("Adapter", gpu.getDescription());
+        var actual = mapper.valueToTree(row);
+        for (String field : List.of("status", "disk", "gpu")) {
+            assertEquals(expected.get(field), actual.get(field));
+        }
+    }
+
+    @Test
     void ignoredScriptSafetyAccessorsAreDeprecated() throws Exception {
         for (var recordType : List.of(SessionOpenOptions.class, SessionOptionsUpdateParams.class)) {
             assertTrue(recordType.getMethod("enableScriptSafety").isAnnotationPresent(Deprecated.class),

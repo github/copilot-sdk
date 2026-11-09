@@ -138,8 +138,8 @@ func validateSessionFSConfig(config *SessionFSConfig) error {
 // per-client environment, working directory, and telemetry. It panics (fails
 // loud) on a misconfiguration, matching the other SDKs.
 //
-// In-process hosts share the process environment, working directory and
-// telemetry configuration. Child-process transports accept environment at
+// In-process hosts share the process environment and working directory.
+// Child-process transports accept environment at
 // either the client or connection level, not both.
 func validateEnvironmentOptions(connection RuntimeConnection, opts *ClientOptions) {
 	if _, ok := connection.(InProcessConnection); ok {
@@ -149,8 +149,8 @@ func validateEnvironmentOptions(connection RuntimeConnection, opts *ClientOption
 		if opts.WorkingDirectory != "" {
 			panic("WorkingDirectory is not supported with InProcessConnection: the native runtime shares the host process working directory. Set SessionConfig.WorkingDirectory instead.")
 		}
-		if opts.Telemetry != nil {
-			panic("Telemetry is not supported with InProcessConnection: telemetry configuration is lowered to environment variables read by native runtime code running in the shared host process, so per-client telemetry cannot be honored in-process. Configure telemetry via the host process environment, or use a child-process transport.")
+		if opts.Telemetry != nil && !utf8.ValidString(opts.Telemetry.FilePath) {
+			panic("Telemetry.FilePath must be valid UTF-8 with InProcessConnection")
 		}
 		return
 	}
@@ -332,6 +332,13 @@ func NewClient(options *ClientOptions) *Client {
 		client.useStdio = false
 		client.useInProcess = true
 		client.runOnUiThread = conn.RunOnUiThread
+		if opts.Telemetry != nil {
+			telemetry := *opts.Telemetry
+			if telemetry.CaptureContent != nil {
+				telemetry.CaptureContent = Bool(*telemetry.CaptureContent)
+			}
+			opts.Telemetry = &telemetry
+		}
 	default:
 		panic(fmt.Sprintf("unknown RuntimeConnection type: %T", connection))
 	}
@@ -1048,26 +1055,51 @@ func validateAskUserVariant(variant AskUserVariant) error {
 }
 
 func (c *Client) CreateSession(ctx context.Context, config *SessionConfig) (*Session, error) {
-	return c.createSession(ctx, config, nil, nil)
+	return c.createSession(ctx, config, nil, nil, nil)
+}
+
+// CreateSessionWithPermissionEnvelope creates a session with an explicit
+// lossless permission handler instead of the config's permission handlers.
+// A nil handler retains the config's handlers. Other options remain unchanged.
+// To also supply an MCP auth callback, use [Client.CreateSessionWithPermissionEnvelopeAndMCPAuthRuntimeRefresh].
+func (c *Client) CreateSessionWithPermissionEnvelope(ctx context.Context, config *SessionConfig, handler PermissionHandlerWithEnvelopeFunc) (*Session, error) {
+	return c.createSession(ctx, config, nil, handler, nil)
 }
 
 // CreateSessionWithAutoModeRecovery creates a session with a recovery-aware
 // Auto switch handler. The runtime must acknowledge enrollment.
 func (c *Client) CreateSessionWithAutoModeRecovery(ctx context.Context, config *SessionConfig, options *AutoModeRecoveryOptions) (*Session, error) {
+	return c.CreateSessionWithPermissionEnvelopeAndAutoModeRecovery(ctx, config, nil, options)
+}
+
+// CreateSessionWithPermissionEnvelopeAndAutoModeRecovery creates a session with
+// a lossless permission handler and recovery-aware Auto switch handler.
+// A nil permission handler retains the config's handlers. Recovery options
+// must include OnAutoModeSwitchRequest and may include an MCP auth callback.
+func (c *Client) CreateSessionWithPermissionEnvelopeAndAutoModeRecovery(ctx context.Context, config *SessionConfig, handler PermissionHandlerWithEnvelopeFunc, options *AutoModeRecoveryOptions) (*Session, error) {
 	if options == nil || options.OnAutoModeSwitchRequest == nil {
 		return nil, fmt.Errorf("AutoModeRecovery requires OnAutoModeSwitchRequest")
 	}
-	return c.createSession(ctx, config, options.MCPAuthRuntimeRefreshHandler, options)
+	return c.createSession(ctx, config, options.MCPAuthRuntimeRefreshHandler, handler, options)
 }
 
 // CreateSessionWithMCPAuthRuntimeRefresh creates a session using the opt-in MCP
 // auth handler instead of config.OnMCPAuthRequest. A nil handler uses the legacy
 // callback. All other options and session lifecycle behavior match CreateSession.
 func (c *Client) CreateSessionWithMCPAuthRuntimeRefresh(ctx context.Context, config *SessionConfig, handler MCPAuthRuntimeRefreshHandler) (*Session, error) {
-	return c.createSession(ctx, config, handler, nil)
+	return c.createSession(ctx, config, handler, nil, nil)
 }
 
-func (c *Client) createSession(ctx context.Context, config *SessionConfig, runtimeRefreshHandler MCPAuthRuntimeRefreshHandler, recovery *AutoModeRecoveryOptions) (*Session, error) {
+// CreateSessionWithPermissionEnvelopeAndMCPAuthRuntimeRefresh creates a session
+// with both a lossless permission handler and a capability-aware MCP auth handler.
+// Each non-nil handler overrides its corresponding config callbacks independently.
+// A nil handler retains the config's callbacks for that handler.
+// All other options and session lifecycle behavior match [Client.CreateSession].
+func (c *Client) CreateSessionWithPermissionEnvelopeAndMCPAuthRuntimeRefresh(ctx context.Context, config *SessionConfig, permissionHandler PermissionHandlerWithEnvelopeFunc, runtimeRefreshHandler MCPAuthRuntimeRefreshHandler) (*Session, error) {
+	return c.createSession(ctx, config, runtimeRefreshHandler, permissionHandler, nil)
+}
+
+func (c *Client) createSession(ctx context.Context, config *SessionConfig, runtimeRefreshHandler MCPAuthRuntimeRefreshHandler, permissionEnvelopeHandler PermissionHandlerWithEnvelopeFunc, recovery *AutoModeRecoveryOptions) (*Session, error) {
 	if config == nil {
 		config = &SessionConfig{}
 	}
@@ -1130,18 +1162,20 @@ func (c *Client) createSession(ctx context.Context, config *SessionConfig, runti
 	if storeMemory != nil {
 		req.HasMemoryStore = Bool(true)
 	}
-	req.Tools = config.Tools
+	if config.Tools != nil {
+		req.Tools = toolDefinitionsForWire(config.Tools)
+	}
 	systemMessage := c.systemMessageForMode(config.SystemMessage)
 	wireSystemMessage, transformCallbacks := extractTransformCallbacks(systemMessage)
 	req.SystemMessage = wireSystemMessage
-	availableTools, excludedTools, precedence, ferr := c.resolveToolFilterOptions(config.AvailableTools, config.ExcludedTools)
+	availableTools, excludedTools, ferr := c.resolveToolFilterOptions(config.AvailableTools, config.ExcludedTools)
 	if ferr != nil {
 		return nil, ferr
 	}
 	req.AvailableTools = availableTools
 	req.ExcludedTools = excludedTools
-	req.ToolFilterPrecedence = precedence
 	req.ExcludedBuiltInAgents = config.ExcludedBuiltInAgents
+	req.IncludedBuiltInAgents = config.IncludedBuiltInAgents
 	req.Provider = config.Provider
 	req.Capi = config.Capi
 	req.Providers = config.Providers
@@ -1259,7 +1293,7 @@ func (c *Client) createSession(ctx context.Context, config *SessionConfig, runti
 		config.Hooks.OnSubagentStop != nil) {
 		req.Hooks = Bool(true)
 	}
-	if config.OnPermissionRequest != nil || config.OnPermissionRequestWithPrompt != nil {
+	if config.OnPermissionRequest != nil || config.OnPermissionRequestWithPrompt != nil || permissionEnvelopeHandler != nil {
 		req.RequestPermission = Bool(true)
 	}
 
@@ -1327,6 +1361,7 @@ func (c *Client) createSession(ctx context.Context, config *SessionConfig, runti
 		s.registerTools(config.Tools)
 		s.registerPermissionHandler(config.OnPermissionRequest)
 		s.registerPermissionHandlerWithPrompt(config.OnPermissionRequestWithPrompt)
+		s.registerPermissionHandlerWithEnvelope(permissionEnvelopeHandler)
 		s.registerMCPAuthHandlers(config.OnMCPAuthRequest, runtimeRefreshHandler)
 		if config.OnUserInputRequest != nil {
 			s.registerUserInputHandler(config.OnUserInputRequest)
@@ -1339,6 +1374,9 @@ func (c *Client) createSession(ctx context.Context, config *SessionConfig, runti
 		}
 		if config.OnEvent != nil {
 			s.On(config.OnEvent)
+		}
+		if config.OnEventWithPermissionEnvelope != nil {
+			s.OnWithPermissionEnvelope(config.OnEventWithPermissionEnvelope)
 		}
 		if recovery != nil && recovery.OnEvent != nil {
 			s.OnWithAutoModeRecovery(recovery.OnEvent)
@@ -1611,26 +1649,51 @@ func (c *Client) ResumeSession(ctx context.Context, sessionID string, config *Re
 //	    Tools: []copilot.Tool{myNewTool},
 //	})
 func (c *Client) ResumeSessionWithOptions(ctx context.Context, sessionID string, config *ResumeSessionConfig) (*Session, error) {
-	return c.resumeSession(ctx, sessionID, config, nil, nil)
+	return c.resumeSession(ctx, sessionID, config, nil, nil, nil)
+}
+
+// ResumeSessionWithPermissionEnvelope resumes a session with an explicit
+// lossless permission handler instead of the config's permission handlers.
+// A nil handler retains the config's handlers. Other options remain unchanged.
+// To also supply an MCP auth callback, use [Client.ResumeSessionWithPermissionEnvelopeAndMCPAuthRuntimeRefresh].
+func (c *Client) ResumeSessionWithPermissionEnvelope(ctx context.Context, sessionID string, config *ResumeSessionConfig, handler PermissionHandlerWithEnvelopeFunc) (*Session, error) {
+	return c.resumeSession(ctx, sessionID, config, nil, handler, nil)
 }
 
 // ResumeSessionWithAutoModeRecovery resumes a session and re-enrolls its
 // recovery-aware Auto switch handler. The runtime must acknowledge enrollment.
 func (c *Client) ResumeSessionWithAutoModeRecovery(ctx context.Context, sessionID string, config *ResumeSessionConfig, options *AutoModeRecoveryOptions) (*Session, error) {
+	return c.ResumeSessionWithPermissionEnvelopeAndAutoModeRecovery(ctx, sessionID, config, nil, options)
+}
+
+// ResumeSessionWithPermissionEnvelopeAndAutoModeRecovery resumes a session with
+// a lossless permission handler and recovery-aware Auto switch handler.
+// A nil permission handler retains the config's handlers. Recovery options
+// must include OnAutoModeSwitchRequest and may include an MCP auth callback.
+func (c *Client) ResumeSessionWithPermissionEnvelopeAndAutoModeRecovery(ctx context.Context, sessionID string, config *ResumeSessionConfig, handler PermissionHandlerWithEnvelopeFunc, options *AutoModeRecoveryOptions) (*Session, error) {
 	if options == nil || options.OnAutoModeSwitchRequest == nil {
 		return nil, fmt.Errorf("AutoModeRecovery requires OnAutoModeSwitchRequest")
 	}
-	return c.resumeSession(ctx, sessionID, config, options.MCPAuthRuntimeRefreshHandler, options)
+	return c.resumeSession(ctx, sessionID, config, options.MCPAuthRuntimeRefreshHandler, handler, options)
 }
 
 // ResumeSessionWithMCPAuthRuntimeRefresh resumes a session using the opt-in MCP
 // auth handler instead of config.OnMCPAuthRequest. A nil handler uses the legacy
 // callback. All other options and session lifecycle behavior match ResumeSessionWithOptions.
 func (c *Client) ResumeSessionWithMCPAuthRuntimeRefresh(ctx context.Context, sessionID string, config *ResumeSessionConfig, handler MCPAuthRuntimeRefreshHandler) (*Session, error) {
-	return c.resumeSession(ctx, sessionID, config, handler, nil)
+	return c.resumeSession(ctx, sessionID, config, handler, nil, nil)
 }
 
-func (c *Client) resumeSession(ctx context.Context, sessionID string, config *ResumeSessionConfig, runtimeRefreshHandler MCPAuthRuntimeRefreshHandler, recovery *AutoModeRecoveryOptions) (*Session, error) {
+// ResumeSessionWithPermissionEnvelopeAndMCPAuthRuntimeRefresh resumes a session
+// with both a lossless permission handler and a capability-aware MCP auth handler.
+// Each non-nil handler overrides its corresponding config callbacks independently.
+// A nil handler retains the config's callbacks for that handler.
+// All other options and session lifecycle behavior match [Client.ResumeSessionWithOptions].
+func (c *Client) ResumeSessionWithPermissionEnvelopeAndMCPAuthRuntimeRefresh(ctx context.Context, sessionID string, config *ResumeSessionConfig, permissionHandler PermissionHandlerWithEnvelopeFunc, runtimeRefreshHandler MCPAuthRuntimeRefreshHandler) (*Session, error) {
+	return c.resumeSession(ctx, sessionID, config, runtimeRefreshHandler, permissionHandler, nil)
+}
+
+func (c *Client) resumeSession(ctx context.Context, sessionID string, config *ResumeSessionConfig, runtimeRefreshHandler MCPAuthRuntimeRefreshHandler, permissionEnvelopeHandler PermissionHandlerWithEnvelopeFunc, recovery *AutoModeRecoveryOptions) (*Session, error) {
 	requestedSessionID := sessionID
 	operationSessionID := requestedSessionID
 	unlockSession, err := c.lockSessionOperation(ctx, operationSessionID)
@@ -1709,7 +1772,9 @@ func (c *Client) resumeSession(ctx context.Context, sessionID string, config *Re
 	systemMessage := c.systemMessageForMode(config.SystemMessage)
 	wireSystemMessage, transformCallbacks := extractTransformCallbacks(systemMessage)
 	req.SystemMessage = wireSystemMessage
-	req.Tools = config.Tools
+	if config.Tools != nil {
+		req.Tools = toolDefinitionsForWire(config.Tools)
+	}
 	req.Provider = config.Provider
 	req.Capi = config.Capi
 	req.Providers = config.Providers
@@ -1722,14 +1787,14 @@ func (c *Client) resumeSession(ctx context.Context, sessionID string, config *Re
 	req.CoauthorEnabled = config.CoauthorEnabled
 	req.ManageScheduleEnabled = config.ManageScheduleEnabled
 	req.ModelCapabilities = config.ModelCapabilities
-	availableTools, excludedTools, precedence, ferr := c.resolveToolFilterOptions(config.AvailableTools, config.ExcludedTools)
+	availableTools, excludedTools, ferr := c.resolveToolFilterOptions(config.AvailableTools, config.ExcludedTools)
 	if ferr != nil {
 		return nil, ferr
 	}
 	req.AvailableTools = availableTools
 	req.ExcludedTools = excludedTools
-	req.ToolFilterPrecedence = precedence
 	req.ExcludedBuiltInAgents = config.ExcludedBuiltInAgents
+	req.IncludedBuiltInAgents = config.IncludedBuiltInAgents
 	req.EnableCitations = config.EnableCitations
 	req.EnableFileChangeTracking = config.EnableFileChangeTracking
 	req.SessionLimits = config.SessionLimits
@@ -1830,7 +1895,7 @@ func (c *Client) resumeSession(ctx context.Context, sessionID string, config *Re
 	req.InteractiveUser = config.InteractiveUser
 	req.PermissionMode = config.PermissionMode
 	req.ManagedSettings = config.ManagedSettings
-	if config.OnPermissionRequest != nil || config.OnPermissionRequestWithPrompt != nil {
+	if config.OnPermissionRequest != nil || config.OnPermissionRequestWithPrompt != nil || permissionEnvelopeHandler != nil {
 		req.RequestPermission = Bool(true)
 	}
 
@@ -1874,6 +1939,7 @@ func (c *Client) resumeSession(ctx context.Context, sessionID string, config *Re
 	session.registerTools(config.Tools)
 	session.registerPermissionHandler(config.OnPermissionRequest)
 	session.registerPermissionHandlerWithPrompt(config.OnPermissionRequestWithPrompt)
+	session.registerPermissionHandlerWithEnvelope(permissionEnvelopeHandler)
 	session.registerMCPAuthHandlers(config.OnMCPAuthRequest, runtimeRefreshHandler)
 	if config.OnUserInputRequest != nil {
 		session.registerUserInputHandler(config.OnUserInputRequest)
@@ -1886,6 +1952,9 @@ func (c *Client) resumeSession(ctx context.Context, sessionID string, config *Re
 	}
 	if config.OnEvent != nil {
 		session.On(config.OnEvent)
+	}
+	if config.OnEventWithPermissionEnvelope != nil {
+		session.OnWithPermissionEnvelope(config.OnEventWithPermissionEnvelope)
 	}
 	if recovery != nil && recovery.OnEvent != nil {
 		session.OnWithAutoModeRecovery(recovery.OnEvent)
@@ -2792,34 +2861,8 @@ func (c *Client) startCLIServer(ctx context.Context) error {
 		c.process.Env = setEnvValue(c.process.Env, "COPILOT_RUNTIME_PROCESS_FILE_LOGGING", "1")
 	}
 
-	if c.options.Telemetry != nil {
-		t := c.options.Telemetry
-		c.process.Env = setEnvValue(c.process.Env, "COPILOT_OTEL_ENABLED", "true")
-		if t.OTLPEndpoint != "" {
-			c.process.Env = setEnvValue(c.process.Env, "OTEL_EXPORTER_OTLP_ENDPOINT", t.OTLPEndpoint)
-		}
-		if t.OTLPProtocol != "" {
-			c.process.Env = setEnvValue(c.process.Env, "OTEL_EXPORTER_OTLP_PROTOCOL", t.OTLPProtocol)
-		}
-		if t.FilePath != "" {
-			c.process.Env = setEnvValue(c.process.Env, "COPILOT_OTEL_FILE_EXPORTER_PATH", t.FilePath)
-		}
-		if t.ExporterType != "" {
-			c.process.Env = setEnvValue(c.process.Env, "COPILOT_OTEL_EXPORTER_TYPE", t.ExporterType)
-		}
-		if t.SourceName != "" {
-			c.process.Env = setEnvValue(c.process.Env, "COPILOT_OTEL_SOURCE_NAME", t.SourceName)
-		}
-		if t.CaptureContent != nil {
-			val := "false"
-			mode := "NO_CONTENT"
-			if *t.CaptureContent {
-				val = "true"
-				mode = "SPAN_ONLY"
-			}
-			c.process.Env = setEnvValue(c.process.Env, "OTEL_INSTRUMENTATION_GENAI_CAPTURE_CONTENT", mode)
-			c.process.Env = setEnvValue(c.process.Env, "OTEL_INSTRUMENTATION_GENAI_CAPTURE_MESSAGE_CONTENT", val)
-		}
+	for key, value := range c.options.Telemetry.environment() {
+		c.process.Env = setEnvValue(c.process.Env, key, value)
 	}
 
 	if c.useStdio {
@@ -3033,6 +3076,9 @@ func (c *Client) inProcessHostConfig(cliLoginSyncIntegrationID string) inProcess
 		if runtime.GOOS == "windows" {
 			key = strings.ToUpper(key)
 		}
+		environment[key] = value
+	}
+	for key, value := range c.options.Telemetry.environment() {
 		environment[key] = value
 	}
 
@@ -3707,7 +3753,7 @@ func (c *Client) handleSessionEvent(req sessionEventRequest) {
 	c.sessionsMux.Unlock()
 
 	if ok {
-		session.dispatchEvent(req.Event.SessionEvent)
+		session.dispatchEventWithPermissionEnvelope(req.Event.SessionEvent, req.permissionEnvelope, req.sdkHasHandler)
 	}
 }
 

@@ -74,6 +74,125 @@ pub(crate) struct FeatureFlagMetadata {
     pub name: String,
 }
 
+/// Evaluation inputs for the bound session's feature service, not authentication claims.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct FeatureFlagServiceConfigureParams {
+    /// Explicit assignment replacement or clear; omission retains current assignments.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub assignments: Option<FeatureFlagAssignmentsUpdate>,
+    /// The retained user-settings snapshot.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub config: Option<serde_json::Value>,
+    /// Host environment snapshot; omit to use the live process environment.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub environment: Option<HashMap<String, String>>,
+    /// Explicit experiment overrides, after delivered assignments.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub exp_flag_overrides: Option<HashMap<String, serde_json::Value>>,
+    /// Installation first-launch time in Unix milliseconds, when known.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub first_launch_at_millis: Option<f64>,
+    /// Explicit static overrides, after environment and user settings.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub flag_overrides: Option<HashMap<String, bool>>,
+    /// Constructor scalar seed; omission retains the existing constructor snapshot.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub initial_session_flags: Option<HashMap<String, bool>>,
+    /// Whether experimental features are enabled.
+    pub is_experimental: bool,
+    /// Static staff availability; this does not establish staff authentication.
+    pub is_staff: bool,
+    /// GitHub staff population, when the host recorded split populations.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub is_staff_github: Option<bool>,
+    /// Microsoft staff population, when the host recorded split populations.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub is_staff_microsoft: Option<bool>,
+    /// Static team availability; this does not select the authenticated account.
+    pub is_team: bool,
+    /// Install the existing online assignment source unless assignments are explicit.
+    pub online: bool,
+    /// Whether online segmentation withholds audience populations.
+    pub streamer_mode: bool,
+}
+
+/// Optional evaluations and readiness barriers for one feature snapshot.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct FeatureFlagServiceReadParams {
+    /// Wait for a different revision or service disposal using the existing change notification.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub after_revision: Option<i64>,
+    /// Feature names evaluated with their canonical experiment mappings.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub flags: Option<Vec<String>>,
+    /// Explicit experiment/static queries, in result order.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub overrides: Option<Vec<FeatureFlagExpOverrideQuery>>,
+    /// Wait for the current assignment. Omission does not wait.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub wait_for_exp_response: Option<bool>,
+}
+
+/// One authoritative snapshot and the requested evaluations.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct FeatureFlagServiceReadResult {
+    /// Requested feature values. Unknown or unset values are absent.
+    pub flags: HashMap<String, bool>,
+    /// Explicit override results; null means neither source supplies a boolean.
+    pub overrides: Vec<Option<bool>>,
+    /// The state used by these evaluations.
+    pub snapshot: FeatureFlagServiceSnapshot,
+}
+
+/// Changes apply in field order: config, preference, assignments, secondary context.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct FeatureFlagServiceUpdateParams {
+    /// Replace or clear delivered assignments.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub assignments: Option<FeatureFlagAssignmentsUpdate>,
+    /// Patch the retained configuration.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub config_patch: Option<FeatureFlagConfigPatch>,
+    /// Apply or remove one preference.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub enabled_override: Option<FeatureFlagEnabledOverride>,
+    /// Retain a nonempty secondary context using the original whitespace rules.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub secondary_assignment_context: Option<String>,
+}
+
 /// Every feature flag this runtime declares, with the shape each one was declared with.
 ///
 /// <div class="warning">
@@ -125,6 +244,9 @@ pub(crate) struct FeatureFlagsResolveRequest {
     pub is_staff_microsoft: Option<bool>,
     /// Whether the caller belongs to the team population used by feature availability.
     pub is_team: bool,
+    /// Resolve repository team membership in the runtime instead of accepting a host classification.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub working_directory: Option<String>,
 }
 
 /// Caller population and startup inputs to resolve named online-experiment gates for. Carries no account: the runtime resolves the assignment for the authentication it already holds.
@@ -138,17 +260,29 @@ pub(crate) struct FeatureFlagsResolveRequest {
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub(crate) struct FeatureFlagsResolveStartupGatesRequest {
+    /// Existing host owner authorized for this connection. Omit to use its bound owner.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub auth_owner_id: Option<String>,
     /// User settings document whose `featureFlags` block is layered on top of the resolved set.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub config: Option<serde_json::Value>,
     /// Environment to read flag overrides from. Defaults to this runtime process's own environment.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub environment: Option<HashMap<String, String>>,
+    /// Explicit experiment overrides applied after cached assignments.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub exp_flag_overrides: Option<serde_json::Value>,
     /// When this installation first launched, in milliseconds since the Unix epoch. Experiments that segment on installation age read it. Omit when the first launch was never recorded.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub first_launch_at_millis: Option<f64>,
+    /// Explicit static overrides applied after environment and configuration.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub flag_overrides: Option<HashMap<String, bool>>,
     /// The feature flags to resolve. A name this runtime does not declare is reported as an error rather than as a disabled flag.
     pub flags: Vec<String>,
+    /// Include isTeamRepository beside the requested gates. One launch can then share its fresh audience with static resolution. An empty flags list reads no authentication or experiment assignments.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub include_team_membership: Option<bool>,
     /// Whether the caller is in an experimental population.
     pub is_experimental: bool,
     /// Whether the caller is GitHub or Microsoft staff.
@@ -165,6 +299,9 @@ pub(crate) struct FeatureFlagsResolveStartupGatesRequest {
     pub refresh_without_session: bool,
     /// Whether streamer mode is on, which withholds the populations an experiment would otherwise segment on.
     pub streamer_mode: bool,
+    /// Repository directory whose team membership the runtime resolves.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub working_directory: Option<String>,
 }
 
 /// The verdict of the `forceLoginOrgs` enterprise sign-in pin for one credential. A managed device may pin Copilot to an approved set of GitHub organizations so a developer cannot sign in with a personal — or another enterprise's — account and escape every control that keys off the signed-in identity. A host must refuse to proceed when `allowed` is false; the remaining fields explain the refusal rather than qualifying it.
@@ -447,55 +584,6 @@ pub struct ManagedSettingsMeta {
     /// Lock state and provenance of `values.model`.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub model: Option<ManagedSettingMeta>,
-}
-
-/// Effective enterprise managed settings and contributing channels. Session events report applied policy; sessionless resolve reports an account/device snapshot, and compose reports a non-applying preview of candidate documents. Device values take precedence over server values, then the policy helper, per ordinary key, while permissions compose restrictively. Session-local SDK-client policy is included only in session results. Marked experimental while the managed-settings surface stabilizes.
-///
-/// <div class="warning">
-///
-/// **Experimental.** This type is part of an experimental wire-protocol surface
-/// and may change or be removed in future SDK or CLI releases.
-///
-/// </div>
-#[derive(Debug, Clone, Default, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub struct ManagedSettingsResolvedData {
-    /// Whether an explicit enterprise policy restriction disables bypass-permissions ("yolo") mode for this session. Deny-wins across layers; an unresolved policy does not force this on by itself.
-    pub bypass_permissions_disabled: bool,
-    /// Whether a session-local permissions layer injected by the SDK host was present
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub client_managed: Option<bool>,
-    /// Whether an actual device MDM/plist/registry/file managed-settings layer was present
-    pub device_managed: bool,
-    /// Whether managed policy could not be determined (e.g. a failed server fetch) and unresolved-policy safeguards remain active. This does not by itself disable bypass-permissions; `bypassPermissionsDisabled` reports only an explicit policy restriction.
-    pub fail_closed: bool,
-    /// The setting keys under enterprise management in the effective managed settings (e.g. `model`, `enabledPlugins`, `permissions`). Empty when no managed settings are in force.
-    pub managed_keys: Vec<String>,
-    /// Whether at least two managed sources supplied permission allowlists, so enforcement intersects them and the flattened settings payload omits `permissions.allow`.
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub permissions_allow_intersected: Option<bool>,
-    /// Reusable retained managed permission policy for managedSettings.permissions.evaluate, including source composition and session-local injection. Provided by live session snapshots; absent in older events. Refresh the context when managed policy changes.
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub permissions_context: Option<ManagedPermissionsContext>,
-    /// Explicit Policy Helper structured-failure and recheck capabilities supported by this runtime.
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub policy_helper_capabilities: Option<PolicyHelperCapabilities>,
-    /// The latest unresolved Policy Helper failure for this exact policy context. It remains present across retained-policy refresh failures and clears only after fresh success or authoritative removal.
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub policy_helper_failure: Option<PolicyHelperFailure>,
-    /// Whether the policy-helper managed-settings layer was present. The policy helper is the weakest channel: it fills keys no enterprise source set and can never replace one.
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub policy_helper_managed: Option<bool>,
-    /// Whether the effective sandbox policy forces the sandbox on *only* because managed policy could not be determined, rather than because the policy requires it. Lets clients tell a user whose `--no-sandbox` was overridden that the sandbox stayed on as a fail-closed fallback, instead of attributing it to an administrator who set no such policy.
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub sandbox_enabled_by_undetermined_policy: Option<bool>,
-    /// Whether the server (account/org) managed-settings layer was present
-    pub server_managed: bool,
-    /// The effective (resolved) managed settings values, so clients can render exactly what is enforced. Absent when no managed policy is in force.
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub settings: Option<serde_json::Value>,
-    /// Channel summary: `server`, `device`, `client`, or `policyHelper` when exactly one channel contributed; `mixed` when multiple channels contributed; otherwise `none`. Consult the per-channel booleans for exact provenance.
-    pub source: ManagedSettingsResolvedSource,
 }
 
 /// Typed effective values of managed settings. Each field mirrors the managed-settings schema key of the same name; more keys are added as they are typed.
@@ -2140,6 +2228,10 @@ pub struct UserSettingsWriteKeyRequest {
     /// Refuse to replace an unreadable or invalid file. Defaults to false.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub refuse_on_read_failure: Option<bool>,
+    /// Refuse content no JSONC recovery pass reads as an object. Defaults to false.
+    /// Recoverable content can still be repaired when refuseOnReadFailure is false.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub refuse_on_unrecoverable_read_failure: Option<bool>,
     /// The value to store. Explicit null is retained. Pass null when deleting.
     pub value: Option<serde_json::Value>,
 }
@@ -2288,6 +2380,16 @@ pub struct ManagedSettingsPermissionsEvaluateResult {
     /// One verdict per input operation, in the same order, including duplicates.
     pub results: Vec<ManagedPermissionEvaluation>,
 }
+
+/// Current retained policy event payload, or null before policy resolution.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+pub type ManagedSettingsCurrentSnapshotResult = Option<ManagedSettingsResolvedData>;
 
 /// The stored user settings document, keyed by setting name.
 ///

@@ -27,12 +27,15 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.github.copilot.rpc.CopilotClientMode;
 import com.github.copilot.rpc.CopilotClientOptions;
 import com.github.copilot.rpc.InternalTestOptions;
+import com.github.copilot.rpc.TelemetryConfig;
 import com.sun.jna.Memory;
 import com.sun.jna.Pointer;
 
@@ -52,8 +55,10 @@ class FfiRuntimeHostTest {
         }
     }
 
-    @Test
-    void startBuildsExpectedArgvAndEnvJson() throws Exception {
+    @ParameterizedTest
+    @ValueSource(booleans = {false, true})
+    void startBuildsExpectedArgvAndEnvJson(boolean captureContent) throws Exception {
+        var before = Map.copyOf(System.getenv());
         class RecordingBinding extends TestBinding {
             byte[] argv;
             byte[] env;
@@ -91,6 +96,9 @@ class FfiRuntimeHostTest {
         CopilotClientOptions options = new CopilotClientOptions().setLogLevel("debug").setGitHubToken("gh-token")
                 .setCopilotHome("/tmp/copilot-home").setUseLoggedInUser(false).setSessionIdleTimeoutSeconds(42)
                 .setRemote(true).setMode(CopilotClientMode.EMPTY).setCliArgs(new String[]{"--extra-flag"});
+        options.setTelemetry(new TelemetryConfig().setOtlpEndpoint("http://collector:4318")
+                .setOtlpProtocol("http/protobuf").setFilePath("/telemetry.jsonl").setExporterType("file")
+                .setSourceName("inprocess-sdk").setCaptureContent(captureContent));
 
         options.setInternalTestOptions(
                 new InternalTestOptions().setCopilotApiUrl("http://typed-replay").setGitHubApiUrl("http://typed-github")
@@ -140,6 +148,17 @@ class FfiRuntimeHostTest {
             assertEquals("/test/ca.pem", env.get(key), key);
         }
         assertEquals(null, options.getEnvironment());
+        assertEquals("true", env.get("COPILOT_OTEL_ENABLED"));
+        assertEquals("http://collector:4318", env.get("OTEL_EXPORTER_OTLP_ENDPOINT"));
+        assertEquals("http/protobuf", env.get("OTEL_EXPORTER_OTLP_PROTOCOL"));
+        assertEquals("/telemetry.jsonl", env.get("COPILOT_OTEL_FILE_EXPORTER_PATH"));
+        assertEquals("file", env.get("COPILOT_OTEL_EXPORTER_TYPE"));
+        assertEquals("inprocess-sdk", env.get("COPILOT_OTEL_SOURCE_NAME"));
+        assertEquals(captureContent ? "SPAN_ONLY" : "NO_CONTENT",
+                env.get("OTEL_INSTRUMENTATION_GENAI_CAPTURE_CONTENT"));
+        assertEquals(String.valueOf(captureContent), env.get("OTEL_INSTRUMENTATION_GENAI_CAPTURE_MESSAGE_CONTENT"));
+        assertEquals(before, System.getenv());
+        host.close();
     }
 
     @Test

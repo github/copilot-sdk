@@ -76,6 +76,7 @@ fn async_stop_keeps_current_thread_executor_responsive_during_native_shutdown() 
                 )
                 .unwrap();
                 *client.inner.ffi_host.lock() = Some(Arc::new(FfiShared {
+                    auth_owner: parking_lot::Mutex::new(None),
                     host_shutdown: gated_host_shutdown,
                     owns_host: true,
                     connection_write,
@@ -119,6 +120,7 @@ fn async_stop_keeps_current_thread_executor_responsive_during_native_shutdown() 
 fn attached_client_closes_only_its_connection() {
     ATTACHED_SHUTDOWNS.store(0, Ordering::SeqCst);
     let shared = FfiShared {
+        auth_owner: parking_lot::Mutex::new(None),
         host_shutdown: count_attached_host_shutdown,
         owns_host: false,
         connection_write,
@@ -148,6 +150,7 @@ async fn stopping_attached_client_does_not_shutdown_the_cli_engine() {
     )
     .unwrap();
     *client.inner.ffi_host.lock() = Some(Arc::new(FfiShared {
+        auth_owner: parking_lot::Mutex::new(None),
         host_shutdown: count_stop_host_shutdown,
         owns_host: false,
         connection_write,

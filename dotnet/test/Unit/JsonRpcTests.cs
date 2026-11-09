@@ -316,25 +316,28 @@ public class JsonRpcTests
         Assert.Equal("carried", await next.WaitAsync(TimeSpan.FromSeconds(5)));
     }
 
-    [Fact]
-    public async Task JsonRpc_Does_Not_Retain_Oversized_Receive_Buffer()
+    [Theory]
+    [InlineData(1024 * 1024, 1, 0)]
+    [InlineData(2 * 1024 * 1024, 128, 8192)]
+    public async Task JsonRpc_Does_Not_Retain_Oversized_Receive_Buffer(int headerPaddingLength, int responseCount, int payloadLength)
     {
         var oversizedFrame = CreateResponseFrame(
             long.MaxValue,
             "ignored",
-            headerPaddingLength: 1024 * 1024);
-        var carriedFrame = CreateResponseFrame(1, "carried");
-        using var receiveStream = new CoalescedFramesThenWaitStream(oversizedFrame, carriedFrame);
+            headerPaddingLength: headerPaddingLength);
+        var responses = Enumerable.Range(1, responseCount).Select(i => $"{i}:{new string('x', payloadLength)}").ToArray();
+        var carriedFrames = CombineFrames(responses.Select((value, i) => CreateResponseFrame(i + 1, value)));
+        using var receiveStream = new CoalescedFramesThenWaitStream(oversizedFrame, carriedFrames);
         using var rpc = new JsonRpcReflection(Stream.Null, receiveStream);
 
-        var carriedResponse = rpc.InvokeAsync<string>("pending", args: null);
+        var carriedResponse = Task.WhenAll(responses.Select(_ => rpc.InvokeAsync<string>("pending", args: null)));
         rpc.StartListening();
 
         var responseCompleted = await Task.WhenAny(
             carriedResponse,
             Task.Delay(TimeSpan.FromSeconds(5), CancellationToken.None));
         Assert.Same(carriedResponse, responseCompleted);
-        Assert.Equal("carried", await carriedResponse);
+        Assert.Equal(responses, await carriedResponse);
         Assert.True(receiveStream.FramesWereCoalesced);
 
         var readCompleted = await Task.WhenAny(
@@ -385,6 +388,49 @@ public class JsonRpcTests
         await rpc.Completion.WaitAsync(TimeSpan.FromSeconds(5));
 
         Assert.Equal(payloads, collector.Payloads.Select(payload => payload?.GetRawText() ?? "null"));
+    }
+
+    [Theory]
+    [InlineData(7)]
+    [InlineData(int.MaxValue)]
+    public async Task JsonRpc_Consumes_Coalesced_Frames_After_Invalid_Json_And_Buffer_Compaction(int chunkSize)
+    {
+        var frames = new List<byte[]>
+        {
+            CreateResponseFrame(0, "ignored", headerPaddingLength: 4096),
+            CreateFrame("{invalid"),
+        };
+        frames.AddRange(Enumerable.Range(0, 100).Select(i => CreateNotificationFrame("payload", $$"""{"payload":{{i}}}""")));
+        frames.Add(CreateNotificationFrame("payload", $$"""{"payload":"{{new string('x', 8192)}}"}"""));
+        frames.Add(CreateNotificationFrame("payload", """{"payload":"last"}"""));
+        using var receiveStream = new FragmentedReadStream(CombineFrames(frames), chunkSize);
+        using var rpc = new JsonRpcReflection(Stream.Null, receiveStream);
+        var collector = new JsonElementCollector(102);
+        rpc.SetLocalRpcMethod("payload", (Action<JsonElement?>)collector.Handle);
+
+        rpc.StartListening();
+        await rpc.Completion.WaitAsync(TimeSpan.FromSeconds(5));
+
+        Assert.Equal(102, collector.Payloads.Count);
+        Assert.Equal(Enumerable.Range(0, 100), collector.Payloads.Take(100).Select(p => p!.Value.GetInt32()));
+        Assert.Equal(new string('x', 8192), collector.Payloads[100]!.Value.GetString());
+        Assert.Equal("last", collector.Payloads[101]!.Value.GetString());
+    }
+
+    [Theory]
+    [InlineData("Content-Len")]
+    [InlineData("Content-Length: 100\r\n\r\n{}")]
+    public async Task JsonRpc_Truncated_Frame_Closes_Connection(string frame)
+    {
+        using var receiveStream = new FragmentedReadStream(Encoding.ASCII.GetBytes(frame), 7);
+        using var rpc = new JsonRpcReflection(Stream.Null, receiveStream);
+        var pending = rpc.InvokeAsync<JsonElement>("pending", args: null);
+
+        rpc.StartListening();
+
+        var error = await Assert.ThrowsAnyAsync<IOException>(() => pending.WaitAsync(TimeSpan.FromSeconds(5)));
+        Assert.Equal("ConnectionLostException", error.GetType().Name);
+        await rpc.Completion.WaitAsync(TimeSpan.FromSeconds(5));
     }
 
     [Fact]
@@ -755,6 +801,17 @@ public class JsonRpcTests
                 throw sendError;
             }
         }
+    }
+
+    private sealed class FragmentedReadStream(byte[] bytes, int chunkSize) : MemoryStream(bytes)
+    {
+        public override Task<int> ReadAsync(byte[] buffer, int offset, int count, CancellationToken cancellationToken) =>
+            base.ReadAsync(buffer, offset, Math.Min(count, chunkSize), cancellationToken);
+
+#if NET8_0_OR_GREATER
+        public override ValueTask<int> ReadAsync(Memory<byte> buffer, CancellationToken cancellationToken = default) =>
+            base.ReadAsync(buffer.Slice(0, Math.Min(buffer.Length, chunkSize)), cancellationToken);
+#endif
     }
 
     private sealed class CoalescedFramesThenWaitStream : Stream

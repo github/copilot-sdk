@@ -659,6 +659,107 @@ func TestAutoModeRecoveryComposesWithMCPAuthRuntimeRefresh(t *testing.T) {
 	}
 }
 
+func TestAutoModeRecoveryComposesWithPermissionEnvelope(t *testing.T) {
+	for _, resume := range []bool{false, true} {
+		for _, envelopeEnabled := range []bool{false, true} {
+			t.Run(fmt.Sprintf("resume=%t/envelope=%t", resume, envelopeEnabled), func(t *testing.T) {
+				t.Parallel()
+				var rpcServer *jsonrpc2.Client
+				client, server, forwarded := newPermissionReviewClient(t, func(server *jsonrpc2.Client) {
+					rpcServer = server
+					for _, method := range []string{"session.create", "session.resume"} {
+						server.SetRequestHandler(method, func(json.RawMessage) (json.RawMessage, *jsonrpc2.Error) {
+							return []byte(`{"sessionId":"review-session","capabilities":{"ui":{"autoModeRecovery":true}}}`), nil
+						})
+					}
+					server.SetRequestHandler("session.eventLog.registerInterest", func(json.RawMessage) (json.RawMessage, *jsonrpc2.Error) {
+						return []byte(`{}`), nil
+					})
+					server.SetRequestHandler("session.options.update", func(json.RawMessage) (json.RawMessage, *jsonrpc2.Error) {
+						return []byte(`{"success":true}`), nil
+					})
+				})
+				observed := make(chan any, 1)
+				legacy := func(request PermissionRequest, _ PermissionInvocation) (rpc.PermissionDecision, error) {
+					observed <- request
+					return &rpc.PermissionDecisionNoResult{}, nil
+				}
+				var handler PermissionHandlerWithEnvelopeFunc
+				if envelopeEnabled {
+					handler = func(request *PermissionRequestEnvelope, _ PermissionHandlerInvocation) (rpc.PermissionDecision, error) {
+						observed <- request
+						return &rpc.PermissionDecisionNoResult{}, nil
+					}
+				}
+				recoveryCalls := make(chan AutoModeSwitchRequestWithAutoModeRecovery, 1)
+				options := &AutoModeRecoveryOptions{
+					OnAutoModeSwitchRequest: func(request AutoModeSwitchRequestWithAutoModeRecovery, _ AutoModeSwitchInvocation) (AutoModeSwitchResponse, error) {
+						recoveryCalls <- request
+						return AutoModeSwitchResponseYes, nil
+					},
+				}
+				beforeOptions := *options
+				var session *Session
+				var err error
+				if resume {
+					config := &ResumeSessionConfig{OnPermissionRequest: legacy}
+					before := *config
+					session, err = client.ResumeSessionWithPermissionEnvelopeAndAutoModeRecovery(t.Context(), "review-session", config, handler, options)
+					assertPermissionConfigUnchanged(t, before, *config)
+				} else {
+					config := &SessionConfig{SessionID: "review-session", OnPermissionRequest: legacy}
+					before := *config
+					session, err = client.CreateSessionWithPermissionEnvelopeAndAutoModeRecovery(t.Context(), config, handler, options)
+					assertPermissionConfigUnchanged(t, before, *config)
+				}
+				if err != nil {
+					t.Fatal(err)
+				}
+				assertPermissionConfigUnchanged(t, beforeOptions, *options)
+				original := json.RawMessage(`{"kind":"read","intention":"Read a file","path":"/workspace/file.txt","futureDetails":9007199254740993}`)
+				server.notify("session.event", map[string]any{
+					"sessionId": session.SessionID,
+					"event": map[string]any{"type": "permission.requested", "data": map[string]any{
+						"requestId": "permission-1", "permissionRequest": original,
+					}},
+				})
+				request := <-observed
+				if envelopeEnabled {
+					if _, ok := request.(*PermissionRequestEnvelope); !ok {
+						t.Fatalf("envelope handler received %T", request)
+					}
+				} else if _, ok := request.(*PermissionRequestRead); !ok {
+					t.Fatalf("legacy handler received %T", request)
+				}
+				if _, err := session.RPC.Permissions.ManagedReviewRequired(t.Context(), &rpc.SessionPermissionsManagedReviewRequiredRequest{Request: request}); err != nil {
+					t.Fatal(err)
+				}
+				want := original
+				if !envelopeEnabled {
+					want = json.RawMessage(`{"kind":"read","intention":"Read a file","path":"/workspace/file.txt"}`)
+				}
+				assertOriginalPermissionRequest(t, <-forwarded, want)
+				offer := AutoModeSwitchRequestWithAutoModeRecovery{
+					AutoModeRecovery: &AutoModeRecoveryContext{RequestID: "offer-1", OriginalModel: "explicit-model"},
+				}
+				response, err := rpcServer.Request(t.Context(), "autoModeSwitch.request", autoModeSwitchRequest{
+					SessionID: session.SessionID, AutoModeRecovery: offer.AutoModeRecovery,
+				})
+				if err != nil {
+					t.Fatal(err)
+				}
+				var result autoModeSwitchResponse
+				if err := json.Unmarshal(response, &result); err != nil {
+					t.Fatal(err)
+				}
+				if result.Response != AutoModeSwitchResponseYes || !reflect.DeepEqual(<-recoveryCalls, offer) {
+					t.Fatalf("recovery callback lost its context: %s", response)
+				}
+			})
+		}
+	}
+}
+
 func TestAutoModeRecoveryRejectedCloudCreateDeletesServerAssignedSession(t *testing.T) {
 	for _, cleanupFailure := range []bool{false, true} {
 		t.Run(fmt.Sprintf("cleanup-failure-%t", cleanupFailure), func(t *testing.T) {

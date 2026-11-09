@@ -3,7 +3,10 @@ use std::sync::Arc;
 
 use async_trait::async_trait;
 use github_copilot_sdk::handler::{PermissionHandler, PermissionResult};
-use github_copilot_sdk::rpc::{PermissionsSetApproveAllRequest, PermissionsSetModeRequest};
+use github_copilot_sdk::rpc::{
+    PermissionsSetApproveAllRequest, PermissionsSetModeRequest,
+    SessionPermissionsManagedReviewRequiredParams,
+};
 use github_copilot_sdk::session_events::{
     AssistedApprovalAssessment, AssistedApprovalCompletedRecommendation, PermissionMode,
     SessionEventType, ToolExecutionCompleteData,
@@ -168,7 +171,31 @@ async fn should_handle_async_permission_handler() {
                     .await
                     .expect("send");
 
-                recv_with_timeout(&mut request_rx, "async permission request").await;
+                let request = recv_with_timeout(&mut request_rx, "async permission request").await;
+                let before = serde_json::to_value(&request).expect("serialize handler data");
+                let raw = request.extra["permissionRequest"].clone();
+                assert!(raw.is_object(), "expected the original permission request");
+                let borrowed = serde_json::Value::from(&request);
+                assert_eq!(borrowed, raw);
+                assert_eq!(
+                    serde_json::to_value(&request).expect("serialize borrowed handler data"),
+                    before,
+                );
+                let owned = serde_json::Value::from(request);
+                assert_eq!(owned, raw);
+                for request in [borrowed, owned, raw] {
+                    assert!(
+                        !session
+                            .rpc()
+                            .permissions()
+                            .managed_review_required(
+                                SessionPermissionsManagedReviewRequiredParams { request }
+                            )
+                            .await
+                            .expect("review the original permission request"),
+                        "the session has no managed approval policy",
+                    );
+                }
 
                 session.disconnect().await.expect("disconnect session");
                 client.stop().await.expect("stop client");

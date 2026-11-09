@@ -2101,7 +2101,7 @@ pub struct GitHubTokenAcquireRequest {
 pub struct GitHubTokenAcquireResultToken {
     /// GitHub access token acquired by the SDK host.
     pub access_token: String,
-    /// Remaining token lifetime in seconds when callback execution completes. It must exceed the one-hour preflight refresh threshold.
+    /// Remaining token lifetime in seconds when callback execution completes. It must exceed the one-hour preflight refresh threshold, and still exceed it after the runtime validates the token: validation time counts against this lifetime, so a value just above 3600 can be rejected.
     pub expires_in: i64,
     /// GitHub credential response variant discriminator.
     pub kind: GitHubTokenAcquireResultTokenKind,

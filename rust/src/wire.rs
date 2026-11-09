@@ -93,9 +93,8 @@ pub(crate) struct SessionCreateWire {
     pub excluded_tools: Option<Vec<String>>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub excluded_builtin_agents: Option<Vec<String>>,
-    /// SDK always sends `"excluded"` so include + exclude lists compose
-    /// naturally (everything matching X except Y).
-    pub tool_filter_precedence: &'static str,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub included_builtin_agents: Option<Vec<String>>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub mcp_servers: Option<IndexMap<String, McpServerConfig>>,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -295,8 +294,8 @@ pub(crate) struct SessionResumeWire {
     pub excluded_tools: Option<Vec<String>>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub excluded_builtin_agents: Option<Vec<String>>,
-    /// SDK always sends `"excluded"`. See create-wire docs.
-    pub tool_filter_precedence: &'static str,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub included_builtin_agents: Option<Vec<String>>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub mcp_servers: Option<IndexMap<String, McpServerConfig>>,
     #[serde(skip_serializing_if = "Option::is_none")]

@@ -46,7 +46,7 @@ public sealed class StdioShutdownTests
                 return;
             }
 
-            await client.StartAsync().WaitAsync(TimeSpan.FromSeconds(5));
+            await client.StartAsync();
             using var process = Process.GetProcessById(
                 int.Parse(await File.ReadAllTextAsync(pidPath), System.Globalization.CultureInfo.InvariantCulture));
             _ = process.Handle;

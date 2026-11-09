@@ -18,6 +18,7 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
@@ -200,24 +201,26 @@ class JsonRpcClient implements AutoCloseable {
                     timingNanos);
             throw ex instanceof RuntimeException re ? re : new RuntimeException(ex);
         });
-        if ("session.sendAndWait".equals(method)) {
-            resultFuture.whenComplete((value, error) -> {
-                if (resultFuture.isCancelled() && pendingRequests.remove(id, future)) {
-                    future.cancel(false);
+        resultFuture.whenComplete((value, error) -> {
+            if ((resultFuture.isCancelled() || error instanceof TimeoutException)
+                    && pendingRequests.remove(id, future)) {
+                future.cancel(false);
+                if ("session.sendAndWait".equals(method) || "session.featureFlags.read".equals(method)
+                        || "localModels.watch".equals(method)) {
                     try {
                         cancellationExecutor.execute(() -> {
                             try {
                                 notify("$/cancelRequest", Map.of("id", id));
                             } catch (IOException failure) {
-                                LOG.log(Level.FINE, "Transport closed while cancelling completion request", failure);
+                                LOG.log(Level.FINE, "Transport closed while cancelling request", failure);
                             }
                         });
                     } catch (java.util.concurrent.RejectedExecutionException closed) {
-                        LOG.log(Level.FINE, "Transport closed before completion cancellation", closed);
+                        LOG.log(Level.FINE, "Transport closed before request cancellation", closed);
                     }
                 }
-            });
-        }
+            }
+        });
         return resultFuture;
     }
 

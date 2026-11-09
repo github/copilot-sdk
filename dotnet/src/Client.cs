@@ -257,17 +257,6 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
                     "environment variables belong to the shared host process. Use typed client/session options " +
                     "or a child-process transport.", nameof(options));
             }
-            if (options.Telemetry is not null)
-            {
-                throw new ArgumentException(
-                    $"{nameof(CopilotClientOptions)}.{nameof(CopilotClientOptions.Telemetry)} is not supported with " +
-                    $"{nameof(RuntimeConnection)}.{nameof(RuntimeConnection.ForInProcess)}(): telemetry configuration is " +
-                    "lowered to environment variables read by native runtime code running in the shared host process, so " +
-                    "per-client telemetry cannot be honored in-process. Configure telemetry via the host process " +
-                    "environment, or use a child-process transport.",
-                    nameof(options));
-            }
-
             if (options.WorkingDirectory is not null)
             {
                 throw new ArgumentException(
@@ -380,6 +369,7 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
     /// <remarks>
     /// If the server is not already running and the client is configured to spawn one (default), it will be started.
     /// If connecting to an external runtime (via RuntimeConnection.ForUri), only establishes the connection.
+    /// If a previous start failed or was canceled, calling this method again starts the client anew.
     /// </remarks>
     /// <example>
     /// <code>
@@ -392,11 +382,13 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
     {
         lock (_sessionAdmissionLock)
         {
-            if (_connectionTask is null)
+            // A failed or canceled startup leaves the client disconnected, so start again instead of replaying it.
+            if (_connectionTask is null || _connectionTask.IsFaulted || _connectionTask.IsCanceled)
             {
                 _sessionAdmissionClosed = false;
+                _connectionTask = StartCoreAsync(cancellationToken);
             }
-            return _connectionTask ??= StartCoreAsync(cancellationToken);
+            return _connectionTask;
         }
 
         async Task<Connection> StartCoreAsync(CancellationToken ct)
@@ -1028,11 +1020,9 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
     /// <summary>
     /// Resolves <see cref="SessionConfigBase.AvailableTools"/> /
     /// <see cref="SessionConfigBase.ExcludedTools"/> for the wire payload,
-    /// validating empty-mode requirements. <c>toolFilterPrecedence</c> is
-    /// always <c>excluded</c> so SDK consumers get composable allowlist /
-    /// denylist semantics.
+    /// validating empty-mode requirements.
     /// </summary>
-    private (IList<string>? AvailableTools, IList<string>? ExcludedTools, OptionsUpdateToolFilterPrecedence ToolFilterPrecedence) ResolveToolFilterOptions(SessionConfigBase config)
+    private (IList<string>? AvailableTools, IList<string>? ExcludedTools) ResolveToolFilterOptions(SessionConfigBase config)
     {
         ValidateToolFilterList(nameof(SessionConfigBase.AvailableTools), config.AvailableTools);
         ValidateToolFilterList(nameof(SessionConfigBase.ExcludedTools), config.ExcludedTools);
@@ -1047,7 +1037,7 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
                 nameof(config));
         }
 
-        return (config.AvailableTools, config.ExcludedTools, OptionsUpdateToolFilterPrecedence.Excluded);
+        return (config.AvailableTools, config.ExcludedTools);
     }
 
     /// <summary>
@@ -1326,6 +1316,7 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
                 toolFilter.AvailableTools,
                 toolFilter.ExcludedTools,
                 config.ExcludedBuiltInAgents,
+                config.IncludedBuiltInAgents,
                 config.Provider,
                 config.Capi,
                 config.EnableSessionTelemetry,
@@ -1399,7 +1390,6 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
                 CanvasProvider: config.CanvasProvider,
                 Providers: config.Providers,
                 Models: config.Models,
-                ToolFilterPrecedence: toolFilter.ToolFilterPrecedence,
                 FeatureFlags: config.FeatureFlags,
                 ExpAssignments: config.ExpAssignments,
                 EnableManagedSettings: config.EnableManagedSettings,
@@ -1652,6 +1642,7 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
                 toolFilter.AvailableTools,
                 toolFilter.ExcludedTools,
                 config.ExcludedBuiltInAgents,
+                config.IncludedBuiltInAgents,
                 config.Provider,
                 config.Capi,
                 config.EnableSessionTelemetry,
@@ -1719,7 +1710,6 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
                 OpenCanvases: config.OpenCanvases,
                 Providers: config.Providers,
                 Models: config.Models,
-                ToolFilterPrecedence: toolFilter.ToolFilterPrecedence,
                 FeatureFlags: config.FeatureFlags,
                 ExpAssignments: config.ExpAssignments,
                 EnableManagedSettings: config.EnableManagedSettings,
@@ -2631,23 +2621,23 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
     // Applies the telemetry-derived environment variables the runtime reads to
     // enable OTLP export. Shared by the stdio/tcp child-process path and the
     // in-process FFI path so telemetry behaves identically across transports.
-    private static void ApplyTelemetryEnvironment(IDictionary<string, string?> environment, TelemetryConfig? telemetry)
+    private static void ApplyTelemetryEnvironment(Action<string, string> setEnvironment, TelemetryConfig? telemetry)
     {
         if (telemetry is null)
         {
             return;
         }
 
-        environment["COPILOT_OTEL_ENABLED"] = "true";
-        if (telemetry.OtlpEndpoint is not null) environment["OTEL_EXPORTER_OTLP_ENDPOINT"] = telemetry.OtlpEndpoint;
-        if (telemetry.OtlpProtocol is not null) environment["OTEL_EXPORTER_OTLP_PROTOCOL"] = telemetry.OtlpProtocol;
-        if (telemetry.FilePath is not null) environment["COPILOT_OTEL_FILE_EXPORTER_PATH"] = telemetry.FilePath;
-        if (telemetry.ExporterType is not null) environment["COPILOT_OTEL_EXPORTER_TYPE"] = telemetry.ExporterType;
-        if (telemetry.SourceName is not null) environment["COPILOT_OTEL_SOURCE_NAME"] = telemetry.SourceName;
+        setEnvironment("COPILOT_OTEL_ENABLED", "true");
+        if (telemetry.OtlpEndpoint is not null) setEnvironment("OTEL_EXPORTER_OTLP_ENDPOINT", telemetry.OtlpEndpoint);
+        if (telemetry.OtlpProtocol is not null) setEnvironment("OTEL_EXPORTER_OTLP_PROTOCOL", telemetry.OtlpProtocol);
+        if (telemetry.FilePath is not null) setEnvironment("COPILOT_OTEL_FILE_EXPORTER_PATH", telemetry.FilePath);
+        if (telemetry.ExporterType is not null) setEnvironment("COPILOT_OTEL_EXPORTER_TYPE", telemetry.ExporterType);
+        if (telemetry.SourceName is not null) setEnvironment("COPILOT_OTEL_SOURCE_NAME", telemetry.SourceName);
         if (telemetry.CaptureContent is { } capture)
         {
-            environment["OTEL_INSTRUMENTATION_GENAI_CAPTURE_CONTENT"] = capture ? "SPAN_ONLY" : "NO_CONTENT";
-            environment["OTEL_INSTRUMENTATION_GENAI_CAPTURE_MESSAGE_CONTENT"] = capture ? "true" : "false";
+            setEnvironment("OTEL_INSTRUMENTATION_GENAI_CAPTURE_CONTENT", capture ? "SPAN_ONLY" : "NO_CONTENT");
+            setEnvironment("OTEL_INSTRUMENTATION_GENAI_CAPTURE_MESSAGE_CONTENT", capture ? "true" : "false");
         }
     }
 
@@ -2778,7 +2768,7 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
         }
 
         // Set telemetry environment variables if configured
-        ApplyTelemetryEnvironment(startInfo.Environment, options.Telemetry);
+        ApplyTelemetryEnvironment((key, value) => startInfo.Environment[key] = value, options.Telemetry);
 
         var cliProcess = new Process { StartInfo = startInfo };
         try
@@ -2895,6 +2885,7 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
         {
             environment["COPILOT_DISABLE_KEYTAR"] = "1";
         }
+        ApplyTelemetryEnvironment((key, value) => environment[key] = value, options.Telemetry);
         return environment;
     }
 
@@ -3141,7 +3132,7 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
                 _logger);
 
             var handler = new RpcHandler(this);
-            rpc.SetLocalRpcMethod("session.event", handler.OnSessionEvent);
+            rpc.SetLocalRpcNotification<string, SessionEvent?>("session.event", handler.OnSessionEvent);
             rpc.SetLocalRpcMethod("session.lifecycle", handler.OnSessionLifecycle);
             rpc.SetLocalRpcMethod("userInput.request", handler.OnUserInputRequest);
             rpc.SetLocalRpcMethod("exitPlanMode.request", handler.OnExitPlanModeRequest);
@@ -3315,19 +3306,23 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
     {
         lock (_sessionAdmissionLock)
         {
-            // UUID prefixes are resolved against persisted sessions before publication.
-            foreach (var operation in _sessionOperations.OrderByDescending(operation => operation.SessionId.Length))
+            if (_sessionOperations.Count > 0)
             {
-                if (operation.Session is { } pending
-                    && _connectionTask?.Status == System.Threading.Tasks.TaskStatus.RanToCompletion
-                    && ReferenceEquals(_connectionTask.Result.Rpc, operation.Rpc)
-                    && (string.Equals(sessionId, pending.SessionId, StringComparison.Ordinal)
-                        || (IsUuidSessionId(sessionId) && IsUuidSessionId(pending.SessionId)
-                            && string.Equals(sessionId, pending.SessionId, StringComparison.OrdinalIgnoreCase))))
+                // UUID prefixes are resolved against persisted sessions before publication.
+                foreach (var operation in _sessionOperations.OrderByDescending(operation => operation.SessionId.Length))
                 {
-                    return pending;
+                    if (operation.Session is { } pending
+                        && _connectionTask?.Status == System.Threading.Tasks.TaskStatus.RanToCompletion
+                        && ReferenceEquals(_connectionTask.Result.Rpc, operation.Rpc)
+                        && (string.Equals(sessionId, pending.SessionId, StringComparison.Ordinal)
+                            || (IsUuidSessionId(sessionId) && IsUuidSessionId(pending.SessionId)
+                                && string.Equals(sessionId, pending.SessionId, StringComparison.OrdinalIgnoreCase))))
+                    {
+                        return pending;
+                    }
                 }
             }
+
             _sessions.TryGetValue(sessionId, out var session);
             return session;
         }
@@ -3725,6 +3720,7 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
         IList<string>? AvailableTools,
         IList<string>? ExcludedTools,
         [property: JsonPropertyName("excludedBuiltinAgents")] IList<string>? ExcludedBuiltInAgents,
+        [property: JsonPropertyName("includedBuiltinAgents")] IList<string>? IncludedBuiltInAgents,
         ProviderConfig? Provider,
         CapiSessionOptions? Capi,
         bool? EnableSessionTelemetry,
@@ -3793,7 +3789,6 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
         CanvasProviderIdentity? CanvasProvider = null,
         IList<NamedProviderConfig>? Providers = null,
         IList<ProviderModelConfig>? Models = null,
-        OptionsUpdateToolFilterPrecedence? ToolFilterPrecedence = null,
         [property: JsonPropertyName("featureFlags")] IDictionary<string, bool>? FeatureFlags = null,
         [property: JsonPropertyName("expAssignments")] CopilotExpAssignmentResponse? ExpAssignments = null,
         [property: JsonPropertyName("enableManagedSettings")] bool? EnableManagedSettings = null,
@@ -3816,10 +3811,12 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
         JsonElement Parameters, /* JSON schema */
         bool? OverridesBuiltInTool = null,
         bool? SkipPermission = null,
+        bool? HasHandler = null,
         CopilotToolDefer? Defer = null,
         IDictionary<string, JsonNode?>? Metadata = null,
         bool? IsTerminal = null,
-        ProtocolExternalToolNamespace? Namespace = null)
+        ProtocolExternalToolNamespace? Namespace = null,
+        bool? Idempotent = null)
     {
         public static ToolDefinition FromAIFunction(AIFunctionDeclaration function)
         {
@@ -3828,16 +3825,19 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
             var defer = function.AdditionalProperties.TryGetValue(CopilotTool.DeferKey, out var deferVal) && deferVal is CopilotToolDefer d ? d : (CopilotToolDefer?)null;
             var metadata = function.AdditionalProperties.TryGetValue(CopilotTool.MetadataKey, out var metaVal) && metaVal is IDictionary<string, JsonNode?> m ? m : null;
             var isTerminal = function.AdditionalProperties.TryGetValue(CopilotTool.IsTerminalKey, out var terminalVal) && terminalVal is true;
+            var idempotent = function.AdditionalProperties.TryGetValue(CopilotTool.IdempotentKey, out var idempotentVal) && idempotentVal is true;
             var toolNamespace = function.AdditionalProperties.TryGetValue(CopilotTool.NamespaceKey, out var namespaceVal) && namespaceVal is ToolNamespace ns
                 ? new ProtocolExternalToolNamespace { Name = ns.Name, Description = ns.Description }
                 : null;
             return new ToolDefinition(function.Name, function.Description, function.JsonSchema,
                 overrides ? true : null,
                 skipPerm ? true : null,
+                function.GetService<AIFunction>() is not null,
                 defer,
                 metadata,
                 isTerminal ? true : null,
-                toolNamespace);
+                toolNamespace,
+                idempotent ? true : null);
         }
     }
 
@@ -3866,6 +3866,7 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
         IList<string>? AvailableTools,
         IList<string>? ExcludedTools,
         [property: JsonPropertyName("excludedBuiltinAgents")] IList<string>? ExcludedBuiltInAgents,
+        [property: JsonPropertyName("includedBuiltinAgents")] IList<string>? IncludedBuiltInAgents,
         ProviderConfig? Provider,
         CapiSessionOptions? Capi,
         bool? EnableSessionTelemetry,
@@ -3934,7 +3935,6 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
         IList<OpenCanvasInstance>? OpenCanvases = null,
         IList<NamedProviderConfig>? Providers = null,
         IList<ProviderModelConfig>? Models = null,
-        OptionsUpdateToolFilterPrecedence? ToolFilterPrecedence = null,
         [property: JsonPropertyName("featureFlags")] IDictionary<string, bool>? FeatureFlags = null,
         [property: JsonPropertyName("expAssignments")] CopilotExpAssignmentResponse? ExpAssignments = null,
         [property: JsonPropertyName("enableManagedSettings")] bool? EnableManagedSettings = null,

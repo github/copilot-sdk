@@ -246,7 +246,7 @@ public class SessionEventDeserializationTest {
              "denialClass":null,"confidence":null,"deniedResource":null,"command":"example --write",
              "processName":"example"}
             """})
-    void testSandboxDecisionFullEnvelopeRoundTrip(String payload) throws Exception {
+    void testLegacySandboxDecisionFullEnvelopeRoundTrip(String payload) throws Exception {
         String json = eventEnvelope("sandbox.decision", payload);
         var event = assertInstanceOf(SandboxDecisionEvent.class, parseJson(json));
         var data = assertInstanceOf(SandboxDecisionEvent.SandboxDecisionEventData.class, event.getData());
@@ -752,6 +752,19 @@ public class SessionEventDeserializationTest {
         assertNotNull(event);
         assertInstanceOf(ToolUserRequestedEvent.class, event);
         assertEquals("tool.user_requested", event.getType());
+    }
+
+    @Test
+    void testLegacyToolStartCanonicalConstructorAcceptsNullOptionalArguments() throws Exception {
+        var data = new ToolExecutionStartEvent.ToolExecutionStartEventData("legacy-call", "shell", null, null, null,
+                null, null, null, null, null, null, null, null, null, null, null, null, null, null, null);
+
+        assertEquals("legacy-call", data.toolCallId());
+        assertEquals("shell", data.toolName());
+        assertNull(data.programToolCallId());
+        assertTrue(data.$explicitNulls().isEmpty());
+        assertEquals(MAPPER.readTree("{\"toolCallId\":\"legacy-call\",\"toolName\":\"shell\"}"),
+                MAPPER.valueToTree(data));
     }
 
     @Test

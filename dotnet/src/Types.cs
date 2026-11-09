@@ -358,9 +358,6 @@ public enum CopilotClientMode
     ///     <see cref="CopilotClientOptions.SessionFs"/> to be set.</item>
     /// <item><see cref="SessionConfigBase.AvailableTools"/> must be supplied on
     ///     every session — no tools are exposed by default.</item>
-    /// <item><c>session.create</c> always sets
-    ///     <c>toolFilterPrecedence: "excluded"</c> so the allowlist and denylist
-    ///     compose naturally.</item>
     /// <item>The SDK injects safe defaults for ambient session features
     ///     (telemetry, custom instructions, plugins, environment context, etc.).</item>
     /// <item><c>COPILOT_DISABLE_KEYTAR=1</c> is set on the spawned runtime so
@@ -1076,6 +1073,12 @@ public sealed class PermissionInvocation
 
     /// <summary>Whether managed settings are enabled for this session.</summary>
     public bool ManagedSettingsEnabled { get; set; }
+
+    /// <summary>
+    /// Program invocation owning this permission request; absent for ordinary requests.
+    /// </summary>
+    [Experimental(global::GitHub.Copilot.Diagnostics.Experimental)]
+    public string? ProgramToolCallId { get; set; }
 
     /// <summary>
     /// Canonical runtime-owned Assisted Permissions assessment.
@@ -3178,6 +3181,12 @@ public sealed class AzureOptions
 public sealed class NamedProviderConfig
 {
     /// <summary>
+    /// Forward-compatible runtime options for a local model.
+    /// </summary>
+    [JsonPropertyName("localModel")]
+    public JsonElement? LocalModel { get; set; }
+
+    /// <summary>
     /// Stable identifier referenced by <see cref="ProviderModelConfig.Provider"/>.
     /// Must not contain '/'.
     /// </summary>
@@ -3269,6 +3278,18 @@ public sealed class NamedProviderConfig
 [Experimental(global::GitHub.Copilot.Diagnostics.Experimental)]
 public sealed class ProviderModelConfig
 {
+    /// <summary>
+    /// Persisted on-device Auto annotation.
+    /// </summary>
+    [JsonPropertyName("autoLocal")]
+    public JsonElement? AutoLocal { get; set; }
+
+    /// <summary>
+    /// Provider-published model metadata, including live Auto routing annotations.
+    /// </summary>
+    [JsonPropertyName("metadata")]
+    public IDictionary<string, JsonElement>? Metadata { get; set; }
+
     /// <summary>
     /// Provider-local model id, unique within its provider.
     /// </summary>
@@ -4118,6 +4139,7 @@ public abstract class SessionConfigBase
                 DisableFormDeferral = other.GitHubMcpToolConfig.DisableFormDeferral,
             };
         ExcludedBuiltInAgents = other.ExcludedBuiltInAgents is not null ? [.. other.ExcludedBuiltInAgents] : null;
+        IncludedBuiltInAgents = other.IncludedBuiltInAgents is not null ? [.. other.IncludedBuiltInAgents] : null;
         ExcludedTools = other.ExcludedTools is not null ? [.. other.ExcludedTools] : null;
         Hooks = other.Hooks;
         InfiniteSessions = other.InfiniteSessions;
@@ -4374,6 +4396,16 @@ public abstract class SessionConfigBase
     /// </remarks>
     [JsonPropertyName("excludedBuiltinAgents")]
     public IList<string>? ExcludedBuiltInAgents { get; set; }
+
+    /// <summary>Built-in subagent names to allow, subject to availability and exclusions.</summary>
+    /// <remarks>
+    /// An empty list disables all built-in subagents; custom agents remain available,
+    /// including same-name agents. Null uses defaults on create or cold resume and
+    /// preserves the current allowlist on warm resume. Not persisted; re-supply on
+    /// resume after restart.
+    /// </remarks>
+    [JsonPropertyName("includedBuiltinAgents")]
+    public IList<string>? IncludedBuiltInAgents { get; set; }
 
     /// <summary>Custom model provider configuration for the session.</summary>
     public ProviderConfig? Provider { get; set; }
@@ -5007,6 +5039,11 @@ public sealed class ResumeSessionConfig : SessionConfigBase
     /// wait for caller-supplied results via the corresponding low-level RPC methods.
     /// Resuming does not re-emit restored permission requests or re-invoke permission
     /// handlers or already-dispatched external tool callbacks.
+    /// If a pending call was recorded as SDK-handler-backed and resume registers a
+    /// handler for that tool, the abandoned callback is interrupted, never replayed.
+    /// Handlerless calls remain pending. To supply an abandoned callback's result
+    /// manually, resume without a handler for it. Older requests without recorded
+    /// callback ownership also remain pending.
     /// </para>
     /// </summary>
     public bool? ContinuePendingWork { get; set; }

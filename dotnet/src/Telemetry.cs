@@ -29,18 +29,22 @@ internal static class TelemetryHelpers
     /// the remote context without recording data.
     /// </remarks>
     internal static Activity? RestoreTraceContext(string? traceparent, string? tracestate)
+        => RestoreHandlerTraceContext(traceparent, tracestate, "copilot.tool_handler");
+
+    /// <inheritdoc cref="RestoreTraceContext(string?, string?)"/>
+    internal static Activity? RestoreHandlerTraceContext(string? traceparent, string? tracestate, string name)
     {
         if (traceparent is not null &&
             ActivityContext.TryParse(traceparent, tracestate, isRemote: true, out ActivityContext parent))
         {
-            Activity? activity = s_activitySource.StartActivity("copilot.tool_handler", ActivityKind.Internal, parent);
+            Activity? activity = s_activitySource.StartActivity(name, ActivityKind.Internal, parent);
             if (activity is not null)
             {
                 return activity;
             }
 
             // ActivitySource returns null when no listener requests an activity.
-            activity = new Activity("copilot.tool_handler") { IsAllDataRequested = false };
+            activity = new Activity(name) { IsAllDataRequested = false };
             activity.SetParentId(parent.TraceId, parent.SpanId, parent.TraceFlags);
             if (tracestate is not null)
             {

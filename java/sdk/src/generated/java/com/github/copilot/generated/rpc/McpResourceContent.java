@@ -31,6 +31,7 @@ public record McpResourceContent(
     /** Base64-encoded binary content */
     @JsonProperty("blob") String blob,
     /** Resource-level metadata (CSP, permissions, etc.) */
+    @JsonInclude(value = JsonInclude.Include.NON_NULL, content = JsonInclude.Include.ALWAYS)
     @JsonProperty("_meta") Map<String, Object> meta
 ) {
 

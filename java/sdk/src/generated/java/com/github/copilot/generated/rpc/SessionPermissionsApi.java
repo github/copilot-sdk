@@ -25,6 +25,8 @@ public final class SessionPermissionsApi {
     private final RpcCaller caller;
     private final String sessionId;
 
+    /** API methods for the {@code permissions.additionalDirectories} sub-namespace. */
+    public final SessionPermissionsAdditionalDirectoriesApi additionalDirectories;
     /** API methods for the {@code permissions.paths} sub-namespace. */
     public final SessionPermissionsPathsApi paths;
     /** API methods for the {@code permissions.locations} sub-namespace. */
@@ -38,6 +40,7 @@ public final class SessionPermissionsApi {
     SessionPermissionsApi(RpcCaller caller, String sessionId) {
         this.caller = caller;
         this.sessionId = sessionId;
+        this.additionalDirectories = new SessionPermissionsAdditionalDirectoriesApi(caller, sessionId);
         this.paths = new SessionPermissionsPathsApi(caller, sessionId);
         this.locations = new SessionPermissionsLocationsApi(caller, sessionId);
         this.folderTrust = new SessionPermissionsFolderTrustApi(caller, sessionId);
@@ -173,7 +176,45 @@ public final class SessionPermissionsApi {
     }
 
     /**
-     * Sets whether the client wants permission prompts bridged into session events.
+     * Reads effective escalation and the original launch baseline from the session permission owner.
+     *
+     * @apiNote This method is experimental and may change in a future version.
+     * @since 1.0.0
+     */
+    @CopilotExperimental
+    public CompletableFuture<SessionPermissionsGetAllowAllResult> getAllowAll() {
+        return caller.invoke("session.permissions.getAllowAll", java.util.Map.of("sessionId", this.sessionId), SessionPermissionsGetAllowAllResult.class);
+    }
+
+    /**
+     * Checks whether the session's current managed policy requires review of a permission request.
+     * <p>
+     * Note: the {@code sessionId} field in the params record is overridden
+     * by the session-scoped wrapper; any value provided is ignored.
+     *
+     * @apiNote This method is experimental and may change in a future version.
+     * @since 1.0.0
+     */
+    @CopilotExperimental
+    public CompletableFuture<Boolean> managedReviewRequired(SessionPermissionsManagedReviewRequiredParams params) {
+        com.fasterxml.jackson.databind.node.ObjectNode _p = MAPPER.valueToTree(params);
+        _p.put("sessionId", this.sessionId);
+        return caller.invoke("session.permissions.managedReviewRequired", _p, Boolean.class);
+    }
+
+    /**
+     * Reads whether permission prompts must produce session events after pending original-host permission updates settle. Hosts use this authoritative state before a temporary permission provider takes ownership.
+     *
+     * @apiNote This method is experimental and may change in a future version.
+     * @since 1.0.0
+     */
+    @CopilotExperimental
+    public CompletableFuture<Boolean> getRequired() {
+        return caller.invoke("session.permissions.getRequired", java.util.Map.of("sessionId", this.sessionId), Boolean.class);
+    }
+
+    /**
+     * Sets a direct host requirement for permission events, or registers and releases a connection-scoped provider without overriding later host controls.
      * <p>
      * Note: the {@code sessionId} field in the params record is overridden
      * by the session-scoped wrapper; any value provided is ignored.

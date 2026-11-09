@@ -32,12 +32,19 @@ public final class SessionsOpenCreate extends SessionsOpenParams {
     @JsonProperty("options")
     private SessionOpenOptions options;
 
+    /** Single-use capability for host-resolved construction options, issued through the runtime C ABI and bound to this connection. The runtime creates the native session; the embedding host attaches its original facade and completes host initialization. */
+    @JsonProperty("hostConstructionToken")
+    private Long hostConstructionToken;
+
     /** Whether to emit session.start during creation. Defaults to true. */
     @JsonProperty("emitStart")
     private Boolean emitStart;
 
     public SessionOpenOptions getOptions() { return options; }
     public void setOptions(SessionOpenOptions options) { this.options = options; }
+
+    public Long getHostConstructionToken() { return hostConstructionToken; }
+    public void setHostConstructionToken(Long hostConstructionToken) { this.hostConstructionToken = hostConstructionToken; }
 
     public Boolean getEmitStart() { return emitStart; }
     public void setEmitStart(Boolean emitStart) { this.emitStart = emitStart; }
@@ -57,6 +64,7 @@ public final class SessionsOpenCreate extends SessionsOpenParams {
     public static final class Builder {
         private Builder() {}
         private SessionOpenOptions options;
+        private Long hostConstructionToken;
         private Boolean emitStart;
 
         /**
@@ -67,6 +75,17 @@ public final class SessionsOpenCreate extends SessionsOpenParams {
          */
         public Builder options(SessionOpenOptions value) {
             this.options = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code hostConstructionToken} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder hostConstructionToken(Long value) {
+            this.hostConstructionToken = value;
             return this;
         }
 
@@ -90,6 +109,7 @@ public final class SessionsOpenCreate extends SessionsOpenParams {
         public SessionsOpenCreate build() {
             SessionsOpenCreate instance = new SessionsOpenCreate();
             instance.setOptions(options);
+            instance.setHostConstructionToken(hostConstructionToken);
             instance.setEmitStart(emitStart);
             return instance;
         }

@@ -38,7 +38,7 @@ internal sealed partial class JsonRpc : IDisposable
     private readonly Stream _receiveStream;
     private readonly JsonSerializerOptions _serializerOptions;
     private readonly ILogger _logger;
-    private readonly ConcurrentDictionary<long, PendingRequest> _pendingRequests = new();
+    private readonly ConcurrentDictionary<long, IPendingRequest> _pendingRequests = new();
     private readonly ConcurrentDictionary<long, IncomingRequestCancellation> _incomingRequestCancellations = new();
     private readonly ConcurrentDictionary<string, MethodRegistration> _methods = new();
     private readonly TaskCompletionSource _completionSource = new(TaskCreationOptions.RunContinuationsAsynchronously);
@@ -101,7 +101,7 @@ internal sealed partial class JsonRpc : IDisposable
     {
         var timingTimestamp = Stopwatch.GetTimestamp();
         var id = Interlocked.Increment(ref _nextId);
-        var pending = new PendingRequest(onResponseInline);
+        var pending = new PendingRequest<T>(onResponseInline);
         _pendingRequests[id] = pending;
 
         CancellationTokenRegistration cancelRegistration = default;
@@ -132,18 +132,10 @@ internal sealed partial class JsonRpc : IDisposable
             {
                 Id = id,
                 Method = method,
-                Params = SerializeArgs(args),
+                Params = CreateRequestParameters(args),
             }, JsonRpcWireContext.Default.JsonRpcRequest, cancellationToken).ConfigureAwait(false);
 
-            var responseElement = await pending.Task.ConfigureAwait(false);
-
-            if (responseElement.ValueKind == JsonValueKind.Null || responseElement.ValueKind == JsonValueKind.Undefined)
-            {
-                LogInvokeTiming(LogLevel.Debug, null, method, id, "Succeeded", timingTimestamp);
-                return default!;
-            }
-
-            var result = (T)responseElement.Deserialize(_serializerOptions.GetTypeInfo(typeof(T)))!;
+            var result = await pending.Task.ConfigureAwait(false);
             LogInvokeTiming(LogLevel.Debug, null, method, id, "Succeeded", timingTimestamp);
             return result;
         }
@@ -287,6 +279,23 @@ internal sealed partial class JsonRpc : IDisposable
         _methods[methodName] = new(handler, singleObjectParam);
     }
 
+    public void SetLocalRpcNotification<T1, T2>(string methodName, Action<T1, T2> handler)
+        where T1 : class?
+        where T2 : class?
+    {
+        var registration = new MethodRegistration(handler, singleObjectParam: false);
+        var parameters = registration.Parameters;
+        if (parameters.Length == 2 &&
+            parameters[0].ParameterType == typeof(T1) &&
+            parameters[1].ParameterType == typeof(T2) &&
+            !parameters[0].IsOptional && !parameters[0].HasDefaultValue &&
+            !parameters[1].IsOptional && !parameters[1].HasDefaultValue)
+        {
+            registration.SynchronousHandler = (first, second) => handler((T1)first!, (T2)second!);
+        }
+        _methods[methodName] = registration;
+    }
+
     /// <inheritdoc />
     public void Dispose() => Dispose(new ObjectDisposedException(nameof(JsonRpc)));
 
@@ -374,28 +383,28 @@ internal sealed partial class JsonRpc : IDisposable
 
     private async Task ReadLoopAsync(CancellationToken cancellationToken)
     {
-        var buffer = new byte[InitialReadBufferSize];
-        int carried = 0; // bytes in buffer carried over from previous read
+        // This loop outlives the call that started it, and incoming handlers inherit its context.
+        // Clear the caller's Activity for this flow only so handlers do not run inside that (often finished) trace.
+        Activity.Current = null;
+        var buffer = new ReceiveBuffer();
+        int start = 0;
+        int end = 0;
         try
         {
             while (!cancellationToken.IsCancellationRequested)
             {
                 // Read headers and body
-                var (contentLength, buf, newCarried) = await ReadMessageAsync(buffer, carried, cancellationToken).ConfigureAwait(false);
+                var (contentLength, bodyStart, newEnd) = await ReadMessageAsync(buffer, start, end, cancellationToken).ConfigureAwait(false);
                 if (contentLength < 0)
                 {
                     break; // Stream ended
                 }
 
-                // Keep the (possibly grown) buffer and carry-over count for next iteration
-                buffer = buf;
-                carried = newCarried;
+                end = newEnd;
 
-                // Parse the raw JSON. Body is at buffer[0..contentLength], carried bytes
-                // for the next message are at buffer[contentLength..contentLength+carried].
                 try
                 {
-                    using var doc = JsonDocument.Parse(buffer.AsMemory(0, contentLength));
+                    using var doc = JsonDocument.Parse(buffer.Array.AsMemory(bodyStart, contentLength));
                     var parsed = doc.RootElement;
 
                     // Route while the document is alive. Incoming method arguments are
@@ -415,26 +424,22 @@ internal sealed partial class JsonRpc : IDisposable
                     _logger.LogWarning(ex, "Failed to parse incoming JSON-RPC message");
                 }
 
-                // Always move carried bytes to the front, even on parse failure — otherwise
-                // the next ReadMessageAsync call would scan stale body bytes as headers.
-                // This must happen AFTER parsing because the carried region overlaps where
-                // the body lived.
-                if (carried > 0)
+                // Consume even malformed JSON, but never move bytes still borrowed by the document.
+                start = bodyStart + contentLength;
+
+                // Drain large coalesced remainders in place rather than repeatedly copying them to shrink.
+                if (buffer.Length > MaximumRetainedReadBufferSize && end - start <= MaximumRetainedReadBufferSize)
                 {
-                    Buffer.BlockCopy(buffer, contentLength, buffer, 0, carried);
+                    int carried = end - start;
+                    buffer.Shrink(start, carried);
+                    start = 0;
+                    end = carried;
                 }
 
-                if (buffer.Length > MaximumRetainedReadBufferSize)
+                if (start == end)
                 {
-                    var retainedBuffer = new byte[Math.Max(InitialReadBufferSize, carried)];
-                    if (carried > 0)
-                    {
-                        Buffer.BlockCopy(buffer, 0, retainedBuffer, 0, carried);
-                    }
-
-                    buffer = retainedBuffer;
+                    start = end = 0;
                 }
-
             }
         }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
@@ -453,6 +458,41 @@ internal sealed partial class JsonRpc : IDisposable
         }
     }
 
+    private sealed class ReceiveBuffer
+    {
+        public byte[] Array { get; private set; } = new byte[InitialReadBufferSize];
+
+        // Logical capacity preserves transport read sizes while spare backing capacity avoids growth copies.
+        public int Length { get; private set; } = InitialReadBufferSize;
+
+        public void Grow(int length, int offset, int count)
+        {
+            if (length > Array.Length)
+            {
+                int capacity = length <= MaximumRetainedReadBufferSize
+                    ? Math.Min(MaximumRetainedReadBufferSize, Math.Max(length, Array.Length * 2))
+                    : length;
+                var replacement = new byte[capacity];
+                Buffer.BlockCopy(Array, offset, replacement, 0, count);
+                Array = replacement;
+            }
+            else if (offset > 0)
+            {
+                Buffer.BlockCopy(Array, offset, Array, 0, count);
+            }
+
+            Length = length;
+        }
+
+        public void Shrink(int offset, int count)
+        {
+            var replacement = new byte[Math.Max(InitialReadBufferSize, count)];
+            Buffer.BlockCopy(Array, offset, replacement, 0, count);
+            Array = replacement;
+            Length = replacement.Length;
+        }
+    }
+
     private void FailPendingRequests(Exception reason)
     {
         var terminalError = Interlocked.CompareExchange(ref _terminalError, reason, null) ?? reason;
@@ -466,54 +506,59 @@ internal sealed partial class JsonRpc : IDisposable
     }
 
     /// <summary>
-    /// Reads headers and body in one pass.
-    /// On return, body is at buffer[0..ContentLength], and any overflow bytes
-    /// from the next message are at buffer[ContentLength..ContentLength+Carried].
-    /// The caller must move the carried bytes to the front before the next call.
+    /// Reads a frame from the unread range without moving coalesced frames.
+    /// The caller must finish using the body before the next call can compact the buffer.
     /// </summary>
     /// <param name="buffer">Shared buffer (may be grown).</param>
-    /// <param name="carried">Bytes already in buffer[0..carried] from a previous read.</param>
+    /// <param name="start">Start of the unread range.</param>
+    /// <param name="end">End of the unread range.</param>
     /// <param name="cancellationToken">Cancellation token.</param>
-    private async ValueTask<(int ContentLength, byte[] Buffer, int Carried)> ReadMessageAsync(byte[] buffer, int carried, CancellationToken cancellationToken)
+    private async ValueTask<(int ContentLength, int BodyStart, int End)> ReadMessageAsync(ReceiveBuffer buffer, int start, int end, CancellationToken cancellationToken)
     {
         // Read until we find the \r\n\r\n header terminator.
-        // carried bytes are already at buffer[0..carried].
-        int filled = carried;
         int headerEnd = -1; // index of first byte after \r\n\r\n
 
         // Check carried bytes first for a header terminator
         {
-            int pos = buffer.AsSpan(0, filled).IndexOf("\r\n\r\n"u8);
+            int pos = buffer.Array.AsSpan(start, end - start).IndexOf("\r\n\r\n"u8);
             if (pos >= 0)
             {
-                headerEnd = pos + 4;
+                headerEnd = start + pos + 4;
             }
         }
 
         while (headerEnd < 0)
         {
-            if (filled == buffer.Length)
+            // Avoid progressively smaller transport reads as the cursor reaches the tail.
+            if (start > 0 && buffer.Length - end < buffer.Length / 4)
             {
-                Array.Resize(ref buffer, buffer.Length * 2);
+                Buffer.BlockCopy(buffer.Array, start, buffer.Array, 0, end - start);
+                end -= start;
+                start = 0;
             }
 
-            int bytesRead = await _receiveStream.ReadAsync(buffer.AsMemory(filled, buffer.Length - filled), cancellationToken).ConfigureAwait(false);
+            if (end == buffer.Length)
+            {
+                buffer.Grow(checked(buffer.Length * 2), 0, end);
+            }
+
+            int bytesRead = await _receiveStream.ReadAsync(buffer.Array.AsMemory(end, buffer.Length - end), cancellationToken).ConfigureAwait(false);
             if (bytesRead == 0)
             {
                 // Clean EOF only if we haven't started a frame; otherwise the peer truncated mid-header.
-                if (filled == 0)
+                if (end == start)
                 {
-                    return (-1, buffer, 0);
+                    return (-1, 0, 0);
                 }
 
                 throw new EndOfStreamException("Stream ended while reading JSON-RPC headers.");
             }
 
-            filled += bytesRead;
+            int scanStart = Math.Max(end - 3, start);
+            end += bytesRead;
 
             // Scan for \r\n\r\n starting from where a match could begin
-            int scanStart = Math.Max(filled - bytesRead - 3, 0);
-            int pos = buffer.AsSpan(scanStart, filled - scanStart).IndexOf("\r\n\r\n"u8);
+            int pos = buffer.Array.AsSpan(scanStart, end - scanStart).IndexOf("\r\n\r\n"u8);
             if (pos >= 0)
             {
                 headerEnd = scanStart + pos + 4;
@@ -531,7 +576,7 @@ internal sealed partial class JsonRpc : IDisposable
         // headerEnd points just past the \r\n\r\n terminator. Drop only the trailing
         // empty line's \r\n; each remaining header line is still \r\n-terminated and
         // gets split out by the IndexOf below.
-        var headerLines = buffer.AsSpan(0, headerEnd - 2);
+        var headerLines = buffer.Array.AsSpan(start, headerEnd - start - 2);
         while (!headerLines.IsEmpty)
         {
             int lineEnd = headerLines.IndexOf("\r\n"u8);
@@ -554,31 +599,32 @@ internal sealed partial class JsonRpc : IDisposable
         }
 
         // Bytes after the header that we already have
-        int extraBytes = filled - headerEnd;
+        int extraBytes = end - headerEnd;
 
         // Ensure buffer is large enough for the body and any overflow already read.
-        int needed = Math.Max(contentLength, extraBytes);
-        if (needed > buffer.Length)
+        if (contentLength > buffer.Length - headerEnd)
         {
-            var newBuffer = new byte[needed];
-            Buffer.BlockCopy(buffer, headerEnd, newBuffer, 0, extraBytes);
-            buffer = newBuffer;
-        }
-        else if (extraBytes > 0)
-        {
-            Buffer.BlockCopy(buffer, headerEnd, buffer, 0, extraBytes);
+            if (contentLength > buffer.Length)
+            {
+                buffer.Grow(contentLength, headerEnd, extraBytes);
+            }
+            else
+            {
+                Buffer.BlockCopy(buffer.Array, headerEnd, buffer.Array, 0, extraBytes);
+            }
+
+            headerEnd = 0;
+            end = extraBytes;
         }
 
         // Read remaining body bytes if we don't have enough
         if (extraBytes < contentLength)
         {
-            await _receiveStream.ReadExactlyAsync(buffer.AsMemory(extraBytes, contentLength - extraBytes), cancellationToken).ConfigureAwait(false);
-            return (contentLength, buffer, 0);
+            await _receiveStream.ReadExactlyAsync(buffer.Array.AsMemory(end, contentLength - extraBytes), cancellationToken).ConfigureAwait(false);
+            end = headerEnd + contentLength;
         }
 
-        // We read more than the body — overflow belongs to the next message
-        int overflow = extraBytes - contentLength;
-        return (contentLength, buffer, overflow);
+        return (contentLength, headerEnd, end);
     }
 
     private void HandleResponse(JsonElement message, JsonElement idProp)
@@ -623,9 +669,9 @@ internal sealed partial class JsonRpc : IDisposable
         }
         else if (message.TryGetProperty("result", out var resultProp))
         {
-            var cloned = resultProp.Clone();
             if (pending.OnResultInline is { } inline)
             {
+                var cloned = resultProp.Clone();
                 // Run the inline callback synchronously in the read loop so any
                 // state it mutates (e.g. session registration) is visible before
                 // the read loop dispatches the next message.
@@ -640,13 +686,20 @@ internal sealed partial class JsonRpc : IDisposable
                     return;
                 }
             }
-            pending.TrySetResult(cloned);
+            try
+            {
+                pending.CompleteResult(resultProp, _serializerOptions);
+            }
+            catch (Exception ex)
+            {
+                pending.TrySetException(ex);
+            }
         }
         else
         {
             // Per JSON-RPC 2.0, a response must have either "result" or "error".
             // Treat missing result as null result.
-            pending.TrySetResult(default);
+            pending.CompleteResult(default, _serializerOptions);
         }
     }
 
@@ -685,8 +738,7 @@ internal sealed partial class JsonRpc : IDisposable
                 // Materialize arguments before the first possible suspension so none of
                 // them borrow from the JsonDocument owned by the read loop.
                 var requestCancellationToken = requestCancellation?.Token ?? _connectionClosedCts.Token;
-                var invokeArgs = DeserializeHandlerArguments(registration, paramsProp, requestCancellationToken);
-                var handlerTask = InvokeHandlerAsync(registration, invokeArgs).AsTask();
+                var handlerTask = InvokeHandlerAsync(registration, paramsProp, requestCancellationToken).AsTask();
 
                 if (requestId.HasValue && requestCancellation is not null)
                 {
@@ -817,48 +869,12 @@ internal sealed partial class JsonRpc : IDisposable
                 }
             }
         }
-        else if (paramsProp.ValueKind == JsonValueKind.Array)
+        else if (paramsProp.ValueKind is JsonValueKind.Array or JsonValueKind.Object)
         {
-            // Positional parameters. Optional params (with defaults) are filled when absent.
             int jsonIndex = 0;
-            int arrayLength = paramsProp.GetArrayLength();
             for (int i = 0; i < parameters.Length; i++)
             {
-                if (parameters[i].ParameterType == typeof(CancellationToken))
-                {
-                    invokeArgs[i] = cancellationToken;
-                }
-                else if (jsonIndex < arrayLength)
-                {
-                    invokeArgs[i] = paramsProp[jsonIndex].Deserialize(_serializerOptions.GetTypeInfo(parameters[i].ParameterType));
-                    jsonIndex++;
-                }
-                else
-                {
-                    invokeArgs[i] = parameters[i].HasDefaultValue ? parameters[i].DefaultValue : null;
-                }
-            }
-        }
-        else if (paramsProp.ValueKind == JsonValueKind.Object)
-        {
-            // Named parameters. The CLI sends notifications/requests as a JSON object whose
-            // property names match the handler's parameter names (camelCased per web defaults).
-            // Look up each parameter by name; missing optional parameters fall back to defaults.
-            for (int i = 0; i < parameters.Length; i++)
-            {
-                if (parameters[i].ParameterType == typeof(CancellationToken))
-                {
-                    invokeArgs[i] = cancellationToken;
-                }
-                else if (parameters[i].Name is { } paramName &&
-                         TryGetPropertyCaseInsensitive(paramsProp, paramName, out var valueProp))
-                {
-                    invokeArgs[i] = valueProp.Deserialize(_serializerOptions.GetTypeInfo(parameters[i].ParameterType));
-                }
-                else
-                {
-                    invokeArgs[i] = parameters[i].HasDefaultValue ? parameters[i].DefaultValue : null;
-                }
+                invokeArgs[i] = DeserializeHandlerArgument(parameters[i], paramsProp, ref jsonIndex, cancellationToken);
             }
         }
         else
@@ -872,7 +888,67 @@ internal sealed partial class JsonRpc : IDisposable
         return invokeArgs;
     }
 
-    private static async ValueTask<object?> InvokeHandlerAsync(
+    private object? DeserializeHandlerArgument(
+        ParameterInfo parameter,
+        JsonElement paramsProp,
+        ref int jsonIndex,
+        CancellationToken cancellationToken)
+    {
+        if (parameter.ParameterType == typeof(CancellationToken))
+        {
+            return cancellationToken;
+        }
+
+        if (paramsProp.ValueKind == JsonValueKind.Array)
+        {
+            if (jsonIndex < paramsProp.GetArrayLength())
+            {
+                return paramsProp[jsonIndex++].Deserialize(_serializerOptions.GetTypeInfo(parameter.ParameterType));
+            }
+        }
+        else if (paramsProp.ValueKind == JsonValueKind.Object)
+        {
+            if (parameter.Name is { } name && TryGetPropertyCaseInsensitive(paramsProp, name, out var value))
+            {
+                return value.Deserialize(_serializerOptions.GetTypeInfo(parameter.ParameterType));
+            }
+        }
+        else
+        {
+            throw new InvalidOperationException(
+                $"Unsupported JSON-RPC params shape '{paramsProp.ValueKind}' for handler with positional parameters.");
+        }
+
+        return parameter.HasDefaultValue ? parameter.DefaultValue : null;
+    }
+
+    private ValueTask<object?> InvokeHandlerAsync(
+        MethodRegistration registration,
+        JsonElement paramsProp,
+        CancellationToken cancellationToken)
+    {
+        if (registration.SynchronousHandler is { } handler)
+        {
+            int jsonIndex = 0;
+            var first = DeserializeHandlerArgument(registration.Parameters[0], paramsProp, ref jsonIndex, cancellationToken);
+            var second = DeserializeHandlerArgument(registration.Parameters[1], paramsProp, ref jsonIndex, cancellationToken);
+            try
+            {
+                handler(first, second);
+            }
+            catch (Exception ex)
+            {
+                // Keep the exception contract of Delegate.DynamicInvoke, including cancellation.
+                throw new TargetInvocationException(ex);
+            }
+            return new ValueTask<object?>((object?)null);
+        }
+
+        var invokeArgs = DeserializeHandlerArguments(registration, paramsProp, cancellationToken);
+        return InvokeUntypedHandlerAsync(registration, invokeArgs);
+    }
+
+    private static async ValueTask<object?> InvokeUntypedHandlerAsync(
         MethodRegistration registration,
         object?[] invokeArgs)
     {
@@ -926,7 +1002,7 @@ internal sealed partial class JsonRpc : IDisposable
         return false;
     }
 
-    private JsonElement? SerializeArgs(object?[]? args)
+    private RequestParameters? CreateRequestParameters(object?[]? args)
     {
         if (args is null || args.Length == 0)
         {
@@ -947,7 +1023,12 @@ internal sealed partial class JsonRpc : IDisposable
             }
 
             var typeInfo = _serializerOptions.GetTypeInfo(arg.GetType());
-            return JsonSerializer.SerializeToElement(arg, typeInfo);
+            // Session configuration can contain custom JSON nodes that need root-level depth.
+            if (arg is CopilotClient.CreateSessionRequest or CopilotClient.ResumeSessionRequest)
+            {
+                return new RequestParameters(JsonSerializer.SerializeToElement(arg, typeInfo), null);
+            }
+            return new RequestParameters(arg, typeInfo);
         }
 
         // Source-generated JsonSerializerOptions do not provide metadata for object[],
@@ -974,7 +1055,34 @@ internal sealed partial class JsonRpc : IDisposable
         }
 
         using var doc = JsonDocument.Parse(buffer.WrittenMemory);
-        return doc.RootElement.Clone();
+        return new RequestParameters(doc.RootElement.Clone(), null);
+    }
+
+    [JsonConverter(typeof(RequestParametersJsonConverter))]
+    private readonly struct RequestParameters(object value, JsonTypeInfo? typeInfo)
+    {
+        public object Value { get; } = value;
+        public JsonTypeInfo? TypeInfo { get; } = typeInfo;
+    }
+
+    private sealed class RequestParametersJsonConverter : JsonConverter<RequestParameters>
+    {
+        public RequestParametersJsonConverter() { }
+
+        public override RequestParameters Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
+            => throw new NotSupportedException("Request parameters are only serialized.");
+
+        public override void Write(Utf8JsonWriter writer, RequestParameters value, JsonSerializerOptions options)
+        {
+            if (value.TypeInfo is { } typeInfo)
+            {
+                JsonSerializer.Serialize(writer, value.Value, typeInfo);
+            }
+            else
+            {
+                ((JsonElement)value.Value).WriteTo(writer);
+            }
+        }
     }
 
     private async Task SendResultResponseAsync(
@@ -1043,7 +1151,15 @@ internal sealed partial class JsonRpc : IDisposable
         }
     }
 
-    private sealed class PendingRequest(Action<JsonElement>? onResultInline = null) : TaskCompletionSource<JsonElement>(TaskCreationOptions.RunContinuationsAsynchronously)
+    private interface IPendingRequest
+    {
+        Action<JsonElement>? OnResultInline { get; }
+        bool TrySetCanceled(CancellationToken cancellationToken);
+        bool TrySetException(Exception exception);
+        void CompleteResult(JsonElement result, JsonSerializerOptions options);
+    }
+
+    private sealed class PendingRequest<T>(Action<JsonElement>? onResultInline = null) : TaskCompletionSource<T>(TaskCreationOptions.RunContinuationsAsynchronously), IPendingRequest
     {
         /// <summary>
         /// Optional callback invoked synchronously from the read loop after the
@@ -1053,6 +1169,11 @@ internal sealed partial class JsonRpc : IDisposable
         /// id was assigned by the server in the response).
         /// </summary>
         public Action<JsonElement>? OnResultInline { get; } = onResultInline;
+
+        public void CompleteResult(JsonElement result, JsonSerializerOptions options) =>
+            TrySetResult(result.ValueKind is JsonValueKind.Null or JsonValueKind.Undefined
+                ? default!
+                : (T)result.Deserialize(options.GetTypeInfo(typeof(T)))!);
     }
 
     private sealed class IncomingRequestCancellation : IDisposable
@@ -1125,6 +1246,7 @@ internal sealed partial class JsonRpc : IDisposable
         }
 
         public Delegate Handler { get; }
+        public Action<object?, object?>? SynchronousHandler { get; set; }
         public bool SingleObjectParam { get; }
         public ParameterInfo[] Parameters { get; }
         public MethodInfo? ValueTaskAsTaskMethod { get; }
@@ -1166,7 +1288,7 @@ internal sealed partial class JsonRpc : IDisposable
         public string Method { get; set; } = string.Empty;
 
         [JsonPropertyName("params")]
-        public JsonElement? Params { get; set; }
+        public RequestParameters? Params { get; set; }
     }
 
     private sealed class JsonRpcResponse

@@ -20,7 +20,7 @@ _LOCAL_RUNTIME_DEPS = [
     "@vendor__tokio-stream-0.1.19//:tokio_stream",
     "@vendor__tokio-util-0.7.20//:tokio_util",
     "@vendor__tracing-0.1.44//:tracing",
-    "@vendor__uuid-1.29.0//:uuid",
+    "@vendor//uuid",
 ] + select({
     "@rules_rust//rust/platform:aarch64-pc-windows-msvc": [
         "@vendor__windows-sys-0.61.2//:windows_sys",
@@ -91,8 +91,8 @@ def sdk_targets(name = "platform_dirs_srcs"):
             "//conditions:default": crate_deps(["sha2"]),
         }),
         link_deps = select({
-            "@rules_rust//rust/platform:aarch64-unknown-linux-gnu": ["@sdk_vendor__openssl-sys-0.9.117//:openssl_sys"],
-            "@rules_rust//rust/platform:x86_64-unknown-linux-gnu": ["@sdk_vendor__openssl-sys-0.9.117//:openssl_sys"],
+            "@rules_rust//rust/platform:aarch64-unknown-linux-gnu": ["@sdk_vendor__openssl-sys-0.9.118//:openssl_sys"],
+            "@rules_rust//rust/platform:x86_64-unknown-linux-gnu": ["@sdk_vendor__openssl-sys-0.9.118//:openssl_sys"],
             "//conditions:default": [],
         }),
     )

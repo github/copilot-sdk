@@ -28,8 +28,10 @@ public record McpPromptMessage(
     @JsonInclude(JsonInclude.Include.ALWAYS)
     @JsonProperty("content") Object content,
     /** Message-level metadata */
+    @JsonInclude(value = JsonInclude.Include.NON_NULL, content = JsonInclude.Include.ALWAYS)
     @JsonProperty("_meta") Map<String, Object> meta,
     /** Server-provided non-standard message fields */
+    @JsonInclude(value = JsonInclude.Include.NON_NULL, content = JsonInclude.Include.ALWAYS)
     @JsonProperty("additionalProperties") Map<String, Object> additionalProperties
 ) {
 

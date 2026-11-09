@@ -46,7 +46,7 @@ use crate::types::{
     RequestId, ResumeSessionConfig, ResumeSessionResult, SectionOverride, SessionCapabilities,
     SessionConfig, SessionEvent, SessionId, SetModelOptions, SystemMessageConfig, Tool,
     ToolHandlerMap, ToolInvocation, TraceContext, TranscriptRecovery, UiInputOptions,
-    ensure_attachment_display_names, take_tool_handlers,
+    collect_tool_handlers, ensure_attachment_display_names,
 };
 use crate::{
     Client, Error, ErrorKind, JsonRpcResponse, ProtocolErrorKind, SessionErrorKind,
@@ -1774,7 +1774,7 @@ impl Session {
                 .and_then(|data| data.get("completionEventId"))
                 .is_some()
             {
-                structured_output_error(error.message().unwrap_or("message execution failed"))
+                error.into_agent_error()
             } else {
                 error
             }
@@ -1855,14 +1855,13 @@ impl Session {
 
     /// Retrieve the session's timeline events.
     pub async fn get_events(&self) -> Result<Vec<SessionEvent>, Error> {
-        let result = self
+        let response: GetMessagesResponse = self
             .client
-            .call(
+            .call_typed(
                 "session.getMessages",
                 Some(serde_json::json!({ "sessionId": self.id })),
             )
             .await?;
-        let response: GetMessagesResponse = serde_json::from_value(result)?;
         Ok(response.events)
     }
 
@@ -2041,13 +2040,14 @@ impl Session {
     /// # }
     /// ```
     pub async fn set_tools<I: IntoIterator<Item = Tool>>(&self, tools: I) -> Result<(), Error> {
-        let mut tools: Vec<Tool> = tools.into_iter().collect();
-        let handlers = take_tool_handlers(&mut tools)?;
+        let tools: Vec<Tool> = tools.into_iter().collect();
+        let handlers = collect_tool_handlers(&tools)?;
         if self.shutdown.is_cancelled() || self.external_tools_shutdown.is_cancelled() {
             return Err(ErrorKind::Session(SessionErrorKind::EventLoopClosed).into());
         }
         let mut params = serde_json::json!({ "sessionId": self.id });
         params["tools"] = serde_json::to_value(&tools)?;
+        drop(tools);
 
         let mut set_tools_lock = self.set_tools_lock.clone().lock_owned().await;
         if self.shutdown.is_cancelled() || self.external_tools_shutdown.is_cancelled() {
@@ -2243,10 +2243,9 @@ impl<'a> SessionUi<'a> {
         schema: Value,
     ) -> Result<ElicitationResult, Error> {
         self.session.assert_elicitation()?;
-        let result = self
-            .session
+        self.session
             .client
-            .call(
+            .call_typed(
                 "session.ui.elicitation",
                 Some(serde_json::json!({
                     "sessionId": self.session.id,
@@ -2254,9 +2253,7 @@ impl<'a> SessionUi<'a> {
                     "requestedSchema": schema,
                 })),
             )
-            .await?;
-        let elicitation: ElicitationResult = serde_json::from_value(result)?;
-        Ok(elicitation)
+            .await
     }
 
     /// Ask the user a yes/no confirmation question.
@@ -3673,7 +3670,10 @@ fn spawn_event_loop(
     };
     let connection_closed = client.inner.rpc.connection_closed_token();
 
-    let span = tracing::error_span!("session_event_loop", session_id = %session_id);
+    // A root span: the loop and every callback span nested under it outlive
+    // the create or resume call, so they must not be attributed to whatever
+    // span the caller had current at that moment.
+    let span = tracing::error_span!(parent: None, "session_event_loop", session_id = %session_id);
     tokio::spawn(
         async move {
             let _bootstrap_cleanup = bootstrap_cleanup;
@@ -4093,6 +4093,15 @@ async fn handle_notification(
             );
         }
         SessionEventType::ExternalToolRequested => {
+            if notification
+                .event
+                .data
+                .get("hasHandler")
+                .and_then(serde_json::Value::as_bool)
+                == Some(false)
+            {
+                return;
+            }
             let Some(request_id) = extract_request_id(&notification.event.data) else {
                 return;
             };
@@ -4218,19 +4227,12 @@ async fn handle_notification(
                         let metadata_result = tokio::select! {
                             biased;
                             _ = cancellation.cancelled() => return,
-                            result = client.call(
+                            result = client.call_typed::<ToolsGetCurrentMetadataResult>(
                                 rpc_methods::SESSION_TOOLS_GETCURRENTMETADATA,
                                 Some(serde_json::json!({ "sessionId": sid })),
                             ) => result,
                         };
-                        match metadata_result {
-                            Ok(value) => {
-                                serde_json::from_value::<ToolsGetCurrentMetadataResult>(value)
-                                    .ok()
-                                    .and_then(|result| result.tools)
-                            }
-                            Err(_) => None,
-                        }
+                        metadata_result.ok().and_then(|result| result.tools)
                     } else {
                         None
                     };

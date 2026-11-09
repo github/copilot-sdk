@@ -17,7 +17,7 @@ import javax.annotation.processing.Generated;
  *
  * @since 1.0.0
  */
-@JsonTypeInfo(use = JsonTypeInfo.Id.NAME, property = "action", visible = true)
+@JsonTypeInfo(use = JsonTypeInfo.Id.NAME, include = JsonTypeInfo.As.EXISTING_PROPERTY, property = "action", visible = true)
 @JsonSubTypes({
     @JsonSubTypes.Type(value = SkillInstallationReviewInstall.class, name = "install"),
     @JsonSubTypes.Type(value = SkillInstallationReviewUninstall.class, name = "uninstall")

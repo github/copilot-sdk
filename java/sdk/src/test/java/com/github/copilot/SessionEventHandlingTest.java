@@ -53,6 +53,19 @@ public class SessionEventHandlingTest {
 
     private CopilotSession session;
 
+    @Test
+    @SuppressWarnings("deprecation")
+    void externalToolRequestPreservesPositionalConstructors() {
+        var omitted = new ExternalToolRequestedEvent.ExternalToolRequestedEventData("request", "session", "call",
+                "tool", "provider", null, null, null, null);
+        var explicit = new ExternalToolRequestedEvent.ExternalToolRequestedEventData("request", "session", "call",
+                "tool", null, null, null, null, null, java.util.Set.of("providerId"));
+        assertEquals("provider", omitted.providerId());
+        assertNull(omitted.hasHandler());
+        assertTrue(explicit.$nullableProperties().containsKey("providerId"));
+        assertNull(explicit.hasHandler());
+    }
+
     @BeforeEach
     void setup() throws Exception {
         // Create a minimal session for testing event handling

@@ -344,8 +344,9 @@ async def test_unreadable_error_fails_request_and_keeps_reading(error, monkeypat
 
 @pytest.mark.asyncio
 @pytest.mark.parametrize("phase", ["during-write", "after-write", "blocked-cancellation"])
+@pytest.mark.parametrize("method", ["session.sendAndWait", "localModels.watch"])
 async def test_completion_cancellation_preserves_frame_order_without_blocking_caller(
-    phase, monkeypatch
+    phase, method, monkeypatch
 ):
     loop = asyncio.get_running_loop()
     entered = asyncio.Event()
@@ -378,11 +379,12 @@ async def test_completion_cancellation_preserves_frame_order_without_blocking_ca
 
     async def send(message, **kwargs):
         await original_send(message, **kwargs)
-        if message.get("method") == "session.sendAndWait":
+        if message.get("method") == method:
             sent.set()
 
     monkeypatch.setattr(client, "_send_message", send)
-    request = asyncio.create_task(client.request("session.sendAndWait", {"sessionId": "session"}))
+    params = {"sessionId": "session"} if method == "session.sendAndWait" else {"afterRevision": 0}
+    request = asyncio.create_task(client.request(method, params))
     try:
         await asyncio.wait_for((entered if phase == "during-write" else sent).wait(), 5)
         request.cancel()
@@ -396,7 +398,7 @@ async def test_completion_cancellation_preserves_frame_order_without_blocking_ca
             length = int(header.split(b":", 1)[1])
             assert stream.readline() == b"\r\n"
             frames.append(json.loads(stream.read(length)))
-        assert frames[0]["method"] == "session.sendAndWait"
+        assert frames[0]["method"] == method
         assert all(frame["method"] == "$/cancelRequest" for frame in frames[1:])
         assert all(frame["params"]["id"] == frames[0]["id"] for frame in frames[1:])
         assert client.pending_requests == {}
@@ -404,6 +406,53 @@ async def test_completion_cancellation_preserves_frame_order_without_blocking_ca
         release.set()
         request.cancel()
         await asyncio.gather(request, return_exceptions=True)
+        await client.stop()
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("abandon", ["timeout", "cancel"])
+async def test_abandoned_revision_read_cancels_its_transport_request(abandon, monkeypatch):
+    loop = asyncio.get_running_loop()
+    process = MockProcess()
+    client = JsonRpcClient(process)
+    client._loop = loop
+    original_send = client._send_message
+    sent = asyncio.Event()
+
+    async def send(message, **kwargs):
+        await original_send(message, **kwargs)
+        sent.set()
+
+    def written_frames():
+        stream = io.BytesIO(process.stdin.getvalue())
+        frames = []
+        while header := stream.readline():
+            length = int(header.split(b":", 1)[1])
+            assert stream.readline() == b"\r\n"
+            frames.append(json.loads(stream.read(length)))
+        return frames
+
+    monkeypatch.setattr(client, "_send_message", send)
+    params = {"sessionId": "session", "afterRevision": 7}
+    try:
+        if abandon == "timeout":
+            with pytest.raises(TimeoutError):
+                await client.request("session.featureFlags.read", params, timeout=0.05)
+        else:
+            request = asyncio.create_task(client.request("session.featureFlags.read", params))
+            await asyncio.wait_for(sent.wait(), 5)
+            request.cancel()
+            with pytest.raises(asyncio.CancelledError):
+                await asyncio.wait_for(request, 1)
+        await asyncio.wait_for(asyncio.gather(*client._completion_cancellations), 5)
+        frames = written_frames()
+        assert [frame["method"] for frame in frames] == [
+            "session.featureFlags.read",
+            "$/cancelRequest",
+        ]
+        assert frames[1]["params"] == {"id": frames[0]["id"]}
+        assert client.pending_requests == {}
+    finally:
         await client.stop()
 
 

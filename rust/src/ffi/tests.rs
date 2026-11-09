@@ -15,6 +15,34 @@ static TEST_ALLOW_CLOSE: AtomicBool = AtomicBool::new(false);
 static TEST_CLOSE_CALLS: AtomicUsize = AtomicUsize::new(0);
 static TEST_SHUTDOWN_CALLS: AtomicUsize = AtomicUsize::new(0);
 
+#[test]
+fn explicit_image_does_not_require_a_cli_entrypoint() {
+    let directory = tempfile::tempdir().unwrap();
+    let entrypoint = directory.path().join("no-cli");
+    let image = directory.path().join("missing-runtime.node");
+    let error = FfiHost::create(
+        Some(&entrypoint),
+        None,
+        None,
+        Vec::new(),
+        Vec::new(),
+        FfiHostTarget {
+            auth_owner: None,
+            server_id: Some(42),
+            library_path: Some(&image),
+            session_binding: None,
+        },
+    )
+    .err()
+    .expect("the missing native image must fail");
+    assert!(
+        error
+            .to_string()
+            .contains("failed to resolve in-process runtime library"),
+        "{error}"
+    );
+}
+
 unsafe extern "C" fn test_host_shutdown(_server_id: u32) -> bool {
     TEST_SHUTDOWN_CALLS.fetch_add(1, Ordering::SeqCst);
     true
@@ -228,6 +256,7 @@ fn callback_state_is_retained_until_connection_close_succeeds() {
         closing: AtomicBool::new(false),
     }));
     let shared = FfiShared {
+        auth_owner: parking_lot::Mutex::new(None),
         host_shutdown: test_host_shutdown,
         owns_host: true,
         connection_write: test_connection_write,
@@ -242,7 +271,9 @@ fn callback_state_is_retained_until_connection_close_succeeds() {
         library_path: PathBuf::from("test-runtime"),
     };
 
+    assert_eq!(shared.server_id(), Some(11));
     shared.close();
+    assert_eq!(shared.server_id(), None);
 
     assert!(TEST_CLOSE_CALLS.load(Ordering::SeqCst) >= 1);
     assert_eq!(TEST_SHUTDOWN_CALLS.load(Ordering::SeqCst), 0);

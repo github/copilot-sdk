@@ -40,6 +40,7 @@ public record ToolExecutionCompleteResult(
     @JsonProperty("structuredContent") Object structuredContent,
     /** MCP `CallToolResult._meta` returned verbatim by an MCP Apps tool, for delivery to the app UI only; never sent to the model. Experimental. */
     @CopilotExperimental
+    @JsonInclude(value = JsonInclude.Include.NON_NULL, content = JsonInclude.Include.ALWAYS)
     @JsonProperty("mcpResultMeta") Map<String, Object> mcpResultMeta,
     /** Provider-neutral source material this tool makes available to the model as citable content. Persisted so it survives session resume. Experimental. */
     @CopilotExperimental

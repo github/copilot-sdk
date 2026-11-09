@@ -31,8 +31,10 @@ public record SessionMcpPromptsListResult(
     /** Opaque cursor for the next page, if the server has more prompts */
     @JsonProperty("nextCursor") String nextCursor,
     /** MCP result metadata */
+    @JsonInclude(value = JsonInclude.Include.NON_NULL, content = JsonInclude.Include.ALWAYS)
     @JsonProperty("_meta") Map<String, Object> meta,
     /** Server-provided non-standard result fields */
+    @JsonInclude(value = JsonInclude.Include.NON_NULL, content = JsonInclude.Include.ALWAYS)
     @JsonProperty("additionalProperties") Map<String, Object> additionalProperties
 ) {
 

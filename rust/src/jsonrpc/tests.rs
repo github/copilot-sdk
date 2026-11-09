@@ -130,6 +130,19 @@ fn deserialize_rejects_non_object() {
 
 #[test]
 fn frame_decoder_preserves_message_classification_payloads_and_errors() {
+    let raw_count = Arc::new(AtomicUsize::new(0));
+    let pending = RwLock::new(HashMap::from([1, 2].map(|id| {
+        let (sender, _) = oneshot::channel();
+        (
+            id,
+            PendingRequest {
+                sender: Some(sender),
+                mode: ResponseMode::Raw {
+                    _request: RawRequest::new(raw_count.clone()),
+                },
+            },
+        )
+    })));
     for body in [
         r#"{"jsonrpc":"2.0","id":1,"result":{}}"#,
         r#"{"jsonrpc":"2.0","id":1,"result":null}"#,
@@ -143,6 +156,9 @@ fn frame_decoder_preserves_message_classification_payloads_and_errors() {
         r#"{"jsonrpc":"2.0","id":2,"met\u0068od":"request","params":{}}"#,
         r#"{"jsonrpc":"2.0","id":1,"result":{},"extra":{"nested":[1,2]}}"#,
         r#"{"jsonrpc":"2.0","id":1,"id":2,"result":{}}"#,
+        r#"{"result":{"nested":{"key":1,"key":2}},"id":1,"jsonrpc":"2.0"}"#,
+        r#"{"jsonrpc":"2.0","id":1,"result":{"ignored":1e1000}}"#,
+        r#"{"jsonrpc":"2.0","id":1,"result":{"ignored":"\ud83d"}}"#,
         r#"{"jsonrpc":"2.0","method":false,"method":"notify","params":{}}"#,
         r#"{"jsonrpc":"2.0","method":"notify","params":{},"params":[1,2]}"#,
         r#"{"jsonrpc":"1.0","id":1,"result":{}}"#,
@@ -171,6 +187,79 @@ fn frame_decoder_preserves_message_classification_payloads_and_errors() {
             .map(|message| serde_json::to_value(message).unwrap())
             .map_err(|error| error.to_string());
         assert_eq!(actual, expected, "{body}");
+        let mut bytes = body.as_bytes().to_vec();
+        let typed = match JsonRpcClient::try_raw_message(&mut bytes, &pending) {
+            Some(IncomingMessage::RawResponse(response)) => {
+                response.into_response().map(JsonRpcMessage::Response)
+            }
+            Some(IncomingMessage::Message(message)) => Ok(message),
+            Some(IncomingMessage::InvalidResponse { .. }) => unreachable!(),
+            None => JsonRpcMessage::from_slice(body.as_bytes()).map_err(Error::from),
+        }
+        .map(|message| serde_json::to_value(message).unwrap())
+        .map_err(|error| error.to_string());
+        assert_eq!(typed, expected, "typed: {body}");
+    }
+}
+
+#[test]
+fn typed_results_keep_value_normalization_and_frame_depth() {
+    #[derive(Debug, Deserialize, PartialEq)]
+    #[serde(untagged)]
+    enum ResultType {
+        Number { value: u64 },
+        Other(Value),
+    }
+
+    let raw_count = Arc::new(AtomicUsize::new(0));
+    let (sender, _) = oneshot::channel();
+    let pending = RwLock::new(HashMap::from([(
+        1,
+        PendingRequest {
+            sender: Some(sender),
+            mode: ResponseMode::Raw {
+                _request: RawRequest::new(raw_count),
+            },
+        },
+    )]));
+    for (result, is_raw) in [
+        (r#"{"value":2}"#.to_string(), true),
+        (r#"{"value":1,"value":2}"#.to_string(), false),
+        (
+            format!(r#"{{"ignored":{}0{}}}"#, "[".repeat(125), "]".repeat(125)),
+            true,
+        ),
+        (
+            format!(r#"{{"ignored":{}0{}}}"#, "[".repeat(126), "]".repeat(126)),
+            false,
+        ),
+    ] {
+        let body = format!(r#"{{"jsonrpc":"2.0","id":1,"result":{result}}}"#);
+        let expected = JsonRpcMessage::from_slice(body.as_bytes()).map(|message| {
+            let JsonRpcMessage::Response(response) = message else {
+                panic!("expected response");
+            };
+            serde_json::from_value::<ResultType>(response.result.unwrap()).unwrap()
+        });
+        let fast = JsonRpcClient::try_raw_message(&mut body.as_bytes().to_vec(), &pending);
+        assert_eq!(
+            matches!(fast, Some(IncomingMessage::RawResponse(_))),
+            is_raw,
+            "{body}"
+        );
+        let actual = match fast {
+            Some(IncomingMessage::RawResponse(response)) => response.deserialize::<ResultType>(),
+            None => JsonRpcMessage::from_slice(body.as_bytes())
+                .map_err(Error::from)
+                .and_then(|message| {
+                    let JsonRpcMessage::Response(response) = message else {
+                        panic!("expected response");
+                    };
+                    Response::from(response).deserialize()
+                }),
+            _ => panic!("expected response"),
+        };
+        assert_eq!(actual.ok(), expected.ok(), "{body}");
     }
 }
 

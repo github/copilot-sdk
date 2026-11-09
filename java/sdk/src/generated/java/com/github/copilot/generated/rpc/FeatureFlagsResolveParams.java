@@ -26,6 +26,8 @@ import javax.annotation.processing.Generated;
 @JsonIgnoreProperties(ignoreUnknown = true)
 @com.fasterxml.jackson.databind.annotation.JsonDeserialize(using = FeatureFlagsResolveParams.$NullableDeserializer.class)
 record FeatureFlagsResolveParams(
+    /** Resolve repository team membership in the runtime instead of accepting a host classification. */
+    @JsonProperty("workingDirectory") String workingDirectory,
     /** Whether the caller is GitHub or Microsoft staff. */
     @JsonProperty("isStaff") Boolean isStaff,
     /** Whether the caller is in an experimental population. */
@@ -59,8 +61,8 @@ record FeatureFlagsResolveParams(
      * @deprecated Use {@link #builder()} for named construction.
      */
     @Deprecated(since = "2.0.0", forRemoval = false)
-    FeatureFlagsResolveParams(Boolean isStaff, Boolean isExperimental, Boolean isTeam, Boolean isStaffGitHub, Boolean isStaffMicrosoft, Map<String, Boolean> baseFlags, Map<String, String> environment, Object config, Map<String, Boolean> flagOverrides) {
-        this(isStaff, isExperimental, isTeam, isStaffGitHub, isStaffMicrosoft, baseFlags, environment, config, flagOverrides, java.util.Set.of());
+    FeatureFlagsResolveParams(String workingDirectory, Boolean isStaff, Boolean isExperimental, Boolean isTeam, Boolean isStaffGitHub, Boolean isStaffMicrosoft, Map<String, Boolean> baseFlags, Map<String, String> environment, Object config, Map<String, Boolean> flagOverrides) {
+        this(workingDirectory, isStaff, isExperimental, isTeam, isStaffGitHub, isStaffMicrosoft, baseFlags, environment, config, flagOverrides, java.util.Set.of());
     }
 
     /**
@@ -76,6 +78,7 @@ record FeatureFlagsResolveParams(
      */
     public static final class Builder {
         private Builder() {}
+        private String workingDirectory;
         private Boolean isStaff;
         private Boolean isExperimental;
         private Boolean isTeam;
@@ -84,8 +87,19 @@ record FeatureFlagsResolveParams(
         private Map<String, Boolean> baseFlags;
         private Map<String, String> environment;
         private Object config;
-        private boolean $presence7;
+        private boolean $presence8;
         private Map<String, Boolean> flagOverrides;
+
+        /**
+         * Sets the {@code workingDirectory} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder workingDirectory(String value) {
+            this.workingDirectory = value;
+            return this;
+        }
 
         /**
          * Sets the {@code isStaff} property.
@@ -172,7 +186,7 @@ record FeatureFlagsResolveParams(
          */
         public Builder config(Object value) {
             this.config = value;
-            this.$presence7 = true;
+            this.$presence8 = true;
             return this;
         }
 
@@ -198,8 +212,8 @@ record FeatureFlagsResolveParams(
             if (isExperimental == null) throw new IllegalStateException("Missing required property: isExperimental");
             if (isTeam == null) throw new IllegalStateException("Missing required property: isTeam");
             java.util.Set<String> $explicitNulls = new java.util.LinkedHashSet<>();
-            if ($presence7 && config == null) $explicitNulls.add("config");
-            return new FeatureFlagsResolveParams(isStaff, isExperimental, isTeam, isStaffGitHub, isStaffMicrosoft, baseFlags, environment, config, flagOverrides, $explicitNulls);
+            if ($presence8 && config == null) $explicitNulls.add("config");
+            return new FeatureFlagsResolveParams(workingDirectory, isStaff, isExperimental, isTeam, isStaffGitHub, isStaffMicrosoft, baseFlags, environment, config, flagOverrides, $explicitNulls);
         }
     }
 
@@ -219,7 +233,7 @@ record FeatureFlagsResolveParams(
             if (!tree.isObject()) return context.reportInputMismatch(FeatureFlagsResolveParams.class, "Expected a JSON object");
             java.util.Set<String> $explicitNulls = new java.util.LinkedHashSet<>();
             if (tree.has("config") && tree.get("config").isNull()) $explicitNulls.add("config");
-            return new FeatureFlagsResolveParams(readProperty(context, tree, "isStaff", new com.fasterxml.jackson.core.type.TypeReference<Boolean>() {}), readProperty(context, tree, "isExperimental", new com.fasterxml.jackson.core.type.TypeReference<Boolean>() {}), readProperty(context, tree, "isTeam", new com.fasterxml.jackson.core.type.TypeReference<Boolean>() {}), readProperty(context, tree, "isStaffGithub", new com.fasterxml.jackson.core.type.TypeReference<Boolean>() {}), readProperty(context, tree, "isStaffMicrosoft", new com.fasterxml.jackson.core.type.TypeReference<Boolean>() {}), readProperty(context, tree, "baseFlags", new com.fasterxml.jackson.core.type.TypeReference<Map<String, Boolean>>() {}), readProperty(context, tree, "environment", new com.fasterxml.jackson.core.type.TypeReference<Map<String, String>>() {}), readProperty(context, tree, "config", new com.fasterxml.jackson.core.type.TypeReference<Object>() {}), readProperty(context, tree, "flagOverrides", new com.fasterxml.jackson.core.type.TypeReference<Map<String, Boolean>>() {}), $explicitNulls);
+            return new FeatureFlagsResolveParams(readProperty(context, tree, "workingDirectory", new com.fasterxml.jackson.core.type.TypeReference<String>() {}), readProperty(context, tree, "isStaff", new com.fasterxml.jackson.core.type.TypeReference<Boolean>() {}), readProperty(context, tree, "isExperimental", new com.fasterxml.jackson.core.type.TypeReference<Boolean>() {}), readProperty(context, tree, "isTeam", new com.fasterxml.jackson.core.type.TypeReference<Boolean>() {}), readProperty(context, tree, "isStaffGithub", new com.fasterxml.jackson.core.type.TypeReference<Boolean>() {}), readProperty(context, tree, "isStaffMicrosoft", new com.fasterxml.jackson.core.type.TypeReference<Boolean>() {}), readProperty(context, tree, "baseFlags", new com.fasterxml.jackson.core.type.TypeReference<Map<String, Boolean>>() {}), readProperty(context, tree, "environment", new com.fasterxml.jackson.core.type.TypeReference<Map<String, String>>() {}), readProperty(context, tree, "config", new com.fasterxml.jackson.core.type.TypeReference<Object>() {}), readProperty(context, tree, "flagOverrides", new com.fasterxml.jackson.core.type.TypeReference<Map<String, Boolean>>() {}), $explicitNulls);
         }
 
         private static <T> T readProperty(com.fasterxml.jackson.databind.DeserializationContext context,

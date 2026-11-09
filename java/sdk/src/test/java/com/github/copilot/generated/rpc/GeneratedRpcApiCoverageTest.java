@@ -32,6 +32,24 @@ class GeneratedRpcApiCoverageTest {
 
     @Test
     @AllowCopilotExperimental
+    void permission_requirements_preserve_original_constructor_and_provider_identity() throws Exception {
+        var legacy = new SessionPermissionsSetRequiredParams("session", true);
+        assertNull(legacy.providerId());
+        assertEquals(legacy, SessionPermissionsSetRequiredParams.class.getConstructor(String.class, Boolean.class)
+                .newInstance("session", true));
+        var mapper = new ObjectMapper();
+        assertEquals(mapper.readTree("""
+                {"sessionId":"session","required":true}
+                """), mapper.valueToTree(legacy));
+        var provider = SessionPermissionsSetRequiredParams.builder().sessionId("session").required(false)
+                .providerId("provider").build();
+        assertEquals(mapper.readTree("""
+                {"sessionId":"session","required":false,"providerId":"provider"}
+                """), mapper.valueToTree(provider));
+    }
+
+    @Test
+    @AllowCopilotExperimental
     void managedSettings_get_and_recheck_share_result_type() throws Exception {
         var stub = new StubCaller();
         var snapshot = new ObjectMapper().readValue("{}", SessionManagedSettingsGetResult.class);
@@ -46,6 +64,110 @@ class GeneratedRpcApiCoverageTest {
         for (var call : stub.calls) {
             assertEquals(SessionManagedSettingsGetResult.class, call.resultType());
             assertEquals(Map.of("sessionId", "policy-session"), call.params());
+        }
+    }
+
+    @Test
+    @AllowCopilotExperimental
+    void builtin_agent_flag_overrides_uses_schema_named_result() {
+        var stub = new StubCaller();
+        var session = new SessionRpc(stub, "bound-session");
+        session.tools.getBuiltinAgentFlagOverrides().join();
+
+        assertEquals(1, stub.calls.size());
+        var call = stub.calls.get(0);
+        assertEquals("session.tools.getBuiltinAgentFlagOverrides", call.method());
+        assertEquals(Map.of("sessionId", "bound-session"), call.params());
+        assertEquals("ToolsGetBuiltinAgentFlagOverridesResult", call.resultType().getSimpleName());
+    }
+
+    @Test
+    @AllowCopilotExperimental
+    void additional_directories_list_uses_schema_named_result() {
+        var stub = new StubCaller();
+        var expected = PermissionsAdditionalDirectoriesListResult.builder().directories(List.of("/workspace/shared"))
+                .build();
+        stub.nextResult = expected;
+        var session = new SessionRpc(stub, "bound-session");
+        CompletableFuture<PermissionsAdditionalDirectoriesListResult> result = session.permissions.additionalDirectories
+                .list();
+
+        assertSame(expected, result.join());
+        assertEquals(List.of("/workspace/shared"), result.join().directories());
+        assertEquals(1, stub.calls.size());
+        var call = stub.calls.get(0);
+        assertEquals("session.permissions.additionalDirectories.list", call.method());
+        assertEquals(Map.of("sessionId", "bound-session"), call.params());
+        assertEquals(PermissionsAdditionalDirectoriesListResult.class, call.resultType());
+    }
+
+    @Test
+    @AllowCopilotExperimental
+    void sessions_open_preserves_original_result_constructor_and_construction_plan() throws Exception {
+        var mapper = new ObjectMapper();
+        var metadata = mapper.readValue("{\"sessionId\":\"remote\"}", RemoteSessionMetadataValue.class);
+        var sessionApi = Map.of("api", "legacy");
+        var startupPrompts = List.of("startup");
+        var progress = List.<SessionsOpenProgress>of();
+        var legacy = new SessionsOpenResult(SessionsOpenStatus.CREATED, "legacy", sessionApi, startupPrompts, "remote",
+                metadata, progress);
+
+        assertNull(legacy.nativeConstructionPlan());
+        assertEquals(legacy,
+                SessionsOpenResult.class.getConstructor(SessionsOpenStatus.class, String.class, Object.class,
+                        List.class, String.class, RemoteSessionMetadataValue.class, List.class)
+                        .newInstance(SessionsOpenStatus.CREATED, "legacy", sessionApi, startupPrompts, "remote",
+                                metadata, progress));
+        assertEquals(mapper.readTree("""
+                {"status":"created","sessionId":"legacy","sessionApi":{"api":"legacy"},
+                 "startupPrompts":["startup"],"remoteSessionId":"remote",
+                 "metadata":{"sessionId":"remote"},"progress":[]}
+                """), mapper.valueToTree(legacy));
+        assertEquals(legacy, mapper.readValue(mapper.writeValueAsString(legacy), SessionsOpenResult.class));
+
+        var plan = Map.of("sessionId", "native");
+        var withPlan = SessionsOpenResult.builder().nativeConstructionPlan(plan).status(legacy.status())
+                .sessionId(legacy.sessionId()).sessionApi(legacy.sessionApi()).startupPrompts(legacy.startupPrompts())
+                .remoteSessionId(legacy.remoteSessionId()).metadata(legacy.metadata()).progress(legacy.progress())
+                .build();
+        var expectedWithPlan = (ObjectNode) mapper.valueToTree(legacy);
+        expectedWithPlan.set("nativeConstructionPlan", mapper.valueToTree(plan));
+        assertEquals(expectedWithPlan, mapper.valueToTree(withPlan));
+        assertEquals(withPlan, mapper.readValue(mapper.writeValueAsString(withPlan), SessionsOpenResult.class));
+    }
+
+    @Test
+    @AllowCopilotExperimental
+    void sessions_close_preserves_original_constructor_and_detach_option() throws Exception {
+        var legacy = new SessionsCloseParams("legacy");
+        assertNull(legacy.detachSessionEndHooks());
+        assertEquals(legacy, SessionsCloseParams.class.getConstructor(String.class).newInstance("legacy"));
+
+        var params = List.of(legacy, new SessionsCloseParams("explicit-null", null),
+                SessionsCloseParams.builder().sessionId("detached").detachSessionEndHooks(true).build(),
+                SessionsCloseParams.builder().sessionId("inline").detachSessionEndHooks(false).build());
+        var expected = List.of("""
+                {"sessionId":"legacy"}
+                """, """
+                {"sessionId":"explicit-null"}
+                """, """
+                {"sessionId":"detached","detachSessionEndHooks":true}
+                """, """
+                {"sessionId":"inline","detachSessionEndHooks":false}
+                """);
+        var stub = new StubCaller();
+        var server = new ServerRpc(stub);
+        for (var request : params) {
+            server.sessions.close(request).join();
+        }
+
+        assertEquals(params.size(), stub.calls.size());
+        var mapper = new ObjectMapper();
+        for (int index = 0; index < params.size(); index++) {
+            var call = stub.calls.get(index);
+            assertEquals("sessions.close", call.method());
+            assertEquals(Void.class, call.resultType());
+            assertEquals(mapper.readTree(expected.get(index)), mapper.valueToTree(call.params()));
         }
     }
 

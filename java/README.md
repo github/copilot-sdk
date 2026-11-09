@@ -400,7 +400,10 @@ already durably recorded by the runtime.
 Pass `new ResumeSessionConfig().setOnPermissionRequest(PermissionHandler.APPROVE_ALL).setContinuePendingWork(true)`
 to `resumeSession` to keep waiting for pending tool calls and permission requests
 instead. Leave the option unset to use the runtime default. Re-register any
-external tools needed to handle continued work.
+external tools needed for continued work. For abandoned SDK-backed calls recovered
+from history, re-registering the handler interrupts rather than replays the call;
+resume without that handler to supply its result yourself. An active resident
+resume preserves running callbacks and accepts their eventual results.
 
 `SessionConfig.setInteractiveUser(true)` declares that a person types the
 session's messages, as in an editor chat panel. This enables the runtime's
@@ -427,9 +430,9 @@ var config = new SessionConfig()
     .setOnPermissionRequest(PermissionHandler.APPROVE_ALL);
 ```
 
-The remaining lifetime is required and must be positive when the callback
-completes; production GitHub tokens typically last eight hours. A static token
-and a provider are mutually exclusive.
+The remaining lifetime, in seconds at callback completion, must exceed 3600
+seconds after token validation. Production GitHub tokens typically last eight
+hours. Static tokens and providers are mutually exclusive.
 
 Initial acquisition runs during session creation or resume. Cancellation,
 provider errors, and invalid token responses reject that operation instead of
@@ -492,8 +495,8 @@ templates, and assets, set its descriptor's `directory` to the absolute path of
 the local folder that holds them:
 
 ```java
-new SkillProviderDescriptor("release-notes", "Writes release notes in the team's format.",
-    null, null, null, "/srv/skills/release-notes")
+var descriptor = new SkillProviderDescriptor("release-notes", "Writes release notes in the team's format.",
+    null, null, null, "/srv/skills/release-notes");
 ```
 
 When the skill is activated, the runtime lists the folder's files for the model.
@@ -798,6 +801,7 @@ Chain fluent modifiers to set tool options:
 - `.skipPermission(boolean)` — bypass permission prompts
 - `.defer(ToolDefer)` — control deferred execution (`AUTO`, `NEVER`)
 - `.overridesBuiltInTool(boolean)` — shadow built-in tools
+- `.idempotent(boolean)` — declares that repeating a call has no further effect (true of any tool without side effects); the runtime uses it to decide whether a lost call can be safely repeated, and it doesn't affect permissions
 
 ### String-schema `apply_patch` overrides
 

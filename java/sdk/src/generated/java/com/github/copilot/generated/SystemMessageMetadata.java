@@ -25,6 +25,7 @@ public record SystemMessageMetadata(
     /** Version identifier of the prompt template or structured prompt layout used */
     @JsonProperty("promptVersion") String promptVersion,
     /** Template variables used when constructing the prompt */
+    @JsonInclude(value = JsonInclude.Include.NON_NULL, content = JsonInclude.Include.ALWAYS)
     @JsonProperty("variables") Map<String, Object> variables
 ) {
 

@@ -6,8 +6,10 @@ package com.github.copilot.generated;
 
 import static org.junit.jupiter.api.Assertions.*;
 
+import com.fasterxml.jackson.annotation.JsonSubTypes;
 import com.fasterxml.jackson.annotation.JsonTypeInfo;
 import com.fasterxml.jackson.annotation.JsonValue;
+import com.fasterxml.jackson.core.JsonParser;
 import java.io.IOException;
 import java.lang.reflect.Modifier;
 import java.net.URISyntaxException;
@@ -158,6 +160,43 @@ class GeneratedTypesJacksonRoundTripTest {
         }
         assertFalse(tests.isEmpty(), "Should discover at least one generated enum");
         return tests;
+    }
+
+    @TestFactory
+    Collection<DynamicTest> everyNamedUnionSubtypeWritesItsDiscriminatorOnce() throws Exception {
+        var strict = MAPPER.copy().enable(JsonParser.Feature.STRICT_DUPLICATE_DETECTION);
+        List<DynamicTest> tests = new ArrayList<>();
+        for (Class<?> base : discoverGeneratedClasses()) {
+            var typeInfo = base.getAnnotation(JsonTypeInfo.class);
+            var subtypes = base.getAnnotation(JsonSubTypes.class);
+            if (typeInfo == null || subtypes == null || typeInfo.use() != JsonTypeInfo.Id.NAME)
+                continue;
+            String property = typeInfo.property();
+            for (var subtype : subtypes.value()) {
+                tests.add(DynamicTest.dynamicTest("single discriminator: " + subtype.value().getName(), () -> {
+                    Object value = MAPPER.treeToValue(MAPPER.createObjectNode().put(property, subtype.name()), base);
+                    assertSame(subtype.value(), value.getClass());
+                    for (String json : List.of(MAPPER.writeValueAsString(value),
+                            MAPPER.writerFor(base).writeValueAsString(value))) {
+                        assertEquals(subtype.name(), strict.readTree(json).path(property).asText(), json);
+                        assertSame(subtype.value(), MAPPER.readValue(json, base).getClass(), json);
+                    }
+                }));
+            }
+        }
+        assertTrue(tests.stream().anyMatch(test -> test.getDisplayName().endsWith(".SessionIdleEvent")));
+        return tests;
+    }
+
+    @Test
+    void unknownSessionEventWritesItsOriginalTypeOnce() throws Exception {
+        var strict = MAPPER.copy().enable(JsonParser.Feature.STRICT_DUPLICATE_DETECTION);
+        var event = MAPPER.readValue("{\"type\":\"future.kind\",\"data\":{}}", SessionEvent.class);
+        assertSame(UnknownSessionEvent.class, event.getClass());
+
+        String json = MAPPER.writeValueAsString(event);
+        assertEquals("future.kind", strict.readTree(json).path("type").asText(), json);
+        assertEquals("future.kind", MAPPER.readValue(json, SessionEvent.class).getType());
     }
 
     @Test

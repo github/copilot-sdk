@@ -30,6 +30,7 @@ public record McpResourceAnnotations(
     /** Last-modified timestamp hint */
     @JsonProperty("lastModified") String lastModified,
     /** Server-provided non-standard annotation fields preserved from the MCP response */
+    @JsonInclude(value = JsonInclude.Include.NON_NULL, content = JsonInclude.Include.ALWAYS)
     @JsonProperty("additionalProperties") Map<String, Object> additionalProperties
 ) {
 

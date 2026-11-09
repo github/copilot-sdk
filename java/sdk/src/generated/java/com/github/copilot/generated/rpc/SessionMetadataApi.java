@@ -31,6 +31,22 @@ public final class SessionMetadataApi {
     }
 
     /**
+     * Reads repository context only when the session host permits local Git operations.
+     * <p>
+     * Note: the {@code sessionId} field in the params record is overridden
+     * by the session-scoped wrapper; any value provided is ignored.
+     *
+     * @apiNote This method is experimental and may change in a future version.
+     * @since 1.0.0
+     */
+    @CopilotExperimental
+    public CompletableFuture<SessionMetadataGetWorkingDirectoryContextResult> getWorkingDirectoryContext(SessionMetadataGetWorkingDirectoryContextParams params) {
+        com.fasterxml.jackson.databind.node.ObjectNode _p = MAPPER.valueToTree(params);
+        _p.put("sessionId", this.sessionId);
+        return caller.invoke("session.metadata.getWorkingDirectoryContext", _p, SessionMetadataGetWorkingDirectoryContextResult.class);
+    }
+
+    /**
      * Returns a snapshot of the session's identifying metadata, mode, agent, and remote info.
      *
      * @apiNote This method is experimental and may change in a future version.

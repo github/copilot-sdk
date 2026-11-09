@@ -9,6 +9,39 @@ from copilot._jsonrpc import JsonRpcClient
 
 
 @pytest.mark.asyncio
+@pytest.mark.parametrize("included_builtin_agents", [None, [], ["explore"]])
+async def test_create_and_resume_preserve_builtin_agent_allowlist(
+    monkeypatch, included_builtin_agents
+):
+    client = CopilotClient(connection=RuntimeConnection.for_uri("localhost:1234"))
+    rpc = AsyncMock(spec=JsonRpcClient)
+    captured = {}
+
+    async def request(method, params, **kwargs):
+        captured[method] = params
+        result = {"sessionId": params["sessionId"]}
+        if callback := kwargs.get("on_response_inline"):
+            callback(result)
+        return result
+
+    rpc.request.side_effect = request
+    monkeypatch.setattr(client, "_client", rpc)
+    try:
+        session = await client.create_session(included_builtin_agents=included_builtin_agents)
+        await client.resume_session(
+            session.session_id,
+            included_builtin_agents=included_builtin_agents,
+        )
+        for method in ("session.create", "session.resume"):
+            if included_builtin_agents is None:
+                assert "includedBuiltinAgents" not in captured[method]
+            else:
+                assert captured[method]["includedBuiltinAgents"] == included_builtin_agents
+    finally:
+        await client.force_stop()
+
+
+@pytest.mark.asyncio
 @pytest.mark.parametrize("roots", [None, [], ["relative-root", "other-root"]])
 async def test_customization_roots_preserved_on_create_and_resume(monkeypatch, roots):
     client = CopilotClient(connection=RuntimeConnection.for_uri("localhost:1234"))

@@ -17,7 +17,7 @@ import javax.annotation.processing.Generated;
  *
  * @since 1.0.0
  */
-@JsonTypeInfo(use = JsonTypeInfo.Id.NAME, property = "queued", visible = true)
+@JsonTypeInfo(use = JsonTypeInfo.Id.NAME, include = JsonTypeInfo.As.EXISTING_PROPERTY, property = "queued", visible = true)
 @JsonSubTypes({
     @JsonSubTypes.Type(value = EnqueueCommandResultTrue.class, name = "true"),
     @JsonSubTypes.Type(value = EnqueueCommandResultFalse.class, name = "false")

@@ -25,12 +25,17 @@ import java.nio.file.StandardCopyOption;
 import java.nio.file.attribute.BasicFileAttributes;
 import java.nio.file.attribute.PosixFilePermissions;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicInteger;
 
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
@@ -535,6 +540,63 @@ class NativeRuntimeLoaderTest {
         try (var files = Files.list(expected.getParent())) {
             assertEquals(List.of(expected), files.toList(), "Concurrent extraction must clean up temporary files");
         }
+    }
+
+    @Test
+    void concurrentFirstExtractionCopiesEachArtifactOnce(@TempDir Path tempDir) throws Exception {
+        Path resourceDir = tempDir.resolve("native").resolve(TEST_CLASSIFIER);
+        writeRuntimeResource(tempDir, TEST_CLASSIFIER, FAKE_BINARY_CONTENT);
+        Path ripgrep = resourceDir.resolve("ripgrep/bin/linux-x64/rg");
+        Files.createDirectories(ripgrep.getParent());
+        Files.writeString(ripgrep, "ripgrep");
+        Files.writeString(resourceDir.resolve(NativeRuntimeLoader.RUNTIME_ASSETS_FILENAME),
+                "644\truntime.node\n755\tripgrep/bin/linux-x64/rg\n");
+        ClassLoader loader = new URLClassLoader(new URL[]{tempDir.toUri().toURL()}, null);
+        Path cacheBase = tempDir.resolve("cache");
+
+        Map<Path, AtomicInteger> publications = new ConcurrentHashMap<>();
+        CountDownLatch racingPublication = new CountDownLatch(1);
+        AtomicBoolean firstPublication = new AtomicBoolean(true);
+        NativeRuntimeLoader.AtomicPublisher publisher = (temp, cached) -> {
+            publications.computeIfAbsent(cached, ignored -> new AtomicInteger()).incrementAndGet();
+            if (firstPublication.compareAndSet(true, false)) {
+                // Hold the first copy open long enough for an uncoordinated caller to
+                // finish its own copy of the same artifact.
+                try {
+                    racingPublication.await(2, TimeUnit.SECONDS);
+                } catch (InterruptedException ex) {
+                    Thread.currentThread().interrupt();
+                    throw new IOException(ex);
+                }
+            } else {
+                racingPublication.countDown();
+            }
+            NativeRuntimeLoader.DEFAULT_PUBLISHER.publish(temp, cached);
+        };
+
+        int threadCount = 4;
+        CountDownLatch startGate = new CountDownLatch(1);
+        ExecutorService pool = Executors.newFixedThreadPool(threadCount);
+        List<Future<Path>> futures = new ArrayList<>();
+        for (int i = 0; i < threadCount; i++) {
+            futures.add(pool.submit(() -> {
+                startGate.await();
+                return NativeRuntimeLoader.extractToCache(cacheBase, loader, TEST_CLASSIFIER, TEST_VERSION, publisher);
+            }));
+        }
+        startGate.countDown();
+        pool.shutdown();
+        assertTrue(pool.awaitTermination(10, TimeUnit.SECONDS));
+
+        Path cacheDir = cacheBase.resolve(TEST_VERSION).resolve(TEST_NATIVE_VERSION).resolve(TEST_CLASSIFIER);
+        for (Future<Path> future : futures) {
+            assertEquals(cacheDir.resolve(NativeRuntimeLoader.RUNTIME_FILENAME), future.get());
+        }
+        assertEquals("ripgrep", Files.readString(cacheDir.resolve("ripgrep/bin/linux-x64/rg")));
+        Map<Path, Integer> counts = new HashMap<>();
+        publications.forEach((path, count) -> counts.put(cacheDir.relativize(path), count.get()));
+        assertEquals(Map.of(Path.of(NativeRuntimeLoader.RUNTIME_FILENAME), 1, Path.of("ripgrep/bin/linux-x64/rg"), 1),
+                counts, "Concurrent first use must extract each classifier artifact once, not once per caller");
     }
 
     // -------------------------------------------------------------------------

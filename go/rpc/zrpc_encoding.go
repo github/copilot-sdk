@@ -7,6 +7,7 @@ import (
 	"bytes"
 	"encoding/json"
 	"errors"
+	"math/big"
 )
 
 func unmarshalAuthInfo(data []byte) (AuthInfo, error) {
@@ -642,6 +643,143 @@ func (r AgentRegistrySpawnValidationError) MarshalJSON() ([]byte, error) {
 		Kind:  r.Kind(),
 		alias: alias(r),
 	})
+}
+
+func unmarshalProtocolMarkerSectionOverride(data []byte) (ProtocolMarkerSectionOverride, error) {
+	if string(data) == "null" {
+		return nil, nil
+	}
+	type rawUnion struct {
+		Action ProtocolMarkerSectionOverrideAction `json:"action"`
+	}
+	var raw rawUnion
+	if err := json.Unmarshal(data, &raw); err != nil {
+		return nil, err
+	}
+
+	switch raw.Action {
+	case ProtocolMarkerSectionOverrideActionPreserve:
+		var d ProtocolMarkerSectionOverridePreserve
+		if err := json.Unmarshal(data, &d); err != nil {
+			return nil, err
+		}
+		return &d, nil
+	case ProtocolMarkerSectionOverrideActionTransform:
+		var d ProtocolMarkerSectionOverrideTransform
+		if err := json.Unmarshal(data, &d); err != nil {
+			return nil, err
+		}
+		return &d, nil
+	default:
+		return &RawProtocolMarkerSectionOverrideData{Discriminator: raw.Action, Raw: data}, nil
+	}
+}
+
+func (r RawProtocolMarkerSectionOverrideData) MarshalJSON() ([]byte, error) {
+	if r.Raw != nil {
+		return r.Raw, nil
+	}
+	return json.Marshal(struct {
+		Action ProtocolMarkerSectionOverrideAction `json:"action"`
+	}{
+		Action: r.Discriminator,
+	})
+}
+
+func (r ProtocolMarkerSectionOverridePreserve) MarshalJSON() ([]byte, error) {
+	type alias ProtocolMarkerSectionOverridePreserve
+	return json.Marshal(struct {
+		Action ProtocolMarkerSectionOverrideAction `json:"action"`
+		alias
+	}{
+		Action: r.Action(),
+		alias:  alias(r),
+	})
+}
+
+func (r ProtocolMarkerSectionOverrideTransform) MarshalJSON() ([]byte, error) {
+	type alias ProtocolMarkerSectionOverrideTransform
+	return json.Marshal(struct {
+		Action ProtocolMarkerSectionOverrideAction `json:"action"`
+		alias
+	}{
+		Action: r.Action(),
+		alias:  alias(r),
+	})
+}
+
+func (r ProtocolSectionOverride) MarshalJSON() ([]byte, error) {
+	if r.ProtocolMarkerSectionOverride != nil {
+		return json.Marshal(r.ProtocolMarkerSectionOverride)
+	}
+	if r.ProtocolStaticSectionOverride != nil {
+		return json.Marshal(r.ProtocolStaticSectionOverride)
+	}
+	return []byte("null"), nil
+}
+
+func (r *ProtocolSectionOverride) UnmarshalJSON(data []byte) error {
+	if string(data) == "null" {
+		*r = ProtocolSectionOverride{}
+		return nil
+	}
+	{
+		value, err := unmarshalProtocolMarkerSectionOverride(data)
+		if err == nil {
+			*r = ProtocolSectionOverride{ProtocolMarkerSectionOverride: value}
+			return nil
+		}
+	}
+	{
+		var value ProtocolStaticSectionOverride
+		if err := json.Unmarshal(data, &value); err == nil {
+			*r = ProtocolSectionOverride{ProtocolStaticSectionOverride: &value}
+			return nil
+		}
+	}
+	return errors.New("data did not match any union variant for ProtocolSectionOverride")
+}
+
+func (r *ProviderModelConfig) UnmarshalJSON(data []byte) error {
+	type wire ProviderModelConfig
+	decoder := json.NewDecoder(bytes.NewReader(data))
+	decoder.UseNumber()
+	if err := decoder.Decode((*wire)(r)); err != nil {
+		return err
+	}
+	for key, value := range r.Metadata {
+		r.Metadata[key] = compatibleMetadataNumbers(value)
+	}
+	return nil
+}
+
+// Keep existing float64 access unless encoding it would change the saved number.
+func compatibleMetadataNumbers(value any) any {
+	switch v := value.(type) {
+	case json.Number:
+		number, err := v.Float64()
+		if err != nil {
+			return v
+		}
+		encoded, err := json.Marshal(number)
+		if err != nil {
+			return v
+		}
+		original, originalOK := new(big.Rat).SetString(string(v))
+		roundTrip, roundTripOK := new(big.Rat).SetString(string(encoded))
+		if originalOK && roundTripOK && original.Cmp(roundTrip) == 0 {
+			return number
+		}
+	case map[string]any:
+		for key, item := range v {
+			v[key] = compatibleMetadataNumbers(item)
+		}
+	case []any:
+		for index, item := range v {
+			v[index] = compatibleMetadataNumbers(item)
+		}
+	}
+	return value
 }
 
 func unmarshalAttachment(data []byte) (Attachment, error) {
@@ -4396,6 +4534,125 @@ func unmarshalExternalToolResult(data []byte) (ExternalToolResult, error) {
 	return nil, errors.New("data did not match any union variant for ExternalToolResult")
 }
 
+func unmarshalFeatureFlagValue(data []byte) (FeatureFlagValue, error) {
+	if string(data) == "null" {
+		return nil, nil
+	}
+	{
+		var value string
+		if err := json.Unmarshal(data, &value); err == nil {
+			return FeatureFlagStringValue(value), nil
+		}
+	}
+	{
+		var value float64
+		if err := json.Unmarshal(data, &value); err == nil {
+			return FeatureFlagNumberValue(value), nil
+		}
+	}
+	{
+		var value bool
+		if err := json.Unmarshal(data, &value); err == nil {
+			return FeatureFlagBooleanValue(value), nil
+		}
+	}
+	return nil, errors.New("data did not match any union variant for FeatureFlagValue")
+}
+
+func (r *FeatureFlagServiceConfigureParams) UnmarshalJSON(data []byte) error {
+	type rawFeatureFlagServiceConfigureParams struct {
+		Assignments         *FeatureFlagAssignmentsUpdate `json:"assignments,omitempty"`
+		Config              any                           `json:"config,omitempty"`
+		Environment         map[string]string             `json:"environment,omitzero"`
+		ExpFlagOverrides    map[string]json.RawMessage    `json:"expFlagOverrides,omitzero"`
+		FirstLaunchAtMillis *float64                      `json:"firstLaunchAtMillis,omitempty"`
+		FlagOverrides       map[string]bool               `json:"flagOverrides,omitzero"`
+		InitialSessionFlags map[string]bool               `json:"initialSessionFlags,omitzero"`
+		IsExperimental      bool                          `json:"isExperimental"`
+		IsStaff             bool                          `json:"isStaff"`
+		IsStaffGitHub       *bool                         `json:"isStaffGithub,omitempty"`
+		IsStaffMicrosoft    *bool                         `json:"isStaffMicrosoft,omitempty"`
+		IsTeam              bool                          `json:"isTeam"`
+		Online              bool                          `json:"online"`
+		StreamerMode        bool                          `json:"streamerMode"`
+	}
+	var raw rawFeatureFlagServiceConfigureParams
+	if err := json.Unmarshal(data, &raw); err != nil {
+		return err
+	}
+	r.Assignments = raw.Assignments
+	r.Config = raw.Config
+	r.Environment = raw.Environment
+	if raw.ExpFlagOverrides != nil {
+		r.ExpFlagOverrides = make(map[string]FeatureFlagValue, len(raw.ExpFlagOverrides))
+		for key, rawValue := range raw.ExpFlagOverrides {
+			value, err := unmarshalFeatureFlagValue(rawValue)
+			if err != nil {
+				return err
+			}
+			r.ExpFlagOverrides[key] = value
+		}
+	}
+	r.FirstLaunchAtMillis = raw.FirstLaunchAtMillis
+	r.FlagOverrides = raw.FlagOverrides
+	r.InitialSessionFlags = raw.InitialSessionFlags
+	r.IsExperimental = raw.IsExperimental
+	r.IsStaff = raw.IsStaff
+	r.IsStaffGitHub = raw.IsStaffGitHub
+	r.IsStaffMicrosoft = raw.IsStaffMicrosoft
+	r.IsTeam = raw.IsTeam
+	r.Online = raw.Online
+	r.StreamerMode = raw.StreamerMode
+	return nil
+}
+
+func (r *FeatureFlagServiceSnapshot) UnmarshalJSON(data []byte) error {
+	type rawFeatureFlagServiceSnapshot struct {
+		Active                          bool                             `json:"active"`
+		AssignmentContext               *string                          `json:"assignmentContext,omitempty"`
+		AutoApprovalTargeted            bool                             `json:"autoApprovalTargeted"`
+		DynamicInstructionsRetrievalArm *string                          `json:"dynamicInstructionsRetrievalArm,omitempty"`
+		ExpFlags                        map[string]json.RawMessage       `json:"expFlags"`
+		ExpResponseResolved             bool                             `json:"expResponseResolved"`
+		Flags                           map[string]bool                  `json:"flags"`
+		GptDefaultModelEnabled          bool                             `json:"gptDefaultModelEnabled"`
+		ReasoningSummariesArm           FeatureFlagReasoningSummariesArm `json:"reasoningSummariesArm"`
+		Response                        any                              `json:"response"`
+		Revision                        int64                            `json:"revision"`
+		SecondaryAssignmentContext      *string                          `json:"secondaryAssignmentContext,omitempty"`
+		ServiceID                       string                           `json:"serviceId"`
+	}
+	var raw rawFeatureFlagServiceSnapshot
+	decoder := json.NewDecoder(bytes.NewReader(data))
+	decoder.UseNumber()
+	if err := decoder.Decode(&raw); err != nil {
+		return err
+	}
+	r.Active = raw.Active
+	r.AssignmentContext = raw.AssignmentContext
+	r.AutoApprovalTargeted = raw.AutoApprovalTargeted
+	r.DynamicInstructionsRetrievalArm = raw.DynamicInstructionsRetrievalArm
+	if raw.ExpFlags != nil {
+		r.ExpFlags = make(map[string]FeatureFlagValue, len(raw.ExpFlags))
+		for key, rawValue := range raw.ExpFlags {
+			value, err := unmarshalFeatureFlagValue(rawValue)
+			if err != nil {
+				return err
+			}
+			r.ExpFlags[key] = value
+		}
+	}
+	r.ExpResponseResolved = raw.ExpResponseResolved
+	r.Flags = raw.Flags
+	r.GptDefaultModelEnabled = raw.GptDefaultModelEnabled
+	r.ReasoningSummariesArm = raw.ReasoningSummariesArm
+	r.Response = raw.Response
+	r.Revision = raw.Revision
+	r.SecondaryAssignmentContext = raw.SecondaryAssignmentContext
+	r.ServiceID = raw.ServiceID
+	return nil
+}
+
 func unmarshalFilterMapping(data []byte) (FilterMapping, error) {
 	if string(data) == "null" {
 		return nil, nil
@@ -5491,6 +5748,309 @@ func (r *InstallationConfirmationRequest) UnmarshalJSON(data []byte) error {
 		r.Review = value
 	}
 	r.ReviewFingerprint = raw.ReviewFingerprint
+	return nil
+}
+
+func unmarshalLocalModelDiskRequirement(data []byte) (LocalModelDiskRequirement, error) {
+	if string(data) == "null" {
+		return nil, nil
+	}
+	type rawUnion struct {
+		Kind LocalModelDiskRequirementKind `json:"kind"`
+	}
+	var raw rawUnion
+	if err := json.Unmarshal(data, &raw); err != nil {
+		return nil, err
+	}
+
+	switch raw.Kind {
+	case LocalModelDiskRequirementKindInsufficient:
+		var d LocalModelDiskRequirementInsufficient
+		if err := json.Unmarshal(data, &d); err != nil {
+			return nil, err
+		}
+		return &d, nil
+	case LocalModelDiskRequirementKindOk:
+		var d LocalModelDiskRequirementOk
+		if err := json.Unmarshal(data, &d); err != nil {
+			return nil, err
+		}
+		return &d, nil
+	case LocalModelDiskRequirementKindUnknown:
+		var d LocalModelDiskRequirementUnknown
+		if err := json.Unmarshal(data, &d); err != nil {
+			return nil, err
+		}
+		return &d, nil
+	default:
+		return &RawLocalModelDiskRequirementData{Discriminator: raw.Kind, Raw: data}, nil
+	}
+}
+
+func (r RawLocalModelDiskRequirementData) MarshalJSON() ([]byte, error) {
+	if r.Raw != nil {
+		return r.Raw, nil
+	}
+	return json.Marshal(struct {
+		Kind LocalModelDiskRequirementKind `json:"kind"`
+	}{
+		Kind: r.Discriminator,
+	})
+}
+
+func (r LocalModelDiskRequirementInsufficient) MarshalJSON() ([]byte, error) {
+	type alias LocalModelDiskRequirementInsufficient
+	return json.Marshal(struct {
+		Kind LocalModelDiskRequirementKind `json:"kind"`
+		alias
+	}{
+		Kind:  r.Kind(),
+		alias: alias(r),
+	})
+}
+
+func (r LocalModelDiskRequirementOk) MarshalJSON() ([]byte, error) {
+	type alias LocalModelDiskRequirementOk
+	return json.Marshal(struct {
+		Kind LocalModelDiskRequirementKind `json:"kind"`
+		alias
+	}{
+		Kind:  r.Kind(),
+		alias: alias(r),
+	})
+}
+
+func (r LocalModelDiskRequirementUnknown) MarshalJSON() ([]byte, error) {
+	type alias LocalModelDiskRequirementUnknown
+	return json.Marshal(struct {
+		Kind LocalModelDiskRequirementKind `json:"kind"`
+		alias
+	}{
+		Kind:  r.Kind(),
+		alias: alias(r),
+	})
+}
+
+func unmarshalLocalModelGpuRequirement(data []byte) (LocalModelGpuRequirement, error) {
+	if string(data) == "null" {
+		return nil, nil
+	}
+	type rawUnion struct {
+		Kind LocalModelGpuRequirementKind `json:"kind"`
+	}
+	var raw rawUnion
+	if err := json.Unmarshal(data, &raw); err != nil {
+		return nil, err
+	}
+
+	switch raw.Kind {
+	case LocalModelGpuRequirementKindInsufficient:
+		var d LocalModelGpuRequirementInsufficient
+		if err := json.Unmarshal(data, &d); err != nil {
+			return nil, err
+		}
+		return &d, nil
+	case LocalModelGpuRequirementKindOk:
+		var d LocalModelGpuRequirementOk
+		if err := json.Unmarshal(data, &d); err != nil {
+			return nil, err
+		}
+		return &d, nil
+	case LocalModelGpuRequirementKindUnknown:
+		var d LocalModelGpuRequirementUnknown
+		if err := json.Unmarshal(data, &d); err != nil {
+			return nil, err
+		}
+		return &d, nil
+	case LocalModelGpuRequirementKindUnspecified:
+		var d LocalModelGpuRequirementUnspecified
+		if err := json.Unmarshal(data, &d); err != nil {
+			return nil, err
+		}
+		return &d, nil
+	default:
+		return &RawLocalModelGpuRequirementData{Discriminator: raw.Kind, Raw: data}, nil
+	}
+}
+
+func (r RawLocalModelGpuRequirementData) MarshalJSON() ([]byte, error) {
+	if r.Raw != nil {
+		return r.Raw, nil
+	}
+	return json.Marshal(struct {
+		Kind LocalModelGpuRequirementKind `json:"kind"`
+	}{
+		Kind: r.Discriminator,
+	})
+}
+
+func (r LocalModelGpuRequirementInsufficient) MarshalJSON() ([]byte, error) {
+	type alias LocalModelGpuRequirementInsufficient
+	return json.Marshal(struct {
+		Kind LocalModelGpuRequirementKind `json:"kind"`
+		alias
+	}{
+		Kind:  r.Kind(),
+		alias: alias(r),
+	})
+}
+
+func (r LocalModelGpuRequirementOk) MarshalJSON() ([]byte, error) {
+	type alias LocalModelGpuRequirementOk
+	return json.Marshal(struct {
+		Kind LocalModelGpuRequirementKind `json:"kind"`
+		alias
+	}{
+		Kind:  r.Kind(),
+		alias: alias(r),
+	})
+}
+
+func (r LocalModelGpuRequirementUnknown) MarshalJSON() ([]byte, error) {
+	type alias LocalModelGpuRequirementUnknown
+	return json.Marshal(struct {
+		Kind LocalModelGpuRequirementKind `json:"kind"`
+		alias
+	}{
+		Kind:  r.Kind(),
+		alias: alias(r),
+	})
+}
+
+func (r LocalModelGpuRequirementUnspecified) MarshalJSON() ([]byte, error) {
+	type alias LocalModelGpuRequirementUnspecified
+	return json.Marshal(struct {
+		Kind LocalModelGpuRequirementKind `json:"kind"`
+		alias
+	}{
+		Kind:  r.Kind(),
+		alias: alias(r),
+	})
+}
+
+func unmarshalLocalModelStatus(data []byte) (LocalModelStatus, error) {
+	if string(data) == "null" {
+		return nil, nil
+	}
+	type rawUnion struct {
+		Kind LocalModelStatusKind `json:"kind"`
+	}
+	var raw rawUnion
+	if err := json.Unmarshal(data, &raw); err != nil {
+		return nil, err
+	}
+
+	switch raw.Kind {
+	case LocalModelStatusKindDownloaded:
+		var d LocalModelStatusDownloaded
+		if err := json.Unmarshal(data, &d); err != nil {
+			return nil, err
+		}
+		return &d, nil
+	case LocalModelStatusKindDownloading:
+		var d LocalModelStatusDownloading
+		if err := json.Unmarshal(data, &d); err != nil {
+			return nil, err
+		}
+		return &d, nil
+	case LocalModelStatusKindNotDownloaded:
+		var d LocalModelStatusNotDownloaded
+		if err := json.Unmarshal(data, &d); err != nil {
+			return nil, err
+		}
+		return &d, nil
+	default:
+		return &RawLocalModelStatusData{Discriminator: raw.Kind, Raw: data}, nil
+	}
+}
+
+func (r RawLocalModelStatusData) MarshalJSON() ([]byte, error) {
+	if r.Raw != nil {
+		return r.Raw, nil
+	}
+	return json.Marshal(struct {
+		Kind LocalModelStatusKind `json:"kind"`
+	}{
+		Kind: r.Discriminator,
+	})
+}
+
+func (r LocalModelStatusDownloaded) MarshalJSON() ([]byte, error) {
+	type alias LocalModelStatusDownloaded
+	return json.Marshal(struct {
+		Kind LocalModelStatusKind `json:"kind"`
+		alias
+	}{
+		Kind:  r.Kind(),
+		alias: alias(r),
+	})
+}
+
+func (r LocalModelStatusDownloading) MarshalJSON() ([]byte, error) {
+	type alias LocalModelStatusDownloading
+	return json.Marshal(struct {
+		Kind LocalModelStatusKind `json:"kind"`
+		alias
+	}{
+		Kind:  r.Kind(),
+		alias: alias(r),
+	})
+}
+
+func (r LocalModelStatusNotDownloaded) MarshalJSON() ([]byte, error) {
+	type alias LocalModelStatusNotDownloaded
+	return json.Marshal(struct {
+		Kind LocalModelStatusKind `json:"kind"`
+		alias
+	}{
+		Kind:  r.Kind(),
+		alias: alias(r),
+	})
+}
+
+func (r *LocalModelMachineRow) UnmarshalJSON(data []byte) error {
+	type rawLocalModelMachineRow struct {
+		Descriptor        LocalModelDescriptor `json:"descriptor"`
+		Disk              json.RawMessage      `json:"disk"`
+		DiskMet           bool                 `json:"diskMet"`
+		DiskRequiredBytes *float64             `json:"diskRequiredBytes,omitempty"`
+		Gpu               json.RawMessage      `json:"gpu"`
+		GpuRequiredBytes  *float64             `json:"gpuRequiredBytes,omitempty"`
+		LeftoverBytes     float64              `json:"leftoverBytes"`
+		StagedBytes       float64              `json:"stagedBytes"`
+		Status            json.RawMessage      `json:"status"`
+	}
+	var raw rawLocalModelMachineRow
+	if err := json.Unmarshal(data, &raw); err != nil {
+		return err
+	}
+	r.Descriptor = raw.Descriptor
+	if raw.Disk != nil {
+		value, err := unmarshalLocalModelDiskRequirement(raw.Disk)
+		if err != nil {
+			return err
+		}
+		r.Disk = value
+	}
+	r.DiskMet = raw.DiskMet
+	r.DiskRequiredBytes = raw.DiskRequiredBytes
+	if raw.Gpu != nil {
+		value, err := unmarshalLocalModelGpuRequirement(raw.Gpu)
+		if err != nil {
+			return err
+		}
+		r.Gpu = value
+	}
+	r.GpuRequiredBytes = raw.GpuRequiredBytes
+	r.LeftoverBytes = raw.LeftoverBytes
+	r.StagedBytes = raw.StagedBytes
+	if raw.Status != nil {
+		value, err := unmarshalLocalModelStatus(raw.Status)
+		if err != nil {
+			return err
+		}
+		r.Status = value
+	}
 	return nil
 }
 
@@ -7739,101 +8299,6 @@ func (r *MCPStartServerRequest) UnmarshalJSON(data []byte) error {
 	r.ExpectedInstallationID = raw.ExpectedInstallationID
 	r.ServerName = raw.ServerName
 	return nil
-}
-
-func unmarshalProtocolMarkerSectionOverride(data []byte) (ProtocolMarkerSectionOverride, error) {
-	if string(data) == "null" {
-		return nil, nil
-	}
-	type rawUnion struct {
-		Action ProtocolMarkerSectionOverrideAction `json:"action"`
-	}
-	var raw rawUnion
-	if err := json.Unmarshal(data, &raw); err != nil {
-		return nil, err
-	}
-
-	switch raw.Action {
-	case ProtocolMarkerSectionOverrideActionPreserve:
-		var d ProtocolMarkerSectionOverridePreserve
-		if err := json.Unmarshal(data, &d); err != nil {
-			return nil, err
-		}
-		return &d, nil
-	case ProtocolMarkerSectionOverrideActionTransform:
-		var d ProtocolMarkerSectionOverrideTransform
-		if err := json.Unmarshal(data, &d); err != nil {
-			return nil, err
-		}
-		return &d, nil
-	default:
-		return &RawProtocolMarkerSectionOverrideData{Discriminator: raw.Action, Raw: data}, nil
-	}
-}
-
-func (r RawProtocolMarkerSectionOverrideData) MarshalJSON() ([]byte, error) {
-	if r.Raw != nil {
-		return r.Raw, nil
-	}
-	return json.Marshal(struct {
-		Action ProtocolMarkerSectionOverrideAction `json:"action"`
-	}{
-		Action: r.Discriminator,
-	})
-}
-
-func (r ProtocolMarkerSectionOverridePreserve) MarshalJSON() ([]byte, error) {
-	type alias ProtocolMarkerSectionOverridePreserve
-	return json.Marshal(struct {
-		Action ProtocolMarkerSectionOverrideAction `json:"action"`
-		alias
-	}{
-		Action: r.Action(),
-		alias:  alias(r),
-	})
-}
-
-func (r ProtocolMarkerSectionOverrideTransform) MarshalJSON() ([]byte, error) {
-	type alias ProtocolMarkerSectionOverrideTransform
-	return json.Marshal(struct {
-		Action ProtocolMarkerSectionOverrideAction `json:"action"`
-		alias
-	}{
-		Action: r.Action(),
-		alias:  alias(r),
-	})
-}
-
-func (r ProtocolSectionOverride) MarshalJSON() ([]byte, error) {
-	if r.ProtocolMarkerSectionOverride != nil {
-		return json.Marshal(r.ProtocolMarkerSectionOverride)
-	}
-	if r.ProtocolStaticSectionOverride != nil {
-		return json.Marshal(r.ProtocolStaticSectionOverride)
-	}
-	return []byte("null"), nil
-}
-
-func (r *ProtocolSectionOverride) UnmarshalJSON(data []byte) error {
-	if string(data) == "null" {
-		*r = ProtocolSectionOverride{}
-		return nil
-	}
-	{
-		value, err := unmarshalProtocolMarkerSectionOverride(data)
-		if err == nil {
-			*r = ProtocolSectionOverride{ProtocolMarkerSectionOverride: value}
-			return nil
-		}
-	}
-	{
-		var value ProtocolStaticSectionOverride
-		if err := json.Unmarshal(data, &value); err == nil {
-			*r = ProtocolSectionOverride{ProtocolStaticSectionOverride: &value}
-			return nil
-		}
-	}
-	return errors.New("data did not match any union variant for ProtocolSectionOverride")
 }
 
 func (r *PendingPermissionRequest) UnmarshalJSON(data []byte) error {
@@ -10116,6 +10581,147 @@ func (r *SessionAuthSwitchRequest) UnmarshalJSON(data []byte) error {
 	return nil
 }
 
+func (r *SessionFeatureFlagsConfigureRequest) UnmarshalJSON(data []byte) error {
+	type rawSessionFeatureFlagsConfigureRequest struct {
+		Assignments         *FeatureFlagAssignmentsUpdate `json:"assignments,omitempty"`
+		Config              any                           `json:"config,omitempty"`
+		Environment         map[string]string             `json:"environment,omitzero"`
+		ExpFlagOverrides    map[string]json.RawMessage    `json:"expFlagOverrides,omitzero"`
+		FirstLaunchAtMillis *float64                      `json:"firstLaunchAtMillis,omitempty"`
+		FlagOverrides       map[string]bool               `json:"flagOverrides,omitzero"`
+		InitialSessionFlags map[string]bool               `json:"initialSessionFlags,omitzero"`
+		IsExperimental      bool                          `json:"isExperimental"`
+		IsStaff             bool                          `json:"isStaff"`
+		IsStaffGitHub       *bool                         `json:"isStaffGithub,omitempty"`
+		IsStaffMicrosoft    *bool                         `json:"isStaffMicrosoft,omitempty"`
+		IsTeam              bool                          `json:"isTeam"`
+		Online              bool                          `json:"online"`
+		StreamerMode        bool                          `json:"streamerMode"`
+	}
+	var raw rawSessionFeatureFlagsConfigureRequest
+	if err := json.Unmarshal(data, &raw); err != nil {
+		return err
+	}
+	r.Assignments = raw.Assignments
+	r.Config = raw.Config
+	r.Environment = raw.Environment
+	if raw.ExpFlagOverrides != nil {
+		r.ExpFlagOverrides = make(map[string]FeatureFlagValue, len(raw.ExpFlagOverrides))
+		for key, rawValue := range raw.ExpFlagOverrides {
+			value, err := unmarshalFeatureFlagValue(rawValue)
+			if err != nil {
+				return err
+			}
+			r.ExpFlagOverrides[key] = value
+		}
+	}
+	r.FirstLaunchAtMillis = raw.FirstLaunchAtMillis
+	r.FlagOverrides = raw.FlagOverrides
+	r.InitialSessionFlags = raw.InitialSessionFlags
+	r.IsExperimental = raw.IsExperimental
+	r.IsStaff = raw.IsStaff
+	r.IsStaffGitHub = raw.IsStaffGitHub
+	r.IsStaffMicrosoft = raw.IsStaffMicrosoft
+	r.IsTeam = raw.IsTeam
+	r.Online = raw.Online
+	r.StreamerMode = raw.StreamerMode
+	return nil
+}
+
+func (r *SessionFeatureFlagsConfigureResult) UnmarshalJSON(data []byte) error {
+	type rawSessionFeatureFlagsConfigureResult struct {
+		Active                          bool                             `json:"active"`
+		AssignmentContext               *string                          `json:"assignmentContext,omitempty"`
+		AutoApprovalTargeted            bool                             `json:"autoApprovalTargeted"`
+		DynamicInstructionsRetrievalArm *string                          `json:"dynamicInstructionsRetrievalArm,omitempty"`
+		ExpFlags                        map[string]json.RawMessage       `json:"expFlags"`
+		ExpResponseResolved             bool                             `json:"expResponseResolved"`
+		Flags                           map[string]bool                  `json:"flags"`
+		GptDefaultModelEnabled          bool                             `json:"gptDefaultModelEnabled"`
+		ReasoningSummariesArm           FeatureFlagReasoningSummariesArm `json:"reasoningSummariesArm"`
+		Response                        any                              `json:"response"`
+		Revision                        int64                            `json:"revision"`
+		SecondaryAssignmentContext      *string                          `json:"secondaryAssignmentContext,omitempty"`
+		ServiceID                       string                           `json:"serviceId"`
+	}
+	var raw rawSessionFeatureFlagsConfigureResult
+	decoder := json.NewDecoder(bytes.NewReader(data))
+	decoder.UseNumber()
+	if err := decoder.Decode(&raw); err != nil {
+		return err
+	}
+	r.Active = raw.Active
+	r.AssignmentContext = raw.AssignmentContext
+	r.AutoApprovalTargeted = raw.AutoApprovalTargeted
+	r.DynamicInstructionsRetrievalArm = raw.DynamicInstructionsRetrievalArm
+	if raw.ExpFlags != nil {
+		r.ExpFlags = make(map[string]FeatureFlagValue, len(raw.ExpFlags))
+		for key, rawValue := range raw.ExpFlags {
+			value, err := unmarshalFeatureFlagValue(rawValue)
+			if err != nil {
+				return err
+			}
+			r.ExpFlags[key] = value
+		}
+	}
+	r.ExpResponseResolved = raw.ExpResponseResolved
+	r.Flags = raw.Flags
+	r.GptDefaultModelEnabled = raw.GptDefaultModelEnabled
+	r.ReasoningSummariesArm = raw.ReasoningSummariesArm
+	r.Response = raw.Response
+	r.Revision = raw.Revision
+	r.SecondaryAssignmentContext = raw.SecondaryAssignmentContext
+	r.ServiceID = raw.ServiceID
+	return nil
+}
+
+func (r *SessionFeatureFlagsUpdateResult) UnmarshalJSON(data []byte) error {
+	type rawSessionFeatureFlagsUpdateResult struct {
+		Active                          bool                             `json:"active"`
+		AssignmentContext               *string                          `json:"assignmentContext,omitempty"`
+		AutoApprovalTargeted            bool                             `json:"autoApprovalTargeted"`
+		DynamicInstructionsRetrievalArm *string                          `json:"dynamicInstructionsRetrievalArm,omitempty"`
+		ExpFlags                        map[string]json.RawMessage       `json:"expFlags"`
+		ExpResponseResolved             bool                             `json:"expResponseResolved"`
+		Flags                           map[string]bool                  `json:"flags"`
+		GptDefaultModelEnabled          bool                             `json:"gptDefaultModelEnabled"`
+		ReasoningSummariesArm           FeatureFlagReasoningSummariesArm `json:"reasoningSummariesArm"`
+		Response                        any                              `json:"response"`
+		Revision                        int64                            `json:"revision"`
+		SecondaryAssignmentContext      *string                          `json:"secondaryAssignmentContext,omitempty"`
+		ServiceID                       string                           `json:"serviceId"`
+	}
+	var raw rawSessionFeatureFlagsUpdateResult
+	decoder := json.NewDecoder(bytes.NewReader(data))
+	decoder.UseNumber()
+	if err := decoder.Decode(&raw); err != nil {
+		return err
+	}
+	r.Active = raw.Active
+	r.AssignmentContext = raw.AssignmentContext
+	r.AutoApprovalTargeted = raw.AutoApprovalTargeted
+	r.DynamicInstructionsRetrievalArm = raw.DynamicInstructionsRetrievalArm
+	if raw.ExpFlags != nil {
+		r.ExpFlags = make(map[string]FeatureFlagValue, len(raw.ExpFlags))
+		for key, rawValue := range raw.ExpFlags {
+			value, err := unmarshalFeatureFlagValue(rawValue)
+			if err != nil {
+				return err
+			}
+			r.ExpFlags[key] = value
+		}
+	}
+	r.ExpResponseResolved = raw.ExpResponseResolved
+	r.Flags = raw.Flags
+	r.GptDefaultModelEnabled = raw.GptDefaultModelEnabled
+	r.ReasoningSummariesArm = raw.ReasoningSummariesArm
+	r.Response = raw.Response
+	r.Revision = raw.Revision
+	r.SecondaryAssignmentContext = raw.SecondaryAssignmentContext
+	r.ServiceID = raw.ServiceID
+	return nil
+}
+
 func (r SessionInstalledPluginSource) MarshalJSON() ([]byte, error) {
 	if r.SessionInstalledPluginSourceGitHub != nil {
 		return json.Marshal(r.SessionInstalledPluginSourceGitHub)
@@ -10587,6 +11193,7 @@ func (r *SessionOpenOptions) UnmarshalJSON(data []byte) error {
 		ExcludedManagedSettings                []string                                             `json:"excludedManagedSettings,omitzero"`
 		ExcludedTools                          []string                                             `json:"excludedTools,omitzero"`
 		ExpAssignments                         any                                                  `json:"expAssignments,omitempty"`
+		FeatureFlagConfiguration               *SessionFeatureFlagConfiguration                     `json:"featureFlagConfiguration,omitempty"`
 		FeatureFlags                           map[string]bool                                      `json:"featureFlags,omitzero"`
 		HasSkillProvider                       *bool                                                `json:"hasSkillProvider,omitempty"`
 		HookDirectories                        []string                                             `json:"hookDirectories,omitzero"`
@@ -10684,6 +11291,7 @@ func (r *SessionOpenOptions) UnmarshalJSON(data []byte) error {
 	r.ExcludedManagedSettings = raw.ExcludedManagedSettings
 	r.ExcludedTools = raw.ExcludedTools
 	r.ExpAssignments = raw.ExpAssignments
+	r.FeatureFlagConfiguration = raw.FeatureFlagConfiguration
 	r.FeatureFlags = raw.FeatureFlags
 	r.HasSkillProvider = raw.HasSkillProvider
 	r.HookDirectories = raw.HookDirectories

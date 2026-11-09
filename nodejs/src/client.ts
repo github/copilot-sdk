@@ -63,6 +63,7 @@ import {
 } from "./host.js";
 import type { FfiRuntimeHost } from "./ffiRuntimeHost.js";
 import { ensureRuntimeBundle } from "./runtimeArtifacts.js";
+import { createLocalModelJsonCodec } from "./localModelJson.js";
 import { COPILOT_CLI_VERSION } from "./cliVersion.js";
 import { createSessionFsAdapter, type SessionFsProvider } from "./sessionFsProvider.js";
 import { createCopilotRequestAdapter } from "./copilotRequestHandler.js";
@@ -166,21 +167,24 @@ interface SessionInitializationContext {
 const messageEncodeErrors = new WeakSet<Error>();
 
 /**
- * Encodes messages the same way as vscode-jsonrpc's default JSON encoder, and records
- * serialization failures in {@link messageEncodeErrors}.
+ * Encodes RPC messages and records serialization failures in {@link messageEncodeErrors}.
  */
-const jsonMessageEncoder: ContentTypeEncoder = {
-    name: "application/json",
-    encode: (msg, options) => {
-        try {
-            return Promise.resolve(Buffer.from(JSON.stringify(msg), options.charset));
-        } catch (thrown) {
-            const error = thrown instanceof Error ? thrown : new Error(String(thrown));
-            messageEncodeErrors.add(error);
-            return Promise.reject(error);
-        }
-    },
-};
+function jsonMessageEncoder(
+    codec: ReturnType<typeof createLocalModelJsonCodec>
+): ContentTypeEncoder {
+    return {
+        name: "application/json",
+        encode: async (msg, options) => {
+            try {
+                return Buffer.from(await codec.encode(msg), options.charset);
+            } catch (thrown) {
+                const error = thrown instanceof Error ? thrown : new Error(String(thrown));
+                messageEncodeErrors.add(error);
+                throw error;
+            }
+        },
+    };
+}
 
 function createMessageConnection(
     reader: StreamMessageReader,
@@ -695,7 +699,7 @@ async function getSpawnableBundledRuntimePath(): Promise<string> {
  * teardown loses no signal. Outside teardown the flag stays `false`, so write
  * failures propagate normally and in-flight requests still fail fast.
  *
- * A message that cannot be serialized (a `BigInt` or a circular reference in
+ * A message that cannot be serialized (an unsupported `BigInt` or a circular reference in
  * its params) fails only the request that carried it, but vscode-jsonrpc also
  * reports the encode error through the writer's `error` event. The writer's
  * encoder records those errors so the connection's error handler can tell them
@@ -704,8 +708,11 @@ async function getSpawnableBundledRuntimePath(): Promise<string> {
 class TeardownResilientStreamMessageWriter extends StreamMessageWriter {
     public suppressWriteErrors = false;
 
-    constructor(writable: NodeJS.WritableStream) {
-        super(writable, { contentTypeEncoder: jsonMessageEncoder });
+    constructor(
+        writable: NodeJS.WritableStream,
+        codec: ReturnType<typeof createLocalModelJsonCodec>
+    ) {
+        super(writable, { contentTypeEncoder: jsonMessageEncoder(codec) });
     }
 
     public override async write(msg: Message): Promise<void> {
@@ -977,14 +984,6 @@ export class CopilotClient {
                 "workingDirectory is not supported with RuntimeConnection.forInProcess(): the in-process " +
                     "transport hosts the runtime in this process, so honoring it would require mutating the " +
                     "shared process-global cwd. Set SessionConfig.workingDirectory instead."
-            );
-        }
-        if (conn.kind === "inprocess" && options.telemetry !== undefined) {
-            throw new Error(
-                "telemetry is not supported with RuntimeConnection.forInProcess(): telemetry configuration " +
-                    "is lowered to environment variables read by native runtime code running in the shared " +
-                    "host process, so per-client telemetry cannot be honored in-process. Configure telemetry " +
-                    "via the host process environment, or use a child-process transport."
             );
         }
         if (
@@ -1924,12 +1923,6 @@ export class CopilotClient {
      * instances to plain string arrays, rejects misuse (bare `"*"`) and the
      * missing-availableTools case in `mode = "empty"`.
      *
-     * The SDK always sends `toolFilterPrecedence: "excluded"` so callers can
-     * compose include + exclude lists naturally (e.g. "everything matching X
-     * except Y") regardless of mode. Allowlist-precedence is intentionally not
-     * exposed — it's available on the runtime side as a CLI-only concession to
-     * legacy behavior, but SDK consumers always get the composable semantics.
-     *
      * @internal
      */
     private resolveToolFilterOptions(config: {
@@ -1938,7 +1931,6 @@ export class CopilotClient {
     }): {
         availableTools: string[] | undefined;
         excludedTools: string[] | undefined;
-        toolFilterPrecedence: "excluded";
     } {
         const availableTools = toolFilterListToArray(config.availableTools);
         const excludedTools = toolFilterListToArray(config.excludedTools);
@@ -1956,7 +1948,7 @@ export class CopilotClient {
             }
         }
 
-        return { availableTools, excludedTools, toolFilterPrecedence: "excluded" };
+        return { availableTools, excludedTools };
     }
 
     /** Mode-specific defaults spread under the caller's config (app values win). */
@@ -2341,9 +2333,11 @@ export class CopilotClient {
                     parameters: toJsonSchema(tool.parameters),
                     overridesBuiltInTool: tool.overridesBuiltInTool,
                     skipPermission: tool.skipPermission,
+                    hasHandler: !!tool.handler,
                     defer: tool.defer,
                     metadata: tool.metadata,
                     isTerminal: tool.isTerminal,
+                    idempotent: tool.idempotent,
                     namespace: tool.namespace,
                 })),
                 toolSearch: config.toolSearch,
@@ -2361,8 +2355,8 @@ export class CopilotClient {
                 systemMessage: wireSystemMessage,
                 availableTools: toolFilterOptions.availableTools,
                 excludedTools: toolFilterOptions.excludedTools,
-                toolFilterPrecedence: toolFilterOptions.toolFilterPrecedence,
                 excludedBuiltinAgents: config.excludedBuiltinAgents,
+                includedBuiltinAgents: config.includedBuiltinAgents,
                 provider: bearerWireProvider,
                 capi: config.capi,
                 providers: bearerWireProviders,
@@ -2758,9 +2752,9 @@ export class CopilotClient {
                 systemMessage: wireSystemMessage,
                 availableTools: toolFilterOptions.availableTools,
                 excludedTools: toolFilterOptions.excludedTools,
-                toolFilterPrecedence: toolFilterOptions.toolFilterPrecedence,
                 enableSessionTelemetry: config.enableSessionTelemetry,
                 excludedBuiltinAgents: config.excludedBuiltinAgents,
+                includedBuiltinAgents: config.includedBuiltinAgents,
                 enableCitations: config.enableCitations,
                 enableFileChangeTracking: config.enableFileChangeTracking,
                 sessionLimits: config.sessionLimits,
@@ -2771,9 +2765,11 @@ export class CopilotClient {
                     parameters: toJsonSchema(tool.parameters),
                     overridesBuiltInTool: tool.overridesBuiltInTool,
                     skipPermission: tool.skipPermission,
+                    hasHandler: !!tool.handler,
                     defer: tool.defer,
                     metadata: tool.metadata,
                     isTerminal: tool.isTerminal,
+                    idempotent: tool.idempotent,
                     namespace: tool.namespace,
                 })),
                 toolSearch: config.toolSearch,
@@ -4290,9 +4286,19 @@ export class CopilotClient {
         if (!this.ffiHost) {
             throw new Error("In-process FFI runtime host not started");
         }
-        this.messageWriter = new TeardownResilientStreamMessageWriter(this.ffiHost.sendStream);
+        const codec = createLocalModelJsonCodec();
+        this.messageWriter = new TeardownResilientStreamMessageWriter(
+            this.ffiHost.sendStream,
+            codec
+        );
         this.connection = createMessageConnection(
-            new StreamMessageReader(this.ffiHost.receiveStream),
+            new StreamMessageReader(this.ffiHost.receiveStream, {
+                contentTypeDecoder: {
+                    name: "application/json",
+                    decode: (buffer, options) =>
+                        codec.decode(Buffer.from(buffer).toString(options.charset)),
+                },
+            }),
             this.messageWriter,
             this.sessionInitializationContext
         );
@@ -4364,9 +4370,19 @@ export class CopilotClient {
         });
 
         // Create JSON-RPC connection over stdin/stdout
-        this.messageWriter = new TeardownResilientStreamMessageWriter(this.cliProcess.stdin!);
+        const codec = createLocalModelJsonCodec();
+        this.messageWriter = new TeardownResilientStreamMessageWriter(
+            this.cliProcess.stdin!,
+            codec
+        );
         this.connection = createMessageConnection(
-            new StreamMessageReader(this.cliProcess.stdout!),
+            new StreamMessageReader(this.cliProcess.stdout!, {
+                contentTypeDecoder: {
+                    name: "application/json",
+                    decode: (buffer, options) =>
+                        codec.decode(Buffer.from(buffer).toString(options.charset)),
+                },
+            }),
             this.messageWriter,
             this.sessionInitializationContext
         );
@@ -4384,9 +4400,16 @@ export class CopilotClient {
         }
 
         // Create JSON-RPC connection over stdin/stdout
-        this.messageWriter = new TeardownResilientStreamMessageWriter(process.stdout);
+        const codec = createLocalModelJsonCodec();
+        this.messageWriter = new TeardownResilientStreamMessageWriter(process.stdout, codec);
         this.connection = createMessageConnection(
-            new StreamMessageReader(process.stdin),
+            new StreamMessageReader(process.stdin, {
+                contentTypeDecoder: {
+                    name: "application/json",
+                    decode: (buffer, options) =>
+                        codec.decode(Buffer.from(buffer).toString(options.charset)),
+                },
+            }),
             this.messageWriter,
             this.sessionInitializationContext
         );
@@ -4414,9 +4437,16 @@ export class CopilotClient {
             this.socket.connect(this.runtimePort!, this.actualHost, () => {
                 clearTimeout(connectionTimeout);
                 // Create JSON-RPC connection
-                this.messageWriter = new TeardownResilientStreamMessageWriter(this.socket!);
+                const codec = createLocalModelJsonCodec();
+                this.messageWriter = new TeardownResilientStreamMessageWriter(this.socket!, codec);
                 this.connection = createMessageConnection(
-                    new StreamMessageReader(this.socket!),
+                    new StreamMessageReader(this.socket!, {
+                        contentTypeDecoder: {
+                            name: "application/json",
+                            decode: (buffer, options) =>
+                                codec.decode(Buffer.from(buffer).toString(options.charset)),
+                        },
+                    }),
                     this.messageWriter,
                     this.sessionInitializationContext
                 );

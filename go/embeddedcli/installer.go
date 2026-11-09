@@ -22,8 +22,8 @@ func Setup(cfg Config) {
 // first call if necessary. It returns an empty string when no embedded CLI was
 // configured via Setup (e.g. a build compiled without the embedded runtime) or
 // installation failed. Set COPILOT_CLI_INSTALL_VERBOSE=1 for installation errors.
-// The result is cached for the life of the process, except cache-directory
-// selection failures, which can be retried after correcting the environment.
+// Only a successful result is cached for the life of the process; a failed
+// installation is retried on the next call after the environment is corrected.
 func Path() string {
 	return embeddedcli.Path()
 }

@@ -5,9 +5,12 @@
 
 import type { MessageConnection } from "../jsonrpcTypes.js";
 
+import { sendCancellableRequest } from "../rpcCancellation.js";
+import { sendRequestWithSignal } from "../jsonrpcTypes.js";
 import type { AbortReason, AgentModelPolicy, AssistedApprovalAssessment, Attachment, AutoTier, ContextTier, EmbeddedBlobResourceContents, EmbeddedTextResourceContents, IndexedSearchState, ManagedPermissionsContext, ManagedSettingsResolvedData, McpOauthHttpResponse, McpOauthWWWAuthenticateParams, McpServerMetadata, McpServerSource, McpServerStatus, McpSkillOrigin, ModelChangeSource, ModelProviderKind, ModelProviderRef, PermissionDecisionSource, PermissionMode, PermissionPromptRequest, PermissionRule, PolicyHelperFailure, ProviderQuotaState, ReasoningSummary, RemediationAction, SessionEvent, SessionLimitsConfig, SessionMode, ShutdownType, SkillSource, TaskCompleteData, TaskCompletionOutcome, UsageGetMetricsResult, UserToolSessionApproval, Verbosity } from "./session-events.js";
 import type { LifecycleDiagnosticEvent } from "./lifecycle-diagnostics.js";
 
+import type { PermissionRequest } from "./session-events.js";
 /** A value that can be represented losslessly on the SDK JSON wire. */
 export type JsonValue = null | boolean | number | string | JsonValue[] | { [key: string]: JsonValue };
 
@@ -17,6 +20,9 @@ export type JsonValue = null | boolean | number | string | JsonValue[] | { [key:
  * @internal
  */
 export type OpaqueInProcessValue = unknown;
+
+/** Opaque descriptor JSON. Integers outside the safe number range use bigint. */
+export type LocalModelJsonValue = null | boolean | number | bigint | string | LocalModelJsonValue[] | { [key: string]: LocalModelJsonValue };
 
 /**
  * Authentication credentials accepted only at native protocol ingress. Runtime outputs use credential-free `AuthIdentity` metadata.
@@ -438,6 +444,114 @@ export type AgentRegistrySpawnValidationErrorField =
   /** The permissionMode parameter */
   | "permissionMode";
 /**
+ * Provider families supported by saved configuration.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "SavedProviderConfigurationType".
+ */
+/** @experimental */
+export type SavedProviderConfigurationType =
+  /** Generic OpenAI-compatible API. */
+  | "openai"
+  /** Azure OpenAI Service endpoint. */
+  | "azure"
+  /** Anthropic API endpoint. */
+  | "anthropic"
+  /** Runtime-managed local model server. */
+  | "local_model"
+  /** Windows ML local model provider. */
+  | "winml";
+/**
+ * Wire API format (openai/azure only). Defaults to "completions".
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "ProviderConfigWireApi".
+ */
+/** @experimental */
+export type ProviderConfigWireApi =
+  /** OpenAI Chat Completions wire format. */
+  | "completions"
+  /** OpenAI Responses API wire format. */
+  | "responses";
+/**
+ * Provider transport. Defaults to "http".
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "ProviderConfigTransport".
+ */
+/** @experimental */
+export type ProviderConfigTransport =
+  /** HTTP request/streaming transport. */
+  | "http"
+  /** WebSocket transport. */
+  | "websockets";
+/**
+ * The product serving the model, reported in telemetry as `model_provider`.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "ProviderConfigModelProvider".
+ */
+/** @experimental */
+export type ProviderConfigModelProvider =
+  /** OpenAI API. */
+  | "openai"
+  /** Anthropic API. */
+  | "anthropic"
+  /** Azure OpenAI Service. */
+  | "azure_openai"
+  /** Ollama. */
+  | "ollama"
+  /** LM Studio. */
+  | "lm_studio"
+  /** Foundry Local. */
+  | "foundry_local"
+  /** llama.cpp server. */
+  | "llama_cpp";
+
+/** @experimental */
+export type ProtocolSystemMessageConfig =
+  | ProtocolSystemMessageAppendConfig
+  | ProtocolSystemMessageReplaceConfig
+  | ProtocolSystemMessageCustomizeConfig;
+
+/** @experimental */
+export type ProtocolAppendMode = "append";
+
+/** @experimental */
+export type ProtocolReplaceMode = "replace";
+
+/** @experimental */
+export type ProtocolCustomizeMode = "customize";
+
+/** @experimental */
+export type ProtocolSectionOverride = ProtocolStaticSectionOverride | ProtocolMarkerSectionOverride;
+
+/** @experimental */
+export type ProtocolStaticSectionAction =
+  /** Replace the section content. */
+  | "replace"
+  /** Remove the section content. */
+  | "remove"
+  /** Append content to the section. */
+  | "append"
+  /** Prepend content to the section. */
+  | "prepend";
+
+/** @experimental */
+export type ProtocolMarkerSectionOverride =
+  | {
+      /**
+       * Section override action discriminator.
+       */
+      action: "transform";
+    }
+  | {
+      /**
+       * Section override action discriminator.
+       */
+      action: "preserve";
+    };
+/**
  * The enumerated collection, keyed by the same selector as the query.
  *
  * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
@@ -711,6 +825,50 @@ export type AzureMlRegistry =
   | "azureml"
   /** Microsoft staff development registry. */
   | "azureml-dev";
+/**
+ * Result category of a managed provider configuration change.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "AzureMlRegistrationKind".
+ */
+/** @experimental */
+export type AzureMlRegistrationKind =
+  /** The requested managed rows now exist or are removed. */
+  | "written"
+  /** The document is malformed and remains unchanged. */
+  | "skipped"
+  /** A read, transaction, or write failed. */
+  | "failed";
+/**
+ * A managed registration change that leaves unrelated provider rows unchanged.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "AzureMlRegistrationOperation".
+ */
+/** @experimental */
+export type AzureMlRegistrationOperation =
+  /** Replace the managed rows and return their prior contents. */
+  | "upsert"
+  /** Remove this model and remove its provider only when unreferenced. */
+  | "remove"
+  /** Restore the prior managed rows without changing unrelated entries. */
+  | "restore";
+/**
+ * Provider type. Defaults to "openai" for generic OpenAI-compatible APIs.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "ProviderConfigType".
+ */
+/** @experimental */
+export type ProviderConfigType =
+  /** Generic OpenAI-compatible API. */
+  | "openai"
+  /** Azure OpenAI Service endpoint. */
+  | "azure"
+  /** Anthropic API endpoint. */
+  | "anthropic"
+  /** On-device Windows ML model with a local GGUF path. */
+  | "winml";
 /**
  * Active Azure ML download progress or null.
  *
@@ -3231,6 +3389,14 @@ export type FeatureFlagAvailability =
   /** Disabled for everyone, before any override. */
   | "off";
 /**
+ * A scalar experiment assignment. Null is an explicit value.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "FeatureFlagValue".
+ */
+/** @experimental */
+export type FeatureFlagValue = string | number | boolean | null;
+/**
  * Content filtering mode to apply to all tools, or a map of tool name to content filtering mode.
  *
  * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
@@ -3536,7 +3702,7 @@ export type GitHubTokenAcquireResult =
        */
       tokenType?: string;
       /**
-       * Remaining token lifetime in seconds when callback execution completes. It must exceed the one-hour preflight refresh threshold.
+       * Remaining token lifetime in seconds when callback execution completes. It must exceed the one-hour preflight refresh threshold, and still exceed it after the runtime validates the token: validation time counts against this lifetime, so a value just above 3600 can be rejected.
        */
       expiresIn: number;
       /**
@@ -4190,6 +4356,168 @@ export type LlmInferenceHttpRequestStartTransport =
   /** Full-duplex WebSocket channel. Each body chunk maps to exactly one WebSocket message and the `binary` flag distinguishes text from binary frames; request and response chunks flow concurrently. */
   | "websocket";
 /**
+ * Local disk requirement evaluation.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "LocalModelDiskRequirement".
+ */
+/** @experimental */
+export type LocalModelDiskRequirement =
+  | {
+      /**
+       * Local disk requirement evaluation.
+       */
+      kind: "unknown";
+    }
+  | {
+      /**
+       * Local disk requirement evaluation.
+       */
+      kind: "ok";
+      /**
+       * Available bytes on the destination filesystem.
+       */
+      freeBytes: number;
+    }
+  | {
+      /**
+       * Local disk requirement evaluation.
+       */
+      kind: "insufficient";
+      /**
+       * Available bytes on the destination filesystem.
+       */
+      freeBytes: number;
+      /**
+       * Required bytes, including the safety allowance.
+       */
+      requiredBytes: number;
+      /**
+       * Destination used for the disk evaluation.
+       */
+      directory: string;
+    };
+/**
+ * Graphics memory requirement evaluation.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "LocalModelGpuRequirement".
+ */
+/** @experimental */
+export type LocalModelGpuRequirement =
+  | {
+      /**
+       * Graphics memory requirement evaluation.
+       */
+      kind: "unknown";
+    }
+  | {
+      /**
+       * Graphics memory requirement evaluation.
+       */
+      kind: "unspecified";
+    }
+  | {
+      /**
+       * Graphics memory requirement evaluation.
+       */
+      kind: "ok";
+      /**
+       * Available graphics memory.
+       */
+      availableBytes: number;
+      /**
+       * Published recommended graphics memory.
+       */
+      requiredBytes: number;
+      /**
+       * Graphics adapter description.
+       */
+      description: string;
+    }
+  | {
+      /**
+       * Graphics memory requirement evaluation.
+       */
+      kind: "insufficient";
+      /**
+       * Available graphics memory.
+       */
+      availableBytes: number;
+      /**
+       * Published recommended graphics memory.
+       */
+      requiredBytes: number;
+      /**
+       * Graphics adapter description.
+       */
+      description: string;
+    };
+/**
+ * Effective file or download state.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "LocalModelStatus".
+ */
+/** @experimental */
+export type LocalModelStatus =
+  | {
+      /**
+       * Effective local installation or transfer state.
+       */
+      kind: "not-downloaded";
+    }
+  | {
+      /**
+       * Effective local installation or transfer state.
+       */
+      kind: "downloaded";
+      /**
+       * Local file size, when known.
+       */
+      sizeBytes?: number | null;
+      /**
+       * Whether the catalog offers another version.
+       */
+      updateAvailable?: boolean | null;
+    }
+  | {
+      /**
+       * Effective local installation or transfer state.
+       */
+      kind: "downloading";
+      /**
+       * Bytes received so far.
+       */
+      receivedBytes: number;
+      /**
+       * Total transfer bytes, when known.
+       */
+      totalBytes?: number | null;
+      /**
+       * Inference engine installation, when applicable.
+       */
+      stage?: string | null;
+    };
+/**
+ * Active acquisition or removal stage.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "LocalModelOperation".
+ */
+/** @experimental */
+export type LocalModelOperation =
+  /** Install the inference engine. */
+  | "installing"
+  /** Resolve the model and inspect existing files. */
+  | "probing"
+  /** Transfer the model files. */
+  | "downloading"
+  /** Save or activate the model registration. */
+  | "registering"
+  /** Remove registration and files. */
+  | "deleting";
+/**
  * Repository host type
  *
  * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
@@ -4335,6 +4663,14 @@ export type ManagedSettingsDiagnosticSeverity =
   | "error"
   /** The runtime accepts the document but ignores the flagged content. */
   | "warning";
+/**
+ * Current retained policy event payload, or null before policy resolution.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "ManagedSettingsCurrentSnapshotResult".
+ */
+/** @experimental */
+export type ManagedSettingsCurrentSnapshotResult = ManagedSettingsResolvedData | null;
 /**
  * The operation that requires a policy-helper response.
  *
@@ -5422,9 +5758,9 @@ export type McpSetEnvValueModeDetails =
  */
 /** @experimental */
 export type OptionsUpdateToolFilterPrecedence =
-  /** If availableTools is set, it is the only constraint that applies (excludedTools is ignored). Preserves CLI / pre-existing client behavior. Default. */
+  /** If availableTools is set, it is the only constraint that applies (excludedTools is ignored). Explicitly opts into allowlist precedence. */
   | "available"
-  /** A tool is enabled if and only if it matches the allowlist (or the allowlist is unset) AND it does not match the denylist. Makes 'all except X' expressible by combining the two lists. */
+  /** A tool is enabled if and only if it matches the allowlist (or the allowlist is unset) AND it does not match the denylist. Default for new sessions. */
   | "excluded";
 /**
  * Memory injection mode. Defaults to system-prompt.
@@ -5748,110 +6084,6 @@ export type ModelProviderConfigurationDisposition =
   | "create"
   /** An equivalent entry is already registered; the caller should reuse it rather than adding a duplicate. */
   | "alreadyConfigured";
-/**
- * Provider type. Defaults to "openai" for generic OpenAI-compatible APIs.
- *
- * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
- * via the `definition` "ProviderConfigType".
- */
-/** @experimental */
-export type ProviderConfigType =
-  /** Generic OpenAI-compatible API. */
-  | "openai"
-  /** Azure OpenAI Service endpoint. */
-  | "azure"
-  /** Anthropic API endpoint. */
-  | "anthropic";
-/**
- * Wire API format (openai/azure only). Defaults to "completions".
- *
- * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
- * via the `definition` "ProviderConfigWireApi".
- */
-/** @experimental */
-export type ProviderConfigWireApi =
-  /** OpenAI Chat Completions wire format. */
-  | "completions"
-  /** OpenAI Responses API wire format. */
-  | "responses";
-/**
- * Provider transport. Defaults to "http".
- *
- * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
- * via the `definition` "ProviderConfigTransport".
- */
-/** @experimental */
-export type ProviderConfigTransport =
-  /** HTTP request/streaming transport. */
-  | "http"
-  /** WebSocket transport. */
-  | "websockets";
-/**
- * The product serving the model, reported in telemetry as `model_provider`.
- *
- * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
- * via the `definition` "ProviderConfigModelProvider".
- */
-/** @experimental */
-export type ProviderConfigModelProvider =
-  /** OpenAI API. */
-  | "openai"
-  /** Anthropic API. */
-  | "anthropic"
-  /** Azure OpenAI Service. */
-  | "azure_openai"
-  /** Ollama. */
-  | "ollama"
-  /** LM Studio. */
-  | "lm_studio"
-  /** Foundry Local. */
-  | "foundry_local"
-  /** llama.cpp server. */
-  | "llama_cpp";
-
-/** @experimental */
-export type ProtocolSystemMessageConfig =
-  | ProtocolSystemMessageAppendConfig
-  | ProtocolSystemMessageReplaceConfig
-  | ProtocolSystemMessageCustomizeConfig;
-
-/** @experimental */
-export type ProtocolAppendMode = "append";
-
-/** @experimental */
-export type ProtocolReplaceMode = "replace";
-
-/** @experimental */
-export type ProtocolCustomizeMode = "customize";
-
-/** @experimental */
-export type ProtocolSectionOverride = ProtocolStaticSectionOverride | ProtocolMarkerSectionOverride;
-
-/** @experimental */
-export type ProtocolStaticSectionAction =
-  /** Replace the section content. */
-  | "replace"
-  /** Remove the section content. */
-  | "remove"
-  /** Append content to the section. */
-  | "append"
-  /** Prepend content to the section. */
-  | "prepend";
-
-/** @experimental */
-export type ProtocolMarkerSectionOverride =
-  | {
-      /**
-       * Section override action discriminator.
-       */
-      action: "transform";
-    }
-  | {
-      /**
-       * Section override action discriminator.
-       */
-      action: "preserve";
-    };
 /**
  * Provider family. Matches the `type` field of a BYOK provider config.
  *
@@ -6741,6 +6973,14 @@ export type SessionCapability =
   | "mcp-apps"
   /** Host-provided canvas rendering support. */
   | "canvas-renderer";
+
+/** @experimental */
+/** @internal */
+export type SessionFeatureFlagsMode =
+  /** Creates static local flags without an online assignment source. */
+  | "local"
+  /** Retains the CLI assignment source and its refresh lifecycle. */
+  | "cli";
 /**
  * Error classification
  *
@@ -7277,6 +7517,8 @@ export type SettableAuthInfo =
  */
 /** @experimental */
 export type SessionSettingsPredicateName =
+  /** Whether GitHub IQ is available for the session's current account and repository. */
+  | "githubIqEnabled"
   /** Whether the security-tools feature flag enables security tool wiring. */
   | "securityToolsEnabled"
   /** Whether third-party security tools should receive the security prompt. */
@@ -8659,6 +8901,22 @@ export type SessionMcpOauthTestConnectionResult =
  */
 /** @experimental */
 export type SessionMcpOauthStoreKeyResult = string;
+/**
+ * True when the session's current managed policy requires review.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "SessionPermissionsManagedReviewRequiredResult".
+ */
+/** @experimental */
+export type SessionPermissionsManagedReviewRequiredResult = boolean;
+/**
+ * Whether permission prompts must produce session events.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "SessionPermissionsGetRequiredResult".
+ */
+/** @experimental */
+export type SessionPermissionsGetRequiredResult = boolean;
 /**
  * Pending warnings returned and cleared by session.quota.takeWarnings.
  *
@@ -10636,7 +10894,324 @@ export interface AgentsGetDiscoveryPathsRequest {
   excludeHostAgents?: boolean;
 }
 /**
- * Bounded, lifecycle-fenced host authority rendered to the Assisted Permissions judge. Source-specific meaning and scope remain opaque data interpreted by the judge. The source must match the enclosing update source. At most 8 statements of up to 1,024 characters each (4,096 total); scope follows the assisted-approval context JSON bounds. A session holds at most 8 active sources and 32 KiB of rendered grants.
+ * Saves through the exact authenticated local attachment that discovered a model.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "AttachedProviderConfigurationAddModelRequest".
+ */
+/** @experimental */
+export interface AttachedProviderConfigurationAddModelRequest {
+  /**
+   * Session whose owning server receives the save.
+   */
+  sessionId: string;
+  /**
+   * Original authenticated local attachment, not a replacement with the same session id.
+   */
+  attachId: number;
+  /**
+   * The ordinary server-owned save request, without a caller-selected destination.
+   */
+  configuration: SavedProviderConfigurationAddModelRequest;
+}
+/**
+ * Request to add a model to the server-owned saved provider configuration.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "SavedProviderConfigurationAddModelRequest".
+ */
+/** @experimental */
+export interface SavedProviderConfigurationAddModelRequest {
+  /**
+   * Provider settings to create when this provider is not already saved.
+   */
+  provider: SavedProviderConfigurationProviderInput;
+  /**
+   * Model to add to the provider.
+   */
+  model: ProviderModelConfig;
+  /**
+   * Optional replacement API key. Stored in the OS keychain and never returned.
+   */
+  credential?: string;
+}
+/**
+ * Editable provider settings, without credential values or custom headers.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "SavedProviderConfigurationProviderInput".
+ */
+/** @experimental */
+export interface SavedProviderConfigurationProviderInput {
+  /**
+   * Provider name used to qualify model selection ids.
+   */
+  name: string;
+  /**
+   * Provider protocol family.
+   */
+  type?: SavedProviderConfigurationType;
+  /**
+   * OpenAI-compatible wire API.
+   */
+  wireApi?: ProviderConfigWireApi;
+  /**
+   * HTTP or WebSocket transport.
+   */
+  transport?: ProviderConfigTransport;
+  /**
+   * Provider endpoint.
+   */
+  baseUrl: string;
+  /**
+   * Non-secret local model runtime options, such as the WinML device.
+   */
+  localModel?: JsonValue;
+  /**
+   * Safe Azure connection settings, including API version.
+   */
+  azure?: ProviderConfigAzure;
+  /**
+   * Serving product used for attribution.
+   */
+  modelProvider?: ProviderConfigModelProvider;
+}
+/**
+ * Azure-specific provider options.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "ProviderConfigAzure".
+ */
+/** @experimental */
+export interface ProviderConfigAzure {
+  /**
+   * API version. When set, uses the versioned deployment route. When omitted, uses the GA versionless v1 route.
+   */
+  apiVersion?: string;
+}
+/**
+ * A BYOK model definition referencing a named provider.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "ProviderModelConfig".
+ */
+/** @experimental */
+export interface ProviderModelConfig {
+  /**
+   * Provider-local model id, unique within its provider. The session-wide selection id (shown in the model list and passed to switchTo) is the provider-qualified `provider/id`.
+   */
+  id: string;
+  /**
+   * Name of the configured provider that serves this model.
+   */
+  provider: string;
+  /**
+   * Forward-compatible persisted on-device Auto annotation. The live counterpart is metadata.autoLocal.
+   */
+  autoLocal?: JsonValue;
+  /**
+   * The model name sent to the provider API for inference. Defaults to `id`.
+   */
+  wireModel?: string;
+  /**
+   * Well-known base model id used for behavior/capability/config lookup. Defaults to `id`.
+   */
+  modelId?: string;
+  /**
+   * Display name for model pickers. Defaults to the provider-qualified selection id (`provider/id`).
+   */
+  name?: string;
+  /**
+   * Maximum prompt/input tokens for the model.
+   */
+  maxPromptTokens?: number;
+  /**
+   * Maximum context window tokens for the model.
+   */
+  maxContextWindowTokens?: number;
+  /**
+   * Maximum output tokens for the model.
+   */
+  maxOutputTokens?: number;
+  /**
+   * Optional capability overrides (vision, tool_calls, reasoning, etc.).
+   */
+  capabilities?: ModelCapabilitiesOverride;
+  /**
+   * System-message configuration used when the runtime builds the standard prompt for this provider-qualified model, including general-purpose subagents. It uses the same object hierarchy as session-level systemMessage configuration, except transform actions are rejected because the current callback protocol is not model-scoped. When present, it overrides the session-wide configuration on those prompt paths. Selected custom-agent and specialized-subagent prompts remain authoritative.
+   */
+  systemMessage?: ProtocolSystemMessageConfig;
+  /**
+   * Provider-published model metadata, preserved verbatim as the public Model.metadata object.
+   */
+  metadata?: {
+    [k: string]: JsonValue | undefined;
+  };
+}
+/**
+ * Optional capability overrides (vision, tool_calls, reasoning, etc.).
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "ModelCapabilitiesOverride".
+ */
+/** @experimental */
+export interface ModelCapabilitiesOverride {
+  /**
+   * Feature flags indicating what the model supports
+   */
+  supports?: ModelCapabilitiesOverrideSupports;
+  /**
+   * Token limits for prompts, outputs, and context window
+   */
+  limits?: ModelCapabilitiesOverrideLimits;
+}
+/**
+ * Feature flags indicating what the model supports
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "ModelCapabilitiesOverrideSupports".
+ */
+/** @experimental */
+export interface ModelCapabilitiesOverrideSupports {
+  /**
+   * Whether this model supports vision/image input
+   */
+  vision?: boolean;
+  /**
+   * Whether this model supports canonical tool calling
+   */
+  toolCalls?: boolean;
+  /**
+   * Whether this model supports reasoning effort configuration
+   */
+  reasoningEffort?: boolean;
+  /**
+   * Resolved Anthropic adaptive-thinking capability — unsupported / optional / required / adaptive_only. 'required' models reject thinking.type='enabled' with HTTP 400 but still accept 'disabled' (e.g. opus-4.7/4.8/5, sonnet-5); 'adaptive_only' models accept nothing but 'adaptive' (e.g. fable, mythos).
+   */
+  adaptive_thinking?: AdaptiveThinkingSupport;
+}
+/**
+ * Token limits for prompts, outputs, and context window
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "ModelCapabilitiesOverrideLimits".
+ */
+/** @experimental */
+export interface ModelCapabilitiesOverrideLimits {
+  /**
+   * Maximum number of prompt/input tokens
+   */
+  max_prompt_tokens?: number;
+  /**
+   * Maximum number of output/completion tokens
+   */
+  max_output_tokens?: number;
+  /**
+   * Maximum total context window size in tokens
+   */
+  max_context_window_tokens?: number;
+  /**
+   * Vision-specific limits
+   */
+  vision?: ModelCapabilitiesOverrideLimitsVision;
+}
+/**
+ * Vision-specific limits
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "ModelCapabilitiesOverrideLimitsVision".
+ */
+/** @experimental */
+export interface ModelCapabilitiesOverrideLimitsVision {
+  /**
+   * MIME types the model accepts
+   */
+  supported_media_types?: string[];
+  /**
+   * Maximum number of images per prompt
+   */
+  max_prompt_images?: number;
+  /**
+   * Maximum image size in bytes
+   */
+  max_prompt_image_size?: number;
+}
+
+/** @experimental */
+export interface ProtocolSystemMessageAppendConfig {
+  /**
+   * Append-mode discriminator. Omission also selects append mode.
+   */
+  mode?: ProtocolAppendMode;
+  /**
+   * Text appended to the standard system prompt.
+   */
+  content?: string;
+}
+
+/** @experimental */
+export interface ProtocolSystemMessageReplaceConfig {
+  /**
+   * Replace-mode discriminator.
+   */
+  mode: ProtocolReplaceMode;
+  /**
+   * Complete replacement system-message text.
+   */
+  content: string;
+  /**
+   * Optional structured blocks corresponding to the replacement content.
+   */
+  contentBlocks?: SystemMessageBlock[];
+}
+
+/** @experimental */
+export interface SystemMessageBlock {
+  /**
+   * Text content for this system-message block.
+   */
+  content: string;
+  /**
+   * Whether the block is static and may be cached independently of dynamic prompt content.
+   */
+  isStatic?: boolean;
+  /**
+   * Whether providers with explicit prompt caching should place a cache breakpoint after this block.
+   */
+  cacheBreakpoint?: boolean;
+}
+
+/** @experimental */
+export interface ProtocolSystemMessageCustomizeConfig {
+  /**
+   * Customize-mode discriminator.
+   */
+  mode: ProtocolCustomizeMode;
+  /**
+   * Named standard-prompt section overrides.
+   */
+  sections?: {
+    [k: string]: ProtocolSectionOverride | undefined;
+  };
+  /**
+   * Text appended after the customized sections.
+   */
+  content?: string;
+}
+
+/** @experimental */
+export interface ProtocolStaticSectionOverride {
+  /**
+   * Declarative operation applied to the section.
+   */
+  action: ProtocolStaticSectionAction;
+  /**
+   * Optional content used by replace, append, and prepend operations.
+   */
+  content?: string;
+}
+/**
+ * Bounded, lifecycle-fenced host authority rendered to the Assisted Permissions judge. Source-specific meaning and scope remain opaque data interpreted by the judge. The source must match the enclosing update source. At most 8 statements of up to 1,024 characters each (4,096 total), and at most 8 user messages of 16,384 characters in total; a grant needs at least one statement or user message. Scope follows the assisted-approval context JSON bounds. A session holds at most 8 active sources and 32 KiB of rendered grants, not counting user messages, and at most one active source may quote user messages.
  *
  * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
  * via the `definition` "AuthenticatedAuthorityGrant".
@@ -10656,13 +11231,17 @@ export interface AuthenticatedAuthorityGrant {
    */
   expiresAt: string;
   /**
-   * Bounded human-readable authority statements rendered to the judge.
+   * Bounded human-readable authority statements rendered to the judge. May be an empty array, never null, only when `userMessages` is not empty; a grant without statements adds no grant record to the judge's system prompt, so its `scope` must then be an empty object.
    */
   statements: string[];
   /**
-   * Structured scope facts constraining the authority statements.
+   * Structured scope facts constraining the authority statements. Must be an empty object when `statements` is empty.
    */
   scope: JsonValue;
+  /**
+   * The user's own messages in another session, verbatim and oldest first, that the host authenticates as the user's, such as what the user wrote to the session that delegated work to this one. The judge transcript shows each as one of the user's own messages, written in another session, before this session's own user messages. Never include text an agent, tool, or file wrote. Only one active source may quote user messages, because quotes from different sources have no order, and only while the session has no human messages of its own, which could be older or newer than the quotes; human messages the session receives later render after the quotes. Omit when the grant quotes no user messages.
+   */
+  userMessages?: string[];
 }
 /**
  * Replaces or revokes one source's revocable session-scoped authority from the owning host. A non-null grant replaces only the named source; null revokes only the named source. The revision always advances the session-global fence.
@@ -11526,6 +12105,44 @@ export interface AzureMlFamilyRequest {
   name: string;
 }
 /**
+ * Graphics memory available for an on-device model.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "AzureMlGpuMemory".
+ */
+/** @experimental */
+export interface AzureMlGpuMemory {
+  /**
+   * Dedicated and usable shared memory, in bytes.
+   */
+  totalBytes: number;
+  /**
+   * Dedicated graphics memory, in bytes.
+   */
+  dedicatedBytes: number;
+  /**
+   * Shared memory usable by a unified adapter, in bytes.
+   */
+  sharedBytes: number;
+  /**
+   * Adapter description reported by the host.
+   */
+  description: string;
+}
+/**
+ * Measured graphics capability; missing memory means the adapter is unknown.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "AzureMlHardwareResult".
+ */
+/** @experimental */
+export interface AzureMlHardwareResult {
+  /**
+   * Selected hardware adapter, absent when the platform cannot measure it.
+   */
+  gpuMemory?: AzureMlGpuMemory;
+}
+/**
  * Selects an Azure ML model family.
  *
  * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
@@ -11541,6 +12158,138 @@ export interface AzureMlLatestRequest {
    * Exact model-family name.
    */
   name: string;
+}
+/**
+ * Managed Azure ML registration changes under a connection-owned family lease.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "AzureMlRegistrationRequest".
+ */
+/** @experimental */
+export interface AzureMlRegistrationRequest {
+  /**
+   * Registry associated with the acquired family lease.
+   */
+  registry: AzureMlRegistry;
+  /**
+   * Exact model family associated with the lease.
+   */
+  name: string;
+  /**
+   * Lease retained through transfer, registration, activation, and compensation.
+   */
+  leaseId: string;
+  /**
+   * Scoped registration change to perform.
+   */
+  operation: AzureMlRegistrationOperation;
+  /**
+   * Provider and model entries for an upsert.
+   */
+  entries?: ModelProviderSaveConfigurationRequest;
+  /**
+   * Exact prior rows returned by a successful upsert, required for restoration.
+   */
+  before?: JsonValue;
+}
+/**
+ * Provider and model rows prepared by provider discovery to save for future sessions.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "ModelProviderSaveConfigurationRequest".
+ */
+/** @experimental */
+export interface ModelProviderSaveConfigurationRequest {
+  /**
+   * Discovered provider connection. An existing saved provider remains unchanged.
+   */
+  provider: NamedProviderConfig;
+  /**
+   * Discovered model definition. If both saved rows exist, neither row changes.
+   */
+  model: ProviderModelConfig;
+}
+/**
+ * External SDK input for a named custom model provider. Ingested by the native protocol boundary before host dispatch.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "NamedProviderConfig".
+ */
+/** @experimental */
+export interface NamedProviderConfig {
+  /**
+   * Unique provider name used to qualify model selection IDs.
+   */
+  name: string;
+  /**
+   * Provider protocol family.
+   */
+  type?: ProviderConfigType;
+  /**
+   * Wire API used to communicate with the provider.
+   */
+  wireApi?: ProviderConfigWireApi;
+  /**
+   * Transport used to communicate with the provider.
+   */
+  transport?: ProviderConfigTransport;
+  /**
+   * Base URL for provider API requests.
+   */
+  baseUrl: string;
+  /**
+   * Local model runtime options for a WinML provider whose base URL is its GGUF path.
+   */
+  localModel?: JsonValue;
+  /**
+   * Static API key used to authenticate provider requests.
+   */
+  apiKey?: string;
+  /**
+   * Static bearer token used to authenticate provider requests.
+   */
+  bearerToken?: string;
+  /**
+   * Azure authentication configuration for the provider.
+   */
+  azure?: ProviderConfigAzure;
+  /**
+   * Additional HTTP headers included with provider requests.
+   */
+  headers?: Record<string, string>;
+  /**
+   * The product serving the provider's models, reported in telemetry as `model_provider`. Only affects telemetry.
+   */
+  modelProvider?: ProviderConfigModelProvider;
+  /**
+   * Whether the host supplies bearer tokens dynamically.
+   */
+  hasBearerTokenProvider?: boolean;
+}
+/**
+ * Observable outcome of a scoped registration change.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "AzureMlRegistrationResult".
+ */
+/** @experimental */
+export interface AzureMlRegistrationResult {
+  /**
+   * Whether the change succeeded, was refused, or failed.
+   */
+  kind: AzureMlRegistrationKind;
+  /**
+   * Effective providers file, including the configured environment override.
+   */
+  path: string;
+  /**
+   * Refusal reason or write error, absent after success.
+   */
+  detail?: string;
+  /**
+   * Prior managed rows captured under the write lock, for an upsert.
+   */
+  before?: JsonValue;
 }
 /**
  * Selects an immutable model version.
@@ -15976,6 +16725,10 @@ export interface CurrentModel {
    */
   autoTier?: AutoTier;
   /**
+   * Copilot Fusion tier that the committed autoTier serves, resolved from the session's Auto tier metadata. An open string: known values include `standard`, `high`, and `max`; other provider-defined values may appear. Omitted when autoTier is unset, is not a Fusion tier, or Auto metadata has not been discovered (for example after cold resume, before session.model.list). This snapshot reports only the committed Fusion tier; resolve pendingAutoTier and activatingAutoTier against auto.tiers[].fusionTier from session.model.list.
+   */
+  fusionTier?: string;
+  /**
    * Latest unclaimed Auto preference waiting for a future user turn. Null means the pending request is returning to provider-default routing.
    */
   pendingAutoTier?: AutoTier | null;
@@ -17931,6 +18684,70 @@ export interface ExternalToolTextResultForLlmContentResource {
   resource: ExternalToolTextResultForLlmContentResourceDetails;
 }
 /**
+ * An explicit replacement or clear of the current assignments.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "FeatureFlagAssignmentsUpdate".
+ */
+/** @experimental */
+export interface FeatureFlagAssignmentsUpdate {
+  /**
+   * The original assignment response; null clears delivered assignments.
+   */
+  response: JsonValue | null;
+}
+/**
+ * A patch to retained user settings, without a disk write.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "FeatureFlagConfigPatch".
+ */
+/** @experimental */
+export interface FeatureFlagConfigPatch {
+  /**
+   * Settings keys to merge. Null has the original empty-patch semantics.
+   */
+  values: JsonValue;
+  /**
+   * Top-level keys to remove after the merge.
+   */
+  undefinedKeys: string[];
+}
+/**
+ * One persisted feature preference.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "FeatureFlagEnabledOverride".
+ */
+/** @experimental */
+export interface FeatureFlagEnabledOverride {
+  /**
+   * A runtime-defined feature name. Unknown names fail.
+   */
+  name: string;
+  /**
+   * Null removes the preference and restores lower-precedence behavior.
+   */
+  enabled: boolean | null;
+}
+/**
+ * A boolean experiment value with a static feature fallback.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "FeatureFlagExpOverrideQuery".
+ */
+/** @experimental */
+export interface FeatureFlagExpOverrideQuery {
+  /**
+   * Static feature name.
+   */
+  flag: string;
+  /**
+   * Experiment key whose boolean value takes precedence.
+   */
+  expFlag: string;
+}
+/**
  * The declared shape of one feature flag, independent of any caller population.
  *
  * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
@@ -17965,6 +18782,246 @@ export interface FeatureFlagMetadata {
   expFlagEnvVar?: string;
 }
 /**
+ * The runtime's interpretation of the reasoning-summary arm.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "FeatureFlagReasoningSummariesArm".
+ */
+/** @experimental */
+export interface FeatureFlagReasoningSummariesArm {
+  /**
+   * Whether summaries are hidden by default.
+   */
+  offByDefault: boolean;
+  /**
+   * Whether the hidden-summary hint is enabled.
+   */
+  hintEnabled: boolean;
+}
+/**
+ * Evaluation inputs for the bound session's feature service, not authentication claims.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "FeatureFlagServiceConfigureParams".
+ */
+/** @experimental */
+export interface FeatureFlagServiceConfigureParams {
+  /**
+   * Static staff availability; this does not establish staff authentication.
+   */
+  isStaff: boolean;
+  /**
+   * GitHub staff population, when the host recorded split populations.
+   */
+  isStaffGithub?: boolean;
+  /**
+   * Microsoft staff population, when the host recorded split populations.
+   */
+  isStaffMicrosoft?: boolean;
+  /**
+   * Whether experimental features are enabled.
+   */
+  isExperimental: boolean;
+  /**
+   * Static team availability; this does not select the authenticated account.
+   */
+  isTeam: boolean;
+  /**
+   * The retained user-settings snapshot.
+   */
+  config?: JsonValue;
+  /**
+   * Explicit static overrides, after environment and user settings.
+   */
+  flagOverrides?: {
+    [k: string]: boolean | undefined;
+  };
+  /**
+   * Constructor scalar seed; omission retains the existing constructor snapshot.
+   */
+  initialSessionFlags?: {
+    [k: string]: boolean | undefined;
+  };
+  /**
+   * Explicit experiment overrides, after delivered assignments.
+   */
+  expFlagOverrides?: {
+    [k: string]: FeatureFlagValue | undefined;
+  };
+  /**
+   * Host environment snapshot; omit to use the live process environment.
+   */
+  environment?: {
+    [k: string]: string | undefined;
+  };
+  /**
+   * Install the existing online assignment source unless assignments are explicit.
+   */
+  online: boolean;
+  /**
+   * Explicit assignment replacement or clear; omission retains current assignments.
+   */
+  assignments?: FeatureFlagAssignmentsUpdate;
+  /**
+   * Whether online segmentation withholds audience populations.
+   */
+  streamerMode: boolean;
+  /**
+   * Installation first-launch time in Unix milliseconds, when known.
+   */
+  firstLaunchAtMillis?: number;
+}
+/**
+ * Optional evaluations and readiness barriers for one feature snapshot.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "FeatureFlagServiceReadParams".
+ */
+/** @experimental */
+export interface FeatureFlagServiceReadParams {
+  /**
+   * Wait for the current assignment. Omission does not wait.
+   */
+  waitForExpResponse?: boolean;
+  /**
+   * Feature names evaluated with their canonical experiment mappings.
+   */
+  flags?: string[];
+  /**
+   * Explicit experiment/static queries, in result order.
+   */
+  overrides?: FeatureFlagExpOverrideQuery[];
+  /**
+   * Wait for a different revision or service disposal using the existing change notification.
+   */
+  afterRevision?: number;
+  /**
+   * Return only the redacted UI projection, without assignment data or requested evaluations.
+   */
+  displayOnly?: boolean;
+  /**
+   * Original display generation; a replaced service returns an unavailable projection.
+   */
+  serviceId?: string;
+}
+/**
+ * One authoritative snapshot and the requested evaluations.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "FeatureFlagServiceReadResult".
+ */
+/** @experimental */
+export interface FeatureFlagServiceReadResult {
+  /**
+   * The state used by these evaluations.
+   */
+  snapshot: FeatureFlagServiceSnapshot;
+  /**
+   * Requested feature values. Unknown or unset values are absent.
+   */
+  flags: {
+    [k: string]: boolean | undefined;
+  };
+  /**
+   * Explicit override results; null means neither source supplies a boolean.
+   */
+  overrides: (boolean | null)[];
+  /**
+   * Redacted runtime decisions for UI presentation, present only for an available display read.
+   */
+  displayState?: JsonValue;
+}
+/**
+ * Current service state, without configuration documents or credentials.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "FeatureFlagServiceSnapshot".
+ */
+/** @experimental */
+export interface FeatureFlagServiceSnapshot {
+  /**
+   * Decimal instance identity, without integer precision loss.
+   */
+  serviceId: string;
+  /**
+   * Service revision, with unsigned 32-bit wraparound.
+   */
+  revision: number;
+  /**
+   * Whether the service remains active.
+   */
+  active: boolean;
+  /**
+   * Whether the current audience assignment has resolved.
+   */
+  expResponseResolved: boolean;
+  /**
+   * Static flags after availability, environment, settings, and explicit overrides.
+   */
+  flags: {
+    [k: string]: boolean | undefined;
+  };
+  /**
+   * Effective experiment values.
+   */
+  expFlags: {
+    [k: string]: FeatureFlagValue | undefined;
+  };
+  /**
+   * Original assignment document, including its optional fields.
+   */
+  response: JsonValue;
+  /**
+   * Latest nonempty assignment context.
+   */
+  assignmentContext?: string;
+  /**
+   * Latest nonempty secondary assignment context.
+   */
+  secondaryAssignmentContext?: string;
+  /**
+   * Organization targeting derived from the authenticated account.
+   */
+  autoApprovalTargeted: boolean;
+  /**
+   * Original runtime interpretation of the reasoning-summary treatment.
+   */
+  reasoningSummariesArm: FeatureFlagReasoningSummariesArm;
+  /**
+   * Original runtime interpretation of the GPT default-model treatment.
+   */
+  gptDefaultModelEnabled: boolean;
+  /**
+   * Validated instruction-retrieval arm, when present.
+   */
+  dynamicInstructionsRetrievalArm?: string;
+}
+/**
+ * Changes apply in field order: config, preference, assignments, secondary context.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "FeatureFlagServiceUpdateParams".
+ */
+/** @experimental */
+export interface FeatureFlagServiceUpdateParams {
+  /**
+   * Patch the retained configuration.
+   */
+  configPatch?: FeatureFlagConfigPatch;
+  /**
+   * Apply or remove one preference.
+   */
+  enabledOverride?: FeatureFlagEnabledOverride;
+  /**
+   * Replace or clear delivered assignments.
+   */
+  assignments?: FeatureFlagAssignmentsUpdate;
+  /**
+   * Retain a nonempty secondary context using the original whitespace rules.
+   */
+  secondaryAssignmentContext?: string;
+}
+/**
  * Every feature flag this runtime declares, with the shape each one was declared with.
  *
  * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
@@ -17989,6 +19046,10 @@ export interface FeatureFlagsMetadataResult {
 /** @experimental */
 /** @internal */
 export interface FeatureFlagsResolveRequest {
+  /**
+   * Resolve repository team membership in the runtime instead of accepting a host classification.
+   */
+  workingDirectory?: string;
   /**
    * Whether the caller is GitHub or Microsoft staff.
    */
@@ -18042,6 +19103,24 @@ export interface FeatureFlagsResolveRequest {
 /** @internal */
 export interface FeatureFlagsResolveStartupGatesRequest {
   /**
+   * Repository directory whose team membership the runtime resolves.
+   */
+  workingDirectory?: string;
+  /**
+   * Existing host owner authorized for this connection. Omit to use its bound owner.
+   */
+  authOwnerId?: string;
+  /**
+   * Explicit static overrides applied after environment and configuration.
+   */
+  flagOverrides?: {
+    [k: string]: boolean | undefined;
+  };
+  /**
+   * Explicit experiment overrides applied after cached assignments.
+   */
+  expFlagOverrides?: JsonValue;
+  /**
    * The feature flags to resolve. A name this runtime does not declare is reported as an error rather than as a disabled flag.
    */
   flags: string[];
@@ -18087,6 +19166,10 @@ export interface FeatureFlagsResolveStartupGatesRequest {
    * Whether the runtime may refresh the cached assignment over the network without an active session. The refresh never blocks this call: the answer comes from the cache either way, so a refresh only affects a later launch.
    */
   refreshWithoutSession: boolean;
+  /**
+   * Include isTeamRepository beside the requested gates. One launch can then share its fresh audience with static resolution. An empty flags list reads no authentication or experiment assignments.
+   */
+  includeTeamMembership?: boolean;
 }
 /**
  * Parameters for starting fleet orchestration: an optional user prompt combined with the fleet instructions, plus the send options forwarded to the resulting turn.
@@ -21887,6 +22970,524 @@ export interface LlmInferenceSetProviderResult {
    * Whether the provider was set successfully
    */
   success: boolean;
+}
+/**
+ * Automatic registration identity and concurrency.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "LocalModelAutoRegistration".
+ */
+/** @experimental */
+export interface LocalModelAutoRegistration {
+  /**
+   * Corresponding Copilot model identifier.
+   */
+  capiId: string;
+  /**
+   * Maximum simultaneous inference requests.
+   */
+  maxConcurrent: number;
+}
+/**
+ * Exact registry identity of a downloadable model.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "LocalModelAzureMlIdentity".
+ */
+/** @experimental */
+export interface LocalModelAzureMlIdentity {
+  /**
+   * Azure ML registry name.
+   */
+  registry: string;
+  /**
+   * Exact model family name.
+   */
+  name: string;
+  /**
+   * Exact model asset version.
+   */
+  version: string;
+}
+/**
+ * Runtime catalog entry, including installation and inference metadata.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "LocalModelDescriptor".
+ */
+/** @experimental */
+export interface LocalModelDescriptor {
+  /**
+   * Catalog identifier, distinct from the inference selection identifier.
+   */
+  id: string;
+  /**
+   * Model display name.
+   */
+  displayName: string;
+  /**
+   * Exact registry asset identity.
+   */
+  azureMl: LocalModelAzureMlIdentity;
+  /**
+   * Source and display order.
+   */
+  source: LocalModelSource;
+  /**
+   * Default primary filename.
+   */
+  fileName: string;
+  /**
+   * Model publisher display name.
+   */
+  provider: string;
+  /**
+   * Published license name.
+   */
+  license: string;
+  /**
+   * Registry display label.
+   */
+  sourceLabel: string;
+  /**
+   * Published download size, when known.
+   */
+  approximateBytes?: number | null;
+  /**
+   * Published peak installation size, when known.
+   */
+  peakDiskBytes?: number | null;
+  /**
+   * Recommended graphics memory, when published.
+   */
+  approximateVramBytes?: number | null;
+  /**
+   * Inference runtime name.
+   */
+  runtime: string;
+  /**
+   * Whether acquisition installs the inference runtime.
+   */
+  runtimeProvisioned?: boolean | null;
+  /**
+   * Stable BYOK provider name.
+   */
+  providerName: string;
+  /**
+   * Provider-qualified selection identifier.
+   */
+  selectionId?: string | null;
+  /**
+   * Catalog lifecycle category.
+   */
+  lifecycle?: string | null;
+  /**
+   * Published inference options, preserved without mutation.
+   */
+  serveOptions: LocalModelJsonValue;
+  /**
+   * Published token limits.
+   */
+  limits: LocalModelLimits;
+  /**
+   * Whether the model supports tool calls.
+   */
+  supportsToolCalls: boolean;
+  /**
+   * Automatic registration metadata, when applicable.
+   */
+  autoLocal?: LocalModelAutoRegistration | null;
+  /**
+   * Registry metadata, preserved without mutation.
+   */
+  metadata: LocalModelJsonValue;
+}
+/**
+ * Catalog source and its display order.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "LocalModelSource".
+ */
+/** @experimental */
+export interface LocalModelSource {
+  /**
+   * Stable source identifier.
+   */
+  id: string;
+  /**
+   * Source display name.
+   */
+  label: string;
+  /**
+   * Display order among catalog sources.
+   */
+  ordering: number;
+}
+/**
+ * Published token limits of a local model.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "LocalModelLimits".
+ */
+/** @experimental */
+export interface LocalModelLimits {
+  /**
+   * Maximum prompt tokens.
+   */
+  maxPromptTokens: number;
+  /**
+   * Maximum context tokens.
+   */
+  maxContextWindowTokens: number;
+  /**
+   * Maximum output tokens.
+   */
+  maxOutputTokens: number;
+}
+/**
+ * Current transfer progress.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "LocalModelDownloadProgress".
+ */
+/** @experimental */
+export interface LocalModelDownloadProgress {
+  /**
+   * Bytes received so far.
+   */
+  receivedBytes: number;
+  /**
+   * Total transfer bytes, when known.
+   */
+  totalBytes?: number | null;
+  /**
+   * Inference engine installation, when applicable.
+   */
+  stage?: string | null;
+}
+/**
+ * One local model and its current files, progress, and requirements.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "LocalModelMachineRow".
+ */
+/** @experimental */
+export interface LocalModelMachineRow {
+  /**
+   * Resolved catalog model.
+   */
+  descriptor: LocalModelDescriptor;
+  /**
+   * Effective installation or download state.
+   */
+  status: LocalModelStatus;
+  /**
+   * Partial bytes in the selected version directory.
+   */
+  stagedBytes: number;
+  /**
+   * Bytes in inactive version directories.
+   */
+  leftoverBytes: number;
+  /**
+   * Disk availability and required space.
+   */
+  disk: LocalModelDiskRequirement;
+  /**
+   * Graphics memory availability and required space.
+   */
+  gpu: LocalModelGpuRequirement;
+  /**
+   * Remaining peak space with the existing safety allowance.
+   */
+  diskRequiredBytes?: number | null;
+  /**
+   * Whether known disk facts permit installation.
+   */
+  diskMet: boolean;
+  /**
+   * Published recommended graphics memory.
+   */
+  gpuRequiredBytes?: number | null;
+}
+/**
+ * Detected files and resource requirements.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "LocalModelMachineView".
+ */
+/** @experimental */
+export interface LocalModelMachineView {
+  /**
+   * Detected standalone llama-server executable, if available.
+   */
+  llamaServerPath?: string | null;
+  /**
+   * Models directory under the connection's configuration root.
+   */
+  modelsDirectory: string;
+  /**
+   * Catalog models with their current local state.
+   */
+  rows: LocalModelMachineRow[];
+}
+/**
+ * A notice that remains visible until dismissed or replaced.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "LocalModelNotice".
+ */
+/** @experimental */
+export interface LocalModelNotice {
+  /**
+   * Catalog identifier associated with this notice.
+   */
+  modelId: string;
+  /**
+   * Information, warning, or error.
+   */
+  tone: string;
+  /**
+   * Notice text.
+   */
+  text: string;
+}
+/**
+ * Host preferences for its connection-owned manager, not authorization claims.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "LocalModelsConfigureRequest".
+ */
+/** @experimental */
+export interface LocalModelsConfigureRequest {
+  /**
+   * Attached source session for live registration and selection. Its lifetime does not change.
+   */
+  sessionId?: string | null;
+  /**
+   * Whether the host currently offers local model management.
+   */
+  enabled: boolean;
+  /**
+   * Whether the host currently displays the downloadable catalog.
+   */
+  catalogEnabled: boolean;
+  /**
+   * Request the internal registry only when runtime-owned staff admission also permits it.
+   */
+  includeDev: boolean;
+  /**
+   * Suppress internal model facts while the host displays shared content.
+   */
+  streamerMode: boolean;
+  /**
+   * Host diagnostic log path, used only in failure guidance.
+   */
+  diagnosticLogPath?: string | null;
+}
+/**
+ * A transient presentation update. Logs and telemetry remain runtime-owned.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "LocalModelsEvent".
+ */
+/** @experimental */
+export interface LocalModelsEvent {
+  /**
+   * Monotonic manager revision associated with this update.
+   */
+  revision: number;
+  /**
+   * Host notification or model-list refresh.
+   */
+  type: /** Display a model-management message. */
+    | "notify"
+    /** Refresh the host's available model list. */
+    | "refresh";
+  /**
+   * Whether current internal-registry access is necessary to display this notification.
+   */
+  requiresDevAccess: boolean;
+  /**
+   * Message absent for a model-list refresh.
+   */
+  message?: LocalModelTimelineMessage | null;
+}
+/**
+ * A message for a host's activity view.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "LocalModelTimelineMessage".
+ */
+/** @experimental */
+export interface LocalModelTimelineMessage {
+  /**
+   * Information, warning, or error.
+   */
+  type: /** Inform the user about progress or completion. */
+    | "info"
+    /** Report a condition that requires attention. */
+    | "warning"
+    /** Report a failed operation. */
+    | "error";
+  /**
+   * Message text.
+   */
+  text: string;
+  /**
+   * Whether the text uses Markdown.
+   */
+  markdown?: boolean | null;
+}
+/**
+ * Identifier of a job or notice owned by this connection.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "LocalModelsModelIdRequest".
+ */
+/** @experimental */
+export interface LocalModelsModelIdRequest {
+  /**
+   * Catalog identifier. Identifiers from another connection confer no access.
+   */
+  modelId: string;
+}
+/**
+ * A model returned by this connection's catalog.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "LocalModelsModelRequest".
+ */
+/** @experimental */
+export interface LocalModelsModelRequest {
+  /**
+   * Model whose acquisition or registration the runtime manages.
+   */
+  model: LocalModelDescriptor;
+}
+/**
+ * Catalog refresh intent.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "LocalModelsRefreshRequest".
+ */
+/** @experimental */
+export interface LocalModelsRefreshRequest {
+  /**
+   * Use the background catalog policy instead of an explicit user refresh.
+   */
+  background: boolean;
+}
+/**
+ * Setup intent for one catalog model.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "LocalModelsSetupRequest".
+ */
+/** @experimental */
+export interface LocalModelsSetupRequest {
+  /**
+   * Requested catalog model. The runtime validates its identity and resolves current artifact access.
+   */
+  model: LocalModelDescriptor;
+  /**
+   * Download, update, or repair intent.
+   */
+  intent: /** Acquire and register an available model. */
+    | "download"
+    /** Acquire the latest version of an installed model. */
+    | "update"
+    /** Restore registration for an existing installation without downloading a missing model. */
+    | "repair";
+}
+/**
+ * Snapshot and transient notifications for one connection-owned manager.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "LocalModelsSnapshot".
+ */
+/** @experimental */
+export interface LocalModelsSnapshot {
+  /**
+   * Revision to acknowledge in the next watch call.
+   */
+  revision: number;
+  /**
+   * Current catalog, machine state, active operations, progress, and notices.
+   */
+  state: LocalModelsView;
+  /**
+   * Transient host notifications since the acknowledged revision.
+   */
+  events: LocalModelsEvent[];
+}
+/**
+ * Connection-owned local model state.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "LocalModelsView".
+ */
+/** @experimental */
+export interface LocalModelsView {
+  /**
+   * Whether the host offers local model management.
+   */
+  enabled: boolean;
+  /**
+   * Local files, runtime detection, and resource requirements.
+   */
+  machine: LocalModelMachineView;
+  /**
+   * Active download progress by catalog identifier.
+   */
+  downloads: {
+    [k: string]: LocalModelDownloadProgress | undefined;
+  };
+  /**
+   * Active setup or removal stage by catalog identifier.
+   */
+  operations: {
+    [k: string]: LocalModelOperation | undefined;
+  };
+  /**
+   * Persistent presentation notices by catalog identifier.
+   */
+  notices: {
+    [k: string]: LocalModelNotice | undefined;
+  };
+  /**
+   * Whether a catalog refresh is active.
+   */
+  catalogLoading: boolean;
+  /**
+   * Catalog error, when the refresh failed.
+   */
+  catalogError?: string | null;
+  /**
+   * Whether internal registry models must remain hidden.
+   */
+  hideDevModels: boolean;
+  /**
+   * Whether the downloadable catalog must remain hidden.
+   */
+  hideWinMlModels: boolean;
+  /**
+   * Inference runtime prerequisite guidance.
+   */
+  prerequisiteNotice: string;
+}
+/**
+ * Acknowledged position in this connection's manager updates.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "LocalModelsWatchRequest".
+ */
+/** @experimental */
+export interface LocalModelsWatchRequest {
+  /**
+   * Last consumed revision. The call waits when no newer update exists.
+   */
+  afterRevision: number;
 }
 /**
  * Persisted local session metadata, including identifiers, timestamps, summary/name, client, context, detached state, and task ID.
@@ -26901,7 +28502,7 @@ export interface McpShouldExcludeGitHubToolsRequest {
    */
   excludedTools?: string[];
   /**
-   * How the allowlist and denylist combine when both are set. Omitted means the default every session gets, so a caller that never chose a precedence is answered as its sessions behave.
+   * How the allowlist and denylist combine when both are set. Omitted uses the default excluded precedence; supply the session's explicit Update selection when present.
    */
   toolFilterPrecedence?: OptionsUpdateToolFilterPrecedence | null;
 }
@@ -27133,6 +28734,68 @@ export interface MetadataContextInfoResult {
    * Token breakdown for the current context window, or null if the session has not yet been initialized (no system prompt or tool metadata cached).
    */
   contextInfo?: SessionContextInfo | null;
+}
+/**
+ * Working directory context options. Git access follows the original session host's authority.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "MetadataGetWorkingDirectoryContextRequest".
+ */
+/** @experimental */
+export interface MetadataGetWorkingDirectoryContextRequest {
+  /**
+   * Requested working directory, echoed without normalization.
+   */
+  cwd: string;
+  /**
+   * Resolve the default branch when true; defaults to false.
+   */
+  includeDefaultBranch?: boolean;
+}
+/**
+ * Session host's working directory and optional repository context.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "MetadataGetWorkingDirectoryContextResult".
+ */
+/** @experimental */
+export interface MetadataGetWorkingDirectoryContextResult {
+  /**
+   * Requested working directory.
+   */
+  cwd: string;
+  /**
+   * Repository working tree root.
+   */
+  gitRoot?: string;
+  /**
+   * Repository identifier from the existing Git owner.
+   */
+  repository?: string;
+  /**
+   * Recognized repository host platform.
+   */
+  hostType?: SessionWorkingDirectoryContextHostType;
+  /**
+   * Repository remote host.
+   */
+  repositoryHost?: string;
+  /**
+   * Current branch, when available.
+   */
+  branch?: string;
+  /**
+   * Default branch, only when requested and available.
+   */
+  defaultBranch?: string;
+  /**
+   * Current HEAD commit, when available.
+   */
+  headCommit?: string;
+  /**
+   * Merge-base commit, when available.
+   */
+  baseCommit?: string;
 }
 /**
  * Indicates whether the local session is currently processing a turn or background continuation.
@@ -27671,94 +29334,6 @@ export interface ModelApplyStartupOverlayRequest {
    */
   managedContextTier?: string;
 }
-/**
- * Optional capability overrides (vision, tool_calls, reasoning, etc.).
- *
- * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
- * via the `definition` "ModelCapabilitiesOverride".
- */
-/** @experimental */
-export interface ModelCapabilitiesOverride {
-  /**
-   * Feature flags indicating what the model supports
-   */
-  supports?: ModelCapabilitiesOverrideSupports;
-  /**
-   * Token limits for prompts, outputs, and context window
-   */
-  limits?: ModelCapabilitiesOverrideLimits;
-}
-/**
- * Feature flags indicating what the model supports
- *
- * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
- * via the `definition` "ModelCapabilitiesOverrideSupports".
- */
-/** @experimental */
-export interface ModelCapabilitiesOverrideSupports {
-  /**
-   * Whether this model supports vision/image input
-   */
-  vision?: boolean;
-  /**
-   * Whether this model supports canonical tool calling
-   */
-  toolCalls?: boolean;
-  /**
-   * Whether this model supports reasoning effort configuration
-   */
-  reasoningEffort?: boolean;
-  /**
-   * Resolved Anthropic adaptive-thinking capability — unsupported / optional / required / adaptive_only. 'required' models reject thinking.type='enabled' with HTTP 400 but still accept 'disabled' (e.g. opus-4.7/4.8/5, sonnet-5); 'adaptive_only' models accept nothing but 'adaptive' (e.g. fable, mythos).
-   */
-  adaptive_thinking?: AdaptiveThinkingSupport;
-}
-/**
- * Token limits for prompts, outputs, and context window
- *
- * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
- * via the `definition` "ModelCapabilitiesOverrideLimits".
- */
-/** @experimental */
-export interface ModelCapabilitiesOverrideLimits {
-  /**
-   * Maximum number of prompt/input tokens
-   */
-  max_prompt_tokens?: number;
-  /**
-   * Maximum number of output/completion tokens
-   */
-  max_output_tokens?: number;
-  /**
-   * Maximum total context window size in tokens
-   */
-  max_context_window_tokens?: number;
-  /**
-   * Vision-specific limits
-   */
-  vision?: ModelCapabilitiesOverrideLimitsVision;
-}
-/**
- * Vision-specific limits
- *
- * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
- * via the `definition` "ModelCapabilitiesOverrideLimitsVision".
- */
-/** @experimental */
-export interface ModelCapabilitiesOverrideLimitsVision {
-  /**
-   * MIME types the model accepts
-   */
-  supported_media_types?: string[];
-  /**
-   * Maximum number of images per prompt
-   */
-  max_prompt_images?: number;
-  /**
-   * Maximum image size in bytes
-   */
-  max_prompt_image_size?: number;
-}
 
 /** @experimental */
 /** @internal */
@@ -28010,6 +29585,36 @@ export interface ModelProviderAdapterOperationDescriptor {
   inputSchema?: JsonValue;
 }
 /**
+ * Reads current cached availability without fetching a remote model catalog.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "ModelProviderAvailabilityRequest".
+ */
+/** @experimental */
+export interface ModelProviderAvailabilityRequest {
+  /**
+   * Provider-qualified model selection identifier.
+   */
+  selectionId: string;
+  /**
+   * Optional provider identity used to disambiguate a selection.
+   */
+  providerId?: string;
+}
+/**
+ * Action-boundary availability of a registered provider model.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "ModelProviderAvailabilityResult".
+ */
+/** @experimental */
+export interface ModelProviderAvailabilityResult {
+  /**
+   * True for a selectable model, false for a blocked model, absent for a missing row.
+   */
+  available?: boolean;
+}
+/**
  * Provider configuration prepared from a discovered model. Preparing a plan changes nothing: it neither registers the model with the session nor writes durable configuration. To apply it, pass `provider` and `model` to `session.provider.add`, omitting whichever the dispositions report as already configured.
  *
  * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
@@ -28041,203 +29646,6 @@ export interface ModelProviderConfigurationPlan {
    * Non-fatal warnings carried over from the discovered model, such as capabilities the provider did not report.
    */
   warnings: ModelProviderWarning[];
-}
-/**
- * External SDK input for a named custom model provider. Ingested by the native protocol boundary before host dispatch.
- *
- * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
- * via the `definition` "NamedProviderConfig".
- */
-/** @experimental */
-export interface NamedProviderConfig {
-  /**
-   * Unique provider name used to qualify model selection IDs.
-   */
-  name: string;
-  /**
-   * Provider protocol family.
-   */
-  type?: ProviderConfigType;
-  /**
-   * Wire API used to communicate with the provider.
-   */
-  wireApi?: ProviderConfigWireApi;
-  /**
-   * Transport used to communicate with the provider.
-   */
-  transport?: ProviderConfigTransport;
-  /**
-   * Base URL for provider API requests.
-   */
-  baseUrl: string;
-  /**
-   * Static API key used to authenticate provider requests.
-   */
-  apiKey?: string;
-  /**
-   * Static bearer token used to authenticate provider requests.
-   */
-  bearerToken?: string;
-  /**
-   * Azure authentication configuration for the provider.
-   */
-  azure?: ProviderConfigAzure;
-  /**
-   * Additional HTTP headers included with provider requests.
-   */
-  headers?: {
-    [k: string]: string | undefined;
-  };
-  /**
-   * The product serving the provider's models, reported in telemetry as `model_provider`. Only affects telemetry.
-   */
-  modelProvider?: ProviderConfigModelProvider;
-  /**
-   * Whether the host supplies bearer tokens dynamically.
-   */
-  hasBearerTokenProvider?: boolean;
-}
-/**
- * Azure-specific provider options.
- *
- * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
- * via the `definition` "ProviderConfigAzure".
- */
-/** @experimental */
-export interface ProviderConfigAzure {
-  /**
-   * API version. When set, uses the versioned deployment route. When omitted, uses the GA versionless v1 route.
-   */
-  apiVersion?: string;
-}
-/**
- * A BYOK model definition referencing a named provider.
- *
- * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
- * via the `definition` "ProviderModelConfig".
- */
-/** @experimental */
-export interface ProviderModelConfig {
-  /**
-   * Provider-local model id, unique within its provider. The session-wide selection id (shown in the model list and passed to switchTo) is the provider-qualified `provider/id`.
-   */
-  id: string;
-  /**
-   * Name of the configured provider that serves this model.
-   */
-  provider: string;
-  /**
-   * The model name sent to the provider API for inference. Defaults to `id`.
-   */
-  wireModel?: string;
-  /**
-   * Well-known base model id used for behavior/capability/config lookup. Defaults to `id`.
-   */
-  modelId?: string;
-  /**
-   * Display name for model pickers. Defaults to the provider-qualified selection id (`provider/id`).
-   */
-  name?: string;
-  /**
-   * Maximum prompt/input tokens for the model.
-   */
-  maxPromptTokens?: number;
-  /**
-   * Maximum context window tokens for the model.
-   */
-  maxContextWindowTokens?: number;
-  /**
-   * Maximum output tokens for the model.
-   */
-  maxOutputTokens?: number;
-  /**
-   * Optional capability overrides (vision, tool_calls, reasoning, etc.).
-   */
-  capabilities?: ModelCapabilitiesOverride;
-  /**
-   * System-message configuration used when the runtime builds the standard prompt for this provider-qualified model, including general-purpose subagents. It uses the same object hierarchy as session-level systemMessage configuration, except transform actions are rejected because the current callback protocol is not model-scoped. When present, it overrides the session-wide configuration on those prompt paths. Selected custom-agent and specialized-subagent prompts remain authoritative.
-   */
-  systemMessage?: ProtocolSystemMessageConfig;
-  /**
-   * Provider-published model metadata, preserved verbatim as the public Model.metadata object.
-   */
-  metadata?: {
-    [k: string]: JsonValue | undefined;
-  };
-}
-
-/** @experimental */
-export interface ProtocolSystemMessageAppendConfig {
-  /**
-   * Append-mode discriminator. Omission also selects append mode.
-   */
-  mode?: ProtocolAppendMode;
-  /**
-   * Text appended to the standard system prompt.
-   */
-  content?: string;
-}
-
-/** @experimental */
-export interface ProtocolSystemMessageReplaceConfig {
-  /**
-   * Replace-mode discriminator.
-   */
-  mode: ProtocolReplaceMode;
-  /**
-   * Complete replacement system-message text.
-   */
-  content: string;
-  /**
-   * Optional structured blocks corresponding to the replacement content.
-   */
-  contentBlocks?: SystemMessageBlock[];
-}
-
-/** @experimental */
-export interface SystemMessageBlock {
-  /**
-   * Text content for this system-message block.
-   */
-  content: string;
-  /**
-   * Whether the block is static and may be cached independently of dynamic prompt content.
-   */
-  isStatic?: boolean;
-  /**
-   * Whether providers with explicit prompt caching should place a cache breakpoint after this block.
-   */
-  cacheBreakpoint?: boolean;
-}
-
-/** @experimental */
-export interface ProtocolSystemMessageCustomizeConfig {
-  /**
-   * Customize-mode discriminator.
-   */
-  mode: ProtocolCustomizeMode;
-  /**
-   * Named standard-prompt section overrides.
-   */
-  sections?: {
-    [k: string]: ProtocolSectionOverride | undefined;
-  };
-  /**
-   * Text appended after the customized sections.
-   */
-  content?: string;
-}
-
-/** @experimental */
-export interface ProtocolStaticSectionOverride {
-  /**
-   * Declarative operation applied to the section.
-   */
-  action: ProtocolStaticSectionAction;
-  /**
-   * Optional content used by replace, append, and prepend operations.
-   */
-  content?: string;
 }
 /**
  * One model provider available to the session — the model analog of the account `ProviderDescriptor`. Opaque id/label/kind plus a stable ordering; central code never branches on kind.
@@ -28584,9 +29992,17 @@ export interface ModelSwitchAutoTierResult {
    */
   effectiveAutoTier?: AutoTier;
   /**
+   * Copilot Fusion tier that effectiveAutoTier serves, resolved from the session's Auto tier metadata. An open string: known values include `standard`, `high`, and `max`; other provider-defined values may appear. Omitted when no Auto preference is committed, it is not a Fusion tier, or Auto metadata has not been discovered (for example after cold resume, before session.model.list). Fusion fields cover only effective and pending preferences; resolve activatingAutoTier and supersededAutoTier against auto.tiers[].fusionTier from session.model.list.
+   */
+  effectiveFusionTier?: string;
+  /**
    * Latest unclaimed Auto preference waiting for a future user turn.
    */
   pendingAutoTier?: AutoTier | null;
+  /**
+   * Copilot Fusion tier that pendingAutoTier serves, resolved from the session's Auto tier metadata. An open string: known values include `standard`, `high`, and `max`; other provider-defined values may appear. Omitted when no preference is pending, it is not a Fusion tier, or Auto metadata has not been discovered (for example after cold resume, before session.model.list).
+   */
+  pendingFusionTier?: string;
   /**
    * Auto preference currently claimed by an in-progress activation. Null means the activation is returning to provider-default routing.
    */
@@ -30329,6 +31745,40 @@ export interface PermissionRulesSet {
   denied: PermissionRule[];
 }
 /**
+ * The session's model-facing additional directory ledger, separate from its tool-access grants.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "PermissionsAdditionalDirectoriesListResult".
+ */
+/** @experimental */
+export interface PermissionsAdditionalDirectoriesListResult {
+  /**
+   * Additional directories included in the session's model context.
+   */
+  directories: string[];
+}
+/**
+ * Original launch permissions, before runtime escalation.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "PermissionsAllowAllBaseline".
+ */
+/** @experimental */
+export interface PermissionsAllowAllBaseline {
+  /**
+   * Whether launch options permit all tools.
+   */
+  tools: boolean;
+  /**
+   * Whether launch options permit all paths.
+   */
+  paths: boolean;
+  /**
+   * Whether launch options permit all URLs.
+   */
+  urls: boolean;
+}
+/**
  * Available permission modes, derived from current session policy.
  *
  * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
@@ -30575,6 +32025,35 @@ export interface PermissionsFolderTrustAddTrustedResult {
   success: boolean;
 }
 /**
+ * Effective permission escalation and the original launch baseline.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "PermissionsGetAllowAllResult".
+ */
+/** @experimental */
+export interface PermissionsGetAllowAllResult {
+  /**
+   * Whether allow-all permissions are currently effective.
+   */
+  active: boolean;
+  /**
+   * Whether automatic permission approval is active.
+   */
+  autoApproval: boolean;
+  /**
+   * Whether automatic permission approval is stored before the managed-policy cap.
+   */
+  storedAutoApproval: boolean;
+  /**
+   * Whether an invocation changed the launch permission posture.
+   */
+  runtimeOverride: boolean;
+  /**
+   * Original launch permissions, unchanged by runtime escalation.
+   */
+  baseline: PermissionsAllowAllBaseline;
+}
+/**
  * No parameters.
  *
  * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
@@ -30607,6 +32086,19 @@ export interface PermissionsLocationsAddToolApprovalResult {
    * Whether the operation succeeded
    */
   success: boolean;
+}
+/**
+ * Permission request to evaluate against the session's current managed policy.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "PermissionsManagedReviewRequiredRequest".
+ */
+/** @experimental */
+export interface PermissionsManagedReviewRequiredRequest {
+  /**
+   * Original permission request, including all request-specific fields.
+   */
+  request: JsonValue;
 }
 /**
  * Scope and add/remove instructions for modifying session- or location-scoped permission rules.
@@ -30807,6 +32299,10 @@ export interface PermissionsSetRequiredRequest {
    * Whether the client wants `permission.requested` events bridged from the session-owned permission service. CLI clients that render prompt UI set this to `true` for as long as their listener is mounted; headless callers leave it unset (the default is `false`).
    */
   required: boolean;
+  /**
+   * Optional permission-provider identity, scoped to the calling connection and this session. With this field, true registers the provider and false releases it without overriding a later direct host requirement. The runtime releases these registrations when their connection detaches. Omit for a direct host requirement.
+   */
+  providerId?: string;
 }
 /**
  * Indicates whether the operation succeeded.
@@ -31485,6 +32981,14 @@ export interface ProtocolExternalToolDefinition {
    */
   skipPermission?: boolean;
   /**
+   * Whether the SDK has a local handler for this tool. Set by the SDK, not the model.
+   * On explicit continuation, an unanswered handler-backed call is interrupted
+   * when the resuming SDK also registers a handler; it is never replayed.
+   *
+   * @internal
+   */
+  hasHandler?: boolean;
+  /**
    * Tool-loading deferral policy.
    */
   defer?: ProtocolExternalToolDefer;
@@ -31492,6 +32996,13 @@ export interface ProtocolExternalToolDefinition {
    * Whether the tool executes commands in a terminal.
    */
   isTerminal?: boolean;
+  /**
+   * Whether repeating a call with the same arguments has no additional effect
+   * beyond the first call, as is true of any tool without side effects. Hosts
+   * may use this to safely repeat a call whose outcome was lost. It does not
+   * affect permission checks.
+   */
+  idempotent?: boolean;
   /**
    * Optional caller-defined metadata associated with the tool.
    */
@@ -33943,6 +35454,40 @@ export interface SandboxFilterPickerCandidatesResult {
   allowed: boolean[];
 }
 /**
+ * Remote MCP endpoint and the host's existing proxy secret directory.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "SandboxGetRemoteMcpEgressRequest".
+ */
+/** @experimental */
+export interface SandboxGetRemoteMcpEgressRequest {
+  /**
+   * Existing proxy secret directory on the runtime host.
+   */
+  secretConfigDir?: string;
+  /**
+   * Target endpoint for the session network policy decision.
+   */
+  url?: string;
+}
+/**
+ * Session-owned remote MCP egress decision. A denial forbids connection.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "SandboxGetRemoteMcpEgressResult".
+ */
+/** @experimental */
+export interface SandboxGetRemoteMcpEgressResult {
+  /**
+   * Reason a connection is forbidden; absent when allowed.
+   */
+  deniedReason?: string;
+  /**
+   * Authorized proxy URL; absent for a direct connection or a denial.
+   */
+  proxyUrl?: string;
+}
+/**
  * Request to accept the sandbox path grant offered on an active sandbox escalation permission prompt.
  *
  * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
@@ -34243,6 +35788,19 @@ export interface SandboxUnsupportedStartupNoticeResult {
    * The user-facing warning, carrying the platform remedy and the recovery the policy in force actually allows. Absent when this machine supports a sandbox, so a host can call unconditionally and print only what it gets.
    */
   notice?: string;
+}
+/**
+ * Result of adding a model to the saved provider configuration.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "SavedProviderConfigurationAddModelResult".
+ */
+/** @experimental */
+export interface SavedProviderConfigurationAddModelResult {
+  /**
+   * Whether the provider was created along with the model.
+   */
+  providerAdded: boolean;
 }
 /**
  * Register an absolute-time scheduled prompt.
@@ -34981,6 +36539,61 @@ export interface SessionConnectedIdeInfo {
   workspaceFolder: string;
 }
 /**
+ * Per-session context-board metadata. Configuration does not open the store or grant a store capability.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "SessionDynamicContextConfig".
+ */
+/** @experimental */
+export interface SessionDynamicContextConfig {
+  /**
+   * Session-store path on the runtime host, preserved as supplied.
+   */
+  storePath: string;
+  /**
+   * Repository identifier for the context board.
+   */
+  repository: string;
+  /**
+   * Branch identifier for the context board.
+   */
+  branch: string;
+}
+/**
+ * Current context-board metadata, with an explicit null when absent or incomplete.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "SessionDynamicContextGetConfigResponse".
+ */
+/** @experimental */
+export interface SessionDynamicContextGetConfigResponse {
+  /**
+   * Configuration metadata, or null when any stored field is absent or empty.
+   */
+  config: SessionDynamicContextConfig | null;
+}
+/**
+ * Context-board configuration for the bound session. This operation does not open the store.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "SessionDynamicContextSetConfigRequest".
+ */
+/** @experimental */
+export interface SessionDynamicContextSetConfigRequest {
+  /**
+   * Session-store path on the runtime host, preserved as supplied.
+   */
+  storePath: string;
+  /**
+   * Repository identifier for the context board.
+   */
+  repository: string;
+  /**
+   * Branch identifier for the context board.
+   */
+  branch: string;
+}
+/**
  * The enriched metadata records, with summary and context fields backfilled where available. Sessions confirmed empty and unnamed are omitted.
  *
  * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
@@ -34992,6 +36605,31 @@ export interface SessionEnrichMetadataResult {
    * Enriched records, with summary and context backfilled. Sessions confirmed empty and unnamed may be omitted.
    */
   sessions: LocalSessionMetadataValue[];
+}
+
+/** @experimental */
+/** @internal */
+export interface SessionFeatureFlagConfiguration {
+  /**
+   * Host defaults applied during construction, before live flag reads.
+   */
+  initOptions: JsonValue;
+  /**
+   * Assignment source owned by the session lifecycle.
+   */
+  mode: SessionFeatureFlagsMode;
+  /**
+   * Whether experiment requests suppress account segmentation.
+   */
+  streamerMode?: boolean;
+  /**
+   * Installation first-launch time for experiment segmentation.
+   */
+  firstLaunchAtMillis?: number;
+  /**
+   * Whether the defaults came from the live settings document.
+   */
+  settingsAreLive?: boolean;
 }
 /**
  * File path, content to append, and optional mode for the client-provided session filesystem. Implementations create parent directories as needed.
@@ -36416,6 +38054,12 @@ export interface SessionOpenOptions {
    */
   expAssignments?: JsonValue;
   /**
+   * Trusted host defaults consumed by the runtime during session construction.
+   *
+   * @internal
+   */
+  featureFlagConfiguration?: SessionFeatureFlagConfiguration;
+  /**
    * Opt-in: self-fetch and enforce enterprise managed settings, including managed hook policies, at session bootstrap.
    */
   enableManagedSettings?: boolean;
@@ -36915,6 +38559,12 @@ export interface SessionsOpenCreate {
    */
   options?: SessionOpenOptions;
   /**
+   * Single-use capability for host-resolved construction options, issued through the runtime C ABI and bound to this connection. The runtime creates the native session; the embedding host attaches its original facade and completes host initialization.
+   *
+   * @internal
+   */
+  hostConstructionToken?: number;
+  /**
    * Whether to emit session.start during creation. Defaults to true.
    */
   emitStart?: boolean;
@@ -36935,6 +38585,12 @@ export interface SessionsOpenResume {
    * Session ID or unique prefix to resume.
    */
   sessionId: string;
+  /**
+   * Single-use capability for replay into an SDK-owned native resource after the original embedding facade installs its filesystem and callbacks. Issued through the runtime C ABI and bound to this connection.
+   *
+   * @internal
+   */
+  hostConstructionToken?: number;
   /**
    * Session resume options.
    */
@@ -37091,6 +38747,14 @@ export interface SessionsOpenHandoff {
  */
 /** @experimental */
 export interface SessionOpenResult {
+  /**
+   * Native construction plan for an embedding host's facade. Present only when a transport-issued host construction capability creates the session.
+   *
+   * @internal
+   *
+   * @internal
+   */
+  nativeConstructionPlan?: JsonValue;
   /**
    * Outcome of the open request.
    */
@@ -37466,6 +39130,10 @@ export interface SessionsCloseRequest {
    * Session ID to close
    */
   sessionId: string;
+  /**
+   * Run deferred session-end hooks with their full configured timeout when the host stays alive.
+   */
+  detachSessionEndHooks?: boolean | null;
 }
 /**
  * Closes a session: emits shutdown, flushes pending events to disk, releases the in-use lock, disposes the active session. Idempotent: succeeds even if the session is not currently active.
@@ -37756,6 +39424,24 @@ export interface SessionSettingsOnlineEvaluationSnapshot {
    * Whether online-evaluation output-file generation is enabled.
    */
   enableOnlineEvaluationOutputFile?: boolean;
+}
+
+/** @experimental */
+export interface SessionSettingsPatch {
+  /**
+   * Optional generation guard for a live configuration view.
+   */
+  serviceId?: string;
+  /**
+   * Whether this session enables memory, without changing the saved preference.
+   */
+  memory?: boolean;
+  /**
+   * Explicit feature preferences. A null value removes that preference.
+   */
+  enabledFeatureFlags?: {
+    [k: string]: boolean | null | undefined;
+  };
 }
 /**
  * Redacted repository and GitHub host settings for a session.
@@ -38510,6 +40196,10 @@ export interface SessionTelemetryEngagement {
 /** @experimental */
 export interface SessionUpdateOptionsParams {
   /**
+   * Session-only user preferences. Omitted preferences keep their current values.
+   */
+  settings?: SessionSettingsPatch;
+  /**
    * Enable or disable the native image tool for this session without changing the conversation model.
    * Omitted values preserve the current setting. Re-supply consent on cold resume.
    */
@@ -38585,7 +40275,7 @@ export interface SessionUpdateOptionsParams {
    */
   excludedBuiltinAgents?: string[];
   /**
-   * Controls how availableTools (allowlist) and excludedTools (denylist) combine when both are set.
+   * Controls how availableTools (allowlist) and excludedTools (denylist) combine when both are set. Omitted updates preserve the current setting; new sessions default to excluded.
    */
   toolFilterPrecedence?: OptionsUpdateToolFilterPrecedence;
   /**
@@ -40857,6 +42547,19 @@ export interface ToolsExecuteRequest {
   toolCallId?: string;
 }
 /**
+ * Session-latched flags for built-in agent availability.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "ToolsGetBuiltinAgentFlagOverridesResult".
+ */
+/** @experimental */
+export interface ToolsGetBuiltinAgentFlagOverridesResult {
+  /**
+   * Whether the session hides the task subagent.
+   */
+  removeTaskSubagent: boolean;
+}
+/**
  * Options controlling how Rust-owned built-in tool descriptors are materialized.
  *
  * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
@@ -42699,6 +44402,11 @@ export interface UserSettingsWriteKeyRequest {
    * Refuse to replace an unreadable or invalid file. Defaults to false.
    */
   refuseOnReadFailure?: boolean;
+  /**
+   * Refuse content no JSONC recovery pass reads as an object. Defaults to false.
+   * Recoverable content can still be repaired when refuseOnReadFailure is false.
+   */
+  refuseOnUnrecoverableReadFailure?: boolean;
 }
 /**
  * Current sharing status and shareable GitHub URL for a session.
@@ -44510,6 +46218,214 @@ export interface WorkspacesWriteAutopilotObjectiveResult {
   operation: string;
 }
 /**
+ * Snapshot and transient notifications for one connection-owned manager.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "LocalModelsConfigureResult".
+ */
+/** @experimental */
+export interface LocalModelsConfigureResult {
+  /**
+   * Revision to acknowledge in the next watch call.
+   */
+  revision: number;
+  /**
+   * Current catalog, machine state, active operations, progress, and notices.
+   */
+  state: LocalModelsView;
+  /**
+   * Transient host notifications since the acknowledged revision.
+   */
+  events: LocalModelsEvent[];
+}
+/**
+ * Snapshot and transient notifications for one connection-owned manager.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "LocalModelsInspectResult".
+ */
+/** @experimental */
+export interface LocalModelsInspectResult {
+  /**
+   * Revision to acknowledge in the next watch call.
+   */
+  revision: number;
+  /**
+   * Current catalog, machine state, active operations, progress, and notices.
+   */
+  state: LocalModelsView;
+  /**
+   * Transient host notifications since the acknowledged revision.
+   */
+  events: LocalModelsEvent[];
+}
+/**
+ * Snapshot and transient notifications for one connection-owned manager.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "LocalModelsWatchResult".
+ */
+/** @experimental */
+export interface LocalModelsWatchResult {
+  /**
+   * Revision to acknowledge in the next watch call.
+   */
+  revision: number;
+  /**
+   * Current catalog, machine state, active operations, progress, and notices.
+   */
+  state: LocalModelsView;
+  /**
+   * Transient host notifications since the acknowledged revision.
+   */
+  events: LocalModelsEvent[];
+}
+/**
+ * Runtime catalog entry, including installation and inference metadata.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "LocalModelsPrepareResult".
+ */
+/** @experimental */
+export interface LocalModelsPrepareResult {
+  /**
+   * Catalog identifier, distinct from the inference selection identifier.
+   */
+  id: string;
+  /**
+   * Model display name.
+   */
+  displayName: string;
+  /**
+   * Exact registry asset identity.
+   */
+  azureMl: LocalModelAzureMlIdentity;
+  /**
+   * Source and display order.
+   */
+  source: LocalModelSource;
+  /**
+   * Default primary filename.
+   */
+  fileName: string;
+  /**
+   * Model publisher display name.
+   */
+  provider: string;
+  /**
+   * Published license name.
+   */
+  license: string;
+  /**
+   * Registry display label.
+   */
+  sourceLabel: string;
+  /**
+   * Published download size, when known.
+   */
+  approximateBytes?: number | null;
+  /**
+   * Published peak installation size, when known.
+   */
+  peakDiskBytes?: number | null;
+  /**
+   * Recommended graphics memory, when published.
+   */
+  approximateVramBytes?: number | null;
+  /**
+   * Inference runtime name.
+   */
+  runtime: string;
+  /**
+   * Whether acquisition installs the inference runtime.
+   */
+  runtimeProvisioned?: boolean | null;
+  /**
+   * Stable BYOK provider name.
+   */
+  providerName: string;
+  /**
+   * Provider-qualified selection identifier.
+   */
+  selectionId?: string | null;
+  /**
+   * Catalog lifecycle category.
+   */
+  lifecycle?: string | null;
+  /**
+   * Published inference options, preserved without mutation.
+   */
+  serveOptions: LocalModelJsonValue;
+  /**
+   * Published token limits.
+   */
+  limits: LocalModelLimits;
+  /**
+   * Whether the model supports tool calls.
+   */
+  supportsToolCalls: boolean;
+  /**
+   * Automatic registration metadata, when applicable.
+   */
+  autoLocal?: LocalModelAutoRegistration | null;
+  /**
+   * Registry metadata, preserved without mutation.
+   */
+  metadata: LocalModelJsonValue;
+}
+/**
+ * A model returned by this connection's catalog.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "LocalModelsPrepareRequest".
+ */
+/** @experimental */
+export interface LocalModelsPrepareRequest {
+  /**
+   * Model whose acquisition or registration the runtime manages.
+   */
+  model: LocalModelDescriptor;
+}
+/**
+ * A model returned by this connection's catalog.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "LocalModelsDeleteModelRequest".
+ */
+/** @experimental */
+export interface LocalModelsDeleteModelRequest {
+  /**
+   * Model whose acquisition or registration the runtime manages.
+   */
+  model: LocalModelDescriptor;
+}
+/**
+ * Identifier of a job or notice owned by this connection.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "LocalModelsCancelRequest".
+ */
+/** @experimental */
+export interface LocalModelsCancelRequest {
+  /**
+   * Catalog identifier. Identifiers from another connection confer no access.
+   */
+  modelId: string;
+}
+/**
+ * Identifier of a job or notice owned by this connection.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "LocalModelsDismissNoticeRequest".
+ */
+/** @experimental */
+export interface LocalModelsDismissNoticeRequest {
+  /**
+   * Catalog identifier. Identifiers from another connection confer no access.
+   */
+  modelId: string;
+}
+/**
  * The effective sandbox settings, with every unset value resolved to its default.
  *
  * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
@@ -44928,6 +46844,74 @@ export interface AzureMlCancelRequest {
 /** @experimental */
 export interface AzureMlDiscardResult {}
 /**
+ * Result of adding a model to the saved provider configuration.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "ProvidersConfigAddModelResult".
+ */
+/** @experimental */
+export interface ProvidersConfigAddModelResult {
+  /**
+   * Whether the provider was created along with the model.
+   */
+  providerAdded: boolean;
+}
+/**
+ * Request to add a model to the server-owned saved provider configuration.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "ProvidersConfigAddModelRequest".
+ */
+/** @experimental */
+export interface ProvidersConfigAddModelRequest {
+  /**
+   * Provider settings to create when this provider is not already saved.
+   */
+  provider: SavedProviderConfigurationProviderInput;
+  /**
+   * Model to add to the provider.
+   */
+  model: ProviderModelConfig;
+  /**
+   * Optional replacement API key. Stored in the OS keychain and never returned.
+   */
+  credential?: string;
+}
+/**
+ * Result of adding a model to the saved provider configuration.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "ProvidersSourceAddModelResult".
+ */
+/** @experimental */
+export interface ProvidersSourceAddModelResult {
+  /**
+   * Whether the provider was created along with the model.
+   */
+  providerAdded: boolean;
+}
+/**
+ * Saves through the exact authenticated local attachment that discovered a model.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "ProvidersSourceAddModelRequest".
+ */
+/** @experimental */
+export interface ProvidersSourceAddModelRequest {
+  /**
+   * Session whose owning server receives the save.
+   */
+  sessionId: string;
+  /**
+   * Original authenticated local attachment, not a replacement with the same session id.
+   */
+  attachId: number;
+  /**
+   * The ordinary server-owned save request, without a caller-selected destination.
+   */
+  configuration: SavedProviderConfigurationAddModelRequest;
+}
+/**
  * The location of a local agent registry.
  *
  * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
@@ -45035,6 +47019,70 @@ export interface LspListRequest {
    */
   workingDirectory: string;
 }
+/**
+ * Action-boundary availability of a registered provider model.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "SessionProvidersModelsDiagnoseResult".
+ */
+/** @experimental */
+export interface SessionProvidersModelsDiagnoseResult {
+  /**
+   * True for a selectable model, false for a blocked model, absent for a missing row.
+   */
+  available?: boolean;
+}
+/**
+ * Reads current cached availability without fetching a remote model catalog.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "SessionProvidersModelsDiagnoseRequest".
+ */
+/** @experimental */
+export interface SessionProvidersModelsDiagnoseRequest {
+  /**
+   * Provider-qualified model selection identifier.
+   */
+  selectionId: string;
+  /**
+   * Optional provider identity used to disambiguate a selection.
+   */
+  providerId?: string;
+}
+/**
+ * Session-owned remote MCP egress decision. A denial forbids connection.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "SessionSandboxGetRemoteMcpEgressResult".
+ */
+/** @experimental */
+export interface SessionSandboxGetRemoteMcpEgressResult {
+  /**
+   * Reason a connection is forbidden; absent when allowed.
+   */
+  deniedReason?: string;
+  /**
+   * Authorized proxy URL; absent for a direct connection or a denial.
+   */
+  proxyUrl?: string;
+}
+/**
+ * Remote MCP endpoint and the host's existing proxy secret directory.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "SessionSandboxGetRemoteMcpEgressRequest".
+ */
+/** @experimental */
+export interface SessionSandboxGetRemoteMcpEgressRequest {
+  /**
+   * Existing proxy secret directory on the runtime host.
+   */
+  secretConfigDir?: string;
+  /**
+   * Target endpoint for the session network policy decision.
+   */
+  url?: string;
+}
 
 /** @experimental */
 export interface SessionWorkflowPauseAtCheckpointResult {
@@ -45066,6 +47114,294 @@ export interface SessionModelListRequest {
    * If true, bypasses the per-session model list cache and re-fetches from CAPI.
    */
   skipCache?: boolean;
+}
+/**
+ * Current service state, without configuration documents or credentials.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "SessionFeatureFlagsConfigureResult".
+ */
+/** @experimental */
+export interface SessionFeatureFlagsConfigureResult {
+  /**
+   * Decimal instance identity, without integer precision loss.
+   */
+  serviceId: string;
+  /**
+   * Service revision, with unsigned 32-bit wraparound.
+   */
+  revision: number;
+  /**
+   * Whether the service remains active.
+   */
+  active: boolean;
+  /**
+   * Whether the current audience assignment has resolved.
+   */
+  expResponseResolved: boolean;
+  /**
+   * Static flags after availability, environment, settings, and explicit overrides.
+   */
+  flags: {
+    [k: string]: boolean | undefined;
+  };
+  /**
+   * Effective experiment values.
+   */
+  expFlags: {
+    [k: string]: FeatureFlagValue | undefined;
+  };
+  /**
+   * Original assignment document, including its optional fields.
+   */
+  response: JsonValue;
+  /**
+   * Latest nonempty assignment context.
+   */
+  assignmentContext?: string;
+  /**
+   * Latest nonempty secondary assignment context.
+   */
+  secondaryAssignmentContext?: string;
+  /**
+   * Organization targeting derived from the authenticated account.
+   */
+  autoApprovalTargeted: boolean;
+  /**
+   * Original runtime interpretation of the reasoning-summary treatment.
+   */
+  reasoningSummariesArm: FeatureFlagReasoningSummariesArm;
+  /**
+   * Original runtime interpretation of the GPT default-model treatment.
+   */
+  gptDefaultModelEnabled: boolean;
+  /**
+   * Validated instruction-retrieval arm, when present.
+   */
+  dynamicInstructionsRetrievalArm?: string;
+}
+/**
+ * Evaluation inputs for the bound session's feature service, not authentication claims.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "SessionFeatureFlagsConfigureRequest".
+ */
+/** @experimental */
+export interface SessionFeatureFlagsConfigureRequest {
+  /**
+   * Static staff availability; this does not establish staff authentication.
+   */
+  isStaff: boolean;
+  /**
+   * GitHub staff population, when the host recorded split populations.
+   */
+  isStaffGithub?: boolean;
+  /**
+   * Microsoft staff population, when the host recorded split populations.
+   */
+  isStaffMicrosoft?: boolean;
+  /**
+   * Whether experimental features are enabled.
+   */
+  isExperimental: boolean;
+  /**
+   * Static team availability; this does not select the authenticated account.
+   */
+  isTeam: boolean;
+  /**
+   * The retained user-settings snapshot.
+   */
+  config?: JsonValue;
+  /**
+   * Explicit static overrides, after environment and user settings.
+   */
+  flagOverrides?: {
+    [k: string]: boolean | undefined;
+  };
+  /**
+   * Constructor scalar seed; omission retains the existing constructor snapshot.
+   */
+  initialSessionFlags?: {
+    [k: string]: boolean | undefined;
+  };
+  /**
+   * Explicit experiment overrides, after delivered assignments.
+   */
+  expFlagOverrides?: {
+    [k: string]: FeatureFlagValue | undefined;
+  };
+  /**
+   * Host environment snapshot; omit to use the live process environment.
+   */
+  environment?: {
+    [k: string]: string | undefined;
+  };
+  /**
+   * Install the existing online assignment source unless assignments are explicit.
+   */
+  online: boolean;
+  /**
+   * Explicit assignment replacement or clear; omission retains current assignments.
+   */
+  assignments?: FeatureFlagAssignmentsUpdate;
+  /**
+   * Whether online segmentation withholds audience populations.
+   */
+  streamerMode: boolean;
+  /**
+   * Installation first-launch time in Unix milliseconds, when known.
+   */
+  firstLaunchAtMillis?: number;
+}
+/**
+ * One authoritative snapshot and the requested evaluations.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "SessionFeatureFlagsReadResult".
+ */
+/** @experimental */
+export interface SessionFeatureFlagsReadResult {
+  /**
+   * The state used by these evaluations.
+   */
+  snapshot: FeatureFlagServiceSnapshot;
+  /**
+   * Requested feature values. Unknown or unset values are absent.
+   */
+  flags: {
+    [k: string]: boolean | undefined;
+  };
+  /**
+   * Explicit override results; null means neither source supplies a boolean.
+   */
+  overrides: (boolean | null)[];
+  /**
+   * Redacted runtime decisions for UI presentation, present only for an available display read.
+   */
+  displayState?: JsonValue;
+}
+/**
+ * Optional evaluations and readiness barriers for one feature snapshot.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "SessionFeatureFlagsReadRequest".
+ */
+/** @experimental */
+export interface SessionFeatureFlagsReadRequest {
+  /**
+   * Wait for the current assignment. Omission does not wait.
+   */
+  waitForExpResponse?: boolean;
+  /**
+   * Feature names evaluated with their canonical experiment mappings.
+   */
+  flags?: string[];
+  /**
+   * Explicit experiment/static queries, in result order.
+   */
+  overrides?: FeatureFlagExpOverrideQuery[];
+  /**
+   * Wait for a different revision or service disposal using the existing change notification.
+   */
+  afterRevision?: number;
+  /**
+   * Return only the redacted UI projection, without assignment data or requested evaluations.
+   */
+  displayOnly?: boolean;
+  /**
+   * Original display generation; a replaced service returns an unavailable projection.
+   */
+  serviceId?: string;
+}
+/**
+ * Current service state, without configuration documents or credentials.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "SessionFeatureFlagsUpdateResult".
+ */
+/** @experimental */
+export interface SessionFeatureFlagsUpdateResult {
+  /**
+   * Decimal instance identity, without integer precision loss.
+   */
+  serviceId: string;
+  /**
+   * Service revision, with unsigned 32-bit wraparound.
+   */
+  revision: number;
+  /**
+   * Whether the service remains active.
+   */
+  active: boolean;
+  /**
+   * Whether the current audience assignment has resolved.
+   */
+  expResponseResolved: boolean;
+  /**
+   * Static flags after availability, environment, settings, and explicit overrides.
+   */
+  flags: {
+    [k: string]: boolean | undefined;
+  };
+  /**
+   * Effective experiment values.
+   */
+  expFlags: {
+    [k: string]: FeatureFlagValue | undefined;
+  };
+  /**
+   * Original assignment document, including its optional fields.
+   */
+  response: JsonValue;
+  /**
+   * Latest nonempty assignment context.
+   */
+  assignmentContext?: string;
+  /**
+   * Latest nonempty secondary assignment context.
+   */
+  secondaryAssignmentContext?: string;
+  /**
+   * Organization targeting derived from the authenticated account.
+   */
+  autoApprovalTargeted: boolean;
+  /**
+   * Original runtime interpretation of the reasoning-summary treatment.
+   */
+  reasoningSummariesArm: FeatureFlagReasoningSummariesArm;
+  /**
+   * Original runtime interpretation of the GPT default-model treatment.
+   */
+  gptDefaultModelEnabled: boolean;
+  /**
+   * Validated instruction-retrieval arm, when present.
+   */
+  dynamicInstructionsRetrievalArm?: string;
+}
+/**
+ * Changes apply in field order: config, preference, assignments, secondary context.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "SessionFeatureFlagsUpdateRequest".
+ */
+/** @experimental */
+export interface SessionFeatureFlagsUpdateRequest {
+  /**
+   * Patch the retained configuration.
+   */
+  configPatch?: FeatureFlagConfigPatch;
+  /**
+   * Apply or remove one preference.
+   */
+  enabledOverride?: FeatureFlagEnabledOverride;
+  /**
+   * Replace or clear delivered assignments.
+   */
+  assignments?: FeatureFlagAssignmentsUpdate;
+  /**
+   * Retain a nonempty secondary context using the original whitespace rules.
+   */
+  secondaryAssignmentContext?: string;
 }
 
 /** @experimental */
@@ -45664,6 +48000,110 @@ export interface SessionUiRegisterDirectAutoModeSwitchHandlerRequest {
    */
   autoModeRecovery?: boolean;
 }
+/**
+ * Effective permission escalation and the original launch baseline.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "SessionPermissionsGetAllowAllResult".
+ */
+/** @experimental */
+export interface SessionPermissionsGetAllowAllResult {
+  /**
+   * Whether allow-all permissions are currently effective.
+   */
+  active: boolean;
+  /**
+   * Whether automatic permission approval is active.
+   */
+  autoApproval: boolean;
+  /**
+   * Whether automatic permission approval is stored before the managed-policy cap.
+   */
+  storedAutoApproval: boolean;
+  /**
+   * Whether an invocation changed the launch permission posture.
+   */
+  runtimeOverride: boolean;
+  /**
+   * Original launch permissions, unchanged by runtime escalation.
+   */
+  baseline: PermissionsAllowAllBaseline;
+}
+/**
+ * Permission request to evaluate against the session's current managed policy.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "SessionPermissionsManagedReviewRequiredRequest".
+ */
+/** @experimental */
+export interface SessionPermissionsManagedReviewRequiredRequest {
+  /**
+   * Original permission request, including all request-specific fields.
+   */
+  request: PermissionRequest | JsonValue;
+}
+/**
+ * Session host's working directory and optional repository context.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "SessionMetadataGetWorkingDirectoryContextResult".
+ */
+/** @experimental */
+export interface SessionMetadataGetWorkingDirectoryContextResult {
+  /**
+   * Requested working directory.
+   */
+  cwd: string;
+  /**
+   * Repository working tree root.
+   */
+  gitRoot?: string;
+  /**
+   * Repository identifier from the existing Git owner.
+   */
+  repository?: string;
+  /**
+   * Recognized repository host platform.
+   */
+  hostType?: SessionWorkingDirectoryContextHostType;
+  /**
+   * Repository remote host.
+   */
+  repositoryHost?: string;
+  /**
+   * Current branch, when available.
+   */
+  branch?: string;
+  /**
+   * Default branch, only when requested and available.
+   */
+  defaultBranch?: string;
+  /**
+   * Current HEAD commit, when available.
+   */
+  headCommit?: string;
+  /**
+   * Merge-base commit, when available.
+   */
+  baseCommit?: string;
+}
+/**
+ * Working directory context options. Git access follows the original session host's authority.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "SessionMetadataGetWorkingDirectoryContextRequest".
+ */
+/** @experimental */
+export interface SessionMetadataGetWorkingDirectoryContextRequest {
+  /**
+   * Requested working directory, echoed without normalization.
+   */
+  cwd: string;
+  /**
+   * Resolve the default branch when true; defaults to false.
+   */
+  includeDefaultBranch?: boolean;
+}
 
 /** @experimental */
 export interface SessionHistoryCompactRequest {
@@ -46070,6 +48510,89 @@ export interface InstallationsConfirmRequest {
 export function createServerRpc(connection: MessageConnection) {
     return {
         /** @experimental */
+        localModels: {
+            /**
+             * Configures this SDK connection's local model manager. Runtime admission, credentials, jobs, files, progress, and cancellation remain connection-owned. A source session supplies live registration and selection without extending its lifetime.
+             *
+             * @param params Host preferences for its connection-owned manager, not authorization claims.
+             *
+             * @returns Snapshot and transient notifications for one connection-owned manager.
+             */
+            configure: async (params: LocalModelsConfigureRequest): Promise<LocalModelsConfigureResult> =>
+                connection.sendRequest("localModels.configure", params),
+            /**
+             * Reads this connection's local model state without scanning files or contacting a registry. Does not expose another connection's jobs.
+             *
+             * @returns Snapshot and transient notifications for one connection-owned manager.
+             */
+            inspect: async (): Promise<LocalModelsInspectResult> =>
+                connection.sendRequest("localModels.inspect", {}),
+            /**
+             * Waits for a newer local model revision and returns current state plus unacknowledged host notifications. Only this SDK connection's manager is visible. Connection closure cancels the wait.
+             *
+             * @param params Acknowledged position in this connection's manager updates.
+             *
+             * @returns Snapshot and transient notifications for one connection-owned manager.
+             * @param signal Cancels this wait without closing the connection.
+             */
+            watch: async (params: LocalModelsWatchRequest, signal?: AbortSignal): Promise<LocalModelsWatchResult> =>
+                sendCancellableRequest<LocalModelsWatchResult>(connection, "localModels.watch", params, signal),
+            /**
+             * Scans this connection's model files and schedules a catalog refresh under its current preferences and runtime admission.
+             *
+             * @param params Catalog refresh intent.
+             */
+            refresh: async (params: LocalModelsRefreshRequest): Promise<void> =>
+                connection.sendRequest("localModels.refresh", params),
+            /**
+             * Loads the local model catalog under the background policy without repeating a completed successful fetch for unchanged access.
+             */
+            prefetch: async (): Promise<void> =>
+                connection.sendRequest("localModels.prefetch", {}),
+            /**
+             * Resolves current artifact access and resource requirements without changing the caller's descriptor or starting a download.
+             *
+             * @param params A model returned by this connection's catalog.
+             *
+             * @returns Runtime catalog entry, including installation and inference metadata.
+             */
+            prepare: async (params: LocalModelsPrepareRequest): Promise<LocalModelsPrepareResult> =>
+                connection.sendRequest("localModels.prepare", params),
+            /**
+             * Downloads, updates, or repairs a model through runtime-owned acquisition, registration, activation, and compensation. The connection-owned job can finish its saved registration after its source session closes. The call completes with that job.
+             *
+             * @param params Setup intent for one catalog model.
+             */
+            setup: async (params: LocalModelsSetupRequest): Promise<void> =>
+                connection.sendRequest("localModels.setup", params),
+            /**
+             * Removes a managed model's live and saved registration and local files under the connection-owned family lease. Preserves files if registration cleanup cannot safely finish.
+             *
+             * @param params A model returned by this connection's catalog.
+             */
+            deleteModel: async (params: LocalModelsDeleteModelRequest): Promise<void> =>
+                connection.sendRequest("localModels.deleteModel", params),
+            /**
+             * Requests cancellation of this connection's setup job for the given catalog identifier. An identifier never grants access to another connection's jobs.
+             *
+             * @param params Identifier of a job or notice owned by this connection.
+             */
+            cancel: async (params: LocalModelsCancelRequest): Promise<void> =>
+                connection.sendRequest("localModels.cancel", params),
+            /**
+             * Cancels this connection's active setup jobs and waits for their cleanup. Removal jobs finish instead of stopping halfway through registration cleanup.
+             */
+            cancelAll: async (): Promise<void> =>
+                connection.sendRequest("localModels.cancelAll", {}),
+            /**
+             * Dismisses one notice from this connection's local model state.
+             *
+             * @param params Identifier of a job or notice owned by this connection.
+             */
+            dismissNotice: async (params: LocalModelsDismissNoticeRequest): Promise<void> =>
+                connection.sendRequest("localModels.dismissNotice", params),
+        },
+        /** @experimental */
         sandbox: {
             /** @experimental */
             proxyCa: {
@@ -46361,19 +48884,23 @@ export function createServerRpc(connection: MessageConnection) {
                 connection.sendRequest("models.listTokenPriceUnits", params),
         },
         /** @experimental */
-        decisions: {
-            /**
-             * Asks a decision model yes/no, pick-one, or rating questions about shared context and returns normalized probabilities. Sessionless, so a host can classify or route a request before any session exists. Requires the `DECISIONS_API` feature flag. A failed request is a JSON-RPC error whose `data` is a `DecisionErrorData`.
-             *
-             * @param params One request to a decision model: shared context plus the questions to answer about it.
-             *
-             * @returns The decision model's answers.
-             */
-            ask: async (params: DecisionsAskRequest): Promise<DecisionsAskResult> =>
-                connection.sendRequest("decisions.ask", params),
-        },
-        /** @experimental */
         azureMl: {
+            /**
+             * Updates one managed model's persisted registration under its connection-owned Azure ML family lease. Captures prior rows for compensation, preserves unrelated configuration, and remains available after the originating chat session closes. Does not change a live session registry or selection.
+             *
+             * @param params Managed Azure ML registration changes under a connection-owned family lease.
+             *
+             * @returns Observable outcome of a scoped registration change.
+             */
+            registration: async (params: AzureMlRegistrationRequest): Promise<AzureMlRegistrationResult> =>
+                connection.sendRequest("azureMl.registration", params),
+            /**
+             * Reads local graphics memory off the caller thread for on-device model eligibility. Does not start a model server, resolve credentials, or contact a model registry.
+             *
+             * @returns Measured graphics capability; missing memory means the adapter is unknown.
+             */
+            hardware: async (): Promise<AzureMlHardwareResult> =>
+                connection.sendRequest("azureMl.hardware", {}),
             /**
              * Lists eligible Azure ML local models and redacted warnings before a chat session exists.
              *
@@ -46455,6 +48982,33 @@ export function createServerRpc(connection: MessageConnection) {
              */
             discard: async (params: AzureMlDiscardRequest): Promise<AzureMlDiscardResult> =>
                 connection.sendRequest("azureMl.discard", params),
+        },
+        /** @experimental */
+        decisions: {
+            /**
+             * Asks a decision model yes/no, pick-one, or rating questions about shared context and returns normalized probabilities. Sessionless, so a host can classify or route a request before any session exists. Requires the `DECISIONS_API` feature flag. A failed request is a JSON-RPC error whose `data` is a `DecisionErrorData`.
+             *
+             * @param params One request to a decision model: shared context plus the questions to answer about it.
+             *
+             * @returns The decision model's answers.
+             */
+            ask: async (params: DecisionsAskRequest): Promise<DecisionsAskResult> =>
+                connection.sendRequest("decisions.ask", params),
+        },
+        /** @experimental */
+        providers: {
+            /** @experimental */
+            config: {
+                /**
+                 * Adds a model to the server's saved provider configuration. This durable operation does not change any live session.
+                 *
+                 * @param params Request to add a model to the server-owned saved provider configuration.
+                 *
+                 * @returns Result of adding a model to the saved provider configuration.
+                 */
+                addModel: async (params: ProvidersConfigAddModelRequest): Promise<ProvidersConfigAddModelResult> =>
+                    connection.sendRequest("providers.config.addModel", params),
+            },
         },
         /** @experimental */
         contentExclusion: {
@@ -47760,7 +50314,7 @@ export function createInternalServerRpc(connection: MessageConnection) {
                 applyTopKey: async (params: UserSettingsApplyTopKeyRequest): Promise<UserSettingsApplyTopKeyResult> =>
                     connection.sendRequest("user.settings.applyTopKey", params),
                 /**
-                 * Writes or removes one raw user setting under the settings transaction and file locks. Preserves unrelated keys and legacy spellings, and records explicit mutations so startup cleanup cannot delete the user's choice. Unlike applyTopKey, this operation does not validate or canonicalize settings. Invalid or unreadable files are replaced by default, matching the existing raw writer; set refuseOnReadFailure=true to reject instead. Deletion requires delete=true; otherwise value must be present.
+                 * Writes or removes one raw user setting under the settings transaction and file locks. Preserves unrelated keys and legacy spellings, and records explicit mutations so startup cleanup cannot delete the user's choice. Unlike applyTopKey, this operation does not validate or canonicalize settings. Invalid or unreadable files are replaced by default, matching the existing raw writer; set refuseOnReadFailure=true to reject instead. Set refuseOnUnrecoverableReadFailure=true to refuse content no JSONC recovery pass can read as an object, while retaining lenient recovery unless refuseOnReadFailure is also true. Deletion requires delete=true; otherwise value must be present.
                  *
                  * @param params A raw top-level setting edit with explicit read-failure behavior.
                  */
@@ -48037,7 +50591,7 @@ export function createInternalServerRpc(connection: MessageConnection) {
              *
              * @returns Validated admission credential, or null when the application rejects it.
              */
-            authenticate: async (params: HostAuthenticateRequest): Promise<HostAuthenticationResult | undefined> =>
+            authenticate: async (params: HostAuthenticateRequest): Promise<HostAuthenticationResult | null> =>
                 connection.sendRequest("host.authenticate", params),
             /**
              * Cancels a supervised participant's pending admission validation.
@@ -48069,6 +50623,18 @@ export function createInternalServerRpc(connection: MessageConnection) {
          */
         connect: async (params: ConnectRequest): Promise<ConnectResult> =>
             connection.sendRequest("connect", params),
+        /** @experimental */
+        providersSource: {
+            /**
+             * Forwards a saved-model addition over the original authenticated local attachment to its owning server. Requires private CLI-host admission and fails if that attachment is no longer active; never saves to the controller as a fallback.
+             *
+             * @param params Saves through the exact authenticated local attachment that discovered a model.
+             *
+             * @returns Result of adding a model to the saved provider configuration.
+             */
+            addModel: async (params: ProvidersSourceAddModelRequest): Promise<ProvidersSourceAddModelResult> =>
+                connection.sendRequest("providersSource.addModel", params),
+        },
         /** @experimental */
         tools: {
             /** @experimental */
@@ -48867,6 +51433,15 @@ export function createSessionRpc(connection: MessageConnection, sessionId: strin
                  */
                 prepareConfiguration: async (params: ModelProviderPrepareConfigurationRequest): Promise<ModelProviderConfigurationPlan> =>
                     connection.sendRequest("session.providers.models.prepareConfiguration", { ...params, sessionId }),
+                /**
+                 * Reads current cached provider-model availability under the session's allowed-model policy. Does not fetch a catalog or change registration, selection, or configuration.
+                 *
+                 * @param params Reads current cached availability without fetching a remote model catalog.
+                 *
+                 * @returns Action-boundary availability of a registered provider model.
+                 */
+                diagnose: async (params: SessionProvidersModelsDiagnoseRequest): Promise<SessionProvidersModelsDiagnoseResult> =>
+                    connection.sendRequest("session.providers.models.diagnose", { "selectionId": params["selectionId"], "providerId": params["providerId"], sessionId }),
             },
         },
         /**
@@ -48932,6 +51507,20 @@ export function createSessionRpc(connection: MessageConnection, sessionId: strin
              */
             grantPathForRequest: async (params: SandboxGrantPathForRequestRequest): Promise<SandboxGrantPathForRequestResult> =>
                 connection.sendRequest("session.sandbox.grantPathForRequest", { ...params, sessionId }),
+            /**
+             * Checks fresh sandbox admission against the session's existing enforcement owner.
+             */
+            ensureEnforcementAvailable: async (): Promise<void> =>
+                connection.sendRequest("session.sandbox.ensureEnforcementAvailable", { sessionId }),
+            /**
+             * Resolves endpoint-specific egress under the session sandbox and retains the original proxy lease.
+             *
+             * @param params Remote MCP endpoint and the host's existing proxy secret directory.
+             *
+             * @returns Session-owned remote MCP egress decision. A denial forbids connection.
+             */
+            getRemoteMcpEgress: async (params: SessionSandboxGetRemoteMcpEgressRequest): Promise<SessionSandboxGetRemoteMcpEgressResult> =>
+                connection.sendRequest("session.sandbox.getRemoteMcpEgress", { ...params, sessionId }),
         },
         /**
          * Aborts the current agent turn.
@@ -49293,6 +51882,53 @@ export function createSessionRpc(connection: MessageConnection, sessionId: strin
              */
             list: async (params?: SessionModelListRequest): Promise<SessionModelList> =>
                 connection.sendRequest("session.model.list", { ...params, sessionId }),
+        },
+        /** @experimental */
+        featureFlags: {
+            /**
+             * Configures the bound session's original feature service without changing its owner or assignment account. Explicit assignments disable online fetching. Configuration does not write user settings. Extensions and unrelated external peers cannot access this service.
+             *
+             * @param params Evaluation inputs for the bound session's feature service, not authentication claims.
+             *
+             * @returns Current service state, without configuration documents or credentials.
+             */
+            configure: async (params: SessionFeatureFlagsConfigureRequest): Promise<SessionFeatureFlagsConfigureResult> =>
+                connection.sendRequest("session.featureFlags.configure", { ...params, sessionId }),
+            /**
+             * Reads the bound session's feature service and requested runtime evaluations. Omission of readiness options returns the current snapshot without waiting for online assignments. A revision barrier uses the original service notification and ends when this attachment closes. The opt-in displayOnly mode returns a redacted UI projection without assignment data or requested evaluations. Only the trusted runtime host can read that generation-bound projection.
+             *
+             * @param params Optional evaluations and readiness barriers for one feature snapshot.
+             *
+             * @returns One authoritative snapshot and the requested evaluations.
+             */
+            read: async (params: SessionFeatureFlagsReadRequest, options?: { signal?: AbortSignal }): Promise<SessionFeatureFlagsReadResult> =>
+                sendRequestWithSignal(connection, "session.featureFlags.read", { ...params, sessionId }, options?.signal),
+            /**
+             * Updates the original session feature service through its existing config merge, explicit unset, assignment replacement, and context operations. Changes apply in request field order and do not write settings to disk.
+             *
+             * @param params Changes apply in field order: config, preference, assignments, secondary context.
+             *
+             * @returns Current service state, without configuration documents or credentials.
+             */
+            update: async (params: SessionFeatureFlagsUpdateRequest): Promise<SessionFeatureFlagsUpdateResult> =>
+                connection.sendRequest("session.featureFlags.update", { ...params, sessionId }),
+        },
+        /** @experimental */
+        dynamicContext: {
+            /**
+             * Reads this session's context-board metadata, or null when absent or incomplete. Metadata is not a store capability.
+             *
+             * @returns Current context-board metadata, with an explicit null when absent or incomplete.
+             */
+            getConfig: async (): Promise<SessionDynamicContextGetConfigResponse> =>
+                connection.sendRequest("session.dynamicContext.getConfig", { sessionId }),
+            /**
+             * Sets this session's context-board metadata and its internal default-agent tool exclusion. Empty fields retain their existing semantics. This operation does not open the store.
+             *
+             * @param params Context-board configuration for the bound session. This operation does not open the store.
+             */
+            setConfig: async (params: SessionDynamicContextSetConfigRequest): Promise<void> =>
+                connection.sendRequest("session.dynamicContext.setConfig", { ...params, sessionId }),
         },
         /** @experimental */
         mode: {
@@ -50236,6 +52872,23 @@ export function createSessionRpc(connection: MessageConnection, sessionId: strin
         /** @experimental */
         managedSettings: {
             /**
+             * Reads the current retained managed-settings event payload without waiting for application or publication. Returns null when no snapshot exists. It does not fetch policy or alter startup ordering.
+             *
+             * @returns Current retained policy event payload, or null before policy resolution.
+             */
+            getCurrentSnapshot: async (): Promise<ManagedSettingsResolvedData | null> =>
+                connection.sendRequest("session.managedSettings.getCurrentSnapshot", { sessionId }),
+            /**
+             * Waits for the session's existing policy ingest and tracked applications. Preserves enforcement failures, detached event delivery, and resource replacement checks without starting a new fetch.
+             */
+            awaitApplied: async (): Promise<void> =>
+                connection.sendRequest("session.managedSettings.awaitApplied", { sessionId }),
+            /**
+             * Waits only for the existing policy commit, not enforcement or MCP startup. This barrier permits extension admission without a policy enforcement cycle. Preserves errors and generation checks without starting a new fetch.
+             */
+            awaitPublished: async (): Promise<void> =>
+                connection.sendRequest("session.managedSettings.awaitPublished", { sessionId }),
+            /**
              * Waits for the live session's in-flight managed-settings application, then returns the retained effective snapshot used by runtime enforcement and by `session.managed_settings_resolved`. It does not perform another account, device, or server resolution, and rejects when resolution has not produced a snapshot.
              *
              * @returns Effective enterprise managed settings and contributing channels. Session events report applied policy; sessionless resolve reports an account/device snapshot, and compose reports a non-applying preview of candidate documents. Device values take precedence over server values, then the policy helper, per ordinary key, while permissions compose restrictively. Session-local SDK-client policy is included only in session results. Marked experimental while the managed-settings surface stabilizes.
@@ -50546,6 +53199,13 @@ export function createSessionRpc(connection: MessageConnection, sessionId: strin
             getBuiltinDescriptors: async (params: ToolsGetBuiltinDescriptorsRequest): Promise<ToolsGetBuiltinDescriptorsResult> =>
                 connection.sendRequest("session.tools.getBuiltinDescriptors", { ...params, sessionId }),
             /**
+             * Returns the session-latched flags for built-in agent availability without filtering disabled agents.
+             *
+             * @returns Session-latched flags for built-in agent availability.
+             */
+            getBuiltinAgentFlagOverrides: async (): Promise<ToolsGetBuiltinAgentFlagOverridesResult> =>
+                connection.sendRequest("session.tools.getBuiltinAgentFlagOverrides", { sessionId }),
+            /**
              * Projects a completed task_complete tool call into its label-safe session event payload.
              *
              * @param params Task-completion tool arguments and final result used to build a label-safe session event payload.
@@ -50846,7 +53506,30 @@ export function createSessionRpc(connection: MessageConnection, sessionId: strin
             modifyRules: async (params: PermissionsModifyRulesParams): Promise<PermissionsModifyRulesResult> =>
                 connection.sendRequest("session.permissions.modifyRules", { ...params, sessionId }),
             /**
-             * Sets whether the client wants permission prompts bridged into session events.
+             * Reads effective escalation and the original launch baseline from the session permission owner.
+             *
+             * @returns Effective permission escalation and the original launch baseline.
+             */
+            getAllowAll: async (): Promise<SessionPermissionsGetAllowAllResult> =>
+                connection.sendRequest("session.permissions.getAllowAll", { sessionId }),
+            /**
+             * Checks whether the session's current managed policy requires review of a permission request.
+             *
+             * @param params Permission request to evaluate against the session's current managed policy.
+             *
+             * @returns True when the session's current managed policy requires review.
+             */
+            managedReviewRequired: async (params: SessionPermissionsManagedReviewRequiredRequest): Promise<SessionPermissionsManagedReviewRequiredResult> =>
+                connection.sendRequest("session.permissions.managedReviewRequired", { ...params, sessionId }),
+            /**
+             * Reads whether permission prompts must produce session events after pending original-host permission updates settle. Hosts use this authoritative state before a temporary permission provider takes ownership.
+             *
+             * @returns Whether permission prompts must produce session events.
+             */
+            getRequired: async (): Promise<SessionPermissionsGetRequiredResult> =>
+                connection.sendRequest("session.permissions.getRequired", { sessionId }),
+            /**
+             * Sets a direct host requirement for permission events, or registers and releases a connection-scoped provider without overriding later host controls.
              *
              * @param params Toggles whether permission prompts should be bridged into session events for this client.
              *
@@ -50879,6 +53562,16 @@ export function createSessionRpc(connection: MessageConnection, sessionId: strin
              */
             notifyPromptShown: async (params: PermissionPromptShownNotification): Promise<PermissionsNotifyPromptShownResult> =>
                 connection.sendRequest("session.permissions.notifyPromptShown", { ...params, sessionId }),
+            /** @experimental */
+            additionalDirectories: {
+                /**
+                 * Returns the session's model-facing additional directory ledger, separate from its tool-access grants.
+                 *
+                 * @returns The session's model-facing additional directory ledger, separate from its tool-access grants.
+                 */
+                list: async (): Promise<PermissionsAdditionalDirectoriesListResult> =>
+                    connection.sendRequest("session.permissions.additionalDirectories.list", { sessionId }),
+            },
             /** @experimental */
             paths: {
                 /**
@@ -50989,19 +53682,17 @@ export function createSessionRpc(connection: MessageConnection, sessionId: strin
                     connection.sendRequest("session.permissions.urls.setUnrestrictedMode", { ...params, sessionId }),
             },
         },
-        /**
-         * Emits a user-visible session log event.
-         *
-         * @param params Message text, optional severity level, persistence flag, optional follow-up URL, and optional tip.
-         *
-         * @returns Identifier of the session event that was emitted for the log message.
-         *
-         * @experimental
-         */
-        log: async (params: LogRequest): Promise<LogResult> =>
-            connection.sendRequest("session.log", { ...params, sessionId }),
         /** @experimental */
         metadata: {
+            /**
+             * Reads repository context only when the session host permits local Git operations.
+             *
+             * @param params Working directory context options. Git access follows the original session host's authority.
+             *
+             * @returns Session host's working directory and optional repository context.
+             */
+            getWorkingDirectoryContext: async (params: SessionMetadataGetWorkingDirectoryContextRequest): Promise<SessionMetadataGetWorkingDirectoryContextResult> =>
+                connection.sendRequest("session.metadata.getWorkingDirectoryContext", { ...params, sessionId }),
             /**
              * Returns a snapshot of the session's identifying metadata, mode, agent, and remote info.
              *
@@ -51092,6 +53783,17 @@ export function createSessionRpc(connection: MessageConnection, sessionId: strin
             recomputeContextTokens: async (params: MetadataRecomputeContextTokensRequest): Promise<MetadataRecomputeContextTokensResult> =>
                 connection.sendRequest("session.metadata.recomputeContextTokens", { ...params, sessionId }),
         },
+        /**
+         * Emits a user-visible session log event.
+         *
+         * @param params Message text, optional severity level, persistence flag, optional follow-up URL, and optional tip.
+         *
+         * @returns Identifier of the session event that was emitted for the log message.
+         *
+         * @experimental
+         */
+        log: async (params: LogRequest): Promise<LogResult> =>
+            connection.sendRequest("session.log", { ...params, sessionId }),
         /** @experimental */
         contentExclusion: {
             /**

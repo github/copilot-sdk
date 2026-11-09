@@ -36,6 +36,9 @@ public final class ToolExecutionStartEvent extends SessionEvent {
     @JsonInclude(JsonInclude.Include.NON_NULL)
     @com.fasterxml.jackson.databind.annotation.JsonDeserialize(using = ToolExecutionStartEventData.$NullableDeserializer.class)
     public record ToolExecutionStartEventData(
+        /** Host-owned call ID of the run_program invocation that requested this child tool. Its result is program input, not a model message; agent attribution remains independent. */
+        @CopilotExperimental
+        @JsonProperty("programToolCallId") String programToolCallId,
         /** Unique identifier for this tool call */
         @JsonProperty("toolCallId") String toolCallId,
         /** Name of the tool being executed */
@@ -80,6 +83,104 @@ public final class ToolExecutionStartEvent extends SessionEvent {
     ) {
 
         /**
+         * Creates event data without program provenance while retaining explicit-null tracking.
+         * @deprecated Use named construction via {@link #builder()}.
+         * @param toolCallId Unique identifier for this tool call
+         * @param toolName Name of the tool being executed
+         * @param toolTitle Human-readable display title for the tool, when the selected tool descriptor has a non-empty title.
+         * @param readOnly Whether the selected tool descriptor explicitly classifies this call as read-only.
+         * @param arguments Arguments passed to the tool
+         * @param shellToolInfo Shell-tool path hints derived from the command at start time for shell tools (bash/powershell/local_shell). Produced by the same shell-aware extractor as PermissionRequestShell.possiblePaths, so it is present even when the command is auto-approved and no permission request fires. Absent for non-shell tools.
+         * @param model Model identifier that generated this tool call
+         * @param rte Per-request treatment/eligibility signal returned by the Copilot API in the `X-GitHub-Copilot-Request-TE` response header for the associated model call; `false` when the header was absent or unparseable.
+         * @param mcpServerName Configured key of the MCP server hosting this tool. Legacy events may contain the display name instead; prefer mcpConfigServerName for their identity when available.
+         * @param mcpConfigServerName Configured MCP server key, retained for compatibility. New events write the same value as mcpServerName; on legacy events this field distinguishes the configured key from the display name in mcpServerName. Unrestricted provenance telemetry hashes this key to join with mcp_server_setup.
+         * @param mcpToolName Original tool name on the MCP server, when the tool is an MCP tool
+         * @param mcpTransport Transport the MCP server hosting this tool is connected over, when the tool is an MCP tool and the server is configured
+         * @param mcpConfigSource Where the MCP server's configuration came from (`user`, `workspace`, `plugin`, or `builtin`), when the tool is an MCP tool and the server is configured
+         * @param turnId Identifier for the agent loop turn this tool was invoked in, matching the corresponding assistant.turn_start event
+         * @param displayVerbatim When true, the tool output should be displayed expanded (verbatim) in the CLI timeline
+         * @param toolDescription Tool definition metadata, present for MCP tools with MCP Apps support
+         * @param parentToolCallId Tool call ID of the parent tool invocation when this event originates from a sub-agent
+         * @param fusion Experimental HydraFusion attribution for this tool execution.
+         * @param mcpServerDisplayName Explicitly configured MCP server display name.
+         * @param $explicitNulls nullable properties explicitly set to null
+         */
+        @Deprecated(since = "2.0.0", forRemoval = false)
+        public ToolExecutionStartEventData(
+            String toolCallId,
+            String toolName,
+            String toolTitle,
+            Boolean readOnly,
+            Object arguments,
+            ToolExecutionStartShellToolInfo shellToolInfo,
+            String model,
+            Boolean rte,
+            String mcpServerName,
+            String mcpConfigServerName,
+            String mcpToolName,
+            McpServerTransport mcpTransport,
+            McpServerSource mcpConfigSource,
+            String turnId,
+            Boolean displayVerbatim,
+            ToolExecutionStartToolDescription toolDescription,
+            String parentToolCallId,
+            FusionAttribution fusion,
+            String mcpServerDisplayName,
+            java.util.Set<String> $explicitNulls
+        ) {
+            this(null, toolCallId, toolName, toolTitle, readOnly, arguments, shellToolInfo, model, rte, mcpServerName, mcpConfigServerName, mcpToolName, mcpTransport, mcpConfigSource, turnId, displayVerbatim, toolDescription, parentToolCallId, fusion, mcpServerDisplayName, $explicitNulls);
+        }
+
+        /**
+         * Creates tool execution data without program provenance.
+         * @deprecated Use named construction via {@link #builder()}.
+         * @param toolCallId Unique identifier for this tool call
+         * @param toolName Name of the tool being executed
+         * @param toolTitle Human-readable display title for the tool, when the selected tool descriptor has a non-empty title.
+         * @param readOnly Whether the selected tool descriptor explicitly classifies this call as read-only.
+         * @param arguments Arguments passed to the tool
+         * @param shellToolInfo Shell-tool path hints derived from the command at start time for shell tools (bash/powershell/local_shell). Produced by the same shell-aware extractor as PermissionRequestShell.possiblePaths, so it is present even when the command is auto-approved and no permission request fires. Absent for non-shell tools.
+         * @param model Model identifier that generated this tool call
+         * @param rte Per-request treatment/eligibility signal returned by the Copilot API in the `X-GitHub-Copilot-Request-TE` response header for the associated model call; `false` when the header was absent or unparseable.
+         * @param mcpServerName Configured key of the MCP server hosting this tool. Legacy events may contain the display name instead; prefer mcpConfigServerName for their identity when available.
+         * @param mcpConfigServerName Configured MCP server key, retained for compatibility. New events write the same value as mcpServerName; on legacy events this field distinguishes the configured key from the display name in mcpServerName. Unrestricted provenance telemetry hashes this key to join with mcp_server_setup.
+         * @param mcpToolName Original tool name on the MCP server, when the tool is an MCP tool
+         * @param mcpTransport Transport the MCP server hosting this tool is connected over, when the tool is an MCP tool and the server is configured
+         * @param mcpConfigSource Where the MCP server's configuration came from (`user`, `workspace`, `plugin`, or `builtin`), when the tool is an MCP tool and the server is configured
+         * @param turnId Identifier for the agent loop turn this tool was invoked in, matching the corresponding assistant.turn_start event
+         * @param displayVerbatim When true, the tool output should be displayed expanded (verbatim) in the CLI timeline
+         * @param toolDescription Tool definition metadata, present for MCP tools with MCP Apps support
+         * @param parentToolCallId Tool call ID of the parent tool invocation when this event originates from a sub-agent
+         * @param fusion Experimental HydraFusion attribution for this tool execution.
+         * @param mcpServerDisplayName Explicitly configured MCP server display name.
+         */
+        @Deprecated(since = "2.0.0", forRemoval = false)
+        public ToolExecutionStartEventData(
+            String toolCallId,
+            String toolName,
+            String toolTitle,
+            Boolean readOnly,
+            Object arguments,
+            ToolExecutionStartShellToolInfo shellToolInfo,
+            String model,
+            Boolean rte,
+            String mcpServerName,
+            String mcpConfigServerName,
+            String mcpToolName,
+            McpServerTransport mcpTransport,
+            McpServerSource mcpConfigSource,
+            String turnId,
+            Boolean displayVerbatim,
+            ToolExecutionStartToolDescription toolDescription,
+            String parentToolCallId,
+            FusionAttribution fusion,
+            String mcpServerDisplayName
+        ) {
+            this(null, toolCallId, toolName, toolTitle, readOnly, arguments, shellToolInfo, model, rte, mcpServerName, mcpConfigServerName, mcpToolName, mcpTransport, mcpConfigSource, turnId, displayVerbatim, toolDescription, parentToolCallId, fusion, mcpServerDisplayName, java.util.Set.of());
+        }
+
+        /**
          * Creates a record with the components it had before later optional fields were added.
          * @deprecated Use named construction via {@link #builder()}.
          * @param toolCallId Unique identifier for this tool call
@@ -120,7 +221,7 @@ public final class ToolExecutionStartEvent extends SessionEvent {
             String parentToolCallId,
             FusionAttribution fusion
         ) {
-            this(toolCallId, toolName, toolTitle, null, arguments, shellToolInfo, model, rte, mcpServerName, mcpConfigServerName, mcpToolName, mcpTransport, mcpConfigSource, turnId, displayVerbatim, toolDescription, parentToolCallId, fusion, null);
+            this(null, toolCallId, toolName, toolTitle, null, arguments, shellToolInfo, model, rte, mcpServerName, mcpConfigServerName, mcpToolName, mcpTransport, mcpConfigSource, turnId, displayVerbatim, toolDescription, parentToolCallId, fusion, null, java.util.Set.of());
         }
 
         /**
@@ -129,15 +230,6 @@ public final class ToolExecutionStartEvent extends SessionEvent {
          */
         @Deprecated(since = "2.0.0", forRemoval = false)
         public ToolExecutionStartEventData { $explicitNulls = $explicitNulls == null ? java.util.Set.of() : java.util.Set.copyOf($explicitNulls); }
-
-        /**
-         * Creates a record with legacy null-as-omission semantics.
-         * @deprecated Use {@link #builder()} for named construction.
-         */
-        @Deprecated(since = "2.0.0", forRemoval = false)
-        public ToolExecutionStartEventData(String toolCallId, String toolName, String toolTitle, Boolean readOnly, Object arguments, ToolExecutionStartShellToolInfo shellToolInfo, String model, Boolean rte, String mcpServerName, String mcpConfigServerName, String mcpToolName, McpServerTransport mcpTransport, McpServerSource mcpConfigSource, String turnId, Boolean displayVerbatim, ToolExecutionStartToolDescription toolDescription, String parentToolCallId, FusionAttribution fusion, String mcpServerDisplayName) {
-            this(toolCallId, toolName, toolTitle, readOnly, arguments, shellToolInfo, model, rte, mcpServerName, mcpConfigServerName, mcpToolName, mcpTransport, mcpConfigSource, turnId, displayVerbatim, toolDescription, parentToolCallId, fusion, mcpServerDisplayName, java.util.Set.of());
-        }
 
         /**
          * Returns a named builder.
@@ -152,12 +244,13 @@ public final class ToolExecutionStartEvent extends SessionEvent {
          */
         public static final class Builder {
             private Builder() {}
+            private String programToolCallId;
             private String toolCallId;
             private String toolName;
             private String toolTitle;
             private Boolean readOnly;
             private Object arguments;
-            private boolean $presence4;
+            private boolean $presence5;
             private ToolExecutionStartShellToolInfo shellToolInfo;
             private String model;
             private Boolean rte;
@@ -172,6 +265,18 @@ public final class ToolExecutionStartEvent extends SessionEvent {
             private String parentToolCallId;
             private FusionAttribution fusion;
             private String mcpServerDisplayName;
+
+            /**
+             * Sets the {@code programToolCallId} property.
+             * @param value the property value
+             * @return this builder
+             * @since 2.0.0
+             */
+            @com.github.copilot.CopilotExperimental
+            public Builder programToolCallId(String value) {
+                this.programToolCallId = value;
+                return this;
+            }
 
             /**
              * Sets the {@code toolCallId} property.
@@ -225,7 +330,7 @@ public final class ToolExecutionStartEvent extends SessionEvent {
              */
             public Builder arguments(Object value) {
                 this.arguments = value;
-                this.$presence4 = true;
+                this.$presence5 = true;
                 return this;
             }
 
@@ -394,8 +499,8 @@ public final class ToolExecutionStartEvent extends SessionEvent {
                 if (toolCallId == null) throw new IllegalStateException("Missing required property: toolCallId");
                 if (toolName == null) throw new IllegalStateException("Missing required property: toolName");
                 java.util.Set<String> $explicitNulls = new java.util.LinkedHashSet<>();
-                if ($presence4 && arguments == null) $explicitNulls.add("arguments");
-                return new ToolExecutionStartEventData(toolCallId, toolName, toolTitle, readOnly, arguments, shellToolInfo, model, rte, mcpServerName, mcpConfigServerName, mcpToolName, mcpTransport, mcpConfigSource, turnId, displayVerbatim, toolDescription, parentToolCallId, fusion, mcpServerDisplayName, $explicitNulls);
+                if ($presence5 && arguments == null) $explicitNulls.add("arguments");
+                return new ToolExecutionStartEventData(programToolCallId, toolCallId, toolName, toolTitle, readOnly, arguments, shellToolInfo, model, rte, mcpServerName, mcpConfigServerName, mcpToolName, mcpTransport, mcpConfigSource, turnId, displayVerbatim, toolDescription, parentToolCallId, fusion, mcpServerDisplayName, $explicitNulls);
             }
         }
 
@@ -415,7 +520,7 @@ public final class ToolExecutionStartEvent extends SessionEvent {
                 if (!tree.isObject()) return context.reportInputMismatch(ToolExecutionStartEventData.class, "Expected a JSON object");
                 java.util.Set<String> $explicitNulls = new java.util.LinkedHashSet<>();
                 if (tree.has("arguments") && tree.get("arguments").isNull()) $explicitNulls.add("arguments");
-                return new ToolExecutionStartEventData(readProperty(context, tree, "toolCallId", new com.fasterxml.jackson.core.type.TypeReference<String>() {}), readProperty(context, tree, "toolName", new com.fasterxml.jackson.core.type.TypeReference<String>() {}), readProperty(context, tree, "toolTitle", new com.fasterxml.jackson.core.type.TypeReference<String>() {}), readProperty(context, tree, "readOnly", new com.fasterxml.jackson.core.type.TypeReference<Boolean>() {}), readProperty(context, tree, "arguments", new com.fasterxml.jackson.core.type.TypeReference<Object>() {}), readProperty(context, tree, "shellToolInfo", new com.fasterxml.jackson.core.type.TypeReference<ToolExecutionStartShellToolInfo>() {}), readProperty(context, tree, "model", new com.fasterxml.jackson.core.type.TypeReference<String>() {}), readProperty(context, tree, "rte", new com.fasterxml.jackson.core.type.TypeReference<Boolean>() {}), readProperty(context, tree, "mcpServerName", new com.fasterxml.jackson.core.type.TypeReference<String>() {}), readProperty(context, tree, "mcpConfigServerName", new com.fasterxml.jackson.core.type.TypeReference<String>() {}), readProperty(context, tree, "mcpToolName", new com.fasterxml.jackson.core.type.TypeReference<String>() {}), readProperty(context, tree, "mcpTransport", new com.fasterxml.jackson.core.type.TypeReference<McpServerTransport>() {}), readProperty(context, tree, "mcpConfigSource", new com.fasterxml.jackson.core.type.TypeReference<McpServerSource>() {}), readProperty(context, tree, "turnId", new com.fasterxml.jackson.core.type.TypeReference<String>() {}), readProperty(context, tree, "displayVerbatim", new com.fasterxml.jackson.core.type.TypeReference<Boolean>() {}), readProperty(context, tree, "toolDescription", new com.fasterxml.jackson.core.type.TypeReference<ToolExecutionStartToolDescription>() {}), readProperty(context, tree, "parentToolCallId", new com.fasterxml.jackson.core.type.TypeReference<String>() {}), readProperty(context, tree, "fusion", new com.fasterxml.jackson.core.type.TypeReference<FusionAttribution>() {}), readProperty(context, tree, "mcpServerDisplayName", new com.fasterxml.jackson.core.type.TypeReference<String>() {}), $explicitNulls);
+                return new ToolExecutionStartEventData(readProperty(context, tree, "programToolCallId", new com.fasterxml.jackson.core.type.TypeReference<String>() {}), readProperty(context, tree, "toolCallId", new com.fasterxml.jackson.core.type.TypeReference<String>() {}), readProperty(context, tree, "toolName", new com.fasterxml.jackson.core.type.TypeReference<String>() {}), readProperty(context, tree, "toolTitle", new com.fasterxml.jackson.core.type.TypeReference<String>() {}), readProperty(context, tree, "readOnly", new com.fasterxml.jackson.core.type.TypeReference<Boolean>() {}), readProperty(context, tree, "arguments", new com.fasterxml.jackson.core.type.TypeReference<Object>() {}), readProperty(context, tree, "shellToolInfo", new com.fasterxml.jackson.core.type.TypeReference<ToolExecutionStartShellToolInfo>() {}), readProperty(context, tree, "model", new com.fasterxml.jackson.core.type.TypeReference<String>() {}), readProperty(context, tree, "rte", new com.fasterxml.jackson.core.type.TypeReference<Boolean>() {}), readProperty(context, tree, "mcpServerName", new com.fasterxml.jackson.core.type.TypeReference<String>() {}), readProperty(context, tree, "mcpConfigServerName", new com.fasterxml.jackson.core.type.TypeReference<String>() {}), readProperty(context, tree, "mcpToolName", new com.fasterxml.jackson.core.type.TypeReference<String>() {}), readProperty(context, tree, "mcpTransport", new com.fasterxml.jackson.core.type.TypeReference<McpServerTransport>() {}), readProperty(context, tree, "mcpConfigSource", new com.fasterxml.jackson.core.type.TypeReference<McpServerSource>() {}), readProperty(context, tree, "turnId", new com.fasterxml.jackson.core.type.TypeReference<String>() {}), readProperty(context, tree, "displayVerbatim", new com.fasterxml.jackson.core.type.TypeReference<Boolean>() {}), readProperty(context, tree, "toolDescription", new com.fasterxml.jackson.core.type.TypeReference<ToolExecutionStartToolDescription>() {}), readProperty(context, tree, "parentToolCallId", new com.fasterxml.jackson.core.type.TypeReference<String>() {}), readProperty(context, tree, "fusion", new com.fasterxml.jackson.core.type.TypeReference<FusionAttribution>() {}), readProperty(context, tree, "mcpServerDisplayName", new com.fasterxml.jackson.core.type.TypeReference<String>() {}), $explicitNulls);
             }
 
             private static <T> T readProperty(com.fasterxml.jackson.databind.DeserializationContext context,

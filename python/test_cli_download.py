@@ -10,8 +10,9 @@ import subprocess
 import sys
 import tarfile
 from concurrent.futures import ThreadPoolExecutor
+from contextlib import ExitStack
 from http.client import IncompleteRead
-from threading import Barrier
+from threading import Barrier, Event
 from types import SimpleNamespace
 from unittest.mock import MagicMock, patch
 
@@ -351,7 +352,60 @@ def test_concurrent_staging_materializes_one_complete_bundle(tmp_path, repair):
     assert (install_dir / ".hostless-runtime-assets-v2").is_file()
     assert not list((cache_dir / "prebuilds").glob(".runtime-bundle-*"))
     assert not (cache_dir / "packages").exists()
-    assert fetch_mock.call_count == 4
+    assert len(fetch_mock.call_args_list) == 4
+
+
+@pytest.mark.skipif(os.name != "nt", reason="Windows byte-range locking")
+@pytest.mark.parametrize("lock_contents", [b"", b"\0"])
+def test_windows_cold_install_waits_for_the_bundle_lock(tmp_path, lock_contents):
+    import msvcrt
+
+    version = "1.2.3"
+    runtime_platform = "win32-x64"
+    cache_dir = tmp_path / "cache"
+    install_dir = cache_dir / "prebuilds" / runtime_platform
+    install_dir.parent.mkdir(parents=True)
+    lock_path = install_dir.parent / f".runtime-bundle.{runtime_platform}.lock"
+    lock_path.write_bytes(lock_contents)
+    data = _release_package(runtime_platform)
+    waiting = Event()
+    locking = msvcrt.locking
+    sleep = _cli_download.time.sleep
+
+    def observe_contention(seconds):
+        waiting.set()
+        sleep(seconds)
+
+    with lock_path.open("r+b") as holder:
+        # Windows can lock byte 0 even before the lock file has any contents.
+        locking(holder.fileno(), msvcrt.LK_NBLCK, 1)
+        with (
+            patch.object(_cli_download, "get_cache_dir", return_value=cache_dir),
+            patch.object(_cli_download, "get_runtime_platform", return_value=runtime_platform),
+            patch.object(
+                _cli_download,
+                "_fetch_url_bytes",
+                side_effect=_release_fetches(version, runtime_platform, data),
+            ),
+            patch.object(_cli_download.time, "sleep", side_effect=observe_contention),
+            ThreadPoolExecutor(max_workers=1) as executor,
+        ):
+            future = executor.submit(_cli_download.ensure_runtime_wrapper, version)
+            future.add_done_callback(lambda _: waiting.set())
+            try:
+                assert waiting.wait(10), "Installer never reached the held bundle lock"
+                if future.done():
+                    future.result()
+                assert not install_dir.exists()
+            finally:
+                locking(holder.fileno(), msvcrt.LK_UNLCK, 1)
+            wrapper = future.result(timeout=10)
+
+    assert wrapper == str(install_dir / "copilot-runtime.exe")
+    assert (install_dir / "copilot-runtime.exe").read_bytes() == b"wrapper"
+    assert (install_dir / "runtime.node").read_bytes() == b"runtime"
+    assert (install_dir / ".hostless-runtime-assets-v2").is_file()
+    assert not list(install_dir.parent.glob(".runtime-bundle-*"))
 
 
 def test_runtime_bundle_repair_holds_cross_process_lock(tmp_path):
@@ -373,23 +427,26 @@ def test_runtime_bundle_repair_holds_cross_process_lock(tmp_path):
     data = _release_package(runtime_platform)
     remove_tree = shutil.rmtree
 
-    def remove_under_lock(path, *args, **kwargs):
-        if path == install_dir:
-            result = subprocess.run(
-                [
-                    sys.executable,
-                    "-c",
-                    """
+    def assert_other_installer_cannot_enter():
+        result = subprocess.run(
+            [
+                sys.executable,
+                "-c",
+                """
 import os
 import sys
 if os.name == "nt":
     import msvcrt
-    # The parent already seeded the file and holds byte 0; writing it would fail.
-    lock = os.open(sys.argv[1], os.O_RDWR)
-    try:
-        msvcrt.locking(lock, msvcrt.LK_NBLCK, 1)
-    except OSError:
-        sys.exit(0)
+    with open(sys.argv[1], "a+b") as lock:
+        # Older installers seed empty files before trying to lock them.
+        if lock.tell() == 0:
+            lock.write(b"\\0")
+            lock.flush()
+        lock.seek(0)
+        try:
+            msvcrt.locking(lock.fileno(), msvcrt.LK_NBLCK, 1)
+        except OSError:
+            sys.exit(0)
 else:
     import fcntl
     lock = os.open(sys.argv[1], os.O_RDONLY)
@@ -399,13 +456,17 @@ else:
         sys.exit(0)
 sys.exit("Another installer can enter while the old bundle is being removed")
 """,
-                    str(lock_path),
-                ],
-                capture_output=True,
-                text=True,
-                timeout=10,
-            )
-            assert result.returncode == 0, result.stderr
+                str(lock_path),
+            ],
+            capture_output=True,
+            text=True,
+            timeout=10,
+        )
+        assert result.returncode == 0, result.stderr
+
+    def remove_under_lock(path, *args, **kwargs):
+        if path == install_dir:
+            assert_other_installer_cannot_enter()
         return remove_tree(path, *args, **kwargs)
 
     with (
@@ -417,7 +478,22 @@ sys.exit("Another installer can enter while the old bundle is being removed")
             side_effect=_release_fetches(version, runtime_platform, data),
         ),
         patch.object(shutil, "rmtree", side_effect=remove_under_lock),
+        ExitStack() as stack,
     ):
+        if os.name == "nt":
+            import msvcrt
+
+            locking = msvcrt.locking
+
+            def check_immediately_after_acquisition(fd, operation, length):
+                result = locking(fd, operation, length)
+                if operation == msvcrt.LK_NBLCK:
+                    assert_other_installer_cannot_enter()
+                return result
+
+            stack.enter_context(
+                patch.object(msvcrt, "locking", side_effect=check_immediately_after_acquisition)
+            )
         wrapper = _cli_download.ensure_runtime_wrapper(version)
 
     assert wrapper == str(install_dir / wrapper_name)

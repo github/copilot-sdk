@@ -54,6 +54,7 @@ public record AgentInfo(
     @JsonProperty("reasoningEffort") String reasoningEffort,
     /** MCP server configurations attached to this agent, keyed by server name. Server config shape mirrors the MCP `mcpServers` schema. */
     @CopilotExperimental
+    @JsonInclude(value = JsonInclude.Include.NON_NULL, content = JsonInclude.Include.ALWAYS)
     @JsonProperty("mcpServers") Map<String, Object> mcpServers,
     /** Skill names preloaded into this agent's context. Omitted means none. */
     @JsonProperty("skills") List<String> skills,

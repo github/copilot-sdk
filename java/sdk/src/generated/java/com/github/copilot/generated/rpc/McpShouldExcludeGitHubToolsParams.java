@@ -30,7 +30,7 @@ record McpShouldExcludeGitHubToolsParams(
     @JsonProperty("availableTools") List<String> availableTools,
     /** The session's tool denylist, when it set one. Omitted means the session constrains nothing this way. */
     @JsonProperty("excludedTools") List<String> excludedTools,
-    /** How the allowlist and denylist combine when both are set. Omitted means the default every session gets, so a caller that never chose a precedence is answered as its sessions behave. */
+    /** How the allowlist and denylist combine when both are set. Omitted uses the default excluded precedence; supply the session's explicit Update selection when present. */
     @JsonProperty("toolFilterPrecedence") OptionsUpdateToolFilterPrecedence toolFilterPrecedence,
     @com.fasterxml.jackson.annotation.JsonIgnore java.util.Set<String> $explicitNulls
 ) {

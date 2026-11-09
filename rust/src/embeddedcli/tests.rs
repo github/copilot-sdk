@@ -11,7 +11,7 @@ fn cache_selection_failure_can_be_retried() {
     let fixture = tempfile::tempdir().expect("temporary fixture");
     let root = fixture.path().join("cache");
     fs::write(&root, b"blocked cache").expect("block cache selection");
-    let cache = OnceLock::new();
+    let cache = Mutex::new(None);
     let select_dir = || {
         fs::create_dir_all(&root).map_err(|error| crate::ErrorKind::BinaryNotFound {
             name: "copilot".into(),
@@ -22,14 +22,12 @@ fn cache_selection_failure_can_be_retried() {
     let install = |dir: &Path| {
         let path = dir.join("copilot");
         fs::write(&path, b"installed").expect("install into selected cache");
-        Some(path)
+        Ok(path)
     };
 
     cached_install(&cache, select_dir, install).expect_err("blocked cache must fail");
     fs::remove_file(&root).expect("correct cache location");
-    let path = cached_install(&cache, select_dir, install)
-        .expect("retry after correcting cache")
-        .expect("installed path");
+    let path = cached_install(&cache, select_dir, install).expect("retry after correcting cache");
     assert_eq!(fs::read(&path).expect("installed bytes"), b"installed");
     assert_eq!(
         cached_install(
@@ -38,7 +36,324 @@ fn cache_selection_failure_can_be_retried() {
             |_| panic!("warm cache must not repeat installation"),
         )
         .expect("warm installation"),
-        Some(path)
+        path
+    );
+}
+
+#[test]
+fn install_failure_is_reported_and_can_be_retried() {
+    let fixture = tempfile::tempdir().expect("temporary fixture");
+    let blocker = fixture.path().join("cache");
+    fs::write(&blocker, b"not a directory").expect("block install directory");
+    let dir = blocker.join("cli");
+    let cache = Mutex::new(None);
+    let install = |dir: &Path| -> Result<PathBuf, crate::Error> {
+        fs::create_dir_all(dir).map_err(|error| {
+            install_failed(
+                "copilot",
+                dir,
+                &EmbeddedCliError::new(EmbeddedCliErrorKind::CreateDir, error),
+            )
+        })?;
+        let path = dir.join("copilot");
+        fs::write(&path, b"installed").expect("install into selected cache");
+        Ok(path)
+    };
+
+    let message = cached_install(&cache, || Ok(dir.clone()), install)
+        .expect_err("blocked install must fail")
+        .to_string();
+    assert!(message.contains(&dir.display().to_string()), "{message}");
+    assert!(
+        message.contains("failed to create install directory: "),
+        "{message}"
+    );
+    assert!(!message.contains("not bundled"), "{message}");
+
+    fs::remove_file(&blocker).expect("correct install directory");
+    let path = cached_install(&cache, || Ok(dir.clone()), install)
+        .expect("retry after correcting install directory");
+    assert_eq!(fs::read(&path).expect("installed bytes"), b"installed");
+    assert_eq!(
+        cached_install(
+            &cache,
+            || panic!("warm cache must not repeat directory selection"),
+            |_| panic!("warm cache must not repeat installation"),
+        )
+        .expect("warm installation"),
+        path
+    );
+}
+
+#[test]
+fn callers_that_start_together_on_one_dir_share_one_install() {
+    let fixture = tempfile::tempdir().expect("temporary fixture");
+    let dir = fixture.path().join("extract");
+    let installs = DirInstalls::default();
+    let runs = AtomicU64::new(0);
+    let install = || -> Result<PathBuf, crate::Error> {
+        runs.fetch_add(1, Ordering::SeqCst);
+        let path = dir.join("copilot");
+        fs::write(&path, b"installed").expect("install into extract dir");
+        Ok(path)
+    };
+
+    let entry = DirInstall::for_dir(&installs, &dir);
+    assert!(
+        Arc::ptr_eq(
+            &entry.entry,
+            &DirInstall::for_dir(&installs, &dir.join("..").join("extract")).entry
+        ),
+        "another spelling of the directory must share its installs"
+    );
+    // Four callers arrive before any install into the directory finishes,
+    // whichever of them then gets to run first.
+    let arrivals: Vec<u64> = (0..4)
+        .map(|_| entry.entry.finished.load(Ordering::Acquire))
+        .collect();
+    let entry = &entry.entry;
+    let paths: Vec<PathBuf> = std::thread::scope(|scope| {
+        let callers: Vec<_> = arrivals
+            .into_iter()
+            .map(|arrived| scope.spawn(move || entry.run(arrived, install)))
+            .collect();
+        callers
+            .into_iter()
+            .map(|caller| caller.join().expect("caller").expect("install"))
+            .collect()
+    });
+    assert_eq!(
+        runs.load(Ordering::SeqCst),
+        1,
+        "callers that started together must share one install"
+    );
+    assert!(
+        paths.iter().all(|path| *path == dir.join("copilot")),
+        "{paths:?}"
+    );
+
+    // A caller that arrives after that install finished re-checks the files.
+    assert_eq!(
+        install_once_at(&installs, &dir, install).expect("later install"),
+        dir.join("copilot")
+    );
+    assert_eq!(runs.load(Ordering::SeqCst), 2);
+}
+
+#[test]
+fn a_caller_waiting_on_a_failed_install_runs_its_own() {
+    let fixture = tempfile::tempdir().expect("temporary fixture");
+    let dir = fixture.path().join("extract");
+    let installs = DirInstalls::default();
+    let entry = DirInstall::for_dir(&installs, &dir);
+    let entry = &entry.entry;
+    let first = entry.finished.load(Ordering::Acquire);
+    let second = entry.finished.load(Ordering::Acquire);
+
+    let message = entry
+        .run(first, || {
+            Err(install_failed(
+                "copilot",
+                &dir,
+                &EmbeddedCliError::with_message(EmbeddedCliErrorKind::Io, "disk full"),
+            ))
+        })
+        .expect_err("first install fails")
+        .to_string();
+    assert!(message.contains("disk full"), "{message}");
+    assert_eq!(
+        entry
+            .run(second, || Ok(dir.join("copilot")))
+            .expect("waiting caller installs itself"),
+        dir.join("copilot")
+    );
+}
+
+#[test]
+fn shared_install_paths_are_absolute() {
+    let cwd = std::env::current_dir().expect("working directory");
+    let fixture = tempfile::tempdir_in(&cwd).expect("temporary fixture");
+    let relative = fixture.path().strip_prefix(&cwd).expect("relative fixture");
+    let entry = DirInstall::default();
+    let first = entry.finished.load(Ordering::Acquire);
+    let waiting = entry.finished.load(Ordering::Acquire);
+
+    let installed = entry
+        .run(first, || Ok(relative.join("copilot")))
+        .expect("first install");
+    let shared = entry
+        .run(waiting, || panic!("waiting caller must share installation"))
+        .expect("shared install");
+    assert_eq!(installed, fixture.path().join("copilot"));
+    assert_eq!(shared, installed);
+}
+
+#[test]
+fn completed_directory_installs_release_their_registry_entries() {
+    let fixture = tempfile::tempdir().expect("temporary fixture");
+    let installs = DirInstalls::default();
+    for name in ["success", "failure"] {
+        let dir = fixture.path().join(name);
+        let result = install_once_at(&installs, &dir, || {
+            if name == "failure" {
+                Err(std::io::Error::other("install failed").into())
+            } else {
+                Ok(dir.join("copilot"))
+            }
+        });
+        assert_eq!(result.is_ok(), name == "success");
+        assert!(
+            installs.lock().expect("registry").is_empty(),
+            "completed {name} must not retain its directory"
+        );
+    }
+}
+
+#[test]
+fn directory_install_guard_preserves_active_waiters() {
+    let fixture = tempfile::tempdir().expect("temporary fixture");
+    let installs = DirInstalls::default();
+    let first = DirInstall::for_dir(&installs, fixture.path());
+    let waiting = DirInstall::for_dir(&installs, fixture.path());
+    let weak = Arc::downgrade(&first.entry);
+    drop(first);
+    let later = DirInstall::for_dir(&installs, fixture.path());
+    assert!(
+        Arc::ptr_eq(&waiting.entry, &later.entry),
+        "a new caller must still join the active waiter"
+    );
+    drop(waiting);
+    drop(later);
+    assert!(
+        weak.upgrade().is_none(),
+        "last caller must release the entry"
+    );
+    assert!(installs.lock().expect("registry").is_empty());
+}
+
+#[test]
+fn runtime_install_dir_waits_for_the_claimant_to_write_its_version() {
+    let dir = tempfile::tempdir().expect("tempdir");
+    let marker = dir.path().join(RUNTIME_VERSION_MARKER);
+    // What another installer leaves between creating the marker and writing it.
+    fs::write(&marker, b"").expect("create empty marker");
+
+    assert_eq!(
+        try_runtime_install_dir(dir.path(), "1.0.0").expect("observe unfinished claim"),
+        None
+    );
+    fs::write(&marker, "1.0.0").expect("write version");
+    assert_eq!(
+        runtime_install_dir(dir.path(), "1.0.0").expect("select directory"),
+        dir.path()
+    );
+}
+
+#[test]
+fn runtime_install_dir_claims_a_marker_its_claimant_withdrew() {
+    let dir = tempfile::tempdir().expect("tempdir");
+    let marker = dir.path().join(RUNTIME_VERSION_MARKER);
+    fs::write(&marker, b"").expect("create empty marker");
+
+    assert_eq!(
+        try_runtime_install_dir(dir.path(), "1.0.0").expect("observe unfinished claim"),
+        None
+    );
+    // The claimant removes the marker when writing its version fails.
+    fs::remove_file(&marker).expect("withdraw claim");
+    assert_eq!(
+        runtime_install_dir(dir.path(), "1.0.0").expect("select directory"),
+        dir.path()
+    );
+    assert_eq!(fs::read_to_string(&marker).expect("marker"), "1.0.0");
+}
+
+#[test]
+#[cfg(unix)]
+fn runtime_install_dir_retries_after_reading_a_pending_marker() {
+    use std::process::Command;
+    use std::sync::mpsc;
+
+    for publish in [true, false] {
+        let dir = tempfile::tempdir().expect("tempdir");
+        let marker = dir.path().join(RUNTIME_VERSION_MARKER);
+        assert!(
+            Command::new("mkfifo")
+                .arg(&marker)
+                .current_dir(dir.path())
+                .status()
+                .expect("create marker FIFO")
+                .success()
+        );
+
+        std::thread::scope(|scope| {
+            let marker = &marker;
+            let (opened_tx, opened_rx) = mpsc::channel();
+            let writer = scope.spawn(move || {
+                let file = fs::OpenOptions::new()
+                    .write(true)
+                    .open(marker)
+                    .expect("open marker writer");
+                opened_tx.send(file).expect("hand off marker writer");
+            });
+            // A wait far longer than any scheduling delay, so the outcome cannot
+            // depend on how quickly the coordinating thread runs.
+            let selection = scope.spawn(|| {
+                runtime_install_dir_within(dir.path(), "1.0.0", Duration::from_secs(3600))
+            });
+
+            let file = match opened_rx.recv_timeout(Duration::from_secs(10)) {
+                Ok(file) => file,
+                Err(mpsc::RecvTimeoutError::Timeout) => {
+                    // Release the writer even if directory selection never read the marker.
+                    let _reader = fs::File::open(marker).expect("release marker writer");
+                    writer.join().expect("marker writer");
+                    panic!("directory selection did not open the pending marker");
+                }
+                Err(mpsc::RecvTimeoutError::Disconnected) => panic!("marker writer exited"),
+            };
+            writer.join().expect("marker writer");
+
+            // Opening the FIFO writer acknowledges the selector's read. Keep it
+            // empty until the replacement is ready, then deliver EOF so the real
+            // retry loop must observe publication or withdrawal on its next pass.
+            if publish {
+                let replacement = dir.path().join("published-marker");
+                fs::write(&replacement, "1.0.0").expect("write version");
+                fs::rename(&replacement, marker).expect("publish version");
+            } else {
+                fs::remove_file(marker).expect("withdraw claim");
+            }
+            drop(file);
+
+            assert_eq!(
+                selection
+                    .join()
+                    .expect("directory selector")
+                    .expect("select directory"),
+                dir.path(),
+                "publish={publish}"
+            );
+        });
+        assert_eq!(fs::read_to_string(&marker).expect("marker"), "1.0.0");
+    }
+}
+
+#[test]
+fn runtime_install_dir_stops_waiting_for_an_abandoned_marker() {
+    let dir = tempfile::tempdir().expect("tempdir");
+    let marker = dir.path().join(RUNTIME_VERSION_MARKER);
+    let file = fs::File::create(&marker).expect("create empty marker");
+    file.set_modified(std::time::UNIX_EPOCH + Duration::from_secs(1))
+        .expect("age abandoned marker");
+
+    assert!(runtime_marker_is_stale(
+        &marker,
+        RUNTIME_VERSION_MARKER_WAIT
+    ));
+    assert_eq!(
+        runtime_install_dir(dir.path(), "1.0.0").expect("select directory"),
+        dir.path().join("1.0.0")
     );
 }
 
@@ -384,7 +699,6 @@ fn runtime_install_replaces_stale_pair() {
     );
 }
 
-#[cfg(has_bundled_cli)]
 #[test]
 fn custom_runtime_install_dir_isolated_by_version() {
     let dir = tempfile::tempdir().expect("tempdir");

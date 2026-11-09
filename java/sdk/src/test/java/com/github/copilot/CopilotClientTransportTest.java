@@ -314,9 +314,6 @@ class CopilotClientTransportTest {
     @Test
     void inProcessRejectsPerProcessOptions() {
         assertInProcessRejected(new CopilotClientOptions().setEnvironment(Map.of("FOO", "bar")), "Environment");
-        var telemetryError = assertInProcessRejected(new CopilotClientOptions().setTelemetry(new TelemetryConfig()),
-                "Telemetry");
-        assertTrue(telemetryError.getMessage().contains("host process environment"), telemetryError.getMessage());
         assertInProcessRejected(new CopilotClientOptions().setCwd("/tmp"), "Cwd");
         assertInProcessRejected(new CopilotClientOptions().setCliArgs(new String[]{"--log-level", "debug"}), "CliArgs");
     }
@@ -324,12 +321,14 @@ class CopilotClientTransportTest {
     @Test
     void inProcessAcceptsTypedConfiguration() throws Exception {
         var options = new CopilotClientOptions().setConnection(RuntimeConnection.forInProcess())
-                .setCopilotHome("owned-home").setLogLevel("debug");
+                .setCopilotHome("owned-home").setLogLevel("debug")
+                .setTelemetry(new TelemetryConfig().setExporterType("file").setFilePath("/telemetry.jsonl"));
         try (var runtime = new FakeInProcessRuntime(); var client = new CopilotClient(options)) {
             client.setInProcessTransportFactory(received -> {
                 assertEquals(null, received.getEnvironment());
                 assertEquals("owned-home", received.getCopilotHome());
                 assertEquals("debug", received.getLogLevel());
+                assertEquals("/telemetry.jsonl", received.getTelemetry().getFilePath());
                 return runtime.open(received);
             });
             client.start().get(30, TimeUnit.SECONDS);

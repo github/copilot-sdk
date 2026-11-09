@@ -229,6 +229,44 @@ pub(crate) struct SandboxFilterPickerCandidatesResult {
     pub allowed: Vec<bool>,
 }
 
+/// Remote MCP endpoint and the host's existing proxy secret directory.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SandboxGetRemoteMcpEgressRequest {
+    /// Existing proxy secret directory on the runtime host.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub secret_config_dir: Option<String>,
+    /// Target endpoint for the session network policy decision.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub url: Option<String>,
+}
+
+/// Session-owned remote MCP egress decision. A denial forbids connection.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SandboxGetRemoteMcpEgressResult {
+    /// Reason a connection is forbidden; absent when allowed.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub denied_reason: Option<String>,
+    /// Authorized proxy URL; absent for a direct connection or a denial.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub proxy_url: Option<String>,
+}
+
 /// Request to accept the sandbox path grant offered on an active sandbox escalation permission prompt.
 ///
 /// <div class="warning">

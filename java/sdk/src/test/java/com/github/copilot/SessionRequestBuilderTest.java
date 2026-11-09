@@ -19,6 +19,7 @@ import com.github.copilot.generated.rpc.DiagnosticSourcesConfiguration;
 import com.github.copilot.generated.rpc.DiagnosticsConfiguration;
 import com.github.copilot.generated.rpc.McpDiagnosticSourceConfiguration;
 import com.github.copilot.generated.rpc.PermissionMode;
+import com.github.copilot.generated.rpc.ProtocolExternalToolDefinition;
 import com.github.copilot.generated.rpc.SessionPermissionsSetModeResult;
 import com.github.copilot.generated.rpc.SessionOpenOptions;
 import com.github.copilot.generated.rpc.SandboxConfig;
@@ -59,6 +60,18 @@ import com.github.copilot.rpc.UserInputResponse;
 public class SessionRequestBuilderTest {
 
     @Test
+    @SuppressWarnings("deprecation")
+    void externalToolDefinitionPreservesPositionalConstructor() throws Exception {
+        var definition = new ProtocolExternalToolDefinition("lookup", "Description", null, null, null, true, null, true,
+                Map.of("custom", "kept"), null);
+        assertNull(definition.hasHandler());
+        var mapper = JsonRpcClient.getObjectMapper();
+        assertEquals(mapper.readTree(
+                "{\"name\":\"lookup\",\"description\":\"Description\",\"skipPermission\":true,\"isTerminal\":true,\"metadata\":{\"custom\":\"kept\"}}"),
+                mapper.readTree(mapper.writeValueAsBytes(definition)));
+    }
+
+    @Test
     void sessionOpenOptionsBuilderPreservesParallelToolChoiceOnTheWire() throws Exception {
         var mapper = JsonRpcClient.getObjectMapper();
         for (Boolean choice : new Boolean[]{null, false, true}) {
@@ -75,33 +88,16 @@ public class SessionRequestBuilderTest {
     }
 
     @Test
-    void toolFilterPrecedenceIsExcludedInAllModes() throws Exception {
+    void toolFilterPrecedenceIsOmittedInAllModes() throws Exception {
         var mapper = JsonRpcClient.getObjectMapper();
         for (var mode : new CopilotClientMode[]{CopilotClientMode.COPILOT_CLI, CopilotClientMode.EMPTY}) {
-            // Create path
-            var createConfig = new SessionConfig().setWorkingDirectory("/tmp");
-            var createReq = SessionRequestBuilder.buildCreateRequest(createConfig, "s1", mode);
-            var createJson = mapper.readTree(mapper.writeValueAsBytes(createReq));
-            assertEquals("excluded", createJson.path("toolFilterPrecedence").asText(),
-                    "create request in " + mode + " must set toolFilterPrecedence=excluded");
-
-            // Resume path
-            var resumeConfig = new ResumeSessionConfig();
-            var resumeReq = SessionRequestBuilder.buildResumeRequest("s1", resumeConfig, mode);
-            var resumeJson = mapper.readTree(mapper.writeValueAsBytes(resumeReq));
-            assertEquals("excluded", resumeJson.path("toolFilterPrecedence").asText(),
-                    "resume request in " + mode + " must set toolFilterPrecedence=excluded");
-
-            // Null config path (early return)
-            var createNullReq = SessionRequestBuilder.buildCreateRequest(null, "s1", mode);
-            var createNullJson = mapper.readTree(mapper.writeValueAsBytes(createNullReq));
-            assertEquals("excluded", createNullJson.path("toolFilterPrecedence").asText(),
-                    "create request with null config in " + mode + " must set toolFilterPrecedence=excluded");
-
-            var resumeNullReq = SessionRequestBuilder.buildResumeRequest("s1", null, mode);
-            var resumeNullJson = mapper.readTree(mapper.writeValueAsBytes(resumeNullReq));
-            assertEquals("excluded", resumeNullJson.path("toolFilterPrecedence").asText(),
-                    "resume request with null config in " + mode + " must set toolFilterPrecedence=excluded");
+            for (var request : new Object[]{SessionRequestBuilder.buildCreateRequest(new SessionConfig(), "s1", mode),
+                    SessionRequestBuilder.buildResumeRequest("s1", new ResumeSessionConfig(), mode),
+                    SessionRequestBuilder.buildCreateRequest(null, "s1", mode),
+                    SessionRequestBuilder.buildResumeRequest("s1", null, mode)}) {
+                var json = mapper.readTree(mapper.writeValueAsBytes(request));
+                assertFalse(json.has("toolFilterPrecedence"), mode + " must use the runtime default");
+            }
         }
     }
 
@@ -683,16 +679,25 @@ public class SessionRequestBuilderTest {
     }
 
     @Test
-    void testBuildResumeRequestWithTools() {
+    void testBuildSessionRequestsWithTools() throws Exception {
         var tool = ToolDefinition.create("my_tool", "A tool", Map.of("type", "object"),
                 inv -> CompletableFuture.completedFuture("result"));
-        var config = new ResumeSessionConfig().setTools(List.of(tool));
-
-        ResumeSessionRequest request = SessionRequestBuilder.buildResumeRequest("sid-2", config);
-
-        assertNotNull(request.getTools());
-        assertEquals(1, request.getTools().size());
-        assertEquals("my_tool", request.getTools().get(0).name());
+        var deferred = ToolDefinition.create("approval", "A deferred tool", Map.of("type", "object"), null);
+        var tools = List.of(tool, deferred);
+        var mapper = JsonRpcClient.getObjectMapper();
+        for (var mode : new CopilotClientMode[]{CopilotClientMode.COPILOT_CLI, CopilotClientMode.EMPTY}) {
+            for (var request : new Object[]{
+                    SessionRequestBuilder.buildCreateRequest(new SessionConfig().setTools(tools), "sid-1", mode),
+                    SessionRequestBuilder.buildResumeRequest("sid-2", new ResumeSessionConfig().setTools(tools),
+                            mode)}) {
+                var json = mapper.readTree(mapper.writeValueAsBytes(request));
+                assertEquals(2, json.path("tools").size());
+                assertEquals("my_tool", json.at("/tools/0/name").textValue());
+                assertEquals(mapper.getNodeFactory().booleanNode(true), json.at("/tools/0/hasHandler"));
+                assertEquals(mapper.getNodeFactory().booleanNode(false), json.at("/tools/1/hasHandler"));
+                assertFalse(json.at("/tools/0").has("handler"));
+            }
+        }
     }
 
     @Test
@@ -1428,6 +1433,38 @@ public class SessionRequestBuilderTest {
         var resumeJson = mapper.writeValueAsString(resumeRequest);
         assertTrue(resumeJson.contains("\"expAssignments\""));
         assertTrue(resumeJson.contains("\"Id\":\"exp-resume\""));
+    }
+
+    @Test
+    void testBuiltInAgentAllowlistPreservesOmissionEmptySubsetAndClone() throws Exception {
+        var mapper = JsonRpcClient.getObjectMapper();
+        for (var mode : CopilotClientMode.values()) {
+            for (List<String> agents : java.util.Arrays.asList(null, List.<String>of(), List.of("explore"))) {
+                var original = agents == null ? null : new ArrayList<>(agents);
+                var create = new SessionConfig().setIncludedBuiltInAgents(original);
+                var resume = new ResumeSessionConfig().setIncludedBuiltInAgents(original);
+                if (original != null) {
+                    original.add("task");
+                }
+                var createClone = create.clone();
+                var resumeClone = resume.clone();
+                create.setIncludedBuiltInAgents(List.of("task"));
+                resume.setIncludedBuiltInAgents(List.of("task"));
+                var createJson = mapper.valueToTree(SessionRequestBuilder.buildCreateRequest(createClone, "s1", mode));
+                var resumeJson = mapper.valueToTree(SessionRequestBuilder.buildResumeRequest("s1", resumeClone, mode));
+                for (var payload : List.of(createJson, resumeJson)) {
+                    if (agents == null) {
+                        assertFalse(payload.has("includedBuiltinAgents"), payload.toString());
+                    } else {
+                        assertEquals(mapper.valueToTree(agents), payload.get("includedBuiltinAgents"));
+                    }
+                }
+            }
+            var createNull = mapper.valueToTree(SessionRequestBuilder.buildCreateRequest(null, "s1", mode));
+            var resumeNull = mapper.valueToTree(SessionRequestBuilder.buildResumeRequest("s1", null, mode));
+            assertFalse(createNull.has("includedBuiltinAgents"));
+            assertFalse(resumeNull.has("includedBuiltinAgents"));
+        }
     }
 
     @Test

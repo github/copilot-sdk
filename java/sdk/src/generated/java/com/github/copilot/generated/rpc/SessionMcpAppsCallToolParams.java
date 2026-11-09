@@ -32,6 +32,7 @@ public record SessionMcpAppsCallToolParams(
     /** MCP tool name */
     @JsonProperty("toolName") String toolName,
     /** Tool arguments */
+    @JsonInclude(value = JsonInclude.Include.NON_NULL, content = JsonInclude.Include.ALWAYS)
     @JsonProperty("arguments") Map<String, Object> arguments,
     /** **Required.** Server whose ui:// view issued the request. Per SEP-1865 ('callable by the app from this server only'), the call is rejected when this differs from `serverName`, and rejected outright when missing. */
     @JsonProperty("originServerName") String originServerName

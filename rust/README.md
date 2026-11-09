@@ -1044,10 +1044,10 @@ let provider = Arc::new(|args: GitHubTokenProviderArgs| async move {
 let config = SessionConfig::default().with_github_token_provider(provider);
 ```
 
-The remaining lifetime is required and must be positive when the callback
-completes; production GitHub tokens typically last eight hours. Static
-`github_token` and a provider are mutually exclusive. The same provider API is
-available on `ResumeSessionConfig`.
+The remaining lifetime, in seconds at callback completion, must exceed 3600
+seconds after token validation. Production GitHub tokens typically last eight
+hours. Static `github_token` and a provider are mutually exclusive. This API also
+supports `ResumeSessionConfig`.
 
 Initial acquisition runs during session creation or resume. Cancellation,
 provider errors, and invalid token responses reject that operation instead of
