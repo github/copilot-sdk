@@ -2571,6 +2571,9 @@ public sealed partial class CopilotSession : IAsyncDisposable
         }
     }
 
+    private static SessionJsonContext IncomingSessionJsonContext { get; } =
+        new(JsonRpc.CreateIncomingSerializerOptions(SessionJsonContext.Default.Options));
+
     /// <summary>
     /// Handles a hook invocation from the Copilot CLI.
     /// </summary>
@@ -2620,62 +2623,62 @@ public sealed partial class CopilotSession : IAsyncDisposable
             {
                 "preToolUse" => hooks.OnPreToolUse != null
                     ? SerializeHookOutputWithPayload(await hooks.OnPreToolUse(
-                        input.Deserialize(SessionJsonContext.Default.PreToolUseHookInput)!,
+                        input.Deserialize(IncomingSessionJsonContext.PreToolUseHookInput)!,
                         invocation))
                     : null,
                 "preMcpToolCall" => hooks.OnPreMcpToolCall != null
                     ? SerializeHookOutput(await hooks.OnPreMcpToolCall(
-                        input.Deserialize(SessionJsonContext.Default.PreMcpToolCallHookInput)!,
+                        input.Deserialize(IncomingSessionJsonContext.PreMcpToolCallHookInput)!,
                         invocation))
                     : null,
                 "postToolUse" => hooks.OnPostToolUse != null
                     ? SerializeHookOutputWithPayload(await hooks.OnPostToolUse(
-                        input.Deserialize(SessionJsonContext.Default.PostToolUseHookInput)!,
+                        input.Deserialize(IncomingSessionJsonContext.PostToolUseHookInput)!,
                         invocation))
                     : null,
                 "postToolUseFailure" => hooks.OnPostToolUseFailure != null
                     ? await hooks.OnPostToolUseFailure(
-                        input.Deserialize(SessionJsonContext.Default.PostToolUseFailureHookInput)!,
+                        input.Deserialize(IncomingSessionJsonContext.PostToolUseFailureHookInput)!,
                         invocation)
                     : null,
                 "userPromptSubmitted" => hooks.OnUserPromptSubmitted != null
                     ? await hooks.OnUserPromptSubmitted(
-                        input.Deserialize(SessionJsonContext.Default.UserPromptSubmittedHookInput)!,
+                        input.Deserialize(IncomingSessionJsonContext.UserPromptSubmittedHookInput)!,
                         invocation)
                     : null,
                 "userPromptTransformed" => hooks.OnUserPromptTransformed != null
                     ? await hooks.OnUserPromptTransformed(
-                        input.Deserialize(SessionJsonContext.Default.UserPromptTransformedHookInput)!,
+                        input.Deserialize(IncomingSessionJsonContext.UserPromptTransformedHookInput)!,
                         invocation)
                     : null,
                 "sessionStart" => hooks.OnSessionStart != null
                     ? await hooks.OnSessionStart(
-                        input.Deserialize(SessionJsonContext.Default.SessionStartHookInput)!,
+                        input.Deserialize(IncomingSessionJsonContext.SessionStartHookInput)!,
                         invocation)
                     : null,
                 "sessionEnd" => hooks.OnSessionEnd != null
                     ? await hooks.OnSessionEnd(
-                        input.Deserialize(SessionJsonContext.Default.SessionEndHookInput)!,
+                        input.Deserialize(IncomingSessionJsonContext.SessionEndHookInput)!,
                         invocation)
                     : null,
                 "errorOccurred" => hooks.OnErrorOccurred != null
                     ? await hooks.OnErrorOccurred(
-                        input.Deserialize(SessionJsonContext.Default.ErrorOccurredHookInput)!,
+                        input.Deserialize(IncomingSessionJsonContext.ErrorOccurredHookInput)!,
                         invocation)
                     : null,
                 "agentStop" => hooks.OnAgentStop != null
                     ? await hooks.OnAgentStop(
-                        input.Deserialize(SessionJsonContext.Default.AgentStopHookInput)!,
+                        input.Deserialize(IncomingSessionJsonContext.AgentStopHookInput)!,
                         invocation)
                     : null,
                 "subagentStart" => hooks.OnSubagentStart != null
                     ? await hooks.OnSubagentStart(
-                        input.Deserialize(SessionJsonContext.Default.SubagentStartHookInput)!,
+                        input.Deserialize(IncomingSessionJsonContext.SubagentStartHookInput)!,
                         invocation)
                     : null,
                 "subagentStop" => hooks.OnSubagentStop != null
                     ? await hooks.OnSubagentStop(
-                        input.Deserialize(SessionJsonContext.Default.SubagentStopHookInput)!,
+                        input.Deserialize(IncomingSessionJsonContext.SubagentStopHookInput)!,
                         invocation)
                     : null,
                 _ => null
@@ -2702,24 +2705,10 @@ public sealed partial class CopilotSession : IAsyncDisposable
     /// <summary>
     /// Serializer options for <c>object</c> payloads a handler returns: hook outputs
     /// (<see cref="PreToolUseHookOutput.ModifiedArgs"/>, <see cref="PostToolUseHookOutput.ModifiedResult"/>)
-    /// and elicitation answers (<see cref="ElicitationResult.Content"/>). These can hold caller-defined
-    /// types, such as anonymous objects, that no source-generated context describes. As for structured
-    /// output and custom tools, those types are serialized with reflection when the application enables it.
+    /// and elicitation answers (<see cref="ElicitationResult.Content"/>). See
+    /// <see cref="CopilotClient.CallerPayloadSerializerOptions"/>.
     /// </summary>
-    private static readonly JsonSerializerOptions s_callerPayloadSerializerOptions = CreateCallerPayloadSerializerOptions();
-
-    [UnconditionalSuppressMessage("AOT", "IL3050", Justification = "The reflection resolver is only added when JsonSerializer.IsReflectionEnabledByDefault is enabled.")]
-    [UnconditionalSuppressMessage("Trimming", "IL2026", Justification = "The reflection resolver is only added when JsonSerializer.IsReflectionEnabledByDefault is enabled.")]
-    private static JsonSerializerOptions CreateCallerPayloadSerializerOptions()
-    {
-        var options = new JsonSerializerOptions(CopilotClient.SerializerOptionsForMessageFormatter);
-        if (JsonSerializer.IsReflectionEnabledByDefault)
-        {
-            options.TypeInfoResolverChain.Add(new DefaultJsonTypeInfoResolver());
-        }
-        options.MakeReadOnly();
-        return options;
-    }
+    private static JsonSerializerOptions s_callerPayloadSerializerOptions => CopilotClient.CallerPayloadSerializerOptions;
 
     private static JsonElement? SerializeHookOutputWithPayload<T>(T? output) where T : class =>
         output is null ? null : JsonSerializer.SerializeToElement(output, s_callerPayloadSerializerOptions.GetTypeInfo(typeof(T)));
@@ -2793,7 +2782,8 @@ public sealed partial class CopilotSession : IAsyncDisposable
     /// <exception cref="InvalidOperationException">Thrown if the session has been disposed.</exception>
     /// <remarks>
     /// This returns the complete conversation history including user messages, assistant responses,
-    /// tool executions, and other session events.
+    /// tool executions, and other session events. Use <see cref="GetRawEventsAsync"/> instead
+    /// when preserving the original JSON for task analytics or exact retries.
     /// </remarks>
     /// <example>
     /// <code>
@@ -2809,6 +2799,27 @@ public sealed partial class CopilotSession : IAsyncDisposable
     /// </example>
     public async Task<IReadOnlyList<SessionEvent>> GetEventsAsync(CancellationToken cancellationToken = default)
     {
+        var rawEvents = await GetRawEventsAsync(cancellationToken);
+        var eventTypeInfo = (JsonTypeInfo<SessionEvent>)CopilotClient.SerializerOptionsForIncomingMessages.GetTypeInfo(typeof(SessionEvent));
+        var events = new List<SessionEvent>(rawEvents.Count);
+        foreach (var sessionEvent in rawEvents)
+        {
+            events.Add(sessionEvent.Deserialize(eventTypeInfo) ?? throw new JsonException("Session event cannot be null."));
+        }
+        return events;
+    }
+
+    /// <summary>
+    /// Gets the complete session history without projecting events into typed SDK objects.
+    /// </summary>
+    /// <param name="cancellationToken">A token that can cancel the operation.</param>
+    /// <returns>The original event JSON objects in chronological order.</returns>
+    /// <remarks>
+    /// Use these objects for native task-analytics archives and exact retries. Unlike typed
+    /// events, they preserve explicit nulls, unknown fields, and original timestamp strings.
+    /// </remarks>
+    public async Task<IReadOnlyList<JsonElement>> GetRawEventsAsync(CancellationToken cancellationToken = default)
+    {
         ThrowIfDisposed();
 
         var response = await InvokeRpcAsync<GetMessagesResponse>(
@@ -2823,13 +2834,7 @@ public sealed partial class CopilotSession : IAsyncDisposable
             throw new JsonException("Expected session events to be a JSON array.");
         }
 
-        var eventTypeInfo = (JsonTypeInfo<SessionEvent>)CopilotClient.SerializerOptionsForMessageFormatter.GetTypeInfo(typeof(SessionEvent));
-        var events = new List<SessionEvent>(response.Events.GetArrayLength());
-        foreach (var sessionEvent in response.Events.EnumerateArray())
-        {
-            events.Add(sessionEvent.Deserialize(eventTypeInfo) ?? throw new JsonException("Session event cannot be null."));
-        }
-        return events;
+        return response.Events.EnumerateArray().ToArray();
     }
 
     /// <summary>

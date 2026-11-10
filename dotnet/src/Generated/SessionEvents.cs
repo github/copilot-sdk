@@ -767,6 +767,9 @@ internal sealed class SessionEventEnvelope
     [JsonPropertyName("timestamp")]
     public DateTimeOffset Timestamp { get; set; }
 
+    [JsonExtensionData]
+    public IDictionary<string, JsonElement>? AdditionalProperties { get; set; }
+
     internal SessionEvent ToSessionEvent() => new()
     {
         AgentId = AgentId,
@@ -775,6 +778,7 @@ internal sealed class SessionEventEnvelope
         Id = Id,
         ParentId = ParentId,
         Timestamp = Timestamp,
+        AdditionalProperties = AdditionalProperties,
     };
 }
 
@@ -13289,7 +13293,7 @@ public sealed partial class PermissionRequestShellPossibleUrl
     public required string Url { get; set; }
 }
 
-/// <summary>A sandbox filesystem policy edit that would let a blocked operation run inside the sandbox instead of outside it. Offered only on a sandbox escalation request whose denial adding this path lifts, and only when managed policy permits the grant. A host accepts it with session.sandbox.grantPathForRequest, which adds the path to the session's sandbox policy and re-runs the operation sandboxed; a host that persists sandbox settings may also save the path there.</summary>
+/// <summary>A sandbox filesystem policy edit that would let a blocked operation run inside the sandbox instead of outside it. Offered only on a sandbox escalation request whose denial adding this path lifts, and only when managed policy permits the grant. A host accepts it with session.sandbox.grantPathForRequest, which adds the path to the session's sandbox policy and re-runs the operation sandboxed. A host that persists sandbox settings must save the optional policy spelling when present; otherwise it must escape every literal `$` in the concrete path as `$$` before saving that path.</summary>
 /// <remarks>Nested data type for <c>PermissionSandboxPathGrant</c>.</remarks>
 [Experimental(global::GitHub.Copilot.Diagnostics.Experimental)]
 public sealed partial class PermissionSandboxPathGrant
@@ -13306,6 +13310,11 @@ public sealed partial class PermissionSandboxPathGrant
     /// <summary>Absolute path to add to the sandbox filesystem policy.</summary>
     [JsonPropertyName("path")]
     public required string Path { get; set; }
+
+    /// <summary>Policy spelling to persist for the grant. This can differ from path when a managed allowlist names the same location through an environment expression. Hosts that persist sandbox settings must save this value when present. When it is absent, they must escape every literal `$` in path as `$$` before saving path so the policy grammar does not interpret it as an environment reference.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("persistedPath")]
+    public string? PersistedPath { get; set; }
 
     /// <summary>readonlyPaths entries the grant removes, exactly as written in the policy, because a read-only entry for the same location would otherwise keep the path read-only. A host that persists the path must remove these entries from its stored readonlyPaths too.</summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
@@ -15563,7 +15572,7 @@ public sealed partial class ExtensionsLoadedExtension
     [JsonPropertyName("source")]
     public required ExtensionsLoadedExtensionSource Source { get; set; }
 
-    /// <summary>Current status: running, disabled, failed, or starting.</summary>
+    /// <summary>Current status: running, dormant, disabled, failed, or starting.</summary>
     [JsonPropertyName("status")]
     public required ExtensionsLoadedExtensionStatus Status { get; set; }
 }
@@ -25553,7 +25562,7 @@ public readonly struct ExtensionsLoadedExtensionSource : IEquatable<ExtensionsLo
     }
 }
 
-/// <summary>Current status: running, disabled, failed, or starting.</summary>
+/// <summary>Current status: running, dormant, disabled, failed, or starting.</summary>
 [JsonConverter(typeof(Converter))]
 [DebuggerDisplay("{Value,nq}")]
 public readonly struct ExtensionsLoadedExtensionStatus : IEquatable<ExtensionsLoadedExtensionStatus>
@@ -25574,6 +25583,9 @@ public readonly struct ExtensionsLoadedExtensionStatus : IEquatable<ExtensionsLo
 
     /// <summary>The extension process is running.</summary>
     public static ExtensionsLoadedExtensionStatus Running { get; } = new("running");
+
+    /// <summary>The extension is enabled and discoverable but not yet requested.</summary>
+    public static ExtensionsLoadedExtensionStatus Dormant { get; } = new("dormant");
 
     /// <summary>The extension is installed but disabled.</summary>
     public static ExtensionsLoadedExtensionStatus Disabled { get; } = new("disabled");
@@ -25623,6 +25635,7 @@ public readonly struct ExtensionsLoadedExtensionStatus : IEquatable<ExtensionsLo
 [JsonSourceGenerationOptions(
     JsonSerializerDefaults.Web,
     AllowOutOfOrderMetadataProperties = true,
+    MaxDepth = JsonRpc.MaxIncomingMessageDepth,
     NumberHandling = JsonNumberHandling.AllowReadingFromString,
     DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull)]
 [JsonSerializable(typeof(AbortData))]

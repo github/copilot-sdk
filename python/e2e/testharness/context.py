@@ -21,7 +21,7 @@ from copilot.client import _InternalTestOptions
 from .proxy import CapiProxy
 
 
-def _prepare_pinned_cli(repo_root: Path) -> str:
+def _prepare_checkout_cli(repo_root: Path) -> str:
     npm = "npm.cmd" if os.name == "nt" else "npm"
     result = subprocess.run(
         [npm, "run", "--silent", "prepare:runtime", "--", "--print-path"],
@@ -33,28 +33,27 @@ def _prepare_pinned_cli(repo_root: Path) -> str:
     output = result.stdout.strip()
     if result.returncode != 0 or not output:
         detail = result.stderr.strip() or output or f"exit code {result.returncode}"
-        raise RuntimeError(f"Failed to prepare the pinned Copilot CLI: {detail}")
+        raise RuntimeError(f"Failed to prepare the same-checkout Copilot CLI: {detail}")
     cli_path = Path(output.splitlines()[-1])
     if not cli_path.is_file():
-        raise RuntimeError(f"Pinned Copilot CLI was not created at {cli_path}")
+        raise RuntimeError(f"Same-checkout Copilot CLI was not found at {cli_path}")
     return str(cli_path.resolve())
 
 
 def get_cli_path_for_tests() -> str:
     """Get CLI path for E2E tests.
 
-    Uses COPILOT_CLI_PATH env var if set, otherwise prepares the release pinned
-    by the sibling Node.js SDK.
+    Uses COPILOT_CLI_PATH if set, otherwise resolves the same-checkout runtime.
     """
     env_path = os.environ.get("COPILOT_CLI_PATH")
-    if env_path and Path(env_path).exists():
+    if env_path and Path(env_path).is_file():
         return str(Path(env_path).resolve())
-    if os.environ.get("COPILOT_RUNTIME_SOURCE") == "checkout":
+    if env_path:
         raise RuntimeError(
             "COPILOT_CLI_PATH must select an existing same-checkout runtime for SDK tests"
         )
 
-    return _prepare_pinned_cli(Path(__file__).parents[3])
+    return _prepare_checkout_cli(Path(__file__).parents[3])
 
 
 CLI_PATH = get_cli_path_for_tests()

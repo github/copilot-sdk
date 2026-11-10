@@ -14,8 +14,16 @@ from uuid import uuid4
 import pytest
 
 from _session_test_helpers import get_next_event_of_type, wait_for_event
-from copilot import AgentMessageSource, CopilotClient, MessageSource, RuntimeConnection, define_tool
+from copilot import (
+    AgentMessageSource,
+    AutomationMessageSource,
+    CopilotClient,
+    MessageSource,
+    RuntimeConnection,
+    define_tool,
+)
 from copilot._jsonrpc import JsonRpcClient, JsonRpcError, ProcessExitedError
+from copilot.generated.rpc import ServerRpc, TaskAnalyticsClassifyTrajectoryRequest
 from copilot.session import (
     Attachment,
     CommandDefinition,
@@ -51,7 +59,38 @@ MESSAGE_SOURCE_CASES = [
     pytest.param(
         AgentMessageSource("agent-reviewer"), "agent-agent-reviewer", id="prefixed-agent-id"
     ),
+    pytest.param(AutomationMessageSource("merge-check"), "automation-merge-check", id="automation"),
 ]
+
+
+@pytest.mark.asyncio
+async def test_raw_history_preserves_analytics_archive():
+    original = {
+        "id": "00000000-0000-4000-8000-000000000001",
+        "parentId": None,
+        "timestamp": "2026-01-01T00:00:00.000Z",
+        "type": "user.message",
+        "data": {"content": "Fix the build", "future": {"detail": [None, "kept"]}},
+        "futureEnvelope": {"kept": True},
+    }
+    client = Mock()
+    session = CopilotSession("session-1", client)
+    wire_requests = []
+
+    async def respond(method, params):
+        if method == "session.getMessages":
+            assert params == {"sessionId": session.session_id}
+            return {"events": [json.loads(json.dumps(original))]}
+        assert method == "taskAnalytics.classifyTrajectory"
+        wire_requests.append(json.loads(json.dumps(params)))
+        return {"classifications": []}
+
+    client.request = AsyncMock(side_effect=respond)
+    events = await session.get_raw_events()
+    await ServerRpc(client).task_analytics.classify_trajectory(
+        TaskAnalyticsClassifyTrajectoryRequest(events=events)
+    )
+    assert wire_requests[0]["events"] == [original]
 
 
 @pytest.mark.parametrize("agent_id", [None, 42, False, b"reviewer"])

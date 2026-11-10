@@ -23,6 +23,7 @@ These guides cover the capabilities you can add to your Copilot SDK application.
 | [Streaming Events](./streaming-events.md) | Subscribe to real-time session events (40+ event types) |
 | [Usage and Billing](./usage-and-billing.md) | Read token counts, context-window utilization, AI credit cost, and account quota |
 | [Client info](./client-info.md) | Declare application and integration identity for runtime telemetry attribution |
+| [Offline task analytics](./task-analytics.md) | Classify archived ATIF or Copilot trajectories, validate input, and retry failed measurements |
 | [Steering & Queueing](./steering-and-queueing.md) | Control message delivery—immediate steering vs. sequential queueing |
 | [Context Clearing](./context-management.md) | Replace conversation context safely with terminal tools |
 | [Session Persistence](./session-persistence.md) | Resume sessions across restarts, manage session storage |

@@ -21,7 +21,6 @@ import { createHash } from 'node:crypto';
 import { execFileSync } from 'node:child_process';
 import fs from 'node:fs';
 import path from 'node:path';
-import { findRuntimeRoot } from '../../../scripts/runtime-layout.mjs';
 import { runtimeReleaseUrl } from '../../../scripts/runtime-release.mjs';
 
 const excludedTopLevel = new Set([
@@ -71,9 +70,10 @@ const platformPropertiesPath = path.join(resourceDir, 'platform.properties');
 const expectedPlatformProperties = `classifier=${classifier}\nversion=${version}\n`;
 const stagingSchema = 'hostless-runtime-v3';
 const stampPath = path.join(outDir, '.version');
-const runtimeRoot = findRuntimeRoot(repoRoot);
+const runtimeRoot = path.resolve(repoRoot, '../..');
 const localPackageRoot =
-  !process.env.COPILOT_CLI_RELEASE_TARBALL && runtimeRoot
+  !process.env.COPILOT_CLI_RELEASE_TARBALL &&
+  fs.statSync(path.join(runtimeRoot, 'script/sea-build.ts'), { throwIfNoEntry: false })?.isFile()
     ? path.join(runtimeRoot, 'dist-cli')
     : undefined;
 if (localPackageRoot && !fs.statSync(localPackageRoot, { throwIfNoEntry: false })?.isDirectory()) {

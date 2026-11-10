@@ -13,8 +13,9 @@ import com.fasterxml.jackson.annotation.JsonValue;
  * The origin of a message sent to a Copilot session.
  * <p>
  * Set on {@link MessageOptions#setSource(MessageSource)} to distinguish user
- * input, system context, and messages from identified agents. This does not
- * configure the session's system prompt or change the message delivery mode.
+ * input, system context, messages from identified agents, and turns sent for
+ * configured automations. This does not configure the session's system prompt
+ * or change the message delivery mode.
  *
  * @see MessageOptions
  */
@@ -47,6 +48,23 @@ public final class MessageSource {
     }
 
     /**
+     * Identifies a turn sent on behalf of an automation the user configured, such
+     * as a recurring check-in. The turn defines the session's task like a user
+     * message but carries no human authority.
+     *
+     * @param id
+     *            the opaque automation identifier, preserved exactly after
+     *            {@code automation-}; it must not be empty, because the runtime
+     *            does not treat {@code automation-} alone as an automation turn
+     * @return the automation message source
+     * @throws NullPointerException
+     *             if {@code id} is {@code null}
+     */
+    public static MessageSource automation(String id) {
+        return new MessageSource("automation-" + Objects.requireNonNull(id, "id"));
+    }
+
+    /**
      * Returns the JSON value for this message source.
      *
      * @return the string value used in JSON serialization
@@ -76,7 +94,7 @@ public final class MessageSource {
         if (SYSTEM.value.equals(value)) {
             return SYSTEM;
         }
-        if (value.startsWith("agent-")) {
+        if (value.startsWith("agent-") || value.startsWith("automation-")) {
             return new MessageSource(value);
         }
         throw new IllegalArgumentException("Unknown MessageSource value: " + value);

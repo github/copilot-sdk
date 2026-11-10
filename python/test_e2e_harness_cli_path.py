@@ -1,4 +1,4 @@
-"""Unit tests for the E2E harness's pinned CLI preparation."""
+"""Unit tests for the E2E harness's same-checkout CLI preparation."""
 
 from __future__ import annotations
 
@@ -48,7 +48,7 @@ class TestGetCliPathForTests:
         monkeypatch.setenv("COPILOT_CLI_PATH", str(cli))
         assert context.get_cli_path_for_tests() == str(cli.resolve())
 
-    def test_prepares_the_pinned_runtime(self, tmp_path, monkeypatch):
+    def test_prepares_the_checkout_runtime(self, tmp_path, monkeypatch):
         monkeypatch.delenv("COPILOT_CLI_PATH", raising=False)
         cli = tmp_path / "copilot"
         cli.write_text("runtime\n")
@@ -59,26 +59,25 @@ class TestGetCliPathForTests:
             stderr = ""
 
         monkeypatch.setattr(context.subprocess, "run", lambda *args, **kwargs: Result())
-        assert context._prepare_pinned_cli(tmp_path) == str(cli.resolve())
+        assert context.get_cli_path_for_tests() == str(cli.resolve())
 
     def test_preparation_failure_includes_command_error(self, tmp_path, monkeypatch):
         class Result:
             returncode = 1
             stdout = ""
-            stderr = "download failed"
+            stderr = "same-checkout artifact missing"
 
         monkeypatch.setattr(context.subprocess, "run", lambda *args, **kwargs: Result())
         with pytest.raises(RuntimeError) as excinfo:
-            context._prepare_pinned_cli(tmp_path)
-        assert "download failed" in str(excinfo.value)
+            context._prepare_checkout_cli(tmp_path)
+        assert "same-checkout artifact missing" in str(excinfo.value)
 
-    def test_runtime_checkout_requires_selected_cli_without_preparing_published(self, monkeypatch):
-        monkeypatch.delenv("COPILOT_CLI_PATH", raising=False)
-        monkeypatch.setenv("COPILOT_RUNTIME_SOURCE", "checkout")
+    def test_rejects_missing_selected_cli_without_falling_back(self, tmp_path, monkeypatch):
+        monkeypatch.setenv("COPILOT_CLI_PATH", str(tmp_path / "missing-cli"))
         monkeypatch.setattr(
             context,
-            "_prepare_pinned_cli",
-            lambda *_args: pytest.fail("published preparation must not run"),
+            "_prepare_checkout_cli",
+            lambda *_args: pytest.fail("fallback preparation must not run"),
         )
 
         with pytest.raises(RuntimeError, match="COPILOT_CLI_PATH"):

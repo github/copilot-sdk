@@ -33,8 +33,11 @@ import org.junit.jupiter.params.provider.ValueSource;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ObjectNode;
+import com.github.copilot.generated.SessionEvent;
+import com.github.copilot.generated.SessionIdleEvent;
 import com.github.copilot.generated.rpc.FeatureFlagAssignmentsUpdate;
 import com.github.copilot.generated.rpc.ServerRpc;
+import com.github.copilot.generated.rpc.TaskAnalyticsClassifyTrajectoryParams;
 import com.github.copilot.generated.rpc.LocalModelsWatchParams;
 import com.github.copilot.generated.rpc.SandboxProxyCaCheckRelevanceParams;
 import com.github.copilot.generated.rpc.SessionFeatureFlagsConfigureParams;
@@ -150,6 +153,37 @@ class JsonRpcClientTest {
         writeRpcMessage(pair.serverSide.getOutputStream(),
                 "{\"jsonrpc\":\"2.0\",\"id\":" + request.get("id") + ",\"result\":true}");
         assertTrue(response.get(5, TimeUnit.SECONDS));
+    }
+
+    @Test
+    void cancellingTrajectoryClassificationSendsCancelRequest() throws Exception {
+        try (var pair = createSocketPair()) {
+            var response = pair.client.invoke("taskAnalytics.classifyTrajectory", Map.of("events", List.of()),
+                    JsonNode.class);
+            var request = MAPPER.readTree(readRpcMessage(pair.serverSide.getInputStream()));
+            assertEquals("taskAnalytics.classifyTrajectory", request.get("method").asText());
+
+            assertTrue(response.cancel(false));
+
+            var cancel = MAPPER.readTree(readRpcMessage(pair.serverSide.getInputStream()));
+            assertEquals("$/cancelRequest", cancel.get("method").asText());
+            assertEquals(request.get("id"), cancel.path("params").get("id"));
+        }
+    }
+
+    @Test
+    void trajectoryClassificationAcceptsTypedSessionEvents() throws Exception {
+        try (var pair = createSocketPair()) {
+            var idle = new SessionIdleEvent();
+            idle.setData(SessionIdleEvent.SessionIdleEventData.builder().build());
+            List<SessionEvent> events = List.of(idle);
+            new ServerRpc(pair.client::invoke).taskAnalytics.classifyTrajectory(
+                    TaskAnalyticsClassifyTrajectoryParams.builder().events(events).validateOnly(true).build());
+
+            var request = MAPPER.readTree(readRpcMessage(pair.serverSide.getInputStream()));
+            assertEquals("taskAnalytics.classifyTrajectory", request.get("method").asText());
+            assertEquals("session.idle", request.path("params").path("events").path(0).path("type").asText());
+        }
     }
 
     // ---- notify() ----

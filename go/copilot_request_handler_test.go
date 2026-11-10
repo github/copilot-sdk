@@ -11,6 +11,7 @@ import (
 	"io"
 	"net/http"
 	"net/http/httptest"
+	"strconv"
 	"strings"
 	"sync"
 	"testing"
@@ -288,4 +289,62 @@ func (s *panickingSendWebSocket) Err() error            { return nil }
 func (s *panickingSendWebSocket) Close() error {
 	s.once.Do(func() { close(s.done) })
 	return nil
+}
+
+func TestInferenceFramesAfterRequestFinishedAreIgnored(t *testing.T) {
+	body, writer := newTrackedResponseBody()
+	peer := newResponseProtocolPeer(t, body)
+	peer.startAndAck()
+	if err := writer.Close(); err != nil {
+		t.Fatal(err)
+	}
+	end := peer.nextRequest()
+	if params := responseChunkParams(t, end); params["end"] != true || params["error"] != nil {
+		t.Fatalf("unexpected terminal chunk: %s", end.Params)
+	}
+	peer.ack(end)
+
+	// The runtime can still send frames for a request it has not seen finish,
+	// such as the cancel it sends after rejecting a response over its size limit.
+	cancel, done := true, true
+	for _, frame := range []*rpc.LlmInferenceHTTPRequestChunkRequest{
+		{RequestID: "test", Cancel: &cancel, End: &done},
+		{RequestID: "test", Data: "late"},
+	} {
+		if _, err := peer.adapter.HttpRequestChunk(frame); err != nil {
+			t.Fatal(err)
+		}
+	}
+	peer.adapter.mu.Lock()
+	pending := len(peer.adapter.pending)
+	peer.adapter.mu.Unlock()
+	if pending != 0 {
+		t.Fatalf("pending exchanges after late frames = %d, want 0", pending)
+	}
+	if _, err := peer.adapter.HttpRequestStart(&rpc.LlmInferenceHTTPRequestStartRequest{
+		RequestID: "test", Method: "GET", URL: "http://unused.test",
+	}); err == nil {
+		t.Fatal("a start for a finished request was accepted")
+	}
+}
+
+func TestFinishedRequestIDsForgetOldestPastBound(t *testing.T) {
+	var finished finishedRequestIDs
+	for i := 0; i <= maxFinishedRequestIDs; i++ {
+		finished.add(strconv.Itoa(i))
+	}
+	// Remembering an ID again must not evict another.
+	finished.add(strconv.Itoa(maxFinishedRequestIDs))
+
+	if finished.contains("0") {
+		t.Fatal("oldest finished request ID was kept past the bound")
+	}
+	for i := 1; i <= maxFinishedRequestIDs; i++ {
+		if !finished.contains(strconv.Itoa(i)) {
+			t.Fatalf("finished request ID %d was forgotten within the bound", i)
+		}
+	}
+	if len(finished.set) != maxFinishedRequestIDs {
+		t.Fatalf("remembered %d finished request IDs, want %d", len(finished.set), maxFinishedRequestIDs)
+	}
 }

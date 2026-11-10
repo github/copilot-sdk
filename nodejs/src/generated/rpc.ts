@@ -24,6 +24,9 @@ export type OpaqueInProcessValue = unknown;
 /** Opaque descriptor JSON. Integers outside the safe number range use bigint. */
 export type LocalModelJsonValue = null | boolean | number | bigint | string | LocalModelJsonValue[] | { [key: string]: LocalModelJsonValue };
 
+/** Archive JSON. Integers outside JavaScript's safe range use bigint. */
+export type TrajectoryJsonValue = null | boolean | number | bigint | string | TrajectoryJsonValue[] | { [key: string]: TrajectoryJsonValue };
+
 /**
  * Authentication credentials accepted only at native protocol ingress. Runtime outputs use credential-free `AuthIdentity` metadata.
  *
@@ -3275,7 +3278,7 @@ export type ExtensionSource =
   /** Extension discovered from the current session's state directory (loaded only for this session). */
   | "session";
 /**
- * Current status: running, disabled, failed, or starting
+ * Current status: running, dormant, disabled, failed, or starting
  *
  * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
  * via the `definition` "ExtensionStatus".
@@ -3284,6 +3287,8 @@ export type ExtensionSource =
 export type ExtensionStatus =
   /** The extension process is running. */
   | "running"
+  /** The extension is enabled and discoverable but not yet requested. */
+  | "dormant"
   /** The extension is installed but disabled. */
   | "disabled"
   /** The extension failed to start or crashed. */
@@ -18255,7 +18260,7 @@ export interface Extension {
    */
   source: ExtensionSource;
   /**
-   * Current status: running, disabled, failed, or starting
+   * Current status: running, dormant, disabled, failed, or starting
    */
   status: ExtensionStatus;
   /**
@@ -24293,6 +24298,10 @@ export interface ManagedSettingsDiagnostic {
 /** @internal */
 export interface ManagedSettingsIngestParams {
   /**
+   * Caller identity for a policy helper before session registration. Omit to keep the runtime default. This does not change clientName on managed-service requests.
+   */
+  policyHelperClientName?: string;
+  /**
    * The policy-helper invocation reason. Defaults to sessionStart.
    */
   policyHelperReason?: ManagedSettingsPolicyHelperReason;
@@ -24499,6 +24508,10 @@ export interface ManagedSettingsLogMessage {
 /** @internal */
 export interface ManagedSettingsLoadRemoteControlParams {
   /**
+   * Optional policy-helper caller identity. Does not change the managed-service clientName.
+   */
+  policyHelperClientName?: string;
+  /**
    * The policy-helper invocation reason. Defaults to sessionStart.
    */
   policyHelperReason?: ManagedSettingsPolicyHelperReason;
@@ -24686,6 +24699,10 @@ export interface ManagedSettingsResolveBypassDisableTransitionResult {
 /** @internal */
 export interface ManagedSettingsResolveDeviceForceLoginOrgsGateParams {
   /**
+   * Resolve the current credential from this connection's original auth owner only when device policy enforces a pin. Refreshes membership and preserves credential-resolution diagnostics. Defaults to false, which evaluates authInfo as supplied. Cannot be combined with authInfo; requires an original auth-owner binding.
+   */
+  resolveCurrentAuth?: boolean;
+  /**
    * The authenticated identity to judge. Omitted when signed out, which is the case the device channel exists to serve: it can refuse a first sign-in before any credential exists.
    */
   authInfo?: JsonValue;
@@ -24800,6 +24817,10 @@ export interface ManagedSettingsResolveResult {
 /** @experimental */
 /** @internal */
 export interface ManagedSettingsResolveStartupPolicyParams {
+  /**
+   * Caller identity for a policy helper before session registration. Omit to keep the runtime default. This does not change clientName on managed-service requests.
+   */
+  policyHelperClientName?: string;
   /**
    * The policy-helper invocation reason. Defaults to sessionStart.
    */
@@ -28459,6 +28480,52 @@ export interface McpServerList {
   host?: McpHostState;
 }
 /**
+ * Context tokens one MCP server's tool definitions cost.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "McpServerToolTokenBreakdown".
+ */
+/** @experimental */
+export interface McpServerToolTokenBreakdown {
+  /**
+   * Server name the tools are namespaced under.
+   */
+  serverName: string;
+  /**
+   * Tokens the server's non-deferred tool definitions cost together for the model the breakdown was counted with.
+   */
+  totalTokens: number;
+  /**
+   * Per-tool breakdown, in the session's tool order.
+   */
+  tools: McpToolTokenCount[];
+}
+/**
+ * Context tokens one MCP tool definition costs.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "McpToolTokenCount".
+ */
+/** @experimental */
+export interface McpToolTokenCount {
+  /**
+   * Tool name as the model sees it, copied verbatim from the session's tool metadata. Usually namespaced with the server, but that is not guaranteed: use `serverName` rather than parsing this name.
+   */
+  name: string;
+  /**
+   * Tool name as the MCP server reports it.
+   */
+  mcpToolName: string;
+  /**
+   * Share of the server's total tokens attributed to this tool; 0 when deferred. The tools of one server sum to that server's `totalTokens`.
+   */
+  tokens: number;
+  /**
+   * True when the tool definition is deferred and not sent to the model up front.
+   */
+  deferred: boolean;
+}
+/**
  * Mode controlling how MCP server env values are resolved (`direct` or `indirect`).
  *
  * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
@@ -28591,6 +28658,19 @@ export interface McpTaskMetadata {
    * Task time-to-live.
    */
   ttl?: number;
+}
+/**
+ * Per-server MCP tool definition token costs.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "McpToolTokenBreakdownResult".
+ */
+/** @experimental */
+export interface McpToolTokenBreakdownResult {
+  /**
+   * One entry per MCP server with tools in the session's current tool set, in tool order. Empty both when the session has not computed its tool set yet and when the computed tool set contains no MCP tools; the two cases are not distinguished.
+   */
+  servers: McpServerToolTokenBreakdown[];
 }
 /**
  * Server name identifying the external client to remove.
@@ -35126,19 +35206,19 @@ export interface SandboxConfigUserPolicyFilesystem {
 /** @experimental */
 export interface SandboxConfigUserPolicyNetwork {
   /**
-   * Hosts allowed through the built-in sandbox proxy. A non-empty list denies unmatched hosts; an absent or empty list allows all hosts not blocked. Supports exact hostnames, IP addresses, and *.example.com for strict subdomains. Host rules do not override the outbound or local-network toggles.
+   * Destinations allowed through the built-in sandbox proxy. Supports hostnames, IP addresses, IPv4/IPv6 CIDRs (10.0.0.0/8, fd00::/8), and *.example.com for strict subdomains. CIDR host bits must be zero; invalid entries suggest the network address. Within each nonempty list, matching names or addresses are alternative grants; every user and managed list must permit every resolved address. Empty lists add no restriction. Host rules never override outbound or local-network toggles. An upstream proxy owns DNS: CIDR-only grants cannot authorize unresolved names, and address denials cannot constrain its resolver.
    */
   allowedHosts?: string[];
   /**
-   * Hosts denied by the built-in sandbox proxy. Deny rules take precedence over allowedHosts. A domain also denies all its subdomains. IP addresses match exactly; *.example.com matches strict subdomains, and * denies every host.
+   * Destinations denied by the built-in sandbox proxy. Deny overrides allowedHosts, including CIDR denials against allowed names and their resolved addresses. Supports exact IPs and IPv4/IPv6 CIDRs with zero host bits. A denied domain also denies its subdomains; *.example.com matches strict subdomains, and * denies every host. With upstream-owned DNS, address denials cannot constrain remotely resolved names.
    */
   blockedHosts?: string[];
   /**
-   * Whether outbound network traffic is allowed at all.
+   * Whether outbound network destinations, including private networks, are allowed. Host-loopback access is controlled separately by allowLocalNetwork. Host rules still apply.
    */
   allowOutbound?: boolean;
   /**
-   * Whether traffic to local/loopback addresses is allowed.
+   * Whether host-local destinations, including loopback and unspecified addresses, are allowed. Private networks follow outbound and host rules. Host rules still apply.
    */
   allowLocalNetwork?: boolean;
   /**
@@ -36132,7 +36212,7 @@ export interface SendMessageItem {
    */
   requiredTool?: string;
   /**
-   * Optional provenance tag copied to the resulting user.message event. Must be `user`, `system`, `command-<command-id>` for command-originated messages, `schedule-<numeric-id>` for scheduled prompts, or `agent-<agent-id>` for prompts sent by another agent.
+   * Optional provenance tag copied to the resulting user.message event. Must be `user`, `system`, `command-<command-id>` for command-originated messages, `schedule-<numeric-id>` for scheduled prompts, `agent-<agent-id>` for prompts sent by another agent, or `automation-<automation-id>` for turns a host sends on behalf of an automation the user configured. An automation turn defines the session's task like a user message but carries no human authority.
    *
    * @internal
    */
@@ -36239,7 +36319,7 @@ export interface SendRequest {
    */
   requiredTool?: string;
   /**
-   * Optional provenance tag copied to the resulting user.message event. Must be `user`, `system`, `command-<command-id>` for command-originated messages, `schedule-<numeric-id>` for scheduled prompts, or `agent-<agent-id>` for prompts sent by another agent.
+   * Optional provenance tag copied to the resulting user.message event. Must be `user`, `system`, `command-<command-id>` for command-originated messages, `schedule-<numeric-id>` for scheduled prompts, `agent-<agent-id>` for prompts sent by another agent, or `automation-<automation-id>` for turns a host sends on behalf of an automation the user configured. An automation turn defines the session's task like a user message but carries no human authority.
    *
    * @internal
    */
@@ -39792,6 +39872,10 @@ export interface SessionsGetLastForContextResult {
 /** @experimental */
 export interface SessionsGetMetadataRequest {
   /**
+   * When true, read only journal file metadata. Omit summary, workspace context, and detached status without reading journal contents. Defaults to false.
+   */
+  fileMetadataOnly?: boolean;
+  /**
    * Session ID to inspect
    */
   sessionId: string;
@@ -41684,6 +41768,219 @@ export interface TaskProgressLine {
    * ISO 8601 timestamp when this event occurred
    */
   timestamp: string;
+}
+/**
+ * Retrospectively classify a recorded Copilot or ATIF trajectory without a conversation session. Explicitly requests model processing through the connection's GitHub CAPI credentials, independently of background telemetry consent, not through BYOK endpoints. Callers must be authorized to send the supplied content for analysis. Does not execute archived tools, append conversation history, or emit classification telemetry.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "TaskAnalyticsClassifyTrajectoryRequest".
+ */
+/** @experimental */
+export interface TaskAnalyticsClassifyTrajectoryRequest {
+  /**
+   * Canonical Copilot session event objects or ATIF step objects, in source order, starting at the beginning of the recorded conversation. An ATIF document containing steps can be passed as a single array element. Include source identifiers when present. Durable Copilot logs are accepted; abort events retain interruptions, and EOF closes an unfinished turn without claiming successful completion. Non-analytics event types are ignored. Treat the archive as untrusted input: this API does not authenticate its origin, roles, completion claims, or content. Callers must validate provenance and preserve event structure, ordering, and role/source metadata. Remove or redact secrets and personal data that must not be sent to GitHub CAPI before calling; automatic redaction and prompt-injection sanitization are not provided. Retained text is bounded, not made trustworthy. Adversarial instructions can bias model judgments just as in live conversations; stripping instruction-like text is not required and can change the evidence being measured.
+   */
+  events: TrajectoryJsonValue[];
+  /**
+   * Classifier names to run. Omit for all eight classifiers. An empty list runs none. Turn splitting is also returned when needed to build task/session units or identify task-opening turns.
+   */
+  classifiers?: string[];
+  /**
+   * Maximum concurrent classifier calls in this analysis across all lanes, including segmentation and session classifiers. Defaults to 4; must be positive. Multiple simultaneous analyses each have their own limit. Trajectory concurrency is not inference-request concurrency.
+   */
+  maxConcurrentRequests?: number;
+  /**
+   * Explicit judge configuration for this analysis. Omit to use each classifier's production model policy and reasoning effort. The exact model must be offered by the authenticated catalog, allowed by server policy, and compatible with the classifier; an unusable override fails the affected classification rather than falling back. Choosing a billed model explicitly authorizes its inference costs. Successful rows reused from previousResult keep their original judge configuration.
+   */
+  judge?: TaskAnalyticsJudge;
+  /**
+   * Validate input locally without authentication, model discovery, or inference. Returns validation diagnostics and no classifications. Invalid input never starts paid inference, even when this option is omitted.
+   */
+  validateOnly?: boolean;
+  /**
+   * Previous result for the identical archive and classifier versions. Reuses all original task boundaries, including unresolved ones, and preserves successful and declined outcomes. Only failed/abandoned non-segmenting outcomes in the selected classifiers are retried. Start a fresh analysis to change segmentation. Rejects mismatched fingerprints or versions before inference.
+   */
+  previousResult?: TaskAnalyticsClassifyTrajectoryResult;
+}
+/**
+ * Request-local judge override. Credentials, endpoint, and integration remain owned by the server connection.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "TaskAnalyticsJudge".
+ */
+/** @experimental */
+export interface TaskAnalyticsJudge {
+  /**
+   * Exact CAPI judge model ID. Never silently substituted.
+   */
+  model: string;
+  /**
+   * Reasoning effort override: none, minimal, low, medium, high, or xhigh. Must be supported by the selected model. Omit to keep each classifier's production effort.
+   */
+  reasoningEffort?: string;
+}
+/**
+ * Categorical retrospective measurements of the supplied trajectory, not verification that its claims are true. Model-derived classifications can be inaccurate or manipulated by adversarial content. Treat them as untrusted measurements; independently validate results used for consequential decisions and never use them as authorization or security decisions.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "TaskAnalyticsClassifyTrajectoryResult".
+ */
+/** @experimental */
+export interface TaskAnalyticsClassifyTrajectoryResult {
+  /**
+   * Terminal classifier outcomes. Declined, failed, and abandoned outcomes are retained. No restricted rationale, raw judge output, or transcript text is returned.
+   */
+  classifications: TaskAnalyticsTrajectoryClassification[];
+  /**
+   * SHA-256 identity of the input archive and archive-adapter revision. Required when passing this result back for an exact retry; not an authentication or provenance guarantee.
+   */
+  trajectoryFingerprint?: string;
+  /**
+   * Fresh interaction ID for this analysis attempt, never an archived interaction ID. Reused outcomes retain their original per-row interaction ID.
+   */
+  interactionId?: string;
+  /**
+   * Local validation results. No inference runs when valid is false or validateOnly was requested.
+   */
+  validation?: TaskAnalyticsTrajectoryValidation;
+}
+/**
+ * One terminal classification of a worker-local unit, including categorical output and actual judge configuration when available.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "TaskAnalyticsTrajectoryClassification".
+ */
+/** @experimental */
+export interface TaskAnalyticsTrajectoryClassification {
+  /**
+   * Registered classifier name.
+   */
+  classifier: string;
+  /**
+   * Classifier prompt/schema fingerprint; not a complete runtime/configuration identity.
+   */
+  classifierVersion: number;
+  /**
+   * Revision of this classifier's closed vocabulary, when applicable.
+   */
+  taxonomyVersion?: number;
+  /**
+   * Unit scope: prompt, turn, task, or session.
+   */
+  scope: string;
+  /**
+   * Analysis-local unit identity. Session snapshots can share an identity.
+   */
+  unitId: string;
+  /**
+   * One-based unit ordinal within its scope and this analysis request.
+   */
+  ordinal: number;
+  /**
+   * Source event opening this unit, when applicable.
+   */
+  anchorEventId?: string;
+  /**
+   * Why the unit closed; EOF is not reported as a successful completed turn.
+   */
+  closeReason: string;
+  /**
+   * Terminal status: success, declined, abandoned, or failed.
+   */
+  status: string;
+  /**
+   * Unrestricted categorical labels, empty when classification did not succeed.
+   */
+  labels: {
+    [k: string]: string | undefined;
+  };
+  /**
+   * Unrestricted numerical verdict measurements, such as confidence.
+   */
+  metrics: {
+    [k: string]: number | undefined;
+  };
+  /**
+   * Whether retention caps truncated the unit's text.
+   */
+  textTruncated: boolean;
+  /**
+   * Number of unit boundaries inferred without a successful segmentation judgment.
+   */
+  unresolvedBoundaries: number;
+  /**
+   * First member-turn ordinal for task/session units.
+   */
+  firstMemberOrdinal?: number;
+  /**
+   * Last member-turn ordinal for task/session units.
+   */
+  lastMemberOrdinal?: number;
+  /**
+   * Resolved judge model when available, including failed inference calls; absent when model resolution did not complete.
+   */
+  model?: string;
+  /**
+   * Interaction ID used for this row's judge call. New attempts never reuse archived IDs; preserved outcomes keep their original value.
+   */
+  interactionId?: string;
+  /**
+   * Why the canonical classifier model policy selected this judge.
+   */
+  modelSelectionReason?: string;
+  /**
+   * Actual judge reasoning effort, when reported.
+   */
+  reasoningEffort?: string;
+  /**
+   * Consumed input tokens, when reported.
+   */
+  inputTokens?: number;
+  /**
+   * Consumed output tokens, when reported.
+   */
+  outputTokens?: number;
+  /**
+   * Cached input tokens, when reported.
+   */
+  cachedInputTokens?: number;
+  /**
+   * Stable failure/decline kind, never a raw error or judge response.
+   */
+  errorKind?: string;
+  /**
+   * HTTP failure status from inference, when available. Not inferred from message text.
+   */
+  httpStatus?: number;
+  /**
+   * Whether a failed inference may be retried. Absent for failures without an HTTP response. Does not initiate an automatic retry.
+   */
+  retryable?: boolean;
+  /**
+   * Server-requested minimum delay in seconds before retry, including multi-hour delays. Absent for missing or malformed Retry-After headers.
+   */
+  retryAfterSeconds?: number;
+}
+/**
+ * Local archive checks; validates supported structure, not the truth or provenance of archived evidence.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "TaskAnalyticsTrajectoryValidation".
+ */
+/** @experimental */
+export interface TaskAnalyticsTrajectoryValidation {
+  /**
+   * Whether the archive and execution options passed local checks.
+   */
+  valid: boolean;
+  /**
+   * Compact JSON input size in UTF-8 bytes.
+   */
+  inputBytes: number;
+  /**
+   * Actionable validation errors. Does not include transcript content or raw parser errors.
+   */
+  errors: string[];
 }
 /**
  * Tracked client-owned task metadata.
@@ -49969,6 +50266,20 @@ export function createServerRpc(connection: MessageConnection) {
             list: async (params: LspListRequest): Promise<LspListResult> =>
                 connection.sendRequest("lsp.list", params),
         },
+        /** @experimental */
+        taskAnalytics: {
+            /**
+             * Classifies a recorded Copilot or ATIF trajectory using the runtime's production analytics pipeline. No conversation session is required or created, archived tools are never executed, and classification telemetry is not emitted. Calling this method explicitly requests model processing of retained trajectory content through the connection's GitHub CAPI credentials, independently of background telemetry consent; BYOK endpoints are not used. Callers must authorize that processing and validate archive provenance. Content is not automatically redacted or sanitized for prompt injection. Model-derived results can be manipulated by trajectory content and must not be used as authorization or security decisions.
+             *
+             * @param params Retrospectively classify a recorded Copilot or ATIF trajectory without a conversation session. Explicitly requests model processing through the connection's GitHub CAPI credentials, independently of background telemetry consent, not through BYOK endpoints. Callers must be authorized to send the supplied content for analysis. Does not execute archived tools, append conversation history, or emit classification telemetry.
+             *
+             * @param options.signal Aborting stops the wait and sends `$/cancelRequest` so the server stops the work.
+             *
+             * @returns Categorical retrospective measurements of the supplied trajectory, not verification that its claims are true. Model-derived classifications can be inaccurate or manipulated by adversarial content. Treat them as untrusted measurements; independently validate results used for consequential decisions and never use them as authorization or security decisions.
+             */
+            classifyTrajectory: async (params: TaskAnalyticsClassifyTrajectoryRequest, options?: { signal?: AbortSignal }): Promise<TaskAnalyticsClassifyTrajectoryResult> =>
+                sendCancellableRequest(connection, "taskAnalytics.classifyTrajectory", params, options?.signal, true),
+        },
     };
 }
 
@@ -52573,6 +52884,13 @@ export function createSessionRpc(connection: MessageConnection, sessionId: strin
              */
             isServerRunning: async (params: McpIsServerRunningRequest): Promise<McpIsServerRunningResult> =>
                 connection.sendRequest("session.mcp.isServerRunning", { ...params, sessionId }),
+            /**
+             * Reports how many context tokens each MCP server's tool definitions cost, per server and per tool, for the session's current tool set. Costs are counted with the session's selected model, or with the runtime's default context model when no model has been selected.
+             *
+             * @returns Per-server MCP tool definition token costs.
+             */
+            getToolTokenBreakdown: async (): Promise<McpToolTokenBreakdownResult> =>
+                connection.sendRequest("session.mcp.getToolTokenBreakdown", { sessionId }),
             /** @experimental */
             oauth: {
                 /**

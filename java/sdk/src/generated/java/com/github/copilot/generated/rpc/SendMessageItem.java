@@ -32,7 +32,7 @@ public record SendMessageItem(
     @JsonProperty("billable") Boolean billable,
     /** If set, the request will fail if the named tool is not available when this message is among the user messages at the start of the current exchange */
     @JsonProperty("requiredTool") String requiredTool,
-    /** Optional provenance tag copied to the resulting user.message event. Must be `user`, `system`, `command-<command-id>` for command-originated messages, `schedule-<numeric-id>` for scheduled prompts, or `agent-<agent-id>` for prompts sent by another agent. */
+    /** Optional provenance tag copied to the resulting user.message event. Must be `user`, `system`, `command-<command-id>` for command-originated messages, `schedule-<numeric-id>` for scheduled prompts, `agent-<agent-id>` for prompts sent by another agent, or `automation-<automation-id>` for turns a host sends on behalf of an automation the user configured. An automation turn defines the session's task like a user message but carries no human authority. */
     @JsonProperty("source") String source
 ) {
 

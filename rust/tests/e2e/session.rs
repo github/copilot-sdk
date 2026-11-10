@@ -54,6 +54,17 @@ async fn shouldcreateanddisconnectsessions() {
                     .expect("session.start data");
                 assert_eq!(start.session_id, session.id().clone());
 
+                let raw_events = session.get_raw_events().await.expect("get raw events");
+                assert!(
+                    !raw_events.is_empty(),
+                    "expected initial raw session events"
+                );
+                assert_eq!(raw_events[0]["type"], "session.start");
+                assert_eq!(
+                    raw_events[0].get("parentId"),
+                    Some(&serde_json::Value::Null)
+                );
+
                 session.disconnect().await.expect("disconnect session");
                 assert!(
                     session.get_events().await.is_err(),

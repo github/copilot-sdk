@@ -13,6 +13,7 @@ import org.junit.jupiter.api.Test;
 import com.github.copilot.generated.SessionEvent;
 import com.github.copilot.generated.UnknownSessionEvent;
 import com.github.copilot.generated.UserMessageEvent;
+import com.github.copilot.generated.rpc.TaskAnalyticsClassifyTrajectoryParams;
 
 /**
  * Unit tests for forward-compatible handling of unknown session event types.
@@ -54,6 +55,27 @@ public class ForwardCompatibilityTest {
 
         assertInstanceOf(UnknownSessionEvent.class, result);
         assertEquals("future.feature_from_server", result.getType());
+    }
+
+    @Test
+    void unknownEventPayload_survivesTrajectorySerialization() throws Exception {
+        for (String data : new String[]{"{\"nested\":[null,false,42,\"text\",{\"value\":true}]}", "null"}) {
+            var original = MAPPER.readTree("""
+                    {
+                        "id": "12345678-1234-1234-1234-123456789abc",
+                        "timestamp": "2026-06-15T10:30:00Z",
+                        "type": "future.feature_from_server",
+                        "futureMetadata": { "revision": 3 },
+                        "data": %s
+                    }
+                    """.formatted(data));
+            var event = MAPPER.treeToValue(original, SessionEvent.class);
+            var params = TaskAnalyticsClassifyTrajectoryParams.builder().events(java.util.List.of(event)).build();
+            var wire = MAPPER.valueToTree(params);
+
+            assertInstanceOf(UnknownSessionEvent.class, event);
+            assertEquals(original, wire.path("events").path(0));
+        }
     }
 
     @Test

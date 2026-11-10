@@ -1896,10 +1896,11 @@ type SessionConfig struct {
 	// SystemMessage configures system message customization
 	SystemMessage *SystemMessageConfig
 	// AvailableTools is a list of tool names to allow. When specified, only these tools will be available.
-	// Takes precedence over ExcludedTools.
+	// When ExcludedTools is also set, a tool must match AvailableTools and not match ExcludedTools.
 	AvailableTools []string
 	// ExcludedTools is a list of tool names to disable. All other tools remain available.
-	// Ignored if AvailableTools is specified.
+	// Takes precedence over AvailableTools: a tool listed here is disabled even if it
+	// also matches AvailableTools.
 	ExcludedTools []string
 	// ExcludedBuiltInAgents is a list of built-in agent names to exclude from
 	// the session. Excluded built-in agents are hidden from discovery and cannot
@@ -2578,10 +2579,11 @@ type ResumeSessionConfig struct {
 	// SystemMessage configures system message customization
 	SystemMessage *SystemMessageConfig
 	// AvailableTools is a list of tool names to allow. When specified, only these tools will be available.
-	// Takes precedence over ExcludedTools.
+	// When ExcludedTools is also set, a tool must match AvailableTools and not match ExcludedTools.
 	AvailableTools []string
 	// ExcludedTools is a list of tool names to disable. All other tools remain available.
-	// Ignored if AvailableTools is specified.
+	// Takes precedence over AvailableTools: a tool listed here is disabled even if it
+	// also matches AvailableTools.
 	ExcludedTools []string
 	// ExcludedBuiltInAgents is a list of built-in agent names to exclude from
 	// the session. Excluded built-in agents are hidden from discovery and cannot
@@ -3236,6 +3238,16 @@ const (
 // The agent ID is opaque and is sent unchanged after the "agent-" prefix.
 func MessageSourceAgent(id string) MessageSource {
 	return MessageSource("agent-" + id)
+}
+
+// MessageSourceAutomation identifies the automation a turn is sent on behalf of,
+// such as a recurring check-in the user configured. The turn defines the
+// session's task like a user message but carries no human authority.
+// The automation ID is opaque and is sent unchanged after the "automation-" prefix.
+// It must not be empty: the runtime does not treat "automation-" alone as an
+// automation turn.
+func MessageSourceAutomation(id string) MessageSource {
+	return MessageSource("automation-" + id)
 }
 
 // MessageOptions configures a message to send

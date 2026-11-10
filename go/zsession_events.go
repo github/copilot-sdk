@@ -680,6 +680,7 @@ const (
 	ExtensionsLoadedExtensionSourceSession                               = rpc.ExtensionsLoadedExtensionSourceSession
 	ExtensionsLoadedExtensionSourceUser                                  = rpc.ExtensionsLoadedExtensionSourceUser
 	ExtensionsLoadedExtensionStatusDisabled                              = rpc.ExtensionsLoadedExtensionStatusDisabled
+	ExtensionsLoadedExtensionStatusDormant                               = rpc.ExtensionsLoadedExtensionStatusDormant
 	ExtensionsLoadedExtensionStatusFailed                                = rpc.ExtensionsLoadedExtensionStatusFailed
 	ExtensionsLoadedExtensionStatusRunning                               = rpc.ExtensionsLoadedExtensionStatusRunning
 	ExtensionsLoadedExtensionStatusStarting                              = rpc.ExtensionsLoadedExtensionStatusStarting

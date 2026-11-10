@@ -107,6 +107,8 @@ public final class ServerRpc {
     public final ServerConnectorsApi connectors;
     /** API methods for the {@code lsp} namespace. */
     public final ServerLspApi lsp;
+    /** API methods for the {@code taskAnalytics} namespace. */
+    public final ServerTaskAnalyticsApi taskAnalytics;
     /** API methods for the {@code gitHubFetch} namespace. */
     final ServerGitHubFetchApi gitHubFetch;
     /** API methods for the {@code gitHubRelease} namespace. */
@@ -164,6 +166,7 @@ public final class ServerRpc {
         this.agentRegistry = new ServerAgentRegistryApi(caller);
         this.connectors = new ServerConnectorsApi(caller);
         this.lsp = new ServerLspApi(caller);
+        this.taskAnalytics = new ServerTaskAnalyticsApi(caller);
         this.gitHubFetch = new ServerGitHubFetchApi(caller);
         this.gitHubRelease = new ServerGitHubReleaseApi(caller);
         this.cloudTasks = new ServerCloudTasksApi(caller);

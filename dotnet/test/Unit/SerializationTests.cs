@@ -1,4 +1,4 @@
-﻿/*---------------------------------------------------------------------------------------------
+/*---------------------------------------------------------------------------------------------
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *--------------------------------------------------------------------------------------------*/
 
@@ -29,6 +29,38 @@ public class SerializationTests
             tag => Assert.Equal("b", tag.GetString()));
         Assert.Equal(2.5, CopilotClient.ToJsonElementForWire(2.5f)!.Value.GetDouble());
         Assert.Equal(9.99m, CopilotClient.ToJsonElementForWire(9.99m)!.Value.GetDecimal());
+    }
+
+    [Fact]
+    public void ToJsonElementForWire_Serializes_Caller_Defined_Types()
+    {
+        var value = new { step_id = 1, source = "user", message = "Fix the build" };
+        if (!JsonSerializer.IsReflectionEnabledByDefault)
+        {
+            // Without reflection (NativeAOT, or this suite's net8.0 configuration), only types a
+            // source-generated context knows can be serialized.
+            Assert.Throws<NotSupportedException>(() => CopilotClient.ToJsonElementForWire(value));
+            return;
+        }
+
+        var step = CopilotClient.ToJsonElementForWire(value)!.Value;
+
+        Assert.Equal(1, step.GetProperty("step_id").GetInt32());
+        Assert.Equal("user", step.GetProperty("source").GetString());
+        Assert.Equal("Fix the build", step.GetProperty("message").GetString());
+    }
+
+    [Fact]
+    public void ToJsonElementForWire_Preserves_Concrete_SessionEvent_Type()
+    {
+        var wire = CopilotClient.ToJsonElementForWire(new SessionIdleEvent
+        {
+            Id = Guid.Parse("11111111-1111-1111-1111-111111111111"),
+            Timestamp = DateTimeOffset.Parse("2026-03-15T21:26:02.642Z"),
+            Data = new SessionIdleData(),
+        })!.Value;
+
+        Assert.Equal("session.idle", wire.GetProperty("type").GetString());
     }
 
     [Fact]
@@ -156,6 +188,7 @@ public class SerializationTests
         new object?[] { MessageSource.Agent("agent-Worker"), "agent-agent-Worker" },
         new object?[] { MessageSource.Agent(" Team/α "), "agent- Team/α " },
         new object?[] { MessageSource.Agent(""), "agent-" },
+        new object?[] { MessageSource.Automation("merge-check"), "automation-merge-check" },
     ];
 
     [Theory]
@@ -205,6 +238,7 @@ public class SerializationTests
         Assert.NotEqual(source, MessageSource.Agent("reviewer"));
         Assert.NotEqual(source, MessageSource.System);
         Assert.Throws<ArgumentNullException>(() => MessageSource.Agent(null!));
+        Assert.Throws<ArgumentNullException>(() => MessageSource.Automation(null!));
     }
 
     [Fact]

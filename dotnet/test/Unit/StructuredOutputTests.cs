@@ -818,7 +818,7 @@ public sealed partial class ClientSessionLifetimeTests
             });
             await handlerEntered.Task.WaitAsync(TimeSpan.FromSeconds(5));
             await server.SendSessionEventAsync(session.SessionId, "session.idle", new());
-            server.CloseConnection();
+            server.CloseOutput();
             // A request sent after the close fails only once the client has read to the end of the transport.
             await Assert.ThrowsAnyAsync<IOException>(() => client.PingAsync().WaitAsync(TimeSpan.FromSeconds(5)));
             // Give a wait that treats the closed transport as final the chance to fail while the handler still blocks.

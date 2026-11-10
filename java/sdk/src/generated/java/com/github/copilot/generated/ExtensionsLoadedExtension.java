@@ -27,7 +27,7 @@ public record ExtensionsLoadedExtension(
     @JsonProperty("name") String name,
     /** Discovery source */
     @JsonProperty("source") ExtensionsLoadedExtensionSource source,
-    /** Current status: running, disabled, failed, or starting */
+    /** Current status: running, dormant, disabled, failed, or starting */
     @JsonProperty("status") ExtensionsLoadedExtensionStatus status
 ) {
 

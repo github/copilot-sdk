@@ -417,4 +417,15 @@ public final class SessionMcpApi {
         return caller.invoke("session.mcp.isServerRunning", _p, SessionMcpIsServerRunningResult.class);
     }
 
+    /**
+     * Reports how many context tokens each MCP server's tool definitions cost, per server and per tool, for the session's current tool set. Costs are counted with the session's selected model, or with the runtime's default context model when no model has been selected.
+     *
+     * @apiNote This method is experimental and may change in a future version.
+     * @since 1.0.0
+     */
+    @CopilotExperimental
+    public CompletableFuture<SessionMcpGetToolTokenBreakdownResult> getToolTokenBreakdown() {
+        return caller.invoke("session.mcp.getToolTokenBreakdown", java.util.Map.of("sessionId", this.sessionId), SessionMcpGetToolTokenBreakdownResult.class);
+    }
+
 }

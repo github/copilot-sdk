@@ -2,7 +2,9 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *--------------------------------------------------------------------------------------------*/
 
+using System.Reflection;
 using System.Text.Json;
+using System.Text.Json.Nodes;
 using System.Text.Json.Serialization;
 using Xunit;
 
@@ -14,6 +16,34 @@ namespace GitHub.Copilot.Test.Unit;
 /// </summary>
 public class ForwardCompatibilityTests
 {
+    [Fact]
+    public void UnknownEvent_InspectionAndWireSerialization_ReflectEdits()
+    {
+        var sessionEvent = SessionEvent.FromJson("""
+        {
+            "id": "00000000-0000-0000-0000-000000000003",
+            "timestamp": "2026-01-01T00:00:00Z",
+            "agentId": "original-agent",
+            "type": "future.feature_from_server",
+            "data": { "detail": "retained" },
+            "extra": { "nullable": null },
+            "discard": "remove before forwarding"
+        }
+        """);
+        sessionEvent.AgentId = null;
+        using var editedData = JsonDocument.Parse("""{ "detail": "edited" }""");
+        sessionEvent.AdditionalProperties!["data"] = editedData.RootElement;
+        sessionEvent.AdditionalProperties.Remove("discard");
+        using var inspection = JsonDocument.Parse(sessionEvent.ToJson());
+        Assert.Equal("edited", inspection.RootElement.GetProperty("data").GetProperty("detail").GetString());
+        Assert.False(inspection.RootElement.TryGetProperty("agentId", out _));
+        Assert.False(inspection.RootElement.TryGetProperty("discard", out _));
+        var wire = CopilotClient.ToJsonElementForWire(sessionEvent)!.Value;
+        Assert.True(JsonNode.DeepEquals(JsonNode.Parse(inspection.RootElement.GetRawText()), JsonNode.Parse(wire.GetRawText())));
+        Assert.Equal("future.feature_from_server", wire.GetProperty("type").GetString());
+        Assert.Equal(JsonValueKind.Null, wire.GetProperty("extra").GetProperty("nullable").ValueKind);
+    }
+
     [Fact]
     public void FromJson_KnownEventType_DeserializesNormally()
     {
@@ -35,6 +65,36 @@ public class ForwardCompatibilityTests
         Assert.IsType<UserMessageEvent>(result);
         Assert.Equal("user.message", result.Type);
         Assert.Equal("agent-1", result.AgentId);
+    }
+
+    [Fact]
+    public void UnknownEventType_IsSentToTheRuntimeUnchanged()
+    {
+        var json = """
+        {
+            "id": "00000000-0000-0000-0000-000000000003",
+            "timestamp": "2026-01-01T00:00:00Z",
+            "parentId": null,
+            "type": "future.feature_from_server",
+            "data": { "detail": [1, "two", { "three": true }] }
+        }
+        """;
+        // The options the SDK uses for live session events received over JSON-RPC.
+        var options = (JsonSerializerOptions)typeof(CopilotClient).GetProperty(
+            "SerializerOptionsForMessageFormatter", BindingFlags.Static | BindingFlags.NonPublic)!
+            .GetValue(null)!;
+
+        foreach (var sessionEvent in new[] { SessionEvent.FromJson(json), JsonSerializer.Deserialize<SessionEvent>(json, options)! })
+        {
+            Assert.IsType<SessionEvent>(sessionEvent);
+            var wire = CopilotClient.ToJsonElementForWire(sessionEvent)!.Value;
+
+            Assert.Equal("future.feature_from_server", wire.GetProperty("type").GetString());
+            Assert.Equal("00000000-0000-0000-0000-000000000003", wire.GetProperty("id").GetString());
+            Assert.Equal(
+                """{"detail":[1,"two",{"three":true}]}""",
+                JsonNode.Parse(wire.GetProperty("data").GetRawText())!.ToJsonString());
+        }
     }
 
     [Fact]

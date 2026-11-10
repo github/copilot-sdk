@@ -969,6 +969,7 @@ export interface ResponseSchema<T = unknown> extends ZodSchema<T> {
  */
 export interface Tool<TArgs = unknown> {
     name: string;
+    title?: string;
     description?: string;
     parameters?: ZodSchema<TArgs> | Record<string, unknown>;
     handler?: ToolHandler<TArgs>;
@@ -1047,6 +1048,7 @@ export type ToolNamespace = ProtocolExternalToolNamespace;
 export function defineTool<T = unknown>(
     name: string,
     config: {
+        title?: string;
         description?: string;
         parameters?: ZodSchema<T> | Record<string, unknown>;
         handler?: ToolHandler<T>;
@@ -4109,7 +4111,7 @@ export interface ProviderModelConfig {
 /**
  * Message provenance, independent of delivery mode.
  */
-export type MessageSource = "user" | "system" | `agent-${string}`;
+export type MessageSource = "user" | "system" | `agent-${string}` | `automation-${string}`;
 
 /** Structured context contributed by an extension. */
 export type ExtensionContextAttachment = GeneratedExtensionContextAttachment;
@@ -4122,8 +4124,11 @@ export interface MessageOptions {
 
     /**
      * Optional message provenance. Omitted by default to preserve the runtime's
-     * default for user messages. Use "system" for application-generated context
-     * or `agent-${id}` for messages originating from an identified agent.
+     * default for user messages. Use "system" for application-generated context,
+     * `agent-${id}` for messages originating from an identified agent, or
+     * `automation-${id}` for turns sent on behalf of an automation the user
+     * configured, with a non-empty ID. An automation turn defines the session's
+     * task like a user message but carries no human authority.
      */
     source?: MessageSource;
 

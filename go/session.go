@@ -2665,6 +2665,7 @@ func (s *Session) executePermissionAndRespond(
 }
 
 // GetEvents retrieves all events from this session's history.
+// For lossless JSON, including task-analytics retries, use GetRawEvents instead.
 //
 // This returns the complete conversation history including user messages,
 // assistant responses, tool executions, and other session events in
@@ -2692,6 +2693,24 @@ func (s *Session) GetEvents(ctx context.Context) ([]SessionEvent, error) {
 	}
 
 	var response sessionGetMessagesResponse
+	if err := json.Unmarshal(result, &response); err != nil {
+		return nil, fmt.Errorf("failed to unmarshal get events response: %w", err)
+	}
+	return response.Events, nil
+}
+
+// GetRawEvents retrieves session history without projecting it into typed events.
+// It preserves timestamp strings, explicit nulls, and unknown fields. Use
+// rpc.SessionEventsAsTrajectory to pass the result to task analytics unchanged.
+func (s *Session) GetRawEvents(ctx context.Context) ([]json.RawMessage, error) {
+	result, err := s.client.Request(ctx, "session.getMessages", sessionGetMessagesRequest{SessionID: s.SessionID})
+	if err != nil {
+		return nil, fmt.Errorf("failed to get events: %w", err)
+	}
+
+	var response struct {
+		Events []json.RawMessage `json:"events"`
+	}
 	if err := json.Unmarshal(result, &response); err != nil {
 		return nil, fmt.Errorf("failed to unmarshal get events response: %w", err)
 	}

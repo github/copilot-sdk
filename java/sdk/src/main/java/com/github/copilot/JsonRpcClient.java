@@ -206,7 +206,7 @@ class JsonRpcClient implements AutoCloseable {
                     && pendingRequests.remove(id, future)) {
                 future.cancel(false);
                 if ("session.sendAndWait".equals(method) || "session.featureFlags.read".equals(method)
-                        || "localModels.watch".equals(method)) {
+                        || "taskAnalytics.classifyTrajectory".equals(method) || "localModels.watch".equals(method)) {
                     try {
                         cancellationExecutor.execute(() -> {
                             try {

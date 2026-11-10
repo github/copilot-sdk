@@ -2788,6 +2788,19 @@ public sealed record MessageSource
         return new("agent-" + id);
     }
 
+    /// <summary>
+    /// Identifies a turn sent on behalf of an automation the user configured, such as a recurring check-in.
+    /// The turn defines the session's task like a user message but carries no human authority.
+    /// </summary>
+    /// <param name="id">The opaque automation identifier, preserved exactly after <c>automation-</c>. It must not be empty: the runtime does not treat <c>automation-</c> alone as an automation turn.</param>
+    /// <returns>The automation message source.</returns>
+    /// <exception cref="ArgumentNullException"><paramref name="id"/> is null.</exception>
+    public static MessageSource Automation(string id)
+    {
+        ArgumentNullException.ThrowIfNull(id);
+        return new("automation-" + id);
+    }
+
     /// <inheritdoc/>
     public override string ToString() => Value;
 
@@ -2803,6 +2816,7 @@ public sealed record MessageSource
                 "user" => User,
                 "system" => System,
                 _ when value.StartsWith("agent-", StringComparison.Ordinal) => new MessageSource(value),
+                _ when value.StartsWith("automation-", StringComparison.Ordinal) => new MessageSource(value),
                 _ => throw new JsonException($"Unknown MessageSource value: {value}")
             };
         }

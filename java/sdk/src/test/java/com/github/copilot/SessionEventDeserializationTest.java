@@ -89,7 +89,6 @@ public class SessionEventDeserializationTest {
             assertEquals(checkpoint, event.getCheckpoint());
             if ("future.event".equals(type)) {
                 assertInstanceOf(UnknownSessionEvent.class, event);
-                wire.remove("data");
             } else {
                 assertInstanceOf(SessionInfoEvent.class, event);
             }

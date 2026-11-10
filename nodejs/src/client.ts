@@ -2329,6 +2329,7 @@ export class CopilotClient {
                 contextTier: config.contextTier,
                 tools: config.tools?.map((tool) => ({
                     name: tool.name,
+                    title: tool.title,
                     description: tool.description,
                     parameters: toJsonSchema(tool.parameters),
                     overridesBuiltInTool: tool.overridesBuiltInTool,
@@ -2580,7 +2581,20 @@ export class CopilotClient {
         contributions: ExtensionOrchestrationContributions = {},
         extensionOptions?: ExtensionJoinOptions
     ): Promise<CopilotSession> {
-        return this.resumeSessionInternal(sessionId, config, contributions, extensionOptions);
+        const session = await this.resumeSessionInternal(
+            sessionId,
+            config,
+            contributions,
+            extensionOptions
+        );
+        if (process.env.COPILOT_EXTENSION_INITIALIZATION === "module") {
+            const connection = this.connection!;
+            Object.defineProperty(globalThis, Symbol.for("copilot.extension.initialized"), {
+                configurable: true,
+                value: () => connection.sendNotification("extension.initialized"),
+            });
+        }
+        return session;
     }
 
     private async resumeSessionInternal(
@@ -2761,6 +2775,7 @@ export class CopilotClient {
                 autopilot: config.autopilot,
                 tools: config.tools?.map((tool) => ({
                     name: tool.name,
+                    title: tool.title,
                     description: tool.description,
                     parameters: toJsonSchema(tool.parameters),
                     overridesBuiltInTool: tool.overridesBuiltInTool,

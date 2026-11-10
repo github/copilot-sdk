@@ -4,6 +4,7 @@
 
 import { Message, type ResponseMessage } from "vscode-jsonrpc/node";
 import type { LocalModelDescriptor, LocalModelsSnapshot } from "./generated/rpc.js";
+import { parseTrajectoryJson, rawHistoryResponse } from "./taskAnalyticsJson.js";
 
 /** @internal */
 export function createLocalModelJsonCodec() {
@@ -25,19 +26,40 @@ export function createLocalModelJsonCodec() {
     return {
         async encode(message: Message): Promise<string> {
             const method = Message.isRequest(message) ? message.method : undefined;
+            const rawHistory =
+                method === "session.getMessages" &&
+                (message as { params?: { [rawHistoryResponse]?: boolean } }).params?.[
+                    rawHistoryResponse
+                ];
+            const analytics = method === "taskAnalytics.classifyTrajectory";
             // Warm the decoder before sending: EOF may otherwise overtake its first import.
             const json =
-                method && (snapshots.has(method) || modelRequests.has(method))
+                method &&
+                (snapshots.has(method) || modelRequests.has(method) || rawHistory || analytics)
                     ? await import("lossless-json")
                     : undefined;
             const text =
-                method && modelRequests.has(method) && json
-                    ? json.stringify(message)!
+                method && (modelRequests.has(method) || analytics) && json
+                    ? json.stringify(
+                          message,
+                          analytics
+                              ? (_key, value) => {
+                                    const nativeJson = JSON as typeof JSON & {
+                                        isRawJSON?: (value: unknown) => boolean;
+                                    };
+                                    return nativeJson.isRawJSON?.(value)
+                                        ? json.parse(JSON.stringify(value))
+                                        : value;
+                                }
+                              : undefined
+                      )!
                     : JSON.stringify(message);
             if (
                 Message.isRequest(message) &&
                 json &&
-                (snapshots.has(message.method) || message.method === "localModels.prepare")
+                (snapshots.has(message.method) ||
+                    message.method === "localModels.prepare" ||
+                    rawHistory)
             ) {
                 pending.set(message.id, { method: message.method, json });
             }
@@ -49,6 +71,10 @@ export function createLocalModelJsonCodec() {
             const request = pending.get(message.id);
             pending.delete(message.id);
             if (!request || !("result" in message)) return message;
+
+            if (request.method === "session.getMessages") {
+                return (await parseTrajectoryJson(text)) as unknown as ResponseMessage;
+            }
 
             const {
                 method,

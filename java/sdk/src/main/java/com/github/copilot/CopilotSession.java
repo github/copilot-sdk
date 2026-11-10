@@ -2943,7 +2943,8 @@ public final class CopilotSession implements AutoCloseable {
      * Gets the complete list of messages and events in the session.
      * <p>
      * This retrieves the full conversation history, including all user messages,
-     * assistant responses, tool invocations, and other session events.
+     * assistant responses, tool invocations, and other session events. Use
+     * {@link #getRawMessages()} for task-analytics archives and exact retries.
      *
      * @return a future that resolves with a list of all session events
      * @throws IllegalStateException
@@ -2951,24 +2952,39 @@ public final class CopilotSession implements AutoCloseable {
      * @see SessionEvent
      */
     public CompletableFuture<List<SessionEvent>> getMessages() {
+        return getRawMessages().thenApply(rawEvents -> {
+            var events = new ArrayList<SessionEvent>();
+            for (JsonNode eventNode : rawEvents) {
+                try {
+                    SessionEvent event = MAPPER.treeToValue(eventNode, SessionEvent.class);
+                    if (event != null) {
+                        events.add(event);
+                    }
+                } catch (Exception e) {
+                    LOG.log(Level.WARNING, "Failed to parse event", e);
+                }
+            }
+            return events;
+        });
+    }
+
+    /**
+     * Gets the complete session history without projecting events into typed SDK
+     * objects.
+     * <p>
+     * Use these objects for native task-analytics archives and exact retries.
+     * Unlike typed events, they preserve explicit nulls, unknown fields, and
+     * original timestamp strings.
+     *
+     * @return a future containing the original event JSON objects in chronological
+     *         order
+     * @throws IllegalStateException
+     *             if this session has been terminated
+     */
+    public CompletableFuture<List<JsonNode>> getRawMessages() {
         ensureNotTerminated();
         return rpc.invoke("session.getMessages", Map.of("sessionId", sessionId), GetMessagesResponse.class)
-                .thenApply(response -> {
-                    var events = new ArrayList<SessionEvent>();
-                    if (response.events() != null) {
-                        for (JsonNode eventNode : response.events()) {
-                            try {
-                                SessionEvent event = MAPPER.treeToValue(eventNode, SessionEvent.class);
-                                if (event != null) {
-                                    events.add(event);
-                                }
-                            } catch (Exception e) {
-                                LOG.log(Level.WARNING, "Failed to parse event", e);
-                            }
-                        }
-                    }
-                    return events;
-                });
+                .thenApply(response -> response.events() == null ? List.of() : response.events());
     }
 
     /**

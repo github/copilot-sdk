@@ -4558,7 +4558,7 @@ type ExtensionsLoadedExtension struct {
 	Name string `json:"name"`
 	// Discovery source
 	Source ExtensionsLoadedExtensionSource `json:"source"`
-	// Current status: running, disabled, failed, or starting
+	// Current status: running, dormant, disabled, failed, or starting
 	Status ExtensionsLoadedExtensionStatus `json:"status"`
 }
 
@@ -5762,7 +5762,7 @@ func (PermissionDeniedNoApprovalRuleAndCouldNotRequestFromUser) Kind() Permissio
 	return PermissionResultKindDeniedNoApprovalRuleAndCouldNotRequestFromUser
 }
 
-// A sandbox filesystem policy edit that would let a blocked operation run inside the sandbox instead of outside it. Offered only on a sandbox escalation request whose denial adding this path lifts, and only when managed policy permits the grant. A host accepts it with session.sandbox.grantPathForRequest, which adds the path to the session's sandbox policy and re-runs the operation sandboxed; a host that persists sandbox settings may also save the path there.
+// A sandbox filesystem policy edit that would let a blocked operation run inside the sandbox instead of outside it. Offered only on a sandbox escalation request whose denial adding this path lifts, and only when managed policy permits the grant. A host accepts it with session.sandbox.grantPathForRequest, which adds the path to the session's sandbox policy and re-runs the operation sandboxed. A host that persists sandbox settings must save the optional policy spelling when present; otherwise it must escape every literal `$` in the concrete path as `$$` before saving that path.
 // Experimental: PermissionSandboxPathGrant is part of an experimental API and may change or be removed.
 type PermissionSandboxPathGrant struct {
 	// Which access the grant confers, and so which policy list the path is added to
@@ -5771,6 +5771,8 @@ type PermissionSandboxPathGrant struct {
 	DeniedPath *string `json:"deniedPath,omitempty"`
 	// Absolute path to add to the sandbox filesystem policy
 	Path string `json:"path"`
+	// Policy spelling to persist for the grant. This can differ from path when a managed allowlist names the same location through an environment expression. Hosts that persist sandbox settings must save this value when present. When it is absent, they must escape every literal `$` in path as `$$` before saving path so the policy grammar does not interpret it as an environment reference.
+	PersistedPath *string `json:"persistedPath,omitempty"`
 	// readonlyPaths entries the grant removes, exactly as written in the policy, because a read-only entry for the same location would otherwise keep the path read-only. A host that persists the path must remove these entries from its stored readonlyPaths too.
 	RemovedReadonlyPaths []string `json:"removedReadonlyPaths,omitzero"`
 }
@@ -6942,12 +6944,14 @@ const (
 	ExtensionsLoadedExtensionSourceUser ExtensionsLoadedExtensionSource = "user"
 )
 
-// Current status: running, disabled, failed, or starting
+// Current status: running, dormant, disabled, failed, or starting
 type ExtensionsLoadedExtensionStatus string
 
 const (
 	// The extension is installed but disabled.
 	ExtensionsLoadedExtensionStatusDisabled ExtensionsLoadedExtensionStatus = "disabled"
+	// The extension is enabled and discoverable but not yet requested.
+	ExtensionsLoadedExtensionStatusDormant ExtensionsLoadedExtensionStatus = "dormant"
 	// The extension failed to start or crashed.
 	ExtensionsLoadedExtensionStatusFailed ExtensionsLoadedExtensionStatus = "failed"
 	// The extension process is running.

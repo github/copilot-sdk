@@ -4,8 +4,6 @@ exports_files(
 )
 
 SHARED_CODEGEN_INPUTS = [
-    "nodejs/scripts/releaseArtifacts.ts",
-    "nodejs/src/cliVersion.ts",
     "scripts/codegen/legacy-parameters.ts",
     "scripts/codegen/package-lock.json",
     "scripts/codegen/package.json",
@@ -15,7 +13,6 @@ SHARED_CODEGEN_INPUTS = [
     "scripts/codegen/legacy-events.ts",
     "scripts/codegen/utils.ts",
     "scripts/runtime-layout.mjs",
-    "scripts/runtime-release.mjs",
     "//third_party/build-tools:prettier",
     "//third_party/build-tools:tsx_codegen",
 ]
@@ -61,7 +58,6 @@ elif pwd -W >/dev/null 2>&1; then
 fi
 COPILOT_CODEGEN_OUTPUT_ROOT="$$codegen_root" \
 COPILOT_CLI_SCHEMA_DIR="$$codegen_schemas" \
-COPILOT_RUNTIME_SOURCE=checkout \
 npm --prefix src/sdk/scripts/codegen run generate:ts
 tar -cf "$@" -C "$$root" .
 """,
@@ -100,7 +96,6 @@ elif pwd -W >/dev/null 2>&1; then
 fi
 COPILOT_CODEGEN_OUTPUT_ROOT="$$codegen_root" \
 COPILOT_CLI_SCHEMA_DIR="$$codegen_schemas" \
-COPILOT_RUNTIME_SOURCE=checkout \
 npm --prefix src/sdk/scripts/codegen run generate:python
 tar -cf "$@" -C "$$root" .
 """,
@@ -138,7 +133,6 @@ elif pwd -W >/dev/null 2>&1; then
 fi
 COPILOT_CODEGEN_OUTPUT_ROOT="$$codegen_root" \
 COPILOT_CLI_SCHEMA_DIR="$$codegen_schemas" \
-COPILOT_RUNTIME_SOURCE=checkout \
 npm --prefix src/sdk/scripts/codegen run generate:go
 tar -cf "$@" -C "$$root" .
 """,
@@ -179,7 +173,6 @@ elif pwd -W >/dev/null 2>&1; then
 fi
 COPILOT_CODEGEN_OUTPUT_ROOT="$$codegen_root" \
 COPILOT_CLI_SCHEMA_DIR="$$codegen_schemas" \
-COPILOT_RUNTIME_SOURCE=checkout \
 npm --prefix src/sdk/scripts/codegen run generate:csharp
 tar -cf "$@" -C "$$root" .
 """,
@@ -221,7 +214,6 @@ elif pwd -W >/dev/null 2>&1; then
 fi
 COPILOT_CODEGEN_OUTPUT_ROOT="$$codegen_root" \
 COPILOT_CLI_SCHEMA_DIR="$$codegen_schemas" \
-COPILOT_RUNTIME_SOURCE=checkout \
 npm --prefix src/sdk/scripts/codegen run generate:rust
 tar -cf "$@" -C "$$root" .
 """,
@@ -242,13 +234,14 @@ genrule(
         "java/scripts/codegen/java.ts",
         "java/scripts/codegen/package-lock.json",
         "java/scripts/codegen/package.json",
+        "java/scripts/codegen/rpc-variant-owners.ts",
+        "scripts/codegen/extensible-enums.ts",
         "scripts/codegen/legacy-events.ts",
-        "nodejs/package.json",
         "scripts/codegen/legacy-parameters.ts",
         "scripts/codegen/protocol-type-roots.ts",
         "scripts/codegen/session-management.ts",
+        "scripts/codegen/utils.ts",
         "scripts/runtime-layout.mjs",
-        "scripts/runtime-release.mjs",
         "//third_party/build-tools:tsx_java",
     ],
     outs = ["projections/java.tar"],
@@ -276,7 +269,6 @@ fi
 COPILOT_CODEGEN_OUTPUT_ROOT="$$codegen_root" \
 COPILOT_CLI_SCHEMA_DIR="$$codegen_input_schemas" \
 COPILOT_CLI_SCHEMA_OUTPUT="$$codegen_schemas" \
-COPILOT_RUNTIME_SOURCE=checkout \
 npm --prefix src/sdk/java/scripts/codegen run generate
 tar -cf "$@" -C "$$archive_root" .
 """,

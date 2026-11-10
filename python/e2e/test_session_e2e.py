@@ -35,6 +35,12 @@ class TestSessions:
         assert messages[0].data.session_id == session.session_id
         assert messages[0].data.selected_model == "claude-sonnet-5"
 
+        raw_events = await session.get_raw_events()
+        assert raw_events
+        assert raw_events[0]["type"] == "session.start"
+        assert "parentId" in raw_events[0]
+        assert raw_events[0]["parentId"] is None
+
         await session.disconnect()
 
         with pytest.raises(Exception, match="Session not found"):

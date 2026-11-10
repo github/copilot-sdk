@@ -323,6 +323,13 @@ impl<'a> ClientRpc<'a> {
         }
     }
 
+    /// `taskAnalytics.*` sub-namespace.
+    pub fn task_analytics(&self) -> ClientRpcTaskAnalytics<'a> {
+        ClientRpcTaskAnalytics {
+            client: self.client,
+        }
+    }
+
     /// `tools.*` sub-namespace.
     pub fn tools(&self) -> ClientRpcTools<'a> {
         ClientRpcTools {
@@ -9163,6 +9170,46 @@ impl<'a> ClientRpcSkillsInstallations<'a> {
     }
 }
 
+/// `taskAnalytics.*` RPCs.
+#[derive(Clone, Copy)]
+pub struct ClientRpcTaskAnalytics<'a> {
+    pub(crate) client: &'a Client,
+}
+
+impl<'a> ClientRpcTaskAnalytics<'a> {
+    /// Classifies a recorded Copilot or ATIF trajectory using the runtime's production analytics pipeline. No conversation session is required or created, archived tools are never executed, and classification telemetry is not emitted. Calling this method explicitly requests model processing of retained trajectory content through the connection's GitHub CAPI credentials, independently of background telemetry consent; BYOK endpoints are not used. Callers must authorize that processing and validate archive provenance. Content is not automatically redacted or sanitized for prompt injection. Model-derived results can be manipulated by trajectory content and must not be used as authorization or security decisions.
+    ///
+    /// Wire method: `taskAnalytics.classifyTrajectory`.
+    ///
+    /// # Parameters
+    ///
+    /// * `params` - Retrospectively classify a recorded Copilot or ATIF trajectory without a conversation session. Explicitly requests model processing through the connection's GitHub CAPI credentials, independently of background telemetry consent, not through BYOK endpoints. Callers must be authorized to send the supplied content for analysis. Does not execute archived tools, append conversation history, or emit classification telemetry.
+    ///
+    /// # Returns
+    ///
+    /// Categorical retrospective measurements of the supplied trajectory, not verification that its claims are true. Model-derived classifications can be inaccurate or manipulated by adversarial content. Treat them as untrusted measurements; independently validate results used for consequential decisions and never use them as authorization or security decisions.
+    ///
+    /// <div class="warning">
+    ///
+    /// **Experimental.** This API is part of an experimental wire-protocol surface
+    /// and may change or be removed in future SDK or CLI releases. Pin both the
+    /// SDK and CLI versions if your code depends on it.
+    ///
+    /// </div>
+    pub async fn classify_trajectory(
+        &self,
+        params: TaskAnalyticsClassifyTrajectoryRequest,
+    ) -> Result<TaskAnalyticsClassifyTrajectoryResult, Error> {
+        let wire_params = serde_json::to_value(params)?;
+        self.client
+            .call_typed(
+                rpc_methods::TASKANALYTICS_CLASSIFYTRAJECTORY,
+                Some(wire_params),
+            )
+            .await
+    }
+}
+
 /// `tools.*` RPCs.
 #[derive(Clone, Copy)]
 pub struct ClientRpcTools<'a> {
@@ -15150,6 +15197,32 @@ impl<'a> SessionRpcMcp<'a> {
         self.session
             .client()
             .call_typed(rpc_methods::SESSION_MCP_ISSERVERRUNNING, Some(wire_params))
+            .await
+    }
+
+    /// Reports how many context tokens each MCP server's tool definitions cost, per server and per tool, for the session's current tool set. Costs are counted with the session's selected model, or with the runtime's default context model when no model has been selected.
+    ///
+    /// Wire method: `session.mcp.getToolTokenBreakdown`.
+    ///
+    /// # Returns
+    ///
+    /// Per-server MCP tool definition token costs.
+    ///
+    /// <div class="warning">
+    ///
+    /// **Experimental.** This API is part of an experimental wire-protocol surface
+    /// and may change or be removed in future SDK or CLI releases. Pin both the
+    /// SDK and CLI versions if your code depends on it.
+    ///
+    /// </div>
+    pub async fn get_tool_token_breakdown(&self) -> Result<McpToolTokenBreakdownResult, Error> {
+        let wire_params = serde_json::json!({ "sessionId": self.session.id() });
+        self.session
+            .client()
+            .call_typed(
+                rpc_methods::SESSION_MCP_GETTOOLTOKENBREAKDOWN,
+                Some(wire_params),
+            )
             .await
     }
 }

@@ -37,6 +37,39 @@ func newTestEvent() SessionEvent {
 	return SessionEvent{Data: &SessionIdleData{}}
 }
 
+func TestRawHistoryPreservesAnalyticsArchive(t *testing.T) {
+	session, server := newSetToolsTestSession(t)
+	const original = `{"id":"event-1","parentId":null,"timestamp":"2026-01-01T00:00:00.000Z","type":"user.message","data":{"content":"Fix the build","future":{"detail":[null,"kept"]}},"futureEnvelope":{"kept":true}}`
+	completed := make(chan error, 1)
+	go func() {
+		events, err := session.GetRawEvents(t.Context())
+		if err == nil {
+			_, err = rpc.NewServerRPC(server.client).TaskAnalytics.ClassifyTrajectory(t.Context(), &rpc.TaskAnalyticsClassifyTrajectoryRequest{
+				Events: rpc.SessionEventsAsTrajectory(events),
+			})
+		}
+		completed <- err
+	}()
+
+	history := server.expectRequest(t, "session.getMessages")
+	if history.Params["sessionId"] != session.SessionID {
+		t.Fatalf("Unexpected history session: %v", history.Params)
+	}
+	server.respond(t, history.ID, map[string]any{"events": []json.RawMessage{json.RawMessage(original)}})
+	classification := server.expectRequest(t, "taskAnalytics.classifyTrajectory")
+	server.respond(t, classification.ID, map[string]any{"classifications": []any{}})
+	if err := <-completed; err != nil {
+		t.Fatal(err)
+	}
+	var expected any
+	if err := json.Unmarshal([]byte(original), &expected); err != nil {
+		t.Fatal(err)
+	}
+	if !reflect.DeepEqual(classification.Params["events"], []any{expected}) {
+		t.Fatalf("Archive changed on the wire:\ngot: %#v\nwant: %#v", classification.Params["events"], []any{expected})
+	}
+}
+
 func TestPermissionHandlerReceivesDerivedPromptContext(t *testing.T) {
 	session := &Session{
 		SessionID:       "session-1",

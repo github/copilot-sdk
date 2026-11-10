@@ -150,6 +150,11 @@ async fn unpolled_local_models_watch_drop_cancels_only_its_wait() {
     assert_unpolled_wait_cancellation("localModels.watch", Some(json!({"afterRevision": 1}))).await;
 }
 
+#[tokio::test]
+async fn unpolled_trajectory_drop_cancels_only_its_wait() {
+    assert_unpolled_wait_cancellation("taskAnalytics.classifyTrajectory", None).await;
+}
+
 async fn assert_unpolled_wait_cancellation(method: &str, params: Option<Value>) {
     let peer = Peer::new(false);
     let pending = peer

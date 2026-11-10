@@ -27,7 +27,7 @@ public record Extension(
     @JsonProperty("name") String name,
     /** Discovery source: project (.github/extensions/), user (~/.copilot/extensions/), plugin (installed plugin), or session (session-state/<id>/extensions/) */
     @JsonProperty("source") ExtensionSource source,
-    /** Current status: running, disabled, failed, or starting */
+    /** Current status: running, dormant, disabled, failed, or starting */
     @JsonProperty("status") ExtensionStatus status,
     /** Process ID if the extension is running */
     @JsonProperty("pid") Long pid

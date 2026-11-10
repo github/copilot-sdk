@@ -575,7 +575,7 @@ Send a message to the session.
 - `Prompt` - The message/prompt to send
 - `Attachments` - File attachments
 - `Mode` - Delivery mode ("enqueue" or "immediate")
-- `Source` - Optional message origin: `MessageSource.User`, `MessageSource.System`, or `MessageSource.Agent(id)`. Omitted by default, preserving the runtime's default user behavior.
+- `Source` - Optional message origin: `MessageSource.User`, `MessageSource.System`, `MessageSource.Agent(id)`, or `MessageSource.Automation(id)` for a turn sent on behalf of an automation the user configured. Omitted by default, preserving the runtime's default user behavior. An automation turn defines the session's task like a user message but carries no human authority; see [Message provenance](../docs/features/steering-and-queueing.md#message-provenance).
 - `ResponseSchema` - Experimental provider-native JSON Schema (`JsonElement`) for this turn.
 
 Returns the message ID.

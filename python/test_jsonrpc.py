@@ -344,7 +344,9 @@ async def test_unreadable_error_fails_request_and_keeps_reading(error, monkeypat
 
 @pytest.mark.asyncio
 @pytest.mark.parametrize("phase", ["during-write", "after-write", "blocked-cancellation"])
-@pytest.mark.parametrize("method", ["session.sendAndWait", "localModels.watch"])
+@pytest.mark.parametrize(
+    "method", ["session.sendAndWait", "localModels.watch", "taskAnalytics.classifyTrajectory"]
+)
 async def test_completion_cancellation_preserves_frame_order_without_blocking_caller(
     phase, method, monkeypatch
 ):

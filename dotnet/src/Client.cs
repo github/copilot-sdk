@@ -3268,17 +3268,47 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
     internal static JsonSerializerOptions SerializerOptionsForMessageFormatter { get; } = CreateSerializerOptions();
 
     /// <summary>
+    /// Serializer options for caller-supplied <c>object</c> payloads, such as opaque-JSON RPC
+    /// arguments, hook outputs and elicitation answers. These can hold caller-defined types, such as
+    /// anonymous objects, that no source-generated context describes. Source-generated metadata is
+    /// used first; other types are serialized with reflection when the application enables it.
+    /// </summary>
+    internal static JsonSerializerOptions CallerPayloadSerializerOptions { get; } = CreateCallerPayloadSerializerOptions();
+
+    [UnconditionalSuppressMessage("AOT", "IL3050", Justification = "The reflection resolver is only added when JsonSerializer.IsReflectionEnabledByDefault is enabled.")]
+    [UnconditionalSuppressMessage("Trimming", "IL2026", Justification = "The reflection resolver is only added when JsonSerializer.IsReflectionEnabledByDefault is enabled.")]
+    private static JsonSerializerOptions CreateCallerPayloadSerializerOptions()
+    {
+        var options = new JsonSerializerOptions(SerializerOptionsForMessageFormatter);
+        if (JsonSerializer.IsReflectionEnabledByDefault)
+        {
+            options.TypeInfoResolverChain.Add(new System.Text.Json.Serialization.Metadata.DefaultJsonTypeInfoResolver());
+        }
+        options.MakeReadOnly();
+        return options;
+    }
+
+    /// <summary>
+    /// Reads values taken from incoming messages, such as session history, as deep as the
+    /// JSON-RPC connection reads the messages themselves.
+    /// </summary>
+    internal static JsonSerializerOptions SerializerOptionsForIncomingMessages { get; } =
+        JsonRpc.CreateIncomingSerializerOptions(SerializerOptionsForMessageFormatter);
+
+    /// <summary>
     /// Converts an arbitrary value into the <see cref="JsonElement"/> representation that wire
     /// DTOs use for opaque-JSON fields. Pass-through for <see cref="JsonElement"/>, otherwise
-    /// serializes the runtime type using the shared JSON-RPC serializer options so that any
-    /// type registered in the SDK's source-generated contexts (e.g. primitives,
-    /// <c>Dictionary&lt;string, object&gt;</c>, generated DTOs) is supported.
+    /// serializes the runtime type using the SDK's source-generated contexts (e.g. primitives,
+    /// <c>Dictionary&lt;string, object&gt;</c>, generated DTOs). Other caller-defined types, such
+    /// as anonymous objects, are serialized with reflection when the application enables it.
     /// </summary>
     public static JsonElement? ToJsonElementForWire(object? value) => value switch
     {
         null => null,
         JsonElement je => je,
-        _ => JsonSerializer.SerializeToElement(value, SerializerOptionsForMessageFormatter.GetTypeInfo(value.GetType()))
+        // Concrete event types ignore Type; the base contract writes the discriminator.
+        SessionEvent sessionEvent => JsonSerializer.SerializeToElement(sessionEvent, SessionEventsJsonContext.Default.SessionEvent),
+        _ => JsonSerializer.SerializeToElement(value, CallerPayloadSerializerOptions.GetTypeInfo(value.GetType()))
     };
 
     private static JsonSerializerOptions CreateSerializerOptions()

@@ -48,6 +48,17 @@ Set the optional source when forwarding a message from another agent. An identif
 
 The typed APIs also support `user` and `system`. Use `system` for internal application context, not as a substitute for an identified agent. Agent provenance lets the runtime distinguish agent input from human authorization while retaining its agent-message steering behavior. Derive the sender ID from trusted application metadata, never from message text.
 
+Use an automation source for a turn your application sends on behalf of an automation the user configured, such as a recurring check-in. It serializes as `automation-<id>`. An automation turn defines the session's task like a user message but carries no human authority. With Assisted Permissions in Autopilot, it starts a new permission-recovery epoch for automatic denials and gives the completion reviewer its task. The auto-approval judge never treats it as a person's instruction. Use a stable, non-empty automation name as the ID, because the runtime records the source as provenance and does not treat `automation-` alone as an automation turn.
+
+| SDK | Automation source |
+|-----|-------------------|
+| Node.js / TypeScript | `source: "automation-merge-check"` |
+| Python | `source=AutomationMessageSource("merge-check")` |
+| Go | `Source: copilot.MessageSourceAutomation("merge-check")` |
+| .NET | `Source = MessageSource.Automation("merge-check")` |
+| Java | `.setSource(MessageSource.automation("merge-check"))` |
+| Rust | `.with_source(MessageSource::Automation("merge-check".into()))` |
+
 Source identifies origin. Delivery mode requests urgency. Neither requires the recipient to produce a visible reply, and source does not set billing flags. The runtime applies its existing scheduling rules. Rust callers using the typed RPC API can also pass `MessageSource` to `rpc::SendRequest::with_source(...)`.
 
 A successful high-level `send` acknowledgement returns a message ID and confirms acceptance, not that the recipient has consumed the message. Do not automatically resend an accepted message merely because no reply appears. Send-and-wait can complete on an idle event without an assistant message.

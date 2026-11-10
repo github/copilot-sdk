@@ -1854,8 +1854,32 @@ impl Session {
     }
 
     /// Retrieve the session's timeline events.
+    ///
+    /// Use [`Self::get_raw_events`] for lossless JSON, including task-analytics retries.
     pub async fn get_events(&self) -> Result<Vec<SessionEvent>, Error> {
         let response: GetMessagesResponse = self
+            .client
+            .call_typed(
+                "session.getMessages",
+                Some(serde_json::json!({ "sessionId": self.id })),
+            )
+            .await?;
+        Ok(response.events)
+    }
+
+    /// Retrieve session history without projecting it into typed events.
+    ///
+    /// Preserves timestamp strings, explicit nulls, and unknown fields. The result
+    /// can be assigned directly to
+    /// [`crate::rpc::TaskAnalyticsClassifyTrajectoryRequest::events`] for exact
+    /// archive identity across retries.
+    pub async fn get_raw_events(&self) -> Result<Vec<Value>, Error> {
+        #[derive(Deserialize)]
+        struct RawMessagesResponse {
+            events: Vec<Value>,
+        }
+
+        let response: RawMessagesResponse = self
             .client
             .call_typed(
                 "session.getMessages",

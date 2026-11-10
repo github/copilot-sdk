@@ -1248,19 +1248,19 @@ public sealed class SandboxConfigUserPolicyNetworkProxy
 [Experimental(global::GitHub.Copilot.Diagnostics.Experimental)]
 public sealed class SandboxConfigUserPolicyNetwork
 {
-    /// <summary>Hosts allowed through the built-in sandbox proxy. A non-empty list denies unmatched hosts; an absent or empty list allows all hosts not blocked. Supports exact hostnames, IP addresses, and *.example.com for strict subdomains. Host rules do not override the outbound or local-network toggles.</summary>
+    /// <summary>Destinations allowed through the built-in sandbox proxy. Supports hostnames, IP addresses, IPv4/IPv6 CIDRs (10.0.0.0/8, fd00::/8), and *.example.com for strict subdomains. CIDR host bits must be zero; invalid entries suggest the network address. Within each nonempty list, matching names or addresses are alternative grants; every user and managed list must permit every resolved address. Empty lists add no restriction. Host rules never override outbound or local-network toggles. An upstream proxy owns DNS: CIDR-only grants cannot authorize unresolved names, and address denials cannot constrain its resolver.</summary>
     [JsonPropertyName("allowedHosts")]
     public IList<string>? AllowedHosts { get; set; }
 
-    /// <summary>Whether traffic to local/loopback addresses is allowed.</summary>
+    /// <summary>Whether host-local destinations, including loopback and unspecified addresses, are allowed. Private networks follow outbound and host rules. Host rules still apply.</summary>
     [JsonPropertyName("allowLocalNetwork")]
     public bool? AllowLocalNetwork { get; set; }
 
-    /// <summary>Whether outbound network traffic is allowed at all.</summary>
+    /// <summary>Whether outbound network destinations, including private networks, are allowed. Host-loopback access is controlled separately by allowLocalNetwork. Host rules still apply.</summary>
     [JsonPropertyName("allowOutbound")]
     public bool? AllowOutbound { get; set; }
 
-    /// <summary>Hosts denied by the built-in sandbox proxy. Deny rules take precedence over allowedHosts. A domain also denies all its subdomains. IP addresses match exactly; *.example.com matches strict subdomains, and * denies every host.</summary>
+    /// <summary>Destinations denied by the built-in sandbox proxy. Deny overrides allowedHosts, including CIDR denials against allowed names and their resolved addresses. Supports exact IPs and IPv4/IPv6 CIDRs with zero host bits. A denied domain also denies its subdomains; *.example.com matches strict subdomains, and * denies every host. With upstream-owned DNS, address denials cannot constrain remotely resolved names.</summary>
     [JsonPropertyName("blockedHosts")]
     public IList<string>? BlockedHosts { get; set; }
 
@@ -2836,6 +2836,10 @@ internal sealed class ManagedSettingsIngestParams
     [JsonPropertyName("platform")]
     public string Platform { get; set; } = string.Empty;
 
+    /// <summary>Caller identity for a policy helper before session registration. Omit to keep the runtime default. This does not change clientName on managed-service requests.</summary>
+    [JsonPropertyName("policyHelperClientName")]
+    public string? PolicyHelperClientName { get; set; }
+
     /// <summary>Whether a configured platform policy helper may be run to produce an enforced helper layer.</summary>
     [JsonPropertyName("policyHelperEnabled")]
     public bool? PolicyHelperEnabled { get; set; }
@@ -3015,6 +3019,10 @@ internal sealed class ManagedSettingsResolveStartupPolicyParams
     [JsonPropertyName("platform")]
     public string Platform { get; set; } = string.Empty;
 
+    /// <summary>Caller identity for a policy helper before session registration. Omit to keep the runtime default. This does not change clientName on managed-service requests.</summary>
+    [JsonPropertyName("policyHelperClientName")]
+    public string? PolicyHelperClientName { get; set; }
+
     /// <summary>Whether a configured platform policy helper may be run to produce an enforced helper layer.</summary>
     [JsonPropertyName("policyHelperEnabled")]
     public bool? PolicyHelperEnabled { get; set; }
@@ -3089,6 +3097,10 @@ internal sealed class ManagedSettingsLoadRemoteControlParams
     [JsonPropertyName("platform")]
     public string Platform { get; set; } = string.Empty;
 
+    /// <summary>Optional policy-helper caller identity. Does not change the managed-service clientName.</summary>
+    [JsonPropertyName("policyHelperClientName")]
+    public string? PolicyHelperClientName { get; set; }
+
     /// <summary>Whether a configured platform policy helper may be run to produce an enforced helper layer.</summary>
     [JsonPropertyName("policyHelperEnabled")]
     public bool? PolicyHelperEnabled { get; set; }
@@ -3117,6 +3129,10 @@ internal sealed class ManagedSettingsResolveDeviceForceLoginOrgsGateParams
     /// <summary>The host's environment variables. Read for the variables that would make an identity's membership snapshot forgeable, so a credential whose provenance cannot be trusted is refused rather than accepted.</summary>
     [JsonPropertyName("environment")]
     public JsonElement Environment { get; set; } = JsonElement.Parse("null");
+
+    /// <summary>Resolve the current credential from this connection's original auth owner only when device policy enforces a pin. Refreshes membership and preserves credential-resolution diagnostics. Defaults to false, which evaluates authInfo as supplied. Cannot be combined with authInfo; requires an original auth-owner binding.</summary>
+    [JsonPropertyName("resolveCurrentAuth")]
+    public bool? ResolveCurrentAuth { get; set; }
 }
 
 /// <summary>Validated device-managed settings discovered before a session exists.</summary>
@@ -16953,6 +16969,10 @@ internal sealed class SessionsGetMetadataResult
 [Experimental(global::GitHub.Copilot.Diagnostics.Experimental)]
 internal sealed class SessionsGetMetadataRequest
 {
+    /// <summary>When true, read only journal file metadata. Omit summary, workspace context, and detached status without reading journal contents. Defaults to false.</summary>
+    [JsonPropertyName("fileMetadataOnly")]
+    public bool? FileMetadataOnly { get; set; }
+
     /// <summary>Session ID to inspect.</summary>
     [JsonPropertyName("sessionId")]
     public string SessionId { get; set; } = string.Empty;
@@ -18408,6 +18428,195 @@ internal sealed class LspListRequest
     public string WorkingDirectory { get; set; } = string.Empty;
 }
 
+/// <summary>One terminal classification of a worker-local unit, including categorical output and actual judge configuration when available.</summary>
+[Experimental(global::GitHub.Copilot.Diagnostics.Experimental)]
+public sealed class TaskAnalyticsTrajectoryClassification
+{
+    /// <summary>Source event opening this unit, when applicable.</summary>
+    [JsonPropertyName("anchorEventId")]
+    public string? AnchorEventId { get; set; }
+
+    /// <summary>Cached input tokens, when reported.</summary>
+    [JsonPropertyName("cachedInputTokens")]
+    public double? CachedInputTokens { get; set; }
+
+    /// <summary>Registered classifier name.</summary>
+    [JsonPropertyName("classifier")]
+    public string Classifier { get; set; } = string.Empty;
+
+    /// <summary>Classifier prompt/schema fingerprint; not a complete runtime/configuration identity.</summary>
+    [JsonPropertyName("classifierVersion")]
+    public long ClassifierVersion { get; set; }
+
+    /// <summary>Why the unit closed; EOF is not reported as a successful completed turn.</summary>
+    [JsonPropertyName("closeReason")]
+    public string CloseReason { get; set; } = string.Empty;
+
+    /// <summary>Stable failure/decline kind, never a raw error or judge response.</summary>
+    [JsonPropertyName("errorKind")]
+    public string? ErrorKind { get; set; }
+
+    /// <summary>First member-turn ordinal for task/session units.</summary>
+    [JsonPropertyName("firstMemberOrdinal")]
+    public long? FirstMemberOrdinal { get; set; }
+
+    /// <summary>HTTP failure status from inference, when available. Not inferred from message text.</summary>
+    [JsonPropertyName("httpStatus")]
+    public long? HttpStatus { get; set; }
+
+    /// <summary>Consumed input tokens, when reported.</summary>
+    [JsonPropertyName("inputTokens")]
+    public double? InputTokens { get; set; }
+
+    /// <summary>Interaction ID used for this row's judge call. New attempts never reuse archived IDs; preserved outcomes keep their original value.</summary>
+    [JsonPropertyName("interactionId")]
+    public string? InteractionId { get; set; }
+
+    /// <summary>Unrestricted categorical labels, empty when classification did not succeed.</summary>
+    [JsonPropertyName("labels")]
+    public IDictionary<string, string> Labels { get => field ??= new Dictionary<string, string>(); set; }
+
+    /// <summary>Last member-turn ordinal for task/session units.</summary>
+    [JsonPropertyName("lastMemberOrdinal")]
+    public long? LastMemberOrdinal { get; set; }
+
+    /// <summary>Unrestricted numerical verdict measurements, such as confidence.</summary>
+    [JsonPropertyName("metrics")]
+    public IDictionary<string, double> Metrics { get => field ??= new Dictionary<string, double>(); set; }
+
+    /// <summary>Resolved judge model when available, including failed inference calls; absent when model resolution did not complete.</summary>
+    [JsonPropertyName("model")]
+    public string? Model { get; set; }
+
+    /// <summary>Why the canonical classifier model policy selected this judge.</summary>
+    [JsonPropertyName("modelSelectionReason")]
+    public string? ModelSelectionReason { get; set; }
+
+    /// <summary>One-based unit ordinal within its scope and this analysis request.</summary>
+    [JsonPropertyName("ordinal")]
+    public long Ordinal { get; set; }
+
+    /// <summary>Consumed output tokens, when reported.</summary>
+    [JsonPropertyName("outputTokens")]
+    public double? OutputTokens { get; set; }
+
+    /// <summary>Actual judge reasoning effort, when reported.</summary>
+    [JsonPropertyName("reasoningEffort")]
+    public string? ReasoningEffort { get; set; }
+
+    /// <summary>Whether a failed inference may be retried. Absent for failures without an HTTP response. Does not initiate an automatic retry.</summary>
+    [JsonPropertyName("retryable")]
+    public bool? Retryable { get; set; }
+
+    /// <summary>Server-requested minimum delay in seconds before retry, including multi-hour delays. Absent for missing or malformed Retry-After headers.</summary>
+    [JsonPropertyName("retryAfterSeconds")]
+    public double? RetryAfterSeconds { get; set; }
+
+    /// <summary>Unit scope: prompt, turn, task, or session.</summary>
+    [JsonPropertyName("scope")]
+    public string Scope { get; set; } = string.Empty;
+
+    /// <summary>Terminal status: success, declined, abandoned, or failed.</summary>
+    [JsonPropertyName("status")]
+    public string Status { get; set; } = string.Empty;
+
+    /// <summary>Revision of this classifier's closed vocabulary, when applicable.</summary>
+    [JsonPropertyName("taxonomyVersion")]
+    public long? TaxonomyVersion { get; set; }
+
+    /// <summary>Whether retention caps truncated the unit's text.</summary>
+    [JsonPropertyName("textTruncated")]
+    public bool TextTruncated { get; set; }
+
+    /// <summary>Analysis-local unit identity. Session snapshots can share an identity.</summary>
+    [JsonPropertyName("unitId")]
+    public string UnitId { get; set; } = string.Empty;
+
+    /// <summary>Number of unit boundaries inferred without a successful segmentation judgment.</summary>
+    [JsonPropertyName("unresolvedBoundaries")]
+    public long UnresolvedBoundaries { get; set; }
+}
+
+/// <summary>Local archive checks; validates supported structure, not the truth or provenance of archived evidence.</summary>
+[Experimental(global::GitHub.Copilot.Diagnostics.Experimental)]
+public sealed class TaskAnalyticsTrajectoryValidation
+{
+    /// <summary>Actionable validation errors. Does not include transcript content or raw parser errors.</summary>
+    [JsonPropertyName("errors")]
+    public IList<string> Errors { get => field ??= []; set; }
+
+    /// <summary>Compact JSON input size in UTF-8 bytes.</summary>
+    [JsonPropertyName("inputBytes")]
+    public long InputBytes { get; set; }
+
+    /// <summary>Whether the archive and execution options passed local checks.</summary>
+    [JsonPropertyName("valid")]
+    public bool Valid { get; set; }
+}
+
+/// <summary>Categorical retrospective measurements of the supplied trajectory, not verification that its claims are true. Model-derived classifications can be inaccurate or manipulated by adversarial content. Treat them as untrusted measurements; independently validate results used for consequential decisions and never use them as authorization or security decisions.</summary>
+[Experimental(global::GitHub.Copilot.Diagnostics.Experimental)]
+public sealed class TaskAnalyticsClassifyTrajectoryResult
+{
+    /// <summary>Terminal classifier outcomes. Declined, failed, and abandoned outcomes are retained. No restricted rationale, raw judge output, or transcript text is returned.</summary>
+    [JsonPropertyName("classifications")]
+    public IList<TaskAnalyticsTrajectoryClassification> Classifications { get => field ??= []; set; }
+
+    /// <summary>Fresh interaction ID for this analysis attempt, never an archived interaction ID. Reused outcomes retain their original per-row interaction ID.</summary>
+    [JsonPropertyName("interactionId")]
+    public string? InteractionId { get; set; }
+
+    /// <summary>SHA-256 identity of the input archive and archive-adapter revision. Required when passing this result back for an exact retry; not an authentication or provenance guarantee.</summary>
+    [JsonPropertyName("trajectoryFingerprint")]
+    public string? TrajectoryFingerprint { get; set; }
+
+    /// <summary>Local validation results. No inference runs when valid is false or validateOnly was requested.</summary>
+    [JsonPropertyName("validation")]
+    public TaskAnalyticsTrajectoryValidation? Validation { get; set; }
+}
+
+/// <summary>Request-local judge override. Credentials, endpoint, and integration remain owned by the server connection.</summary>
+[Experimental(global::GitHub.Copilot.Diagnostics.Experimental)]
+public sealed class TaskAnalyticsJudge
+{
+    /// <summary>Exact CAPI judge model ID. Never silently substituted.</summary>
+    [JsonPropertyName("model")]
+    public string Model { get; set; } = string.Empty;
+
+    /// <summary>Reasoning effort override: none, minimal, low, medium, high, or xhigh. Must be supported by the selected model. Omit to keep each classifier's production effort.</summary>
+    [JsonPropertyName("reasoningEffort")]
+    public string? ReasoningEffort { get; set; }
+}
+
+/// <summary>Retrospectively classify a recorded Copilot or ATIF trajectory without a conversation session. Explicitly requests model processing through the connection's GitHub CAPI credentials, independently of background telemetry consent, not through BYOK endpoints. Callers must be authorized to send the supplied content for analysis. Does not execute archived tools, append conversation history, or emit classification telemetry.</summary>
+[Experimental(global::GitHub.Copilot.Diagnostics.Experimental)]
+internal sealed class TaskAnalyticsClassifyTrajectoryRequest
+{
+    /// <summary>Classifier names to run. Omit for all eight classifiers. An empty list runs none. Turn splitting is also returned when needed to build task/session units or identify task-opening turns.</summary>
+    [JsonPropertyName("classifiers")]
+    public IList<string>? Classifiers { get; set; }
+
+    /// <summary>Canonical Copilot session event objects or ATIF step objects, in source order, starting at the beginning of the recorded conversation. An ATIF document containing steps can be passed as a single array element. Include source identifiers when present. Durable Copilot logs are accepted; abort events retain interruptions, and EOF closes an unfinished turn without claiming successful completion. Non-analytics event types are ignored. Treat the archive as untrusted input: this API does not authenticate its origin, roles, completion claims, or content. Callers must validate provenance and preserve event structure, ordering, and role/source metadata. Remove or redact secrets and personal data that must not be sent to GitHub CAPI before calling; automatic redaction and prompt-injection sanitization are not provided. Retained text is bounded, not made trustworthy. Adversarial instructions can bias model judgments just as in live conversations; stripping instruction-like text is not required and can change the evidence being measured.</summary>
+    [JsonPropertyName("events")]
+    public IList<JsonElement> Events { get => field ??= []; set; }
+
+    /// <summary>Explicit judge configuration for this analysis. Omit to use each classifier's production model policy and reasoning effort. The exact model must be offered by the authenticated catalog, allowed by server policy, and compatible with the classifier; an unusable override fails the affected classification rather than falling back. Choosing a billed model explicitly authorizes its inference costs. Successful rows reused from previousResult keep their original judge configuration.</summary>
+    [JsonPropertyName("judge")]
+    public TaskAnalyticsJudge? Judge { get; set; }
+
+    /// <summary>Maximum concurrent classifier calls in this analysis across all lanes, including segmentation and session classifiers. Defaults to 4; must be positive. Multiple simultaneous analyses each have their own limit. Trajectory concurrency is not inference-request concurrency.</summary>
+    [JsonPropertyName("maxConcurrentRequests")]
+    public long? MaxConcurrentRequests { get; set; }
+
+    /// <summary>Previous result for the identical archive and classifier versions. Reuses all original task boundaries, including unresolved ones, and preserves successful and declined outcomes. Only failed/abandoned non-segmenting outcomes in the selected classifiers are retried. Start a fresh analysis to change segmentation. Rejects mismatched fingerprints or versions before inference.</summary>
+    [JsonPropertyName("previousResult")]
+    public TaskAnalyticsClassifyTrajectoryResult? PreviousResult { get; set; }
+
+    /// <summary>Validate input locally without authentication, model discovery, or inference. Returns validation diagnostics and no classifications. Invalid input never starts paid inference, even when this option is omitted.</summary>
+    [JsonPropertyName("validateOnly")]
+    public bool? ValidateOnly { get; set; }
+}
+
 /// <summary>One registered GitHub request, shared by execution and cancellation.</summary>
 [Experimental(global::GitHub.Copilot.Diagnostics.Experimental)]
 internal sealed class GitHubFetchRequestId
@@ -19718,8 +19927,8 @@ public sealed class SendRequest
     [JsonPropertyName("responseFormat")]
     public ResponseFormat? ResponseFormat { get; set; }
 
-    /// <summary>Optional provenance tag copied to the resulting user.message event. Must be `user`, `system`, `command-&lt;command-id&gt;` for command-originated messages, `schedule-&lt;numeric-id&gt;` for scheduled prompts, or `agent-&lt;agent-id&gt;` for prompts sent by another agent.</summary>
-    [RegularExpression("^(user|system|command-.*|schedule-\\d+|agent-.+)$")]
+    /// <summary>Optional provenance tag copied to the resulting user.message event. Must be `user`, `system`, `command-&lt;command-id&gt;` for command-originated messages, `schedule-&lt;numeric-id&gt;` for scheduled prompts, `agent-&lt;agent-id&gt;` for prompts sent by another agent, or `automation-&lt;automation-id&gt;` for turns a host sends on behalf of an automation the user configured. An automation turn defines the session's task like a user message but carries no human authority.</summary>
+    [RegularExpression("^(user|system|command-.*|schedule-\\d+|agent-.+|automation-.+)$")]
     [JsonPropertyName("source")]
     public string? Source { get; set; }
 
@@ -19788,8 +19997,8 @@ internal sealed class SendRequestWithSession
     [JsonPropertyName("sessionId")]
     public string SessionId { get; set; } = string.Empty;
 
-    /// <summary>Optional provenance tag copied to the resulting user.message event. Must be `user`, `system`, `command-&lt;command-id&gt;` for command-originated messages, `schedule-&lt;numeric-id&gt;` for scheduled prompts, or `agent-&lt;agent-id&gt;` for prompts sent by another agent.</summary>
-    [RegularExpression("^(user|system|command-.*|schedule-\\d+|agent-.+)$")]
+    /// <summary>Optional provenance tag copied to the resulting user.message event. Must be `user`, `system`, `command-&lt;command-id&gt;` for command-originated messages, `schedule-&lt;numeric-id&gt;` for scheduled prompts, `agent-&lt;agent-id&gt;` for prompts sent by another agent, or `automation-&lt;automation-id&gt;` for turns a host sends on behalf of an automation the user configured. An automation turn defines the session's task like a user message but carries no human authority.</summary>
+    [RegularExpression("^(user|system|command-.*|schedule-\\d+|agent-.+|automation-.+)$")]
     [JsonInclude]
     [JsonPropertyName("source")]
     internal string? Source { get; set; }
@@ -19862,8 +20071,8 @@ public sealed class SendMessageItem
     [JsonPropertyName("requiredTool")]
     public string? RequiredTool { get; set; }
 
-    /// <summary>Optional provenance tag copied to the resulting user.message event. Must be `user`, `system`, `command-&lt;command-id&gt;` for command-originated messages, `schedule-&lt;numeric-id&gt;` for scheduled prompts, or `agent-&lt;agent-id&gt;` for prompts sent by another agent.</summary>
-    [RegularExpression("^(user|system|command-.*|schedule-\\d+|agent-.+)$")]
+    /// <summary>Optional provenance tag copied to the resulting user.message event. Must be `user`, `system`, `command-&lt;command-id&gt;` for command-originated messages, `schedule-&lt;numeric-id&gt;` for scheduled prompts, `agent-&lt;agent-id&gt;` for prompts sent by another agent, or `automation-&lt;automation-id&gt;` for turns a host sends on behalf of an automation the user configured. An automation turn defines the session's task like a user message but carries no human authority.</summary>
+    [RegularExpression("^(user|system|command-.*|schedule-\\d+|agent-.+|automation-.+)$")]
     [JsonInclude]
     [JsonPropertyName("source")]
     internal string? Source { get; set; }
@@ -27997,6 +28206,62 @@ internal sealed class McpIsServerRunningRequest
     public string SessionId { get; set; } = string.Empty;
 }
 
+/// <summary>Context tokens one MCP tool definition costs.</summary>
+[Experimental(global::GitHub.Copilot.Diagnostics.Experimental)]
+public sealed class McpToolTokenCount
+{
+    /// <summary>True when the tool definition is deferred and not sent to the model up front.</summary>
+    [JsonPropertyName("deferred")]
+    public bool Deferred { get; set; }
+
+    /// <summary>Tool name as the MCP server reports it.</summary>
+    [JsonPropertyName("mcpToolName")]
+    public string McpToolName { get; set; } = string.Empty;
+
+    /// <summary>Tool name as the model sees it, copied verbatim from the session's tool metadata. Usually namespaced with the server, but that is not guaranteed: use `serverName` rather than parsing this name.</summary>
+    [JsonPropertyName("name")]
+    public string Name { get; set; } = string.Empty;
+
+    /// <summary>Share of the server's total tokens attributed to this tool; 0 when deferred. The tools of one server sum to that server's `totalTokens`.</summary>
+    [JsonPropertyName("tokens")]
+    public long Tokens { get; set; }
+}
+
+/// <summary>Context tokens one MCP server's tool definitions cost.</summary>
+[Experimental(global::GitHub.Copilot.Diagnostics.Experimental)]
+public sealed class McpServerToolTokenBreakdown
+{
+    /// <summary>Server name the tools are namespaced under.</summary>
+    [JsonPropertyName("serverName")]
+    public string ServerName { get; set; } = string.Empty;
+
+    /// <summary>Per-tool breakdown, in the session's tool order.</summary>
+    [JsonPropertyName("tools")]
+    public IList<McpToolTokenCount> Tools { get => field ??= []; set; }
+
+    /// <summary>Tokens the server's non-deferred tool definitions cost together for the model the breakdown was counted with.</summary>
+    [JsonPropertyName("totalTokens")]
+    public long TotalTokens { get; set; }
+}
+
+/// <summary>Per-server MCP tool definition token costs.</summary>
+[Experimental(global::GitHub.Copilot.Diagnostics.Experimental)]
+public sealed class McpToolTokenBreakdownResult
+{
+    /// <summary>One entry per MCP server with tools in the session's current tool set, in tool order. Empty both when the session has not computed its tool set yet and when the computed tool set contains no MCP tools; the two cases are not distinguished.</summary>
+    [JsonPropertyName("servers")]
+    public IList<McpServerToolTokenBreakdown> Servers { get => field ??= []; set; }
+}
+
+/// <summary>Identifies the target session.</summary>
+[Experimental(global::GitHub.Copilot.Diagnostics.Experimental)]
+internal sealed class SessionMcpGetToolTokenBreakdownRequest
+{
+    /// <summary>Target session identifier.</summary>
+    [JsonPropertyName("sessionId")]
+    public string SessionId { get; set; } = string.Empty;
+}
+
 /// <summary>Indicates whether the pending MCP OAuth response was accepted.</summary>
 [Experimental(global::GitHub.Copilot.Diagnostics.Experimental)]
 public sealed class McpOauthHandlePendingResult
@@ -31705,7 +31970,7 @@ public sealed class Extension
     [JsonPropertyName("source")]
     public ExtensionSource Source { get; set; }
 
-    /// <summary>Current status: running, disabled, failed, or starting.</summary>
+    /// <summary>Current status: running, dormant, disabled, failed, or starting.</summary>
     [JsonPropertyName("status")]
     public ExtensionStatus Status { get; set; }
 }
@@ -56931,7 +57196,7 @@ public readonly struct ExtensionSource : IEquatable<ExtensionSource>
 }
 
 
-/// <summary>Current status: running, disabled, failed, or starting.</summary>
+/// <summary>Current status: running, dormant, disabled, failed, or starting.</summary>
 [Experimental(global::GitHub.Copilot.Diagnostics.Experimental)]
 [JsonConverter(typeof(Converter))]
 [DebuggerDisplay("{Value,nq}")]
@@ -56953,6 +57218,9 @@ public readonly struct ExtensionStatus : IEquatable<ExtensionStatus>
 
     /// <summary>The extension process is running.</summary>
     public static ExtensionStatus Running { get; } = new("running");
+
+    /// <summary>The extension is enabled and discoverable but not yet requested.</summary>
+    public static ExtensionStatus Dormant { get; } = new("dormant");
 
     /// <summary>The extension is installed but disabled.</summary>
     public static ExtensionStatus Disabled { get; } = new("disabled");
@@ -60740,6 +61008,12 @@ public sealed class ServerRpc
         Interlocked.CompareExchange(ref field, new(_rpc), null) ??
         field;
 
+    /// <summary>TaskAnalytics APIs.</summary>
+    public ServerTaskAnalyticsApi TaskAnalytics =>
+        field ??
+        Interlocked.CompareExchange(ref field, new(_rpc), null) ??
+        field;
+
     /// <summary>GitHubFetch APIs.</summary>
     public ServerGitHubFetchApi GitHubFetch =>
         field ??
@@ -61922,6 +62196,7 @@ public sealed class ServerManagedSettingsApi
     /// <param name="environment">The host's environment variables, read for cache location and policy overrides. Supplied by the host rather than read from the runtime process so a command that selected its own configuration home is honored.</param>
     /// <param name="platform">The host's platform, in Node's `process.platform` spelling, used to locate platform-specific cache and policy paths.</param>
     /// <param name="homeDirectory">The host's home directory, used to resolve cache and managed-file locations.</param>
+    /// <param name="policyHelperClientName">Caller identity for a policy helper before session registration. Omit to keep the runtime default. This does not change clientName on managed-service requests.</param>
     /// <param name="policyHelperReason">The policy-helper invocation reason. Defaults to sessionStart.</param>
     /// <param name="selfFetch">Whether to run ingestion. Omit or set false to return an empty result without discovering or fetching policy.</param>
     /// <param name="authInfo">The authenticated identity to resolve policy for. Omitted before sign-in, in which case no server layer is fetched.</param>
@@ -61935,13 +62210,13 @@ public sealed class ServerManagedSettingsApi
     /// <param name="clientName">Name of the embedding client, reported to the managed-settings service as `client_id` so it can refuse to deliver a policy this client is too old to enforce. Omit it and the runtime reports a generic identity; the runtime version sent alongside is the gate that actually matters.</param>
     /// <param name="cancellationToken">The <see cref="CancellationToken"/> to monitor for cancellation requests. The default is <see cref="CancellationToken.None"/>.</param>
     /// <returns>The managed policy layers an ingestion resolved, together with the per-layer outcome flags a host needs to decide how much to trust the result. The flags are reported rather than folded into the settings because a host must be able to distinguish an unmanaged device from a managed device whose policy could not be confirmed, and apply its fail-closed gates in the second case.</returns>
-    internal async Task<ManagedSettingsIngestResult> IngestAsync(string userAgent, object? environment, string platform, string homeDirectory, ManagedSettingsPolicyHelperReason? policyHelperReason = null, bool? selfFetch = null, object? authInfo = null, string? sessionId = null, object? deviceResponse = null, bool? hasDeviceResponse = null, bool? bypassCacheRead = null, ManagedSettingsServerPolicyCacheMode? serverPolicyCacheMode = null, bool? policyHelperEnabled = null, string? policyHelperWorkingDirectory = null, string? clientName = null, CancellationToken cancellationToken = default)
+    internal async Task<ManagedSettingsIngestResult> IngestAsync(string userAgent, object? environment, string platform, string homeDirectory, string? policyHelperClientName = null, ManagedSettingsPolicyHelperReason? policyHelperReason = null, bool? selfFetch = null, object? authInfo = null, string? sessionId = null, object? deviceResponse = null, bool? hasDeviceResponse = null, bool? bypassCacheRead = null, ManagedSettingsServerPolicyCacheMode? serverPolicyCacheMode = null, bool? policyHelperEnabled = null, string? policyHelperWorkingDirectory = null, string? clientName = null, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(userAgent);
         ArgumentNullException.ThrowIfNull(platform);
         ArgumentNullException.ThrowIfNull(homeDirectory);
 
-        var request = new ManagedSettingsIngestParams { UserAgent = userAgent, Environment = CopilotClient.ToJsonElementForWire(environment) ?? JsonElement.Parse("null"), Platform = platform, HomeDirectory = homeDirectory, PolicyHelperReason = policyHelperReason, SelfFetch = selfFetch, AuthInfo = CopilotClient.ToJsonElementForWire(authInfo), SessionId = sessionId, DeviceResponse = CopilotClient.ToJsonElementForWire(deviceResponse), HasDeviceResponse = hasDeviceResponse, BypassCacheRead = bypassCacheRead, ServerPolicyCacheMode = serverPolicyCacheMode, PolicyHelperEnabled = policyHelperEnabled, PolicyHelperWorkingDirectory = policyHelperWorkingDirectory, ClientName = clientName };
+        var request = new ManagedSettingsIngestParams { UserAgent = userAgent, Environment = CopilotClient.ToJsonElementForWire(environment) ?? JsonElement.Parse("null"), Platform = platform, HomeDirectory = homeDirectory, PolicyHelperClientName = policyHelperClientName, PolicyHelperReason = policyHelperReason, SelfFetch = selfFetch, AuthInfo = CopilotClient.ToJsonElementForWire(authInfo), SessionId = sessionId, DeviceResponse = CopilotClient.ToJsonElementForWire(deviceResponse), HasDeviceResponse = hasDeviceResponse, BypassCacheRead = bypassCacheRead, ServerPolicyCacheMode = serverPolicyCacheMode, PolicyHelperEnabled = policyHelperEnabled, PolicyHelperWorkingDirectory = policyHelperWorkingDirectory, ClientName = clientName };
         return await CopilotClient.InvokeRpcAsync<ManagedSettingsIngestResult>(_rpc, "managedSettings.ingest", [request], cancellationToken);
     }
 
@@ -61951,6 +62226,7 @@ public sealed class ServerManagedSettingsApi
     /// <param name="platform">The host's platform, in Node's `process.platform` spelling, used to locate platform-specific cache and policy paths.</param>
     /// <param name="homeDirectory">The host's home directory, used to resolve cache and managed-file locations.</param>
     /// <param name="retainAndApply">Whether to retain the resolved policy as this runtime process's startup policy, so later work in the process enforces it. Set false to resolve without side effects, which is what a protocol host wants before session creation: its sessions apply the complete policy through the normal lifecycle, and retaining here would let a readiness credential affect unrelated sessions. The returned verdict is identical either way — this decides only whether the process keeps it.</param>
+    /// <param name="policyHelperClientName">Caller identity for a policy helper before session registration. Omit to keep the runtime default. This does not change clientName on managed-service requests.</param>
     /// <param name="policyHelperReason">The policy-helper invocation reason. Defaults to sessionStart.</param>
     /// <param name="selfFetch">Whether to run ingestion. Omit or set false to return an empty result without discovering or fetching policy.</param>
     /// <param name="authInfo">The authenticated identity to resolve policy for. Omitted before sign-in, in which case no server layer is fetched and the sign-in pin is evaluated against no credential.</param>
@@ -61964,13 +62240,13 @@ public sealed class ServerManagedSettingsApi
     /// <param name="clientName">Name of the embedding client, reported to the managed-settings service as `client_id` so it can refuse to deliver a policy this client is too old to enforce.</param>
     /// <param name="cancellationToken">The <see cref="CancellationToken"/> to monitor for cancellation requests. The default is <see cref="CancellationToken.None"/>.</param>
     /// <returns>The startup policy a resolution composed, the per-layer outcome flags a host needs to decide how much to trust it, and the enterprise sign-in verdict for the credential it ran against. The flags are reported rather than folded into the settings because a host must distinguish an unmanaged device from a managed device whose policy could not be confirmed, and apply its fail-closed gates in the second case.</returns>
-    internal async Task<ManagedSettingsResolveStartupPolicyResult> ResolveStartupPolicyAsync(string userAgent, object? environment, string platform, string homeDirectory, bool retainAndApply, ManagedSettingsPolicyHelperReason? policyHelperReason = null, bool? selfFetch = null, object? authInfo = null, string? sessionId = null, object? deviceResponse = null, bool? hasDeviceResponse = null, bool? bypassCacheRead = null, ManagedSettingsServerPolicyCacheMode? serverPolicyCacheMode = null, bool? policyHelperEnabled = null, string? policyHelperWorkingDirectory = null, string? clientName = null, CancellationToken cancellationToken = default)
+    internal async Task<ManagedSettingsResolveStartupPolicyResult> ResolveStartupPolicyAsync(string userAgent, object? environment, string platform, string homeDirectory, bool retainAndApply, string? policyHelperClientName = null, ManagedSettingsPolicyHelperReason? policyHelperReason = null, bool? selfFetch = null, object? authInfo = null, string? sessionId = null, object? deviceResponse = null, bool? hasDeviceResponse = null, bool? bypassCacheRead = null, ManagedSettingsServerPolicyCacheMode? serverPolicyCacheMode = null, bool? policyHelperEnabled = null, string? policyHelperWorkingDirectory = null, string? clientName = null, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(userAgent);
         ArgumentNullException.ThrowIfNull(platform);
         ArgumentNullException.ThrowIfNull(homeDirectory);
 
-        var request = new ManagedSettingsResolveStartupPolicyParams { UserAgent = userAgent, Environment = CopilotClient.ToJsonElementForWire(environment) ?? JsonElement.Parse("null"), Platform = platform, HomeDirectory = homeDirectory, RetainAndApply = retainAndApply, PolicyHelperReason = policyHelperReason, SelfFetch = selfFetch, AuthInfo = CopilotClient.ToJsonElementForWire(authInfo), SessionId = sessionId, DeviceResponse = CopilotClient.ToJsonElementForWire(deviceResponse), HasDeviceResponse = hasDeviceResponse, BypassCacheRead = bypassCacheRead, ServerPolicyCacheMode = serverPolicyCacheMode, PolicyHelperEnabled = policyHelperEnabled, PolicyHelperWorkingDirectory = policyHelperWorkingDirectory, ClientName = clientName };
+        var request = new ManagedSettingsResolveStartupPolicyParams { UserAgent = userAgent, Environment = CopilotClient.ToJsonElementForWire(environment) ?? JsonElement.Parse("null"), Platform = platform, HomeDirectory = homeDirectory, RetainAndApply = retainAndApply, PolicyHelperClientName = policyHelperClientName, PolicyHelperReason = policyHelperReason, SelfFetch = selfFetch, AuthInfo = CopilotClient.ToJsonElementForWire(authInfo), SessionId = sessionId, DeviceResponse = CopilotClient.ToJsonElementForWire(deviceResponse), HasDeviceResponse = hasDeviceResponse, BypassCacheRead = bypassCacheRead, ServerPolicyCacheMode = serverPolicyCacheMode, PolicyHelperEnabled = policyHelperEnabled, PolicyHelperWorkingDirectory = policyHelperWorkingDirectory, ClientName = clientName };
         return await CopilotClient.InvokeRpcAsync<ManagedSettingsResolveStartupPolicyResult>(_rpc, "managedSettings.resolveStartupPolicy", [request], cancellationToken);
     }
 
@@ -61979,6 +62255,7 @@ public sealed class ServerManagedSettingsApi
     /// <param name="environment">The host's environment variables, read for cache location and policy overrides.</param>
     /// <param name="platform">The host's platform, in Node's `process.platform` spelling, used to locate platform-specific cache and policy paths.</param>
     /// <param name="homeDirectory">The host's home directory, used to resolve cache and managed-file locations.</param>
+    /// <param name="policyHelperClientName">Optional policy-helper caller identity. Does not change the managed-service clientName.</param>
     /// <param name="policyHelperReason">The policy-helper invocation reason. Defaults to sessionStart.</param>
     /// <param name="selfFetch">Whether to run ingestion. Omit or set false to return an empty result without discovering or fetching policy.</param>
     /// <param name="authInfo">The authenticated identity to resolve policy for. Omitted before sign-in, in which case no server layer is fetched.</param>
@@ -61988,24 +62265,25 @@ public sealed class ServerManagedSettingsApi
     /// <param name="clientName">Name of the embedding client, reported to the managed-settings service as `client_id` so it can refuse to deliver a policy this client is too old to enforce. That refusal is exactly what turns into an explicit `disabled` below, so a host that omits this field forfeits the protection.</param>
     /// <param name="cancellationToken">The <see cref="CancellationToken"/> to monitor for cancellation requests. The default is <see cref="CancellationToken.None"/>.</param>
     /// <returns>The managed remote-control policy in force for an account, if any. An absent policy means the account is unmanaged for this capability, which a host reads as allowed — so absence here is a positive statement that no policy applies, never a stand-in for a resolution that failed. A resolution that cannot be completed is rejected instead.</returns>
-    internal async Task<ManagedSettingsLoadRemoteControlResult> LoadRemoteControlAsync(string userAgent, object? environment, string platform, string homeDirectory, ManagedSettingsPolicyHelperReason? policyHelperReason = null, bool? selfFetch = null, object? authInfo = null, object? deviceResponse = null, bool? hasDeviceResponse = null, bool? policyHelperEnabled = null, string? clientName = null, CancellationToken cancellationToken = default)
+    internal async Task<ManagedSettingsLoadRemoteControlResult> LoadRemoteControlAsync(string userAgent, object? environment, string platform, string homeDirectory, string? policyHelperClientName = null, ManagedSettingsPolicyHelperReason? policyHelperReason = null, bool? selfFetch = null, object? authInfo = null, object? deviceResponse = null, bool? hasDeviceResponse = null, bool? policyHelperEnabled = null, string? clientName = null, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(userAgent);
         ArgumentNullException.ThrowIfNull(platform);
         ArgumentNullException.ThrowIfNull(homeDirectory);
 
-        var request = new ManagedSettingsLoadRemoteControlParams { UserAgent = userAgent, Environment = CopilotClient.ToJsonElementForWire(environment) ?? JsonElement.Parse("null"), Platform = platform, HomeDirectory = homeDirectory, PolicyHelperReason = policyHelperReason, SelfFetch = selfFetch, AuthInfo = CopilotClient.ToJsonElementForWire(authInfo), DeviceResponse = CopilotClient.ToJsonElementForWire(deviceResponse), HasDeviceResponse = hasDeviceResponse, PolicyHelperEnabled = policyHelperEnabled, ClientName = clientName };
+        var request = new ManagedSettingsLoadRemoteControlParams { UserAgent = userAgent, Environment = CopilotClient.ToJsonElementForWire(environment) ?? JsonElement.Parse("null"), Platform = platform, HomeDirectory = homeDirectory, PolicyHelperClientName = policyHelperClientName, PolicyHelperReason = policyHelperReason, SelfFetch = selfFetch, AuthInfo = CopilotClient.ToJsonElementForWire(authInfo), DeviceResponse = CopilotClient.ToJsonElementForWire(deviceResponse), HasDeviceResponse = hasDeviceResponse, PolicyHelperEnabled = policyHelperEnabled, ClientName = clientName };
         return await CopilotClient.InvokeRpcAsync<ManagedSettingsLoadRemoteControlResult>(_rpc, "managedSettings.loadRemoteControl", [request], cancellationToken);
     }
 
     /// <summary>Evaluates the device-channel enterprise sign-in pin (MDM plist, registry, or managed-settings file) against a credential, without resolving any server-delivered policy. This is the gate an entry point runs before it branches, and the only one that can refuse a developer's first sign-in: it is local, needs no credential, and a server-delivered pin only ever reaches accounts already inside the organization. It fails closed by construction — a discovery that cannot determine whether a pin exists refuses rather than allows, because a control that fails open under a triggerable condition is not a control. Hosts that also want the server channel should call `managedSettings.resolveStartupPolicy`, which folds both channels into one verdict.</summary>
     /// <param name="environment">The host's environment variables. Read for the variables that would make an identity's membership snapshot forgeable, so a credential whose provenance cannot be trusted is refused rather than accepted.</param>
+    /// <param name="resolveCurrentAuth">Resolve the current credential from this connection's original auth owner only when device policy enforces a pin. Refreshes membership and preserves credential-resolution diagnostics. Defaults to false, which evaluates authInfo as supplied. Cannot be combined with authInfo; requires an original auth-owner binding.</param>
     /// <param name="authInfo">The authenticated identity to judge. Omitted when signed out, which is the case the device channel exists to serve: it can refuse a first sign-in before any credential exists.</param>
     /// <param name="cancellationToken">The <see cref="CancellationToken"/> to monitor for cancellation requests. The default is <see cref="CancellationToken.None"/>.</param>
     /// <returns>The verdict of the `forceLoginOrgs` enterprise sign-in pin for one credential. A managed device may pin Copilot to an approved set of GitHub organizations so a developer cannot sign in with a personal — or another enterprise's — account and escape every control that keys off the signed-in identity. A host must refuse to proceed when `allowed` is false; the remaining fields explain the refusal rather than qualifying it.</returns>
-    internal async Task<ForceLoginOrgsDecision> ResolveDeviceForceLoginOrgsGateAsync(object? environment, object? authInfo = null, CancellationToken cancellationToken = default)
+    internal async Task<ForceLoginOrgsDecision> ResolveDeviceForceLoginOrgsGateAsync(object? environment, bool? resolveCurrentAuth = null, object? authInfo = null, CancellationToken cancellationToken = default)
     {
-        var request = new ManagedSettingsResolveDeviceForceLoginOrgsGateParams { Environment = CopilotClient.ToJsonElementForWire(environment) ?? JsonElement.Parse("null"), AuthInfo = CopilotClient.ToJsonElementForWire(authInfo) };
+        var request = new ManagedSettingsResolveDeviceForceLoginOrgsGateParams { Environment = CopilotClient.ToJsonElementForWire(environment) ?? JsonElement.Parse("null"), ResolveCurrentAuth = resolveCurrentAuth, AuthInfo = CopilotClient.ToJsonElementForWire(authInfo) };
         return await CopilotClient.InvokeRpcAsync<ForceLoginOrgsDecision>(_rpc, "managedSettings.resolveDeviceForceLoginOrgsGate", [request], cancellationToken);
     }
 
@@ -64656,13 +64934,14 @@ public sealed class ServerSessionsApi
 
     /// <summary>Reads lightweight persisted metadata for one local session without opening it.</summary>
     /// <param name="sessionId">Session ID to inspect.</param>
+    /// <param name="fileMetadataOnly">When true, read only journal file metadata. Omit summary, workspace context, and detached status without reading journal contents. Defaults to false.</param>
     /// <param name="cancellationToken">The <see cref="CancellationToken"/> to monitor for cancellation requests. The default is <see cref="CancellationToken.None"/>.</param>
     /// <returns>Persisted local session metadata when the session exists.</returns>
-    internal async Task<SessionsGetMetadataResult> GetMetadataAsync(string sessionId, CancellationToken cancellationToken = default)
+    internal async Task<SessionsGetMetadataResult> GetMetadataAsync(string sessionId, bool? fileMetadataOnly = null, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(sessionId);
 
-        var request = new SessionsGetMetadataRequest { SessionId = sessionId };
+        var request = new SessionsGetMetadataRequest { SessionId = sessionId, FileMetadataOnly = fileMetadataOnly };
         return await CopilotClient.InvokeRpcAsync<SessionsGetMetadataResult>(_rpc, "sessions.getMetadata", [request], cancellationToken);
     }
 
@@ -65197,6 +65476,50 @@ public sealed class ServerLspApi
 
         var request = new LspListRequest { WorkingDirectory = workingDirectory };
         return await CopilotClient.InvokeRpcAsync<LspListResult>(_rpc, "lsp.list", [request], cancellationToken);
+    }
+}
+
+/// <summary>Provides server-scoped TaskAnalytics APIs.</summary>
+[Experimental(global::GitHub.Copilot.Diagnostics.Experimental)]
+public sealed class ServerTaskAnalyticsApi
+{
+    private readonly JsonRpc _rpc;
+
+    internal ServerTaskAnalyticsApi(JsonRpc rpc)
+    {
+        _rpc = rpc;
+    }
+
+    /// <summary>Classifies a recorded Copilot or ATIF trajectory using the runtime's production analytics pipeline. No conversation session is required or created, archived tools are never executed, and classification telemetry is not emitted. Calling this method explicitly requests model processing of retained trajectory content through the connection's GitHub CAPI credentials, independently of background telemetry consent; BYOK endpoints are not used. Callers must authorize that processing and validate archive provenance. Content is not automatically redacted or sanitized for prompt injection. Model-derived results can be manipulated by trajectory content and must not be used as authorization or security decisions.</summary>
+    /// <param name="events">Canonical Copilot session event objects or ATIF step objects, in source order, starting at the beginning of the recorded conversation. An ATIF document containing steps can be passed as a single array element. Include source identifiers when present. Durable Copilot logs are accepted; abort events retain interruptions, and EOF closes an unfinished turn without claiming successful completion. Non-analytics event types are ignored. Treat the archive as untrusted input: this API does not authenticate its origin, roles, completion claims, or content. Callers must validate provenance and preserve event structure, ordering, and role/source metadata. Remove or redact secrets and personal data that must not be sent to GitHub CAPI before calling; automatic redaction and prompt-injection sanitization are not provided. Retained text is bounded, not made trustworthy. Adversarial instructions can bias model judgments just as in live conversations; stripping instruction-like text is not required and can change the evidence being measured.</param>
+    /// <param name="classifiers">Classifier names to run. Omit for all eight classifiers. An empty list runs none. Turn splitting is also returned when needed to build task/session units or identify task-opening turns.</param>
+    /// <param name="maxConcurrentRequests">Maximum concurrent classifier calls in this analysis across all lanes, including segmentation and session classifiers. Defaults to 4; must be positive. Multiple simultaneous analyses each have their own limit. Trajectory concurrency is not inference-request concurrency.</param>
+    /// <param name="judge">Explicit judge configuration for this analysis. Omit to use each classifier's production model policy and reasoning effort. The exact model must be offered by the authenticated catalog, allowed by server policy, and compatible with the classifier; an unusable override fails the affected classification rather than falling back. Choosing a billed model explicitly authorizes its inference costs. Successful rows reused from previousResult keep their original judge configuration.</param>
+    /// <param name="validateOnly">Validate input locally without authentication, model discovery, or inference. Returns validation diagnostics and no classifications. Invalid input never starts paid inference, even when this option is omitted.</param>
+    /// <param name="previousResult">Previous result for the identical archive and classifier versions. Reuses all original task boundaries, including unresolved ones, and preserves successful and declined outcomes. Only failed/abandoned non-segmenting outcomes in the selected classifiers are retried. Start a fresh analysis to change segmentation. Rejects mismatched fingerprints or versions before inference.</param>
+    /// <param name="cancellationToken">The <see cref="CancellationToken"/> to monitor for cancellation requests. The default is <see cref="CancellationToken.None"/>.</param>
+    /// <returns>Categorical retrospective measurements of the supplied trajectory, not verification that its claims are true. Model-derived classifications can be inaccurate or manipulated by adversarial content. Treat them as untrusted measurements; independently validate results used for consequential decisions and never use them as authorization or security decisions.</returns>
+    public async Task<TaskAnalyticsClassifyTrajectoryResult> ClassifyTrajectoryAsync(IEnumerable<object?> events, IList<string>? classifiers = null, long? maxConcurrentRequests = null, TaskAnalyticsJudge? judge = null, bool? validateOnly = null, TaskAnalyticsClassifyTrajectoryResult? previousResult = null, CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(events);
+
+        var request = new TaskAnalyticsClassifyTrajectoryRequest { Events = events.Select(static v => CopilotClient.ToJsonElementForWire(v) ?? JsonElement.Parse("null")).ToList(), Classifiers = classifiers, MaxConcurrentRequests = maxConcurrentRequests, Judge = judge, ValidateOnly = validateOnly, PreviousResult = previousResult };
+        return await CopilotClient.InvokeRpcAsync<TaskAnalyticsClassifyTrajectoryResult>(_rpc, "taskAnalytics.classifyTrajectory", [request], cancellationToken);
+    }
+
+    /// <summary>Classifies a recorded Copilot or ATIF trajectory using the runtime's production analytics pipeline. No conversation session is required or created, archived tools are never executed, and classification telemetry is not emitted. Calling this method explicitly requests model processing of retained trajectory content through the connection's GitHub CAPI credentials, independently of background telemetry consent; BYOK endpoints are not used. Callers must authorize that processing and validate archive provenance. Content is not automatically redacted or sanitized for prompt injection. Model-derived results can be manipulated by trajectory content and must not be used as authorization or security decisions.</summary>
+    /// <param name="events">Canonical Copilot session event objects or ATIF step objects, in source order, starting at the beginning of the recorded conversation. An ATIF document containing steps can be passed as a single array element. Include source identifiers when present. Durable Copilot logs are accepted; abort events retain interruptions, and EOF closes an unfinished turn without claiming successful completion. Non-analytics event types are ignored. Treat the archive as untrusted input: this API does not authenticate its origin, roles, completion claims, or content. Callers must validate provenance and preserve event structure, ordering, and role/source metadata. Remove or redact secrets and personal data that must not be sent to GitHub CAPI before calling; automatic redaction and prompt-injection sanitization are not provided. Retained text is bounded, not made trustworthy. Adversarial instructions can bias model judgments just as in live conversations; stripping instruction-like text is not required and can change the evidence being measured.</param>
+    /// <param name="classifiers">Classifier names to run. Omit for all eight classifiers. An empty list runs none. Turn splitting is also returned when needed to build task/session units or identify task-opening turns.</param>
+    /// <param name="maxConcurrentRequests">Maximum concurrent classifier calls in this analysis across all lanes, including segmentation and session classifiers. Defaults to 4; must be positive. Multiple simultaneous analyses each have their own limit. Trajectory concurrency is not inference-request concurrency.</param>
+    /// <param name="judge">Explicit judge configuration for this analysis. Omit to use each classifier's production model policy and reasoning effort. The exact model must be offered by the authenticated catalog, allowed by server policy, and compatible with the classifier; an unusable override fails the affected classification rather than falling back. Choosing a billed model explicitly authorizes its inference costs. Successful rows reused from previousResult keep their original judge configuration.</param>
+    /// <param name="validateOnly">Validate input locally without authentication, model discovery, or inference. Returns validation diagnostics and no classifications. Invalid input never starts paid inference, even when this option is omitted.</param>
+    /// <param name="previousResult">Previous result for the identical archive and classifier versions. Reuses all original task boundaries, including unresolved ones, and preserves successful and declined outcomes. Only failed/abandoned non-segmenting outcomes in the selected classifiers are retried. Start a fresh analysis to change segmentation. Rejects mismatched fingerprints or versions before inference.</param>
+    /// <param name="cancellationToken">The <see cref="CancellationToken"/> to monitor for cancellation requests. The default is <see cref="CancellationToken.None"/>.</param>
+    /// <returns>Categorical retrospective measurements of the supplied trajectory, not verification that its claims are true. Model-derived classifications can be inaccurate or manipulated by adversarial content. Treat them as untrusted measurements; independently validate results used for consequential decisions and never use them as authorization or security decisions.</returns>
+    public Task<TaskAnalyticsClassifyTrajectoryResult> ClassifyTrajectoryAsync(IEnumerable<JsonElement> events, IList<string>? classifiers = null, long? maxConcurrentRequests = null, TaskAnalyticsJudge? judge = null, bool? validateOnly = null, TaskAnalyticsClassifyTrajectoryResult? previousResult = null, CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(events);
+        return ClassifyTrajectoryAsync(events.Cast<object?>(), classifiers, maxConcurrentRequests, judge, validateOnly, previousResult, cancellationToken);
     }
 }
 
@@ -65943,7 +66266,7 @@ public sealed class SessionRpc
     /// <param name="prepend">If true, adds the message to the front of the queue instead of the end.</param>
     /// <param name="billable">If false, this message will not trigger a Premium Request Unit charge. User messages default to billable.</param>
     /// <param name="requiredTool">If set, the request will fail if the named tool is not available when this message is among the user messages at the start of the current exchange.</param>
-    /// <param name="source">Optional provenance tag copied to the resulting user.message event. Must be `user`, `system`, `command-&lt;command-id&gt;` for command-originated messages, `schedule-&lt;numeric-id&gt;` for scheduled prompts, or `agent-&lt;agent-id&gt;` for prompts sent by another agent.</param>
+    /// <param name="source">Optional provenance tag copied to the resulting user.message event. Must be `user`, `system`, `command-&lt;command-id&gt;` for command-originated messages, `schedule-&lt;numeric-id&gt;` for scheduled prompts, `agent-&lt;agent-id&gt;` for prompts sent by another agent, or `automation-&lt;automation-id&gt;` for turns a host sends on behalf of an automation the user configured. An automation turn defines the session's task like a user message but carries no human authority.</param>
     /// <param name="agentMode">The UI mode the agent was in when this message was sent. Defaults to the session's current mode.</param>
     /// <param name="requestHeaders">Custom HTTP headers to include in outbound model requests for this turn. Merged with session-level provider headers; per-turn headers augment and overwrite session-level headers with the same key.</param>
     /// <param name="responseFormat">Provider-native output format for this turn, including all tool-call iterations. Not inherited by later turns or subagents. Ordinary steering inherits the active format; specifying responseFormat with mode: immediate is an error, even while idle. Returned assistant content remains text; the runtime does not parse or validate it. Unsupported models or schemas produce provider errors.</param>
@@ -65984,7 +66307,7 @@ public sealed class SessionRpc
     /// <param name="prepend">If true, adds the message to the front of the queue instead of the end.</param>
     /// <param name="billable">If false, this message will not trigger a Premium Request Unit charge. User messages default to billable.</param>
     /// <param name="requiredTool">If set, the request will fail if the named tool is not available when this message is among the user messages at the start of the current exchange.</param>
-    /// <param name="source">Optional provenance tag copied to the resulting user.message event. Must be `user`, `system`, `command-&lt;command-id&gt;` for command-originated messages, `schedule-&lt;numeric-id&gt;` for scheduled prompts, or `agent-&lt;agent-id&gt;` for prompts sent by another agent.</param>
+    /// <param name="source">Optional provenance tag copied to the resulting user.message event. Must be `user`, `system`, `command-&lt;command-id&gt;` for command-originated messages, `schedule-&lt;numeric-id&gt;` for scheduled prompts, `agent-&lt;agent-id&gt;` for prompts sent by another agent, or `automation-&lt;automation-id&gt;` for turns a host sends on behalf of an automation the user configured. An automation turn defines the session's task like a user message but carries no human authority.</param>
     /// <param name="agentMode">The UI mode the agent was in when this message was sent. Defaults to the session's current mode.</param>
     /// <param name="requestHeaders">Custom HTTP headers to include in outbound model requests for this turn. Merged with session-level provider headers; per-turn headers augment and overwrite session-level headers with the same key.</param>
     /// <param name="responseFormat">Provider-native output format for this turn, including all tool-call iterations. Not inherited by later turns or subagents. Ordinary steering inherits the active format; specifying responseFormat with mode: immediate is an error, even while idle. Returned assistant content remains text; the runtime does not parse or validate it. Unsupported models or schemas produce provider errors.</param>
@@ -66801,13 +67124,13 @@ internal sealed class CanvasProviderApi
     /// <param name="info">Provider metadata supplied by the host.</param>
     /// <param name="canvases">Canvas contributions supplied by the provider.</param>
     /// <param name="cancellationToken">The <see cref="CancellationToken"/> to monitor for cancellation requests. The default is <see cref="CancellationToken.None"/>.</param>
-    internal async Task RegisterAsync(string connectionId, object? info, IList<object?> canvases, CancellationToken cancellationToken = default)
+    internal async Task RegisterAsync(string connectionId, object? info, IEnumerable<object?> canvases, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(connectionId);
         ArgumentNullException.ThrowIfNull(canvases);
         _session.ThrowIfDisposed();
 
-        var request = new CanvasProviderRegisterRequest { SessionId = _session.SessionId, ConnectionId = connectionId, Info = CopilotClient.ToJsonElementForWire(info) ?? JsonElement.Parse("null"), Canvases = canvases.Select(static v => CopilotClient.ToJsonElementForWire(v)!.Value).ToList() };
+        var request = new CanvasProviderRegisterRequest { SessionId = _session.SessionId, ConnectionId = connectionId, Info = CopilotClient.ToJsonElementForWire(info) ?? JsonElement.Parse("null"), Canvases = canvases.Select(static v => CopilotClient.ToJsonElementForWire(v) ?? JsonElement.Parse("null")).ToList() };
         await CopilotClient.InvokeRpcAsync(_session.Rpc, "session.canvas.provider.register", [request], cancellationToken);
     }
 
@@ -68694,6 +69017,17 @@ public sealed class McpApi
 
         var request = new McpIsServerRunningRequest { SessionId = _session.SessionId, ServerName = serverName };
         return await CopilotClient.InvokeRpcAsync<McpIsServerRunningResult>(_session.Rpc, "session.mcp.isServerRunning", [request], cancellationToken);
+    }
+
+    /// <summary>Reports how many context tokens each MCP server's tool definitions cost, per server and per tool, for the session's current tool set. Costs are counted with the session's selected model, or with the runtime's default context model when no model has been selected.</summary>
+    /// <param name="cancellationToken">The <see cref="CancellationToken"/> to monitor for cancellation requests. The default is <see cref="CancellationToken.None"/>.</param>
+    /// <returns>Per-server MCP tool definition token costs.</returns>
+    public async Task<McpToolTokenBreakdownResult> GetToolTokenBreakdownAsync(CancellationToken cancellationToken = default)
+    {
+        _session.ThrowIfDisposed();
+
+        var request = new SessionMcpGetToolTokenBreakdownRequest { SessionId = _session.SessionId };
+        return await CopilotClient.InvokeRpcAsync<McpToolTokenBreakdownResult>(_session.Rpc, "session.mcp.getToolTokenBreakdown", [request], cancellationToken);
     }
 
     /// <summary>Oauth APIs.</summary>
@@ -74128,6 +74462,7 @@ internal static class ClientGlobalApiRegistration
 [JsonSerializable(typeof(McpServerList))]
 [JsonSerializable(typeof(McpServerNeedsAuthInfo))]
 [JsonSerializable(typeof(McpServerOwnership))]
+[JsonSerializable(typeof(McpServerToolTokenBreakdown))]
 [JsonSerializable(typeof(McpSetEnvValueModeParams))]
 [JsonSerializable(typeof(McpSetEnvValueModeResult))]
 [JsonSerializable(typeof(McpShouldExcludeGitHubToolsRequest))]
@@ -74141,6 +74476,8 @@ internal static class ClientGlobalApiRegistration
 [JsonSerializable(typeof(McpStopServerRequest))]
 [JsonSerializable(typeof(McpStopServerRequestWithSession))]
 [JsonSerializable(typeof(McpTaskMetadata))]
+[JsonSerializable(typeof(McpToolTokenBreakdownResult))]
+[JsonSerializable(typeof(McpToolTokenCount))]
 [JsonSerializable(typeof(McpToolUi))]
 [JsonSerializable(typeof(McpTools))]
 [JsonSerializable(typeof(McpUninstallPlan))]
@@ -74643,6 +74980,7 @@ internal static class ClientGlobalApiRegistration
 [JsonSerializable(typeof(SessionManagementPolicy))]
 [JsonSerializable(typeof(SessionManagementToolOverrides))]
 [JsonSerializable(typeof(SessionMcpAppsGetHostContextRequest))]
+[JsonSerializable(typeof(SessionMcpGetToolTokenBreakdownRequest))]
 [JsonSerializable(typeof(SessionMcpListConfiguredRequest))]
 [JsonSerializable(typeof(SessionMcpListRequest))]
 [JsonSerializable(typeof(SessionMcpMoveLoadingToBackgroundRequest))]
@@ -74896,6 +75234,11 @@ internal static class ClientGlobalApiRegistration
 [JsonSerializable(typeof(SubagentSettingsConfig))]
 [JsonSerializable(typeof(SubagentSettingsEntry))]
 [JsonSerializable(typeof(SystemMessageBlock))]
+[JsonSerializable(typeof(TaskAnalyticsClassifyTrajectoryRequest))]
+[JsonSerializable(typeof(TaskAnalyticsClassifyTrajectoryResult))]
+[JsonSerializable(typeof(TaskAnalyticsJudge))]
+[JsonSerializable(typeof(TaskAnalyticsTrajectoryClassification))]
+[JsonSerializable(typeof(TaskAnalyticsTrajectoryValidation))]
 [JsonSerializable(typeof(TaskClientInfo))]
 [JsonSerializable(typeof(TaskClientOwner))]
 [JsonSerializable(typeof(TaskClientUpdate))]

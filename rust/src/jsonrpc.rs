@@ -1486,7 +1486,10 @@ impl JsonRpcClient {
         }
         let cancel_on_drop = matches!(
             method,
-            "session.sendAndWait" | "session.featureFlags.read" | "localModels.watch"
+            "session.sendAndWait"
+                | "session.featureFlags.read"
+                | "taskAnalytics.classifyTrajectory"
+                | "localModels.watch"
         );
         let frame = encode_frame(&request)?;
         let method = request.method;

@@ -690,6 +690,10 @@ _, err := session.Send(ctx, copilot.MessageOptions{
 unchanged ID, so `"reviewer"` becomes `"agent-reviewer"`. It does not trim
 whitespace, change case, or remove an existing prefix.
 
+Use `copilot.MessageSourceAutomation(id)` for a turn sent on behalf of an automation
+the user configured, such as a recurring check-in; it becomes `automation-<id>`.
+An automation turn defines the session's task like a user message but carries no human authority; see [Message provenance](../docs/features/steering-and-queueing.md#message-provenance).
+
 Source is independent of delivery `Mode` and `AgentMode`; it does not replace the
 session's `SystemMessage` configuration. `SendAndWait` accepts the same options
 and waits for response completion, returning `nil` if no assistant message arrives.

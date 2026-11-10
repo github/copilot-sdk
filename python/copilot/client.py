@@ -3061,11 +3061,13 @@ class CopilotClient:
                 these tools will be available. Applies to the full merged tool
                 catalog including built-in tools, MCP tools, and custom tools
                 registered via ``tools=``. Custom tool names must be explicitly
-                included or they will be hidden from the model. Takes precedence
-                over ``excluded_tools``.
+                included or they will be hidden from the model. When
+                ``excluded_tools`` is also set, a tool must match
+                ``available_tools`` and not match ``excluded_tools``.
             excluded_tools: List of tools to disable. Applies to all tools
-                including custom tools registered via ``tools=``. Ignored if
-                ``available_tools`` is set.
+                including custom tools registered via ``tools=``. Takes
+                precedence over ``available_tools``: a tool listed here is
+                disabled even if it also matches ``available_tools``.
             on_user_input_request: Handler for user input requests.
             ask_user_variant: Model-facing shape of the ``ask_user`` tool.
                 Accepted values are ``"legacy"`` and ``"elicitation"``. The
@@ -4143,11 +4145,13 @@ class CopilotClient:
                 these tools will be available. Applies to the full merged tool
                 catalog including built-in tools, MCP tools, and custom tools
                 registered via ``tools=``. Custom tool names must be explicitly
-                included or they will be hidden from the model. Takes precedence
-                over ``excluded_tools``.
+                included or they will be hidden from the model. When
+                ``excluded_tools`` is also set, a tool must match
+                ``available_tools`` and not match ``excluded_tools``.
             excluded_tools: List of tools to disable. Applies to all tools
-                including custom tools registered via ``tools=``. Ignored if
-                ``available_tools`` is set.
+                including custom tools registered via ``tools=``. Takes
+                precedence over ``available_tools``: a tool listed here is
+                disabled even if it also matches ``available_tools``.
             on_user_input_request: Handler for user input requests.
             ask_user_variant: Model-facing shape of the ``ask_user`` tool.
                 Accepted values are ``"legacy"`` and ``"elicitation"``. The

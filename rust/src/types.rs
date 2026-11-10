@@ -6451,6 +6451,12 @@ pub enum MessageSource {
     System,
     /// A message from the agent with this opaque sender ID.
     Agent(String),
+    /// A turn sent on behalf of the automation with this opaque ID, such as a
+    /// recurring check-in the user configured. The turn defines the session's
+    /// task like a user message but carries no human authority. The ID must not
+    /// be empty: the runtime does not treat `automation-` alone as an
+    /// automation turn.
+    Automation(String),
 }
 
 impl std::fmt::Display for MessageSource {
@@ -6459,6 +6465,7 @@ impl std::fmt::Display for MessageSource {
             Self::User => f.write_str("user"),
             Self::System => f.write_str("system"),
             Self::Agent(id) => write!(f, "agent-{id}"),
+            Self::Automation(id) => write!(f, "automation-{id}"),
         }
     }
 }
@@ -6478,7 +6485,16 @@ impl<'de> Deserialize<'de> for MessageSource {
             value => value
                 .strip_prefix("agent-")
                 .map(|id| Self::Agent(id.to_owned()))
-                .ok_or_else(|| serde::de::Error::custom("expected user, system, or agent-<id>")),
+                .or_else(|| {
+                    value
+                        .strip_prefix("automation-")
+                        .map(|id| Self::Automation(id.to_owned()))
+                })
+                .ok_or_else(|| {
+                    serde::de::Error::custom(
+                        "expected user, system, agent-<id>, or automation-<id>",
+                    )
+                }),
         }
     }
 }
@@ -6971,6 +6987,33 @@ pub struct EventsReadResultWithMetadata {
     pub events: Vec<SessionEventWithMetadata>,
     /// Whether more events remain in the selected direction.
     pub has_more: bool,
+}
+
+impl crate::generated::api_types::TaskAnalyticsClassifyTrajectoryRequest {
+    /// Builds a trajectory classification request from recorded session
+    /// events, such as the result of [`Session::get_events`](crate::session::Session::get_events).
+    ///
+    /// Typed events can normalize or discard JSON fields. For exact archive
+    /// identity across retries, assign [`Session::get_raw_events`](crate::session::Session::get_raw_events)
+    /// directly to the request's `events` field instead.
+    ///
+    /// Other request fields use their defaults and can be set on the result.
+    ///
+    /// <div class="warning">
+    ///
+    /// **Experimental.** This API is part of an experimental wire-protocol surface
+    /// and may change or be removed in future SDK or CLI releases.
+    ///
+    /// </div>
+    pub fn from_session_events(events: &[SessionEvent]) -> Result<Self, crate::Error> {
+        Ok(Self {
+            events: events
+                .iter()
+                .map(serde_json::to_value)
+                .collect::<Result<_, _>>()?,
+            ..Default::default()
+        })
+    }
 }
 
 impl SessionEvent {

@@ -442,7 +442,25 @@ class AgentMessageSource:
             raise TypeError("agent_id must be a string")
 
 
-MessageSource = Literal["user", "system"] | AgentMessageSource
+@dataclass(frozen=True)
+class AutomationMessageSource:
+    """Identify the automation a turn is sent on behalf of.
+
+    Use it for turns a host sends for an automation the user configured, such as
+    a recurring check-in. The turn defines the session's task like a user message
+    but carries no human authority. The automation ID is opaque and is sent
+    unchanged after the ``automation-`` prefix. It must not be empty: the
+    runtime does not treat ``automation-`` alone as an automation turn.
+    """
+
+    automation_id: str
+
+    def __post_init__(self) -> None:
+        if not isinstance(self.automation_id, str):
+            raise TypeError("automation_id must be a string")
+
+
+MessageSource = Literal["user", "system"] | AgentMessageSource | AutomationMessageSource
 """Message provenance, independent of delivery mode."""
 
 # ============================================================================
@@ -2300,8 +2318,9 @@ class CopilotSession:
             prompt: The message text to send.
             attachments: Optional file, directory, selection, blob, or extension-context
                 attachments.
-            source: Optional message provenance (``"user"``, ``"system"``, or
-                :class:`AgentMessageSource` for an identified agent).
+            source: Optional message provenance (``"user"``, ``"system"``,
+                :class:`AgentMessageSource` for an identified agent, or
+                :class:`AutomationMessageSource` for a configured automation).
                 Omitted when None, preserving the runtime's default for user messages.
             mode: Message delivery mode (``"enqueue"`` or ``"immediate"``).
             agent_mode: The UI mode the agent was in when this message was sent
@@ -2366,9 +2385,12 @@ class CopilotSession:
         if attachments is not None:
             params["attachments"] = attachments
         if source is not None:
-            params["source"] = (
-                "agent-" + source.agent_id if isinstance(source, AgentMessageSource) else source
-            )
+            if isinstance(source, AgentMessageSource):
+                params["source"] = "agent-" + source.agent_id
+            elif isinstance(source, AutomationMessageSource):
+                params["source"] = "automation-" + source.automation_id
+            else:
+                params["source"] = source
         if mode is not None:
             params["mode"] = mode
         if agent_mode is not None:
@@ -2494,8 +2516,9 @@ class CopilotSession:
         Args:
             prompt: The message text to send.
             attachments: Optional file, directory, or selection attachments.
-            source: Optional message provenance (``"user"``, ``"system"``, or
-                :class:`AgentMessageSource` for an identified agent),
+            source: Optional message provenance (``"user"``, ``"system"``,
+                :class:`AgentMessageSource` for an identified agent, or
+                :class:`AutomationMessageSource` for a configured automation),
                 independent of delivery mode. Omitted when None.
             mode: Message delivery mode (``"enqueue"`` or ``"immediate"``).
             agent_mode: The UI mode the agent was in when this message was sent
@@ -4251,6 +4274,7 @@ class CopilotSession:
 
         This returns the complete conversation history including user messages,
         assistant responses, tool executions, and other session events.
+        For lossless JSON, including task-analytics retries, use get_raw_events instead.
 
         Returns:
             A list of all session events in chronological order.
@@ -4266,10 +4290,25 @@ class CopilotSession:
             ...         case AssistantMessageData() as data:
             ...             print(f"Assistant: {data.content}")
         """
-        response = await self._client.request("session.getMessages", {"sessionId": self.session_id})
-        # Convert dict events to SessionEvent objects
-        events_dicts = response["events"]
+        events_dicts = await self.get_raw_events()
         return [session_event_from_dict(event_dict) for event_dict in events_dicts]
+
+    async def get_raw_events(self) -> list[dict[str, Any]]:
+        """
+        Retrieve session history without projecting it into typed events.
+
+        Preserves timestamp strings, explicit nulls, and unknown fields. The result
+        can be passed directly as TaskAnalyticsClassifyTrajectoryRequest.events
+        for exact archive identity across retries.
+
+        Returns:
+            Session event dictionaries in chronological order.
+
+        Raises:
+            Exception: If the session has been disconnected or the connection fails.
+        """
+        response = await self._client.request("session.getMessages", {"sessionId": self.session_id})
+        return response["events"]
 
     async def disconnect(self) -> None:
         """

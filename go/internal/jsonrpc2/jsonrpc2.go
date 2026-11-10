@@ -354,7 +354,7 @@ func (c *Client) RequestWithInlineResponse(ctx context.Context, method string, p
 		}
 		return nil, fmt.Errorf("failed to send request: %w", err)
 	}
-	if method == "session.sendAndWait" || method == "session.featureFlags.read" || method == "localModels.watch" {
+	if method == "session.sendAndWait" || method == "session.featureFlags.read" || method == "localModels.watch" || method == "taskAnalytics.classifyTrajectory" {
 		defer func() {
 			if ctx.Err() != nil {
 				c.mu.Lock()

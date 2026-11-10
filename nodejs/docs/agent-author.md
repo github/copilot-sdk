@@ -29,7 +29,7 @@ Modify the generated `extension.mjs` using `edit` or `create` tools. The file mu
 extensions_reload({})
 ```
 
-This stops all running extensions and re-discovers/re-launches them. New tools are available immediately in the same turn (mid-turn refresh).
+This refreshes discovery and running extensions. [Opted-in dormant extensions](extensions.md#opting-into-request-driven-activation) remain unstarted until requested; their declared tools are immediately discoverable.
 
 ### Step 4: Verify
 
@@ -341,16 +341,16 @@ const unsub = session.on("tool.execution_complete", (event) => {
 
 ### Key Event Types
 
-| Event                     | Key Data Fields                                        |
-| ------------------------- | ------------------------------------------------------ |
-| `assistant.message`       | `content`, `messageId`                                 |
-| `tool.execution_start`    | `toolCallId`, `toolName`, `arguments`                  |
-| `tool.execution_complete` | `toolCallId`, `success`, `result`, `error`             |
-| `user.message`            | `content`, `attachments`, `source`                     |
-| `session.idle`            | `aborted`                                              |
-| `session.error`           | `errorType`, `message`, `stack`                        |
-| `permission.requested`    | `requestId`, `permissionRequest.kind`                  |
-| `session.shutdown`        | `shutdownType`, `totalPremiumRequests`                 |
+| Event                     | Key Data Fields                            |
+| ------------------------- | ------------------------------------------ |
+| `assistant.message`       | `content`, `messageId`                     |
+| `tool.execution_start`    | `toolCallId`, `toolName`, `arguments`      |
+| `tool.execution_complete` | `toolCallId`, `success`, `result`, `error` |
+| `user.message`            | `content`, `attachments`, `source`         |
+| `session.idle`            | `aborted`                                  |
+| `session.error`           | `errorType`, `message`, `stack`            |
+| `permission.requested`    | `requestId`, `permissionRequest.kind`      |
+| `session.shutdown`        | `shutdownType`, `totalPremiumRequests`     |
 
 ### session.workspacePath
 

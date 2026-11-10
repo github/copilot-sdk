@@ -53,6 +53,36 @@ filesystem_callback_result!(
 );
 
 #[test]
+fn classify_trajectory_request_accepts_recorded_session_events() {
+    let event: github_copilot_sdk::types::SessionEvent =
+        serde_json::from_value(serde_json::json!({
+            "id": "event-1",
+            "parentId": null,
+            "timestamp": "2026-01-01T00:00:00Z",
+            "type": "user.message",
+            "data": { "content": "Fix the build" }
+        }))
+        .unwrap();
+
+    let request =
+        github_copilot_sdk::rpc::TaskAnalyticsClassifyTrajectoryRequest::from_session_events(&[
+            event,
+        ])
+        .unwrap();
+
+    assert_eq!(
+        serde_json::to_value(&request).unwrap()["events"],
+        serde_json::json!([{
+            "id": "event-1",
+            "parentId": null,
+            "timestamp": "2026-01-01T00:00:00Z",
+            "type": "user.message",
+            "data": { "content": "Fix the build" }
+        }])
+    );
+}
+
+#[test]
 fn session_open_create_preserves_external_struct_literals() {
     let request = SessionsOpenCreate {
         kind: SessionsOpenCreateKind::Create,

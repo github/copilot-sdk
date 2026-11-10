@@ -32,6 +32,7 @@ import com.github.copilot.generated.SessionStartEvent;
 import com.github.copilot.generated.ToolExecutionStartEvent;
 import com.github.copilot.generated.UserMessageEvent;
 import com.github.copilot.generated.rpc.SessionRpc;
+import com.github.copilot.generated.rpc.TaskAnalyticsClassifyTrajectoryParams;
 import com.github.copilot.rpc.MessageOptions;
 import com.github.copilot.rpc.PermissionHandler;
 import com.github.copilot.rpc.ResumeSessionConfig;
@@ -84,6 +85,12 @@ public class CopilotSessionTest {
             List<SessionEvent> messages = session.getMessages().get();
             assertFalse(messages.isEmpty());
             assertTrue(messages.get(0) instanceof SessionStartEvent);
+            var rawMessages = session.getRawMessages().get();
+            assertTrue(rawMessages.get(0).has("parentId"));
+            assertTrue(rawMessages.get(0).get("parentId").isNull());
+            var archive = JsonRpcClient.getObjectMapper().valueToTree(
+                    TaskAnalyticsClassifyTrajectoryParams.builder().events(new ArrayList<>(rawMessages)).build());
+            assertEquals(rawMessages.get(0), archive.get("events").get(0));
 
             session.close();
 

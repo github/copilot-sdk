@@ -1698,6 +1698,8 @@ Use `MessageSource::System` for automated messages sent by your application. Ord
 
 For messages from another agent, use `MessageSource::Agent("sender-id".into())` with the trusted sender ID. It serializes as `"agent-sender-id"` and works with both `MessageOptions::with_source` and `rpc::SendRequest::with_source`. Unlike internal system context, an identified agent message retains agent provenance.
 
+For a turn sent on behalf of an automation the user configured, such as a recurring check-in, use `MessageSource::Automation("merge-check".into())`. It serializes as `"automation-merge-check"`. An automation turn defines the session's task like a user message but carries no human authority; see [Message provenance](../docs/features/steering-and-queueing.md#message-provenance).
+
 ```rust,no_run
 use github_copilot_sdk::{MessageOptions, MessageSource, session::Session};
 

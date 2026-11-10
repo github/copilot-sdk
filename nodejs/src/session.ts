@@ -34,6 +34,8 @@ import type {
 import { type Canvas, CanvasError } from "./canvas.js";
 import type { OpenCanvasInstance } from "./generated/rpc.js";
 import { getTraceContext } from "./telemetry.js";
+import { rawHistoryResponse } from "./taskAnalyticsJson.js";
+import type { TrajectoryJsonValue } from "./generated/rpc.js";
 import { isResponseSchema, toJsonSchema } from "./schema.js";
 import { isAttributedPermissionResult } from "./types.js";
 import type {
@@ -139,6 +141,7 @@ function copyDefinedWorkflowAgentOption<TKey extends keyof WorkflowAgentOptions>
 function toToolDefinition(tool: Tool): ProtocolExternalToolDefinition {
     return {
         name: tool.name,
+        title: tool.title,
         description: tool.description ?? "",
         parameters: toJsonSchema(tool.parameters) as ProtocolExternalToolDefinition["parameters"],
         overridesBuiltInTool: tool.overridesBuiltInTool,
@@ -2951,6 +2954,7 @@ export class CopilotSession {
      *
      * This returns the complete conversation history including user messages,
      * assistant responses, tool executions, and other session events.
+     * Use getRawEvents for archives containing integers outside JavaScript's safe range.
      *
      * @returns A promise that resolves with an array of all session events
      * @throws Error if the session has been disconnected or the connection fails
@@ -2971,6 +2975,20 @@ export class CopilotSession {
         });
 
         return (response as { events: SessionEvent[] }).events;
+    }
+
+    /**
+     * Retrieves history with unsafe integers preserved as bigint values.
+     * Timestamp strings, explicit nulls, and unknown fields are retained.
+     * Pass the result directly to taskAnalytics.classifyTrajectory; JSON.stringify
+     * does not support bigint, but that RPC's encoder does.
+     */
+    async getRawEvents(): Promise<TrajectoryJsonValue[]> {
+        const response = await this.connection.sendRequest<{ events: TrajectoryJsonValue[] }>(
+            "session.getMessages",
+            { sessionId: this.sessionId, [rawHistoryResponse]: true }
+        );
+        return response.events;
     }
 
     /**

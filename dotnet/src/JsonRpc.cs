@@ -34,9 +34,17 @@ internal sealed partial class JsonRpc : IDisposable
     private const int InitialReadBufferSize = 256;
     private const int MaximumRetainedReadBufferSize = 1024 * 1024;
 
+    /// <summary>
+    /// The deepest nesting of arrays and objects read from an incoming message, counting its envelope.
+    /// Session events and results carry tool arguments and tool output that can nest past the
+    /// serializer default of 64 levels. Outgoing messages keep that default.
+    /// </summary>
+    internal const int MaxIncomingMessageDepth = 1000;
+
     private readonly Stream _sendStream;
     private readonly Stream _receiveStream;
     private readonly JsonSerializerOptions _serializerOptions;
+    private readonly JsonSerializerOptions _incomingSerializerOptions;
     private readonly ILogger _logger;
     private readonly ConcurrentDictionary<long, IPendingRequest> _pendingRequests = new();
     private readonly ConcurrentDictionary<long, IncomingRequestCancellation> _incomingRequestCancellations = new();
@@ -62,8 +70,16 @@ internal sealed partial class JsonRpc : IDisposable
         _sendStream = sendStream;
         _receiveStream = receiveStream;
         _serializerOptions = serializerOptions;
+        _incomingSerializerOptions = CreateIncomingSerializerOptions(serializerOptions);
         _logger = logger ?? NullLogger.Instance;
     }
+
+    /// <summary>
+    /// Copies <paramref name="options"/> for reading incoming messages, raising only the depth limit
+    /// to <see cref="MaxIncomingMessageDepth"/>.
+    /// </summary>
+    internal static JsonSerializerOptions CreateIncomingSerializerOptions(JsonSerializerOptions options) =>
+        new(options) { MaxDepth = MaxIncomingMessageDepth };
 
     /// <summary>
     /// A <see cref="Task"/> that completes when the connection is closed or faulted.
@@ -404,7 +420,9 @@ internal sealed partial class JsonRpc : IDisposable
 
                 try
                 {
-                    using var doc = JsonDocument.Parse(buffer.Array.AsMemory(bodyStart, contentLength));
+                    using var doc = JsonDocument.Parse(
+                        buffer.Array.AsMemory(bodyStart, contentLength),
+                        new JsonDocumentOptions { MaxDepth = MaxIncomingMessageDepth });
                     var parsed = doc.RootElement;
 
                     // Route while the document is alive. Incoming method arguments are
@@ -688,7 +706,7 @@ internal sealed partial class JsonRpc : IDisposable
             }
             try
             {
-                pending.CompleteResult(resultProp, _serializerOptions);
+                pending.CompleteResult(resultProp, _incomingSerializerOptions);
             }
             catch (Exception ex)
             {
@@ -699,7 +717,7 @@ internal sealed partial class JsonRpc : IDisposable
         {
             // Per JSON-RPC 2.0, a response must have either "result" or "error".
             // Treat missing result as null result.
-            pending.CompleteResult(default, _serializerOptions);
+            pending.CompleteResult(default, _incomingSerializerOptions);
         }
     }
 
@@ -865,7 +883,7 @@ internal sealed partial class JsonRpc : IDisposable
                 }
                 else if (i == 0)
                 {
-                    invokeArgs[i] = paramsProp.Deserialize(_serializerOptions.GetTypeInfo(parameters[i].ParameterType));
+                    invokeArgs[i] = paramsProp.Deserialize(_incomingSerializerOptions.GetTypeInfo(parameters[i].ParameterType));
                 }
             }
         }
@@ -903,14 +921,14 @@ internal sealed partial class JsonRpc : IDisposable
         {
             if (jsonIndex < paramsProp.GetArrayLength())
             {
-                return paramsProp[jsonIndex++].Deserialize(_serializerOptions.GetTypeInfo(parameter.ParameterType));
+                return paramsProp[jsonIndex++].Deserialize(_incomingSerializerOptions.GetTypeInfo(parameter.ParameterType));
             }
         }
         else if (paramsProp.ValueKind == JsonValueKind.Object)
         {
             if (parameter.Name is { } name && TryGetPropertyCaseInsensitive(paramsProp, name, out var value))
             {
-                return value.Deserialize(_serializerOptions.GetTypeInfo(parameter.ParameterType));
+                return value.Deserialize(_incomingSerializerOptions.GetTypeInfo(parameter.ParameterType));
             }
         }
         else

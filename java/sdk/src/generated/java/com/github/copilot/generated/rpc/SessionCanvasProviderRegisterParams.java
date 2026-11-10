@@ -33,7 +33,7 @@ record SessionCanvasProviderRegisterParams(
     @JsonInclude(JsonInclude.Include.ALWAYS)
     @JsonProperty("info") Object info,
     /** Canvas contributions supplied by the provider */
-    @JsonProperty("canvases") List<Object> canvases
+    @JsonProperty("canvases") List<?> canvases
 ) {
 
     /**
@@ -62,7 +62,7 @@ record SessionCanvasProviderRegisterParams(
         private String connectionId;
         private Object info;
         private boolean $presence2;
-        private List<Object> canvases;
+        private List<?> canvases;
 
         /**
          * Sets the {@code sessionId} property.
@@ -108,7 +108,7 @@ record SessionCanvasProviderRegisterParams(
          * @since 2.0.0
          */
         @com.github.copilot.CopilotExperimental
-        public Builder canvases(List<Object> value) {
+        public Builder canvases(List<?> value) {
             this.canvases = value;
             return this;
         }

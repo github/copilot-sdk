@@ -54,7 +54,8 @@ class MessageSourceTest {
                 Arguments.of(MessageSource.agent("Reviewer-7"), "agent-Reviewer-7"),
                 Arguments.of(MessageSource.agent("agent-Worker"), "agent-agent-Worker"),
                 Arguments.of(MessageSource.agent(" Team/α "), "agent- Team/α "),
-                Arguments.of(MessageSource.agent(""), "agent-"));
+                Arguments.of(MessageSource.agent(""), "agent-"),
+                Arguments.of(MessageSource.automation("merge-check"), "automation-merge-check"));
     }
 
     static Stream<Arguments> sourcesAndModes() {
@@ -97,6 +98,7 @@ class MessageSourceTest {
         assertThrows(IllegalArgumentException.class, () -> MessageSource.fromValue("USER"));
         assertThrows(IOException.class, () -> MAPPER.readValue("\"unknown\"", MessageSource.class));
         assertThrows(NullPointerException.class, () -> MessageSource.agent(null));
+        assertThrows(NullPointerException.class, () -> MessageSource.automation(null));
     }
 
     @ParameterizedTest

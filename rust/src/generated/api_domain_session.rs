@@ -6084,6 +6084,9 @@ pub struct SessionsGetLastForContextResult {
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct SessionsGetMetadataRequest {
+    /// When true, read only journal file metadata. Omit summary, workspace context, and detached status without reading journal contents. Defaults to false.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub file_metadata_only: Option<bool>,
     /// Session ID to inspect
     pub session_id: SessionId,
 }
@@ -7380,6 +7383,177 @@ pub struct TaskAgentProgress {
     pub recent_activity: Vec<TaskProgressLine>,
     /// Progress kind
     pub r#type: TaskAgentProgressType,
+}
+
+/// Request-local judge override. Credentials, endpoint, and integration remain owned by the server connection.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct TaskAnalyticsJudge {
+    /// Exact CAPI judge model ID. Never silently substituted.
+    pub model: String,
+    /// Reasoning effort override: none, minimal, low, medium, high, or xhigh. Must be supported by the selected model. Omit to keep each classifier's production effort.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub reasoning_effort: Option<String>,
+}
+
+/// One terminal classification of a worker-local unit, including categorical output and actual judge configuration when available.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct TaskAnalyticsTrajectoryClassification {
+    /// Source event opening this unit, when applicable.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub anchor_event_id: Option<String>,
+    /// Cached input tokens, when reported.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub cached_input_tokens: Option<f64>,
+    /// Registered classifier name.
+    pub classifier: String,
+    /// Classifier prompt/schema fingerprint; not a complete runtime/configuration identity.
+    pub classifier_version: i64,
+    /// Why the unit closed; EOF is not reported as a successful completed turn.
+    pub close_reason: String,
+    /// Stable failure/decline kind, never a raw error or judge response.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub error_kind: Option<String>,
+    /// First member-turn ordinal for task/session units.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub first_member_ordinal: Option<i64>,
+    /// HTTP failure status from inference, when available. Not inferred from message text.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub http_status: Option<i64>,
+    /// Consumed input tokens, when reported.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub input_tokens: Option<f64>,
+    /// Interaction ID used for this row's judge call. New attempts never reuse archived IDs; preserved outcomes keep their original value.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub interaction_id: Option<String>,
+    /// Unrestricted categorical labels, empty when classification did not succeed.
+    pub labels: HashMap<String, String>,
+    /// Last member-turn ordinal for task/session units.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub last_member_ordinal: Option<i64>,
+    /// Unrestricted numerical verdict measurements, such as confidence.
+    pub metrics: HashMap<String, f64>,
+    /// Resolved judge model when available, including failed inference calls; absent when model resolution did not complete.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub model: Option<String>,
+    /// Why the canonical classifier model policy selected this judge.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub model_selection_reason: Option<String>,
+    /// One-based unit ordinal within its scope and this analysis request.
+    pub ordinal: i64,
+    /// Consumed output tokens, when reported.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub output_tokens: Option<f64>,
+    /// Actual judge reasoning effort, when reported.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub reasoning_effort: Option<String>,
+    /// Whether a failed inference may be retried. Absent for failures without an HTTP response. Does not initiate an automatic retry.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub retryable: Option<bool>,
+    /// Server-requested minimum delay in seconds before retry, including multi-hour delays. Absent for missing or malformed Retry-After headers.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub retry_after_seconds: Option<f64>,
+    /// Unit scope: prompt, turn, task, or session.
+    pub scope: String,
+    /// Terminal status: success, declined, abandoned, or failed.
+    pub status: String,
+    /// Revision of this classifier's closed vocabulary, when applicable.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub taxonomy_version: Option<i64>,
+    /// Whether retention caps truncated the unit's text.
+    pub text_truncated: bool,
+    /// Analysis-local unit identity. Session snapshots can share an identity.
+    pub unit_id: String,
+    /// Number of unit boundaries inferred without a successful segmentation judgment.
+    pub unresolved_boundaries: i64,
+}
+
+/// Local archive checks; validates supported structure, not the truth or provenance of archived evidence.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct TaskAnalyticsTrajectoryValidation {
+    /// Actionable validation errors. Does not include transcript content or raw parser errors.
+    pub errors: Vec<String>,
+    /// Compact JSON input size in UTF-8 bytes.
+    pub input_bytes: i64,
+    /// Whether the archive and execution options passed local checks.
+    pub valid: bool,
+}
+
+/// Categorical retrospective measurements of the supplied trajectory, not verification that its claims are true. Model-derived classifications can be inaccurate or manipulated by adversarial content. Treat them as untrusted measurements; independently validate results used for consequential decisions and never use them as authorization or security decisions.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct TaskAnalyticsClassifyTrajectoryResult {
+    /// Terminal classifier outcomes. Declined, failed, and abandoned outcomes are retained. No restricted rationale, raw judge output, or transcript text is returned.
+    pub classifications: Vec<TaskAnalyticsTrajectoryClassification>,
+    /// Fresh interaction ID for this analysis attempt, never an archived interaction ID. Reused outcomes retain their original per-row interaction ID.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub interaction_id: Option<String>,
+    /// SHA-256 identity of the input archive and archive-adapter revision. Required when passing this result back for an exact retry; not an authentication or provenance guarantee.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub trajectory_fingerprint: Option<String>,
+    /// Local validation results. No inference runs when valid is false or validateOnly was requested.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub validation: Option<TaskAnalyticsTrajectoryValidation>,
+}
+
+/// Retrospectively classify a recorded Copilot or ATIF trajectory without a conversation session. Explicitly requests model processing through the connection's GitHub CAPI credentials, independently of background telemetry consent, not through BYOK endpoints. Callers must be authorized to send the supplied content for analysis. Does not execute archived tools, append conversation history, or emit classification telemetry.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct TaskAnalyticsClassifyTrajectoryRequest {
+    /// Classifier names to run. Omit for all eight classifiers. An empty list runs none. Turn splitting is also returned when needed to build task/session units or identify task-opening turns.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub classifiers: Option<Vec<String>>,
+    /// Canonical Copilot session event objects or ATIF step objects, in source order, starting at the beginning of the recorded conversation. An ATIF document containing steps can be passed as a single array element. Include source identifiers when present. Durable Copilot logs are accepted; abort events retain interruptions, and EOF closes an unfinished turn without claiming successful completion. Non-analytics event types are ignored. Treat the archive as untrusted input: this API does not authenticate its origin, roles, completion claims, or content. Callers must validate provenance and preserve event structure, ordering, and role/source metadata. Remove or redact secrets and personal data that must not be sent to GitHub CAPI before calling; automatic redaction and prompt-injection sanitization are not provided. Retained text is bounded, not made trustworthy. Adversarial instructions can bias model judgments just as in live conversations; stripping instruction-like text is not required and can change the evidence being measured.
+    pub events: Vec<serde_json::Value>,
+    /// Explicit judge configuration for this analysis. Omit to use each classifier's production model policy and reasoning effort. The exact model must be offered by the authenticated catalog, allowed by server policy, and compatible with the classifier; an unusable override fails the affected classification rather than falling back. Choosing a billed model explicitly authorizes its inference costs. Successful rows reused from previousResult keep their original judge configuration.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub judge: Option<TaskAnalyticsJudge>,
+    /// Maximum concurrent classifier calls in this analysis across all lanes, including segmentation and session classifiers. Defaults to 4; must be positive. Multiple simultaneous analyses each have their own limit. Trajectory concurrency is not inference-request concurrency.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub max_concurrent_requests: Option<i64>,
+    /// Previous result for the identical archive and classifier versions. Reuses all original task boundaries, including unresolved ones, and preserves successful and declined outcomes. Only failed/abandoned non-segmenting outcomes in the selected classifiers are retried. Start a fresh analysis to change segmentation. Rejects mismatched fingerprints or versions before inference.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub previous_result: Option<TaskAnalyticsClassifyTrajectoryResult>,
+    /// Validate input locally without authentication, model discovery, or inference. Returns validation diagnostics and no classifications. Invalid input never starts paid inference, even when this option is omitted.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub validate_only: Option<bool>,
 }
 
 /// Public owner attribution for a client-owned task. Identifiers are opaque and never authorize requests.
@@ -12392,6 +12566,36 @@ pub struct SessionMcpConfigureGitHubResult {
 pub struct SessionMcpIsServerRunningResult {
     /// True if the server has an active client and transport.
     pub running: bool,
+}
+
+/// Identifies the target session.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SessionMcpGetToolTokenBreakdownParams {
+    /// Target session identifier
+    pub session_id: SessionId,
+}
+
+/// Per-server MCP tool definition token costs.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SessionMcpGetToolTokenBreakdownResult {
+    /// One entry per MCP server with tools in the session's current tool set, in tool order. Empty both when the session has not computed its tool set yet and when the computed tool set contains no MCP tools; the two cases are not distinguished.
+    pub servers: Vec<McpServerToolTokenBreakdown>,
 }
 
 /// Indicates whether the pending MCP OAuth response was accepted.

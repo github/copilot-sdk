@@ -390,6 +390,33 @@ public class JsonRpcTests
         Assert.Equal(payloads, collector.Payloads.Select(payload => payload?.GetRawText() ?? "null"));
     }
 
+    [Fact]
+    public async Task JsonRpc_Reads_Messages_Nested_Past_Serializer_Default_Depth()
+    {
+        // The message object and its params add two levels above each payload.
+        var maxDepth = JsonRpcReflection.MaxIncomingMessageDepth;
+        var deep = NestedJson(200);
+        var atLimit = NestedJson(maxDepth - 2);
+        using var receiveStream = new MemoryStream(CombineFrames(
+        [
+            CreateNotificationFrame("payload", $$"""{"payload":{{NestedJson(maxDepth - 1)}}}"""),
+            CreateNotificationFrame("payload", $$"""{"payload":{{atLimit}}}"""),
+            CreateNotificationFrame("payload", $$"""{"payload":{{deep}}}"""),
+            CreateFrame($$"""{"jsonrpc":"2.0","id":1,"result":{{deep}}}"""),
+        ]));
+        using var rpc = new JsonRpcReflection(Stream.Null, receiveStream);
+        var collector = new JsonElementCollector(2);
+        rpc.SetLocalRpcMethod("payload", (Action<JsonElement?>)collector.Handle);
+
+        var response = rpc.InvokeAsync<JsonElement>("pending", args: null);
+        rpc.StartListening();
+
+        Assert.Equal(deep, (await response.WaitAsync(TimeSpan.FromSeconds(5))).GetRawText());
+        await collector.Completion.WaitAsync(TimeSpan.FromSeconds(5));
+        await rpc.Completion.WaitAsync(TimeSpan.FromSeconds(5));
+        Assert.Equal(new[] { atLimit, deep }, collector.Payloads.Select(payload => payload!.Value.GetRawText()));
+    }
+
     [Theory]
     [InlineData(7)]
     [InlineData(int.MaxValue)]
@@ -539,6 +566,9 @@ public class JsonRpcTests
         return frame;
     }
 
+    private static string NestedJson(int levels) =>
+        string.Concat(Enumerable.Repeat("""{"n":""", levels)) + "42" + new string('}', levels);
+
     private static byte[] CombineFrames(IEnumerable<byte[]> frames)
     {
         using var stream = new MemoryStream();
@@ -647,6 +677,9 @@ public class JsonRpcTests
             typeof(CopilotClient).Assembly.GetType("GitHub.Copilot.JsonRpc", throwOnError: true)!;
 
         private static readonly JsonSerializerOptions SerializerOptions = CreateSerializerOptions();
+
+        public static int MaxIncomingMessageDepth =>
+            (int)JsonRpcType.GetField("MaxIncomingMessageDepth", BindingFlags.Static | BindingFlags.NonPublic)!.GetRawConstantValue()!;
 
         private static JsonSerializerOptions CreateSerializerOptions()
         {

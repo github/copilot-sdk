@@ -2847,7 +2847,7 @@ pub struct Extension {
     pub pid: Option<i64>,
     /// Discovery source: project (.github/extensions/), user (~/.copilot/extensions/), plugin (installed plugin), or session (session-state/`<id>`/extensions/)
     pub source: ExtensionSource,
-    /// Current status: running, disabled, failed, or starting
+    /// Current status: running, dormant, disabled, failed, or starting
     pub status: ExtensionStatus,
 }
 
@@ -4186,6 +4186,46 @@ pub struct McpServer {
     pub url: Option<String>,
 }
 
+/// Context tokens one MCP tool definition costs.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct McpToolTokenCount {
+    /// True when the tool definition is deferred and not sent to the model up front.
+    pub deferred: bool,
+    /// Tool name as the MCP server reports it.
+    pub mcp_tool_name: String,
+    /// Tool name as the model sees it, copied verbatim from the session's tool metadata. Usually namespaced with the server, but that is not guaranteed: use `serverName` rather than parsing this name.
+    pub name: String,
+    /// Share of the server's total tokens attributed to this tool; 0 when deferred. The tools of one server sum to that server's `totalTokens`.
+    pub tokens: i64,
+}
+
+/// Context tokens one MCP server's tool definitions cost.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct McpServerToolTokenBreakdown {
+    /// Server name the tools are namespaced under.
+    pub server_name: String,
+    /// Per-tool breakdown, in the session's tool order.
+    pub tools: Vec<McpToolTokenCount>,
+    /// Tokens the server's non-deferred tool definitions cost together for the model the breakdown was counted with.
+    pub total_tokens: i64,
+}
+
 /// Active server-driven promotion for a model, including its discount and optional expiry.
 ///
 /// <div class="warning">
@@ -5047,16 +5087,16 @@ pub struct SandboxConfigUserPolicyNetworkProxy {
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct SandboxConfigUserPolicyNetwork {
-    /// Hosts allowed through the built-in sandbox proxy. A non-empty list denies unmatched hosts; an absent or empty list allows all hosts not blocked. Supports exact hostnames, IP addresses, and *.example.com for strict subdomains. Host rules do not override the outbound or local-network toggles.
+    /// Destinations allowed through the built-in sandbox proxy. Supports hostnames, IP addresses, IPv4/IPv6 CIDRs (10.0.0.0/8, fd00::/8), and *.example.com for strict subdomains. CIDR host bits must be zero; invalid entries suggest the network address. Within each nonempty list, matching names or addresses are alternative grants; every user and managed list must permit every resolved address. Empty lists add no restriction. Host rules never override outbound or local-network toggles. An upstream proxy owns DNS: CIDR-only grants cannot authorize unresolved names, and address denials cannot constrain its resolver.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub allowed_hosts: Option<Vec<String>>,
-    /// Whether traffic to local/loopback addresses is allowed.
+    /// Whether host-local destinations, including loopback and unspecified addresses, are allowed. Private networks follow outbound and host rules. Host rules still apply.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub allow_local_network: Option<bool>,
-    /// Whether outbound network traffic is allowed at all.
+    /// Whether outbound network destinations, including private networks, are allowed. Host-loopback access is controlled separately by allowLocalNetwork. Host rules still apply.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub allow_outbound: Option<bool>,
-    /// Hosts denied by the built-in sandbox proxy. Deny rules take precedence over allowedHosts. A domain also denies all its subdomains. IP addresses match exactly; *.example.com matches strict subdomains, and * denies every host.
+    /// Destinations denied by the built-in sandbox proxy. Deny overrides allowedHosts, including CIDR denials against allowed names and their resolved addresses. Supports exact IPs and IPv4/IPv6 CIDRs with zero host bits. A denied domain also denies its subdomains; *.example.com matches strict subdomains, and * denies every host. With upstream-owned DNS, address denials cannot constrain remotely resolved names.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub blocked_hosts: Option<Vec<String>>,
     /// HTTP(S) proxy for sandboxed traffic. This is the built-in local proxy's upstream: every sandboxed command reaches it through a loopback listener, so credentials stay in the runtime and never reach the child. On Windows the sandbox also needs local network access, because it reaches that listener over host loopback. Configure credentials in the separate username/password fields. The transient local listener URL is never persisted.
@@ -7702,7 +7742,7 @@ pub enum ExtensionSource {
     Unknown,
 }
 
-/// Current status: running, disabled, failed, or starting
+/// Current status: running, dormant, disabled, failed, or starting
 ///
 /// <div class="warning">
 ///
@@ -7715,6 +7755,9 @@ pub enum ExtensionStatus {
     /// The extension process is running.
     #[serde(rename = "running")]
     Running,
+    /// The extension is enabled and discoverable but not yet requested.
+    #[serde(rename = "dormant")]
+    Dormant,
     /// The extension is installed but disabled.
     #[serde(rename = "disabled")]
     Disabled,

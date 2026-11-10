@@ -538,6 +538,10 @@ session.sendAndWait(new MessageOptions()
     .setSource(MessageSource.agent("reviewer"))).get();
 ```
 
+Use `MessageSource.automation(id)` for a turn sent on behalf of an automation the
+user configured, such as a recurring check-in; it serializes as `automation-<id>`.
+An automation turn defines the session's task like a user message but carries no human authority; see [Message provenance](../docs/features/steering-and-queueing.md#message-provenance).
+
 Leave `source` unset to omit it from the request and retain the runtime's default
 user-input behavior, or set `MessageSource.USER` explicitly. Source is independent
 of delivery mode (`enqueue` or `immediate`) and does not configure the session's

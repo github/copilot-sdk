@@ -6804,7 +6804,7 @@ pub struct PermissionRequestShellPossibleUrl {
     pub url: String,
 }
 
-/// A sandbox filesystem policy edit that would let a blocked operation run inside the sandbox instead of outside it. Offered only on a sandbox escalation request whose denial adding this path lifts, and only when managed policy permits the grant. A host accepts it with session.sandbox.grantPathForRequest, which adds the path to the session's sandbox policy and re-runs the operation sandboxed; a host that persists sandbox settings may also save the path there.
+/// A sandbox filesystem policy edit that would let a blocked operation run inside the sandbox instead of outside it. Offered only on a sandbox escalation request whose denial adding this path lifts, and only when managed policy permits the grant. A host accepts it with session.sandbox.grantPathForRequest, which adds the path to the session's sandbox policy and re-runs the operation sandboxed. A host that persists sandbox settings must save the optional policy spelling when present; otherwise it must escape every literal `$` in the concrete path as `$$` before saving that path.
 ///
 /// <div class="warning">
 ///
@@ -6822,6 +6822,9 @@ pub struct PermissionSandboxPathGrant {
     pub denied_path: Option<String>,
     /// Absolute path to add to the sandbox filesystem policy
     pub path: String,
+    /// Policy spelling to persist for the grant. This can differ from path when a managed allowlist names the same location through an environment expression. Hosts that persist sandbox settings must save this value when present. When it is absent, they must escape every literal `$` in path as `$$` before saving path so the policy grammar does not interpret it as an environment reference.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub persisted_path: Option<String>,
     /// readonlyPaths entries the grant removes, exactly as written in the policy, because a read-only entry for the same location would otherwise keep the path read-only. A host that persists the path must remove these entries from its stored readonlyPaths too.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub removed_readonly_paths: Option<Vec<String>>,
@@ -9603,7 +9606,7 @@ pub struct ExtensionsLoadedExtension {
     pub name: String,
     /// Discovery source
     pub source: ExtensionsLoadedExtensionSource,
-    /// Current status: running, disabled, failed, or starting
+    /// Current status: running, dormant, disabled, failed, or starting
     pub status: ExtensionsLoadedExtensionStatus,
 }
 
@@ -13829,12 +13832,15 @@ pub enum ExtensionsLoadedExtensionSource {
     Unknown,
 }
 
-/// Current status: running, disabled, failed, or starting
+/// Current status: running, dormant, disabled, failed, or starting
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
 pub enum ExtensionsLoadedExtensionStatus {
     /// The extension process is running.
     #[serde(rename = "running")]
     Running,
+    /// The extension is enabled and discoverable but not yet requested.
+    #[serde(rename = "dormant")]
+    Dormant,
     /// The extension is installed but disabled.
     #[serde(rename = "disabled")]
     Disabled,

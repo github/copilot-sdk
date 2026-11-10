@@ -1992,11 +1992,12 @@ class PermissionRecoveryRunState:
 # Experimental: this type is part of an experimental API and may change or be removed.
 @dataclass
 class PermissionSandboxPathGrant:
-    "A sandbox filesystem policy edit that would let a blocked operation run inside the sandbox instead of outside it. Offered only on a sandbox escalation request whose denial adding this path lifts, and only when managed policy permits the grant. A host accepts it with session.sandbox.grantPathForRequest, which adds the path to the session's sandbox policy and re-runs the operation sandboxed; a host that persists sandbox settings may also save the path there."
+    "A sandbox filesystem policy edit that would let a blocked operation run inside the sandbox instead of outside it. Offered only on a sandbox escalation request whose denial adding this path lifts, and only when managed policy permits the grant. A host accepts it with session.sandbox.grantPathForRequest, which adds the path to the session's sandbox policy and re-runs the operation sandboxed. A host that persists sandbox settings must save the optional policy spelling when present; otherwise it must escape every literal `$` in the concrete path as `$$` before saving that path."
     access: PermissionSandboxPathGrantAccess
     path: str
     denied_path: str | None = None
     removed_readonly_paths: list[str] | None = None
+    persisted_path: str | None = None
 
     @staticmethod
     def from_dict(obj: Any) -> "PermissionSandboxPathGrant":
@@ -2005,11 +2006,13 @@ class PermissionSandboxPathGrant:
         path = from_str(obj.get("path"))
         denied_path = from_union([from_none, from_str], obj.get("deniedPath"))
         removed_readonly_paths = from_union([from_none, lambda x: from_list(from_str, x)], obj.get("removedReadonlyPaths"))
+        persisted_path = from_union([from_none, from_str], obj.get("persistedPath"))
         return PermissionSandboxPathGrant(
             access=access,
             path=path,
             denied_path=denied_path,
             removed_readonly_paths=removed_readonly_paths,
+            persisted_path=persisted_path,
         )
 
     def to_dict(self) -> dict:
@@ -2020,6 +2023,8 @@ class PermissionSandboxPathGrant:
             result["deniedPath"] = from_union([from_none, from_str], self.denied_path)
         if self.removed_readonly_paths is not None:
             result["removedReadonlyPaths"] = from_union([from_none, lambda x: from_list(from_str, x)], self.removed_readonly_paths)
+        if self.persisted_path is not None:
+            result["persistedPath"] = from_union([from_none, from_str], self.persisted_path)
         return result
 
 
@@ -16756,9 +16761,11 @@ class ExtensionsLoadedExtensionSource(Enum):
 
 
 class ExtensionsLoadedExtensionStatus(Enum):
-    "Current status: running, disabled, failed, or starting"
+    "Current status: running, dormant, disabled, failed, or starting"
     # The extension process is running.
     RUNNING = "running"
+    # The extension is enabled and discoverable but not yet requested.
+    DORMANT = "dormant"
     # The extension is installed but disabled.
     DISABLED = "disabled"
     # The extension failed to start or crashed.

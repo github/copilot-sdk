@@ -171,6 +171,10 @@ await session.send("Workspace context updated", source="system")
 unchanged after the `agent-` prefix, so `"reviewer"` becomes `"agent-reviewer"`.
 It does not trim whitespace, change case, or remove an existing prefix.
 
+Use `AutomationMessageSource(automation_id)` for a turn sent on behalf of an
+automation the user configured, such as a recurring check-in; it becomes
+`automation-<id>`. An automation turn defines the session's task like a user message but carries no human authority; see [Message provenance](../docs/features/steering-and-queueing.md#message-provenance).
+
 Leave source unset (or `None`) for ordinary human sends so the field stays omitted.
 Use `"user"` when you need to set it explicitly. Source is independent of delivery
 mode and does not replace the session's `system_message` configuration, set billing

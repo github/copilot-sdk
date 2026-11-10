@@ -3,6 +3,7 @@ package e2e
 import (
 	"context"
 	"encoding/base64"
+	"encoding/json"
 	"os"
 	"path/filepath"
 	"regexp"
@@ -53,6 +54,21 @@ func TestSessionE2E(t *testing.T) {
 
 		if !startOk || startData.SelectedModel == nil || *startData.SelectedModel != "claude-sonnet-5" {
 			t.Errorf("Expected selectedModel to be 'claude-sonnet-5', got %v", startData)
+		}
+
+		rawEvents, err := session.GetRawEvents(t.Context())
+		if err != nil {
+			t.Fatalf("Failed to get raw events: %v", err)
+		}
+		if len(rawEvents) == 0 {
+			t.Fatal("Expected initial raw session events")
+		}
+		var rawStart map[string]json.RawMessage
+		if err := json.Unmarshal(rawEvents[0], &rawStart); err != nil {
+			t.Fatalf("Failed to decode raw session.start: %v", err)
+		}
+		if string(rawStart["type"]) != `"session.start"` || string(rawStart["parentId"]) != "null" {
+			t.Fatalf("Raw session.start must preserve parentId:null, got %s", rawEvents[0])
 		}
 
 		if err := session.Disconnect(); err != nil {

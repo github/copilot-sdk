@@ -25,6 +25,8 @@ import javax.annotation.processing.Generated;
 @JsonIgnoreProperties(ignoreUnknown = true)
 @com.fasterxml.jackson.databind.annotation.JsonDeserialize(using = ManagedSettingsResolveDeviceForceLoginOrgsGateParams.$NullableDeserializer.class)
 record ManagedSettingsResolveDeviceForceLoginOrgsGateParams(
+    /** Resolve the current credential from this connection's original auth owner only when device policy enforces a pin. Refreshes membership and preserves credential-resolution diagnostics. Defaults to false, which evaluates authInfo as supplied. Cannot be combined with authInfo; requires an original auth-owner binding. */
+    @JsonProperty("resolveCurrentAuth") Boolean resolveCurrentAuth,
     /** The authenticated identity to judge. Omitted when signed out, which is the case the device channel exists to serve: it can refuse a first sign-in before any credential exists. */
     @JsonProperty("authInfo") Object authInfo,
     /** The host's environment variables. Read for the variables that would make an identity's membership snapshot forgeable, so a credential whose provenance cannot be trusted is refused rather than accepted. */
@@ -45,8 +47,8 @@ record ManagedSettingsResolveDeviceForceLoginOrgsGateParams(
      * @deprecated Use {@link #builder()} for named construction.
      */
     @Deprecated(since = "2.0.0", forRemoval = false)
-    ManagedSettingsResolveDeviceForceLoginOrgsGateParams(Object authInfo, Object environment) {
-        this(authInfo, environment, java.util.Set.of());
+    ManagedSettingsResolveDeviceForceLoginOrgsGateParams(Boolean resolveCurrentAuth, Object authInfo, Object environment) {
+        this(resolveCurrentAuth, authInfo, environment, java.util.Set.of());
     }
 
     /**
@@ -62,10 +64,22 @@ record ManagedSettingsResolveDeviceForceLoginOrgsGateParams(
      */
     public static final class Builder {
         private Builder() {}
+        private Boolean resolveCurrentAuth;
         private Object authInfo;
-        private boolean $presence0;
-        private Object environment;
         private boolean $presence1;
+        private Object environment;
+        private boolean $presence2;
+
+        /**
+         * Sets the {@code resolveCurrentAuth} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder resolveCurrentAuth(Boolean value) {
+            this.resolveCurrentAuth = value;
+            return this;
+        }
 
         /**
          * Sets the {@code authInfo} property.
@@ -75,7 +89,7 @@ record ManagedSettingsResolveDeviceForceLoginOrgsGateParams(
          */
         public Builder authInfo(Object value) {
             this.authInfo = value;
-            this.$presence0 = true;
+            this.$presence1 = true;
             return this;
         }
 
@@ -87,7 +101,7 @@ record ManagedSettingsResolveDeviceForceLoginOrgsGateParams(
          */
         public Builder environment(Object value) {
             this.environment = value;
-            this.$presence1 = true;
+            this.$presence2 = true;
             return this;
         }
 
@@ -98,10 +112,10 @@ record ManagedSettingsResolveDeviceForceLoginOrgsGateParams(
          * @since 2.0.0
          */
         public ManagedSettingsResolveDeviceForceLoginOrgsGateParams build() {
-            if (!$presence1) throw new IllegalStateException("Missing required property: environment");
+            if (!$presence2) throw new IllegalStateException("Missing required property: environment");
             java.util.Set<String> $explicitNulls = new java.util.LinkedHashSet<>();
-            if ($presence0 && authInfo == null) $explicitNulls.add("authInfo");
-            return new ManagedSettingsResolveDeviceForceLoginOrgsGateParams(authInfo, environment, $explicitNulls);
+            if ($presence1 && authInfo == null) $explicitNulls.add("authInfo");
+            return new ManagedSettingsResolveDeviceForceLoginOrgsGateParams(resolveCurrentAuth, authInfo, environment, $explicitNulls);
         }
     }
 
@@ -121,7 +135,7 @@ record ManagedSettingsResolveDeviceForceLoginOrgsGateParams(
             if (!tree.isObject()) return context.reportInputMismatch(ManagedSettingsResolveDeviceForceLoginOrgsGateParams.class, "Expected a JSON object");
             java.util.Set<String> $explicitNulls = new java.util.LinkedHashSet<>();
             if (tree.has("authInfo") && tree.get("authInfo").isNull()) $explicitNulls.add("authInfo");
-            return new ManagedSettingsResolveDeviceForceLoginOrgsGateParams(readProperty(context, tree, "authInfo", new com.fasterxml.jackson.core.type.TypeReference<Object>() {}), readProperty(context, tree, "environment", new com.fasterxml.jackson.core.type.TypeReference<Object>() {}), $explicitNulls);
+            return new ManagedSettingsResolveDeviceForceLoginOrgsGateParams(readProperty(context, tree, "resolveCurrentAuth", new com.fasterxml.jackson.core.type.TypeReference<Boolean>() {}), readProperty(context, tree, "authInfo", new com.fasterxml.jackson.core.type.TypeReference<Object>() {}), readProperty(context, tree, "environment", new com.fasterxml.jackson.core.type.TypeReference<Object>() {}), $explicitNulls);
         }
 
         private static <T> T readProperty(com.fasterxml.jackson.databind.DeserializationContext context,

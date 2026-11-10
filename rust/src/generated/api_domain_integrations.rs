@@ -4462,6 +4462,21 @@ impl McpStopServerOptions {
     }
 }
 
+/// Per-server MCP tool definition token costs.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct McpToolTokenBreakdownResult {
+    /// One entry per MCP server with tools in the session's current tool set, in tool order. Empty both when the session has not computed its tool set yet and when the computed tool set contains no MCP tools; the two cases are not distinguished.
+    pub servers: Vec<McpServerToolTokenBreakdown>,
+}
+
 /// Server name identifying the external client to remove.
 ///
 /// <div class="warning">

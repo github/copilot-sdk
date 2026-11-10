@@ -25,6 +25,29 @@ public sealed partial class ClientSessionLifetimeTests
 {
     private sealed record RpcRequestRecord(string Method, JsonElement Params);
 
+    [Fact]
+    public async Task RawHistory_PreservesKnownEventJson_InAnalyticsRequests()
+    {
+        await using var server = await FakeCopilotServer.StartAsync();
+        server.ResponseFactory = _ => new Dictionary<string, object?>();
+        await using var client = new CopilotClient(new CopilotClientOptions { Connection = RuntimeConnection.ForUri(server.Url) });
+        await using var session = await client.CreateSessionAsync(new SessionConfig());
+        await server.SendSessionEventAsync(session.SessionId, "user.message", new Dictionary<string, object?>
+        {
+            ["content"] = "Hello",
+            ["future"] = new Dictionary<string, object?> { ["detail"] = new object?[] { null, "kept" } }
+        });
+
+        var events = await session.GetRawEventsAsync();
+        var original = Assert.Single(events);
+        Assert.Equal(JsonValueKind.Null, original.GetProperty("parentId").ValueKind);
+        Assert.Equal(JsonValueKind.Null, original.GetProperty("data").GetProperty("future").GetProperty("detail")[0].ValueKind);
+        await client.Rpc.TaskAnalytics.ClassifyTrajectoryAsync(events, validateOnly: true);
+
+        var request = Assert.Single(server.Requests, r => r.Method == "taskAnalytics.classifyTrajectory");
+        Assert.True(JsonNode.DeepEquals(JsonNode.Parse(original.GetRawText()), JsonNode.Parse(request.Params.GetProperty("events")[0].GetRawText())));
+    }
+
     [Theory]
     [InlineData(false, false)]
     [InlineData(true, false)]

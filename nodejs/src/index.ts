@@ -9,6 +9,7 @@
  */
 
 export { CopilotClient } from "./client.js";
+export { parseTrajectoryJson } from "./taskAnalyticsJson.js";
 export { toSavedProviderConfiguration } from "./providerConfiguration.js";
 export {
     CopilotDecisions,
@@ -54,6 +55,7 @@ export type {
     LocalModelAzureMlIdentity,
     LocalModelDescriptor,
     LocalModelJsonValue,
+    TrajectoryJsonValue,
     LocalModelDiskRequirement,
     LocalModelDownloadProgress,
     LocalModelGpuRequirement,

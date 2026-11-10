@@ -25,6 +25,8 @@ import javax.annotation.processing.Generated;
 @JsonIgnoreProperties(ignoreUnknown = true)
 @com.fasterxml.jackson.databind.annotation.JsonDeserialize(using = ManagedSettingsIngestParams.$NullableDeserializer.class)
 record ManagedSettingsIngestParams(
+    /** Caller identity for a policy helper before session registration. Omit to keep the runtime default. This does not change clientName on managed-service requests. */
+    @JsonProperty("policyHelperClientName") String policyHelperClientName,
     /** The policy-helper invocation reason. Defaults to sessionStart. */
     @JsonProperty("policyHelperReason") ManagedSettingsPolicyHelperReason policyHelperReason,
     /** Whether to run ingestion. Omit or set false to return an empty result without discovering or fetching policy. */
@@ -71,8 +73,8 @@ record ManagedSettingsIngestParams(
      * @deprecated Use {@link #builder()} for named construction.
      */
     @Deprecated(since = "2.0.0", forRemoval = false)
-    ManagedSettingsIngestParams(ManagedSettingsPolicyHelperReason policyHelperReason, Boolean selfFetch, Object authInfo, String sessionId, Object deviceResponse, Boolean hasDeviceResponse, Boolean bypassCacheRead, ManagedSettingsServerPolicyCacheMode serverPolicyCacheMode, Boolean policyHelperEnabled, String policyHelperWorkingDirectory, String userAgent, String clientName, Object environment, String platform, String homeDirectory) {
-        this(policyHelperReason, selfFetch, authInfo, sessionId, deviceResponse, hasDeviceResponse, bypassCacheRead, serverPolicyCacheMode, policyHelperEnabled, policyHelperWorkingDirectory, userAgent, clientName, environment, platform, homeDirectory, java.util.Set.of());
+    ManagedSettingsIngestParams(String policyHelperClientName, ManagedSettingsPolicyHelperReason policyHelperReason, Boolean selfFetch, Object authInfo, String sessionId, Object deviceResponse, Boolean hasDeviceResponse, Boolean bypassCacheRead, ManagedSettingsServerPolicyCacheMode serverPolicyCacheMode, Boolean policyHelperEnabled, String policyHelperWorkingDirectory, String userAgent, String clientName, Object environment, String platform, String homeDirectory) {
+        this(policyHelperClientName, policyHelperReason, selfFetch, authInfo, sessionId, deviceResponse, hasDeviceResponse, bypassCacheRead, serverPolicyCacheMode, policyHelperEnabled, policyHelperWorkingDirectory, userAgent, clientName, environment, platform, homeDirectory, java.util.Set.of());
     }
 
     /**
@@ -88,13 +90,14 @@ record ManagedSettingsIngestParams(
      */
     public static final class Builder {
         private Builder() {}
+        private String policyHelperClientName;
         private ManagedSettingsPolicyHelperReason policyHelperReason;
         private Boolean selfFetch;
         private Object authInfo;
-        private boolean $presence2;
+        private boolean $presence3;
         private String sessionId;
         private Object deviceResponse;
-        private boolean $presence4;
+        private boolean $presence5;
         private Boolean hasDeviceResponse;
         private Boolean bypassCacheRead;
         private ManagedSettingsServerPolicyCacheMode serverPolicyCacheMode;
@@ -103,9 +106,20 @@ record ManagedSettingsIngestParams(
         private String userAgent;
         private String clientName;
         private Object environment;
-        private boolean $presence12;
+        private boolean $presence13;
         private String platform;
         private String homeDirectory;
+
+        /**
+         * Sets the {@code policyHelperClientName} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder policyHelperClientName(String value) {
+            this.policyHelperClientName = value;
+            return this;
+        }
 
         /**
          * Sets the {@code policyHelperReason} property.
@@ -137,7 +151,7 @@ record ManagedSettingsIngestParams(
          */
         public Builder authInfo(Object value) {
             this.authInfo = value;
-            this.$presence2 = true;
+            this.$presence3 = true;
             return this;
         }
 
@@ -160,7 +174,7 @@ record ManagedSettingsIngestParams(
          */
         public Builder deviceResponse(Object value) {
             this.deviceResponse = value;
-            this.$presence4 = true;
+            this.$presence5 = true;
             return this;
         }
 
@@ -249,7 +263,7 @@ record ManagedSettingsIngestParams(
          */
         public Builder environment(Object value) {
             this.environment = value;
-            this.$presence12 = true;
+            this.$presence13 = true;
             return this;
         }
 
@@ -283,13 +297,13 @@ record ManagedSettingsIngestParams(
          */
         public ManagedSettingsIngestParams build() {
             if (userAgent == null) throw new IllegalStateException("Missing required property: userAgent");
-            if (!$presence12) throw new IllegalStateException("Missing required property: environment");
+            if (!$presence13) throw new IllegalStateException("Missing required property: environment");
             if (platform == null) throw new IllegalStateException("Missing required property: platform");
             if (homeDirectory == null) throw new IllegalStateException("Missing required property: homeDirectory");
             java.util.Set<String> $explicitNulls = new java.util.LinkedHashSet<>();
-            if ($presence2 && authInfo == null) $explicitNulls.add("authInfo");
-            if ($presence4 && deviceResponse == null) $explicitNulls.add("deviceResponse");
-            return new ManagedSettingsIngestParams(policyHelperReason, selfFetch, authInfo, sessionId, deviceResponse, hasDeviceResponse, bypassCacheRead, serverPolicyCacheMode, policyHelperEnabled, policyHelperWorkingDirectory, userAgent, clientName, environment, platform, homeDirectory, $explicitNulls);
+            if ($presence3 && authInfo == null) $explicitNulls.add("authInfo");
+            if ($presence5 && deviceResponse == null) $explicitNulls.add("deviceResponse");
+            return new ManagedSettingsIngestParams(policyHelperClientName, policyHelperReason, selfFetch, authInfo, sessionId, deviceResponse, hasDeviceResponse, bypassCacheRead, serverPolicyCacheMode, policyHelperEnabled, policyHelperWorkingDirectory, userAgent, clientName, environment, platform, homeDirectory, $explicitNulls);
         }
     }
 
@@ -311,7 +325,7 @@ record ManagedSettingsIngestParams(
             java.util.Set<String> $explicitNulls = new java.util.LinkedHashSet<>();
             if (tree.has("authInfo") && tree.get("authInfo").isNull()) $explicitNulls.add("authInfo");
             if (tree.has("deviceResponse") && tree.get("deviceResponse").isNull()) $explicitNulls.add("deviceResponse");
-            return new ManagedSettingsIngestParams(readProperty(context, tree, "policyHelperReason", new com.fasterxml.jackson.core.type.TypeReference<ManagedSettingsPolicyHelperReason>() {}), readProperty(context, tree, "selfFetch", new com.fasterxml.jackson.core.type.TypeReference<Boolean>() {}), readProperty(context, tree, "authInfo", new com.fasterxml.jackson.core.type.TypeReference<Object>() {}), readProperty(context, tree, "sessionId", new com.fasterxml.jackson.core.type.TypeReference<String>() {}), readProperty(context, tree, "deviceResponse", new com.fasterxml.jackson.core.type.TypeReference<Object>() {}), readProperty(context, tree, "hasDeviceResponse", new com.fasterxml.jackson.core.type.TypeReference<Boolean>() {}), readProperty(context, tree, "bypassCacheRead", new com.fasterxml.jackson.core.type.TypeReference<Boolean>() {}), readProperty(context, tree, "serverPolicyCacheMode", new com.fasterxml.jackson.core.type.TypeReference<ManagedSettingsServerPolicyCacheMode>() {}), readProperty(context, tree, "policyHelperEnabled", new com.fasterxml.jackson.core.type.TypeReference<Boolean>() {}), readProperty(context, tree, "policyHelperWorkingDirectory", new com.fasterxml.jackson.core.type.TypeReference<String>() {}), readProperty(context, tree, "userAgent", new com.fasterxml.jackson.core.type.TypeReference<String>() {}), readProperty(context, tree, "clientName", new com.fasterxml.jackson.core.type.TypeReference<String>() {}), readProperty(context, tree, "environment", new com.fasterxml.jackson.core.type.TypeReference<Object>() {}), readProperty(context, tree, "platform", new com.fasterxml.jackson.core.type.TypeReference<String>() {}), readProperty(context, tree, "homeDirectory", new com.fasterxml.jackson.core.type.TypeReference<String>() {}), $explicitNulls);
+            return new ManagedSettingsIngestParams(readProperty(context, tree, "policyHelperClientName", new com.fasterxml.jackson.core.type.TypeReference<String>() {}), readProperty(context, tree, "policyHelperReason", new com.fasterxml.jackson.core.type.TypeReference<ManagedSettingsPolicyHelperReason>() {}), readProperty(context, tree, "selfFetch", new com.fasterxml.jackson.core.type.TypeReference<Boolean>() {}), readProperty(context, tree, "authInfo", new com.fasterxml.jackson.core.type.TypeReference<Object>() {}), readProperty(context, tree, "sessionId", new com.fasterxml.jackson.core.type.TypeReference<String>() {}), readProperty(context, tree, "deviceResponse", new com.fasterxml.jackson.core.type.TypeReference<Object>() {}), readProperty(context, tree, "hasDeviceResponse", new com.fasterxml.jackson.core.type.TypeReference<Boolean>() {}), readProperty(context, tree, "bypassCacheRead", new com.fasterxml.jackson.core.type.TypeReference<Boolean>() {}), readProperty(context, tree, "serverPolicyCacheMode", new com.fasterxml.jackson.core.type.TypeReference<ManagedSettingsServerPolicyCacheMode>() {}), readProperty(context, tree, "policyHelperEnabled", new com.fasterxml.jackson.core.type.TypeReference<Boolean>() {}), readProperty(context, tree, "policyHelperWorkingDirectory", new com.fasterxml.jackson.core.type.TypeReference<String>() {}), readProperty(context, tree, "userAgent", new com.fasterxml.jackson.core.type.TypeReference<String>() {}), readProperty(context, tree, "clientName", new com.fasterxml.jackson.core.type.TypeReference<String>() {}), readProperty(context, tree, "environment", new com.fasterxml.jackson.core.type.TypeReference<Object>() {}), readProperty(context, tree, "platform", new com.fasterxml.jackson.core.type.TypeReference<String>() {}), readProperty(context, tree, "homeDirectory", new com.fasterxml.jackson.core.type.TypeReference<String>() {}), $explicitNulls);
         }
 
         private static <T> T readProperty(com.fasterxml.jackson.databind.DeserializationContext context,

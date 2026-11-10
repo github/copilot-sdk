@@ -1900,8 +1900,25 @@ fn agent_source_preserves_opaque_ids() {
             wire
         );
     }
-    for invalid in ["unknown", "USER", "Agent-sender"] {
+    for invalid in ["unknown", "USER", "Agent-sender", "Automation-check"] {
         assert!(serde_json::from_value::<MessageSource>(serde_json::json!(invalid)).is_err());
+    }
+}
+
+#[test]
+fn automation_source_preserves_opaque_ids() {
+    for id in ["merge-check", "automation-check"] {
+        let source = MessageSource::Automation(id.into());
+        let wire = format!("automation-{id}");
+        assert_eq!(serde_json::to_value(&source).unwrap(), wire);
+        assert_eq!(
+            serde_json::from_value::<MessageSource>(serde_json::json!(wire)).unwrap(),
+            source
+        );
+        assert_eq!(
+            serde_json::to_value(SendRequest::default().with_source(source.clone())).unwrap()["source"],
+            wire
+        );
     }
 }
 
@@ -2700,6 +2717,48 @@ async fn deprecated_get_messages_alias_still_works() {
 
     let events = timeout(TIMEOUT, handle).await.unwrap().unwrap();
     assert_eq!(events.len(), 1);
+}
+
+#[tokio::test]
+async fn raw_history_preserves_analytics_archive() {
+    let (session, mut server) = create_session_pair().await;
+    let original = serde_json::json!({
+        "id": "event-1",
+        "parentId": null,
+        "timestamp": "2026-01-01T00:00:00.000Z",
+        "type": "user.message",
+        "data": {"content": "Fix the build", "future": {"detail": [null, "kept"]}},
+        "futureEnvelope": {"kept": true},
+    });
+    let handle = tokio::spawn(async move {
+        let events = session.get_raw_events().await.unwrap();
+        let request = github_copilot_sdk::rpc::TaskAnalyticsClassifyTrajectoryRequest {
+            events,
+            ..Default::default()
+        };
+        session
+            .client()
+            .rpc()
+            .task_analytics()
+            .classify_trajectory(request)
+            .await
+    });
+    let history = timeout(TIMEOUT, server.read_request()).await.unwrap();
+    assert_eq!(history["method"], "session.getMessages");
+    assert_eq!(history["params"]["sessionId"], server.session_id);
+    server
+        .respond(&history, serde_json::json!({"events": [original.clone()]}))
+        .await;
+    let classification = timeout(TIMEOUT, server.read_request()).await.unwrap();
+    assert_eq!(classification["method"], "taskAnalytics.classifyTrajectory");
+    server
+        .respond(&classification, serde_json::json!({"classifications": []}))
+        .await;
+    timeout(TIMEOUT, handle).await.unwrap().unwrap().unwrap();
+    assert_eq!(
+        classification["params"]["events"],
+        serde_json::json!([original])
+    );
 }
 
 #[tokio::test]

@@ -674,6 +674,9 @@ pub(crate) struct ManagedSettingsIngestParams {
     pub home_directory: String,
     /// The host's platform, in Node's `process.platform` spelling, used to locate platform-specific cache and policy paths.
     pub platform: String,
+    /// Caller identity for a policy helper before session registration. Omit to keep the runtime default. This does not change clientName on managed-service requests.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub policy_helper_client_name: Option<String>,
     /// Whether a configured platform policy helper may be run to produce an enforced helper layer.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub policy_helper_enabled: Option<bool>,
@@ -828,6 +831,9 @@ pub(crate) struct ManagedSettingsLoadRemoteControlParams {
     pub home_directory: String,
     /// The host's platform, in Node's `process.platform` spelling, used to locate platform-specific cache and policy paths.
     pub platform: String,
+    /// Optional policy-helper caller identity. Does not change the managed-service clientName.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub policy_helper_client_name: Option<String>,
     /// Whether a configured platform policy helper may be run to produce an enforced helper layer.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub policy_helper_enabled: Option<bool>,
@@ -996,6 +1002,9 @@ pub(crate) struct ManagedSettingsResolveDeviceForceLoginOrgsGateParams {
     pub auth_info: Option<serde_json::Value>,
     /// The host's environment variables. Read for the variables that would make an identity's membership snapshot forgeable, so a credential whose provenance cannot be trusted is refused rather than accepted.
     pub environment: serde_json::Value,
+    /// Resolve the current credential from this connection's original auth owner only when device policy enforces a pin. Refreshes membership and preserves credential-resolution diagnostics. Defaults to false, which evaluates authInfo as supplied. Cannot be combined with authInfo; requires an original auth-owner binding.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub resolve_current_auth: Option<bool>,
 }
 
 /// The managed-settings layers to compose into an effective policy. Every layer is optional; omitting all of them yields no effective policy.
@@ -1127,6 +1136,9 @@ pub(crate) struct ManagedSettingsResolveStartupPolicyParams {
     pub home_directory: String,
     /// The host's platform, in Node's `process.platform` spelling, used to locate platform-specific cache and policy paths.
     pub platform: String,
+    /// Caller identity for a policy helper before session registration. Omit to keep the runtime default. This does not change clientName on managed-service requests.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub policy_helper_client_name: Option<String>,
     /// Whether a configured platform policy helper may be run to produce an enforced helper layer.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub policy_helper_enabled: Option<bool>,

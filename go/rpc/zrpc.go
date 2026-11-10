@@ -7215,7 +7215,7 @@ type Extension struct {
 	// Discovery source: project (.github/extensions/), user (~/.copilot/extensions/), plugin
 	// (installed plugin), or session (session-state/<id>/extensions/)
 	Source ExtensionSource `json:"source"`
-	// Current status: running, disabled, failed, or starting
+	// Current status: running, dormant, disabled, failed, or starting
 	Status ExtensionStatus `json:"status"`
 }
 
@@ -11907,6 +11907,9 @@ type ManagedSettingsIngestParams struct {
 	// The host's platform, in Node's `process.platform` spelling, used to locate
 	// platform-specific cache and policy paths.
 	Platform string `json:"platform"`
+	// Caller identity for a policy helper before session registration. Omit to keep the runtime
+	// default. This does not change clientName on managed-service requests.
+	PolicyHelperClientName *string `json:"policyHelperClientName,omitempty"`
 	// Whether a configured platform policy helper may be run to produce an enforced helper
 	// layer.
 	PolicyHelperEnabled *bool `json:"policyHelperEnabled,omitempty"`
@@ -12064,6 +12067,8 @@ type ManagedSettingsLoadRemoteControlParams struct {
 	// The host's platform, in Node's `process.platform` spelling, used to locate
 	// platform-specific cache and policy paths.
 	Platform string `json:"platform"`
+	// Optional policy-helper caller identity. Does not change the managed-service clientName.
+	PolicyHelperClientName *string `json:"policyHelperClientName,omitempty"`
 	// Whether a configured platform policy helper may be run to produce an enforced helper
 	// layer.
 	PolicyHelperEnabled *bool `json:"policyHelperEnabled,omitempty"`
@@ -12314,6 +12319,11 @@ type ManagedSettingsResolveDeviceForceLoginOrgsGateParams struct {
 	// membership snapshot forgeable, so a credential whose provenance cannot be trusted is
 	// refused rather than accepted.
 	Environment any `json:"environment"`
+	// Resolve the current credential from this connection's original auth owner only when
+	// device policy enforces a pin. Refreshes membership and preserves credential-resolution
+	// diagnostics. Defaults to false, which evaluates authInfo as supplied. Cannot be combined
+	// with authInfo; requires an original auth-owner binding.
+	ResolveCurrentAuth *bool `json:"resolveCurrentAuth,omitempty"`
 }
 
 // The managed-settings layers to compose into an effective policy. Every layer is optional;
@@ -12429,6 +12439,9 @@ type ManagedSettingsResolveStartupPolicyParams struct {
 	// The host's platform, in Node's `process.platform` spelling, used to locate
 	// platform-specific cache and policy paths.
 	Platform string `json:"platform"`
+	// Caller identity for a policy helper before session registration. Omit to keep the runtime
+	// default. This does not change clientName on managed-service requests.
+	PolicyHelperClientName *string `json:"policyHelperClientName,omitempty"`
 	// Whether a configured platform policy helper may be run to produce an enforced helper
 	// layer.
 	PolicyHelperEnabled *bool `json:"policyHelperEnabled,omitempty"`
@@ -16005,6 +16018,19 @@ type MCPServerOwnership struct {
 	InstallationID string `json:"installationId"`
 }
 
+// Context tokens one MCP server's tool definitions cost.
+// Experimental: MCPServerToolTokenBreakdown is part of an experimental API and may change
+// or be removed.
+type MCPServerToolTokenBreakdown struct {
+	// Server name the tools are namespaced under.
+	ServerName string `json:"serverName"`
+	// Per-tool breakdown, in the session's tool order.
+	Tools []MCPToolTokenCount `json:"tools"`
+	// Tokens the server's non-deferred tool definitions cost together for the model the
+	// breakdown was counted with.
+	TotalTokens int64 `json:"totalTokens"`
+}
+
 // Mode controlling how MCP server env values are resolved (`direct` or `indirect`).
 // Experimental: MCPSetEnvValueModeParams is part of an experimental API and may change or
 // be removed.
@@ -16159,6 +16185,33 @@ type MCPTools struct {
 	// Normalized MCP Apps discovery metadata. An empty object indicates that a valid `_meta.ui`
 	// block was present without recognized fields.
 	UI *MCPToolUI `json:"ui,omitempty"`
+}
+
+// Per-server MCP tool definition token costs.
+// Experimental: MCPToolTokenBreakdownResult is part of an experimental API and may change
+// or be removed.
+type MCPToolTokenBreakdownResult struct {
+	// One entry per MCP server with tools in the session's current tool set, in tool order.
+	// Empty both when the session has not computed its tool set yet and when the computed tool
+	// set contains no MCP tools; the two cases are not distinguished.
+	Servers []MCPServerToolTokenBreakdown `json:"servers"`
+}
+
+// Context tokens one MCP tool definition costs.
+// Experimental: MCPToolTokenCount is part of an experimental API and may change or be
+// removed.
+type MCPToolTokenCount struct {
+	// True when the tool definition is deferred and not sent to the model up front.
+	Deferred bool `json:"deferred"`
+	// Tool name as the MCP server reports it.
+	MCPToolName string `json:"mcpToolName"`
+	// Tool name as the model sees it, copied verbatim from the session's tool metadata. Usually
+	// namespaced with the server, but that is not guaranteed: use `serverName` rather than
+	// parsing this name.
+	Name string `json:"name"`
+	// Share of the server's total tokens attributed to this tool; 0 when deferred. The tools of
+	// one server sum to that server's `totalTokens`.
+	Tokens int64 `json:"tokens"`
 }
 
 // Normalized MCP Apps discovery metadata from a tool's `_meta.ui` block.
@@ -22055,18 +22108,27 @@ type SandboxConfigUserPolicyFilesystem struct {
 // Experimental: SandboxConfigUserPolicyNetwork is part of an experimental API and may
 // change or be removed.
 type SandboxConfigUserPolicyNetwork struct {
-	// Hosts allowed through the built-in sandbox proxy. A non-empty list denies unmatched
-	// hosts; an absent or empty list allows all hosts not blocked. Supports exact hostnames, IP
-	// addresses, and *.example.com for strict subdomains. Host rules do not override the
-	// outbound or local-network toggles.
+	// Destinations allowed through the built-in sandbox proxy. Supports hostnames, IP
+	// addresses, IPv4/IPv6 CIDRs (10.0.0.0/8, fd00::/8), and *.example.com for strict
+	// subdomains. CIDR host bits must be zero; invalid entries suggest the network address.
+	// Within each nonempty list, matching names or addresses are alternative grants; every user
+	// and managed list must permit every resolved address. Empty lists add no restriction. Host
+	// rules never override outbound or local-network toggles. An upstream proxy owns DNS:
+	// CIDR-only grants cannot authorize unresolved names, and address denials cannot constrain
+	// its resolver.
 	AllowedHosts []string `json:"allowedHosts,omitzero"`
-	// Whether traffic to local/loopback addresses is allowed.
+	// Whether host-local destinations, including loopback and unspecified addresses, are
+	// allowed. Private networks follow outbound and host rules. Host rules still apply.
 	AllowLocalNetwork *bool `json:"allowLocalNetwork,omitempty"`
-	// Whether outbound network traffic is allowed at all.
+	// Whether outbound network destinations, including private networks, are allowed.
+	// Host-loopback access is controlled separately by allowLocalNetwork. Host rules still
+	// apply.
 	AllowOutbound *bool `json:"allowOutbound,omitempty"`
-	// Hosts denied by the built-in sandbox proxy. Deny rules take precedence over allowedHosts.
-	// A domain also denies all its subdomains. IP addresses match exactly; *.example.com
-	// matches strict subdomains, and * denies every host.
+	// Destinations denied by the built-in sandbox proxy. Deny overrides allowedHosts, including
+	// CIDR denials against allowed names and their resolved addresses. Supports exact IPs and
+	// IPv4/IPv6 CIDRs with zero host bits. A denied domain also denies its subdomains;
+	// *.example.com matches strict subdomains, and * denies every host. With upstream-owned
+	// DNS, address denials cannot constrain remotely resolved names.
 	BlockedHosts []string `json:"blockedHosts,omitzero"`
 	// HTTP(S) proxy for sandboxed traffic. This is the built-in local proxy's upstream: every
 	// sandboxed command reaches it through a loopback listener, so credentials stay in the
@@ -22835,7 +22897,10 @@ type SendMessageItem struct {
 	RequiredTool *string `json:"requiredTool,omitempty"`
 	// Optional provenance tag copied to the resulting user.message event. Must be `user`,
 	// `system`, `command-<command-id>` for command-originated messages, `schedule-<numeric-id>`
-	// for scheduled prompts, or `agent-<agent-id>` for prompts sent by another agent.
+	// for scheduled prompts, `agent-<agent-id>` for prompts sent by another agent, or
+	// `automation-<automation-id>` for turns a host sends on behalf of an automation the user
+	// configured. An automation turn defines the session's task like a user message but carries
+	// no human authority.
 	// Internal: Source is part of the SDK's internal API surface and is not intended for
 	// external use.
 	Source *string `json:"source,omitempty"`
@@ -22959,7 +23024,10 @@ type SendRequest struct {
 	ResponseFormat *ResponseFormat `json:"responseFormat,omitempty"`
 	// Optional provenance tag copied to the resulting user.message event. Must be `user`,
 	// `system`, `command-<command-id>` for command-originated messages, `schedule-<numeric-id>`
-	// for scheduled prompts, or `agent-<agent-id>` for prompts sent by another agent.
+	// for scheduled prompts, `agent-<agent-id>` for prompts sent by another agent, or
+	// `automation-<automation-id>` for turns a host sends on behalf of an automation the user
+	// configured. An automation turn defines the session's task like a user message but carries
+	// no human authority.
 	// Internal: Source is part of the SDK's internal API surface and is not intended for
 	// external use.
 	Source *string `json:"source,omitempty"`
@@ -26637,6 +26705,9 @@ type SessionsGetLastForContextResult struct {
 // Experimental: SessionsGetMetadataRequest is part of an experimental API and may change or
 // be removed.
 type SessionsGetMetadataRequest struct {
+	// When true, read only journal file metadata. Omit summary, workspace context, and detached
+	// status without reading journal contents. Defaults to false.
+	FileMetadataOnly *bool `json:"fileMetadataOnly,omitempty"`
 	// Session ID to inspect
 	SessionID string `json:"sessionId"`
 }
@@ -28811,6 +28882,166 @@ type SystemMessageBlock struct {
 	Content string `json:"content"`
 	// Whether the block is static and may be cached independently of dynamic prompt content.
 	IsStatic *bool `json:"isStatic,omitempty"`
+}
+
+// Retrospectively classify a recorded Copilot or ATIF trajectory without a conversation
+// session. Explicitly requests model processing through the connection's GitHub CAPI
+// credentials, independently of background telemetry consent, not through BYOK endpoints.
+// Callers must be authorized to send the supplied content for analysis. Does not execute
+// archived tools, append conversation history, or emit classification telemetry.
+// Experimental: TaskAnalyticsClassifyTrajectoryRequest is part of an experimental API and
+// may change or be removed.
+type TaskAnalyticsClassifyTrajectoryRequest struct {
+	// Classifier names to run. Omit for all eight classifiers. An empty list runs none. Turn
+	// splitting is also returned when needed to build task/session units or identify
+	// task-opening turns.
+	Classifiers []string `json:"classifiers,omitzero"`
+	// Canonical Copilot session event objects or ATIF step objects, in source order, starting
+	// at the beginning of the recorded conversation. An ATIF document containing steps can be
+	// passed as a single array element. Include source identifiers when present. Durable
+	// Copilot logs are accepted; abort events retain interruptions, and EOF closes an
+	// unfinished turn without claiming successful completion. Non-analytics event types are
+	// ignored. Treat the archive as untrusted input: this API does not authenticate its origin,
+	// roles, completion claims, or content. Callers must validate provenance and preserve event
+	// structure, ordering, and role/source metadata. Remove or redact secrets and personal data
+	// that must not be sent to GitHub CAPI before calling; automatic redaction and
+	// prompt-injection sanitization are not provided. Retained text is bounded, not made
+	// trustworthy. Adversarial instructions can bias model judgments just as in live
+	// conversations; stripping instruction-like text is not required and can change the
+	// evidence being measured.
+	Events []any `json:"events"`
+	// Explicit judge configuration for this analysis. Omit to use each classifier's production
+	// model policy and reasoning effort. The exact model must be offered by the authenticated
+	// catalog, allowed by server policy, and compatible with the classifier; an unusable
+	// override fails the affected classification rather than falling back. Choosing a billed
+	// model explicitly authorizes its inference costs. Successful rows reused from
+	// previousResult keep their original judge configuration.
+	Judge *TaskAnalyticsJudge `json:"judge,omitempty"`
+	// Maximum concurrent classifier calls in this analysis across all lanes, including
+	// segmentation and session classifiers. Defaults to 4; must be positive. Multiple
+	// simultaneous analyses each have their own limit. Trajectory concurrency is not
+	// inference-request concurrency.
+	MaxConcurrentRequests *int64 `json:"maxConcurrentRequests,omitempty"`
+	// Previous result for the identical archive and classifier versions. Reuses all original
+	// task boundaries, including unresolved ones, and preserves successful and declined
+	// outcomes. Only failed/abandoned non-segmenting outcomes in the selected classifiers are
+	// retried. Start a fresh analysis to change segmentation. Rejects mismatched fingerprints
+	// or versions before inference.
+	PreviousResult *TaskAnalyticsClassifyTrajectoryResult `json:"previousResult,omitempty"`
+	// Validate input locally without authentication, model discovery, or inference. Returns
+	// validation diagnostics and no classifications. Invalid input never starts paid inference,
+	// even when this option is omitted.
+	ValidateOnly *bool `json:"validateOnly,omitempty"`
+}
+
+// Categorical retrospective measurements of the supplied trajectory, not verification that
+// its claims are true. Model-derived classifications can be inaccurate or manipulated by
+// adversarial content. Treat them as untrusted measurements; independently validate results
+// used for consequential decisions and never use them as authorization or security
+// decisions.
+// Experimental: TaskAnalyticsClassifyTrajectoryResult is part of an experimental API and
+// may change or be removed.
+type TaskAnalyticsClassifyTrajectoryResult struct {
+	// Terminal classifier outcomes. Declined, failed, and abandoned outcomes are retained. No
+	// restricted rationale, raw judge output, or transcript text is returned.
+	Classifications []TaskAnalyticsTrajectoryClassification `json:"classifications"`
+	// Fresh interaction ID for this analysis attempt, never an archived interaction ID. Reused
+	// outcomes retain their original per-row interaction ID.
+	InteractionID *string `json:"interactionId,omitempty"`
+	// SHA-256 identity of the input archive and archive-adapter revision. Required when passing
+	// this result back for an exact retry; not an authentication or provenance guarantee.
+	TrajectoryFingerprint *string `json:"trajectoryFingerprint,omitempty"`
+	// Local validation results. No inference runs when valid is false or validateOnly was
+	// requested.
+	Validation *TaskAnalyticsTrajectoryValidation `json:"validation,omitempty"`
+}
+
+// Request-local judge override. Credentials, endpoint, and integration remain owned by the
+// server connection.
+// Experimental: TaskAnalyticsJudge is part of an experimental API and may change or be
+// removed.
+type TaskAnalyticsJudge struct {
+	// Exact CAPI judge model ID. Never silently substituted.
+	Model string `json:"model"`
+	// Reasoning effort override: none, minimal, low, medium, high, or xhigh. Must be supported
+	// by the selected model. Omit to keep each classifier's production effort.
+	ReasoningEffort *string `json:"reasoningEffort,omitempty"`
+}
+
+// One terminal classification of a worker-local unit, including categorical output and
+// actual judge configuration when available.
+// Experimental: TaskAnalyticsTrajectoryClassification is part of an experimental API and
+// may change or be removed.
+type TaskAnalyticsTrajectoryClassification struct {
+	// Source event opening this unit, when applicable.
+	AnchorEventID *string `json:"anchorEventId,omitempty"`
+	// Cached input tokens, when reported.
+	CachedInputTokens *float64 `json:"cachedInputTokens,omitempty"`
+	// Registered classifier name.
+	Classifier string `json:"classifier"`
+	// Classifier prompt/schema fingerprint; not a complete runtime/configuration identity.
+	ClassifierVersion int64 `json:"classifierVersion"`
+	// Why the unit closed; EOF is not reported as a successful completed turn.
+	CloseReason string `json:"closeReason"`
+	// Stable failure/decline kind, never a raw error or judge response.
+	ErrorKind *string `json:"errorKind,omitempty"`
+	// First member-turn ordinal for task/session units.
+	FirstMemberOrdinal *int64 `json:"firstMemberOrdinal,omitempty"`
+	// HTTP failure status from inference, when available. Not inferred from message text.
+	HTTPStatus *int64 `json:"httpStatus,omitempty"`
+	// Consumed input tokens, when reported.
+	InputTokens *float64 `json:"inputTokens,omitempty"`
+	// Interaction ID used for this row's judge call. New attempts never reuse archived IDs;
+	// preserved outcomes keep their original value.
+	InteractionID *string `json:"interactionId,omitempty"`
+	// Unrestricted categorical labels, empty when classification did not succeed.
+	Labels map[string]string `json:"labels"`
+	// Last member-turn ordinal for task/session units.
+	LastMemberOrdinal *int64 `json:"lastMemberOrdinal,omitempty"`
+	// Unrestricted numerical verdict measurements, such as confidence.
+	Metrics map[string]float64 `json:"metrics"`
+	// Resolved judge model when available, including failed inference calls; absent when model
+	// resolution did not complete.
+	Model *string `json:"model,omitempty"`
+	// Why the canonical classifier model policy selected this judge.
+	ModelSelectionReason *string `json:"modelSelectionReason,omitempty"`
+	// One-based unit ordinal within its scope and this analysis request.
+	Ordinal int64 `json:"ordinal"`
+	// Consumed output tokens, when reported.
+	OutputTokens *float64 `json:"outputTokens,omitempty"`
+	// Actual judge reasoning effort, when reported.
+	ReasoningEffort *string `json:"reasoningEffort,omitempty"`
+	// Whether a failed inference may be retried. Absent for failures without an HTTP response.
+	// Does not initiate an automatic retry.
+	Retryable *bool `json:"retryable,omitempty"`
+	// Server-requested minimum delay in seconds before retry, including multi-hour delays.
+	// Absent for missing or malformed Retry-After headers.
+	RetryAfterSeconds *float64 `json:"retryAfterSeconds,omitempty"`
+	// Unit scope: prompt, turn, task, or session.
+	Scope string `json:"scope"`
+	// Terminal status: success, declined, abandoned, or failed.
+	Status string `json:"status"`
+	// Revision of this classifier's closed vocabulary, when applicable.
+	TaxonomyVersion *int64 `json:"taxonomyVersion,omitempty"`
+	// Whether retention caps truncated the unit's text.
+	TextTruncated bool `json:"textTruncated"`
+	// Analysis-local unit identity. Session snapshots can share an identity.
+	UnitID string `json:"unitId"`
+	// Number of unit boundaries inferred without a successful segmentation judgment.
+	UnresolvedBoundaries int64 `json:"unresolvedBoundaries"`
+}
+
+// Local archive checks; validates supported structure, not the truth or provenance of
+// archived evidence.
+// Experimental: TaskAnalyticsTrajectoryValidation is part of an experimental API and may
+// change or be removed.
+type TaskAnalyticsTrajectoryValidation struct {
+	// Actionable validation errors. Does not include transcript content or raw parser errors.
+	Errors []string `json:"errors"`
+	// Compact JSON input size in UTF-8 bytes.
+	InputBytes int64 `json:"inputBytes"`
+	// Whether the archive and execution options passed local checks.
+	Valid bool `json:"valid"`
 }
 
 // Structured reason that the task cannot continue without intervention
@@ -34631,13 +34862,15 @@ const (
 	ExtensionSourceUser ExtensionSource = "user"
 )
 
-// Current status: running, disabled, failed, or starting
+// Current status: running, dormant, disabled, failed, or starting
 // Experimental: ExtensionStatus is part of an experimental API and may change or be removed.
 type ExtensionStatus string
 
 const (
 	// The extension is installed but disabled.
 	ExtensionStatusDisabled ExtensionStatus = "disabled"
+	// The extension is enabled and discoverable but not yet requested.
+	ExtensionStatusDormant ExtensionStatus = "dormant"
 	// The extension failed to start or crashed.
 	ExtensionStatusFailed ExtensionStatus = "failed"
 	// The extension process is running.
@@ -42822,6 +43055,45 @@ func (s *ServerSkillsAPI) Installations() *ServerSkillsInstallationsAPI {
 	return (*ServerSkillsInstallationsAPI)(s)
 }
 
+// Experimental: ServerTaskAnalyticsAPI contains experimental APIs that may change or be
+// removed.
+type ServerTaskAnalyticsAPI serverAPI
+
+// ClassifyTrajectory classifies a recorded Copilot or ATIF trajectory using the runtime's
+// production analytics pipeline. No conversation session is required or created, archived
+// tools are never executed, and classification telemetry is not emitted. Calling this
+// method explicitly requests model processing of retained trajectory content through the
+// connection's GitHub CAPI credentials, independently of background telemetry consent; BYOK
+// endpoints are not used. Callers must authorize that processing and validate archive
+// provenance. Content is not automatically redacted or sanitized for prompt injection.
+// Model-derived results can be manipulated by trajectory content and must not be used as
+// authorization or security decisions.
+//
+// RPC method: taskAnalytics.classifyTrajectory.
+//
+// Parameters: Retrospectively classify a recorded Copilot or ATIF trajectory without a
+// conversation session. Explicitly requests model processing through the connection's
+// GitHub CAPI credentials, independently of background telemetry consent, not through BYOK
+// endpoints. Callers must be authorized to send the supplied content for analysis. Does not
+// execute archived tools, append conversation history, or emit classification telemetry.
+//
+// Returns: Categorical retrospective measurements of the supplied trajectory, not
+// verification that its claims are true. Model-derived classifications can be inaccurate or
+// manipulated by adversarial content. Treat them as untrusted measurements; independently
+// validate results used for consequential decisions and never use them as authorization or
+// security decisions.
+func (a *ServerTaskAnalyticsAPI) ClassifyTrajectory(ctx context.Context, params *TaskAnalyticsClassifyTrajectoryRequest) (*TaskAnalyticsClassifyTrajectoryResult, error) {
+	raw, err := a.client.Request(ctx, "taskAnalytics.classifyTrajectory", params)
+	if err != nil {
+		return nil, err
+	}
+	var result TaskAnalyticsClassifyTrajectoryResult
+	if err := json.Unmarshal(raw, &result); err != nil {
+		return nil, err
+	}
+	return &result, nil
+}
+
 // Experimental: ServerToolsAPI contains experimental APIs that may change or be removed.
 type ServerToolsAPI serverAPI
 
@@ -42932,6 +43204,7 @@ type ServerRPC struct {
 	SessionFS        *ServerSessionFSAPI
 	Sessions         *ServerSessionsAPI
 	Skills           *ServerSkillsAPI
+	TaskAnalytics    *ServerTaskAnalyticsAPI
 	Tools            *ServerToolsAPI
 	User             *ServerUserAPI
 }
@@ -43008,6 +43281,7 @@ func NewServerRPC(client *jsonrpc2.Client) *ServerRPC {
 	r.SessionFS = (*ServerSessionFSAPI)(&r.common)
 	r.Sessions = (*ServerSessionsAPI)(&r.common)
 	r.Skills = (*ServerSkillsAPI)(&r.common)
+	r.TaskAnalytics = (*ServerTaskAnalyticsAPI)(&r.common)
 	r.Tools = (*ServerToolsAPI)(&r.common)
 	r.User = (*ServerUserAPI)(&r.common)
 	return r
@@ -49734,6 +50008,27 @@ func (a *MCPAPI) ExecuteSampling(ctx context.Context, params *MCPExecuteSampling
 		return nil, err
 	}
 	var result MCPSamplingExecutionResult
+	if err := json.Unmarshal(raw, &result); err != nil {
+		return nil, err
+	}
+	return &result, nil
+}
+
+// GetToolTokenBreakdown reports how many context tokens each MCP server's tool definitions
+// cost, per server and per tool, for the session's current tool set. Costs are counted with
+// the session's selected model, or with the runtime's default context model when no model
+// has been selected.
+//
+// RPC method: session.mcp.getToolTokenBreakdown.
+//
+// Returns: Per-server MCP tool definition token costs.
+func (a *MCPAPI) GetToolTokenBreakdown(ctx context.Context) (*MCPToolTokenBreakdownResult, error) {
+	req := map[string]any{"sessionId": a.sessionID}
+	raw, err := a.client.Request(ctx, "session.mcp.getToolTokenBreakdown", req)
+	if err != nil {
+		return nil, err
+	}
+	var result MCPToolTokenBreakdownResult
 	if err := json.Unmarshal(raw, &result); err != nil {
 		return nil, err
 	}

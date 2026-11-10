@@ -24,6 +24,8 @@ import javax.annotation.processing.Generated;
 @JsonInclude(JsonInclude.Include.NON_NULL)
 @JsonIgnoreProperties(ignoreUnknown = true)
 record SessionsGetMetadataParams(
+    /** When true, read only journal file metadata. Omit summary, workspace context, and detached status without reading journal contents. Defaults to false. */
+    @JsonProperty("fileMetadataOnly") Boolean fileMetadataOnly,
     /** Session ID to inspect */
     @JsonProperty("sessionId") String sessionId
 ) {
@@ -48,7 +50,19 @@ record SessionsGetMetadataParams(
      */
     public static final class Builder {
         private Builder() {}
+        private Boolean fileMetadataOnly;
         private String sessionId;
+
+        /**
+         * Sets the {@code fileMetadataOnly} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder fileMetadataOnly(Boolean value) {
+            this.fileMetadataOnly = value;
+            return this;
+        }
 
         /**
          * Sets the {@code sessionId} property.
@@ -69,7 +83,7 @@ record SessionsGetMetadataParams(
          */
         public SessionsGetMetadataParams build() {
             if (sessionId == null) throw new IllegalStateException("Missing required property: sessionId");
-            return new SessionsGetMetadataParams(sessionId);
+            return new SessionsGetMetadataParams(fileMetadataOnly, sessionId);
         }
     }
 }

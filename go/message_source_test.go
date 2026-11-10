@@ -33,6 +33,7 @@ func messageSourceTestCases() []struct {
 		{name: "empty agent id", value: MessageSourceAgent(""), wire: "agent-"},
 		{name: "opaque agent id", value: MessageSourceAgent(" Agent/É "), wire: "agent- Agent/É "},
 		{name: "prefixed agent id", value: MessageSourceAgent("agent-reviewer"), wire: "agent-agent-reviewer"},
+		{name: "automation", value: MessageSourceAutomation("merge-check"), wire: "automation-merge-check"},
 	}
 }
 

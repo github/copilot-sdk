@@ -65,7 +65,7 @@ their dependencies from the SDK tree. In the runtime repository, prefer
 `npm --prefix <SDK_ROOT> run test:java`; it refreshes the selected schemas and
 Java projection and requests a current host CLI before running the tests.
 Direct Maven commands bypass those prerequisites and are appropriate after
-preparing the checkout, or in the standalone SDK repository.
+preparing the checkout.
 
 ```bash
 ./mvnw clean verify
@@ -91,8 +91,7 @@ JDK 17 without recompiling it, following
 
 Do not edit `sdk/src/generated/java/` by hand. Update the generator in
 `scripts/codegen/java.ts` when needed. From `<SDK_ROOT>`, regenerate with the
-SDK facade so the runtime layout selects checked-out schemas and the standalone
-layout selects its pinned release schemas:
+SDK facade to select checked-out runtime schemas:
 
 ```bash
 npm run generate:java

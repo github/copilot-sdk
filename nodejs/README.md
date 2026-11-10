@@ -549,7 +549,7 @@ Send a message to the session. Returns immediately after the message is queued; 
 **Options:**
 
 - `prompt: string` - The message/prompt to send
-- `source?: MessageSource` - `"user"`, `"system"`, or `` `agent-${string}` `` provenance; omitted by default
+- `source?: MessageSource` - `"user"`, `"system"`, `` `agent-${string}` ``, or `` `automation-${string}` `` provenance; omitted by default. An automation turn defines the session's task like a user message but carries no human authority; see [Message provenance](../docs/features/steering-and-queueing.md#message-provenance).
 - `attachments?: Array<{type, path, displayName}>` - File attachments
 - `mode?: "enqueue" | "immediate"` - Delivery mode
 - `clientTurnId?: string` - Opaque turn ID the runtime adds to MCP `tools/call` requests in this turn as `_meta["com.github.copilot/turnId"]` and echoes on this message's `user.message` event as `clientTurnId` (see [Tool call and turn IDs in `_meta`](../docs/hooks/pre-mcp-tool-call.md#tool-call-and-turn-ids-in-_meta))

@@ -407,6 +407,10 @@ func TestCompletionCancellationUsesTheWrittenRequestID(t *testing.T) {
 	testCancellationUsesTheWrittenRequestID(t, "session.sendAndWait", nil)
 }
 
+func TestTrajectoryCancellationUsesTheWrittenRequestID(t *testing.T) {
+	testCancellationUsesTheWrittenRequestID(t, "taskAnalytics.classifyTrajectory", nil)
+}
+
 func TestLocalModelWatchCancellationUsesTheWrittenRequestID(t *testing.T) {
 	testCancellationUsesTheWrittenRequestID(t, "localModels.watch", map[string]int{"afterRevision": 1})
 }
