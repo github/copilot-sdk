@@ -6,6 +6,8 @@ package com.github.copilot.rpc;
 
 import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.annotation.JsonProperty;
+import com.github.copilot.CopilotExperimental;
+import com.github.copilot.generated.rpc.FusionTier;
 
 /**
  * Provider-scoped session options for the Copilot API (CAPI) provider.
@@ -32,6 +34,9 @@ public class CapiSessionOptions {
     @JsonProperty("autoTier")
     private AutoTier autoTier;
 
+    @JsonProperty("fusionTier")
+    private FusionTier fusionTier;
+
     @JsonProperty("enableWebSocketResponses")
     private Boolean enableWebSocketResponses;
 
@@ -54,6 +59,10 @@ public class CapiSessionOptions {
      * tier on cold resume. On resident resume, a different tier requests a safe
      * switch that the runtime applies after the resume succeeds; it cannot change a
      * turn that is already in flight.
+     * <p>
+     * For Copilot Fusion, prefer {@link #setFusionTier(FusionTier)}. The
+     * {@code balance}, {@code hydrafusion} and {@code hydrafusion-max} identifiers
+     * it replaces remain accepted but are deprecated.
      *
      * @param autoTier
      *            the routing tier, or {@code null} to omit it from the request
@@ -71,6 +80,39 @@ public class CapiSessionOptions {
      *         explicitly use WebSocket transport, or {@code null} to use the
      *         default behavior
      */
+    /**
+     * Gets the Copilot Fusion tier.
+     *
+     * @return the Fusion tier, or {@code null} when none was requested
+     */
+    @CopilotExperimental
+    public FusionTier getFusionTier() {
+        return fusionTier;
+    }
+
+    /**
+     * Sets the Copilot Fusion tier for the {@code fusion} or {@code auto} model,
+     * matching the CLI's {@code --fusion-tier}.
+     * <p>
+     * The runtime resolves the tier to the Auto routing preference it stands for
+     * and then applies it exactly like {@link #setAutoTier(AutoTier)}, so
+     * {@code session.model.getCurrent} and {@code session.model_change} events
+     * report that preference as {@code autoTier}; {@code session.model.getCurrent}
+     * also reports the resolved tier as {@code fusionTier} once the session's Auto
+     * tier metadata is known. It cannot be combined with an Auto tier. To change
+     * the tier on a live session, use
+     * {@link com.github.copilot.CopilotSession#setFusionTier(FusionTier)}.
+     *
+     * @param fusionTier
+     *            the Fusion tier, or {@code null} to omit it from the request
+     * @return this config for method chaining
+     */
+    @CopilotExperimental
+    public CapiSessionOptions setFusionTier(FusionTier fusionTier) {
+        this.fusionTier = fusionTier;
+        return this;
+    }
+
     public Boolean getEnableWebSocketResponses() {
         return enableWebSocketResponses;
     }

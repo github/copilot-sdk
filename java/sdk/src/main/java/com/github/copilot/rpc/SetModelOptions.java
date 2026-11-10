@@ -5,6 +5,7 @@
 package com.github.copilot.rpc;
 
 import com.github.copilot.CopilotExperimental;
+import com.github.copilot.generated.rpc.FusionTier;
 
 /**
  * Optional settings for a model switch.
@@ -34,6 +35,8 @@ public class SetModelOptions {
     private AutoTier autoTier;
 
     private boolean resetAutoTier;
+
+    private FusionTier fusionTier;
 
     /**
      * Gets the target model ID.
@@ -151,6 +154,10 @@ public class SetModelOptions {
      * using the {@code auto} model successfully obtains a usable model from the
      * provider. Use {@link #setResetAutoTier(boolean)} to return to the provider's
      * default Auto routing instead.
+     * <p>
+     * For Copilot Fusion, prefer {@link #setFusionTier(FusionTier)}. The
+     * {@code balance}, {@code hydrafusion} and {@code hydrafusion-max} identifiers
+     * it replaces remain accepted but are deprecated.
      *
      * @param autoTier
      *            the routing preference to request; {@code null} to leave the
@@ -186,6 +193,35 @@ public class SetModelOptions {
     @CopilotExperimental
     public SetModelOptions setResetAutoTier(boolean resetAutoTier) {
         this.resetAutoTier = resetAutoTier;
+        return this;
+    }
+
+    /**
+     * Gets the requested Copilot Fusion tier.
+     *
+     * @return the requested Fusion tier, or {@code null} when none was requested
+     */
+    @CopilotExperimental
+    public FusionTier getFusionTier() {
+        return fusionTier;
+    }
+
+    /**
+     * Requests a Copilot Fusion tier alongside switching to the {@code fusion} or
+     * {@code auto} model, matching the CLI's {@code --fusion-tier}.
+     * <p>
+     * The runtime resolves the tier to the Auto routing preference it stands for
+     * and stages it exactly like {@link #setAutoTier(AutoTier)}. It cannot be
+     * combined with an explicit Auto tier or {@link #setResetAutoTier(boolean)}.
+     *
+     * @param fusionTier
+     *            the Fusion tier to request; {@code null} to leave the current
+     *            preference unchanged
+     * @return this options object for method chaining
+     */
+    @CopilotExperimental
+    public SetModelOptions setFusionTier(FusionTier fusionTier) {
+        this.fusionTier = fusionTier;
         return this;
     }
 }

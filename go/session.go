@@ -2956,6 +2956,9 @@ type SetModelOptions struct {
 	// "auto". Use [Session.SetAutoTier] to change the preference without
 	// changing the selected model.
 	//
+	// For Copilot Fusion, prefer FusionTier. The balance, hydrafusion and
+	// hydrafusion-max identifiers it replaces remain accepted but are deprecated.
+	//
 	// Experimental: AutoTier is part of an experimental Auto routing surface and
 	// may change or be removed.
 	AutoTier *AutoTier
@@ -2965,6 +2968,16 @@ type SetModelOptions struct {
 	// Experimental: ResetAutoTier is part of an experimental Auto routing surface
 	// and may change or be removed.
 	ResetAutoTier bool
+	// FusionTier stages a Copilot Fusion tier atomically with selecting the
+	// "fusion" or "auto" model, matching the CLI's --fusion-tier. The runtime
+	// resolves the tier to the Auto routing preference it stands for and stages
+	// it exactly like AutoTier. It is mutually exclusive with AutoTier and
+	// ResetAutoTier. Use [Session.SetFusionTier] to change the tier without
+	// changing the selected model.
+	//
+	// Experimental: FusionTier is part of an experimental Auto routing surface
+	// and may change or be removed.
+	FusionTier *FusionTier
 }
 
 // SetModel changes the model for this session.
@@ -2978,12 +2991,20 @@ type SetModelOptions struct {
 //	if err := session.SetModel(context.Background(), "claude-sonnet-4.6", &SetModelOptions{ReasoningEffort: new("high")}); err != nil {
 //	    log.Printf("Failed to set model: %v", err)
 //	}
+//	// Like `copilot --model fusion --fusion-tier high`.
+//	if err := session.SetModel(context.Background(), "fusion", &SetModelOptions{FusionTier: new(FusionTierHigh)}); err != nil {
+//	    log.Printf("Failed to set model: %v", err)
+//	}
 func (s *Session) SetModel(ctx context.Context, model string, opts *SetModelOptions) error {
 	params := &rpc.ModelSwitchToRequest{ModelID: model}
 	if opts != nil {
 		if opts.AutoTier != nil && opts.ResetAutoTier {
 			return errors.New("failed to set model: AutoTier and ResetAutoTier are mutually exclusive")
 		}
+		if opts.FusionTier != nil && (opts.AutoTier != nil || opts.ResetAutoTier) {
+			return errors.New("failed to set model: FusionTier cannot be combined with AutoTier or ResetAutoTier")
+		}
+		params.FusionTier = opts.FusionTier
 		params.ReasoningEffort = opts.ReasoningEffort
 		params.ReasoningSummary = opts.ReasoningSummary
 		params.ContextTier = opts.ContextTier
@@ -3150,6 +3171,9 @@ func (s *Session) SetTools(ctx context.Context, tools []Tool) error {
 //
 // Pass nil to return to the provider's default Auto routing.
 //
+// For Copilot Fusion, prefer [Session.SetFusionTier]. The balance, hydrafusion and
+// hydrafusion-max identifiers it replaces remain accepted but are deprecated.
+//
 // Experimental: SetAutoTier is part of an experimental Auto routing surface and
 // may change or be removed.
 //
@@ -3164,6 +3188,32 @@ func (s *Session) SetAutoTier(ctx context.Context, autoTier *AutoTier) (*rpc.Mod
 	result, err := s.RPC.Model.SwitchAutoTier(ctx, &rpc.ModelSwitchAutoTierRequest{AutoTier: autoTier})
 	if err != nil {
 		return nil, fmt.Errorf("failed to set auto tier: %w", err)
+	}
+
+	return result, nil
+}
+
+// SetFusionTier changes the Copilot Fusion tier without changing the selected model,
+// naming the tier as the CLI's --fusion-tier does.
+//
+// The runtime resolves the tier to the Auto routing preference it stands for and then
+// handles the request exactly like [Session.SetAutoTier]: it takes effect on a later
+// user turn that uses the "fusion" or "auto" model. To return to the provider's default
+// routing, call SetAutoTier with nil.
+//
+// Experimental: SetFusionTier is part of an experimental Auto routing surface and
+// may change or be removed.
+//
+// Example:
+//
+//	result, err := session.SetFusionTier(context.Background(), copilot.FusionTierMax)
+//	if err != nil {
+//	    log.Printf("Failed to set Fusion tier: %v", err)
+//	}
+func (s *Session) SetFusionTier(ctx context.Context, fusionTier FusionTier) (*rpc.ModelSwitchAutoTierResult, error) {
+	result, err := s.RPC.Model.SwitchFusionTier(ctx, &rpc.ModelSwitchFusionTierRequest{FusionTier: fusionTier})
+	if err != nil {
+		return nil, fmt.Errorf("failed to set Fusion tier: %w", err)
 	}
 
 	return result, nil

@@ -16894,6 +16894,40 @@ impl<'a> SessionRpcModel<'a> {
             .await
     }
 
+    /// Requests a Copilot Fusion tier without changing the session's selected model, naming the tier as the CLI's `--fusion-tier` does. The runtime resolves the tier to the Auto routing preference it stands for and then behaves exactly like `switchAutoTier`: the latest unclaimed request wins, and the runtime commits it only after a later prompt using the `auto` model mints a usable model and token pair.
+    ///
+    /// Wire method: `session.model.switchFusionTier`.
+    ///
+    /// # Parameters
+    ///
+    /// * `params` - A Copilot Fusion tier request for the session, named as the CLI's `--fusion-tier` names it. The runtime resolves the tier to the Auto routing preference it stands for and requests that preference exactly as `switchAutoTier` does. This updates Auto configuration only; it does not change the selected model to `auto`.
+    ///
+    /// # Returns
+    ///
+    /// Immediate acknowledgement and Auto preference snapshot after a switch request. This result never implies that a pending preference committed.
+    ///
+    /// <div class="warning">
+    ///
+    /// **Experimental.** This API is part of an experimental wire-protocol surface
+    /// and may change or be removed in future SDK or CLI releases. Pin both the
+    /// SDK and CLI versions if your code depends on it.
+    ///
+    /// </div>
+    pub async fn switch_fusion_tier(
+        &self,
+        params: ModelSwitchFusionTierRequest,
+    ) -> Result<ModelSwitchAutoTierResult, Error> {
+        let mut wire_params = serde_json::to_value(params)?;
+        wire_params["sessionId"] = serde_json::Value::String(self.session.id().to_string());
+        self.session
+            .client()
+            .call_typed(
+                rpc_methods::SESSION_MODEL_SWITCHFUSIONTIER,
+                Some(wire_params),
+            )
+            .await
+    }
+
     /// Resolves and applies organization-managed and repository model overlays.
     ///
     /// Wire method: `session.model.applyStartupOverlay`.

@@ -29,6 +29,7 @@ import type { CopilotSession } from "./session.js";
 import type { JsonValue } from "./workflow.js";
 import type {
     ExtensionLaunchProviderHandler as GeneratedExtensionLaunchProvider,
+    FusionTier,
     AutopilotOptions,
     GitHubTokenAcquireRequest,
     GitHubTokenAcquireResult,
@@ -158,6 +159,7 @@ export type SessionEvent =
 export type { AutoTier, ReasoningSummary } from "./generated/session-events.js";
 export type {
     CurrentModel,
+    FusionTier,
     ModelSwitchAutoTierResult,
     ModelSwitchAutoTierStatus,
 } from "./generated/rpc.js";
@@ -2705,8 +2707,32 @@ export interface CapiSessionOptions {
      *
      * To change the preference on a live session, call
      * {@link CopilotSession.setAutoTier} instead.
+     *
+     * For Copilot Fusion, prefer {@link fusionTier}. The `balance`,
+     * `hydrafusion` and `hydrafusion-max` identifiers it replaces remain
+     * accepted but are deprecated.
      */
     autoTier?: AutoTier;
+
+    /**
+     * Copilot Fusion tier used when the session model is `fusion` or `auto`,
+     * matching the CLI's `--fusion-tier`: `standard`, `high` or `max`.
+     *
+     * The runtime resolves the tier to the Auto routing preference it stands
+     * for, using the same runtime-owned bindings as the CLI, and then applies it
+     * exactly like {@link autoTier}, so `session.rpc.model.getCurrent()` and
+     * `session.model_change` events report that preference as `autoTier`;
+     * `getCurrent()` also reports the resolved tier as `fusionTier` once the
+     * session's Auto tier metadata is known.
+     * Cannot be combined with {@link autoTier}.
+     *
+     * To change the tier on a live session, call
+     * {@link CopilotSession.setFusionTier} instead.
+     *
+     * @experimental Part of an experimental Auto routing surface and may
+     * change or be removed in a future release.
+     */
+    fusionTier?: FusionTier;
 
     /**
      * Whether to use the WebSocket transport for the CAPI Responses API.

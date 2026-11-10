@@ -3172,6 +3172,22 @@ const (
 	AutoTierFast = rpc.AutoTierFast
 )
 
+// FusionTier selects a Copilot Fusion tier, matching the CLI's --fusion-tier.
+// The runtime resolves each tier to the Auto routing preference it stands for.
+//
+// Experimental: FusionTier is part of an experimental Auto routing surface and
+// may change or be removed.
+type FusionTier = rpc.FusionTier
+
+const (
+	// FusionTierStandard selects Copilot Fusion Standard.
+	FusionTierStandard = rpc.FusionTierStandard
+	// FusionTierHigh selects Copilot Fusion High.
+	FusionTierHigh = rpc.FusionTierHigh
+	// FusionTierMax selects Copilot Fusion Max.
+	FusionTierMax = rpc.FusionTierMax
+)
+
 // CapiSessionOptions configures provider-scoped Copilot API (CAPI) session behavior.
 //
 // WebSocket transport is the default for the CAPI Responses API whenever the
@@ -3195,7 +3211,22 @@ type CapiSessionOptions struct {
 	// disturbs a turn that is already running.
 	//
 	// To change the preference on a live session, use [Session.SetAutoTier].
+	//
+	// For Copilot Fusion, prefer FusionTier. The balance, hydrafusion and
+	// hydrafusion-max identifiers it replaces remain accepted but are deprecated.
 	AutoTier AutoTier `json:"autoTier,omitempty"`
+
+	// FusionTier selects the Copilot Fusion tier for model "fusion" or "auto",
+	// matching the CLI's --fusion-tier. The runtime resolves the tier to the Auto
+	// routing preference it stands for and then applies it exactly like AutoTier,
+	// so session.RPC.Model.GetCurrent and session.model_change events report that
+	// preference as AutoTier. It cannot be combined with AutoTier.
+	//
+	// To change the tier on a live session, use [Session.SetFusionTier].
+	//
+	// Experimental: FusionTier is part of an experimental Auto routing surface
+	// and may change or be removed.
+	FusionTier FusionTier `json:"fusionTier,omitempty"`
 }
 
 // AzureProviderOptions contains Azure-specific provider configuration

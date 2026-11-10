@@ -86,6 +86,9 @@ pub use crate::copilot_request_handler::{
 pub use crate::copilot_request_handler::{
     CopilotWebSocketForwarder, CopilotWebSocketForwarderBuilder, forward_http,
 };
+/// Copilot Fusion tier, matching the CLI's `--fusion-tier`. The runtime
+/// resolves each tier to the Auto routing preference it stands for.
+pub use crate::generated::api_types::FusionTier;
 /// Outcome of an initial permission mode requested at create or resume.
 pub use crate::generated::api_types::PermissionsSetModeResult;
 pub use crate::generated::api_types::{
@@ -1757,8 +1760,28 @@ pub struct CapiSessionOptions {
     ///
     /// To change the preference on a live session, use
     /// [`Session::set_auto_tier`](crate::session::Session::set_auto_tier).
+    ///
+    /// For Copilot Fusion, prefer [`fusion_tier`](Self::fusion_tier). The
+    /// `balance`, `hydrafusion` and `hydrafusion-max` identifiers it replaces
+    /// remain accepted but are deprecated.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub auto_tier: Option<AutoTier>,
+
+    /// Copilot Fusion tier for model `fusion` or `auto`, matching the CLI's
+    /// `--fusion-tier`.
+    ///
+    /// The runtime resolves the tier to the Auto routing preference it stands
+    /// for and then applies it exactly like [`auto_tier`](Self::auto_tier), so
+    /// `session.model.getCurrent` and `session.model_change` events report that
+    /// preference as `autoTier`. Cannot be combined with `auto_tier`.
+    ///
+    /// To change the tier on a live session, use
+    /// [`Session::set_fusion_tier`](crate::session::Session::set_fusion_tier).
+    ///
+    /// **Experimental.** Part of an experimental Auto routing surface and may
+    /// change or be removed in a future release.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub fusion_tier: Option<FusionTier>,
 
     /// Whether to use WebSocket transport for CAPI Responses API calls.
     ///
@@ -1778,6 +1801,12 @@ impl CapiSessionOptions {
     /// Set the routing tier for the `auto` model (Auto mode V2).
     pub fn with_auto_tier(mut self, auto_tier: AutoTier) -> Self {
         self.auto_tier = Some(auto_tier);
+        self
+    }
+
+    /// Set the Copilot Fusion tier for the `fusion` or `auto` model.
+    pub fn with_fusion_tier(mut self, fusion_tier: FusionTier) -> Self {
+        self.fusion_tier = Some(fusion_tier);
         self
     }
 
@@ -5992,6 +6021,10 @@ pub struct SetModelOptions {
     /// rejects this option when the model is anything other than `auto`; use
     /// [`Session::set_auto_tier`](crate::session::Session::set_auto_tier) to
     /// change the preference without changing the selected model.
+    ///
+    /// For Copilot Fusion, prefer [`AutoTierPreference::Fusion`]. The
+    /// `balance`, `hydrafusion` and `hydrafusion-max` identifiers it replaces
+    /// remain accepted but are deprecated.
     pub auto_tier: Option<AutoTierPreference>,
 }
 
@@ -6003,12 +6036,20 @@ pub struct SetModelOptions {
 /// This is a three-state choice. Leaving [`SetModelOptions::auto_tier`] as
 /// `None` leaves the current preference alone, which is different from
 /// [`AutoTierPreference::Reset`], which actively resets it.
+///
+/// New ways to choose a preference can be added as variants, so a `match` on
+/// this enum needs a wildcard arm.
 #[derive(Debug, Clone, PartialEq, Eq)]
+#[non_exhaustive]
 pub enum AutoTierPreference {
     /// Route using a specific tier.
     Tier(AutoTier),
     /// Return to the provider's default Auto routing.
     Reset,
+    /// Route using a Copilot Fusion tier, matching the CLI's `--fusion-tier`.
+    /// Valid when the model is `fusion` or `auto`; the runtime resolves the
+    /// tier to the Auto routing preference it stands for.
+    Fusion(FusionTier),
 }
 
 impl SetModelOptions {
@@ -6049,6 +6090,13 @@ impl SetModelOptions {
     /// Auto routing.
     pub fn with_reset_auto_tier(mut self) -> Self {
         self.auto_tier = Some(AutoTierPreference::Reset);
+        self
+    }
+
+    /// Set [`auto_tier`](Self::auto_tier) to a Copilot Fusion tier, matching
+    /// the CLI's `--fusion-tier`.
+    pub fn with_fusion_tier(mut self, tier: FusionTier) -> Self {
+        self.auto_tier = Some(AutoTierPreference::Fusion(tier));
         self
     }
 }

@@ -3071,7 +3071,9 @@ type CapiSessionOptions struct {
 	// different value requests a safe switch after resume succeeds and cannot change an
 	// in-flight turn. Successful switches are persisted for later cold resume. When no
 	// preference is supplied or restored, CAPI default routing is used. `fast` is an
-	// integrator-only latency preset, not a first-party GitHub Copilot product preference.
+	// integrator-only latency preset, not a first-party GitHub Copilot product preference. For
+	// Copilot Fusion, prefer `fusionTier`: the `balance`, `hydrafusion` and `hydrafusion-max`
+	// identifiers it replaces remain accepted but are deprecated.
 	AutoTier *AutoTier `json:"autoTier,omitempty"`
 	// Whether to use WebSocket transport for the CAPI Responses API. Enabled by default when
 	// the model advertises `ws:/responses` support; set to `false` to force the HTTP Responses
@@ -3079,6 +3081,13 @@ type CapiSessionOptions struct {
 	// this to `false` is equivalent to the `COPILOT_CLI_DISABLE_WEBSOCKET_RESPONSES`
 	// environment variable.
 	EnableWebSocketResponses *bool `json:"enableWebSocketResponses,omitempty"`
+	// Copilot Fusion tier for sessions whose model is `fusion` or `auto`, matching the CLI's
+	// `--fusion-tier`. The runtime resolves the tier to the routing preference it stands for
+	// and then applies it exactly like `autoTier`, so `session.model.getCurrent` and
+	// `session.model_change` report that preference as `autoTier`; `session.model.getCurrent`
+	// also reports the resolved tier as `fusionTier` once the session's Auto tier metadata is
+	// known. Cannot be combined with `autoTier`.
+	FusionTier *FusionTier `json:"fusionTier,omitempty"`
 }
 
 // Semantic digest of a strictly parsed and schema-validated JSON MCP card. Both URL-backed
@@ -17403,6 +17412,8 @@ type ModelStartupAdmissionResult struct {
 type ModelSwitchAutoTierRequest struct {
 	// Auto preference to activate when a future user turn using the `auto` model safely mints a
 	// replacement model and token pair. Pass null to return to provider-default Auto routing.
+	// For Copilot Fusion, prefer `fusionTier`: the `balance`, `hydrafusion` and
+	// `hydrafusion-max` identifiers it replaces remain accepted but are deprecated.
 	AutoTier *AutoTier `json:"autoTier"`
 	// Origin to record on the effective `session.model_change` event. Defaults to `sdk` when
 	// omitted.
@@ -17457,6 +17468,22 @@ type ModelSwitchConfirmation struct {
 	TargetModelDisplayName string `json:"targetModelDisplayName"`
 }
 
+// A Copilot Fusion tier request for the session, named as the CLI's `--fusion-tier` names
+// it. The runtime resolves the tier to the Auto routing preference it stands for and
+// requests that preference exactly as `switchAutoTier` does. This updates Auto
+// configuration only; it does not change the selected model to `auto`.
+// Experimental: ModelSwitchFusionTierRequest is part of an experimental API and may change
+// or be removed.
+type ModelSwitchFusionTierRequest struct {
+	// Copilot Fusion tier to activate when a future user turn using the `auto` model safely
+	// mints a replacement model and token pair. Use `switchAutoTier` to return to
+	// provider-default Auto routing.
+	FusionTier FusionTier `json:"fusionTier"`
+	// Origin to record on the effective `session.model_change` event. Defaults to `sdk` when
+	// omitted.
+	Source *ModelChangeSource `json:"source,omitempty"`
+}
+
 // Target model identifier and optional reasoning effort, summary, capability overrides, and
 // context tier.
 // Experimental: ModelSwitchToRequest is part of an experimental API and may change or be
@@ -17464,7 +17491,8 @@ type ModelSwitchConfirmation struct {
 type ModelSwitchToRequest struct {
 	// Optional Auto routing preference to stage atomically with selecting `auto`. Pass null to
 	// return to provider-default Auto routing. This field is rejected when `modelId` is not
-	// `auto`.
+	// `auto`. For Copilot Fusion, prefer `fusionTier`: the `balance`, `hydrafusion` and
+	// `hydrafusion-max` identifiers it replaces remain accepted but are deprecated.
 	AutoTier **AutoTier `json:"autoTier,omitempty"`
 	// Explicit response to a model-switch compaction preflight. Omit to request a confirmation
 	// projection when compaction is necessary.
@@ -17478,6 +17506,11 @@ type ModelSwitchToRequest struct {
 	// switches omit it and apply immediately when no turn is active. When no other model change
 	// is queued this has no effect (a switch still applies immediately unless a turn is active).
 	DeferIfModelChangeQueued *bool `json:"deferIfModelChangeQueued,omitempty"`
+	// Optional Copilot Fusion tier to stage atomically with selecting `fusion` or `auto`,
+	// matching the CLI's `--fusion-tier`. The runtime resolves it to the Auto routing
+	// preference it stands for and stages that preference exactly like `autoTier`. Cannot be
+	// combined with `autoTier`, and is rejected when `modelId` is not `fusion` or `auto`.
+	FusionTier *FusionTier `json:"fusionTier,omitempty"`
 	// Override individual model capabilities resolved by the runtime
 	ModelCapabilities *ModelCapabilitiesOverride `json:"modelCapabilities,omitempty"`
 	// Settings scope used when persisting the selected model.
@@ -34947,6 +34980,23 @@ const (
 	FeatureFlagAvailabilityTeam FeatureFlagAvailability = "team"
 )
 
+// Copilot Fusion tier, matching the CLI's `--fusion-tier`. The runtime resolves each tier
+// to the Auto routing preference it stands for, using the same runtime-owned bindings as
+// the CLI; reads report that preference as `autoTier`, and `session.model.getCurrent` and
+// Auto switch results also report the resolved tier once the session's Auto tier metadata
+// is known.
+// Experimental: FusionTier is part of an experimental API and may change or be removed.
+type FusionTier string
+
+const (
+	// Copilot Fusion High.
+	FusionTierHigh FusionTier = "high"
+	// Copilot Fusion Max, which prioritizes quality.
+	FusionTierMax FusionTier = "max"
+	// Copilot Fusion Standard, which balances capability, speed, and cost.
+	FusionTierStandard FusionTier = "standard"
+)
+
 // Why a branch pull-request lookup reported what it did. The three unsuccessful outcomes
 // are kept apart because each one asks the caller for something different.
 // Experimental: GitHubBranchPullRequestLookupStatus is part of an experimental API and may
@@ -51538,6 +51588,40 @@ func (a *ModelAPI) SwitchAutoTier(ctx context.Context, params *ModelSwitchAutoTi
 	return &result, nil
 }
 
+// SwitchFusionTier requests a Copilot Fusion tier without changing the session's selected
+// model, naming the tier as the CLI's `--fusion-tier` does. The runtime resolves the tier
+// to the Auto routing preference it stands for and then behaves exactly like
+// `switchAutoTier`: the latest unclaimed request wins, and the runtime commits it only
+// after a later prompt using the `auto` model mints a usable model and token pair.
+//
+// RPC method: session.model.switchFusionTier.
+//
+// Parameters: A Copilot Fusion tier request for the session, named as the CLI's
+// `--fusion-tier` names it. The runtime resolves the tier to the Auto routing preference it
+// stands for and requests that preference exactly as `switchAutoTier` does. This updates
+// Auto configuration only; it does not change the selected model to `auto`.
+//
+// Returns: Immediate acknowledgement and Auto preference snapshot after a switch request.
+// This result never implies that a pending preference committed.
+func (a *ModelAPI) SwitchFusionTier(ctx context.Context, params *ModelSwitchFusionTierRequest) (*ModelSwitchAutoTierResult, error) {
+	req := map[string]any{"sessionId": a.sessionID}
+	if params != nil {
+		req["fusionTier"] = params.FusionTier
+		if params.Source != nil {
+			req["source"] = *params.Source
+		}
+	}
+	raw, err := a.client.Request(ctx, "session.model.switchFusionTier", req)
+	if err != nil {
+		return nil, err
+	}
+	var result ModelSwitchAutoTierResult
+	if err := json.Unmarshal(raw, &result); err != nil {
+		return nil, err
+	}
+	return &result, nil
+}
+
 // SwitchTo switches the session to a model and optional reasoning configuration.
 //
 // RPC method: session.model.switchTo.
@@ -51560,6 +51644,9 @@ func (a *ModelAPI) SwitchTo(ctx context.Context, params *ModelSwitchToRequest) (
 		}
 		if params.DeferIfModelChangeQueued != nil {
 			req["deferIfModelChangeQueued"] = *params.DeferIfModelChangeQueued
+		}
+		if params.FusionTier != nil {
+			req["fusionTier"] = *params.FusionTier
 		}
 		if params.ModelCapabilities != nil {
 			req["modelCapabilities"] = *params.ModelCapabilities

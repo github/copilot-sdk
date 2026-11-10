@@ -58,6 +58,7 @@ from .generated.rpc import (
     MCPOauthPendingRequestResponse,
     MCPServerConfigDeferTools,
     ModelSwitchAutoTierResult,
+    ModelSwitchFusionTierRequest,
     ModelSwitchToRequest,
     PermissionDecision,
     PermissionDecisionApproveOnce,
@@ -87,6 +88,9 @@ from .generated.rpc import (
 )
 from .generated.rpc import (
     ContextTier as _RpcContextTier,
+)
+from .generated.rpc import (
+    FusionTier as _RpcFusionTier,
 )
 from .generated.rpc import ModelCapabilitiesOverride as _RpcModelCapabilitiesOverride
 from .generated.session_events import (
@@ -215,6 +219,7 @@ ReasoningEffort = str
 ReasoningSummary = Literal["none", "concise", "detailed"]
 ContextTier = Literal["default", "long_context"]
 AutoTier = str
+FusionTier = Literal["standard", "high", "max"]
 SessionFsConventions = Literal["posix", "windows"]
 
 
@@ -243,6 +248,11 @@ def _auto_tier_to_wire(auto_tier: AutoTier | _RpcAutoTier | None) -> str | None:
     if isinstance(auto_tier, Enum):
         return str(auto_tier.value)
     return auto_tier
+
+
+def _fusion_tier_to_rpc(fusion_tier: FusionTier | _RpcFusionTier) -> _RpcFusionTier:
+    """Accept either the ``FusionTier`` string literal or the generated enum."""
+    return fusion_tier if isinstance(fusion_tier, _RpcFusionTier) else _RpcFusionTier(fusion_tier)
 
 
 def _tool_to_wire_definition(tool: Tool) -> ProtocolExternalToolDefinition:
@@ -4570,6 +4580,7 @@ class CopilotSession:
         context_tier: ContextTier | None = None,
         model_capabilities: ModelCapabilitiesOverride | None = None,
         auto_tier: AutoTier | _RpcAutoTier | None | _Unset = _UNSET,
+        fusion_tier: FusionTier | _RpcFusionTier | None = None,
     ) -> None:
         """
         Change the model for this session.
@@ -4594,7 +4605,19 @@ class CopilotSession:
                 Omit the argument to leave the current preference alone. The
                 runtime rejects this option when ``model`` is anything other than
                 ``"auto"``; use :meth:`set_auto_tier` to change the preference
-                without changing the selected model.
+                without changing the selected model. For Copilot Fusion, prefer
+                ``fusion_tier``: the ``balance``, ``hydrafusion`` and
+                ``hydrafusion-max`` identifiers it replaces remain accepted but
+                are deprecated.
+            fusion_tier: **Experimental.** Part of an experimental Auto routing
+                surface and may change or be removed in a future release.
+                Copilot Fusion tier (``"standard"``, ``"high"`` or ``"max"``) to
+                apply when ``model`` is ``"fusion"`` or ``"auto"``, matching the
+                CLI's ``--fusion-tier``. The runtime resolves the tier to the Auto
+                routing preference it stands for and stages it exactly like
+                ``auto_tier``. Cannot be combined with ``auto_tier``; use
+                :meth:`set_fusion_tier` to change the tier without changing the
+                selected model.
 
         Raises:
             Exception: If the session has been destroyed or the connection fails.
@@ -4602,7 +4625,7 @@ class CopilotSession:
         Example:
             >>> await session.set_model("gpt-5.4")
             >>> await session.set_model("claude-sonnet-4.6", reasoning_effort="high")
-            >>> await session.set_model("auto", auto_tier="intelligence")
+            >>> await session.set_model("fusion", fusion_tier="high")
         """
         rpc_caps = None
         if model_capabilities is not None:
@@ -4617,6 +4640,7 @@ class CopilotSession:
             ),
             context_tier=(_RpcContextTier(context_tier) if context_tier is not None else None),
             model_capabilities=rpc_caps,
+            fusion_tier=(_fusion_tier_to_rpc(fusion_tier) if fusion_tier is not None else None),
         )
         if isinstance(auto_tier, _Unset):
             await self.rpc.model.switch_to(request)
@@ -4653,6 +4677,10 @@ class CopilotSession:
         Only the most recent request survives: issuing a new request replaces any
         earlier one that has not yet been claimed by a turn.
 
+        For Copilot Fusion, prefer :meth:`set_fusion_tier`. The ``balance``,
+        ``hydrafusion`` and ``hydrafusion-max`` identifiers it replaces remain
+        accepted but are deprecated.
+
         Args:
             auto_tier: Routing preference to activate, or ``None`` to return to
                 the provider's default Auto routing.
@@ -4676,6 +4704,40 @@ class CopilotSession:
                 "session.model.switchAutoTier",
                 {"sessionId": self.session_id, "autoTier": _auto_tier_to_wire(auto_tier)},
             )
+        )
+
+    async def set_fusion_tier(
+        self, fusion_tier: FusionTier | _RpcFusionTier
+    ) -> ModelSwitchAutoTierResult:
+        """
+        Change the Copilot Fusion tier without changing the selected model.
+
+        **Experimental.** Part of an experimental Auto routing surface and may
+        change or be removed in a future release.
+
+        Names the tier as the CLI's ``--fusion-tier`` does. The runtime resolves
+        the tier to the Auto routing preference it stands for and then handles the
+        request exactly like :meth:`set_auto_tier`: it takes effect on a later
+        user turn that uses the ``fusion`` or ``auto`` model. To return to the
+        provider's default routing, call ``set_auto_tier(None)``.
+
+        Args:
+            fusion_tier: Copilot Fusion tier to activate: ``"standard"``,
+                ``"high"`` or ``"max"``.
+
+        Returns:
+            The runtime's immediate acknowledgement and Auto preference snapshot.
+
+        Raises:
+            Exception: If the session has been destroyed or the connection fails.
+
+        Example:
+            >>> result = await session.set_fusion_tier("max")
+            >>> if result.status == ModelSwitchAutoTierStatus.PENDING:
+            ...     pass  # Takes effect on a later turn that uses Copilot Fusion.
+        """
+        return await self.rpc.model.switch_fusion_tier(
+            ModelSwitchFusionTierRequest(fusion_tier=_fusion_tier_to_rpc(fusion_tier))
         )
 
     async def log(

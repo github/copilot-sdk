@@ -282,6 +282,7 @@ export type {
     AutoTier,
     CapiSessionOptions,
     CurrentModel,
+    FusionTier,
     ModelSwitchAutoTierResult,
     ModelSwitchAutoTierStatus,
     ModelCapabilities,

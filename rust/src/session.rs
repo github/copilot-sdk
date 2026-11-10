@@ -16,9 +16,10 @@ use tracing::{Instrument, error, warn};
 
 use crate::canvas::CanvasHandler;
 use crate::generated::api_types::{
-    LogRequest, ModelSwitchAutoTierRequest, ModelSwitchAutoTierResult, ModelSwitchToRequest,
-    OpenCanvasInstance, PermissionDecisionRequest, RegisterEventInterestParams,
-    ToolsGetCurrentMetadataResult, rpc_methods,
+    LogRequest, ModelSwitchAutoTierRequest, ModelSwitchAutoTierResult,
+    ModelSwitchFusionTierRequest, ModelSwitchToOptions, OpenCanvasInstance,
+    PermissionDecisionRequest, RegisterEventInterestParams, ToolsGetCurrentMetadataResult,
+    rpc_methods,
 };
 use crate::generated::session_events::{
     CommandExecuteData, ElicitationRequestedData, ExternalToolRequestedData, McpOauthRequiredData,
@@ -41,7 +42,7 @@ use crate::trace_context::inject_trace_context;
 use crate::transforms::SystemMessageTransform;
 use crate::types::{
     AutoTier, AutoTierPreference, CommandContext, CommandDefinition, CommandHandler,
-    CreateSessionResult, ElicitationRequest, ElicitationResult, ExitPlanModeData,
+    CreateSessionResult, ElicitationRequest, ElicitationResult, ExitPlanModeData, FusionTier,
     GetMessagesResponse, MessageOptions, PermissionRequestData, PermissionsSetModeResult,
     RequestId, ResumeSessionConfig, ResumeSessionResult, SectionOverride, SessionCapabilities,
     SessionConfig, SessionEvent, SessionId, SetModelOptions, SystemMessageConfig, Tool,
@@ -1918,29 +1919,30 @@ impl Session {
     /// Pass `None` for `opts` if no extra configuration is needed.
     pub async fn set_model(&self, model: &str, opts: Option<SetModelOptions>) -> Result<(), Error> {
         let opts = opts.unwrap_or_default();
-        let auto_tier = opts.auto_tier.clone();
-        let request = ModelSwitchToRequest {
-            auto_tier: match &auto_tier {
-                Some(AutoTierPreference::Tier(tier)) => Some(tier.clone()),
-                _ => None,
-            },
-            compaction_decision: None,
-            context_tier: opts.context_tier,
-            defer_if_model_change_queued: None,
-            model_capabilities: opts.model_capabilities,
-            model_change_scope: None,
-            model_id: model.to_string(),
-            picker_persistence: None,
-            reasoning_effort: opts.reasoning_effort,
-            reasoning_summary: opts.reasoning_summary,
-            repo_scope: None,
-            require_available: None,
-            run_compaction_preflight: None,
-            source: None,
-            verbosity: None,
-        };
+        let mut request = ModelSwitchToOptions::new(model);
+        let mut reset_auto_tier = false;
+        match opts.auto_tier {
+            Some(AutoTierPreference::Tier(tier)) => request = request.auto_tier(tier),
+            Some(AutoTierPreference::Fusion(fusion_tier)) => {
+                request = request.fusion_tier(fusion_tier);
+            }
+            Some(AutoTierPreference::Reset) => reset_auto_tier = true,
+            None => {}
+        }
+        if let Some(effort) = opts.reasoning_effort {
+            request = request.reasoning_effort(effort);
+        }
+        if let Some(summary) = opts.reasoning_summary {
+            request = request.reasoning_summary(summary);
+        }
+        if let Some(context_tier) = opts.context_tier {
+            request = request.context_tier(context_tier);
+        }
+        if let Some(capabilities) = opts.model_capabilities {
+            request = request.model_capabilities(capabilities);
+        }
 
-        if matches!(auto_tier, Some(AutoTierPreference::Reset)) {
+        if reset_auto_tier {
             // The generated request skips a `None` tier, which the runtime reads
             // as "leave the preference alone" rather than "use provider-default
             // routing", so send an explicit null instead.
@@ -1953,7 +1955,7 @@ impl Session {
             return Ok(());
         }
 
-        self.rpc().model().switch_to(request).await?;
+        self.rpc().model().switch_to_with_options(request).await?;
         Ok(())
     }
 
@@ -1975,6 +1977,10 @@ impl Session {
     ///
     /// Pass `None` to return to the provider's default Auto routing.
     ///
+    /// For Copilot Fusion, prefer [`set_fusion_tier`](Self::set_fusion_tier).
+    /// The `balance`, `hydrafusion` and `hydrafusion-max` identifiers it
+    /// replaces remain accepted but are deprecated.
+    ///
     /// **Experimental.** Part of an experimental Auto routing surface and may
     /// change or be removed in a future release.
     ///
@@ -1993,6 +1999,36 @@ impl Session {
             .model()
             .switch_auto_tier(ModelSwitchAutoTierRequest {
                 auto_tier,
+                source: None,
+            })
+            .await
+    }
+
+    /// Change the Copilot Fusion tier without changing the selected model,
+    /// naming the tier as the CLI's `--fusion-tier` does.
+    ///
+    /// The runtime resolves the tier to the Auto routing preference it stands
+    /// for and then handles the request exactly like
+    /// [`set_auto_tier`](Self::set_auto_tier): it takes effect on a later user
+    /// turn that uses the `fusion` or `auto` model. To return to the
+    /// provider's default routing, call `set_auto_tier(None)`.
+    ///
+    /// **Experimental.** Part of an experimental Auto routing surface and may
+    /// change or be removed in a future release.
+    ///
+    /// # Cancel safety
+    ///
+    /// **Cancel-safe.** Single `session.model.switchFusionTier` RPC; the
+    /// underlying [`Client::call`](crate::Client::call) is cancel-safe via the
+    /// writer-actor.
+    pub async fn set_fusion_tier(
+        &self,
+        fusion_tier: FusionTier,
+    ) -> Result<ModelSwitchAutoTierResult, Error> {
+        self.rpc()
+            .model()
+            .switch_fusion_tier(ModelSwitchFusionTierRequest {
+                fusion_tier,
                 source: None,
             })
             .await

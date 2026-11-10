@@ -321,6 +321,7 @@ When resuming a session, you can optionally reconfigure many settings. This is u
 | `excludedTools` | Disable specific tools |
 | `provider` | Re-provide BYOK credentials (required for BYOK sessions) |
 | `capi.autoTier` | Override the persisted Auto routing preference |
+| `capi.fusionTier` | Override the persisted Auto routing preference with a Copilot Fusion tier |
 | `capi.enableWebSocketResponses` | Choose the Responses API transport for the resumed session |
 | `reasoningEffort` | Adjust reasoning effort level |
 | `streaming` | Enable/disable streaming responses |
@@ -405,6 +406,45 @@ To select the `auto` model and its routing preference in a single call, stage th
 | Java | `new SetModelOptions().setModel("auto").setAutoTier(AutoTier.BALANCE)` | `new SetModelOptions().setModel("auto").setResetAutoTier(true)` |
 
 Node.js, Python, and Rust express all three states in a single value: Node.js and Python because `null`/`None` is distinguishable from an omitted argument, and Rust because `AutoTierPreference::Reset` is a distinct variant of the same option. Go, .NET, and Java have no way to distinguish "reset" from "unset" in one value, so they carry a separate reset flag. Omitting both always means "leave the current preference alone."
+
+### Copilot Fusion names
+
+The SDK accepts the same Copilot Fusion names as the CLI. `model: "fusion"` (case-insensitive) selects Copilot Fusion, and `fusionTier` selects its tier: `standard`, `high`, or `max`. Together they behave like `copilot --model fusion --fusion-tier <tier>`.
+
+<!-- docs-validate: strict -->
+```typescript
+import { approveAll } from "@github/copilot-sdk";
+
+const session = await client.createSession({
+  model: "fusion",
+  capi: { fusionTier: "high" },
+  onPermissionRequest: approveAll,
+});
+```
+
+The runtime resolves each tier to the Auto routing preference it stands for, using the same runtime-owned bindings as the CLI's `--fusion-tier`, and then handles it exactly like `autoTier`. The runtime owns these bindings and can change them. Currently they are:
+
+| Fusion tier | Auto routing preference |
+|-------------|-------------------------|
+| `standard` | `balance` |
+| `high` | `hydrafusion` |
+| `max` | `hydrafusion-max` |
+
+The selected model is reported as `auto`, and `model.getCurrent`, `session.model_change`, `session.start`, and `session.resume` report the resolved preference as `autoTier`. The runtime rejects `fusionTier` when it is combined with `autoTier` (including `autoTier: null`), when it is not one of the three tier names, or, on a model switch, when the model is not `fusion` or `auto`. Remote sessions reject `model: "fusion"`.
+
+| SDK | Create or resume | Stage a tier with the switch | Change the tier |
+|-----|------------------|------------------------------|-----------------|
+| Node.js | `capi: { fusionTier: "high" }` | `setModel("fusion", { fusionTier: "high" })` | `session.setFusionTier("high")` |
+| Python | `capi={"fusion_tier": "high"}` | `set_model("fusion", fusion_tier="high")` | `session.set_fusion_tier("high")` |
+| Go | `&CapiSessionOptions{FusionTier: copilot.FusionTierHigh}` | `SetModelOptions{FusionTier: &tier}` | `session.SetFusionTier(ctx, copilot.FusionTierHigh)` |
+| .NET | `new CapiSessionOptions { FusionTier = FusionTier.High }` | `new SetModelOptions { FusionTier = FusionTier.High }` | `session.SetFusionTierAsync(FusionTier.High)` |
+| Rust | `CapiSessionOptions::new().with_fusion_tier(FusionTier::High)` | `SetModelOptions::default().with_fusion_tier(FusionTier::High)` | `session.set_fusion_tier(FusionTier::High)` |
+| Java | `new CapiSessionOptions().setFusionTier(FusionTier.HIGH)` | `new SetModelOptions().setModel("fusion").setFusionTier(FusionTier.HIGH)` | `session.setFusionTier(FusionTier.HIGH)` |
+
+To return to the provider's default routing, use `setAutoTier` with `null`, as described in the previous section.
+
+> [!NOTE]
+> The routing identifiers that the Fusion tiers replace are deprecated: `autoTier` values `balance`, `hydrafusion`, and `hydrafusion-max`, and `model: "hydrafusion"` or `model: "hydrafusion-max"`. They remain accepted and behave as before. Use `model: "fusion"` with `fusionTier` instead.
 
 ### Responses transport on resume
 

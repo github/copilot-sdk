@@ -914,6 +914,8 @@ await session.SetAutoTierAsync(null);
 
 `SetModelAsync` accepts the same preference through `SetModelOptions.AutoTier`, which stages the tier atomically with selecting `auto`. Set `ResetAutoTier` instead to return to provider-default routing; the two options are mutually exclusive.
 
+For Copilot Fusion, use the CLI's names: model `"fusion"` with `CapiSessionOptions.FusionTier` on create or resume, `SetModelOptions.FusionTier` on `SetModelAsync`, or `session.SetFusionTierAsync`. The tiers are `FusionTier.Standard`, `FusionTier.High`, and `FusionTier.Max`. The routing identifiers these replace (`balance`, `hydrafusion`, and `hydrafusion-max`, and the `hydrafusion` and `hydrafusion-max` model IDs) remain accepted but are deprecated. See [Copilot Fusion names](../docs/features/session-persistence.md#copilot-fusion-names).
+
 See [Auto tier persistence](../docs/features/session-persistence.md#auto-tier-persistence) for the full lifecycle rules.
 
 ## Event Types

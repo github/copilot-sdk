@@ -45,7 +45,10 @@ import com.github.copilot.generated.rpc.SessionMcpOauthHandlePendingRequestParam
 import com.github.copilot.generated.rpc.ModelCapabilitiesOverride;
 import com.github.copilot.generated.rpc.ModelCapabilitiesOverrideLimits;
 import com.github.copilot.generated.rpc.ModelCapabilitiesOverrideSupports;
+import com.github.copilot.generated.rpc.FusionTier;
 import com.github.copilot.generated.rpc.SessionModelSwitchAutoTierParams;
+import com.github.copilot.generated.rpc.SessionModelSwitchFusionTierParams;
+import com.github.copilot.generated.rpc.SessionModelSwitchToRequest;
 import com.github.copilot.generated.rpc.SessionModelSwitchAutoTierResult;
 import com.github.copilot.generated.rpc.SessionModelSwitchToParams;
 import com.github.copilot.generated.rpc.SessionPermissionsHandlePendingPermissionRequestParams;
@@ -3230,15 +3233,18 @@ public final class CopilotSession implements AutoCloseable {
      * <pre>{@code
      * session.setModel(new SetModelOptions().setModel("auto").setAutoTier(AutoTier.INTELLIGENCE)).get();
      * session.setModel(new SetModelOptions().setModel("auto").setResetAutoTier(true)).get();
+     * // Like `copilot --model fusion --fusion-tier high`.
+     * session.setModel(new SetModelOptions().setModel("fusion").setFusionTier(FusionTier.HIGH)).get();
      * }</pre>
      *
      * @param options
      *            the switch settings; the model ID is required
      * @return a future that completes when the model switch is acknowledged
      * @throws IllegalArgumentException
-     *             if {@code options} is {@code null}, if it carries no model ID, or
-     *             if it requests both an explicit Auto tier and a return to
-     *             provider-default Auto routing
+     *             if {@code options} is {@code null}, if it carries no model ID, if
+     *             it requests both an explicit Auto tier and a return to
+     *             provider-default Auto routing, or if it combines a Fusion tier
+     *             with either
      * @throws IllegalStateException
      *             if this session has been terminated
      * @since 1.6.0
@@ -3255,6 +3261,10 @@ public final class CopilotSession implements AutoCloseable {
             throw new IllegalArgumentException(
                     "setModel cannot combine an explicit autoTier with resetAutoTier; choose one");
         }
+        if (options.getFusionTier() != null && (options.getAutoTier() != null || options.isResetAutoTier())) {
+            throw new IllegalArgumentException(
+                    "setModel cannot combine fusionTier with autoTier or resetAutoTier; choose one");
+        }
         var generatedReasoningSummary = options.getReasoningSummary() == null
                 ? null
                 : com.github.copilot.generated.rpc.ReasoningSummary.fromValue(options.getReasoningSummary());
@@ -3268,6 +3278,15 @@ public final class CopilotSession implements AutoCloseable {
             builder.reasoningEffort(options.getReasoningEffort());
         }
         var params = builder.build();
+        if (options.getFusionTier() != null) {
+            var request = new SessionModelSwitchToRequest(options.getModel()).setFusionTier(options.getFusionTier())
+                    .setReasoningSummary(generatedReasoningSummary)
+                    .setModelCapabilities(toGeneratedCapabilities(options.getModelCapabilities()));
+            if (options.hasReasoningEffort()) {
+                request.setReasoningEffort(options.getReasoningEffort());
+            }
+            return getRpc().model.switchTo(request).thenApply(r -> null);
+        }
         if (!options.isResetAutoTier()) {
             return getRpc().model.switchTo(params).thenApply(r -> null);
         }
@@ -3301,6 +3320,10 @@ public final class CopilotSession implements AutoCloseable {
      * }
      * }</pre>
      *
+     * For Copilot Fusion, prefer {@link #setFusionTier(FusionTier)}. The
+     * {@code balance}, {@code hydrafusion} and {@code hydrafusion-max} identifiers
+     * it replaces remain accepted but are deprecated.
+     *
      * @param autoTier
      *            the routing preference to activate, or {@code null} to return to
      *            the provider's default Auto routing
@@ -3323,6 +3346,39 @@ public final class CopilotSession implements AutoCloseable {
         payload.put("sessionId", sessionId);
         payload.putNull("autoTier");
         return rpc.invoke("session.model.switchAutoTier", payload, SessionModelSwitchAutoTierResult.class);
+    }
+
+    /**
+     * Changes the Copilot Fusion tier without changing the selected model, naming
+     * the tier as the CLI's {@code --fusion-tier} does.
+     * <p>
+     * The runtime resolves the tier to the Auto routing preference it stands for
+     * and then handles the request exactly like
+     * {@link #setAutoTier(com.github.copilot.rpc.AutoTier)}: it takes effect on a
+     * later user turn that uses the {@code fusion} or {@code auto} model. To return
+     * to the provider's default routing, call {@code setAutoTier(null)}.
+     *
+     * <pre>{@code
+     * var result = session.setFusionTier(FusionTier.MAX).get();
+     * }</pre>
+     *
+     * @param fusionTier
+     *            the Copilot Fusion tier to activate
+     * @return a future completing with the runtime's immediate acknowledgement and
+     *         Auto preference snapshot
+     * @throws IllegalArgumentException
+     *             if {@code fusionTier} is {@code null}
+     * @throws IllegalStateException
+     *             if this session has been terminated
+     */
+    @CopilotExperimental
+    public CompletableFuture<SessionModelSwitchAutoTierResult> setFusionTier(FusionTier fusionTier) {
+        ensureNotTerminated();
+        if (fusionTier == null) {
+            throw new IllegalArgumentException("fusionTier must not be null");
+        }
+        var params = SessionModelSwitchFusionTierParams.builder().sessionId(sessionId).fusionTier(fusionTier).build();
+        return getRpc().model.switchFusionTier(params);
     }
 
     /**

@@ -111,6 +111,7 @@ from .generated.rpc import (
     register_client_global_api_handlers,
     register_client_session_api_handlers,
 )
+from .generated.rpc import FusionTier as _RpcFusionTier
 from .generated.session_events import (
     PermissionMode,
     SessionEvent,
@@ -134,6 +135,7 @@ from .session import (
     DefaultAgentConfig,
     ElicitationHandler,
     ExitPlanModeHandler,
+    FusionTier,
     GitHubMcpToolConfig,
     ImageGenerationConfig,
     InfiniteSessionConfig,
@@ -337,6 +339,27 @@ class CapiSessionOptions(TypedDict, total=False):
 
     To change the preference on a live session, call
     :meth:`CopilotSession.set_auto_tier` instead.
+
+    For Copilot Fusion, prefer ``fusion_tier``. The ``balance``,
+    ``hydrafusion`` and ``hydrafusion-max`` identifiers it replaces remain
+    accepted but are deprecated.
+    """
+
+    fusion_tier: FusionTier | _RpcFusionTier
+    """Copilot Fusion tier used when the session model is ``fusion`` or ``auto``.
+
+    **Experimental.** Matches the CLI's ``--fusion-tier``: ``"standard"``,
+    ``"high"`` or ``"max"``, or the generated ``FusionTier`` enum. The runtime
+    resolves the tier to the Auto routing preference it stands for, using the
+    same runtime-owned bindings as the CLI, and then applies it exactly like
+    ``auto_tier``, so ``session.rpc.model.get_current()`` and
+    ``session.model_change`` events report that preference as ``autoTier``;
+    ``get_current()`` also reports the resolved tier as ``fusionTier`` once
+    the session's Auto tier metadata is known. Cannot be combined with
+    ``auto_tier``.
+
+    To change the tier on a live session, call
+    :meth:`CopilotSession.set_fusion_tier` instead.
     """
 
     enable_web_socket_responses: bool
@@ -367,6 +390,11 @@ def _capi_session_options_to_wire(options: CapiSessionOptions) -> dict[str, Any]
     wire: dict[str, Any] = {}
     if "auto_tier" in options:
         wire["autoTier"] = options["auto_tier"]
+    if "fusion_tier" in options:
+        fusion_tier = options["fusion_tier"]
+        wire["fusionTier"] = (
+            fusion_tier.value if isinstance(fusion_tier, _RpcFusionTier) else fusion_tier
+        )
     if "enable_web_socket_responses" in options:
         wire["enableWebSocketResponses"] = options["enable_web_socket_responses"]
     return wire

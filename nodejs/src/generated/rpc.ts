@@ -1058,6 +1058,20 @@ export type CanvasJsonSchema = JsonValue;
 /** @experimental */
 export type CanvasActionInvokeResult = JsonValue;
 /**
+ * Copilot Fusion tier, matching the CLI's `--fusion-tier`. The runtime resolves each tier to the Auto routing preference it stands for, using the same runtime-owned bindings as the CLI; reads report that preference as `autoTier`, and `session.model.getCurrent` and Auto switch results also report the resolved tier once the session's Auto tier metadata is known.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "FusionTier".
+ */
+/** @experimental */
+export type FusionTier =
+  /** Copilot Fusion Standard, which balances capability, speed, and cost. */
+  | "standard"
+  /** Copilot Fusion High. */
+  | "high"
+  /** Copilot Fusion Max, which prioritizes quality. */
+  | "max";
+/**
  * Canonical digest algorithm for a validated MCP card
  *
  * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
@@ -13015,9 +13029,13 @@ export interface CanvasSourceCloseRequest {
 /** @experimental */
 export interface CapiSessionOptions {
   /**
-   * Routing preference for sessions whose model is `auto`. On create or cold resume, this establishes the preference sent as `tier` on CAPI `/auto` requests; when omitted on cold resume, the runtime restores the last committed preference. On resident resume, a different value requests a safe switch after resume succeeds and cannot change an in-flight turn. Successful switches are persisted for later cold resume. When no preference is supplied or restored, CAPI default routing is used. `fast` is an integrator-only latency preset, not a first-party GitHub Copilot product preference.
+   * Routing preference for sessions whose model is `auto`. On create or cold resume, this establishes the preference sent as `tier` on CAPI `/auto` requests; when omitted on cold resume, the runtime restores the last committed preference. On resident resume, a different value requests a safe switch after resume succeeds and cannot change an in-flight turn. Successful switches are persisted for later cold resume. When no preference is supplied or restored, CAPI default routing is used. `fast` is an integrator-only latency preset, not a first-party GitHub Copilot product preference. For Copilot Fusion, prefer `fusionTier`: the `balance`, `hydrafusion` and `hydrafusion-max` identifiers it replaces remain accepted but are deprecated.
    */
   autoTier?: AutoTier;
+  /**
+   * Copilot Fusion tier for sessions whose model is `fusion` or `auto`, matching the CLI's `--fusion-tier`. The runtime resolves the tier to the routing preference it stands for and then applies it exactly like `autoTier`, so `session.model.getCurrent` and `session.model_change` report that preference as `autoTier`; `session.model.getCurrent` also reports the resolved tier as `fusionTier` once the session's Auto tier metadata is known. Cannot be combined with `autoTier`.
+   */
+  fusionTier?: FusionTier;
   /**
    * Whether to use WebSocket transport for the CAPI Responses API. Enabled by default when the model advertises `ws:/responses` support; set to `false` to force the HTTP Responses transport in environments where WebSockets are blocked (e.g. behind a proxy). Setting this to `false` is equivalent to the `COPILOT_CLI_DISABLE_WEBSOCKET_RESPONSES` environment variable.
    */
@@ -30051,7 +30069,7 @@ export interface ModelStartupAdmissionResult {
 /** @experimental */
 export interface ModelSwitchAutoTierRequest {
   /**
-   * Auto preference to activate when a future user turn using the `auto` model safely mints a replacement model and token pair. Pass null to return to provider-default Auto routing.
+   * Auto preference to activate when a future user turn using the `auto` model safely mints a replacement model and token pair. Pass null to return to provider-default Auto routing. For Copilot Fusion, prefer `fusionTier`: the `balance`, `hydrafusion` and `hydrafusion-max` identifiers it replaces remain accepted but are deprecated.
    */
   autoTier: AutoTier | null;
   /**
@@ -30117,6 +30135,23 @@ export interface ModelSwitchConfirmation {
   longContextLimit?: number;
 }
 /**
+ * A Copilot Fusion tier request for the session, named as the CLI's `--fusion-tier` names it. The runtime resolves the tier to the Auto routing preference it stands for and requests that preference exactly as `switchAutoTier` does. This updates Auto configuration only; it does not change the selected model to `auto`.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "ModelSwitchFusionTierRequest".
+ */
+/** @experimental */
+export interface ModelSwitchFusionTierRequest {
+  /**
+   * Copilot Fusion tier to activate when a future user turn using the `auto` model safely mints a replacement model and token pair. Use `switchAutoTier` to return to provider-default Auto routing.
+   */
+  fusionTier: FusionTier;
+  /**
+   * Origin to record on the effective `session.model_change` event. Defaults to `sdk` when omitted.
+   */
+  source?: ModelChangeSource;
+}
+/**
  * Target model identifier and optional reasoning effort, summary, capability overrides, and context tier.
  *
  * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
@@ -30133,9 +30168,13 @@ export interface ModelSwitchToRequest {
    */
   providerId?: string;
   /**
-   * Optional Auto routing preference to stage atomically with selecting `auto`. Pass null to return to provider-default Auto routing. This field is rejected when `modelId` is not `auto`.
+   * Optional Auto routing preference to stage atomically with selecting `auto`. Pass null to return to provider-default Auto routing. This field is rejected when `modelId` is not `auto`. For Copilot Fusion, prefer `fusionTier`: the `balance`, `hydrafusion` and `hydrafusion-max` identifiers it replaces remain accepted but are deprecated.
    */
   autoTier?: AutoTier | null;
+  /**
+   * Optional Copilot Fusion tier to stage atomically with selecting `fusion` or `auto`, matching the CLI's `--fusion-tier`. The runtime resolves it to the Auto routing preference it stands for and stages that preference exactly like `autoTier`. Cannot be combined with `autoTier`, and is rejected when `modelId` is not `fusion` or `auto`.
+   */
+  fusionTier?: FusionTier;
   /**
    * Reasoning effort level to use for the model. CAPI values are model-defined and validated against the selected model; BYOK providers may define additional values. "none" disables reasoning. Pass null to clear any session effort override and fall back to the model's default. When omitted, the session's current effort is kept.
    */
@@ -52161,6 +52200,15 @@ export function createSessionRpc(connection: MessageConnection, sessionId: strin
              */
             switchAutoTier: async (params: ModelSwitchAutoTierRequest): Promise<ModelSwitchAutoTierResult> =>
                 connection.sendRequest("session.model.switchAutoTier", { ...params, sessionId }),
+            /**
+             * Requests a Copilot Fusion tier without changing the session's selected model, naming the tier as the CLI's `--fusion-tier` does. The runtime resolves the tier to the Auto routing preference it stands for and then behaves exactly like `switchAutoTier`: the latest unclaimed request wins, and the runtime commits it only after a later prompt using the `auto` model mints a usable model and token pair.
+             *
+             * @param params A Copilot Fusion tier request for the session, named as the CLI's `--fusion-tier` names it. The runtime resolves the tier to the Auto routing preference it stands for and requests that preference exactly as `switchAutoTier` does. This updates Auto configuration only; it does not change the selected model to `auto`.
+             *
+             * @returns Immediate acknowledgement and Auto preference snapshot after a switch request. This result never implies that a pending preference committed.
+             */
+            switchFusionTier: async (params: ModelSwitchFusionTierRequest): Promise<ModelSwitchAutoTierResult> =>
+                connection.sendRequest("session.model.switchFusionTier", { ...params, sessionId }),
             /**
              * Replaces or clears the host-supplied model allowlist for a running session.
              *

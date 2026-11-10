@@ -59,6 +59,7 @@ from copilot.generated.rpc import (
     SessionFSSetProviderCapabilities,
     SessionFSWriteFileBytesRequest,
 )
+from copilot.generated.rpc import FusionTier as FusionTierEnum
 from copilot.session import CopilotSession, PermissionHandler
 from copilot.session_events import (
     McpOauthRequestReason,
@@ -3048,6 +3049,18 @@ class TestCreateSessionConfig:
                 {"auto_tier": "balance", "enable_web_socket_responses": True},
                 {"autoTier": "balance", "enableWebSocketResponses": False},
                 {"autoTier": "balance", "enableWebSocketResponses": True},
+            ),
+            (
+                {"fusion_tier": "high"},
+                {"fusion_tier": "standard"},
+                {"fusionTier": "high"},
+                {"fusionTier": "standard"},
+            ),
+            (
+                {"fusion_tier": FusionTierEnum.MAX},
+                {"fusion_tier": FusionTierEnum.STANDARD},
+                {"fusionTier": "max"},
+                {"fusionTier": "standard"},
             ),
         ],
     )

@@ -653,7 +653,7 @@ pub struct ModelStartupAdmissionResult {
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct ModelSwitchAutoTierRequest {
-    /// Auto preference to activate when a future user turn using the `auto` model safely mints a replacement model and token pair. Pass null to return to provider-default Auto routing.
+    /// Auto preference to activate when a future user turn using the `auto` model safely mints a replacement model and token pair. Pass null to return to provider-default Auto routing. For Copilot Fusion, prefer `fusionTier`: the `balance`, `hydrafusion` and `hydrafusion-max` identifiers it replaces remain accepted but are deprecated.
     pub auto_tier: Option<AutoTier>,
     /// Origin to record on the effective `session.model_change` event. Defaults to `sdk` when omitted.
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -693,6 +693,24 @@ pub struct ModelSwitchAutoTierResult {
     pub superseded_auto_tier: Option<AutoTier>,
 }
 
+/// A Copilot Fusion tier request for the session, named as the CLI's `--fusion-tier` names it. The runtime resolves the tier to the Auto routing preference it stands for and requests that preference exactly as `switchAutoTier` does. This updates Auto configuration only; it does not change the selected model to `auto`.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ModelSwitchFusionTierRequest {
+    /// Copilot Fusion tier to activate when a future user turn using the `auto` model safely mints a replacement model and token pair. Use `switchAutoTier` to return to provider-default Auto routing.
+    pub fusion_tier: FusionTier,
+    /// Origin to record on the effective `session.model_change` event. Defaults to `sdk` when omitted.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub source: Option<ModelChangeSource>,
+}
+
 /// Target model identifier and optional reasoning effort, summary, capability overrides, and context tier.
 ///
 /// <div class="warning">
@@ -704,7 +722,7 @@ pub struct ModelSwitchAutoTierResult {
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct ModelSwitchToRequest {
-    /// Optional Auto routing preference to stage atomically with selecting `auto`. Pass null to return to provider-default Auto routing. This field is rejected when `modelId` is not `auto`.
+    /// Optional Auto routing preference to stage atomically with selecting `auto`. Pass null to return to provider-default Auto routing. This field is rejected when `modelId` is not `auto`. For Copilot Fusion, prefer `fusionTier`: the `balance`, `hydrafusion` and `hydrafusion-max` identifiers it replaces remain accepted but are deprecated.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub auto_tier: Option<AutoTier>,
     /// Explicit response to a model-switch compaction preflight. Omit to request a confirmation projection when compaction is necessary.
@@ -768,6 +786,8 @@ pub struct ModelSwitchToOptions {
     legacy: ModelSwitchToRequest,
     #[serde(skip_serializing_if = "Option::is_none")]
     provider_id: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    fusion_tier: Option<FusionTier>,
 }
 
 impl ModelSwitchToOptions {
@@ -792,10 +812,11 @@ impl ModelSwitchToOptions {
                 picker_persistence: None,
             },
             provider_id: None,
+            fusion_tier: None,
         }
     }
 
-    /// Optional Auto routing preference to stage atomically with selecting `auto`. Pass null to return to provider-default Auto routing. This field is rejected when `modelId` is not `auto`.
+    /// Optional Auto routing preference to stage atomically with selecting `auto`. Pass null to return to provider-default Auto routing. This field is rejected when `modelId` is not `auto`. For Copilot Fusion, prefer `fusionTier`: the `balance`, `hydrafusion` and `hydrafusion-max` identifiers it replaces remain accepted but are deprecated.
     pub fn auto_tier(mut self, value: AutoTier) -> Self {
         self.legacy.auto_tier = Some(value);
         self
@@ -882,6 +903,12 @@ impl ModelSwitchToOptions {
     /// Provider id from the selected list entry's provider reference. Selects this exact provider/model pair; an unavailable pair fails rather than using another provider. Omit for deterministic legacy bare-model selection.
     pub fn provider_id(mut self, value: impl Into<String>) -> Self {
         self.provider_id = Some(value.into());
+        self
+    }
+
+    /// Optional Copilot Fusion tier to stage atomically with selecting `fusion` or `auto`, matching the CLI's `--fusion-tier`. The runtime resolves it to the Auto routing preference it stands for and stages that preference exactly like `autoTier`. Cannot be combined with `autoTier`, and is rejected when `modelId` is not `fusion` or `auto`.
+    pub fn fusion_tier(mut self, value: FusionTier) -> Self {
+        self.fusion_tier = Some(value);
         self
     }
 }

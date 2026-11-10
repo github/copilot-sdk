@@ -106,6 +106,22 @@ public final class SessionModelApi {
     }
 
     /**
+     * Requests a Copilot Fusion tier without changing the session's selected model, naming the tier as the CLI's `--fusion-tier` does. The runtime resolves the tier to the Auto routing preference it stands for and then behaves exactly like `switchAutoTier`: the latest unclaimed request wins, and the runtime commits it only after a later prompt using the `auto` model mints a usable model and token pair.
+     * <p>
+     * Note: the {@code sessionId} field in the params record is overridden
+     * by the session-scoped wrapper; any value provided is ignored.
+     *
+     * @apiNote This method is experimental and may change in a future version.
+     * @since 1.0.0
+     */
+    @CopilotExperimental
+    public CompletableFuture<SessionModelSwitchAutoTierResult> switchFusionTier(SessionModelSwitchFusionTierParams params) {
+        com.fasterxml.jackson.databind.node.ObjectNode _p = MAPPER.valueToTree(params);
+        _p.put("sessionId", this.sessionId);
+        return caller.invoke("session.model.switchFusionTier", _p, SessionModelSwitchAutoTierResult.class);
+    }
+
+    /**
      * Resolves and applies organization-managed and repository model overlays.
      * <p>
      * Note: the {@code sessionId} field in the params record is overridden

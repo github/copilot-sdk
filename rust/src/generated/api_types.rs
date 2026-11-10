@@ -814,6 +814,8 @@ pub mod rpc_methods {
     pub const SESSION_MODEL_SWITCHTO: &str = "session.model.switchTo";
     /// `session.model.switchAutoTier`
     pub const SESSION_MODEL_SWITCHAUTOTIER: &str = "session.model.switchAutoTier";
+    /// `session.model.switchFusionTier`
+    pub const SESSION_MODEL_SWITCHFUSIONTIER: &str = "session.model.switchFusionTier";
     /// `session.model.applyStartupOverlay`
     pub(crate) const SESSION_MODEL_APPLYSTARTUPOVERLAY: &str = "session.model.applyStartupOverlay";
     /// `session.model.clearStartupSeed`
@@ -1601,16 +1603,16 @@ pub use sdk_api_shared::{
     ExternalToolTextResultForLlmBinaryResultsForLlm,
     ExternalToolTextResultForLlmBinaryResultsForLlmType, FeatureFlagAssignmentsUpdate,
     FeatureFlagConfigPatch, FeatureFlagEnabledOverride, FeatureFlagExpOverrideQuery,
-    FeatureFlagReasoningSummariesArm, FeatureFlagServiceSnapshot, GhCliAuthInfo, GhCliAuthInfoType,
-    GitHubRepoRef, HMACAuthInfo, HMACAuthInfoHost, HMACAuthInfoType, HistoryCompactContextWindow,
-    HistoryFileRestoreSkipReason, HistoryRewindChangeType, HistoryRewindFilePreview,
-    HistoryRewindOutcome, HistoryRewindPoint, HistoryRewindUnavailableReason,
-    HistorySkippedFileRestore, InstallationCatalogueIdentity, InstalledPlugin, InstalledPluginInfo,
-    InstalledPluginVerifiedSource, InstructionSource, InstructionSourceLocation,
-    InstructionSourceType, LoginProviderKind, LspConfigurationProblem, LspProbeExitStatus,
-    LspServerSummary, LspWarmupError, ManagedPluginAssignment, ManagedSettingsResolvedData,
-    MarketplaceInfo, MarketplacePluginInfo, MarketplaceRefreshEntry, McpAllowedServer,
-    McpAppsDiagnoseCapability, McpAppsDiagnoseServer, McpAppsHostContextDetails,
+    FeatureFlagReasoningSummariesArm, FeatureFlagServiceSnapshot, FusionTier, GhCliAuthInfo,
+    GhCliAuthInfoType, GitHubRepoRef, HMACAuthInfo, HMACAuthInfoHost, HMACAuthInfoType,
+    HistoryCompactContextWindow, HistoryFileRestoreSkipReason, HistoryRewindChangeType,
+    HistoryRewindFilePreview, HistoryRewindOutcome, HistoryRewindPoint,
+    HistoryRewindUnavailableReason, HistorySkippedFileRestore, InstallationCatalogueIdentity,
+    InstalledPlugin, InstalledPluginInfo, InstalledPluginVerifiedSource, InstructionSource,
+    InstructionSourceLocation, InstructionSourceType, LoginProviderKind, LspConfigurationProblem,
+    LspProbeExitStatus, LspServerSummary, LspWarmupError, ManagedPluginAssignment,
+    ManagedSettingsResolvedData, MarketplaceInfo, MarketplacePluginInfo, MarketplaceRefreshEntry,
+    McpAllowedServer, McpAppsDiagnoseCapability, McpAppsDiagnoseServer, McpAppsHostContextDetails,
     McpAppsHostContextDetailsAvailableDisplayMode, McpAppsHostContextDetailsDisplayMode,
     McpAppsHostContextDetailsPlatform, McpAppsHostContextDetailsTheme, McpAppsResourceContent,
     McpConfiguredServer, McpConfiguredServerState, McpDiagnosticDetails, McpDiagnosticDirection,
@@ -1934,8 +1936,9 @@ pub use sdk_api_session::{
     SessionModelGetCurrentResult, SessionModelGetReasoningSummariesResult, SessionModelList,
     SessionModelListResult, SessionModelPriceCategory, SessionModelSetAllowedModelsResult,
     SessionModelSetReasoningEffortResult, SessionModelStartupAdmissionResult,
-    SessionModelSwitchAutoTierResult, SessionModelSwitchToResult, SessionNameGetParams,
-    SessionNameGetResult, SessionNameSetAutoResult, SessionOpenOptions,
+    SessionModelSwitchAutoTierResult, SessionModelSwitchFusionTierResult,
+    SessionModelSwitchToResult, SessionNameGetParams, SessionNameGetResult,
+    SessionNameSetAutoResult, SessionOpenOptions,
     SessionOpenOptionsAdditionalContentExclusionPolicy,
     SessionOpenOptionsAdditionalContentExclusionPolicyRule,
     SessionOpenOptionsAdditionalContentExclusionPolicyRuleSource,
@@ -2396,13 +2399,14 @@ pub use sdk_api_models::{
     ModelProviderPrepareConfigurationRequest, ModelProviderStatus, ModelSetAllowedModelsRequest,
     ModelSetAllowedModelsResult, ModelSetReasoningEffortRequest, ModelSetReasoningEffortResult,
     ModelStartupAdmissionRequest, ModelStartupAdmissionResult, ModelSwitchAutoTierRequest,
-    ModelSwitchAutoTierResult, ModelSwitchToOptions, ModelSwitchToRequest, ModelSwitchToResult,
-    ModelTokenPriceUnit, ModelTokenPriceUnitList, ModelsGetBuiltInCatalogResult, ModelsListRequest,
-    ModelsListResult, ModelsListTokenPriceUnitsResult, ProviderAddRequest, ProviderAddResult,
-    ProviderEndpoint, ProviderGetEndpointRequest, ProviderStatus, ProviderSyncRequest,
-    ProviderSyncResult, ProviderTokenAcquireRequest, ProviderTokenAcquireResult,
-    ProviderTokenGetTokenResult, ProviderWithdrawRequest, ProviderWithdrawResult,
-    ProvidersConfigAddModelResult, ProvidersSourceAddModelResult, TokenPriceUnit,
+    ModelSwitchAutoTierResult, ModelSwitchFusionTierRequest, ModelSwitchToOptions,
+    ModelSwitchToRequest, ModelSwitchToResult, ModelTokenPriceUnit, ModelTokenPriceUnitList,
+    ModelsGetBuiltInCatalogResult, ModelsListRequest, ModelsListResult,
+    ModelsListTokenPriceUnitsResult, ProviderAddRequest, ProviderAddResult, ProviderEndpoint,
+    ProviderGetEndpointRequest, ProviderStatus, ProviderSyncRequest, ProviderSyncResult,
+    ProviderTokenAcquireRequest, ProviderTokenAcquireResult, ProviderTokenGetTokenResult,
+    ProviderWithdrawRequest, ProviderWithdrawResult, ProvidersConfigAddModelResult,
+    ProvidersSourceAddModelResult, TokenPriceUnit,
 };
 pub(crate) use sdk_api_models::{ModelClearStartupSeedRequest, ModelClearStartupSeedResult};
 

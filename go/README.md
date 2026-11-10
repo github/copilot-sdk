@@ -803,6 +803,8 @@ _, err = session.SetAutoTier(ctx, nil)
 
 `SetModel` accepts the same preference through `SetModelOptions.AutoTier`, which stages the tier atomically with selecting `auto`. Set `ResetAutoTier` instead to return to provider-default routing; the two options are mutually exclusive.
 
+For Copilot Fusion, use the CLI's names: model `"fusion"` with `CapiSessionOptions.FusionTier` on create or resume, `SetModelOptions.FusionTier` on `SetModel`, or `session.SetFusionTier`. The tiers are `FusionTierStandard`, `FusionTierHigh`, and `FusionTierMax`. The routing identifiers these replace (`balance`, `hydrafusion`, and `hydrafusion-max`, and the `hydrafusion` and `hydrafusion-max` model IDs) remain accepted but are deprecated. See [Copilot Fusion names](../docs/features/session-persistence.md#copilot-fusion-names).
+
 See [Auto tier persistence](../docs/features/session-persistence.md#auto-tier-persistence) for the full lifecycle rules.
 
 ## Image Support

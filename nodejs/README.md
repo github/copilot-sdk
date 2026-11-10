@@ -389,7 +389,7 @@ Create a new conversation session.
 
 - `sessionId?: string` - Custom session ID.
 - `model?: string` - Model to use ("gpt-5", "claude-sonnet-4.5", etc.). **Required when using custom provider.**
-- `capi?: CapiSessionOptions` - Copilot API options. With `model: "auto"`, set `autoTier` to `"efficiency"`, `"balance"`, `"intelligence"`, or `"fast"` to choose a routing preference. `"fast"` is an integrator-only latency preset, not a first-party GitHub Copilot product preference. Requires a runtime with Auto tier support and V2 Auto routing. Omission preserves default behavior. See [Auto tier persistence](../docs/features/session-persistence.md#auto-tier-persistence) for resume semantics.
+- `capi?: CapiSessionOptions` - Copilot API options. With `model: "auto"`, set `autoTier` to `"efficiency"`, `"balance"`, `"intelligence"`, or `"fast"` to choose a routing preference. `"fast"` is an integrator-only latency preset, not a first-party GitHub Copilot product preference. Requires a runtime with Auto tier support and V2 Auto routing. Omission preserves default behavior. See [Auto tier persistence](../docs/features/session-persistence.md#auto-tier-persistence) for resume semantics. For Copilot Fusion, use `model: "fusion"` and set `fusionTier` to `"standard"`, `"high"`, or `"max"`, like the CLI's `--model fusion --fusion-tier <tier>`; the `autoTier` values `"balance"`, `"hydrafusion"`, and `"hydrafusion-max"` that these replace are deprecated. See [Copilot Fusion names](../docs/features/session-persistence.md#copilot-fusion-names).
 - `reasoningEffort?: "low" | "medium" | "high" | "xhigh" | "max"` - Reasoning effort level for models that support it. Use `listModels()` to check which models support this option.
 - `tools?: Tool[]` - Custom tools exposed to the CLI. Tools without `handler` are declaration-only and must be resolved via pending tool-call RPCs.
 - `systemMessage?: SystemMessageConfig` - System message customization (see below)
@@ -810,6 +810,7 @@ Change the model for this session. The new model takes effect for the next messa
 
 - `reasoningEffort?: string` - Reasoning effort level
 - `autoTier?: AutoTier | null` - Auto routing preference to stage together with selecting `auto`. Pass `null` to return to the provider's default Auto routing; omit it to leave the current preference unchanged.
+- `fusionTier?: FusionTier` - Copilot Fusion tier (`"standard"`, `"high"`, or `"max"`) to stage together with selecting `fusion` or `auto`, for example `setModel("fusion", { fusionTier: "high" })`. Cannot be combined with `autoTier`.
 
 ##### `setAutoTier(autoTier: AutoTier | null): Promise<ModelSwitchAutoTierResult>`
 
@@ -840,6 +841,14 @@ if (result.status === "pending") {
 ```
 
 See [Auto tier persistence](../docs/features/session-persistence.md#auto-tier-persistence) for the full lifecycle rules.
+
+##### `setFusionTier(fusionTier: FusionTier): Promise<ModelSwitchAutoTierResult>`
+
+Change the Copilot Fusion tier without changing the selected model, naming the tier as the CLI's `--fusion-tier` does: `"standard"`, `"high"`, or `"max"`. The runtime resolves the tier to the Auto routing preference it stands for and then handles the request exactly like `setAutoTier`. Use `setAutoTier(null)` to return to the provider's default routing.
+
+```typescript
+const result = await session.setFusionTier("max");
+```
 
 ##### `rpc.model.getReasoningSummaries(params)` (experimental)
 

@@ -15765,13 +15765,17 @@ public sealed class AutopilotOptions
 [Experimental(global::GitHub.Copilot.Diagnostics.Experimental)]
 public sealed class CapiSessionOptions
 {
-    /// <summary>Routing preference for sessions whose model is `auto`. On create or cold resume, this establishes the preference sent as `tier` on CAPI `/auto` requests; when omitted on cold resume, the runtime restores the last committed preference. On resident resume, a different value requests a safe switch after resume succeeds and cannot change an in-flight turn. Successful switches are persisted for later cold resume. When no preference is supplied or restored, CAPI default routing is used. `fast` is an integrator-only latency preset, not a first-party GitHub Copilot product preference.</summary>
+    /// <summary>Routing preference for sessions whose model is `auto`. On create or cold resume, this establishes the preference sent as `tier` on CAPI `/auto` requests; when omitted on cold resume, the runtime restores the last committed preference. On resident resume, a different value requests a safe switch after resume succeeds and cannot change an in-flight turn. Successful switches are persisted for later cold resume. When no preference is supplied or restored, CAPI default routing is used. `fast` is an integrator-only latency preset, not a first-party GitHub Copilot product preference. For Copilot Fusion, prefer `fusionTier`: the `balance`, `hydrafusion` and `hydrafusion-max` identifiers it replaces remain accepted but are deprecated.</summary>
     [JsonPropertyName("autoTier")]
     public AutoTier? AutoTier { get; set; }
 
     /// <summary>Whether to use WebSocket transport for the CAPI Responses API. Enabled by default when the model advertises `ws:/responses` support; set to `false` to force the HTTP Responses transport in environments where WebSockets are blocked (e.g. behind a proxy). Setting this to `false` is equivalent to the `COPILOT_CLI_DISABLE_WEBSOCKET_RESPONSES` environment variable.</summary>
     [JsonPropertyName("enableWebSocketResponses")]
     public bool? EnableWebSocketResponses { get; set; }
+
+    /// <summary>Copilot Fusion tier for sessions whose model is `fusion` or `auto`, matching the CLI's `--fusion-tier`. The runtime resolves the tier to the routing preference it stands for and then applies it exactly like `autoTier`, so `session.model.getCurrent` and `session.model_change` report that preference as `autoTier`; `session.model.getCurrent` also reports the resolved tier as `fusionTier` once the session's Auto tier metadata is known. Cannot be combined with `autoTier`.</summary>
+    [JsonPropertyName("fusionTier")]
+    public FusionTier? FusionTier { get; set; }
 }
 
 /// <summary>RPC data type for SessionFeatureFlagConfiguration operations.</summary>
@@ -24043,7 +24047,7 @@ public sealed class ModelPickerPersistenceRequest
 [Experimental(global::GitHub.Copilot.Diagnostics.Experimental)]
 public sealed class ModelSwitchToRequest
 {
-    /// <summary>Optional Auto routing preference to stage atomically with selecting `auto`. Pass null to return to provider-default Auto routing. This field is rejected when `modelId` is not `auto`.</summary>
+    /// <summary>Optional Auto routing preference to stage atomically with selecting `auto`. Pass null to return to provider-default Auto routing. This field is rejected when `modelId` is not `auto`. For Copilot Fusion, prefer `fusionTier`: the `balance`, `hydrafusion` and `hydrafusion-max` identifiers it replaces remain accepted but are deprecated.</summary>
     [JsonPropertyName("autoTier")]
     public AutoTier? AutoTier { get; set; }
 
@@ -24058,6 +24062,10 @@ public sealed class ModelSwitchToRequest
     /// <summary>When true, defer this switch (enqueue it) if another model change is already queued, even when no turn is active — so it drains last (FIFO) and wins over the already-queued change. Intended for genuine user-initiated model selections; internal restore/reapply switches omit it and apply immediately when no turn is active. When no other model change is queued this has no effect (a switch still applies immediately unless a turn is active).</summary>
     [JsonPropertyName("deferIfModelChangeQueued")]
     public bool? DeferIfModelChangeQueued { get; set; }
+
+    /// <summary>Optional Copilot Fusion tier to stage atomically with selecting `fusion` or `auto`, matching the CLI's `--fusion-tier`. The runtime resolves it to the Auto routing preference it stands for and stages that preference exactly like `autoTier`. Cannot be combined with `autoTier`, and is rejected when `modelId` is not `fusion` or `auto`.</summary>
+    [JsonPropertyName("fusionTier")]
+    public FusionTier? FusionTier { get; set; }
 
     /// <summary>Override individual model capabilities resolved by the runtime.</summary>
     [JsonPropertyName("modelCapabilities")]
@@ -24112,7 +24120,7 @@ public sealed class ModelSwitchToRequest
 [Experimental(global::GitHub.Copilot.Diagnostics.Experimental)]
 internal sealed class ModelSwitchToRequestWithSession
 {
-    /// <summary>Optional Auto routing preference to stage atomically with selecting `auto`. Pass null to return to provider-default Auto routing. This field is rejected when `modelId` is not `auto`.</summary>
+    /// <summary>Optional Auto routing preference to stage atomically with selecting `auto`. Pass null to return to provider-default Auto routing. This field is rejected when `modelId` is not `auto`. For Copilot Fusion, prefer `fusionTier`: the `balance`, `hydrafusion` and `hydrafusion-max` identifiers it replaces remain accepted but are deprecated.</summary>
     [JsonPropertyName("autoTier")]
     public AutoTier? AutoTier { get; set; }
 
@@ -24127,6 +24135,10 @@ internal sealed class ModelSwitchToRequestWithSession
     /// <summary>When true, defer this switch (enqueue it) if another model change is already queued, even when no turn is active — so it drains last (FIFO) and wins over the already-queued change. Intended for genuine user-initiated model selections; internal restore/reapply switches omit it and apply immediately when no turn is active. When no other model change is queued this has no effect (a switch still applies immediately unless a turn is active).</summary>
     [JsonPropertyName("deferIfModelChangeQueued")]
     public bool? DeferIfModelChangeQueued { get; set; }
+
+    /// <summary>Optional Copilot Fusion tier to stage atomically with selecting `fusion` or `auto`, matching the CLI's `--fusion-tier`. The runtime resolves it to the Auto routing preference it stands for and stages that preference exactly like `autoTier`. Cannot be combined with `autoTier`, and is rejected when `modelId` is not `fusion` or `auto`.</summary>
+    [JsonPropertyName("fusionTier")]
+    public FusionTier? FusionTier { get; set; }
 
     /// <summary>Override individual model capabilities resolved by the runtime.</summary>
     [JsonPropertyName("modelCapabilities")]
@@ -24218,10 +24230,27 @@ public sealed class ModelSwitchAutoTierResult
 [Experimental(global::GitHub.Copilot.Diagnostics.Experimental)]
 internal sealed class ModelSwitchAutoTierRequest
 {
-    /// <summary>Auto preference to activate when a future user turn using the `auto` model safely mints a replacement model and token pair. Pass null to return to provider-default Auto routing.</summary>
+    /// <summary>Auto preference to activate when a future user turn using the `auto` model safely mints a replacement model and token pair. Pass null to return to provider-default Auto routing. For Copilot Fusion, prefer `fusionTier`: the `balance`, `hydrafusion` and `hydrafusion-max` identifiers it replaces remain accepted but are deprecated.</summary>
     [JsonPropertyName("autoTier")]
     [JsonIgnore(Condition = JsonIgnoreCondition.Never)]
     public AutoTier? AutoTier { get; set; }
+
+    /// <summary>Target session identifier.</summary>
+    [JsonPropertyName("sessionId")]
+    public string SessionId { get; set; } = string.Empty;
+
+    /// <summary>Origin to record on the effective `session.model_change` event. Defaults to `sdk` when omitted.</summary>
+    [JsonPropertyName("source")]
+    public ModelChangeSource? Source { get; set; }
+}
+
+/// <summary>A Copilot Fusion tier request for the session, named as the CLI's `--fusion-tier` names it. The runtime resolves the tier to the Auto routing preference it stands for and requests that preference exactly as `switchAutoTier` does. This updates Auto configuration only; it does not change the selected model to `auto`.</summary>
+[Experimental(global::GitHub.Copilot.Diagnostics.Experimental)]
+internal sealed class ModelSwitchFusionTierRequest
+{
+    /// <summary>Copilot Fusion tier to activate when a future user turn using the `auto` model safely mints a replacement model and token pair. Use `switchAutoTier` to return to provider-default Auto routing.</summary>
+    [JsonPropertyName("fusionTier")]
+    public FusionTier FusionTier { get; set; }
 
     /// <summary>Target session identifier.</summary>
     [JsonPropertyName("sessionId")]
@@ -49524,6 +49553,72 @@ public readonly struct SessionOpenOptionsAdditionalContentExclusionPolicyScope :
 }
 
 
+/// <summary>Copilot Fusion tier, matching the CLI's `--fusion-tier`. The runtime resolves each tier to the Auto routing preference it stands for, using the same runtime-owned bindings as the CLI; reads report that preference as `autoTier`, and `session.model.getCurrent` and Auto switch results also report the resolved tier once the session's Auto tier metadata is known.</summary>
+[Experimental(global::GitHub.Copilot.Diagnostics.Experimental)]
+[JsonConverter(typeof(Converter))]
+[DebuggerDisplay("{Value,nq}")]
+public readonly struct FusionTier : IEquatable<FusionTier>
+{
+    private readonly string? _value;
+
+    /// <summary>Initializes a new instance of the <see cref="FusionTier"/> struct.</summary>
+    /// <param name="value">The value to associate with this <see cref="FusionTier"/>.</param>
+    [JsonConstructor]
+    public FusionTier(string value)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(value);
+        _value = value;
+    }
+
+    /// <summary>Gets the value associated with this <see cref="FusionTier"/>.</summary>
+    public string Value => _value ?? string.Empty;
+
+    /// <summary>Copilot Fusion Standard, which balances capability, speed, and cost.</summary>
+    public static FusionTier Standard { get; } = new("standard");
+
+    /// <summary>Copilot Fusion High.</summary>
+    public static FusionTier High { get; } = new("high");
+
+    /// <summary>Copilot Fusion Max, which prioritizes quality.</summary>
+    public static FusionTier Max { get; } = new("max");
+
+    /// <summary>Returns a value indicating whether two <see cref="FusionTier"/> instances are equivalent.</summary>
+    public static bool operator ==(FusionTier left, FusionTier right) => left.Equals(right);
+
+    /// <summary>Returns a value indicating whether two <see cref="FusionTier"/> instances are not equivalent.</summary>
+    public static bool operator !=(FusionTier left, FusionTier right) => !(left == right);
+
+    /// <inheritdoc />
+    public override bool Equals(object? obj) => obj is FusionTier other && Equals(other);
+
+    /// <inheritdoc />
+    public bool Equals(FusionTier other) => string.Equals(Value, other.Value, StringComparison.OrdinalIgnoreCase);
+
+    /// <inheritdoc />
+    public override int GetHashCode() => StringComparer.OrdinalIgnoreCase.GetHashCode(Value);
+
+    /// <inheritdoc />
+    public override string ToString() => Value;
+
+    /// <summary>Provides a <see cref="JsonConverter{FusionTier}"/> for serializing <see cref="FusionTier"/> instances.</summary>
+    [EditorBrowsable(EditorBrowsableState.Never)]
+    public sealed class Converter : JsonConverter<FusionTier>
+    {
+        /// <inheritdoc />
+        public override FusionTier Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
+        {
+            return new(GeneratedStringEnumJson.ReadValue(ref reader, typeToConvert));
+        }
+
+        /// <inheritdoc />
+        public override void Write(Utf8JsonWriter writer, FusionTier value, JsonSerializerOptions options)
+        {
+            GeneratedStringEnumJson.WriteValue(writer, value.Value, typeof(FusionTier));
+        }
+    }
+}
+
+
 /// <summary>How MCP server environment values are interpreted.</summary>
 [Experimental(global::GitHub.Copilot.Diagnostics.Experimental)]
 [JsonConverter(typeof(Converter))]
@@ -67499,7 +67594,7 @@ public sealed class ModelApi
 
     /// <summary>Switches the session to a model and optional reasoning configuration.</summary>
     /// <param name="modelId">Model id to switch to, as returned by `list`. Include providerId to select an exact catalog entry when providers share the id. Without providerId, a bare id retains incumbent selection behavior; a registry-qualified id (`provider/id`, e.g. `acme/claude-sonnet`) targets a BYOK model.</param>
-    /// <param name="autoTier">Optional Auto routing preference to stage atomically with selecting `auto`. Pass null to return to provider-default Auto routing. This field is rejected when `modelId` is not `auto`.</param>
+    /// <param name="autoTier">Optional Auto routing preference to stage atomically with selecting `auto`. Pass null to return to provider-default Auto routing. This field is rejected when `modelId` is not `auto`. For Copilot Fusion, prefer `fusionTier`: the `balance`, `hydrafusion` and `hydrafusion-max` identifiers it replaces remain accepted but are deprecated.</param>
     /// <param name="reasoningEffort">Reasoning effort level to use for the model. CAPI values are model-defined and validated against the selected model; BYOK providers may define additional values. "none" disables reasoning. Pass null to clear any session effort override and fall back to the model's default. When omitted, the session's current effort is kept.</param>
     /// <param name="reasoningSummary">Reasoning summary mode to request for supported model clients.</param>
     /// <param name="verbosity">Output verbosity level to request for supported models.</param>
@@ -67533,12 +67628,12 @@ public sealed class ModelApi
         ArgumentNullException.ThrowIfNull(request);
         ArgumentNullException.ThrowIfNull(request.ModelId);
         _session.ThrowIfDisposed();
-        var wireRequest = new ModelSwitchToRequestWithSession { SessionId = _session.SessionId, ModelId = request.ModelId, ProviderId = request.ProviderId, AutoTier = request.AutoTier, ReasoningEffort = request.ReasoningEffort, ReasoningSummary = request.ReasoningSummary, Verbosity = request.Verbosity, ModelCapabilities = request.ModelCapabilities, ContextTier = request.ContextTier, Source = request.Source, DeferIfModelChangeQueued = request.DeferIfModelChangeQueued, CompactionDecision = request.CompactionDecision, RunCompactionPreflight = request.RunCompactionPreflight, RepoScope = request.RepoScope, ModelChangeScope = request.ModelChangeScope, RequireAvailable = request.RequireAvailable, PickerPersistence = request.PickerPersistence };
+        var wireRequest = new ModelSwitchToRequestWithSession { SessionId = _session.SessionId, ModelId = request.ModelId, ProviderId = request.ProviderId, AutoTier = request.AutoTier, FusionTier = request.FusionTier, ReasoningEffort = request.ReasoningEffort, ReasoningSummary = request.ReasoningSummary, Verbosity = request.Verbosity, ModelCapabilities = request.ModelCapabilities, ContextTier = request.ContextTier, Source = request.Source, DeferIfModelChangeQueued = request.DeferIfModelChangeQueued, CompactionDecision = request.CompactionDecision, RunCompactionPreflight = request.RunCompactionPreflight, RepoScope = request.RepoScope, ModelChangeScope = request.ModelChangeScope, RequireAvailable = request.RequireAvailable, PickerPersistence = request.PickerPersistence };
         return await CopilotClient.InvokeRpcAsync<ModelSwitchToResult>(_session.Rpc, "session.model.switchTo", [wireRequest], cancellationToken);
     }
 
     /// <summary>Requests an Auto preference change without changing the session's selected model. The latest unclaimed request wins; the runtime commits it only after a later prompt using the `auto` model mints a usable model and token pair. A `pending` response confirms that the request was accepted, not that it committed. Observe eventual success through `session.model_change`, failure through the ephemeral `session.auto_tier_switch_failed` event, or current unclaimed state through `session.model.getCurrent`.</summary>
-    /// <param name="autoTier">Auto preference to activate when a future user turn using the `auto` model safely mints a replacement model and token pair. Pass null to return to provider-default Auto routing.</param>
+    /// <param name="autoTier">Auto preference to activate when a future user turn using the `auto` model safely mints a replacement model and token pair. Pass null to return to provider-default Auto routing. For Copilot Fusion, prefer `fusionTier`: the `balance`, `hydrafusion` and `hydrafusion-max` identifiers it replaces remain accepted but are deprecated.</param>
     /// <param name="source">Origin to record on the effective `session.model_change` event. Defaults to `sdk` when omitted.</param>
     /// <param name="cancellationToken">The <see cref="CancellationToken"/> to monitor for cancellation requests. The default is <see cref="CancellationToken.None"/>.</param>
     /// <returns>Immediate acknowledgement and Auto preference snapshot after a switch request. This result never implies that a pending preference committed.</returns>
@@ -67548,6 +67643,19 @@ public sealed class ModelApi
 
         var request = new ModelSwitchAutoTierRequest { SessionId = _session.SessionId, AutoTier = autoTier, Source = source };
         return await CopilotClient.InvokeRpcAsync<ModelSwitchAutoTierResult>(_session.Rpc, "session.model.switchAutoTier", [request], cancellationToken);
+    }
+
+    /// <summary>Requests a Copilot Fusion tier without changing the session's selected model, naming the tier as the CLI's `--fusion-tier` does. The runtime resolves the tier to the Auto routing preference it stands for and then behaves exactly like `switchAutoTier`: the latest unclaimed request wins, and the runtime commits it only after a later prompt using the `auto` model mints a usable model and token pair.</summary>
+    /// <param name="fusionTier">Copilot Fusion tier to activate when a future user turn using the `auto` model safely mints a replacement model and token pair. Use `switchAutoTier` to return to provider-default Auto routing.</param>
+    /// <param name="source">Origin to record on the effective `session.model_change` event. Defaults to `sdk` when omitted.</param>
+    /// <param name="cancellationToken">The <see cref="CancellationToken"/> to monitor for cancellation requests. The default is <see cref="CancellationToken.None"/>.</param>
+    /// <returns>Immediate acknowledgement and Auto preference snapshot after a switch request. This result never implies that a pending preference committed.</returns>
+    public async Task<ModelSwitchAutoTierResult> SwitchFusionTierAsync(FusionTier fusionTier, ModelChangeSource? source = null, CancellationToken cancellationToken = default)
+    {
+        _session.ThrowIfDisposed();
+
+        var request = new ModelSwitchFusionTierRequest { SessionId = _session.SessionId, FusionTier = fusionTier, Source = source };
+        return await CopilotClient.InvokeRpcAsync<ModelSwitchAutoTierResult>(_session.Rpc, "session.model.switchFusionTier", [request], cancellationToken);
     }
 
     /// <summary>Resolves and applies organization-managed and repository model overlays.</summary>
@@ -74597,6 +74705,7 @@ internal static class ClientGlobalApiRegistration
 [JsonSerializable(typeof(ModelSwitchAutoTierRequest))]
 [JsonSerializable(typeof(ModelSwitchAutoTierResult))]
 [JsonSerializable(typeof(ModelSwitchConfirmation))]
+[JsonSerializable(typeof(ModelSwitchFusionTierRequest))]
 [JsonSerializable(typeof(ModelSwitchToRequest))]
 [JsonSerializable(typeof(ModelSwitchToRequestWithSession))]
 [JsonSerializable(typeof(ModelSwitchToResult))]

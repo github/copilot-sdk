@@ -10324,6 +10324,39 @@ pub struct SessionModelSwitchAutoTierResult {
     pub superseded_auto_tier: Option<AutoTier>,
 }
 
+/// Immediate acknowledgement and Auto preference snapshot after a switch request. This result never implies that a pending preference committed.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SessionModelSwitchFusionTierResult {
+    /// Auto preference currently claimed by an in-progress activation. Null means the activation is returning to provider-default routing.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub activating_auto_tier: Option<AutoTier>,
+    /// Auto preference currently committed for the session.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub effective_auto_tier: Option<AutoTier>,
+    /// Copilot Fusion tier that effectiveAutoTier serves, resolved from the session's Auto tier metadata. An open string: known values include `standard`, `high`, and `max`; other provider-defined values may appear. Omitted when no Auto preference is committed, it is not a Fusion tier, or Auto metadata has not been discovered (for example after cold resume, before session.model.list). Fusion fields cover only effective and pending preferences; resolve activatingAutoTier and supersededAutoTier against auto.tiers[].fusionTier from session.model.list.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub effective_fusion_tier: Option<String>,
+    /// Latest unclaimed Auto preference waiting for a future user turn.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub pending_auto_tier: Option<AutoTier>,
+    /// Copilot Fusion tier that pendingAutoTier serves, resolved from the session's Auto tier metadata. An open string: known values include `standard`, `high`, and `max`; other provider-defined values may appear. Omitted when no preference is pending, it is not a Fusion tier, or Auto metadata has not been discovered (for example after cold resume, before session.model.list).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub pending_fusion_tier: Option<String>,
+    /// Immediate request status. `pending` means accepted but not committed.
+    pub status: ModelSwitchAutoTierStatus,
+    /// Earlier unclaimed preference replaced by this request. This can be present with either status, including when selecting the effective preference cancels pending work.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub superseded_auto_tier: Option<AutoTier>,
+}
+
 /// The model identifier active on the session after the switch.
 ///
 /// <div class="warning">

@@ -3362,9 +3362,29 @@ public sealed class CapiSessionOptions
     /// takes effect after resume succeeds and never disturbs a turn that is already running.
     /// To change the preference on a live session, use
     /// <see cref="CopilotSession.SetAutoTierAsync"/>.
+    /// For Copilot Fusion, prefer <see cref="FusionTier"/>. The <c>balance</c>,
+    /// <c>hydrafusion</c> and <c>hydrafusion-max</c> identifiers it replaces remain
+    /// accepted but are deprecated.
     /// </remarks>
     [JsonPropertyName("autoTier")]
     public AutoTier? AutoTier { get; set; }
+
+    /// <summary>
+    /// Copilot Fusion tier for model <c>fusion</c> or <c>auto</c>, matching the CLI's
+    /// <c>--fusion-tier</c>.
+    /// </summary>
+    /// <remarks>
+    /// The runtime resolves the tier to the Auto routing preference it stands for and then
+    /// applies it exactly like <see cref="AutoTier"/>, so <c>session.Rpc.Model.GetCurrentAsync</c>
+    /// and <c>session.model_change</c> events report that preference as <c>AutoTier</c>;
+    /// <c>GetCurrentAsync</c> also reports the resolved tier as <c>FusionTier</c> once the
+    /// session's Auto tier metadata is known.
+    /// Cannot be combined with <see cref="AutoTier"/>. To change the tier on a live session,
+    /// use <see cref="CopilotSession.SetFusionTierAsync"/>.
+    /// </remarks>
+    [Experimental(global::GitHub.Copilot.Diagnostics.Experimental)]
+    [JsonPropertyName("fusionTier")]
+    public FusionTier? FusionTier { get; set; }
 }
 
 /// <summary>
@@ -4092,7 +4112,9 @@ public struct SetModelOptions
     /// <see cref="ResetAutoTier"/> instead to return to the provider's default Auto
     /// routing. The runtime rejects this option when the model is anything other than
     /// <c>auto</c>; use <see cref="CopilotSession.SetAutoTierAsync"/> to change the
-    /// preference without changing the selected model.
+    /// preference without changing the selected model. For Copilot Fusion, prefer
+    /// <see cref="FusionTier"/>. The <c>balance</c>, <c>hydrafusion</c> and
+    /// <c>hydrafusion-max</c> identifiers it replaces remain accepted but are deprecated.
     /// </remarks>
     [Experimental(global::GitHub.Copilot.Diagnostics.Experimental)]
     public AutoTier? AutoTier { get; set; }
@@ -4103,6 +4125,19 @@ public struct SetModelOptions
     /// </summary>
     [Experimental(global::GitHub.Copilot.Diagnostics.Experimental)]
     public bool ResetAutoTier { get; set; }
+
+    /// <summary>
+    /// Copilot Fusion tier to stage atomically with selecting the <c>fusion</c> or
+    /// <c>auto</c> model, matching the CLI's <c>--fusion-tier</c>.
+    /// </summary>
+    /// <remarks>
+    /// The runtime resolves the tier to the Auto routing preference it stands for and stages
+    /// it exactly like <see cref="AutoTier"/>. Mutually exclusive with <see cref="AutoTier"/>
+    /// and <see cref="ResetAutoTier"/>. Use <see cref="CopilotSession.SetFusionTierAsync"/> to
+    /// change the tier without changing the selected model.
+    /// </remarks>
+    [Experimental(global::GitHub.Copilot.Diagnostics.Experimental)]
+    public FusionTier? FusionTier { get; set; }
 }
 
 /// <summary>

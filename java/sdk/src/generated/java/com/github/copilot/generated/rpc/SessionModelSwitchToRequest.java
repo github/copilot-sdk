@@ -32,7 +32,7 @@ public final class SessionModelSwitchToRequest {
     @JsonProperty("modelId")
     private final String modelId;
 
-    /** Optional Auto routing preference to stage atomically with selecting `auto`. Pass null to return to provider-default Auto routing. This field is rejected when `modelId` is not `auto`. */
+    /** Optional Auto routing preference to stage atomically with selecting `auto`. Pass null to return to provider-default Auto routing. This field is rejected when `modelId` is not `auto`. For Copilot Fusion, prefer `fusionTier`: the `balance`, `hydrafusion` and `hydrafusion-max` identifiers it replaces remain accepted but are deprecated. */
     @JsonProperty("autoTier")
     private AutoTier autoTier;
 
@@ -92,6 +92,10 @@ public final class SessionModelSwitchToRequest {
     @JsonProperty("providerId")
     private String providerId;
 
+    /** Optional Copilot Fusion tier to stage atomically with selecting `fusion` or `auto`, matching the CLI's `--fusion-tier`. The runtime resolves it to the Auto routing preference it stands for and stages that preference exactly like `autoTier`. Cannot be combined with `autoTier`, and is rejected when `modelId` is not `fusion` or `auto`. */
+    @JsonProperty("fusionTier")
+    private FusionTier fusionTier;
+
     /**
      * Creates a request with its required inputs.
      *
@@ -113,7 +117,7 @@ public final class SessionModelSwitchToRequest {
     /**
      * Returns the {@code autoTier} property.
      *
-     * @return Optional Auto routing preference to stage atomically with selecting `auto`. Pass null to return to provider-default Auto routing. This field is rejected when `modelId` is not `auto`.
+     * @return Optional Auto routing preference to stage atomically with selecting `auto`. Pass null to return to provider-default Auto routing. This field is rejected when `modelId` is not `auto`. For Copilot Fusion, prefer `fusionTier`: the `balance`, `hydrafusion` and `hydrafusion-max` identifiers it replaces remain accepted but are deprecated.
      */
     public AutoTier getAutoTier() {
         return autoTier;
@@ -246,9 +250,18 @@ public final class SessionModelSwitchToRequest {
     }
 
     /**
+     * Returns the {@code fusionTier} property.
+     *
+     * @return Optional Copilot Fusion tier to stage atomically with selecting `fusion` or `auto`, matching the CLI's `--fusion-tier`. The runtime resolves it to the Auto routing preference it stands for and stages that preference exactly like `autoTier`. Cannot be combined with `autoTier`, and is rejected when `modelId` is not `fusion` or `auto`.
+     */
+    public FusionTier getFusionTier() {
+        return fusionTier;
+    }
+
+    /**
      * Sets the {@code autoTier} property.
      *
-     * @param value Optional Auto routing preference to stage atomically with selecting `auto`. Pass null to return to provider-default Auto routing. This field is rejected when `modelId` is not `auto`.
+     * @param value Optional Auto routing preference to stage atomically with selecting `auto`. Pass null to return to provider-default Auto routing. This field is rejected when `modelId` is not `auto`. For Copilot Fusion, prefer `fusionTier`: the `balance`, `hydrafusion` and `hydrafusion-max` identifiers it replaces remain accepted but are deprecated.
      * @return this request
      */
     public SessionModelSwitchToRequest setAutoTier(AutoTier value) {
@@ -411,6 +424,17 @@ public final class SessionModelSwitchToRequest {
      */
     public SessionModelSwitchToRequest setProviderId(String value) {
         this.providerId = value;
+        return this;
+    }
+
+    /**
+     * Sets the {@code fusionTier} property.
+     *
+     * @param value Optional Copilot Fusion tier to stage atomically with selecting `fusion` or `auto`, matching the CLI's `--fusion-tier`. The runtime resolves it to the Auto routing preference it stands for and stages that preference exactly like `autoTier`. Cannot be combined with `autoTier`, and is rejected when `modelId` is not `fusion` or `auto`.
+     * @return this request
+     */
+    public SessionModelSwitchToRequest setFusionTier(FusionTier value) {
+        this.fusionTier = value;
         return this;
     }
 

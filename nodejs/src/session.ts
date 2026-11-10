@@ -65,6 +65,7 @@ import type {
     ReasoningEffort,
     ReasoningSummary,
     AutoTier,
+    FusionTier,
     ModelCapabilitiesOverride,
     SectionTransformFn,
     SessionCapabilities,
@@ -3167,8 +3168,9 @@ export class CopilotSession {
      * await session.setModel("gpt-5.4");
      * await session.setModel("claude-sonnet-4.6", { reasoningEffort: "high" });
      *
-     * // Select the Auto model and its routing preference in one call.
-     * await session.setModel("auto", { autoTier: "intelligence" });
+     * // Select Copilot Fusion and its tier in one call, like
+     * // `copilot --model fusion --fusion-tier high`.
+     * await session.setModel("fusion", { fusionTier: "high" });
      * ```
      */
     async setModel(
@@ -3186,10 +3188,27 @@ export class CopilotSession {
              * `auto`; use {@link setAutoTier} to change the preference without
              * changing the selected model.
              *
+             * For Copilot Fusion, prefer `fusionTier`. The `balance`,
+             * `hydrafusion` and `hydrafusion-max` identifiers it replaces
+             * remain accepted but are deprecated.
+             *
              * @experimental Part of an experimental Auto routing surface and may
              * change or be removed in a future release.
              */
             autoTier?: AutoTier | null;
+            /**
+             * Copilot Fusion tier to apply when `model` is `fusion` or `auto`,
+             * matching the CLI's `--fusion-tier`.
+             *
+             * The runtime resolves the tier to the Auto routing preference it
+             * stands for and stages it exactly like `autoTier`. Cannot be
+             * combined with `autoTier`; use {@link setFusionTier} to change the
+             * tier without changing the selected model.
+             *
+             * @experimental Part of an experimental Auto routing surface and may
+             * change or be removed in a future release.
+             */
+            fusionTier?: FusionTier;
         }
     ): Promise<void> {
         await this.rpc.model.switchTo({ modelId: model, ...options });
@@ -3211,6 +3230,10 @@ export class CopilotSession {
      * Only the most recent request survives: issuing a new request replaces any
      * earlier one that has not yet been claimed by a turn.
      *
+     * For Copilot Fusion, prefer {@link setFusionTier}. The `balance`,
+     * `hydrafusion` and `hydrafusion-max` identifiers it replaces remain
+     * accepted but are deprecated.
+     *
      * @param autoTier - Routing preference to activate, or `null` to return to
      *   the provider's default Auto routing
      * @returns The runtime's immediate acknowledgement and Auto preference snapshot
@@ -3228,6 +3251,34 @@ export class CopilotSession {
      */
     async setAutoTier(autoTier: AutoTier | null): Promise<ModelSwitchAutoTierResult> {
         return await this.rpc.model.switchAutoTier({ autoTier });
+    }
+
+    /**
+     * Change the Copilot Fusion tier without changing the selected model,
+     * naming the tier as the CLI's `--fusion-tier` does.
+     *
+     * The runtime resolves the tier to the Auto routing preference it stands
+     * for and then handles the request exactly like {@link setAutoTier}: it
+     * takes effect on a later user turn that uses the `fusion` or `auto`
+     * model. To return to the provider's default routing, call
+     * `setAutoTier(null)`.
+     *
+     * @param fusionTier - Copilot Fusion tier to activate
+     * @returns The runtime's immediate acknowledgement and Auto preference snapshot
+     *
+     * @experimental Part of an experimental Auto routing surface and may change
+     * or be removed in a future release.
+     *
+     * @example
+     * ```typescript
+     * const result = await session.setFusionTier("max");
+     * if (result.status === "pending") {
+     *     // Takes effect on a later turn that uses Copilot Fusion.
+     * }
+     * ```
+     */
+    async setFusionTier(fusionTier: FusionTier): Promise<ModelSwitchAutoTierResult> {
+        return await this.rpc.model.switchFusionTier({ fusionTier });
     }
 
     /**

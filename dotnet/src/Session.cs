@@ -3004,6 +3004,29 @@ public sealed partial class CopilotSession : IAsyncDisposable
                 nameof(options));
         }
 
+        if (options.FusionTier is { } fusionTier)
+        {
+            if (options.AutoTier is not null || options.ResetAutoTier)
+            {
+                throw new ArgumentException(
+                    $"{nameof(SetModelOptions.FusionTier)} cannot be combined with {nameof(SetModelOptions.AutoTier)} or {nameof(SetModelOptions.ResetAutoTier)}.",
+                    nameof(options));
+            }
+
+            await Rpc.Model.SwitchToAsync(
+                new ModelSwitchToRequest
+                {
+                    ModelId = model,
+                    FusionTier = fusionTier,
+                    ReasoningEffort = options.ReasoningEffort,
+                    ReasoningSummary = options.ReasoningSummary,
+                    ModelCapabilities = options.ModelCapabilities,
+                    ContextTier = options.ContextTier,
+                },
+                cancellationToken);
+            return;
+        }
+
         if (options.ResetAutoTier)
         {
             var request = new ModelSwitchToRequestWithSession
@@ -3055,6 +3078,11 @@ public sealed partial class CopilotSession : IAsyncDisposable
     /// Only the most recent request survives: issuing a new request replaces any earlier one
     /// that has not yet been claimed by a turn.
     /// </para>
+    /// <para>
+    /// For Copilot Fusion, prefer <see cref="SetFusionTierAsync"/>. The <c>balance</c>,
+    /// <c>hydrafusion</c> and <c>hydrafusion-max</c> identifiers it replaces remain accepted
+    /// but are deprecated.
+    /// </para>
     /// </remarks>
     /// <param name="autoTier">Routing preference to activate, or <see langword="null"/> to return to the provider's default Auto routing.</param>
     /// <param name="cancellationToken">Optional cancellation token.</param>
@@ -3080,6 +3108,32 @@ public sealed partial class CopilotSession : IAsyncDisposable
             "session.model.switchAutoTier",
             [WithExplicitNullAutoTier(request, RpcJsonContext.Default.ModelSwitchAutoTierRequest)],
             cancellationToken);
+    }
+
+    /// <summary>
+    /// Changes the Copilot Fusion tier without changing the selected model, naming the tier
+    /// as the CLI's <c>--fusion-tier</c> does.
+    /// </summary>
+    /// <remarks>
+    /// The runtime resolves the tier to the Auto routing preference it stands for and then
+    /// handles the request exactly like <see cref="SetAutoTierAsync"/>: it takes effect on a
+    /// later user turn that uses the <c>fusion</c> or <c>auto</c> model. To return to the
+    /// provider's default routing, call <see cref="SetAutoTierAsync"/> with
+    /// <see langword="null"/>.
+    /// </remarks>
+    /// <param name="fusionTier">Copilot Fusion tier to activate.</param>
+    /// <param name="cancellationToken">Optional cancellation token.</param>
+    /// <returns>The runtime's immediate acknowledgement and Auto preference snapshot.</returns>
+    /// <example>
+    /// <code>
+    /// var result = await session.SetFusionTierAsync(FusionTier.Max);
+    /// </code>
+    /// </example>
+    [Experimental(Diagnostics.Experimental)]
+    public async Task<ModelSwitchAutoTierResult> SetFusionTierAsync(FusionTier fusionTier, CancellationToken cancellationToken = default)
+    {
+        ThrowIfDisposed();
+        return await Rpc.Model.SwitchFusionTierAsync(fusionTier, cancellationToken: cancellationToken);
     }
 
     /// <summary>

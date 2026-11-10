@@ -1103,6 +1103,8 @@ session.set_auto_tier(None).await?;
 
 `set_model` accepts the same preference through `SetModelOptions::with_auto_tier`, which stages the tier atomically with selecting `auto`. Use `with_reset_auto_tier` instead to return to provider-default routing.
 
+For Copilot Fusion, use the CLI's names: model `"fusion"` with `CapiSessionOptions::with_fusion_tier` on create or resume, `SetModelOptions::with_fusion_tier` on `set_model`, or `session.set_fusion_tier`. The tiers are `FusionTier::Standard`, `FusionTier::High`, and `FusionTier::Max`. The routing identifiers these replace (`balance`, `hydrafusion`, and `hydrafusion-max`, and the `hydrafusion` and `hydrafusion-max` model IDs) remain accepted but are deprecated. See [Copilot Fusion names](../docs/features/session-persistence.md#copilot-fusion-names).
+
 See [Auto tier persistence](../docs/features/session-persistence.md#auto-tier-persistence)
 for the lifecycle rules.
 
