@@ -16480,6 +16480,39 @@ impl<'a> SessionRpcMetadata<'a> {
             .await
     }
 
+    /// Returns the token breakdown for the session's current context window for a given model.
+    ///
+    /// Wire method: `session.metadata.contextInfo`.
+    ///
+    /// # Parameters
+    ///
+    /// * `params` - Model identifier and token limits used to compute the context-info breakdown.
+    ///
+    /// # Returns
+    ///
+    /// Token breakdown for the session's current context window, or null if uninitialized.
+    ///
+    /// <div class="warning">
+    ///
+    /// **Experimental.** This API is part of an experimental wire-protocol surface
+    /// and may change or be removed in future SDK or CLI releases. Pin both the
+    /// SDK and CLI versions if your code depends on it.
+    ///
+    /// </div>
+    ///
+    /// Accepts [`MetadataContextInfoOptions`], including inputs added after [`MetadataContextInfoRequest`].
+    pub async fn context_info_with_options(
+        &self,
+        params: MetadataContextInfoOptions,
+    ) -> Result<MetadataContextInfoResult, Error> {
+        let mut wire_params = serde_json::to_value(params)?;
+        wire_params["sessionId"] = serde_json::Value::String(self.session.id().to_string());
+        self.session
+            .client()
+            .call_typed(rpc_methods::SESSION_METADATA_CONTEXTINFO, Some(wire_params))
+            .await
+    }
+
     /// Returns the experimental per-source attribution breakdown of the session's current context window as a flat list of entries (skills, subagents, MCP servers, built-in tools, plugin rollups, system/tool-definition costs, with nesting via parentId), plus the successful compaction count. The heaviest individual messages are available separately via `metadata.getContextHeaviestMessages`. Returns null until the session has initialized its system prompt and tool metadata.
     ///
     /// Wire method: `session.metadata.getContextAttribution`.

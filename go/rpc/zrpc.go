@@ -16330,6 +16330,10 @@ type MetadataContextInfoRequest struct {
 	// Provider owning selectedModel. Omit to use the current provider for the current model, or
 	// deterministic legacy lookup for a different model.
 	ProviderID *string `json:"providerId,omitempty"`
+	// Whether a zero outputTokenLimit may resolve a live provider's request cap. Defaults to
+	// true. Set false for a cached-only measurement that must not start a managed provider;
+	// capacity values use advertised limits, while occupied token counts are unchanged.
+	ResolveOutputTokenLimit *bool `json:"resolveOutputTokenLimit,omitempty"`
 	// Model identifier used for tokenization. Omit to use the session default. Used both for
 	// token counting and to compute display values.
 	SelectedModel *string `json:"selectedModel,omitempty"`
@@ -50938,6 +50942,9 @@ func (a *MetadataAPI) ContextInfo(ctx context.Context, params *MetadataContextIn
 		req["promptTokenLimit"] = params.PromptTokenLimit
 		if params.ProviderID != nil {
 			req["providerId"] = *params.ProviderID
+		}
+		if params.ResolveOutputTokenLimit != nil {
+			req["resolveOutputTokenLimit"] = *params.ResolveOutputTokenLimit
 		}
 		if params.SelectedModel != nil {
 			req["selectedModel"] = *params.SelectedModel

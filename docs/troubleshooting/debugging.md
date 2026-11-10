@@ -433,7 +433,7 @@ See [MCP Debugging Guide](./mcp-debugging.md) for detailed troubleshooting.
 
 ### stdio vs TCP mode
 
-The SDK supports two transport modes:
+Out of process, the SDK talks to the runtime over one of two transports:
 
 | Mode | Description | Use Case |
 |------|-------------|----------|
@@ -466,6 +466,8 @@ const client = new CopilotClient({
   connection: RuntimeConnection.forUri("localhost:8080"),  // Connect to running server
 });
 ```
+
+The experimental in-process transport loads the runtime into your process instead, so there is no child process or socket to check; see [In-process runtime](../setup/in-process-runtime.md).
 
 ### Diagnosing connection failures
 

@@ -598,3 +598,86 @@ async def test_connection_loss_stops_idle_read_and_closes_source() -> None:
     assert rpc.data_chunks == []
     assert rpc.chunks[-1].end is True
     assert rpc.chunks[-1].error.code == "cancelled"
+
+
+class _ImmediateAckRpc:
+    def __init__(self) -> None:
+        self.chunks = []
+
+    async def http_response_start(self, params):
+        pass
+
+    async def http_response_chunk(self, params):
+        self.chunks.append(params)
+
+
+class _EmptyResponseHandler(CopilotRequestHandler):
+    def __init__(self) -> None:
+        self.calls = 0
+
+    async def send_request(
+        self, request: httpx.Request, ctx: CopilotRequestContext
+    ) -> httpx.Response:
+        self.calls += 1
+        return httpx.Response(200, content=b"done")
+
+
+async def _finish_request(adapter: _CopilotRequestAdapterHandler, request_id: str) -> None:
+    await adapter.http_request_start(
+        LlmInferenceHTTPRequestStartRequest(
+            headers={}, method="POST", request_id=request_id, url="https://example.test"
+        )
+    )
+    task = adapter._pending[request_id].task
+    await adapter.http_request_chunk(
+        LlmInferenceHTTPRequestChunkRequest(data="", request_id=request_id, end=True)
+    )
+    assert task is not None
+    await asyncio.wait_for(task, timeout=2)
+
+
+@pytest.mark.asyncio
+async def test_frames_after_request_finished_are_ignored() -> None:
+    rpc = _ImmediateAckRpc()
+    handler = _EmptyResponseHandler()
+    adapter = create_copilot_request_adapter(handler, lambda: rpc)
+    await _finish_request(adapter, "finished")
+    assert rpc.chunks[-1].end is True
+    assert adapter._pending == {}
+
+    # Frames the runtime can still send, such as its cancel of a response it
+    # rejected over the size limit after the handler ended it.
+    await adapter.http_request_chunk(
+        LlmInferenceHTTPRequestChunkRequest(data="", request_id="finished", cancel=True, end=True)
+    )
+    await adapter.http_request_chunk(
+        LlmInferenceHTTPRequestChunkRequest(data="late", request_id="finished")
+    )
+    assert adapter._pending == {}
+
+    with pytest.raises(RuntimeError, match="already finished"):
+        await adapter.http_request_start(
+            LlmInferenceHTTPRequestStartRequest(
+                headers={}, method="POST", request_id="finished", url="https://example.test"
+            )
+        )
+    assert handler.calls == 1
+    assert adapter._pending == {}
+
+
+@pytest.mark.asyncio
+async def test_finished_request_ids_forget_the_oldest_past_256() -> None:
+    rpc = _ImmediateAckRpc()
+    adapter = create_copilot_request_adapter(_EmptyResponseHandler(), lambda: rpc)
+    for index in range(257):
+        await _finish_request(adapter, f"request-{index}")
+
+    await adapter.http_request_chunk(
+        LlmInferenceHTTPRequestChunkRequest(data="late", request_id="request-1")
+    )
+    assert adapter._pending == {}
+    await adapter.http_request_chunk(
+        LlmInferenceHTTPRequestChunkRequest(data="late", request_id="request-0")
+    )
+    assert list(adapter._pending) == ["request-0"]
+    adapter.cancel_pending()

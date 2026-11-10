@@ -151,6 +151,8 @@ from .session import (
     SessionFsConfig,
     SessionHooks,
     SessionLimitsConfig,
+    ShellAuthenticationHandler,
+    ShellAuthenticationRequest,
     SkillProvider,
     StoredMemory,
     SystemMessageConfig,
@@ -2260,6 +2262,9 @@ class CopilotClient:
         self._start_lock = asyncio.Lock()
         self._sessions: dict[str, CopilotSession] = {}
         self._sessions_lock = threading.Lock()
+        # Open secret prompts by session ID and request ID. Tracked here rather
+        # than on a session object, which a resume can replace while one is open.
+        self._pending_shell_authentication_requests: dict[tuple[str, str], asyncio.Event] = {}
         self._session_initializations: weakref.WeakValueDictionary[
             str, _SessionInitializationLock
         ] = weakref.WeakValueDictionary()
@@ -2628,6 +2633,7 @@ class CopilotClient:
             self._session_admission_closed = True
             sessions_to_destroy = list(self._sessions.values())
             self._sessions.clear()
+        self._cancel_pending_shell_authentication_requests()
 
         # A hung runtime never answers session.detach, so every detach shares one
         # deadline; past it, stop() moves on to runtime shutdown and termination.
@@ -2814,6 +2820,7 @@ class CopilotClient:
             self._session_admission_closed = True
             sessions = list(self._sessions.values())
             self._sessions.clear()
+        self._cancel_pending_shell_authentication_requests()
         for session in sessions:
             session._mark_disconnected()
         with self._github_token_providers_lock:
@@ -2935,6 +2942,7 @@ class CopilotClient:
         available_tools: list[str] | ToolSet | None = None,
         excluded_tools: list[str] | ToolSet | None = None,
         on_user_input_request: UserInputHandler | None = None,
+        on_shell_authentication_request: ShellAuthenticationHandler | None = None,
         ask_user_variant: AskUserVariant | None = None,
         hooks: SessionHooks | None = None,
         working_directory: str | None = None,
@@ -3069,6 +3077,11 @@ class CopilotClient:
                 precedence over ``available_tools``: a tool listed here is
                 disabled even if it also matches ``available_tools``.
             on_user_input_request: Handler for user input requests.
+            on_shell_authentication_request: Handler for passwords and other answers
+                that shell commands run by the agent ask for. When provided,
+                ``sudo -A``, ``ssh``, and ``git`` prompts reach this handler
+                instead of failing for lack of a terminal. Return
+                ``{"action": "cancel"}`` when nobody can answer.
             ask_user_variant: Model-facing shape of the ``ask_user`` tool.
                 Accepted values are ``"legacy"`` and ``"elicitation"``. The
                 default is ``"legacy"``. To use ``"elicitation"``, also provide
@@ -3387,6 +3400,8 @@ class CopilotClient:
         # Enable user input request callback if handler provided
         if on_user_input_request:
             payload["requestUserInput"] = True
+        if on_shell_authentication_request:
+            payload["requestShellAuthentication"] = True
         if ask_user_variant is not None:
             payload["askUserVariant"] = ask_user_variant
 
@@ -3724,6 +3739,8 @@ class CopilotClient:
                 s._register_mcp_auth_handler(on_mcp_auth_request)
                 if on_user_input_request:
                     s._register_user_input_handler(on_user_input_request)
+                if on_shell_authentication_request:
+                    s._register_shell_authentication_handler(on_shell_authentication_request)
                 if on_elicitation_request:
                     s._register_elicitation_handler(on_elicitation_request)
                 if on_exit_plan_mode_request:
@@ -4022,6 +4039,7 @@ class CopilotClient:
         available_tools: list[str] | ToolSet | None = None,
         excluded_tools: list[str] | ToolSet | None = None,
         on_user_input_request: UserInputHandler | None = None,
+        on_shell_authentication_request: ShellAuthenticationHandler | None = None,
         ask_user_variant: AskUserVariant | None = None,
         hooks: SessionHooks | None = None,
         working_directory: str | None = None,
@@ -4153,6 +4171,11 @@ class CopilotClient:
                 precedence over ``available_tools``: a tool listed here is
                 disabled even if it also matches ``available_tools``.
             on_user_input_request: Handler for user input requests.
+            on_shell_authentication_request: Handler for passwords and other answers
+                that shell commands run by the agent ask for. When provided,
+                ``sudo -A``, ``ssh``, and ``git`` prompts reach this handler
+                instead of failing for lack of a terminal. Return
+                ``{"action": "cancel"}`` when nobody can answer.
             ask_user_variant: Model-facing shape of the ``ask_user`` tool.
                 Accepted values are ``"legacy"`` and ``"elicitation"``. The
                 default is ``"legacy"``. To use ``"elicitation"``, also provide
@@ -4502,6 +4525,8 @@ class CopilotClient:
 
         if on_user_input_request:
             payload["requestUserInput"] = True
+        if on_shell_authentication_request:
+            payload["requestShellAuthentication"] = True
         if ask_user_variant is not None:
             payload["askUserVariant"] = ask_user_variant
 
@@ -4757,6 +4782,8 @@ class CopilotClient:
             session._register_mcp_auth_handler(on_mcp_auth_request)
             if on_user_input_request:
                 session._register_user_input_handler(on_user_input_request)
+            if on_shell_authentication_request:
+                session._register_shell_authentication_handler(on_shell_authentication_request)
             if on_elicitation_request:
                 session._register_elicitation_handler(on_elicitation_request)
             if on_exit_plan_mode_request:
@@ -6030,6 +6057,12 @@ class CopilotClient:
         self._client.set_notification_handler(self._handle_notification)
         self._client.set_request_handler("userInput.request", self._handle_user_input_request)
         self._client.set_request_handler(
+            "shellAuthentication.request", self._handle_shell_authentication_request
+        )
+        self._client.set_request_handler(
+            "shellAuthentication.cancel", self._handle_shell_authentication_cancel
+        )
+        self._client.set_request_handler(
             "exitPlanMode.request", self._handle_exit_plan_mode_request
         )
         self._client.set_request_handler(
@@ -6138,6 +6171,12 @@ class CopilotClient:
 
         self._client.set_notification_handler(self._handle_notification)
         self._client.set_request_handler("userInput.request", self._handle_user_input_request)
+        self._client.set_request_handler(
+            "shellAuthentication.request", self._handle_shell_authentication_request
+        )
+        self._client.set_request_handler(
+            "shellAuthentication.cancel", self._handle_shell_authentication_cancel
+        )
         self._client.set_request_handler(
             "exitPlanMode.request", self._handle_exit_plan_mode_request
         )
@@ -6365,6 +6404,7 @@ class CopilotClient:
                     llm_inference_adapter.cancel_pending()
                 for session in sessions:
                     session._cancel_pending_external_tools()
+                self._cancel_pending_shell_authentication_requests()
 
             try:
                 loop.call_soon_threadsafe(cancel_pending_external_tools)
@@ -6791,6 +6831,74 @@ class CopilotClient:
 
         result = await session._handle_user_input_request(params)
         return {"answer": result["answer"], "wasFreeform": result["wasFreeform"]}
+
+    async def _handle_shell_authentication_request(self, params: dict) -> dict:
+        """Handle a ``shellAuthentication.request`` from the runtime: a shell command
+        the agent runs asks for a password or another answer. Anything that
+        isn't the handler's answer cancels the prompt."""
+        session_id = params.get("sessionId")
+        request_id = params.get("requestId")
+        program = params.get("program")
+        prompt = params.get("prompt")
+        input_kind = params.get("inputKind")
+        if (
+            not isinstance(session_id, str)
+            or not isinstance(request_id, str)
+            or not isinstance(program, str)
+            or not isinstance(prompt, str)
+            or input_kind not in ("secret", "text", "confirm")
+        ):
+            return {"action": "cancel"}
+        key = (session_id, request_id)
+        with self._sessions_lock:
+            session = self._sessions.get(session_id)
+            # A request queued before the connection closed must not open a
+            # prompt that nothing can answer or cancel.
+            if (
+                session is None
+                or self._session_admission_closed
+                or key in self._pending_shell_authentication_requests
+            ):
+                return {"action": "cancel"}
+            cancelled = asyncio.Event()
+            self._pending_shell_authentication_requests[key] = cancelled
+        request: ShellAuthenticationRequest = {
+            "requestId": request_id,
+            "program": program,
+            "prompt": prompt,
+            "inputKind": input_kind,
+            "command": params["command"] if isinstance(params.get("command"), str) else "",
+            "cwd": params["cwd"] if isinstance(params.get("cwd"), str) else "",
+        }
+        try:
+            return dict(await session._handle_shell_authentication_request(request, cancelled))
+        finally:
+            with self._sessions_lock:
+                if self._pending_shell_authentication_requests.get(key) is cancelled:
+                    del self._pending_shell_authentication_requests[key]
+
+    async def _handle_shell_authentication_cancel(self, params: dict) -> dict:
+        """Handle a ``shellAuthentication.cancel`` from the runtime: the answer to an
+        open prompt is no longer needed."""
+        session_id = params.get("sessionId")
+        request_id = params.get("requestId")
+        if isinstance(session_id, str) and isinstance(request_id, str):
+            with self._sessions_lock:
+                cancelled = self._pending_shell_authentication_requests.get(
+                    (session_id, request_id)
+                )
+            if cancelled is not None:
+                cancelled.set()
+        return {}
+
+    def _cancel_pending_shell_authentication_requests(self) -> None:
+        """Cancel every open secret prompt once the runtime can no longer use an
+        answer. Runs on the connection's event loop."""
+        with self._sessions_lock:
+            pending = list(self._pending_shell_authentication_requests.values())
+            self._pending_shell_authentication_requests.clear()
+        for cancelled in pending:
+            cancelled.set()
 
     async def _handle_exit_plan_mode_request(self, params: dict) -> dict:
         """Handle an exitPlanMode.request callback from the CLI server."""

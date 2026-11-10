@@ -1174,6 +1174,205 @@ public sealed class UserInputInvocation
 }
 
 /// <summary>
+/// A password or other answer that a shell command run by the agent asks for, for example
+/// <c>sudo -A</c>, <c>ssh</c>, or <c>git</c> over HTTPS. The answer goes only to the program
+/// that asked: it is not shown to the model and is not recorded in session events.
+/// </summary>
+public sealed class ShellAuthenticationRequest
+{
+    /// <summary>Identifier of the session whose command asked.</summary>
+    [JsonPropertyName("sessionId")]
+    public string SessionId { get; set; } = string.Empty;
+
+    /// <summary>Identifies the request. A cancellation for it carries the same id.</summary>
+    [JsonPropertyName("requestId")]
+    public string RequestId { get; set; } = string.Empty;
+
+    /// <summary>The program that asked: <c>sudo</c>, <c>ssh</c>, or <c>git</c>.</summary>
+    [JsonPropertyName("program")]
+    public string Program { get; set; } = string.Empty;
+
+    /// <summary>The prompt text the program supplied.</summary>
+    [JsonPropertyName("prompt")]
+    public string Prompt { get; set; } = string.Empty;
+
+    /// <summary>
+    /// How to present the prompt: <see cref="ShellAuthenticationInputKind.Secret"/> for a password
+    /// or passphrase (mask the input), <see cref="ShellAuthenticationInputKind.Text"/> for a visible
+    /// answer such as a user name, or <see cref="ShellAuthenticationInputKind.Confirm"/> for a yes
+    /// or no question such as an ssh host-key check.
+    /// </summary>
+    [JsonPropertyName("inputKind")]
+    public ShellAuthenticationInputKind InputKind { get; set; }
+
+    /// <summary>The shell command that triggered the prompt.</summary>
+    [JsonPropertyName("command")]
+    public string Command { get; set; } = string.Empty;
+
+    /// <summary>The command's working directory.</summary>
+    [JsonPropertyName("cwd")]
+    public string Cwd { get; set; } = string.Empty;
+}
+
+/// <summary>How to present a <see cref="ShellAuthenticationRequest"/>.</summary>
+[JsonConverter(typeof(Converter))]
+[DebuggerDisplay("{Value,nq}")]
+public readonly struct ShellAuthenticationInputKind : IEquatable<ShellAuthenticationInputKind>
+{
+    private readonly string? _value;
+
+    /// <summary>Initializes a new instance of the <see cref="ShellAuthenticationInputKind"/> struct.</summary>
+    /// <param name="value">The value to associate with this <see cref="ShellAuthenticationInputKind"/>.</param>
+    [JsonConstructor]
+    public ShellAuthenticationInputKind(string value)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(value);
+        _value = value;
+    }
+
+    /// <summary>Gets the value associated with this <see cref="ShellAuthenticationInputKind"/>.</summary>
+    public string Value => _value ?? string.Empty;
+
+    /// <summary>A password or passphrase. Mask the input.</summary>
+    public static ShellAuthenticationInputKind Secret { get; } = new("secret");
+
+    /// <summary>A visible answer, such as a user name.</summary>
+    public static ShellAuthenticationInputKind Text { get; } = new("text");
+
+    /// <summary>
+    /// A yes or no question, such as an ssh host-key check. Answer <c>"yes"</c> to confirm, or
+    /// cancel to decline.
+    /// </summary>
+    public static ShellAuthenticationInputKind Confirm { get; } = new("confirm");
+
+    /// <summary>Returns a value indicating whether two <see cref="ShellAuthenticationInputKind"/> instances are equivalent.</summary>
+    public static bool operator ==(ShellAuthenticationInputKind left, ShellAuthenticationInputKind right) => left.Equals(right);
+
+    /// <summary>Returns a value indicating whether two <see cref="ShellAuthenticationInputKind"/> instances are not equivalent.</summary>
+    public static bool operator !=(ShellAuthenticationInputKind left, ShellAuthenticationInputKind right) => !(left == right);
+
+    /// <inheritdoc />
+    public override bool Equals(object? obj) => obj is ShellAuthenticationInputKind other && Equals(other);
+
+    /// <inheritdoc />
+    public bool Equals(ShellAuthenticationInputKind other) => string.Equals(Value, other.Value, StringComparison.OrdinalIgnoreCase);
+
+    /// <inheritdoc />
+    public override int GetHashCode() => StringComparer.OrdinalIgnoreCase.GetHashCode(Value);
+
+    /// <inheritdoc />
+    public override string ToString() => Value;
+
+    /// <summary>Provides a <see cref="JsonConverter{ShellAuthenticationInputKind}"/> for serializing <see cref="ShellAuthenticationInputKind"/> instances.</summary>
+    [EditorBrowsable(EditorBrowsableState.Never)]
+    public sealed class Converter : JsonConverter<ShellAuthenticationInputKind>
+    {
+        /// <inheritdoc />
+        public override ShellAuthenticationInputKind Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
+        {
+            return new(GeneratedStringEnumJson.ReadValue(ref reader, typeToConvert));
+        }
+
+        /// <inheritdoc />
+        public override void Write(Utf8JsonWriter writer, ShellAuthenticationInputKind value, JsonSerializerOptions options)
+        {
+            GeneratedStringEnumJson.WriteValue(writer, value.Value, typeof(ShellAuthenticationInputKind));
+        }
+    }
+}
+
+/// <summary>
+/// Answer to a <see cref="ShellAuthenticationRequest"/>, created with <see cref="Accept"/> or
+/// <see cref="Cancel"/>. Answer a <see cref="ShellAuthenticationInputKind.Confirm"/> request with
+/// <c>"yes"</c>, or cancel it to decline.
+/// </summary>
+public sealed class ShellAuthenticationResponse
+{
+    /// <summary>
+    /// <see cref="ShellAuthenticationResponseAction.Accept"/> to answer with <see cref="Value"/>, or
+    /// <see cref="ShellAuthenticationResponseAction.Cancel"/>.
+    /// </summary>
+    [JsonPropertyName("action")]
+    public ShellAuthenticationResponseAction Action { get; set; } = ShellAuthenticationResponseAction.Cancel;
+
+    /// <summary>The answer when <see cref="Action"/> is <see cref="ShellAuthenticationResponseAction.Accept"/>.</summary>
+    [JsonPropertyName("value")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public string? Value { get; set; }
+
+    /// <summary>Answers the request with <paramref name="value"/>.</summary>
+    /// <param name="value">The answer.</param>
+    /// <returns>An accepting response.</returns>
+    public static ShellAuthenticationResponse Accept(string value) =>
+        new() { Action = ShellAuthenticationResponseAction.Accept, Value = value };
+
+    /// <summary>Declines the request. The program that asked fails.</summary>
+    /// <returns>A cancelling response.</returns>
+    public static ShellAuthenticationResponse Cancel() => new() { Action = ShellAuthenticationResponseAction.Cancel };
+}
+
+/// <summary>The outcome of a <see cref="ShellAuthenticationRequest"/>.</summary>
+[JsonConverter(typeof(Converter))]
+[DebuggerDisplay("{Value,nq}")]
+public readonly struct ShellAuthenticationResponseAction : IEquatable<ShellAuthenticationResponseAction>
+{
+    private readonly string? _value;
+
+    /// <summary>Initializes a new instance of the <see cref="ShellAuthenticationResponseAction"/> struct.</summary>
+    /// <param name="value">The value to associate with this <see cref="ShellAuthenticationResponseAction"/>.</param>
+    [JsonConstructor]
+    public ShellAuthenticationResponseAction(string value)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(value);
+        _value = value;
+    }
+
+    /// <summary>Gets the value associated with this <see cref="ShellAuthenticationResponseAction"/>.</summary>
+    public string Value => _value ?? string.Empty;
+
+    /// <summary>Answers the request with <see cref="ShellAuthenticationResponse.Value"/>.</summary>
+    public static ShellAuthenticationResponseAction Accept { get; } = new("accept");
+
+    /// <summary>Declines the request. The program that asked fails.</summary>
+    public static ShellAuthenticationResponseAction Cancel { get; } = new("cancel");
+
+    /// <summary>Returns a value indicating whether two <see cref="ShellAuthenticationResponseAction"/> instances are equivalent.</summary>
+    public static bool operator ==(ShellAuthenticationResponseAction left, ShellAuthenticationResponseAction right) => left.Equals(right);
+
+    /// <summary>Returns a value indicating whether two <see cref="ShellAuthenticationResponseAction"/> instances are not equivalent.</summary>
+    public static bool operator !=(ShellAuthenticationResponseAction left, ShellAuthenticationResponseAction right) => !(left == right);
+
+    /// <inheritdoc />
+    public override bool Equals(object? obj) => obj is ShellAuthenticationResponseAction other && Equals(other);
+
+    /// <inheritdoc />
+    public bool Equals(ShellAuthenticationResponseAction other) => string.Equals(Value, other.Value, StringComparison.OrdinalIgnoreCase);
+
+    /// <inheritdoc />
+    public override int GetHashCode() => StringComparer.OrdinalIgnoreCase.GetHashCode(Value);
+
+    /// <inheritdoc />
+    public override string ToString() => Value;
+
+    /// <summary>Provides a <see cref="JsonConverter{ShellAuthenticationResponseAction}"/> for serializing <see cref="ShellAuthenticationResponseAction"/> instances.</summary>
+    [EditorBrowsable(EditorBrowsableState.Never)]
+    public sealed class Converter : JsonConverter<ShellAuthenticationResponseAction>
+    {
+        /// <inheritdoc />
+        public override ShellAuthenticationResponseAction Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
+        {
+            return new(GeneratedStringEnumJson.ReadValue(ref reader, typeToConvert));
+        }
+
+        /// <inheritdoc />
+        public override void Write(Utf8JsonWriter writer, ShellAuthenticationResponseAction value, JsonSerializerOptions options)
+        {
+            GeneratedStringEnumJson.WriteValue(writer, value.Value, typeof(ShellAuthenticationResponseAction));
+        }
+    }
+}
+
+/// <summary>
 /// Request to exit plan mode and continue with a selected action.
 /// </summary>
 public sealed class ExitPlanModeRequest
@@ -4179,6 +4378,7 @@ public abstract class SessionConfigBase
         OnExitPlanModeRequest = other.OnExitPlanModeRequest;
         OnMcpAuthRequest = other.OnMcpAuthRequest;
         OnPermissionRequest = other.OnPermissionRequest;
+        OnShellAuthenticationRequest = other.OnShellAuthenticationRequest;
         OnUserInputRequest = other.OnUserInputRequest;
         Provider = other.Provider;
         Capi = other.Capi;
@@ -4510,6 +4710,17 @@ public abstract class SessionConfigBase
     /// question-and-answer form of the <c>ask_user</c> tool.
     /// </summary>
     public Func<UserInputRequest, UserInputInvocation, Task<UserInputResponse>>? OnUserInputRequest { get; set; }
+
+    /// <summary>
+    /// Handler for passwords and other answers that shell commands run by the agent ask for.
+    /// When provided, <c>sudo -A</c>, <c>ssh</c>, and <c>git</c> prompts reach this handler
+    /// instead of failing for lack of a terminal. Return <see cref="ShellAuthenticationResponse.Cancel"/>
+    /// when nobody can answer. The <see cref="CancellationToken"/> is cancelled when the answer is
+    /// no longer needed, for example because the command ended, the prompt timed out, or the
+    /// session ended or switched to autopilot; close the input when it is. An exception, a response
+    /// that isn't an accept, or an answer after the token is cancelled cancels the prompt.
+    /// </summary>
+    public Func<ShellAuthenticationRequest, CancellationToken, Task<ShellAuthenticationResponse>>? OnShellAuthenticationRequest { get; set; }
 
     /// <summary>Slash commands registered for this session.</summary>
     public IList<CommandDefinition>? Commands { get; set; }

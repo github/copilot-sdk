@@ -1499,6 +1499,8 @@ fn client_with_list_models_handler(handler: Arc<dyn ListModelsHandler>) -> Clien
             installation_confirmation: Arc::new(
                 installation_confirmation::InstallationConfirmationDispatcher::new(),
             ),
+            shell_authentication_requests:
+                shell_authentication::PendingShellAuthenticationRequests::default(),
             entra_token: Arc::new(entra::EntraTokenDispatcher::new(None)),
             on_github_telemetry: None,
             on_get_trace_context: None,

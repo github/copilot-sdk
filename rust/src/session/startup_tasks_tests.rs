@@ -68,6 +68,7 @@ async fn check_aborted_nested_dispatches(nested_first: bool) {
         user_input: None,
         exit_plan_mode: None,
         auto_mode_switch: None,
+        shell_authentication: None,
         skill_provider: None,
         memory_store: None,
         session_creation: Arc::default(),

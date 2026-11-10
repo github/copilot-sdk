@@ -77,6 +77,7 @@ pub mod session;
 /// Custom session filesystem provider (virtualizable filesystem layer).
 pub mod session_fs;
 mod session_fs_dispatch;
+mod shell_authentication;
 /// Session-scoped skill provider callbacks.
 pub mod skill_provider;
 /// Per-phase timing breakdown for [`Client::start`].
@@ -1661,6 +1662,8 @@ struct ClientInner {
     llm_inference: OnceLock<Arc<copilot_request_handler::CopilotRequestDispatcher>>,
     extension_launch_provider: Arc<extension_launch_provider::ExtensionLaunchProviderDispatcher>,
     installation_confirmation: Arc<installation_confirmation::InstallationConfirmationDispatcher>,
+    /// Open shell password prompts, keyed by session and request.
+    shell_authentication_requests: shell_authentication::PendingShellAuthenticationRequests,
     entra_token: Arc<entra::EntraTokenDispatcher>,
     /// Connection-level GitHub telemetry forwarding callback, set from
     /// [`ClientOptions::on_github_telemetry`]. Drives the
@@ -2863,6 +2866,8 @@ impl Client {
                 llm_inference: OnceLock::new(),
                 extension_launch_provider: extension_launch_provider.clone(),
                 installation_confirmation: installation_confirmation.clone(),
+                shell_authentication_requests:
+                    shell_authentication::PendingShellAuthenticationRequests::default(),
                 entra_token: entra_token.clone(),
                 on_github_telemetry,
                 on_get_trace_context,
@@ -4043,6 +4048,7 @@ impl Client {
         let mut errors: Vec<Error> = Vec::new();
         self.inner.extension_launch_provider.clear();
         self.inner.installation_confirmation.clear();
+        self.inner.shell_authentication_requests.cancel_all();
 
         // Snapshot the registered session IDs without holding the router
         // lock across the detach RPCs. A hung runtime never answers
@@ -4235,6 +4241,7 @@ impl Client {
         info!(pid = ?pid, "force-stopping CLI process");
         self.inner.extension_launch_provider.clear();
         self.inner.installation_confirmation.clear();
+        self.inner.shell_authentication_requests.cancel_all();
         if let Some(process_tree) = self.inner.process_tree.lock().take()
             && let Err(error) = process_tree.terminate()
         {

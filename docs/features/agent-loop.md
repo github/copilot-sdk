@@ -36,7 +36,7 @@ flowchart TD
 
 The model sees the **full conversation history** on each call—system prompt, user message, and all prior tool calls and results.
 
-**Key insight:** Each iteration of this loop is exactly one LLM API call, visible as one `assistant.turn_start` / `assistant.turn_end` pair in the event log. There are no hidden calls.
+**Key insight:** Each iteration of this loop is exactly one LLM API call, visible as one `assistant.turn_start` / `assistant.turn_end` pair in the event log. The loop makes no hidden calls; for model calls the runtime makes outside it, see [Counting LLM calls](#counting-llm-calls).
 
 ## Multiple tool calls
 
@@ -215,7 +215,7 @@ The CLI emits `session.idle` regardless, because it's a mechanical signal (the l
 
 ## Counting LLM calls
 
-The number of `assistant.turn_start` / `assistant.turn_end` pairs in the event log equals the total number of LLM API calls made. There are no hidden calls for planning, evaluation, or completion checking.
+Each `assistant.turn_start` / `assistant.turn_end` pair in the event log is one LLM API call made by the tool-use loop, and the loop makes no hidden calls for planning, evaluation, or completion checking. Model calls the runtime makes outside the loop don't get a turn pair, so the number of pairs is not always the total number of LLM API calls. Compaction is one such call: when the runtime summarizes the conversation history, the summarizer's call emits no turn events and reports its token usage in the `compactionTokensUsed` field of `session.compaction_complete`.
 
 To inspect turn count for a session:
 

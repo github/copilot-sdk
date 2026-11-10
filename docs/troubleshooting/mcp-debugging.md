@@ -184,7 +184,7 @@ cd /expected/working/dir
 
 ### Timeout errors
 
-**Symptoms:** `MCP tool call timed out` errors.
+**Symptoms:** Tool calls fail with `McpError: MCP error -32001: Request timed out`.
 
 **Solutions:**
 

@@ -20,7 +20,7 @@ Extensions add custom tools, hooks, and behaviors to the Copilot CLI. They run a
 2. **Launch**: Legacy extensions start eagerly. Extensions with a valid opt-in `extension.json` advertise native tools/canvases without starting, and launch on first admitted demand. Each launched extension is a child process with `@github/copilot-sdk` available via an automatic module resolver.
 3. **Connection**: The extension calls `joinSession()` which establishes a JSON-RPC connection over stdio to the CLI and attaches to the user's current foreground session.
 4. **Registration**: Tools and hooks declared in the session options are registered with the CLI and become available to the agent.
-5. **Lifecycle**: Extensions are reloaded on `/clear` (or if the foreground session is replaced) and stopped on CLI exit (SIGTERM, then SIGKILL after 5s).
+5. **Lifecycle**: Extensions reload on `/clear` or foreground-session replacement and stop on CLI exit. On macOS and Linux, ordinary stop/reload sends SIGTERM, then SIGKILL after 5s if still running. CLI exit and session/service teardown use a shared 1s grace period, including disabling extensions on SDK resume; Windows kills immediately without a grace period.
 
 ## File Structure
 

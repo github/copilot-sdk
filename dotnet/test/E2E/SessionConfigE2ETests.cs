@@ -490,11 +490,11 @@ public class SessionConfigE2ETests(E2ETestFixture fixture, ITestOutputHelper out
 
         try
         {
-            var exchange = await SendAndGetNextExchangeAsync(
+            await SendAndGetNextExchangeAsync(
                 session,
                 "Acknowledge the current session limits.");
 
-            AssertSessionLimitsStatus(exchange, "30 AI credits");
+            await AssertSessionLimitsAppliedAsync(session, 30);
         }
         finally
         {
@@ -518,11 +518,11 @@ public class SessionConfigE2ETests(E2ETestFixture fixture, ITestOutputHelper out
 
         try
         {
-            var exchange = await SendAndGetNextExchangeAsync(
+            await SendAndGetNextExchangeAsync(
                 session2,
                 "Acknowledge the current session limits.");
 
-            AssertSessionLimitsStatus(exchange, "30 AI credits");
+            await AssertSessionLimitsAppliedAsync(session2, 30);
         }
         finally
         {
@@ -792,17 +792,11 @@ public class SessionConfigE2ETests(E2ETestFixture fixture, ITestOutputHelper out
         return exchanges[existingCount];
     }
 
-    private static void AssertSessionLimitsStatus(ParsedHttpExchange exchange, string expectedRemaining)
+    private static async Task AssertSessionLimitsAppliedAsync(CopilotSession session, double maxAiCredits)
     {
-        var message = exchange.Request.Messages.SingleOrDefault(m =>
-            m.Role == "user"
-            && m.StringContent?.Contains("<session_limits_status>", StringComparison.Ordinal) == true);
-
-        Assert.NotNull(message);
-        Assert.Contains($"Remaining session limits: {expectedRemaining}.", message!.StringContent);
-        Assert.Contains(
-            "Be frugal; avoid optional exploration and unnecessary tool calls.",
-            message.StringContent);
+        var metadata = await session.Rpc.Metadata.SnapshotAsync();
+        Assert.NotNull(metadata.SessionLimits);
+        Assert.Equal<double?>(maxAiCredits, metadata.SessionLimits!.MaxAiCredits);
     }
 
     private static IReadOnlyList<string> GetTaskAgentTypes(ParsedHttpExchange exchange)

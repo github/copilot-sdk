@@ -66109,6 +66109,11 @@ class MetadataContextInfoRequest:
     """Provider owning selectedModel. Omit to use the current provider for the current model, or
     deterministic legacy lookup for a different model.
     """
+    resolve_output_token_limit: bool | None = field(default=None, kw_only=True)
+    """Whether a zero outputTokenLimit may resolve a live provider's request cap. Defaults to
+    true. Set false for a cached-only measurement that must not start a managed provider;
+    capacity values use advertised limits, while occupied token counts are unchanged.
+    """
     selected_model: str | None = None
     """Model identifier used for tokenization. Omit to use the session default. Used both for
     token counting and to compute display values.
@@ -66120,8 +66125,9 @@ class MetadataContextInfoRequest:
         output_token_limit = from_int(obj.get("outputTokenLimit"))
         prompt_token_limit = from_int(obj.get("promptTokenLimit"))
         provider_id = from_union([from_str, from_none], obj.get("providerId"))
+        resolve_output_token_limit = from_union([from_bool, from_none], obj.get("resolveOutputTokenLimit"))
         selected_model = from_union([from_str, from_none], obj.get("selectedModel"))
-        return MetadataContextInfoRequest(output_token_limit, prompt_token_limit, provider_id, selected_model)
+        return MetadataContextInfoRequest(output_token_limit, prompt_token_limit, provider_id, selected_model, resolve_output_token_limit=resolve_output_token_limit)
 
     def to_dict(self) -> dict:
         result: dict = {}
@@ -66129,6 +66135,8 @@ class MetadataContextInfoRequest:
         result["promptTokenLimit"] = from_int(self.prompt_token_limit)
         if self.provider_id is not None:
             result["providerId"] = from_union([from_str, from_none], self.provider_id)
+        if self.resolve_output_token_limit is not None:
+            result["resolveOutputTokenLimit"] = from_union([from_bool, from_none], self.resolve_output_token_limit)
         if self.selected_model is not None:
             result["selectedModel"] = from_union([from_str, from_none], self.selected_model)
         return result

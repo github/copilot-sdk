@@ -15,7 +15,6 @@ import os
 
 import pytest
 
-from copilot import CopilotClient, RuntimeConnection
 from copilot.client import _InternalTestOptions
 
 from .testharness import E2ETestContext
@@ -37,8 +36,7 @@ class TestInProcessFfi:
                 },
             )
         clients = [
-            CopilotClient(
-                connection=RuntimeConnection.for_inprocess(),
+            ctx.create_inprocess_client(
                 base_directory=str(tmp_path / side),
                 github_token=f"ffi-{side}-token",
                 use_logged_in_user=False,
@@ -81,7 +79,7 @@ class TestInProcessFfi:
     ):
         # In-process hosting loads runtime.node directly. ``ping`` is a purely local
         # RPC round-trip, so no auth or replay proxy is involved.
-        client = CopilotClient(connection=RuntimeConnection.for_inprocess())
+        client = ctx.create_inprocess_client()
         await client.start()
 
         try:

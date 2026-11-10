@@ -36491,7 +36491,32 @@ public sealed class MetadataContextInfoResult
 
 /// <summary>Model identifier and token limits used to compute the context-info breakdown.</summary>
 [Experimental(global::GitHub.Copilot.Diagnostics.Experimental)]
-internal sealed class MetadataContextInfoRequest
+public sealed class MetadataContextInfoRequest
+{
+    /// <summary>Requested output allowance to reserve against the combined context ceiling. Pass 0 to resolve the session's request cap, falling back to the model's advertised output limit.</summary>
+    [JsonPropertyName("outputTokenLimit")]
+    public required long OutputTokenLimit { get; set; }
+
+    /// <summary>Advertised prompt allowance. Pass 0 to resolve the selected model and context tier from the session.</summary>
+    [JsonPropertyName("promptTokenLimit")]
+    public required long PromptTokenLimit { get; set; }
+
+    /// <summary>Provider owning selectedModel. Omit to use the current provider for the current model, or deterministic legacy lookup for a different model.</summary>
+    [JsonPropertyName("providerId")]
+    public string? ProviderId { get; set; }
+
+    /// <summary>Whether a zero outputTokenLimit may resolve a live provider's request cap. Defaults to true. Set false for a cached-only measurement that must not start a managed provider; capacity values use advertised limits, while occupied token counts are unchanged.</summary>
+    [JsonPropertyName("resolveOutputTokenLimit")]
+    public bool? ResolveOutputTokenLimit { get; set; }
+
+    /// <summary>Model identifier used for tokenization. Omit to use the session default. Used both for token counting and to compute display values.</summary>
+    [JsonPropertyName("selectedModel")]
+    public string? SelectedModel { get; set; }
+}
+
+/// <summary>Model identifier and token limits used to compute the context-info breakdown.</summary>
+[Experimental(global::GitHub.Copilot.Diagnostics.Experimental)]
+internal sealed class MetadataContextInfoRequestWithSession
 {
     /// <summary>Requested output allowance to reserve against the combined context ceiling. Pass 0 to resolve the session's request cap, falling back to the model's advertised output limit.</summary>
     [JsonPropertyName("outputTokenLimit")]
@@ -36504,6 +36529,10 @@ internal sealed class MetadataContextInfoRequest
     /// <summary>Provider owning selectedModel. Omit to use the current provider for the current model, or deterministic legacy lookup for a different model.</summary>
     [JsonPropertyName("providerId")]
     public string? ProviderId { get; set; }
+
+    /// <summary>Whether a zero outputTokenLimit may resolve a live provider's request cap. Defaults to true. Set false for a cached-only measurement that must not start a managed provider; capacity values use advertised limits, while occupied token counts are unchanged.</summary>
+    [JsonPropertyName("resolveOutputTokenLimit")]
+    public bool? ResolveOutputTokenLimit { get; set; }
 
     /// <summary>Model identifier used for tokenization. Omit to use the session default. Used both for token counting and to compute display values.</summary>
     [JsonPropertyName("selectedModel")]
@@ -71628,8 +71657,20 @@ public sealed class MetadataApi
     {
         _session.ThrowIfDisposed();
 
-        var request = new MetadataContextInfoRequest { SessionId = _session.SessionId, PromptTokenLimit = promptTokenLimit, OutputTokenLimit = outputTokenLimit, SelectedModel = selectedModel, ProviderId = providerId };
+        var request = new MetadataContextInfoRequestWithSession { SessionId = _session.SessionId, PromptTokenLimit = promptTokenLimit, OutputTokenLimit = outputTokenLimit, SelectedModel = selectedModel, ProviderId = providerId };
         return await CopilotClient.InvokeRpcAsync<MetadataContextInfoResult>(_session.Rpc, "session.metadata.contextInfo", [request], cancellationToken);
+    }
+
+    /// <summary>Returns the token breakdown for the session's current context window for a given model.</summary>
+    /// <param name="request">Model identifier and token limits used to compute the context-info breakdown.</param>
+    /// <param name="cancellationToken">The <see cref="CancellationToken"/> to monitor for cancellation requests. The default is <see cref="CancellationToken.None"/>.</param>
+    /// <returns>Token breakdown for the session's current context window, or null if uninitialized.</returns>
+    public async Task<MetadataContextInfoResult> ContextInfoAsync(MetadataContextInfoRequest request, CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(request);
+        _session.ThrowIfDisposed();
+        var wireRequest = new MetadataContextInfoRequestWithSession { SessionId = _session.SessionId, PromptTokenLimit = request.PromptTokenLimit, OutputTokenLimit = request.OutputTokenLimit, ResolveOutputTokenLimit = request.ResolveOutputTokenLimit, SelectedModel = request.SelectedModel, ProviderId = request.ProviderId };
+        return await CopilotClient.InvokeRpcAsync<MetadataContextInfoResult>(_session.Rpc, "session.metadata.contextInfo", [wireRequest], cancellationToken);
     }
 
     /// <summary>Returns the experimental per-source attribution breakdown of the session's current context window as a flat list of entries (skills, subagents, MCP servers, built-in tools, plugin rollups, system/tool-definition costs, with nesting via parentId), plus the successful compaction count. The heaviest individual messages are available separately via `metadata.getContextHeaviestMessages`. Returns null until the session has initialized its system prompt and tool metadata.</summary>
@@ -74491,6 +74532,7 @@ internal static class ClientGlobalApiRegistration
 [JsonSerializable(typeof(MetadataContextHeaviestMessagesRequest))]
 [JsonSerializable(typeof(MetadataContextHeaviestMessagesResult))]
 [JsonSerializable(typeof(MetadataContextInfoRequest))]
+[JsonSerializable(typeof(MetadataContextInfoRequestWithSession))]
 [JsonSerializable(typeof(MetadataContextInfoResult))]
 [JsonSerializable(typeof(MetadataContextInfoResultContextInfo))]
 [JsonSerializable(typeof(MetadataIsProcessingResult))]

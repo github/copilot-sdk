@@ -403,6 +403,7 @@ Create a new conversation session.
 - `provider?: ProviderConfig` - Custom API provider configuration (BYOK - Bring Your Own Key). See [Custom Providers](#custom-providers) section.
 - `onPermissionRequest?: PermissionHandler` - Optional handler called before each tool execution to approve or deny it. When omitted, permission requests are emitted as events and left pending for manual resolution. `approveAll` approves requests when managed settings are disabled and throws when `enableManagedSettings` is true. Custom handlers can inspect `managedApprovalRequired` for human-facing confirmation logic. See [Permission Handling](#permission-handling) section.
 - `onUserInputRequest?: UserInputHandler` - Handler for legacy question-and-answer requests from the agent. Enables the legacy `ask_user` tool. See [User Input Requests](#user-input-requests) section.
+- `onShellAuthenticationRequest?: ShellAuthenticationHandler` - Handler for passwords and other answers that shell commands run by the agent ask for, such as `sudo -A`, `ssh`, and `git` over HTTPS. The answer goes only to the program that asked; the model never sees it. Without a handler, those commands fail as they do without a terminal. See [Shell password prompts](../docs/features/shell-password-prompts.md).
 - `askUserVariant?: "legacy" | "elicitation"` - Selects the model-facing `ask_user` tool shape when creating or cold-resuming a session. Defaults to `"legacy"`; use `"elicitation"` with `onElicitationRequest`.
 - `interactiveUser?: boolean` - Declares that a person types this session's messages, as in an editor chat panel. Enables the runtime's user-message analysis telemetry for user-authored messages; automated messages stay excluded. Defaults to `false`. Ignored for cloud sessions. Re-supply it when cold-resuming a session; it is ignored when resuming a session that is already active.
 - `permissionMode?: PermissionMode` - Applies `"manual"`, `"assisted"`, or `"allow-all"` before the session's first turn: before `createSession` returns, and before a resume continues pending work. Uses the same checks as `session.rpc.permissions.setMode`; `session.permissionModeResult` reports whether it was applied and the authoritative mode. Not supported for cloud sessions.
@@ -1057,52 +1058,6 @@ await session.send({ prompt: "What does the most recent jpg in this directory po
 Enable streaming to receive assistant response chunks as they're generated:
 
 <!-- docs-validate: strict -->
-<!-- docs-validate: hidden -->
-
-```typescript
-import { approveAll } from "@github/copilot-sdk";
-
-const session = await client.createSession({
-    model: "gpt-5",
-    streaming: true,
-    onPermissionRequest: approveAll,
-});
-
-// Wait for completion using typed event handlers
-const done = new Promise<void>((resolve) => {
-    session.on("assistant.message_delta", (event) => {
-        // Streaming message chunk - print incrementally
-        process.stdout.write(event.data.deltaContent);
-    });
-
-    session.on("assistant.reasoning_delta", (event) => {
-        // Streaming reasoning chunk (if model supports reasoning)
-        process.stdout.write(event.data.deltaContent);
-    });
-
-    session.on("assistant.message", (event) => {
-        // Final message - complete content
-        console.log("\n--- Final message ---");
-        console.log(event.data.content);
-    });
-
-    session.on("assistant.reasoning", (event) => {
-        // Final reasoning content (if model supports reasoning)
-        console.log("--- Reasoning ---");
-        console.log(event.data.content);
-    });
-
-    session.on("session.idle", () => {
-        // Session finished processing
-        resolve();
-    });
-});
-
-await session.send({ prompt: "Tell me a short story" });
-await done; // Wait for streaming to complete
-```
-
-<!-- /docs-validate: hidden -->
 
 ```typescript
 const session = await client.createSession({
@@ -1207,7 +1162,7 @@ const session = await client.createSession({
 
 ```ts
 import { z } from "zod";
-import { CopilotClient, defineTool } from "@github/copilot-sdk";
+import { defineTool } from "@github/copilot-sdk";
 
 const session = await client.createSession({
     model: "gpt-5",

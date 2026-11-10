@@ -247,7 +247,7 @@ This pattern gives every worker a clear owner and lets the parent session reason
 
 ## Lifecycle hooks
 
-Fleet mode invokes sub-agents through the runtime's task mechanism. The runtime emits hook activity for sub-agent tool calls: the runtime 1.0.52 changelog notes that `preToolUse`, `postToolUse`, `subagentStart`, and `subagentStop` fire correctly for sub-agent tool calls.
+Fleet mode invokes sub-agents through the runtime's task mechanism. The runtime emits hook activity for sub-agent tool calls: the runtime 1.0.49 changelog notes that `preToolUse`, `postToolUse`, `subagentStart`, and `subagentStop` fire correctly for sub-agent tool calls.
 
 All six SDKs expose typed sub-agent lifecycle hooks: Node.js uses `onSubagentStart` and `onSubagentStop`, Python and Rust use `on_subagent_start` and `on_subagent_stop`, Go and .NET use `OnSubagentStart` and `OnSubagentStop`, and Java uses `setOnSubagentStart` and `setOnSubagentStop`. Register them when creating or resuming a session. The start hook can prepend `additionalContext` to the child's first prompt; the stop hook can request another child turn with a block reason or replace the response reported to the parent.
 

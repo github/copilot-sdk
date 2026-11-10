@@ -27,7 +27,7 @@ use crate::generated::session_events::{
 use crate::handler::{
     AutoModeSwitchHandler, AutoModeSwitchResponse, ElicitationHandler, ExitPlanModeHandler,
     McpAuthHandler, McpAuthRequest, McpAuthResponse, McpAuthResult, PermissionHandler,
-    PermissionResult, UserInputHandler, UserInputResponse,
+    PermissionResult, ShellAuthenticationHandler, UserInputHandler, UserInputResponse,
 };
 use crate::hooks::SessionHooks;
 use crate::memory_store::{MemoryStore, StoredMemory};
@@ -109,6 +109,7 @@ pub(crate) struct SessionHandlers {
     pub user_input: Option<Arc<dyn UserInputHandler>>,
     pub exit_plan_mode: Option<Arc<dyn ExitPlanModeHandler>>,
     pub auto_mode_switch: Option<Arc<dyn AutoModeSwitchHandler>>,
+    pub shell_authentication: Option<Arc<dyn ShellAuthenticationHandler>>,
     pub skill_provider: Option<Arc<dyn SkillProvider>>,
     pub memory_store: Option<Arc<dyn MemoryStore>>,
     pub session_creation: Arc<parking_lot::RwLock<Option<Arc<dyn crate::SessionCreationHandler>>>>,
@@ -2664,6 +2665,7 @@ impl Client {
             user_input: runtime.user_input_handler.take(),
             exit_plan_mode: runtime.exit_plan_mode_handler.take(),
             auto_mode_switch: runtime.auto_mode_switch_handler.take(),
+            shell_authentication: runtime.shell_authentication_handler.take(),
             skill_provider: runtime.skill_provider.take(),
             memory_store: runtime.memory_store.take(),
             session_creation: Arc::default(),
@@ -3104,6 +3106,7 @@ impl Client {
             user_input: runtime.user_input_handler.take(),
             exit_plan_mode: runtime.exit_plan_mode_handler.take(),
             auto_mode_switch: runtime.auto_mode_switch_handler.take(),
+            shell_authentication: runtime.shell_authentication_handler.take(),
             skill_provider: runtime.skill_provider.take(),
             memory_store: runtime.memory_store.take(),
             session_creation: Arc::default(),
@@ -3765,6 +3768,12 @@ fn spawn_event_loop(
                         let bearer_token_providers = bearer_token_providers.clone();
                         let request_id = request.id;
                         let method = request.method.clone();
+                        // Inline, so a cancellation can't overtake its prompt.
+                        let shell_authentication = client.inner.shell_authentication_requests.before_dispatch(
+                            &session_id,
+                            &request,
+                            &shutdown,
+                        );
                         let _ = spawn_startup_tracked(
                             async move {
                                 let _callback = client.inner.router.track_rpc_callback(&session_id);
@@ -3776,6 +3785,7 @@ fn spawn_event_loop(
                                     canvas_handler: canvas_handler.as_ref(),
                                     session_fs_provider: session_fs_provider.as_ref(),
                                     bearer_token_providers: &bearer_token_providers,
+                                    shell_authentication,
                                 };
                                 let dispatch = ACTIVE_SESSION_RPC_CALLBACK_SESSION_ID
                                     .scope(session_id.clone(), handle_request(&session_id, ctx, request));
@@ -4714,6 +4724,7 @@ struct RequestDispatchContext<'a> {
     canvas_handler: Option<&'a Arc<dyn CanvasHandler>>,
     session_fs_provider: Option<&'a Arc<dyn SessionFsProvider>>,
     bearer_token_providers: &'a HashMap<String, Arc<dyn BearerTokenProvider>>,
+    shell_authentication: Option<crate::shell_authentication::ShellAuthenticationTicket>,
 }
 
 /// Serve one `skillProvider.*` callback. Provider failures are reported
@@ -4911,6 +4922,7 @@ async fn handle_request(
     let canvas_handler = ctx.canvas_handler;
     let session_fs_provider = ctx.session_fs_provider;
     let bearer_token_providers = ctx.bearer_token_providers;
+    let shell_authentication = ctx.shell_authentication;
 
     if request.method.starts_with("sessionFs.") {
         crate::session_fs_dispatch::dispatch(client, session_fs_provider, request).await;
@@ -5039,6 +5051,35 @@ async fn handle_request(
                 jsonrpc: "2.0".to_string(),
                 id: request.id,
                 result: Some(rpc_result),
+                error: None,
+            };
+            let _ = client.send_response(&rpc_response).await;
+        }
+
+        crate::shell_authentication::REQUEST_METHOD => {
+            let rpc_result = crate::shell_authentication::answer(
+                &sid,
+                handlers.shell_authentication.as_ref(),
+                request.params.as_ref(),
+                shell_authentication,
+                client.inner.rpc.connection_closed_token(),
+            )
+            .await;
+            let rpc_response = JsonRpcResponse {
+                jsonrpc: "2.0".to_string(),
+                id: request.id,
+                result: Some(rpc_result),
+                error: None,
+            };
+            let _ = client.send_response(&rpc_response).await;
+        }
+
+        // The request loop already closed the prompt; only the reply is left.
+        crate::shell_authentication::CANCEL_METHOD => {
+            let rpc_response = JsonRpcResponse {
+                jsonrpc: "2.0".to_string(),
+                id: request.id,
+                result: Some(serde_json::json!({})),
                 error: None,
             };
             let _ = client.send_response(&rpc_response).await;

@@ -144,11 +144,12 @@ new CopilotClient(CopilotClientOptions? options = null)
 
 #### RuntimeConnection
 
-`CopilotClientOptions.Connection` describes how the SDK reaches a Copilot runtime. There are three flavors, all constructed via static factories:
+`CopilotClientOptions.Connection` describes how the SDK reaches a Copilot runtime. There are four flavors, all constructed via static factories:
 
 - `RuntimeConnection.ForStdio(path?, args?)` — spawns the runtime as a child process and communicates over stdio. This is the default when `Connection` is null.
 - `RuntimeConnection.ForTcp(port = 0, connectionToken?, path?, args?)` — spawns the runtime as a child process listening on a TCP port. `port = 0` auto-allocates; if a non-zero port is already in use, startup fails (no fallback). Use `CopilotClient.RuntimePort` after `StartAsync` to read the assigned port. `connectionToken` is required if other clients will connect via `RuntimeConnection.ForUri(...)`.
 - `RuntimeConnection.ForUri(url, connectionToken?)` — connects to an already-running runtime at `url` (e.g., `"localhost:8080"`). Does not spawn a process.
+- `RuntimeConnection.ForInProcess()` - experimental (`GHCP001`). Loads the runtime's native library into your process and talks to it over its C ABI; no child process is spawned. Per-client `Environment` is rejected. See [In-process runtime](../docs/setup/in-process-runtime.md).
 
 Managed stdio and TCP connections use the bundled `copilot-runtime[.exe]` and
 adjacent `runtime.node` by default. An explicit connection path or
@@ -306,6 +307,7 @@ Create a new conversation session.
 - `SkillProvider` - Experimental session-scoped skill provider. See [Skill providers (experimental)](#skill-providers-experimental).
 - `OnPermissionRequest` - Optional handler called before each tool execution to approve or deny it. When omitted, permission requests are emitted as events and left pending for manual resolution. `PermissionHandler.ApproveAll` approves requests when managed settings are disabled and throws when `EnableManagedSettings` is true. Custom handlers can inspect `ManagedApprovalRequired` for human-facing confirmation logic. See [Permission Handling](#permission-handling) section.
 - `OnUserInputRequest` - Handler for legacy question-and-answer requests from the agent. Enables the legacy `ask_user` tool. See [User Input Requests](#user-input-requests) section.
+- `OnShellAuthenticationRequest` - Handler for passwords and other answers that shell commands run by the agent ask for, such as `sudo -A`, `ssh`, and `git` over HTTPS. The answer goes only to the program that asked; the model never sees it. Without a handler, those commands fail as they do without a terminal. See [Shell password prompts](../docs/features/shell-password-prompts.md).
 - `AskUserVariant` - Selects the model-facing `ask_user` tool shape. Defaults to `AskUserVariant.Legacy`; use `AskUserVariant.Elicitation` with `OnElicitationRequest`.
 - `InteractiveUser` - Declares that a person types this session's messages, as in an editor chat panel. Enables the runtime's user-message analysis telemetry for user-authored messages; automated messages stay excluded. Defaults to off. Ignored for cloud sessions.
 - `PermissionMode` - Applies `Manual`, `Assisted`, or `AllowAll` before the session's first turn, before `CreateSessionAsync` returns. Uses the same checks as `session.Rpc.Permissions.SetModeAsync`; `session.PermissionModeResult` reports whether it was applied and the authoritative mode. Not supported for cloud sessions.

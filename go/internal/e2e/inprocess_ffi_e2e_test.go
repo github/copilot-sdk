@@ -26,9 +26,10 @@ func TestInProcessFfiE2E(t *testing.T) {
 		t.Fatal("CLI not found. Run 'npm install' in the nodejs directory first.")
 	}
 	t.Run("should start and connect over in-process FFI", func(t *testing.T) {
+		fixture := testharness.NewTestContext(t)
 		client := copilot.NewClient(&copilot.ClientOptions{
 			Connection:    copilot.InProcessConnection{},
-			BaseDirectory: t.TempDir(),
+			BaseDirectory: fixture.HomeDir,
 		})
 		t.Cleanup(func() { client.ForceStop() })
 

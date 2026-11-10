@@ -36,7 +36,7 @@ Quick steps:
 
 1. **(Optional) Install the Copilot CLI**
 
-For Node.js, Python, and .NET SDKs, the Copilot CLI is bundled automatically and no separate installation is required.
+The Node.js and .NET SDKs include the Copilot CLI as a dependency, so no separate installation is required. The Python SDK downloads it automatically on first use, or ahead of time with `python -m copilot download-runtime`.
 The Rust SDK bundles the CLI by default through its `bundled-cli` feature.
 For Go, embed the CLI with the [bundler tool](./go/README.md#distributing-your-application-with-an-embedded-github-copilot-cli); for Java, add the `com.github:copilot-sdk-java-runtime` dependency with your platform's classifier. Alternatively, [install the CLI manually](https://github.com/features/copilot/cli) and give the SDK its path with `COPILOT_CLI_PATH` or the client's CLI path option. The SDKs do not look up `copilot` on your PATH.
 
@@ -125,7 +125,7 @@ See the **[Authentication documentation](./docs/auth/README.md)** for details on
 
 ### Do I need to install the Copilot CLI separately?
 
-No — for Node.js, Python, and .NET SDKs, the Copilot CLI is bundled automatically as a dependency. You do not need to install it separately.
+No — the Node.js and .NET SDKs include the Copilot CLI as a dependency, and the Python SDK downloads it automatically on first use (run `python -m copilot download-runtime` to fetch it ahead of time). You do not need to install it separately.
 
 The Rust SDK bundles the CLI by default through its `bundled-cli` feature.
 
@@ -173,7 +173,7 @@ Please use the [GitHub Issues](https://github.com/github/copilot-sdk/issues) pag
 - **[Features](./docs/features/README.md)** – Hooks, custom agents, MCP, skills, and more
 - **[Troubleshooting](./docs/troubleshooting/debugging.md)** – Common issues and solutions
 - **[Cookbook](https://github.com/github/awesome-copilot/blob/main/cookbook/copilot-sdk)** – Practical recipes for common tasks across all languages
-- **[More Resources](https://github.com/github/awesome-copilot/blob/main/plugins/copilot-sdk/README.md)** – Additional examples, tutorials, and community resources
+- **[More Resources](https://github.com/github/awesome-copilot/blob/main/plugins/copilot-sdk/README.md)** – SDK instructions for C#, Go, Node.js/TypeScript, and Python, plus a skill
 
 ## Unofficial, Community-maintained SDKs
 

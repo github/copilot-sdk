@@ -71,6 +71,9 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
     /// <see cref="CopilotClient"/> that has not been explicitly disposed or removed.
     /// </remarks>
     internal readonly ConcurrentDictionary<string, CopilotSession> _sessions = new();
+    // Open secret prompts by session and request ID. Tracked here rather than on a session,
+    // which a resume can replace while a prompt is open. Guarded by itself.
+    private readonly Dictionary<(string SessionId, string RequestId), CancellationTokenSource> _pendingShellAuthenticationRequests = [];
     private readonly object _sessionAdmissionLock = new();
     private readonly HashSet<SessionOperation> _sessionOperations = [];
     private bool _sessionAdmissionClosed;
@@ -562,6 +565,7 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
         DisconnectAhpHosts();
         List<Exception> errors = [];
         CancelPendingExternalTools(sessions);
+        CancelPendingShellAuthenticationRequests();
 
         // A hung runtime never answers session.detach, so every detach shares one
         // deadline; past it, StopAsync moves on to runtime shutdown and termination.
@@ -624,6 +628,7 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
         var sessions = CloseSessionAdmission(clearSessions: true);
         DisconnectAhpHosts();
         CancelPendingExternalTools(sessions);
+        CancelPendingShellAuthenticationRequests();
         foreach (var session in sessions)
         {
             session.Retire();
@@ -936,6 +941,10 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
         if (config.OnUserInputRequest != null)
         {
             session.RegisterUserInputHandler(config.OnUserInputRequest);
+        }
+        if (config.OnShellAuthenticationRequest != null)
+        {
+            session.RegisterShellAuthenticationHandler(config.OnShellAuthenticationRequest);
         }
         if (config.Hooks != null)
         {
@@ -1358,6 +1367,7 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
                 RequestElicitation: config.OnElicitationRequest != null,
                 RequestAutoModeRecovery: config.AutoModeRecovery ? true : null,
                 RequestMcpApps: config.EnableMcpApps ? true : null,
+                RequestShellAuthentication: config.OnShellAuthenticationRequest != null ? true : null,
                 Traceparent: traceparent,
                 Tracestate: tracestate,
                 ModelCapabilities: config.ModelCapabilities,
@@ -1685,6 +1695,7 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
                 RequestElicitation: config.OnElicitationRequest != null,
                 RequestAutoModeRecovery: config.AutoModeRecovery ? true : null,
                 RequestMcpApps: config.EnableMcpApps ? true : null,
+                RequestShellAuthentication: config.OnShellAuthenticationRequest != null ? true : null,
                 Traceparent: traceparent,
                 Tracestate: tracestate,
                 ModelCapabilities: config.ModelCapabilities,
@@ -3135,6 +3146,8 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
             rpc.SetLocalRpcNotification<string, SessionEvent?>("session.event", handler.OnSessionEvent);
             rpc.SetLocalRpcMethod("session.lifecycle", handler.OnSessionLifecycle);
             rpc.SetLocalRpcMethod("userInput.request", handler.OnUserInputRequest);
+            rpc.SetLocalRpcMethod("shellAuthentication.request", handler.OnShellAuthenticationRequest, singleObjectParam: true);
+            rpc.SetLocalRpcMethod("shellAuthentication.cancel", handler.OnShellAuthenticationCancel, singleObjectParam: true);
             rpc.SetLocalRpcMethod("exitPlanMode.request", handler.OnExitPlanModeRequest);
             rpc.SetLocalRpcMethod("autoModeSwitch.request", handler.OnAutoModeSwitchRequest);
             rpc.SetLocalRpcMethod("hooks.invoke", handler.OnHooksInvoke);
@@ -3249,6 +3262,7 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
         }
         DisconnectAhpHosts();
         CancelPendingExternalTools();
+        CancelPendingShellAuthenticationRequests();
     }
 
     private void CancelPendingExternalTools(IEnumerable<CopilotSession>? sessions = null)
@@ -3262,6 +3276,127 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
             session.ClearSkillProvider();
             session.ClearMemoryStore();
             session.CancelPendingExternalTools();
+        }
+    }
+
+    /// <summary>
+    /// Handles a <c>shellAuthentication.request</c>: a shell command the agent runs asks for a password or
+    /// another answer. Anything that isn't the handler's answer cancels the prompt.
+    /// </summary>
+    internal async Task<ShellAuthenticationResponse> HandleShellAuthenticationRequestAsync(ShellAuthenticationRequestParams request, CancellationToken cancellationToken)
+    {
+        if (request.SessionId is not { Length: > 0 } sessionId
+            || request.RequestId is not { Length: > 0 } requestId
+            || request.Program is not { } program
+            || request.Prompt is not { } prompt
+            || request.InputKind is not { } inputKind
+            || inputKind is not ("secret" or "text" or "confirm")
+            || GetSession(sessionId) is not { } session)
+        {
+            return ShellAuthenticationResponse.Cancel();
+        }
+        var key = (sessionId, requestId);
+        using var pending = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+        lock (_pendingShellAuthenticationRequests)
+        {
+            if (_pendingShellAuthenticationRequests.ContainsKey(key))
+            {
+                return ShellAuthenticationResponse.Cancel();
+            }
+            _pendingShellAuthenticationRequests[key] = pending;
+        }
+        try
+        {
+            var response = await session.HandleShellAuthenticationRequestAsync(new ShellAuthenticationRequest
+            {
+                SessionId = sessionId,
+                RequestId = requestId,
+                Program = program,
+                Prompt = prompt,
+                InputKind = new ShellAuthenticationInputKind(inputKind),
+                Command = request.Command ?? string.Empty,
+                Cwd = request.Cwd ?? string.Empty,
+            }, pending.Token).ConfigureAwait(false);
+            // Stopping the client removes its open prompts here, but the session's linked token is cancelled later on
+            // the thread pool, so an answer that arrives in between is refused.
+            lock (_pendingShellAuthenticationRequests)
+            {
+                return _pendingShellAuthenticationRequests.TryGetValue(key, out var current) && ReferenceEquals(current, pending)
+                    ? response
+                    : ShellAuthenticationResponse.Cancel();
+            }
+        }
+        finally
+        {
+            lock (_pendingShellAuthenticationRequests)
+            {
+                if (_pendingShellAuthenticationRequests.TryGetValue(key, out var current) && ReferenceEquals(current, pending))
+                {
+                    _pendingShellAuthenticationRequests.Remove(key);
+                }
+            }
+        }
+    }
+
+    /// <summary>Handles a <c>shellAuthentication.cancel</c>: the answer to an open prompt is no longer needed.</summary>
+    internal void CancelShellAuthenticationRequest(ShellAuthenticationCancelParams request)
+    {
+        if (request.SessionId is null || request.RequestId is null)
+        {
+            return;
+        }
+        CancellationTokenSource? pending;
+        lock (_pendingShellAuthenticationRequests)
+        {
+            _pendingShellAuthenticationRequests.TryGetValue((request.SessionId, request.RequestId), out pending);
+        }
+        CancelShellAuthentication(pending);
+    }
+
+    /// <summary>Cancels every open secret prompt once the runtime can no longer use an answer.</summary>
+    private void CancelPendingShellAuthenticationRequests()
+    {
+        CancellationTokenSource[] pending;
+        lock (_pendingShellAuthenticationRequests)
+        {
+            pending = [.. _pendingShellAuthenticationRequests.Values];
+            _pendingShellAuthenticationRequests.Clear();
+        }
+        foreach (var source in pending)
+        {
+            CancelShellAuthentication(source);
+        }
+    }
+
+    private static void CancelShellAuthentication(CancellationTokenSource? pending)
+    {
+        if (pending is not null)
+        {
+            _ = CancelShellAuthenticationAsync(pending);
+        }
+    }
+
+    /// <summary>
+    /// Cancels a prompt on the thread pool. Its cancellation callbacks are consumer code that can block, so they
+    /// must not run on the connection's reader or on the thread that stops the client or disposes the session.
+    /// </summary>
+    internal static async Task CancelShellAuthenticationAsync(CancellationTokenSource pending)
+    {
+        try
+        {
+#if NET8_0_OR_GREATER
+            await pending.CancelAsync().ConfigureAwait(false);
+#else
+            await Task.Run(() => pending.Cancel()).ConfigureAwait(false);
+#endif
+        }
+        catch (AggregateException)
+        {
+            // Cancellation callbacks are consumer code and must not disrupt the cancel or teardown.
+        }
+        catch (ObjectDisposedException)
+        {
+            // The request finished while it was being cancelled.
         }
     }
 
@@ -3572,6 +3707,15 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
             return new UserInputRequestResponse(result.Answer, result.WasFreeform);
         }
 
+        public async ValueTask<ShellAuthenticationResponse> OnShellAuthenticationRequest(ShellAuthenticationRequestParams request, CancellationToken cancellationToken) =>
+            await client.HandleShellAuthenticationRequestAsync(request, cancellationToken).ConfigureAwait(false);
+
+        public ValueTask OnShellAuthenticationCancel(ShellAuthenticationCancelParams request, CancellationToken cancellationToken)
+        {
+            client.CancelShellAuthenticationRequest(request);
+            return default;
+        }
+
         public async ValueTask<ExitPlanModeResult> OnExitPlanModeRequest(
             string sessionId,
             string summary,
@@ -3791,6 +3935,7 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
         IList<CommandWireDefinition>? Commands = null,
         bool? RequestElicitation = null,
         bool? RequestMcpApps = null,
+        bool? RequestShellAuthentication = null,
         string? Traceparent = null,
         string? Tracestate = null,
         ModelCapabilitiesOverride? ModelCapabilities = null,
@@ -3938,6 +4083,7 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
         IList<CommandWireDefinition>? Commands = null,
         bool? RequestElicitation = null,
         bool? RequestMcpApps = null,
+        bool? RequestShellAuthentication = null,
         string? Traceparent = null,
         string? Tracestate = null,
         ModelCapabilitiesOverride? ModelCapabilities = null,
@@ -4070,6 +4216,19 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
         string Answer,
         bool WasFreeform);
 
+    internal record ShellAuthenticationRequestParams(
+        string? SessionId,
+        string? RequestId,
+        string? Program,
+        string? Prompt,
+        string? InputKind,
+        string? Command = null,
+        string? Cwd = null);
+
+    internal record ShellAuthenticationCancelParams(
+        string? SessionId,
+        string? RequestId);
+
     internal record SkillProviderListRequest(
         string SessionId);
 
@@ -4154,6 +4313,9 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
     [JsonSerializable(typeof(CopilotToolDefer))]
     [JsonSerializable(typeof(ToolResultAIContent))]
     [JsonSerializable(typeof(ToolResultObject))]
+    [JsonSerializable(typeof(ShellAuthenticationCancelParams))]
+    [JsonSerializable(typeof(ShellAuthenticationRequestParams))]
+    [JsonSerializable(typeof(ShellAuthenticationResponse))]
     [JsonSerializable(typeof(UserInputRequestResponse))]
     [JsonSerializable(typeof(UserInputRequest))]
     [JsonSerializable(typeof(UserInputResponse))]

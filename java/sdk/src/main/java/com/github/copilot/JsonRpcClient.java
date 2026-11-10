@@ -244,7 +244,23 @@ class JsonRpcClient implements AutoCloseable {
         response.setId(id);
         response.setResult(result == null ? MAPPER.getNodeFactory().nullNode() : result);
         try {
-            sendMessage(response);
+            sendMessage(response, false);
+        } finally {
+            sessionCallbackRequests.remove(MAPPER.valueToTree(id).toString());
+        }
+    }
+
+    /**
+     * Sends a JSON-RPC response whose {@code result.value} is a secret, such as a
+     * password. The diagnostic log shows it as {@code <redacted>}.
+     */
+    void sendSecretResponse(Object id, Object result) throws IOException {
+        var response = new JsonRpcResponse();
+        response.setJsonrpc("2.0");
+        response.setId(id);
+        response.setResult(result == null ? MAPPER.getNodeFactory().nullNode() : result);
+        try {
+            sendMessage(response, true);
         } finally {
             sessionCallbackRequests.remove(MAPPER.valueToTree(id).toString());
         }
@@ -276,7 +292,11 @@ class JsonRpcClient implements AutoCloseable {
         }
     }
 
-    private synchronized void sendMessage(Object message) throws IOException {
+    private void sendMessage(Object message) throws IOException {
+        sendMessage(message, false);
+    }
+
+    private synchronized void sendMessage(Object message, boolean secretResultValue) throws IOException {
         String json = MAPPER.writeValueAsString(message);
         byte[] content = json.getBytes(StandardCharsets.UTF_8);
         String header = "Content-Length: " + content.length + "\r\n\r\n";
@@ -286,14 +306,21 @@ class JsonRpcClient implements AutoCloseable {
         outputStream.flush();
 
         if (LOG.isLoggable(Level.FINE)) {
-            LOG.fine("Sent: " + redactCredentialsForLogging(json));
+            LOG.fine("Sent: " + redactForLogging(json, secretResultValue));
         }
     }
 
     static String redactCredentialsForLogging(String json) {
+        return redactForLogging(json, false);
+    }
+
+    private static String redactForLogging(String json, boolean secretResultValue) {
         try {
             JsonNode root = MAPPER.readTree(json);
             redactCredentials(root);
+            if (secretResultValue && root.path("result") instanceof ObjectNode result && result.has("value")) {
+                result.put("value", "<redacted>");
+            }
             return MAPPER.writeValueAsString(root);
         } catch (JsonProcessingException error) {
             return "<unable to render JSON-RPC message safely>";

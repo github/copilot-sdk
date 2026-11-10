@@ -12,7 +12,9 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.CancellationException;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.CompletionException;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CopyOnWriteArraySet;
 import java.util.concurrent.Executor;
@@ -123,6 +125,10 @@ import com.github.copilot.rpc.SubagentStartHookInput;
 import com.github.copilot.rpc.SubagentStopHookInput;
 import com.github.copilot.rpc.ToolDefinition;
 import com.github.copilot.rpc.ToolResultObject;
+import com.github.copilot.rpc.ShellAuthenticationHandler;
+import com.github.copilot.rpc.ShellAuthenticationInvocation;
+import com.github.copilot.rpc.ShellAuthenticationRequest;
+import com.github.copilot.rpc.ShellAuthenticationResponse;
 import com.github.copilot.rpc.TranscriptRecoveryReport;
 import com.github.copilot.rpc.UserInputHandler;
 import com.github.copilot.rpc.UserInputInvocation;
@@ -231,6 +237,9 @@ public final class CopilotSession implements AutoCloseable {
     private volatile boolean managedSettingsEnabled;
     private final AtomicReference<McpAuthHandler> mcpAuthHandler = new AtomicReference<>();
     private final AtomicReference<UserInputHandler> userInputHandler = new AtomicReference<>();
+    private final AtomicReference<ShellAuthenticationHandler> shellAuthenticationHandler = new AtomicReference<>();
+    // Completes to cancel the secret prompts this session waits on.
+    private final Set<CompletableFuture<Void>> pendingShellAuthenticationRequests = ConcurrentHashMap.newKeySet();
     private final AtomicReference<ElicitationHandler> elicitationHandler = new AtomicReference<>();
     private final AtomicReference<ExitPlanModeHandler> exitPlanModeHandler = new AtomicReference<>();
     private final AtomicReference<AutoModeSwitchHandler> autoModeSwitchHandler = new AtomicReference<>();
@@ -2415,6 +2424,93 @@ public final class CopilotSession implements AutoCloseable {
     }
 
     /**
+     * Registers the handler for passwords and other answers that shell commands run
+     * by the agent ask for.
+     * <p>
+     * Called internally when creating or resuming a session with shell
+     * authentication handling.
+     *
+     * @param handler
+     *            the shell authentication handler
+     */
+    void registerShellAuthenticationHandler(ShellAuthenticationHandler handler) {
+        shellAuthenticationHandler.set(handler);
+    }
+
+    /**
+     * Asks the registered handler for a secret. Any failure, a response that isn't
+     * an accept, or {@code cancellation} completing first cancels the prompt, so
+     * the program that asked fails instead of receiving a wrong value. Never logs
+     * the answer.
+     *
+     * @param request
+     *            the shell authentication request
+     * @param cancellation
+     *            completes when the runtime no longer needs the answer
+     * @return a future that resolves with the answer, or a cancellation
+     */
+    CompletableFuture<ShellAuthenticationResponse> handleShellAuthenticationRequest(ShellAuthenticationRequest request,
+            CompletableFuture<Void> cancellation) {
+        ShellAuthenticationHandler handler;
+        // Retirement marks the session terminated under this lock and then cancels
+        // the open prompts, so a prompt is either refused here or cancelled there.
+        synchronized (this) {
+            handler = shellAuthenticationHandler.get();
+            if (handler == null || isTerminated || cancellation.isDone()) {
+                return CompletableFuture.completedFuture(ShellAuthenticationResponse.cancel());
+            }
+            pendingShellAuthenticationRequests.add(cancellation);
+        }
+        CompletableFuture<ShellAuthenticationResponse> answer;
+        try {
+            answer = handler.handle(request, new ShellAuthenticationInvocation().setSessionId(sessionId)
+                    .setCancellation(cancellation.minimalCompletionStage()));
+        } catch (Throwable e) {
+            // An Error or undeclared checked exception cancels the prompt too, so the
+            // command is not left waiting; only a fatal error is rethrown.
+            CopilotRequestHandler.rethrowFatalError(e);
+            answer = CompletableFuture.failedFuture(e);
+        }
+        if (answer == null) {
+            answer = CompletableFuture.failedFuture(new IllegalStateException("handler returned a null future"));
+        }
+        final CompletableFuture<ShellAuthenticationResponse> handlerAnswer = answer;
+        // A handler that never completes after its prompt closes must not keep the
+        // request open.
+        cancellation.thenRun(() -> handlerAnswer.cancel(true));
+        return handlerAnswer.handle((response, error) -> {
+            pendingShellAuthenticationRequests.remove(cancellation);
+            // Only the cancellation the SDK requested when the prompt closed is expected.
+            if (error != null && !(error instanceof CancellationException && cancellation.isDone())) {
+                // The exception's message could contain the answer, so only its type is logged.
+                Throwable failure = error instanceof CompletionException && error.getCause() != null
+                        ? error.getCause()
+                        : error;
+                LOG.log(Level.SEVERE, "Shell authentication handler failed for requestId=" + request.getRequestId()
+                        + " with " + failure.getClass().getName());
+            }
+            // Retirement completes the cancellation on another thread, so an answer that
+            // arrives once the session is terminated is refused before that runs.
+            if (error != null || isTerminated || cancellation.isDone() || response == null
+                    || !ShellAuthenticationResponse.ACTION_ACCEPT.equals(response.getAction())
+                    || response.getValue() == null) {
+                return ShellAuthenticationResponse.cancel();
+            }
+            return ShellAuthenticationResponse.accept(response.getValue());
+        });
+    }
+
+    /**
+     * Cancels every secret prompt this session waits on. Completing a cancellation
+     * runs the app's continuations, which may block, so each completes off the
+     * thread that closes or stops the session.
+     */
+    void cancelPendingShellAuthenticationRequests() {
+        pendingShellAuthenticationRequests
+                .forEach(cancellation -> CLEANUP_DISPATCHER.execute(() -> cancellation.complete(null)));
+    }
+
+    /**
      * Registers command handlers for this session.
      * <p>
      * Called internally when creating or resuming a session with commands.
@@ -3600,6 +3696,7 @@ public final class CopilotSession implements AutoCloseable {
         }
 
         cancelPendingExternalTools();
+        cancelPendingShellAuthenticationRequests();
         clearSkillProvider();
         timeoutScheduler.shutdownNow();
         releaseGitHubTokenProviderRegistration();
@@ -3617,6 +3714,7 @@ public final class CopilotSession implements AutoCloseable {
         permissionHandler.set(null);
         mcpAuthHandler.set(null);
         userInputHandler.set(null);
+        shellAuthenticationHandler.set(null);
         elicitationHandler.set(null);
         exitPlanModeHandler.set(null);
         autoModeSwitchHandler.set(null);

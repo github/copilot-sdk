@@ -74,6 +74,9 @@ public sealed partial class CopilotSession : IAsyncDisposable
     private bool _managedSettingsEnabled;
     private volatile Func<McpAuthContext, Task<McpAuthResult?>>? _mcpAuthHandler;
     private volatile Func<UserInputRequest, UserInputInvocation, Task<UserInputResponse>>? _userInputHandler;
+    private volatile Func<ShellAuthenticationRequest, CancellationToken, Task<ShellAuthenticationResponse>>? _shellAuthenticationHandler;
+    // Cancels the secret prompts this session waits on. Guarded by _callbackLock.
+    private readonly HashSet<CancellationTokenSource> _pendingShellAuthenticationRequests = [];
     private volatile Func<ElicitationContext, Task<ElicitationResult>>? _elicitationHandler;
     private volatile Func<ExitPlanModeRequest, ExitPlanModeInvocation, Task<ExitPlanModeResult>>? _exitPlanModeHandler;
     private volatile Func<AutoModeSwitchRequest, AutoModeSwitchInvocation, Task<AutoModeSwitchResponse>>? _autoModeSwitchHandler;
@@ -266,6 +269,7 @@ public sealed partial class CopilotSession : IAsyncDisposable
     /// <summary>Releases local callback ownership without an RPC or joining admitted handlers.</summary>
     internal void Retire()
     {
+        CancellationTokenSource[] pendingShellAuthenticationRequests;
         lock (_callbackLock)
         {
             _callbacksRetired = true;
@@ -275,6 +279,9 @@ public sealed partial class CopilotSession : IAsyncDisposable
             _permissionHandler = null;
             _mcpAuthHandler = null;
             _userInputHandler = null;
+            _shellAuthenticationHandler = null;
+            pendingShellAuthenticationRequests = [.. _pendingShellAuthenticationRequests];
+            _pendingShellAuthenticationRequests.Clear();
             _elicitationHandler = null;
             _exitPlanModeHandler = null;
             _autoModeSwitchHandler = null;
@@ -285,6 +292,11 @@ public sealed partial class CopilotSession : IAsyncDisposable
             ClientSessionApis.ProviderToken = null;
             ClientSessionApis.Canvas = null;
             ClientSessionApis.SessionFs = null;
+        }
+        // Cancellation callbacks are consumer code that can block, so they run off the thread retiring the session.
+        foreach (var pending in pendingShellAuthenticationRequests)
+        {
+            _ = CopilotClient.CancelShellAuthenticationAsync(pending);
         }
         CancelPendingExternalTools();
         CloseEventChannel();
@@ -1835,6 +1847,85 @@ public sealed partial class CopilotSession : IAsyncDisposable
     }
 
     /// <summary>
+    /// Registers the handler for passwords and other answers that shell commands run by the agent ask for.
+    /// </summary>
+    /// <param name="handler">The handler to invoke when a command asks for an answer.</param>
+    internal void RegisterShellAuthenticationHandler(Func<ShellAuthenticationRequest, CancellationToken, Task<ShellAuthenticationResponse>> handler)
+    {
+        lock (_callbackLock)
+        {
+            ThrowIfCallbacksRetired();
+            _shellAuthenticationHandler = handler;
+        }
+    }
+
+    /// <summary>
+    /// Asks the registered handler for a secret. Any failure, a response that isn't an accept, or
+    /// <paramref name="cancellationToken"/> being cancelled first cancels the prompt, so the program
+    /// that asked fails instead of receiving a wrong value. Never logs the answer.
+    /// </summary>
+    /// <param name="request">The shell authentication request from the runtime.</param>
+    /// <param name="cancellationToken">Cancelled when the runtime no longer needs the answer.</param>
+    /// <returns>The answer, or a cancellation.</returns>
+    internal async Task<ShellAuthenticationResponse> HandleShellAuthenticationRequestAsync(ShellAuthenticationRequest request, CancellationToken cancellationToken)
+    {
+        Func<ShellAuthenticationRequest, CancellationToken, Task<ShellAuthenticationResponse>>? handler;
+        using var pending = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+        lock (_callbackLock)
+        {
+            handler = _callbacksRetired ? null : _shellAuthenticationHandler;
+            if (handler is null || pending.IsCancellationRequested)
+            {
+                return ShellAuthenticationResponse.Cancel();
+            }
+            _pendingShellAuthenticationRequests.Add(pending);
+        }
+        try
+        {
+            var answer = handler(request, pending.Token);
+            // A handler that never finishes after its prompt closes must not keep the request open.
+            var closed = Task.Delay(Timeout.Infinite, pending.Token);
+            if (await Task.WhenAny(answer, closed).ConfigureAwait(false) != answer)
+            {
+                _ = answer.ContinueWith(static task => _ = task.Exception, TaskScheduler.Default);
+                return ShellAuthenticationResponse.Cancel();
+            }
+            var response = await answer.ConfigureAwait(false);
+            // Retirement cancels the prompt on the thread pool, so an answer that arrives once the session has retired
+            // is refused before that runs.
+            bool retired;
+            lock (_callbackLock)
+            {
+                retired = _callbacksRetired;
+            }
+            return !retired
+                && !pending.IsCancellationRequested
+                && response is { Value: { } value }
+                && response.Action == ShellAuthenticationResponseAction.Accept
+                ? ShellAuthenticationResponse.Accept(value)
+                : ShellAuthenticationResponse.Cancel();
+        }
+        catch (Exception ex) when (ex is not OperationCanceledException || !pending.IsCancellationRequested)
+        {
+            // The exception's message could contain the answer, so only its type is logged.
+            LogShellAuthenticationHandlerFailed(ex.GetType().FullName ?? ex.GetType().Name, SessionId, request.RequestId);
+            return ShellAuthenticationResponse.Cancel();
+        }
+        catch (OperationCanceledException)
+        {
+            // The prompt closed, so the handler was told to stop.
+            return ShellAuthenticationResponse.Cancel();
+        }
+        finally
+        {
+            lock (_callbackLock)
+            {
+                _pendingShellAuthenticationRequests.Remove(pending);
+            }
+        }
+    }
+
+    /// <summary>
     /// Registers command handlers for this session.
     /// </summary>
     /// <param name="commands">The command definitions to register.</param>
@@ -3157,6 +3248,8 @@ public sealed partial class CopilotSession : IAsyncDisposable
     [LoggerMessage(Level = LogLevel.Error, Message = "Permission handler or response delivery failed. SessionId={SessionId}, RequestId={RequestId}")]
     private partial void LogPermissionHandlerOrDeliveryFailed(Exception exception, string sessionId, string requestId);
 
+    [LoggerMessage(Level = LogLevel.Error, Message = "Shell authentication handler failed with {ExceptionType}. SessionId={SessionId}, RequestId={RequestId}")]
+    private partial void LogShellAuthenticationHandlerFailed(string exceptionType, string sessionId, string requestId);
     [LoggerMessage(Level = LogLevel.Error, Message = "External tool result delivery failed. SessionId={SessionId}, RequestId={RequestId}, Tool={ToolName}")]
     private partial void LogExternalToolResultDeliveryFailed(Exception exception, string sessionId, string requestId, string toolName);
 

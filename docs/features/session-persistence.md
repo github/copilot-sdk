@@ -465,10 +465,12 @@ Session state is saved to `~/.copilot/session-state/{sessionId}/`:
 ```
 ~/.copilot/session-state/
 └── user-123-task-456/
-    ├── checkpoints/           # Conversation history snapshots
-    │   ├── 001.json          # Initial state
-    │   ├── 002.json          # After first interaction
-    │   └── ...               # Incremental checkpoints
+    ├── events.jsonl          # Conversation history (session event log)
+    ├── workspace.yaml        # Session metadata
+    ├── checkpoints/          # Compaction summaries
+    │   ├── index.md          # Checkpoint index
+    │   ├── 001-<title>.md    # Written when the conversation is compacted
+    │   └── ...
     ├── plan.md               # Agent's planning state (if any)
     └── files/                # Session artifacts
         ├── analysis.md       # Files the agent created

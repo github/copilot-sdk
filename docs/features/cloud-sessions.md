@@ -258,7 +258,7 @@ session.on("session.info", (event) => {
 
 The event fires shortly after `session.start`. If your renderer mounts after the event has already fired, persist the URL alongside the session record in your app's state and rehydrate on remount — the runtime does not re-emit `session.info` on its own.
 
-For the same wiring on local sessions promoted via `remote: true`, see [Remote Sessions](./remote-sessions.md).
+For a local session exported to Mission Control, `session.rpc.remote.enable()` returns the URL in its result instead; see [Remote Sessions](./remote-sessions.md).
 
 ## Repository association
 
@@ -291,9 +291,9 @@ Do not pass `cloud` again on resume. The saved session metadata determines that 
 
 Cloud session creation can fail when the user or organization is not entitled to cloud-agent execution or when organization-level policies block the flow. In particular, policies for cloud sandbox can prevent clients from creating the cloud task.
 
-When this happens, the runtime reports a `"policy_blocked"` failure reason for cloud task creation. Treat this as an authorization or policy outcome, not as a transient infrastructure failure.
+When this happens, `createSession` rejects with an error whose message explains the rejection when Mission Control gives a reason, for example `Cloud sandboxes are not enabled. Contact your administrator to enable them.`, and is a generic creation failure when it does not. The error has no separate reason or code that identifies a policy block, so show the message to the user instead of branching on a reason.
 
-In TypeScript, check for the reason before retrying:
+In TypeScript, surface the error message:
 
 <!-- docs-validate: hidden -->
 <!-- docs-validate: strict -->
@@ -305,9 +305,8 @@ declare const repository: CloudSessionRepository;
 try {
   await client.createSession({ cloud: { repository } });
 } catch (error) {
-  if ((error as { reason?: string }).reason === "policy_blocked") {
-    // Show an admin-facing message or link to org policy settings.
-  }
+  // Show the message to an admin, or link to org policy settings.
+  console.error((error as Error).message);
   throw error;
 }
 ```
@@ -317,14 +316,13 @@ try {
 try {
   await client.createSession({ cloud: { repository } });
 } catch (error) {
-  if ((error as { reason?: string }).reason === "policy_blocked") {
-    // Show an admin-facing message or link to org policy settings.
-  }
+  // Show the message to an admin, or link to org policy settings.
+  console.error((error as Error).message);
   throw error;
 }
 ```
 
-In languages where SDK errors are represented differently, inspect the surfaced error reason or code and handle `"policy_blocked"` explicitly. Retrying without a policy change is not expected to succeed.
+Every SDK language surfaces the failure as its usual request error carrying the same message. For a recognizable policy or entitlement message, retrying without a policy change is not expected to succeed. A generic creation failure does not distinguish an empty-body policy rejection from a transient service failure, so it alone is not enough to rule out a retry.
 
 ## Integration ID and routing
 
@@ -350,7 +348,7 @@ COPILOT_MC_BASE_URL="https://example.com/agents"
 |------------|-----------------|----------------|
 | Execution location | Local machine or your server | GitHub-hosted compute |
 | Mission Control role | Shares a local session to GitHub web/mobile | Creates and routes the hosted session |
-| SDK option | `remote: true` on the client or session | `cloud: { ... }` on create session |
+| SDK option | None; call `session.rpc.remote.enable()` on a running session | `cloud: { ... }` on create session |
 | Resume path | Standard resume | Standard resume |
 | Windows sandbox relation | Unrelated | Unrelated |
 
@@ -360,7 +358,7 @@ Use remote sessions when the session should execute where the SDK runtime is alr
 
 | Symptom | Likely cause | What to check |
 |---------|--------------|---------------|
-| Cloud session creation returns `"policy_blocked"` | Organization policy blocks remote control or view from cloud flows | Check org Copilot policies and user entitlement |
+| Cloud session creation fails with a policy or entitlement message | Organization policy blocks remote control or view from cloud flows | Check org Copilot policies and user entitlement |
 | Session creates without repository context | `cloud.repository` was omitted | Pass `owner`, `name`, and optionally `branch` |
 | Resume ignores a new `cloud` option | `cloud` only applies to new sessions | Resume the existing session normally |
 | Confusion with sandbox settings | Windows sandbox and cloud sessions are separate | Do not use `SANDBOX=true` for cloud execution |

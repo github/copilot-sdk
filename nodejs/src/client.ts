@@ -104,6 +104,8 @@ import type {
     ProviderConfig,
     ResumeSessionConfig,
     SectionTransformFn,
+    ShellAuthenticationRequest,
+    ShellAuthenticationResponse,
     SessionConfig,
     SessionConfigBase,
     SystemMessageConfig,
@@ -746,6 +748,11 @@ export class CopilotClient {
     private stopPromise: Promise<Error[]> | null = null;
     private forceStopPromise: Promise<void> | null = null;
     private sessions: Map<string, CopilotSession> = new Map();
+    /**
+     * Open secret prompts by session ID, then request ID. Tracked here rather
+     * than on a session object, which a resume can replace while a prompt is open.
+     */
+    private pendingShellAuthenticationRequests = new Map<string, Map<string, AbortController>>();
     private pendingSessionResumes = new Map<
         string,
         {
@@ -1569,6 +1576,7 @@ export class CopilotClient {
             session._markDisconnected();
         }
         this.sessions.clear();
+        this.abortPendingShellAuthenticationRequests();
         this.githubTokenProviders.clear();
         this.requestAdapter?.cancelPending();
         this.abortPendingMemoryStores();
@@ -1820,6 +1828,7 @@ export class CopilotClient {
             session._markDisconnected();
         }
         this.sessions.clear();
+        this.abortPendingShellAuthenticationRequests();
         this.githubTokenProviders.clear();
         this.requestAdapter?.cancelPending();
         this.abortPendingMemoryStores();
@@ -2258,6 +2267,9 @@ export class CopilotClient {
             if (config.onUserInputRequest) {
                 s.registerUserInputHandler(config.onUserInputRequest);
             }
+            if (config.onShellAuthenticationRequest) {
+                s.registerShellAuthenticationHandler(config.onShellAuthenticationRequest);
+            }
             if (config.onElicitationRequest) {
                 s.registerElicitationHandler(config.onElicitationRequest);
             }
@@ -2372,6 +2384,9 @@ export class CopilotClient {
                 requestPermission: !!config.onPermissionRequest,
                 requestUserInput: !!config.onUserInputRequest,
                 requestElicitation: !!config.onElicitationRequest,
+                ...(config.onShellAuthenticationRequest
+                    ? { requestShellAuthentication: true }
+                    : {}),
                 askUserVariant: config.askUserVariant,
                 ...(config.enableMcpApps ? { requestMcpApps: true } : {}),
                 ...(config.githubMcpToolConfig != null
@@ -2684,6 +2699,9 @@ export class CopilotClient {
         if (config.onUserInputRequest) {
             session.registerUserInputHandler(config.onUserInputRequest);
         }
+        if (config.onShellAuthenticationRequest) {
+            session.registerShellAuthenticationHandler(config.onShellAuthenticationRequest);
+        }
         if (config.onElicitationRequest) {
             session.registerElicitationHandler(config.onElicitationRequest);
         }
@@ -2810,6 +2828,9 @@ export class CopilotClient {
                     config.onPermissionRequest !== defaultJoinSessionPermissionHandler,
                 requestUserInput: !!config.onUserInputRequest,
                 requestElicitation: !!config.onElicitationRequest,
+                ...(config.onShellAuthenticationRequest
+                    ? { requestShellAuthentication: true }
+                    : {}),
                 askUserVariant: config.askUserVariant,
                 ...(config.enableMcpApps ? { requestMcpApps: true } : {}),
                 ...(config.githubMcpToolConfig != null
@@ -4504,6 +4525,22 @@ export class CopilotClient {
         );
 
         this.connection.onRequest(
+            "shellAuthentication.request",
+            async (
+                params: ShellAuthenticationRequest & { sessionId: string }
+            ): Promise<ShellAuthenticationResponse> =>
+                await this.handleShellAuthenticationRequest(params)
+        );
+
+        this.connection.onRequest(
+            "shellAuthentication.cancel",
+            async (params: { sessionId: string; requestId: string }): Promise<object> => {
+                this.cancelShellAuthenticationRequest(params);
+                return {};
+            }
+        );
+
+        this.connection.onRequest(
             "exitPlanMode.request",
             async (
                 params: ExitPlanModeRequest & { sessionId: string }
@@ -4713,6 +4750,7 @@ export class CopilotClient {
                 session._markDisconnected();
             }
             this.sessions.clear();
+            this.abortPendingShellAuthenticationRequests();
             this.githubTokenProviders.clear();
             this.requestAdapter?.cancelPending();
             this.abortPendingMemoryStores();
@@ -4907,6 +4945,76 @@ export class CopilotClient {
             requestId: params.requestId,
         });
         return result;
+    }
+
+    private async handleShellAuthenticationRequest(
+        params: ShellAuthenticationRequest & { sessionId: string }
+    ): Promise<ShellAuthenticationResponse> {
+        const inputKinds: readonly string[] = ["secret", "text", "confirm"];
+        if (
+            !params ||
+            typeof params.sessionId !== "string" ||
+            typeof params.requestId !== "string" ||
+            typeof params.program !== "string" ||
+            typeof params.prompt !== "string" ||
+            !inputKinds.includes(params.inputKind)
+        ) {
+            return { action: "cancel" };
+        }
+        const session = this.sessions.get(params.sessionId);
+        let pending = this.pendingShellAuthenticationRequests.get(params.sessionId);
+        if (!session || pending?.has(params.requestId)) {
+            return { action: "cancel" };
+        }
+        if (!pending) {
+            pending = new Map();
+            this.pendingShellAuthenticationRequests.set(params.sessionId, pending);
+        }
+        const controller = new AbortController();
+        pending.set(params.requestId, controller);
+        try {
+            return await session._handleShellAuthenticationRequest(
+                {
+                    requestId: params.requestId,
+                    program: params.program,
+                    prompt: params.prompt,
+                    inputKind: params.inputKind,
+                    command: typeof params.command === "string" ? params.command : "",
+                    cwd: typeof params.cwd === "string" ? params.cwd : "",
+                },
+                controller.signal
+            );
+        } finally {
+            pending.delete(params.requestId);
+            if (
+                pending.size === 0 &&
+                this.pendingShellAuthenticationRequests.get(params.sessionId) === pending
+            ) {
+                this.pendingShellAuthenticationRequests.delete(params.sessionId);
+            }
+        }
+    }
+
+    private cancelShellAuthenticationRequest(params: {
+        sessionId: string;
+        requestId: string;
+    }): void {
+        if (typeof params?.sessionId === "string" && typeof params.requestId === "string") {
+            this.pendingShellAuthenticationRequests
+                .get(params.sessionId)
+                ?.get(params.requestId)
+                ?.abort();
+        }
+    }
+
+    /** Cancels every open secret prompt once the runtime can no longer use an answer. */
+    private abortPendingShellAuthenticationRequests(): void {
+        for (const pending of this.pendingShellAuthenticationRequests.values()) {
+            for (const controller of pending.values()) {
+                controller.abort();
+            }
+        }
+        this.pendingShellAuthenticationRequests.clear();
     }
 
     private async handleExitPlanModeRequest(

@@ -107,6 +107,9 @@ public final class CreateSessionRequest {
     @JsonProperty("requestUserInput")
     private Boolean requestUserInput;
 
+    @JsonProperty("requestShellAuthentication")
+    private Boolean requestShellAuthentication;
+
     @JsonProperty("hooks")
     private Boolean hooks;
 
@@ -617,6 +620,27 @@ public final class CreateSessionRequest {
      */
     public void clearRequestUserInput() {
         this.requestUserInput = null;
+    }
+
+    /** Gets request shell authentication flag. @return the flag */
+    public Boolean getRequestShellAuthentication() {
+        return requestShellAuthentication;
+    }
+
+    /**
+     * Sets request shell authentication flag. @param requestShellAuthentication the
+     * flag
+     */
+    public void setRequestShellAuthentication(boolean requestShellAuthentication) {
+        this.requestShellAuthentication = requestShellAuthentication;
+    }
+
+    /**
+     * Clears the requestShellAuthentication setting, reverting to the default
+     * behavior.
+     */
+    public void clearRequestShellAuthentication() {
+        this.requestShellAuthentication = null;
     }
 
     /** Gets hooks flag. @return the flag */

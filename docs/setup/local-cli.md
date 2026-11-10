@@ -6,7 +6,7 @@ Use a specific CLI binary instead of the SDK's automatic CLI management. This is
 
 ## How it works
 
-By default, the Node.js, Python, and .NET SDKs include their own CLI dependency (see [Default Setup](./bundled-cli.md)). If you need to override this—for example, to use a system-installed CLI—you can use the `Connection` option.
+By default, the Node.js and .NET SDKs include their own CLI dependency, and the Python SDK downloads one on first use (see [Default Setup](./bundled-cli.md)). If you need to override this—for example, to use a system-installed CLI—you can use the `Connection` option.
 
 ```mermaid
 flowchart LR

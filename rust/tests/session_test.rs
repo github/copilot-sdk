@@ -17,7 +17,9 @@ use github_copilot_sdk::github_token::{
 use github_copilot_sdk::handler::{
     ApproveAllHandler, AutoModeSwitchHandler, AutoModeSwitchResponse, ElicitationHandler,
     ExitPlanModeHandler, ExitPlanModeResult, McpAuthHandler, McpAuthRequest, McpAuthResponse,
-    McpAuthResult, PermissionHandler, PermissionResult, UserInputHandler, UserInputResponse,
+    McpAuthResult, PermissionHandler, PermissionResult, ShellAuthenticationHandler,
+    ShellAuthenticationInputKind, ShellAuthenticationRequest, ShellAuthenticationResponse,
+    UserInputHandler, UserInputResponse,
 };
 use github_copilot_sdk::rpc::{
     CanvasProviderInvokeActionRequest, CanvasProviderOpenRequest, CanvasProviderOpenResult,
@@ -35,6 +37,7 @@ use serde_json::Value;
 use tokio::io::{AsyncWrite, AsyncWriteExt, duplex};
 use tokio::sync::Notify;
 use tokio::time::timeout;
+use tokio_util::sync::CancellationToken;
 use tracing::field::{Field, Visit};
 use tracing::span::{Attributes, Id, Record};
 use tracing::{Event, Metadata, Subscriber};
@@ -2845,6 +2848,339 @@ async fn user_input_request_dispatches_to_handler() {
     assert_eq!(response["id"], 300);
     assert_eq!(response["result"]["answer"], "blue");
     assert_eq!(response["result"]["wasFreeform"], true);
+}
+
+/// Answers each shell password prompt, or waits until it is cancelled.
+#[derive(Default)]
+struct SecretPrompts {
+    answer: Option<&'static str>,
+    requests: std::sync::Mutex<Vec<ShellAuthenticationRequest>>,
+    cancellations: std::sync::Mutex<Vec<CancellationToken>>,
+    started: Notify,
+}
+
+impl SecretPrompts {
+    fn answering(answer: &'static str) -> Self {
+        Self {
+            answer: Some(answer),
+            ..Self::default()
+        }
+    }
+
+    fn all_cancelled(&self) -> bool {
+        let cancellations = self.cancellations.lock().unwrap();
+        !cancellations.is_empty() && cancellations.iter().all(CancellationToken::is_cancelled)
+    }
+}
+
+#[async_trait]
+impl ShellAuthenticationHandler for SecretPrompts {
+    async fn handle(
+        &self,
+        _session_id: SessionId,
+        request: ShellAuthenticationRequest,
+        cancellation: CancellationToken,
+    ) -> ShellAuthenticationResponse {
+        self.requests.lock().unwrap().push(request);
+        self.cancellations
+            .lock()
+            .unwrap()
+            .push(cancellation.clone());
+        self.started.notify_one();
+        match self.answer {
+            Some(answer) => ShellAuthenticationResponse::Accept(answer.to_string()),
+            None => {
+                cancellation.cancelled().await;
+                ShellAuthenticationResponse::Accept("too late".to_string())
+            }
+        }
+    }
+}
+
+fn secret_prompt_params(session_id: &str, request_id: &str) -> Value {
+    serde_json::json!({
+        "sessionId": session_id,
+        "requestId": request_id,
+        "program": "git",
+        "prompt": "Password for 'https://example.test': ",
+        "inputKind": "secret",
+        "command": "git fetch",
+        "cwd": "/repo",
+    })
+}
+
+/// Reads `count` responses, which may arrive in any order, keyed by ID.
+async fn read_results(server: &mut FakeServer, count: usize) -> HashMap<u64, Value> {
+    let mut results = HashMap::new();
+    for _ in 0..count {
+        let response = timeout(TIMEOUT, server.read_response()).await.unwrap();
+        results.insert(response["id"].as_u64().unwrap(), response["result"].clone());
+    }
+    results
+}
+
+#[tokio::test]
+async fn shell_authentication_wire_flag_follows_handler() {
+    use github_copilot_sdk::types::ResumeSessionConfig;
+
+    for with_handler in [false, true] {
+        let (client, mut server_read, mut server_write) = make_client();
+        let create_handle = tokio::spawn({
+            let client = client.clone();
+            async move {
+                let mut config = SessionConfig::default();
+                if with_handler {
+                    config = config
+                        .with_shell_authentication_handler(Arc::new(SecretPrompts::default()));
+                }
+                client.create_session(config).await.unwrap()
+            }
+        });
+        let create_req = read_framed(&mut server_read).await;
+        assert_eq!(create_req["method"], "session.create");
+        assert_eq!(
+            create_req["params"]
+                .get("requestShellAuthentication")
+                .cloned(),
+            with_handler.then_some(Value::Bool(true))
+        );
+        let session_id = requested_session_id(&create_req).to_string();
+        server_respond_create(&mut server_write, &create_req, &session_id).await;
+        let _session = timeout(TIMEOUT, create_handle).await.unwrap().unwrap();
+    }
+
+    let (client, mut server_read, mut server_write) = make_client();
+    let resume_handle = tokio::spawn({
+        let client = client.clone();
+        async move {
+            client
+                .resume_session(
+                    ResumeSessionConfig::new(SessionId::from("resumed-shell-authentication"))
+                        .with_shell_authentication_handler(Arc::new(SecretPrompts::default())),
+                )
+                .await
+                .unwrap()
+        }
+    });
+    let resume_req = read_framed(&mut server_read).await;
+    assert_eq!(resume_req["method"], "session.resume");
+    assert_eq!(resume_req["params"]["requestShellAuthentication"], true);
+    server_respond_create(
+        &mut server_write,
+        &resume_req,
+        "resumed-shell-authentication",
+    )
+    .await;
+    respond_to_reload(&mut server_read, &mut server_write).await;
+    let _session = timeout(TIMEOUT, resume_handle).await.unwrap().unwrap();
+}
+
+#[tokio::test]
+async fn shell_authentication_request_dispatches_to_handler() {
+    let prompts = Arc::new(SecretPrompts::answering("hunter22"));
+    let handler = prompts.clone();
+    let (_session, mut server) =
+        create_session_pair_with_config(move |cfg| cfg.with_shell_authentication_handler(handler))
+            .await;
+
+    let params = secret_prompt_params(&server.session_id, "prompt-1");
+    server
+        .send_request(400, "shellAuthentication.request", params)
+        .await;
+
+    let response = timeout(TIMEOUT, server.read_response()).await.unwrap();
+    assert_eq!(response["id"], 400);
+    assert_eq!(
+        response["result"],
+        serde_json::json!({ "action": "accept", "value": "hunter22" })
+    );
+    let requests = prompts.requests.lock().unwrap();
+    assert_eq!(requests.len(), 1);
+    assert_eq!(requests[0].request_id, RequestId::new("prompt-1"));
+    assert_eq!(requests[0].program, "git");
+    assert_eq!(requests[0].input_kind, ShellAuthenticationInputKind::Secret);
+    assert_eq!(requests[0].command, "git fetch");
+    assert_eq!(requests[0].cwd, "/repo");
+}
+
+#[tokio::test]
+async fn shell_authentication_request_without_handler_is_cancelled() {
+    let (_session, mut server) = create_session_pair().await;
+
+    let params = secret_prompt_params(&server.session_id, "prompt-1");
+    server
+        .send_request(405, "shellAuthentication.request", params)
+        .await;
+
+    let response = timeout(TIMEOUT, server.read_response()).await.unwrap();
+    assert_eq!(response["id"], 405);
+    assert_eq!(
+        response["result"],
+        serde_json::json!({ "action": "cancel" })
+    );
+}
+
+struct PanickingSecretPrompt;
+
+#[async_trait]
+impl ShellAuthenticationHandler for PanickingSecretPrompt {
+    async fn handle(
+        &self,
+        _session_id: SessionId,
+        _request: ShellAuthenticationRequest,
+        _cancellation: CancellationToken,
+    ) -> ShellAuthenticationResponse {
+        panic!("rejected HUNTER2-FAKE-0004");
+    }
+}
+
+#[tokio::test]
+async fn shell_authentication_handler_panic_is_logged_and_cancels_the_prompt() {
+    let (capture, _guard) = capture_traces();
+    let (_session, mut server) = create_session_pair_with_config(|cfg| {
+        cfg.with_shell_authentication_handler(Arc::new(PanickingSecretPrompt))
+    })
+    .await;
+
+    let params = secret_prompt_params(&server.session_id, "prompt-1");
+    server
+        .send_request(406, "shellAuthentication.request", params)
+        .await;
+
+    let response = timeout(TIMEOUT, server.read_response()).await.unwrap();
+    assert_eq!(response["id"], 406);
+    assert_eq!(
+        response["result"],
+        serde_json::json!({ "action": "cancel" })
+    );
+    let events = capture.events.lock().unwrap();
+    let panics: Vec<_> = events
+        .iter()
+        .filter(|event| event.message_contains("shell authentication handler panicked"))
+        .collect();
+    assert_eq!(panics.len(), 1);
+    assert!(panics[0].field_is("session_id", &server.session_id));
+    assert!(panics[0].field_is("request_id", "prompt-1"));
+    // The panic message could contain the answer, so it is never logged.
+    assert!(
+        !events
+            .iter()
+            .any(|event| event.fields.values().any(|value| value.contains("HUNTER2")))
+    );
+}
+
+#[tokio::test]
+async fn shell_authentication_cancel_closes_the_open_prompt() {
+    let prompts = Arc::new(SecretPrompts::default());
+    let handler = prompts.clone();
+    let (_session, mut server) =
+        create_session_pair_with_config(move |cfg| cfg.with_shell_authentication_handler(handler))
+            .await;
+
+    let params = secret_prompt_params(&server.session_id, "prompt-1");
+    server
+        .send_request(410, "shellAuthentication.request", params)
+        .await;
+    timeout(TIMEOUT, prompts.started.notified()).await.unwrap();
+    let cancel = serde_json::json!({ "sessionId": server.session_id, "requestId": "prompt-1" });
+    server
+        .send_request(411, "shellAuthentication.cancel", cancel)
+        .await;
+
+    let results = read_results(&mut server, 2).await;
+    assert_eq!(results[&410], serde_json::json!({ "action": "cancel" }));
+    assert_eq!(results[&411], serde_json::json!({}));
+    assert!(prompts.all_cancelled());
+}
+
+#[tokio::test]
+async fn shell_authentication_prompt_closes_when_resume_retires_its_session() {
+    use github_copilot_sdk::types::ResumeSessionConfig;
+
+    let prompts = Arc::new(SecretPrompts::default());
+    let (client, mut server_read, mut server_write) = make_client();
+    let create_handle = tokio::spawn({
+        let client = client.clone();
+        let handler = prompts.clone();
+        async move {
+            client
+                .create_session(SessionConfig::default().with_shell_authentication_handler(handler))
+                .await
+                .unwrap()
+        }
+    });
+    let create_req = read_framed(&mut server_read).await;
+    let session_id = requested_session_id(&create_req).to_string();
+    server_respond_create(&mut server_write, &create_req, &session_id).await;
+    let _original = timeout(TIMEOUT, create_handle).await.unwrap().unwrap();
+    let mut server = FakeServer {
+        read: server_read,
+        write: server_write,
+        session_id: session_id.clone(),
+    };
+    let params = secret_prompt_params(&session_id, "prompt-1");
+    server
+        .send_request(420, "shellAuthentication.request", params)
+        .await;
+    timeout(TIMEOUT, prompts.started.notified()).await.unwrap();
+
+    let resume_handle = tokio::spawn({
+        let client = client.clone();
+        let session_id = SessionId::from(session_id.clone());
+        async move {
+            client
+                .resume_session(
+                    ResumeSessionConfig::new(session_id).with_shell_authentication_handler(
+                        Arc::new(SecretPrompts::answering("hunter22")),
+                    ),
+                )
+                .await
+                .unwrap()
+        }
+    });
+    // The retired session's reply can land anywhere in the resume handshake.
+    let mut prompt_result = None;
+    let mut reloaded = false;
+    while prompt_result.is_none() || !reloaded {
+        let message = timeout(TIMEOUT, server.read_response()).await.unwrap();
+        match message["method"].as_str() {
+            Some("session.resume") => {
+                let created = serde_json::json!({ "sessionId": session_id, "workspacePath": "/tmp/workspace" });
+                server.respond(&message, created).await;
+            }
+            Some("session.skills.reload") => {
+                server.respond(&message, serde_json::json!({})).await;
+                reloaded = true;
+            }
+            Some(other) => panic!("unexpected request {other}"),
+            None => {
+                assert_eq!(message["id"], 420);
+                prompt_result = Some(message["result"].clone());
+            }
+        }
+    }
+    let _resumed = timeout(TIMEOUT, resume_handle).await.unwrap().unwrap();
+    assert_eq!(
+        prompt_result,
+        Some(serde_json::json!({ "action": "cancel" }))
+    );
+    assert!(prompts.all_cancelled());
+
+    let cancel = serde_json::json!({ "sessionId": session_id, "requestId": "prompt-1" });
+    server
+        .send_request(421, "shellAuthentication.cancel", cancel)
+        .await;
+    let params = secret_prompt_params(&session_id, "prompt-2");
+    server
+        .send_request(422, "shellAuthentication.request", params)
+        .await;
+
+    let results = read_results(&mut server, 2).await;
+    assert_eq!(results[&421], serde_json::json!({}));
+    assert_eq!(
+        results[&422],
+        serde_json::json!({ "action": "accept", "value": "hunter22" })
+    );
 }
 
 #[tokio::test]

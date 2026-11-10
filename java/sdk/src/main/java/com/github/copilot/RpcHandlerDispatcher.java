@@ -34,6 +34,8 @@ import com.github.copilot.generated.rpc.GitHubTokenAcquireResultCancelled;
 import com.github.copilot.generated.rpc.GitHubTokenAcquireResultToken;
 import com.github.copilot.rpc.PermissionRequestResult;
 import com.github.copilot.rpc.PermissionRequestResultKind;
+import com.github.copilot.rpc.ShellAuthenticationRequest;
+import com.github.copilot.rpc.ShellAuthenticationResponse;
 import com.github.copilot.rpc.SessionLifecycleEvent;
 import com.github.copilot.rpc.SessionLifecycleEventMetadata;
 import com.github.copilot.rpc.StoredMemory;
@@ -66,6 +68,9 @@ final class RpcHandlerDispatcher {
     private final Executor executor;
     private final GitHubTokenProviderRegistry gitHubTokenProviders;
     private final Map<Long, CompletableFuture<Void>> callbackCancellations = new ConcurrentHashMap<>();
+    // Open secret prompts by session and request ID. Tracked here rather than on a
+    // session, which a resume can replace while a prompt is open.
+    private final Map<String, CompletableFuture<Void>> shellAuthenticationCancellations = new ConcurrentHashMap<>();
 
     /**
      * Creates a dispatcher with session registry and lifecycle dispatcher.
@@ -99,6 +104,10 @@ final class RpcHandlerDispatcher {
                 (requestId, params) -> handlePermissionRequest(rpc, requestId, params));
         rpc.registerMethodHandler("userInput.request",
                 (requestId, params) -> handleUserInputRequest(rpc, requestId, params));
+        rpc.registerMethodHandler("shellAuthentication.request",
+                (requestId, params) -> handleShellAuthenticationRequest(rpc, requestId, params));
+        rpc.registerMethodHandler("shellAuthentication.cancel",
+                (requestId, params) -> handleShellAuthenticationCancel(rpc, requestId, params));
         rpc.registerMethodHandler("exitPlanMode.request",
                 (requestId, params) -> handleExitPlanModeRequest(rpc, requestId, params));
         rpc.registerMethodHandler("autoModeSwitch.request",
@@ -289,6 +298,105 @@ final class RpcHandlerDispatcher {
      */
     void cancelCallbacks() {
         callbackCancellations.values().forEach(cancellation -> cancellation.complete(null));
+    }
+
+    /**
+     * Handles a {@code shellAuthentication.request}: a shell command the agent runs
+     * asks for a password or another answer. Anything that isn't the handler's
+     * answer cancels the prompt. Never logs the params or the answer.
+     */
+    private void handleShellAuthenticationRequest(JsonRpcClient rpc, String requestId, JsonNode params) {
+        final long requestIdLong = parseRequestId(requestId, "shellAuthentication.request");
+        if (requestIdLong == -1) {
+            return;
+        }
+        String sessionId = textParam(params, "sessionId");
+        String secretRequestId = textParam(params, "requestId");
+        String program = textParam(params, "program");
+        String prompt = textParam(params, "prompt");
+        String inputKind = textParam(params, "inputKind");
+        CopilotSession session = sessionId != null ? sessions.get(sessionId) : null;
+        boolean knownKind = "secret".equals(inputKind) || "text".equals(inputKind) || "confirm".equals(inputKind);
+        if (session == null || secretRequestId == null || program == null || prompt == null || !knownKind) {
+            sendShellAuthenticationResponse(rpc, requestIdLong, ShellAuthenticationResponse.cancel());
+            return;
+        }
+        String key = shellAuthenticationKey(sessionId, secretRequestId);
+        // Registered on the reader thread so a later shellAuthentication.cancel always
+        // finds
+        // it.
+        var cancellation = new CompletableFuture<Void>();
+        if (shellAuthenticationCancellations.putIfAbsent(key, cancellation) != null) {
+            sendShellAuthenticationResponse(rpc, requestIdLong, ShellAuthenticationResponse.cancel());
+            return;
+        }
+        String command = textParam(params, "command");
+        String cwd = textParam(params, "cwd");
+        var request = new ShellAuthenticationRequest().setRequestId(secretRequestId).setProgram(program)
+                .setPrompt(prompt).setInputKind(inputKind).setCommand(command != null ? command : "")
+                .setCwd(cwd != null ? cwd : "");
+        runAsync(() -> session.handleShellAuthenticationRequest(request, cancellation)
+                .whenComplete((response, error) -> {
+                    shellAuthenticationCancellations.remove(key, cancellation);
+                    sendShellAuthenticationResponse(rpc, requestIdLong,
+                            error == null && response != null ? response : ShellAuthenticationResponse.cancel());
+                }));
+    }
+
+    /**
+     * Handles a {@code shellAuthentication.cancel}: the answer to an open prompt is
+     * no longer needed.
+     */
+    private void handleShellAuthenticationCancel(JsonRpcClient rpc, String requestId, JsonNode params) {
+        String sessionId = textParam(params, "sessionId");
+        String secretRequestId = textParam(params, "requestId");
+        if (sessionId != null && secretRequestId != null) {
+            CompletableFuture<Void> cancellation = shellAuthenticationCancellations
+                    .get(shellAuthenticationKey(sessionId, secretRequestId));
+            if (cancellation != null) {
+                completeShellAuthenticationCancellation(cancellation);
+            }
+        }
+        final long requestIdLong = parseRequestId(requestId, "shellAuthentication.cancel");
+        if (requestIdLong == -1) {
+            return;
+        }
+        try {
+            rpc.sendResponse(requestIdLong, Map.of());
+        } catch (IOException e) {
+            LOG.log(Level.WARNING, "Error sending shell authentication cancel response", e);
+        }
+    }
+
+    /** Cancels every open secret prompt when the connection closes. */
+    void cancelShellAuthenticationRequests() {
+        shellAuthenticationCancellations.values()
+                .forEach(RpcHandlerDispatcher::completeShellAuthenticationCancellation);
+    }
+
+    /**
+     * Completes a prompt's cancellation on its own thread. Completing it runs the
+     * app's continuations, which may wait on a call that only the connection's
+     * reader thread can answer, so they must not run on that thread or on an
+     * executor that could fall back to it.
+     */
+    private static void completeShellAuthenticationCancellation(CompletableFuture<Void> cancellation) {
+        Thread thread = new Thread(() -> cancellation.complete(null), "copilot-shell-authentication-cancel");
+        thread.setDaemon(true);
+        thread.start();
+    }
+
+    private static String shellAuthenticationKey(String sessionId, String requestId) {
+        return sessionId + '\u0000' + requestId;
+    }
+
+    private static void sendShellAuthenticationResponse(JsonRpcClient rpc, long requestId,
+            ShellAuthenticationResponse response) {
+        try {
+            rpc.sendSecretResponse(requestId, response);
+        } catch (IOException e) {
+            LOG.log(Level.WARNING, "Error sending shell authentication response", e);
+        }
     }
 
     private SkillProvider findSkillProvider(String sessionId) {

@@ -25,13 +25,15 @@ public class ScenarioTestingPersistenceE2ETests(E2ETestFixture fixture, ITestOut
     // empty batch after the final reply must end without a model request.
     // OpenAI BYOK backends accept a trailing assistant message, so this is
     // pinned to the Messages endpoint (CAPI and the Anthropic backend). A fresh
-    // client keeps the shared runtime's cached model catalog, which lacks this
-    // snapshot's /v1/messages endpoint, from routing the turn to chat/completions.
+    // replay endpoint isolates the process-wide model catalog so this snapshot's
+    // /v1/messages endpoint controls routing.
     [MessagesBackendFact]
     public async Task Should_Not_Prefill_Claude_When_Empty_SendMessages_Follows_The_Final_Reply()
     {
-        await using var client = Ctx.CreateClient();
-        await using var session = await Ctx.CreateSessionAsync(client, new SessionConfig
+        await using var context = await E2ETestContext.CreateAsync();
+        await context.ConfigureForTestAsync("scenario_testing_persistence", replayOnly: true);
+        await using var client = context.CreateClient();
+        await using var session = await context.CreateSessionAsync(client, new SessionConfig
         {
             Model = "claude-sonnet-5",
             OnPermissionRequest = PermissionHandler.ApproveAll,

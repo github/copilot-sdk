@@ -131,6 +131,10 @@ TResponse = TypeVar("TResponse", bound=BaseModel)
 # ``overrides_built_in_tool=True``.
 _TOOL_SEARCH_TOOL_NAME = "tool_search_tool"
 
+# Shell authentication handler tasks, which can outlive their prompt. The event
+# loop holds tasks weakly, so these stay referenced until they end.
+_shell_authentication_answers: set[asyncio.Task[Any]] = set()
+
 
 if TYPE_CHECKING:
     from .session_fs_provider import SessionFsProvider
@@ -763,6 +767,58 @@ UserInputHandler = Callable[
     [UserInputRequest, dict[str, str]],
     UserInputResponse | Awaitable[UserInputResponse],
 ]
+
+
+class ShellAuthenticationRequest(TypedDict, total=False):
+    """A password or other answer that a shell command run by the agent asks
+    for, for example ``sudo -A``, ``ssh``, or ``git`` over HTTPS. The answer
+    goes only to the program that asked: it is not shown to the model and is
+    not recorded in session events."""
+
+    requestId: Required[str]
+    """Identifies the request. A cancellation for it carries the same id."""
+    program: Required[str]
+    """The program that asked: ``sudo``, ``ssh``, or ``git``."""
+    prompt: Required[str]
+    """The prompt text the program supplied."""
+    inputKind: Required[Literal["secret", "text", "confirm"]]
+    """``secret`` for a password or passphrase (mask the input), ``text`` for a
+    visible answer such as a user name, or ``confirm`` for a yes or no question
+    such as an ssh host-key check."""
+    command: Required[str]
+    """The shell command that triggered the prompt."""
+    cwd: Required[str]
+    """The command's working directory."""
+
+
+class ShellAuthenticationResponse(TypedDict, total=False):
+    """Answer to a :class:`ShellAuthenticationRequest`: ``{"action": "accept", "value": ...}``
+    or ``{"action": "cancel"}``. Answer a ``confirm`` request with ``"yes"``, or
+    cancel it to decline."""
+
+    action: Required[Literal["accept", "cancel"]]
+    value: str
+
+
+class ShellAuthenticationInvocation(TypedDict):
+    """Context for a :data:`ShellAuthenticationHandler` call."""
+
+    session_id: str
+    """The session whose command asked."""
+    cancelled: asyncio.Event
+    """Set when the answer is no longer needed, for example because the
+    command ended, the prompt timed out, or the session ended or switched to
+    autopilot. Close the input when it is set; an async handler still running
+    then is cancelled."""
+
+
+ShellAuthenticationHandler = Callable[
+    [ShellAuthenticationRequest, ShellAuthenticationInvocation],
+    ShellAuthenticationResponse | Awaitable[ShellAuthenticationResponse],
+]
+"""Handler for passwords and other answers that shell commands run by the
+agent ask for. Any exception, malformed answer, or cancellation cancels the
+prompt, so the program that asked fails instead of receiving a wrong value."""
 
 
 class ExitPlanModeRequest(TypedDict, total=False):
@@ -2146,6 +2202,10 @@ class CopilotSession:
         self._mcp_auth_handler_lock = threading.Lock()
         self._user_input_handler: UserInputHandler | None = None
         self._user_input_handler_lock = threading.Lock()
+        self._shell_authentication_handler: ShellAuthenticationHandler | None = None
+        self._shell_authentication_handler_lock = threading.Lock()
+        # Set when this session can no longer use the answers it waits for.
+        self._pending_shell_authentication_requests: set[asyncio.Event] = set()
         self._exit_plan_mode_handler: ExitPlanModeHandler | None = None
         self._exit_plan_mode_handler_lock = threading.Lock()
         self._auto_mode_switch_handler: AutoModeSwitchHandler | None = None
@@ -2222,6 +2282,14 @@ class CopilotSession:
             self._mcp_auth_handler = None
         with self._user_input_handler_lock:
             self._user_input_handler = None
+        with self._shell_authentication_handler_lock:
+            self._shell_authentication_handler = None
+            pending_shell_authentication_requests = tuple(
+                self._pending_shell_authentication_requests
+            )
+            self._pending_shell_authentication_requests.clear()
+        for cancelled in pending_shell_authentication_requests:
+            cancelled.set()
         with self._exit_plan_mode_handler_lock:
             self._exit_plan_mode_handler = None
         with self._auto_mode_switch_handler_lock:
@@ -4064,6 +4132,109 @@ class CopilotSession:
             return cast(UserInputResponse, result)
         except Exception:
             raise
+
+    def _log_shell_authentication_failure(
+        self, request: ShellAuthenticationRequest, error: BaseException
+    ) -> None:
+        # The error's message could contain the answer, so only its type is logged.
+        logger.error(
+            "Shell authentication handler failed with %s",
+            type(error).__name__,
+            extra={"session_id": self.session_id, "request_id": request.get("requestId")},
+        )
+
+    async def _settle_shell_authentication_answer(
+        self,
+        request: ShellAuthenticationRequest,
+        cancelled: asyncio.Event,
+        answer: Awaitable[Any],
+    ) -> Any:
+        # This task can outlive its prompt, and asyncio reports a failed task with
+        # the error's message, which could contain the answer.
+        try:
+            return await answer
+        except Exception as exc:  # pylint: disable=broad-except
+            if not cancelled.is_set():
+                self._log_shell_authentication_failure(request, exc)
+            return None
+
+    def _register_shell_authentication_handler(
+        self, handler: ShellAuthenticationHandler | None
+    ) -> None:
+        """
+        Register the handler for passwords and other answers that shell
+        commands run by the agent ask for.
+
+        Note:
+            This method is internal. Shell authentication handlers are typically
+            registered when creating a session via
+            :meth:`CopilotClient.create_session`.
+
+        Args:
+            handler: The shell authentication handler, or None to remove it.
+        """
+        with self._shell_authentication_handler_lock:
+            self._shell_authentication_handler = handler
+
+    async def _handle_shell_authentication_request(
+        self, request: ShellAuthenticationRequest, cancelled: asyncio.Event
+    ) -> ShellAuthenticationResponse:
+        """
+        Ask the registered handler for a secret. Any failure, a malformed
+        answer, or ``cancelled`` being set cancels the prompt, so the program
+        that asked fails instead of receiving a wrong value. Never logs the
+        answer.
+
+        Note:
+            This method is internal and should not be called directly.
+        """
+        with self._shell_authentication_handler_lock:
+            handler = self._shell_authentication_handler
+            if handler is None or cancelled.is_set():
+                return {"action": "cancel"}
+            self._pending_shell_authentication_requests.add(cancelled)
+        try:
+            result: Any = handler(request, {"session_id": self.session_id, "cancelled": cancelled})
+            if inspect.isawaitable(result):
+                answer = asyncio.create_task(
+                    self._settle_shell_authentication_answer(request, cancelled, result)
+                )
+                _shell_authentication_answers.add(answer)
+                answer.add_done_callback(_shell_authentication_answers.discard)
+                closed = asyncio.ensure_future(cancelled.wait())
+                try:
+                    # A handler that never finishes after its prompt closes
+                    # must not keep the request open.
+                    await asyncio.wait({answer, closed}, return_when=asyncio.FIRST_COMPLETED)
+                finally:
+                    closed.cancel()
+                if not answer.done():
+                    answer.cancel()
+                    return {"action": "cancel"}
+                result = answer.result()
+            if (
+                cancelled.is_set()
+                or not isinstance(result, dict)
+                or result.get("action") != "accept"
+                or not isinstance(result.get("value"), str)
+            ):
+                return {"action": "cancel"}
+            return {"action": "accept", "value": result["value"]}
+        except asyncio.CancelledError as exc:
+            # Only a cancellation of this request task propagates; a handler that
+            # cancels itself declines the prompt like any other failure.
+            task = asyncio.current_task()
+            if task is not None and task.cancelling():
+                raise
+            if not cancelled.is_set():
+                self._log_shell_authentication_failure(request, exc)
+            return {"action": "cancel"}
+        except Exception as exc:  # pylint: disable=broad-except
+            self._log_shell_authentication_failure(request, exc)
+            return {"action": "cancel"}
+        finally:
+            with self._shell_authentication_handler_lock:
+                self._pending_shell_authentication_requests.discard(cancelled)
 
     async def _handle_exit_plan_mode_request(self, request: dict) -> ExitPlanModeResult:
         """Handle an exitPlanMode.request callback from the runtime."""

@@ -86,6 +86,9 @@ import type {
     TraceContextProvider,
     TranscriptRecovery,
     TypedSessionEventHandler,
+    ShellAuthenticationHandler,
+    ShellAuthenticationRequest,
+    ShellAuthenticationResponse,
     UserInputHandler,
     UserInputRequest,
     UserInputResponse,
@@ -535,6 +538,8 @@ export class CopilotSession {
     private permissionHandler?: PermissionHandler;
     private mcpAuthHandler?: McpAuthHandler;
     private userInputHandler?: UserInputHandler;
+    private shellAuthenticationHandler?: ShellAuthenticationHandler;
+    private pendingShellAuthenticationRequests = new Map<string, AbortController>();
     private elicitationHandler?: ElicitationHandler;
     private exitPlanModeHandler?: ExitPlanModeHandler;
     private autoModeSwitchHandler?: AutoModeSwitchHandler;
@@ -1403,6 +1408,11 @@ export class CopilotSession {
         this.permissionHandler = undefined;
         this.mcpAuthHandler = undefined;
         this.userInputHandler = undefined;
+        this.shellAuthenticationHandler = undefined;
+        for (const controller of this.pendingShellAuthenticationRequests.values()) {
+            controller.abort();
+        }
+        this.pendingShellAuthenticationRequests.clear();
         this.elicitationHandler = undefined;
         this.exitPlanModeHandler = undefined;
         this.autoModeSwitchHandler = undefined;
@@ -2646,6 +2656,18 @@ export class CopilotSession {
     }
 
     /**
+     * Registers the handler for passwords and other answers that shell
+     * commands run by the agent ask for.
+     *
+     * @param handler - The shell authentication handler, or undefined to remove it
+     * @internal This method is typically called internally when creating a session.
+     */
+    registerShellAuthenticationHandler(handler?: ShellAuthenticationHandler): void {
+        this.assertConnected();
+        this.shellAuthenticationHandler = handler;
+    }
+
+    /**
      * Registers the session's skill provider.
      *
      * @param provider - The skill provider, or undefined to remove it
@@ -2890,6 +2912,70 @@ export class CopilotSession {
         } catch (error) {
             // Handler failed, rethrow
             throw error;
+        }
+    }
+
+    /**
+     * Asks the registered handler for a secret. Any failure, a malformed answer,
+     * or an abort cancels the prompt, so the program that asked fails instead
+     * of receiving a wrong value. Never logs the answer.
+     *
+     * @param cancelled - Aborted when the runtime no longer needs the answer.
+     * @internal This method is for internal use by the SDK.
+     */
+    async _handleShellAuthenticationRequest(
+        request: ShellAuthenticationRequest,
+        cancelled: AbortSignal
+    ): Promise<ShellAuthenticationResponse> {
+        const handler = this.shellAuthenticationHandler;
+        if (
+            !handler ||
+            cancelled.aborted ||
+            this.pendingShellAuthenticationRequests.has(request.requestId)
+        ) {
+            return { action: "cancel" };
+        }
+        const controller = new AbortController();
+        const abort = () => controller.abort();
+        cancelled.addEventListener("abort", abort, { once: true });
+        this.pendingShellAuthenticationRequests.set(request.requestId, controller);
+        try {
+            // A handler that never settles after its prompt is cancelled must not
+            // keep the request open.
+            const cancellation = new Promise<undefined>((resolve) => {
+                controller.signal.addEventListener("abort", () => resolve(undefined), {
+                    once: true,
+                });
+            });
+            const result = await Promise.race([
+                Promise.resolve(
+                    handler(request, {
+                        sessionId: this.sessionId,
+                        signal: controller.signal,
+                    })
+                ),
+                cancellation,
+            ]);
+            if (
+                controller.signal.aborted ||
+                result?.action !== "accept" ||
+                typeof result.value !== "string"
+            ) {
+                return { action: "cancel" };
+            }
+            return { action: "accept", value: result.value };
+        } catch (error) {
+            // Cancelling the prompt settles the race above, so only handler failures land here.
+            // The error's message or name could contain the answer, so only its type is logged.
+            console.error("Shell authentication handler failed", {
+                sessionId: this.sessionId,
+                requestId: request.requestId,
+                errorType: errorTypeName(error),
+            });
+            return { action: "cancel" };
+        } finally {
+            cancelled.removeEventListener("abort", abort);
+            this.pendingShellAuthenticationRequests.delete(request.requestId);
         }
     }
 
@@ -3267,6 +3353,23 @@ function toCanvasRpcError(error: unknown): ResponseError<unknown> {
 // The provider's own error text is deliberately not forwarded to the runtime.
 function skillProviderFailure(operation: string): ResponseError<undefined> {
     return new ResponseError(ErrorCodes.InternalError, `Skill provider ${operation} failed`);
+}
+
+/**
+ * Names a thrown value's class, as the other SDKs log an exception's type. Reads the class from
+ * the prototype, never the error's own `name` or `message`, which the thrower can set to anything.
+ */
+function errorTypeName(error: unknown): string {
+    if ((typeof error !== "object" && typeof error !== "function") || error === null) {
+        return typeof error;
+    }
+    try {
+        const name: unknown = Object.getPrototypeOf(error)?.constructor?.name;
+        return typeof name === "string" && name !== "" ? name : typeof error;
+    } catch {
+        // A getter or proxy trap can throw, and logging must not.
+        return typeof error;
+    }
 }
 
 type WorkflowResultValidationCategory =

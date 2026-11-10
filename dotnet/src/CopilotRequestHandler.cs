@@ -1098,7 +1098,21 @@ internal sealed class LlmInferenceAdapter(CopilotRequestHandler handler, Func<Se
 {
     private readonly CopilotRequestHandler _handler = handler ?? throw new ArgumentNullException(nameof(handler));
     private readonly Func<ServerRpc?> _getServerRpc = getServerRpc ?? throw new ArgumentNullException(nameof(getServerRpc));
+    /// <summary>
+    /// How many finished request IDs the adapter remembers. A frame the runtime
+    /// sent before it saw a request finish arrives within about one round trip,
+    /// so a small window covers it while a long-lived client stays at a fixed size.
+    /// </summary>
+    private const int MaxFinishedRequestIds = 256;
+
     private readonly ConcurrentDictionary<string, LlmInferenceExchange> _pending = new(StringComparer.Ordinal);
+
+    // The most recently finished request IDs, oldest first. Guarded by _finishedLock,
+    // which also covers creating and removing _pending entries so a frame cannot
+    // recreate an entry for a request that is being removed.
+    private readonly Queue<string> _finishedOrder = new();
+    private readonly HashSet<string> _finished = new(StringComparer.Ordinal);
+    private readonly object _finishedLock = new();
 
     public Task<LlmInferenceHttpRequestStartResult> HttpRequestStartAsync(LlmInferenceHttpRequestStartRequest request, CancellationToken cancellationToken = default)
     {
@@ -1113,7 +1127,8 @@ internal sealed class LlmInferenceAdapter(CopilotRequestHandler handler, Func<Se
         // arrive before this start frame runs. GetOrAdd adopts any exchange a
         // racing chunk already created — with its buffered body — instead of
         // dropping those frames and hanging the body drain.
-        var exchange = _pending.GetOrAdd(request.RequestId, id => new LlmInferenceExchange(id, _getServerRpc));
+        var exchange = GetOrCreateExchange(request.RequestId)
+            ?? throw new InvalidOperationException($"llmInference.httpRequestStart for request \"{request.RequestId}\", which already finished");
         exchange.Method = request.Method;
         exchange.Context = new CopilotRequestContext(request.RequestId, request.Url, ToReadOnlyHeaders(request.Headers))
         {
@@ -1142,10 +1157,57 @@ internal sealed class LlmInferenceAdapter(CopilotRequestHandler handler, Func<Se
         // dispatched concurrently). GetOrAdd buffers the body into the
         // exchange's channel so no chunk — in particular the terminal end
         // frame — is ever lost; the start frame later adopts this same exchange.
-        var exchange = _pending.GetOrAdd(request.RequestId, id => new LlmInferenceExchange(id, _getServerRpc));
-        RouteChunk(exchange, request);
+        var exchange = GetOrCreateExchange(request.RequestId);
+        // A frame for a finished request has nothing left to deliver to.
+        if (exchange is not null)
+        {
+            RouteChunk(exchange, request);
+        }
 
         return Task.FromResult(new LlmInferenceHttpRequestChunkResult());
+    }
+
+    /// <summary>
+    /// Returns the request's exchange, creating it on first touch, or <see langword="null"/>
+    /// when the request already finished. A frame can still arrive then, because the
+    /// runtime may send one before it sees the finish: it cancels a response it rejects,
+    /// such as one over its size limit, while the handler's end is in flight. An exchange
+    /// created for that frame would never be removed.
+    /// </summary>
+    private LlmInferenceExchange? GetOrCreateExchange(string requestId)
+    {
+        lock (_finishedLock)
+        {
+            if (_pending.TryGetValue(requestId, out var exchange))
+            {
+                return exchange;
+            }
+
+            if (_finished.Contains(requestId))
+            {
+                return null;
+            }
+
+            return _pending.GetOrAdd(requestId, id => new LlmInferenceExchange(id, _getServerRpc));
+        }
+    }
+
+    private void RemoveFinished(string requestId)
+    {
+        lock (_finishedLock)
+        {
+            _pending.TryRemove(requestId, out _);
+            if (!_finished.Add(requestId))
+            {
+                return;
+            }
+
+            _finishedOrder.Enqueue(requestId);
+            if (_finishedOrder.Count > MaxFinishedRequestIds)
+            {
+                _finished.Remove(_finishedOrder.Dequeue());
+            }
+        }
     }
 
     internal void CancelPending()
@@ -1183,7 +1245,7 @@ internal sealed class LlmInferenceAdapter(CopilotRequestHandler handler, Func<Se
         }
         finally
         {
-            _pending.TryRemove(exchange.RequestId, out _);
+            RemoveFinished(exchange.RequestId);
         }
     }
 

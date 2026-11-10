@@ -2,8 +2,9 @@
 //!
 //! Each callback the CLI may dispatch (permission requests, elicitation
 //! prompts, user-input questions, exit-plan-mode prompts,
-//! auto-mode-switch prompts) has its own focused trait. Recovery-aware Auto
-//! handlers also implement `handle_auto_mode_recovery`, leaving legacy `handle` unchanged.
+//! auto-mode-switch prompts, shell password prompts) has its own focused
+//! trait. Recovery-aware Auto handlers also implement
+//! `handle_auto_mode_recovery`, leaving legacy `handle` unchanged.
 //!
 //! Handlers are **optional**: install only the ones the application cares
 //! about. The SDK derives the corresponding wire flag on
@@ -17,6 +18,7 @@
 
 use async_trait::async_trait;
 use serde::{Deserialize, Serialize};
+use tokio_util::sync::CancellationToken;
 
 use crate::generated::api_types::{
     McpOauthPendingRequestResponse, McpOauthPendingRequestResponseCancelled,
@@ -409,6 +411,86 @@ pub trait AutoModeSwitchHandler: Send + Sync + 'static {
     ) -> AutoModeSwitchResponse {
         AutoModeSwitchResponse::No
     }
+}
+
+/// What a [`ShellAuthenticationRequest`] asks for.
+#[non_exhaustive]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub enum ShellAuthenticationInputKind {
+    /// A password or passphrase. Mask the input.
+    Secret,
+    /// A visible answer, such as a user name.
+    Text,
+    /// A yes/no question, such as an ssh host-key check. Accept with `"yes"`,
+    /// or cancel to decline.
+    Confirm,
+}
+
+/// A password or other answer that a shell command run by the agent asks
+/// for, for example `sudo -A`, `ssh`, or `git` over HTTPS. The answer goes
+/// only to the program that asked: it is not shown to the model and is not
+/// recorded in session events.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ShellAuthenticationRequest {
+    /// Identifies the request. A cancellation for it carries the same ID.
+    pub request_id: RequestId,
+    /// The program that asked: `sudo`, `ssh`, or `git`.
+    pub program: String,
+    /// The prompt text the program supplied.
+    pub prompt: String,
+    /// Whether to mask the input, show it, or ask yes/no.
+    pub input_kind: ShellAuthenticationInputKind,
+    /// The shell command that triggered the prompt.
+    pub command: String,
+    /// The command's working directory.
+    pub cwd: String,
+}
+
+/// Answer to a [`ShellAuthenticationRequest`].
+///
+/// `Debug` output never includes an accepted answer.
+#[derive(Clone, PartialEq, Eq)]
+pub enum ShellAuthenticationResponse {
+    /// Give this answer to the program that asked. Answer a
+    /// [`ShellAuthenticationInputKind::Confirm`] request with `"yes"`.
+    Accept(String),
+    /// Decline. The program fails as if its prompt were dismissed.
+    Cancel,
+}
+
+impl std::fmt::Debug for ShellAuthenticationResponse {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::Accept(_) => f.write_str("Accept(<redacted>)"),
+            Self::Cancel => f.write_str("Cancel"),
+        }
+    }
+}
+
+/// Handler for passwords and other answers that shell commands run by the
+/// agent ask for.
+///
+/// When unset, the SDK doesn't send `requestShellAuthentication` on the wire, the
+/// runtime never asks this client, and such commands fail as they would
+/// without a terminal.
+///
+/// `cancellation` is cancelled when the answer is no longer needed, for
+/// example because the command ended, the prompt timed out, or the session or
+/// connection closed. The SDK then drops the handler future and answers
+/// [`ShellAuthenticationResponse::Cancel`], so any separately spawned UI must observe
+/// the token and close its prompt. A panic in the handler also cancels, but the
+/// process's panic hook still reports it, by default by printing its message to
+/// stderr, so never put the answer in a panic message.
+#[async_trait]
+pub trait ShellAuthenticationHandler: Send + Sync + 'static {
+    /// Ask the user for the answer.
+    async fn handle(
+        &self,
+        session_id: SessionId,
+        request: ShellAuthenticationRequest,
+        cancellation: CancellationToken,
+    ) -> ShellAuthenticationResponse;
 }
 
 /// A [`PermissionHandler`] that approves ordinary requests when managed settings are disabled.

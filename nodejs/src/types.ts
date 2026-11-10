@@ -1715,6 +1715,49 @@ export type UserInputHandler = (
 ) => Promise<UserInputResponse> | UserInputResponse;
 
 /**
+ * A password or other answer that a shell command run by the agent asks for,
+ * for example `sudo -A`, `ssh`, or `git` over HTTPS. The answer goes only to
+ * the program that asked: it is not shown to the model and is not recorded in
+ * session events.
+ */
+export interface ShellAuthenticationRequest {
+    /** Identifies the request. A cancellation for it carries the same id. */
+    requestId: string;
+    /** The program that asked: `sudo`, `ssh`, or `git`. */
+    program: string;
+    /** The prompt text the program supplied. */
+    prompt: string;
+    /**
+     * `secret` for a password or passphrase (mask the input), `text` for a
+     * visible answer such as a user name, or `confirm` for a yes/no question
+     * such as an ssh host-key check.
+     */
+    inputKind: "secret" | "text" | "confirm";
+    /** The shell command that triggered the prompt. */
+    command: string;
+    /** The command's working directory. */
+    cwd: string;
+}
+
+/**
+ * Answer to a {@link ShellAuthenticationRequest}. Answer a `confirm` request with
+ * `"yes"`, or cancel it to decline.
+ */
+export type ShellAuthenticationResponse =
+    | { action: "accept"; value: string }
+    | { action: "cancel" };
+
+/**
+ * Handler for shell authentication requests. `signal` aborts when the answer is no
+ * longer needed, for example because the command ended or the prompt timed
+ * out; close the input when it does.
+ */
+export type ShellAuthenticationHandler = (
+    request: ShellAuthenticationRequest,
+    invocation: { sessionId: string; signal: AbortSignal }
+) => Promise<ShellAuthenticationResponse> | ShellAuthenticationResponse;
+
+/**
  * Request to exit plan mode and continue with a selected action.
  */
 export interface ExitPlanModeRequest {
@@ -3219,6 +3262,14 @@ export interface SessionConfigBase {
      * question-and-answer form of the `ask_user` tool.
      */
     onUserInputRequest?: UserInputHandler;
+
+    /**
+     * Handler for passwords and other answers that shell commands run by the
+     * agent ask for. When provided, `sudo -A`, `ssh`, and `git` prompts reach
+     * this handler instead of failing for lack of a terminal. Cancel requests
+     * when nobody can answer, for example in autopilot.
+     */
+    onShellAuthenticationRequest?: ShellAuthenticationHandler;
 
     /**
      * Selects the model-facing shape of the built-in `ask_user` tool.

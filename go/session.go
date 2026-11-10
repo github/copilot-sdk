@@ -60,61 +60,64 @@ type sessionHandler struct {
 //	})
 type Session struct {
 	// SessionID is the unique identifier for this session.
-	SessionID                     string
-	workspacePath                 string
-	transcriptRecovery            *TranscriptRecoveryReport
-	permissionModeResult          *rpc.PermissionsSetModeResult
-	client                        *jsonrpc2.Client
-	clientSessionAPIs             *rpc.ClientSessionAPIHandlers
-	handlers                      []*sessionHandler
-	nextHandlerID                 uint64
-	handlerMutex                  sync.RWMutex
-	gracefulRetirement            bool
-	toolHandlers                  map[string]ToolHandler
-	toolHandlersM                 sync.RWMutex
-	setToolsOnce                  sync.Once
-	setToolsGate                  chan struct{}
-	pendingExternalTools          map[string]*pendingExternalTool
-	pendingExternalToolsM         sync.Mutex
-	externalToolsClosed           bool
-	permissionHandler             permissionHandlerFunc
-	permissionMux                 sync.RWMutex
-	managedSettings               bool
-	mcpAuthHandler                MCPAuthHandler
-	mcpAuthRefreshHandler         MCPAuthRuntimeRefreshHandler
-	mcpAuthMu                     sync.RWMutex
-	userInputHandler              UserInputHandler
-	userInputMux                  sync.RWMutex
-	exitPlanModeHandler           ExitPlanModeRequestHandler
-	exitPlanModeMu                sync.RWMutex
-	autoModeSwitchHandler         AutoModeSwitchRequestHandler
-	autoModeSwitchRecoveryHandler AutoModeSwitchRequestHandlerWithAutoModeRecovery
-	autoModeSwitchMu              sync.RWMutex
-	hooks                         *SessionHooks
-	hooksMux                      sync.RWMutex
-	transformCallbacks            map[string]SectionTransformFn
-	transformMu                   sync.Mutex
-	commandHandlers               map[string]CommandHandler
-	commandHandlersMu             sync.RWMutex
-	elicitationHandler            ElicitationHandler
-	elicitationMu                 sync.RWMutex
-	canvasHandler                 CanvasHandler
-	canvasMu                      sync.RWMutex
-	skillProvider                 SkillProvider
-	skillProviderMu               sync.RWMutex
-	memoryStore                   func(context.Context, StoredMemory) error
-	memoryStoreMu                 sync.RWMutex
-	bearerTokenProviders          map[string]BearerTokenProvider
-	bearerTokenMu                 sync.RWMutex
-	releaseGitHubTokenProvider    func()
-	releaseFromClient             func()
-	gitHubTokenProviderMu         sync.Mutex
-	gitHubTokenProviderReleased   bool
-	openCanvases                  []rpc.OpenCanvasInstance
-	openCanvasesMu                sync.RWMutex
-	capabilities                  SessionCapabilities
-	autoModeRecoverySupported     bool
-	capabilitiesMu                sync.RWMutex
+	SessionID                          string
+	workspacePath                      string
+	transcriptRecovery                 *TranscriptRecoveryReport
+	permissionModeResult               *rpc.PermissionsSetModeResult
+	client                             *jsonrpc2.Client
+	clientSessionAPIs                  *rpc.ClientSessionAPIHandlers
+	handlers                           []*sessionHandler
+	nextHandlerID                      uint64
+	handlerMutex                       sync.RWMutex
+	gracefulRetirement                 bool
+	toolHandlers                       map[string]ToolHandler
+	toolHandlersM                      sync.RWMutex
+	setToolsOnce                       sync.Once
+	setToolsGate                       chan struct{}
+	pendingExternalTools               map[string]*pendingExternalTool
+	pendingExternalToolsM              sync.Mutex
+	externalToolsClosed                bool
+	permissionHandler                  permissionHandlerFunc
+	permissionMux                      sync.RWMutex
+	managedSettings                    bool
+	mcpAuthHandler                     MCPAuthHandler
+	mcpAuthRefreshHandler              MCPAuthRuntimeRefreshHandler
+	mcpAuthMu                          sync.RWMutex
+	userInputHandler                   UserInputHandler
+	userInputMux                       sync.RWMutex
+	shellAuthenticationHandler         ShellAuthenticationHandler
+	pendingShellAuthenticationRequests map[string]context.CancelFunc
+	shellAuthenticationMux             sync.RWMutex
+	exitPlanModeHandler                ExitPlanModeRequestHandler
+	exitPlanModeMu                     sync.RWMutex
+	autoModeSwitchHandler              AutoModeSwitchRequestHandler
+	autoModeSwitchRecoveryHandler      AutoModeSwitchRequestHandlerWithAutoModeRecovery
+	autoModeSwitchMu                   sync.RWMutex
+	hooks                              *SessionHooks
+	hooksMux                           sync.RWMutex
+	transformCallbacks                 map[string]SectionTransformFn
+	transformMu                        sync.Mutex
+	commandHandlers                    map[string]CommandHandler
+	commandHandlersMu                  sync.RWMutex
+	elicitationHandler                 ElicitationHandler
+	elicitationMu                      sync.RWMutex
+	canvasHandler                      CanvasHandler
+	canvasMu                           sync.RWMutex
+	skillProvider                      SkillProvider
+	skillProviderMu                    sync.RWMutex
+	memoryStore                        func(context.Context, StoredMemory) error
+	memoryStoreMu                      sync.RWMutex
+	bearerTokenProviders               map[string]BearerTokenProvider
+	bearerTokenMu                      sync.RWMutex
+	releaseGitHubTokenProvider         func()
+	releaseFromClient                  func()
+	gitHubTokenProviderMu              sync.Mutex
+	gitHubTokenProviderReleased        bool
+	openCanvases                       []rpc.OpenCanvasInstance
+	openCanvasesMu                     sync.RWMutex
+	capabilities                       SessionCapabilities
+	autoModeRecoverySupported          bool
+	capabilitiesMu                     sync.RWMutex
 
 	// eventCh serializes user event handler dispatch. dispatchEvent enqueues;
 	// a single goroutine (processEvents) dequeues and invokes handlers in FIFO order.
@@ -1204,6 +1207,95 @@ func (s *Session) handleUserInputRequest(request UserInputRequest) (UserInputRes
 	return handler(request, invocation)
 }
 
+// registerShellAuthenticationHandler registers the handler for passwords and other
+// answers that shell commands run by the agent ask for.
+//
+// This method is internal and typically called when creating a session.
+func (s *Session) registerShellAuthenticationHandler(handler ShellAuthenticationHandler) {
+	s.shellAuthenticationMux.Lock()
+	defer s.shellAuthenticationMux.Unlock()
+	s.shellAuthenticationHandler = handler
+}
+
+// shellAuthenticationHandlerPanic reports a shell authentication handler that panicked. It
+// keeps no panic value, which could contain the answer.
+type shellAuthenticationHandlerPanic struct{}
+
+func (shellAuthenticationHandlerPanic) Error() string { return "shell authentication handler panicked" }
+
+// handleShellAuthenticationRequest asks the registered handler for a secret. Any
+// failure, a response that isn't an accept, or ctx ending first cancels the
+// prompt, so the program that asked fails instead of receiving a wrong value.
+// Never logs the answer.
+func (s *Session) handleShellAuthenticationRequest(ctx context.Context, request ShellAuthenticationRequest) ShellAuthenticationResponse {
+	cancelled := ShellAuthenticationResponse{Action: ShellAuthenticationActionCancel}
+	ctx, cancel := context.WithCancel(ctx)
+	defer cancel()
+	s.shellAuthenticationMux.Lock()
+	handler := s.shellAuthenticationHandler
+	if handler == nil || ctx.Err() != nil {
+		s.shellAuthenticationMux.Unlock()
+		return cancelled
+	}
+	if _, ok := s.pendingShellAuthenticationRequests[request.RequestID]; ok {
+		s.shellAuthenticationMux.Unlock()
+		return cancelled
+	}
+	if s.pendingShellAuthenticationRequests == nil {
+		s.pendingShellAuthenticationRequests = make(map[string]context.CancelFunc)
+	}
+	s.pendingShellAuthenticationRequests[request.RequestID] = cancel
+	s.shellAuthenticationMux.Unlock()
+	defer func() {
+		s.shellAuthenticationMux.Lock()
+		delete(s.pendingShellAuthenticationRequests, request.RequestID)
+		s.shellAuthenticationMux.Unlock()
+	}()
+
+	type answer struct {
+		response ShellAuthenticationResponse
+		err      error
+	}
+	answered := make(chan answer, 1)
+	go func() {
+		defer func() {
+			if r := recover(); r != nil {
+				answered <- answer{err: shellAuthenticationHandlerPanic{}}
+			}
+		}()
+		response, err := handler(request, ShellAuthenticationInvocation{SessionID: s.SessionID, Context: ctx})
+		answered <- answer{response: response, err: err}
+	}()
+	// A handler that never returns after its prompt closes must not keep the
+	// request open.
+	select {
+	case result := <-answered:
+		// Returning ctx's error after the prompt closed is how a handler stops,
+		// not a failure. The error's text could contain the answer, so only its
+		// type is logged.
+		if result.err != nil && (ctx.Err() == nil || !errors.Is(result.err, context.Canceled)) {
+			log.Printf("shell authentication handler failed: session_id=%s request_id=%s error_type=%T", s.SessionID, request.RequestID, result.err)
+		}
+		if result.err != nil || ctx.Err() != nil || result.response.Action != ShellAuthenticationActionAccept {
+			return cancelled
+		}
+		return ShellAuthenticationResponse{Action: ShellAuthenticationActionAccept, Value: result.response.Value}
+	case <-ctx.Done():
+		return cancelled
+	}
+}
+
+// cancelPendingShellAuthenticationRequests closes every secret prompt this session waits on.
+func (s *Session) cancelPendingShellAuthenticationRequests() {
+	s.shellAuthenticationMux.Lock()
+	pending := s.pendingShellAuthenticationRequests
+	s.pendingShellAuthenticationRequests = nil
+	s.shellAuthenticationMux.Unlock()
+	for _, cancel := range pending {
+		cancel()
+	}
+}
+
 func (s *Session) registerExitPlanModeHandler(handler ExitPlanModeRequestHandler) {
 	s.exitPlanModeMu.Lock()
 	defer s.exitPlanModeMu.Unlock()
@@ -2234,6 +2326,11 @@ func (s *Session) retireEventProcessing(graceful bool) {
 		s.userInputMux.Lock()
 		s.userInputHandler = nil
 		s.userInputMux.Unlock()
+
+		s.shellAuthenticationMux.Lock()
+		s.shellAuthenticationHandler = nil
+		s.shellAuthenticationMux.Unlock()
+		s.cancelPendingShellAuthenticationRequests()
 
 		s.exitPlanModeMu.Lock()
 		s.exitPlanModeHandler = nil

@@ -243,6 +243,9 @@ final class SessionRequestBuilder {
         if (config.getOnUserInputRequest() != null) {
             request.setRequestUserInput(true);
         }
+        if (config.getOnShellAuthenticationRequest() != null) {
+            request.setRequestShellAuthentication(true);
+        }
         if (config.getHooks() != null && config.getHooks().hasHooks()) {
             request.setHooks(true);
         }
@@ -406,6 +409,9 @@ final class SessionRequestBuilder {
         if (config.getOnUserInputRequest() != null) {
             request.setRequestUserInput(true);
         }
+        if (config.getOnShellAuthenticationRequest() != null) {
+            request.setRequestShellAuthentication(true);
+        }
         if (config.getHooks() != null && config.getHooks().hasHooks()) {
             request.setHooks(true);
         }
@@ -538,6 +544,9 @@ final class SessionRequestBuilder {
         if (config.getOnUserInputRequest() != null) {
             session.registerUserInputHandler(config.getOnUserInputRequest());
         }
+        if (config.getOnShellAuthenticationRequest() != null) {
+            session.registerShellAuthenticationHandler(config.getOnShellAuthenticationRequest());
+        }
         if (config.getSkillProvider() != null) {
             session.registerSkillProvider(config.getSkillProvider());
         }
@@ -596,6 +605,9 @@ final class SessionRequestBuilder {
         }
         if (config.getOnUserInputRequest() != null) {
             session.registerUserInputHandler(config.getOnUserInputRequest());
+        }
+        if (config.getOnShellAuthenticationRequest() != null) {
+            session.registerShellAuthenticationHandler(config.getOnShellAuthenticationRequest());
         }
         if (config.getSkillProvider() != null) {
             session.registerSkillProvider(config.getSkillProvider());

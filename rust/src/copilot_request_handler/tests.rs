@@ -237,3 +237,126 @@ async fn plaintext_websocket_still_forwards_messages() {
     .await
     .expect("plaintext WebSocket should complete its round trip");
 }
+
+#[derive(Default)]
+struct EmptyResponseHandler {
+    calls: std::sync::atomic::AtomicUsize,
+}
+
+#[async_trait]
+impl CopilotRequestHandler for EmptyResponseHandler {
+    async fn send_request(
+        &self,
+        _request: CopilotHttpRequest,
+        _ctx: &CopilotRequestContext,
+    ) -> Result<CopilotHttpResponse, CopilotRequestError> {
+        self.calls.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
+        Ok(CopilotHttpResponse::new(
+            200,
+            None,
+            HeaderMap::new(),
+            Box::pin(futures_util::stream::empty()),
+        ))
+    }
+}
+
+fn inference_frame(id: u64, method: &str, params: serde_json::Value) -> JsonRpcRequest {
+    JsonRpcRequest {
+        jsonrpc: "2.0".to_string(),
+        id,
+        method: method.to_string(),
+        params: Some(params),
+    }
+}
+
+async fn start_request(dispatcher: &Arc<CopilotRequestDispatcher>, request_id: &str) {
+    dispatcher
+        .dispatch(inference_frame(
+            1,
+            METHOD_HTTP_REQUEST_START,
+            serde_json::json!({"requestId": request_id, "method": "GET", "url": "http://unused.test", "headers": {}}),
+        ))
+        .await;
+}
+
+async fn send_chunk(
+    dispatcher: &Arc<CopilotRequestDispatcher>,
+    request_id: &str,
+    frame: serde_json::Value,
+) {
+    let mut params = frame;
+    params["requestId"] = serde_json::json!(request_id);
+    dispatcher
+        .dispatch(inference_frame(2, METHOD_HTTP_REQUEST_CHUNK, params))
+        .await;
+}
+
+async fn finish_request(dispatcher: &Arc<CopilotRequestDispatcher>, request_id: &str) {
+    start_request(dispatcher, request_id).await;
+    send_chunk(
+        dispatcher,
+        request_id,
+        serde_json::json!({"data": "", "end": true}),
+    )
+    .await;
+    timeout(Duration::from_secs(5), async {
+        while !dispatcher.pending.lock().is_empty() {
+            tokio::time::sleep(Duration::from_millis(1)).await;
+        }
+    })
+    .await
+    .expect("the finished request should be removed");
+}
+
+#[tokio::test]
+async fn frames_after_request_finished_are_ignored() {
+    let handler = Arc::new(EmptyResponseHandler::default());
+    let dispatcher = Arc::new(CopilotRequestDispatcher::new(handler.clone()));
+    finish_request(&dispatcher, "finished").await;
+
+    // Frames the runtime can still send, such as its cancel of a response it
+    // rejected over the size limit after the handler ended it.
+    send_chunk(
+        &dispatcher,
+        "finished",
+        serde_json::json!({"data": "", "cancel": true, "end": true}),
+    )
+    .await;
+    send_chunk(&dispatcher, "finished", serde_json::json!({"data": "late"})).await;
+    assert!(dispatcher.pending.lock().is_empty());
+
+    start_request(&dispatcher, "finished").await;
+    tokio::time::sleep(Duration::from_millis(50)).await;
+    assert!(dispatcher.pending.lock().is_empty());
+    assert_eq!(
+        handler.calls.load(std::sync::atomic::Ordering::SeqCst),
+        1,
+        "a start for a finished request must not run the handler again"
+    );
+}
+
+#[tokio::test]
+async fn finished_request_ids_forget_the_oldest_past_the_bound() {
+    let dispatcher = Arc::new(CopilotRequestDispatcher::new(Arc::new(
+        EmptyResponseHandler::default(),
+    )));
+    for index in 0..=MAX_FINISHED_REQUEST_IDS {
+        finish_request(&dispatcher, &format!("request-{index}")).await;
+    }
+
+    send_chunk(
+        &dispatcher,
+        "request-1",
+        serde_json::json!({"data": "late"}),
+    )
+    .await;
+    assert!(dispatcher.pending.lock().is_empty());
+    send_chunk(
+        &dispatcher,
+        "request-0",
+        serde_json::json!({"data": "late"}),
+    )
+    .await;
+    let keys: Vec<String> = dispatcher.pending.lock().keys().cloned().collect();
+    assert_eq!(keys, ["request-0"]);
+}

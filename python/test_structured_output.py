@@ -86,7 +86,7 @@ def assert_clean(session):
 )
 @pytest.mark.asyncio
 async def test_wait_correlates_errors_independently_of_message_events(
-    structured, before_ack, source
+    structured, before_ack, source, monkeypatch
 ):
     events = [
         assistant(origin="other" if source == "pre-message" else "user-1"),
@@ -112,12 +112,16 @@ async def test_wait_correlates_errors_independently_of_message_events(
         idle(),
     ]
     session, client = fake_session(events if before_ack else ())
-    sending = asyncio.Event()
+    loop = asyncio.get_running_loop()
+    now = loop.time()
+    # Correlation does not depend on scheduler time; deadlines have separate tests.
+    monkeypatch.setattr(loop, "time", lambda: now)
+    admitted = loop.create_future()
     original = client.request.side_effect
 
     async def request(method, params):
         result = await original(method, params)
-        sending.set()
+        admitted.set_result(None)
         return result
 
     client.request.side_effect = request
@@ -126,17 +130,24 @@ async def test_wait_correlates_errors_independently_of_message_events(
             "waited", response_schema={"type": "object"} if structured else None, timeout=1
         )
     )
-    await sending.wait()
-    if not before_ack:
-        for item in events:
-            session._dispatch_event(item)
-    if source in ("user", "assistant"):
-        result = await waiting
-        assert result is not None
-        assert result.data.content == '{"count":42,"color":"red"}'
-    else:
-        with pytest.raises(Exception, match="provider failed"):
+    try:
+        done, _ = await asyncio.wait((admitted, waiting), return_when=asyncio.FIRST_COMPLETED)
+        if admitted not in done:
             await waiting
+            pytest.fail("Wait completed before message admission")
+        if not before_ack:
+            for item in events:
+                session._dispatch_event(item)
+        if source in ("user", "assistant"):
+            result = await waiting
+            assert result is not None
+            assert result.data.content == '{"count":42,"color":"red"}'
+        else:
+            with pytest.raises(Exception, match="provider failed"):
+                await waiting
+    finally:
+        waiting.cancel()
+        await asyncio.gather(waiting, return_exceptions=True)
     assert_clean(session)
 
 

@@ -785,6 +785,7 @@ public final class CopilotClient implements AutoCloseable {
                     session.clearMemoryStoreHandler();
                 });
                 dispatcher.cancelCallbacks();
+                dispatcher.cancelShellAuthenticationRequests();
                 if (entraAdapter != null) {
                     entraAdapter.closePending();
                 }

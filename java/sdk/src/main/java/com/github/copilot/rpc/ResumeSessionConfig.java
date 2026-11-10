@@ -78,6 +78,7 @@ public class ResumeSessionConfig {
     private PermissionHandler onPermissionRequest;
     private McpAuthHandler onMcpAuthRequest;
     private UserInputHandler onUserInputRequest;
+    private ShellAuthenticationHandler onShellAuthenticationRequest;
     private SessionHooks hooks;
     private String workingDirectory;
     private List<String> additionalDirectories;
@@ -1074,6 +1075,34 @@ public class ResumeSessionConfig {
      */
     public ResumeSessionConfig setOnUserInputRequest(UserInputHandler onUserInputRequest) {
         this.onUserInputRequest = onUserInputRequest;
+        return this;
+    }
+
+    /**
+     * Gets the shell authentication request handler.
+     *
+     * @return the shell authentication handler
+     */
+    public ShellAuthenticationHandler getOnShellAuthenticationRequest() {
+        return onShellAuthenticationRequest;
+    }
+
+    /**
+     * Sets a handler for passwords and other answers that shell commands run by the
+     * agent ask for.
+     * <p>
+     * When provided, {@code sudo -A}, {@code ssh}, and {@code git} prompts reach
+     * this handler instead of failing for lack of a terminal. Return
+     * {@link ShellAuthenticationResponse#cancel()} when nobody can answer.
+     *
+     * @param onShellAuthenticationRequest
+     *            the shell authentication handler
+     * @return this config instance for method chaining
+     * @see ShellAuthenticationHandler
+     */
+    public ResumeSessionConfig setOnShellAuthenticationRequest(
+            ShellAuthenticationHandler onShellAuthenticationRequest) {
+        this.onShellAuthenticationRequest = onShellAuthenticationRequest;
         return this;
     }
 
@@ -2594,6 +2623,7 @@ public class ResumeSessionConfig {
         copy.modelCapabilities = this.modelCapabilities;
         copy.onPermissionRequest = this.onPermissionRequest;
         copy.onUserInputRequest = this.onUserInputRequest;
+        copy.onShellAuthenticationRequest = this.onShellAuthenticationRequest;
         copy.hooks = this.hooks;
         copy.workingDirectory = this.workingDirectory;
         copy.additionalDirectories = this.additionalDirectories != null

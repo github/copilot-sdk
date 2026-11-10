@@ -550,7 +550,7 @@ const session = await client.createSession({
 
 1. **Use `additionalContext` over `modifiedPrompt`** - Adding context is less intrusive than rewriting the prompt.
 
-1. **Use `additionalContext` for advisory guidance**: This hook cannot reject a prompt or enforce policy. Enforce hard limits before calling `session.send()`.
+1. **Use `additionalContext` for advisory guidance**: Context informs the model but enforces nothing. To refuse a prompt, return a [block decision](#blocking-a-prompt) instead.
 
 1. **Keep processing fast** - This hook runs on every user message. Avoid slow operations.
 

@@ -718,6 +718,86 @@ type UserInputInvocation struct {
 	SessionID string
 }
 
+// ShellAuthenticationInputKind says how to present a ShellAuthenticationRequest.
+type ShellAuthenticationInputKind string
+
+const (
+	// ShellAuthenticationInputKindSecret is a password or passphrase. Mask the input.
+	ShellAuthenticationInputKindSecret ShellAuthenticationInputKind = "secret"
+	// ShellAuthenticationInputKindText is a visible answer, such as a user name.
+	ShellAuthenticationInputKindText ShellAuthenticationInputKind = "text"
+	// ShellAuthenticationInputKindConfirm is a yes or no question, such as an ssh host-key
+	// check. Answer "yes", or cancel to decline.
+	ShellAuthenticationInputKindConfirm ShellAuthenticationInputKind = "confirm"
+)
+
+// ShellAuthenticationRequest is a password or other answer that a shell command run by
+// the agent asks for, for example `sudo -A`, `ssh`, or `git` over HTTPS. The
+// answer goes only to the program that asked: it is not shown to the model and
+// is not recorded in session events.
+type ShellAuthenticationRequest struct {
+	// RequestID identifies the request. A cancellation for it carries the same id.
+	RequestID string
+	// Program is the program that asked: "sudo", "ssh", or "git".
+	Program string
+	// Prompt is the prompt text the program supplied.
+	Prompt string
+	// InputKind says how to present the request.
+	InputKind ShellAuthenticationInputKind
+	// Command is the shell command that triggered the prompt.
+	Command string
+	// Cwd is the command's working directory.
+	Cwd string
+}
+
+// ShellAuthenticationAction is the outcome of a ShellAuthenticationRequest.
+type ShellAuthenticationAction string
+
+const (
+	// ShellAuthenticationActionAccept answers the request with ShellAuthenticationResponse.Value.
+	ShellAuthenticationActionAccept ShellAuthenticationAction = "accept"
+	// ShellAuthenticationActionCancel declines the request. The program that asked fails.
+	ShellAuthenticationActionCancel ShellAuthenticationAction = "cancel"
+)
+
+// ShellAuthenticationResponse answers a ShellAuthenticationRequest. Answer a
+// ShellAuthenticationInputKindConfirm request with "yes", or cancel it to decline.
+type ShellAuthenticationResponse struct {
+	Action ShellAuthenticationAction `json:"action"`
+	// Value is the answer when Action is ShellAuthenticationActionAccept.
+	Value string `json:"value,omitempty"`
+}
+
+// MarshalJSON sends Value with every accept, even an empty one, such as an
+// empty user name. A cancel carries no value.
+func (r ShellAuthenticationResponse) MarshalJSON() ([]byte, error) {
+	if r.Action == ShellAuthenticationActionAccept {
+		return json.Marshal(struct {
+			Action ShellAuthenticationAction `json:"action"`
+			Value  string                    `json:"value"`
+		}{r.Action, r.Value})
+	}
+	return json.Marshal(struct {
+		Action ShellAuthenticationAction `json:"action"`
+	}{r.Action})
+}
+
+// ShellAuthenticationInvocation provides context about a shell authentication request.
+type ShellAuthenticationInvocation struct {
+	SessionID string
+	// Context is cancelled when the answer is no longer needed, for example
+	// because the command ended, the prompt timed out, or the session ended or
+	// switched to autopilot. Close the input when it is.
+	Context context.Context
+}
+
+// ShellAuthenticationHandler handles passwords and other answers that shell commands
+// run by the agent ask for. Returning an error, an action other than
+// ShellAuthenticationActionAccept, or returning after the invocation's Context is
+// done cancels the prompt, so the program that asked fails instead of
+// receiving a wrong value.
+type ShellAuthenticationHandler func(request ShellAuthenticationRequest, invocation ShellAuthenticationInvocation) (ShellAuthenticationResponse, error)
+
 // ExitPlanModeRequest represents a request to exit plan mode and continue with a selected action.
 type ExitPlanModeRequest struct {
 	Summary           string   `json:"summary"`
@@ -1931,6 +2011,11 @@ type SessionConfig struct {
 	// OnUserInputRequest handles legacy question-and-answer requests from the agent
 	// and enables the legacy ask_user tool.
 	OnUserInputRequest UserInputHandler
+	// OnShellAuthenticationRequest handles passwords and other answers that shell
+	// commands run by the agent ask for. When provided, `sudo -A`, `ssh`, and
+	// `git` prompts reach this handler instead of failing for lack of a
+	// terminal. Cancel requests when nobody can answer.
+	OnShellAuthenticationRequest ShellAuthenticationHandler
 	// AskUserVariant selects the model-facing shape of the ask_user tool.
 	// The zero value preserves legacy behavior. AskUserVariantElicitation also
 	// requires OnElicitationRequest so the host can answer structured forms.
@@ -2685,6 +2770,11 @@ type ResumeSessionConfig struct {
 	// OnUserInputRequest handles legacy question-and-answer requests from the agent
 	// and enables the legacy ask_user tool.
 	OnUserInputRequest UserInputHandler
+	// OnShellAuthenticationRequest handles passwords and other answers that shell
+	// commands run by the agent ask for. When provided, `sudo -A`, `ssh`, and
+	// `git` prompts reach this handler instead of failing for lack of a
+	// terminal. Cancel requests when nobody can answer.
+	OnShellAuthenticationRequest ShellAuthenticationHandler
 	// AskUserVariant selects the model-facing shape of the ask_user tool.
 	// The zero value preserves legacy behavior. AskUserVariantElicitation also
 	// requires OnElicitationRequest so the host can answer structured forms.
@@ -3468,6 +3558,7 @@ type createSessionRequest struct {
 	ModelCapabilities                  *rpc.ModelCapabilitiesOverride `json:"modelCapabilities,omitempty"`
 	RequestPermission                  *bool                          `json:"requestPermission,omitempty"`
 	RequestUserInput                   *bool                          `json:"requestUserInput,omitempty"`
+	RequestShellAuthentication         *bool                          `json:"requestShellAuthentication,omitempty"`
 	AskUserVariant                     AskUserVariant                 `json:"askUserVariant,omitempty"`
 	RequestExitPlanMode                *bool                          `json:"requestExitPlanMode,omitempty"`
 	RequestAutoModeSwitch              *bool                          `json:"requestAutoModeSwitch,omitempty"`
@@ -3584,6 +3675,7 @@ type resumeSessionRequest struct {
 	ModelCapabilities                  *rpc.ModelCapabilitiesOverride `json:"modelCapabilities,omitempty"`
 	RequestPermission                  *bool                          `json:"requestPermission,omitempty"`
 	RequestUserInput                   *bool                          `json:"requestUserInput,omitempty"`
+	RequestShellAuthentication         *bool                          `json:"requestShellAuthentication,omitempty"`
 	AskUserVariant                     AskUserVariant                 `json:"askUserVariant,omitempty"`
 	RequestExitPlanMode                *bool                          `json:"requestExitPlanMode,omitempty"`
 	RequestAutoModeSwitch              *bool                          `json:"requestAutoModeSwitch,omitempty"`
@@ -3846,6 +3938,25 @@ type userInputRequest struct {
 type userInputResponse struct {
 	Answer      string `json:"answer"`
 	WasFreeform bool   `json:"wasFreeform"`
+}
+
+// shellAuthenticationRequest is the shellAuthentication.request payload: a shell command the
+// agent runs asks for a password or another answer.
+type shellAuthenticationRequest struct {
+	SessionID string `json:"sessionId"`
+	RequestID string `json:"requestId"`
+	Program   string `json:"program"`
+	Prompt    string `json:"prompt"`
+	InputKind string `json:"inputKind"`
+	Command   string `json:"command"`
+	Cwd       string `json:"cwd"`
+}
+
+// shellAuthenticationCancelRequest is the shellAuthentication.cancel payload: the answer to an
+// open prompt is no longer needed.
+type shellAuthenticationCancelRequest struct {
+	SessionID string `json:"sessionId"`
+	RequestID string `json:"requestId"`
 }
 
 type exitPlanModeRequest struct {

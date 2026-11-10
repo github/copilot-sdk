@@ -182,33 +182,35 @@ func validateEnvironmentOptions(connection RuntimeConnection, opts *ClientOption
 //	}
 //	defer client.Stop()
 type Client struct {
-	options                            ClientOptions
-	process                            *exec.Cmd
-	processStdin                       io.WriteCloser
-	client                             *jsonrpc2.Client
-	actualPort                         int
-	actualHost                         string
-	state                              connectionState
-	sessions                           map[string]*Session
-	sessionsMux                        sync.Mutex
-	sessionsGeneration                 uint64
-	autoModeRecoveryCleanups           map[*jsonrpc2.Client]map[string]<-chan struct{}
-	ahp                                ahpHostState
-	gitHubTokenProviders               map[string]GitHubTokenProvider
-	gitHubTokenProvidersMux            sync.RWMutex
-	requestAdapter                     *copilotRequestAdapter
-	requestAdapterMux                  sync.Mutex
-	installationConfirmationAdapter    *installationConfirmationAdapter
-	installationConfirmationAdapterMux sync.Mutex
-	sessionOperations                  map[string]*sessionOperation
-	sessionOperationsMux               sync.Mutex
-	activeSessionCallbacks             map[string]int
-	isExternalServer                   bool
-	conn                               net.Conn // stores net.Conn for external TCP connections
-	useStdio                           bool     // resolved value from options
-	useInProcess                       bool     // true for InProcessConnection (FFI transport)
-	ffiHost                            inProcessHost
-	runOnUiThread                      func(action func() error) error
+	options                               ClientOptions
+	process                               *exec.Cmd
+	processStdin                          io.WriteCloser
+	client                                *jsonrpc2.Client
+	actualPort                            int
+	actualHost                            string
+	state                                 connectionState
+	sessions                              map[string]*Session
+	sessionsMux                           sync.Mutex
+	sessionsGeneration                    uint64
+	autoModeRecoveryCleanups              map[*jsonrpc2.Client]map[string]<-chan struct{}
+	pendingShellAuthenticationRequests    map[shellAuthenticationKey][]*shellAuthenticationTicket
+	pendingShellAuthenticationRequestsMux sync.Mutex
+	ahp                                   ahpHostState
+	gitHubTokenProviders                  map[string]GitHubTokenProvider
+	gitHubTokenProvidersMux               sync.RWMutex
+	requestAdapter                        *copilotRequestAdapter
+	requestAdapterMux                     sync.Mutex
+	installationConfirmationAdapter       *installationConfirmationAdapter
+	installationConfirmationAdapterMux    sync.Mutex
+	sessionOperations                     map[string]*sessionOperation
+	sessionOperationsMux                  sync.Mutex
+	activeSessionCallbacks                map[string]int
+	isExternalServer                      bool
+	conn                                  net.Conn // stores net.Conn for external TCP connections
+	useStdio                              bool     // resolved value from options
+	useInProcess                          bool     // true for InProcessConnection (FFI transport)
+	ffiHost                               inProcessHost
+	runOnUiThread                         func(action func() error) error
 	// resolved process options for the spawned runtime (zero values for URIConnection)
 	cliPath            string
 	cliArgs            []string
@@ -714,6 +716,7 @@ func (c *Client) Stop() error {
 		session.cancelPendingExternalTools()
 		session.retireEventProcessing(true)
 	}
+	c.cancelPendingShellAuthenticationRequests()
 	c.clearGitHubTokenProviders()
 	c.closeCopilotRequestAdapter()
 	c.closeInstallationConfirmationAdapter()
@@ -867,6 +870,7 @@ func (c *Client) ForceStop() {
 	}
 	c.sessions = make(map[string]*Session)
 	c.sessionsMux.Unlock()
+	c.cancelPendingShellAuthenticationRequests()
 	for _, session := range sessions {
 		session.clearSkillProvider()
 		session.clearMemoryStore()
@@ -1279,6 +1283,9 @@ func (c *Client) createSession(ctx context.Context, config *SessionConfig, runti
 	if config.OnUserInputRequest != nil {
 		req.RequestUserInput = Bool(true)
 	}
+	if config.OnShellAuthenticationRequest != nil {
+		req.RequestShellAuthentication = Bool(true)
+	}
 	if config.Hooks != nil && (config.Hooks.OnPreToolUse != nil ||
 		config.Hooks.OnPreMCPToolCall != nil ||
 		config.Hooks.OnPostToolUse != nil ||
@@ -1365,6 +1372,9 @@ func (c *Client) createSession(ctx context.Context, config *SessionConfig, runti
 		s.registerMCPAuthHandlers(config.OnMCPAuthRequest, runtimeRefreshHandler)
 		if config.OnUserInputRequest != nil {
 			s.registerUserInputHandler(config.OnUserInputRequest)
+		}
+		if config.OnShellAuthenticationRequest != nil {
+			s.registerShellAuthenticationHandler(config.OnShellAuthenticationRequest)
 		}
 		if config.Hooks != nil {
 			s.registerHooks(config.Hooks)
@@ -1813,6 +1823,9 @@ func (c *Client) resumeSession(ctx context.Context, sessionID string, config *Re
 	if config.OnUserInputRequest != nil {
 		req.RequestUserInput = Bool(true)
 	}
+	if config.OnShellAuthenticationRequest != nil {
+		req.RequestShellAuthentication = Bool(true)
+	}
 	if config.Hooks != nil && (config.Hooks.OnPreToolUse != nil ||
 		config.Hooks.OnPreMCPToolCall != nil ||
 		config.Hooks.OnPostToolUse != nil ||
@@ -1943,6 +1956,9 @@ func (c *Client) resumeSession(ctx context.Context, sessionID string, config *Re
 	session.registerMCPAuthHandlers(config.OnMCPAuthRequest, runtimeRefreshHandler)
 	if config.OnUserInputRequest != nil {
 		session.registerUserInputHandler(config.OnUserInputRequest)
+	}
+	if config.OnShellAuthenticationRequest != nil {
+		session.registerShellAuthenticationHandler(config.OnShellAuthenticationRequest)
 	}
 	if config.Hooks != nil {
 		session.registerHooks(config.Hooks)
@@ -3216,6 +3232,8 @@ func (c *Client) setupNotificationHandler() {
 	c.client.SetRequestHandler("session.event", jsonrpc2.NotificationHandlerFor(c.handleSessionEvent))
 	c.client.SetRequestHandler("session.lifecycle", jsonrpc2.NotificationHandlerFor(c.handleLifecycleEvent))
 	c.client.SetRequestHandler("userInput.request", jsonrpc2.RequestHandlerFor(c.handleUserInputRequest))
+	c.client.SetRequestHandlerWithPreparation("shellAuthentication.request", jsonrpc2.RequestHandlerFor(c.handleShellAuthenticationRequest), c.prepareShellAuthenticationRequest)
+	c.client.SetRequestHandler("shellAuthentication.cancel", jsonrpc2.RequestHandlerFor(c.handleShellAuthenticationCancel))
 	c.client.SetRequestHandler("exitPlanMode.request", jsonrpc2.RequestHandlerFor(c.handleExitPlanModeRequest))
 	c.client.SetRequestHandler("autoModeSwitch.request", jsonrpc2.RequestHandlerFor(c.handleAutoModeSwitchRequest))
 	c.client.SetRequestHandler("systemMessage.transform", jsonrpc2.RequestHandlerFor(c.handleSystemMessageTransform))
@@ -3334,6 +3352,7 @@ func (c *Client) handleConnectionClose() {
 		sessions = append(sessions, session)
 	}
 	c.sessionsMux.Unlock()
+	c.cancelPendingShellAuthenticationRequests()
 	for _, session := range sessions {
 		session.clearSkillProvider()
 		session.clearMemoryStore()
@@ -3926,6 +3945,152 @@ func (c *Client) handleUserInputRequest(req userInputRequest) (*userInputRespons
 	}
 
 	return &userInputResponse{Answer: response.Answer, WasFreeform: response.WasFreeform}, nil
+}
+
+// shellAuthenticationKey identifies an open secret prompt in Client.pendingShellAuthenticationRequests,
+// which tracks them on the client rather than on a session, because a resume can
+// replace the session object while a prompt is open.
+type shellAuthenticationKey struct {
+	sessionID string
+	requestID string
+}
+
+// shellAuthenticationTicket is one shellAuthentication.request, registered before the read
+// loop reads the next message.
+type shellAuthenticationTicket struct {
+	ctx     context.Context
+	cancel  context.CancelFunc
+	claimed bool
+}
+
+// prepareShellAuthenticationRequest registers a shellAuthentication.request in read order.
+// Each call runs in its own goroutine, so a shellAuthentication.cancel or connection
+// close that follows the request on the wire could otherwise run before it is
+// registered and miss it. It never fails the request: one it can't register,
+// including one without the program that asked or its prompt, is answered cancel
+// by its handler.
+func (c *Client) prepareShellAuthenticationRequest(raw json.RawMessage) *jsonrpc2.Error {
+	var req shellAuthenticationRequest
+	if json.Unmarshal(raw, &req) != nil || req.SessionID == "" || req.RequestID == "" || !namesShellAuthenticationPrompt(raw) {
+		return nil
+	}
+	key := shellAuthenticationKey{sessionID: req.SessionID, requestID: req.RequestID}
+	ctx, cancel := context.WithCancel(context.Background())
+	c.pendingShellAuthenticationRequestsMux.Lock()
+	defer c.pendingShellAuthenticationRequestsMux.Unlock()
+	if c.pendingShellAuthenticationRequests == nil {
+		c.pendingShellAuthenticationRequests = make(map[shellAuthenticationKey][]*shellAuthenticationTicket)
+	}
+	if len(c.pendingShellAuthenticationRequests[key]) > 0 {
+		// A request for a prompt that is already open is answered cancel.
+		cancel()
+	}
+	c.pendingShellAuthenticationRequests[key] = append(c.pendingShellAuthenticationRequests[key], &shellAuthenticationTicket{ctx: ctx, cancel: cancel})
+	return nil
+}
+
+// namesShellAuthenticationPrompt reports whether a shellAuthentication.request names the
+// program that asked and its prompt as strings. Either may be empty, since sudo
+// accepts an empty -p prompt, but a request without them is malformed.
+func namesShellAuthenticationPrompt(raw json.RawMessage) bool {
+	var fields struct {
+		Program *string `json:"program"`
+		Prompt  *string `json:"prompt"`
+	}
+	return json.Unmarshal(raw, &fields) == nil && fields.Program != nil && fields.Prompt != nil
+}
+
+// claimShellAuthenticationTicket takes a ticket that prepareShellAuthenticationRequest
+// registered for key, or returns nil when there is none left, for example
+// because the connection closed first.
+func (c *Client) claimShellAuthenticationTicket(key shellAuthenticationKey) *shellAuthenticationTicket {
+	c.pendingShellAuthenticationRequestsMux.Lock()
+	defer c.pendingShellAuthenticationRequestsMux.Unlock()
+	for _, ticket := range c.pendingShellAuthenticationRequests[key] {
+		if !ticket.claimed {
+			ticket.claimed = true
+			return ticket
+		}
+	}
+	return nil
+}
+
+// releaseShellAuthenticationTicket removes a finished request's ticket.
+func (c *Client) releaseShellAuthenticationTicket(key shellAuthenticationKey, ticket *shellAuthenticationTicket) {
+	ticket.cancel()
+	c.pendingShellAuthenticationRequestsMux.Lock()
+	defer c.pendingShellAuthenticationRequestsMux.Unlock()
+	tickets := c.pendingShellAuthenticationRequests[key]
+	for i, candidate := range tickets {
+		if candidate == ticket {
+			tickets = append(tickets[:i:i], tickets[i+1:]...)
+			break
+		}
+	}
+	if len(tickets) == 0 {
+		delete(c.pendingShellAuthenticationRequests, key)
+	} else {
+		c.pendingShellAuthenticationRequests[key] = tickets
+	}
+}
+
+// handleShellAuthenticationRequest handles a shellAuthentication.request from the runtime: a
+// shell command the agent runs asks for a password or another answer. Anything
+// that isn't the handler's answer cancels the prompt.
+func (c *Client) handleShellAuthenticationRequest(req shellAuthenticationRequest) (*ShellAuthenticationResponse, *jsonrpc2.Error) {
+	cancelled := &ShellAuthenticationResponse{Action: ShellAuthenticationActionCancel}
+	key := shellAuthenticationKey{sessionID: req.SessionID, requestID: req.RequestID}
+	ticket := c.claimShellAuthenticationTicket(key)
+	if ticket == nil {
+		return cancelled, nil
+	}
+	defer c.releaseShellAuthenticationTicket(key, ticket)
+	kind := ShellAuthenticationInputKind(req.InputKind)
+	if kind != ShellAuthenticationInputKindSecret && kind != ShellAuthenticationInputKindText && kind != ShellAuthenticationInputKindConfirm {
+		return cancelled, nil
+	}
+	c.sessionsMux.Lock()
+	session := c.sessions[req.SessionID]
+	c.sessionsMux.Unlock()
+	if session == nil {
+		return cancelled, nil
+	}
+
+	response := session.handleShellAuthenticationRequest(ticket.ctx, ShellAuthenticationRequest{
+		RequestID: req.RequestID,
+		Program:   req.Program,
+		Prompt:    req.Prompt,
+		InputKind: kind,
+		Command:   req.Command,
+		Cwd:       req.Cwd,
+	})
+	return &response, nil
+}
+
+// handleShellAuthenticationCancel handles a shellAuthentication.cancel from the runtime: the
+// answer to an open prompt is no longer needed.
+func (c *Client) handleShellAuthenticationCancel(req shellAuthenticationCancelRequest) (*struct{}, *jsonrpc2.Error) {
+	c.pendingShellAuthenticationRequestsMux.Lock()
+	tickets := c.pendingShellAuthenticationRequests[shellAuthenticationKey{sessionID: req.SessionID, requestID: req.RequestID}]
+	for _, ticket := range tickets {
+		ticket.cancel()
+	}
+	c.pendingShellAuthenticationRequestsMux.Unlock()
+	return &struct{}{}, nil
+}
+
+// cancelPendingShellAuthenticationRequests closes every open secret prompt once the runtime
+// can no longer use an answer.
+func (c *Client) cancelPendingShellAuthenticationRequests() {
+	c.pendingShellAuthenticationRequestsMux.Lock()
+	pending := c.pendingShellAuthenticationRequests
+	c.pendingShellAuthenticationRequests = nil
+	c.pendingShellAuthenticationRequestsMux.Unlock()
+	for _, tickets := range pending {
+		for _, ticket := range tickets {
+			ticket.cancel()
+		}
+	}
 }
 
 // handleExitPlanModeRequest handles an exitPlanMode.request callback from the CLI server.

@@ -28794,6 +28794,10 @@ export interface MetadataContextInfoRequest {
    */
   outputTokenLimit: number;
   /**
+   * Whether a zero outputTokenLimit may resolve a live provider's request cap. Defaults to true. Set false for a cached-only measurement that must not start a managed provider; capacity values use advertised limits, while occupied token counts are unchanged.
+   */
+  resolveOutputTokenLimit?: boolean;
+  /**
    * Model identifier used for tokenization. Omit to use the session default. Used both for token counting and to compute display values.
    */
   selectedModel?: string;

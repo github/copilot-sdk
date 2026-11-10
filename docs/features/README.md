@@ -25,6 +25,7 @@ These guides cover the capabilities you can add to your Copilot SDK application.
 | [Client info](./client-info.md) | Declare application and integration identity for runtime telemetry attribution |
 | [Offline task analytics](./task-analytics.md) | Classify archived ATIF or Copilot trajectories, validate input, and retry failed measurements |
 | [Steering & Queueing](./steering-and-queueing.md) | Control message delivery—immediate steering vs. sequential queueing |
+| [Shell password prompts](./shell-password-prompts.md) | Let users answer `sudo`, `ssh`, and `git` password prompts without the model seeing the answer |
 | [Context Clearing](./context-management.md) | Replace conversation context safely with terminal tools |
 | [Session Persistence](./session-persistence.md) | Resume sessions across restarts, manage session storage |
 | [Auto Mode Recovery](./auto-mode-recovery.md) | Offer to retry a request on Auto after an explicit model is degraded, overloaded, or rate limited |

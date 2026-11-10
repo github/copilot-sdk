@@ -9226,6 +9226,59 @@ pub struct MetadataContextInfoRequest {
     pub selected_model: Option<String>,
 }
 
+/// Extensible [`MetadataContextInfoRequest`], including inputs added after it was published.
+///
+/// Required inputs are [`MetadataContextInfoOptions::new`] arguments; optional inputs have fluent setters.
+/// Input-only: it serialises to the flat wire request and is not deserialisable.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct MetadataContextInfoOptions {
+    #[serde(flatten)]
+    legacy: MetadataContextInfoRequest,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    resolve_output_token_limit: Option<bool>,
+}
+
+impl MetadataContextInfoOptions {
+    /// Creates options with the required inputs.
+    pub fn new(prompt_token_limit: i64, output_token_limit: i64) -> Self {
+        Self {
+            legacy: MetadataContextInfoRequest {
+                prompt_token_limit,
+                output_token_limit,
+                selected_model: None,
+                provider_id: None,
+            },
+            resolve_output_token_limit: None,
+        }
+    }
+
+    /// Model identifier used for tokenization. Omit to use the session default. Used both for token counting and to compute display values.
+    pub fn selected_model(mut self, value: impl Into<String>) -> Self {
+        self.legacy.selected_model = Some(value.into());
+        self
+    }
+
+    /// Provider owning selectedModel. Omit to use the current provider for the current model, or deterministic legacy lookup for a different model.
+    pub fn provider_id(mut self, value: impl Into<String>) -> Self {
+        self.legacy.provider_id = Some(value.into());
+        self
+    }
+
+    /// Whether a zero outputTokenLimit may resolve a live provider's request cap. Defaults to true. Set false for a cached-only measurement that must not start a managed provider; capacity values use advertised limits, while occupied token counts are unchanged.
+    pub fn resolve_output_token_limit(mut self, value: bool) -> Self {
+        self.resolve_output_token_limit = Some(value);
+        self
+    }
+}
+
 /// Token-usage breakdown for the session's current context window
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]

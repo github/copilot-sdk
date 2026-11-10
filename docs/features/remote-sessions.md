@@ -7,7 +7,6 @@ For running sessions on GitHub-hosted compute, see [Cloud Sessions](./cloud-sess
 ## Prerequisites
 
 * The user must be authenticated (GitHub token or logged-in user)
-* The session's working directory must be a GitHub repository
 
 ## Enabling remote sessions
 
@@ -168,5 +167,5 @@ The remote URL can be rendered as a QR code for easy mobile access. The SDK prov
 
 ## Notes
 
-* If the working directory is not a GitHub repository, on-demand export returns an error.
+* If the working directory is not a GitHub repository, on-demand export still starts and returns its URL, but the exported session is not linked to a repository.
 * Remote sessions require authentication. Ensure `gitHubToken` or `useLoggedInUser` is configured.

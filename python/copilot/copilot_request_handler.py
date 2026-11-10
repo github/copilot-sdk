@@ -550,6 +550,12 @@ def create_copilot_request_adapter(
     return _CopilotRequestAdapterHandler(handler, get_server_rpc)
 
 
+# How many finished request IDs an adapter remembers. A frame the runtime sent
+# before it saw a request finish arrives within about one round trip, so a small
+# window covers it while a long-lived client stays at a fixed size.
+_MAX_FINISHED_REQUEST_IDS = 256
+
+
 class _CopilotRequestAdapterHandler:
     def __init__(
         self,
@@ -559,6 +565,8 @@ class _CopilotRequestAdapterHandler:
         self._handler = handler
         self._get_server_rpc = get_server_rpc
         self._pending: dict[str, _CopilotRequestExchange] = {}
+        # The most recently finished request IDs, oldest first.
+        self._finished: dict[str, None] = {}
 
     def _route_chunk(
         self,
@@ -596,6 +604,14 @@ class _CopilotRequestAdapterHandler:
             await _finalize(exchange, 502, str(exc))
         finally:
             self._pending.pop(exchange.request_id, None)
+            self._remember_finished(exchange.request_id)
+
+    def _remember_finished(self, request_id: str) -> None:
+        if request_id in self._finished:
+            return
+        self._finished[request_id] = None
+        if len(self._finished) > _MAX_FINISHED_REQUEST_IDS:
+            del self._finished[next(iter(self._finished))]
 
     def cancel_pending(self) -> None:
         exchanges = tuple(self._pending.values())
@@ -605,7 +621,14 @@ class _CopilotRequestAdapterHandler:
             exchange.cancel_event.set()
             exchange._queue.push(_BodyItem(cancel=True, cancel_reason="RPC connection closed"))
 
-    def _get_or_create(self, request_id: str) -> _CopilotRequestExchange:
+    def _get_or_create(self, request_id: str) -> _CopilotRequestExchange | None:
+        """Return the request's exchange, or ``None`` when it already finished.
+
+        A frame can still arrive then, because the runtime may send one before
+        it sees the finish: it cancels a response it rejects, such as one over
+        its size limit, while the handler's end is in flight. An exchange
+        created for that frame would never be removed.
+        """
         # The runtime dispatches httpRequestStart and httpRequestChunk frames
         # independently. get-or-create keeps the adapter correct regardless of
         # arrival order: a body chunk (including the terminal end frame) that
@@ -613,6 +636,8 @@ class _CopilotRequestAdapterHandler:
         # rather than dropped, which would otherwise hang the body drain.
         exchange = self._pending.get(request_id)
         if exchange is None:
+            if request_id in self._finished:
+                return None
             exchange = _CopilotRequestExchange(request_id, self._get_server_rpc)
             self._pending[request_id] = exchange
         return exchange
@@ -623,6 +648,11 @@ class _CopilotRequestAdapterHandler:
         # Adopt any exchange a racing chunk already created — with its buffered
         # body — rather than dropping those frames.
         exchange = self._get_or_create(params.request_id)
+        if exchange is None:
+            raise RuntimeError(
+                f"llmInference.httpRequestStart for request {params.request_id!r}, "
+                "which already finished"
+            )
         exchange.set_context(params)
         exchange.task = asyncio.create_task(self._run(exchange))
         return LlmInferenceHTTPRequestStartResult()
@@ -633,7 +663,9 @@ class _CopilotRequestAdapterHandler:
         # May arrive before the matching start frame; get-or-create so the body
         # is buffered, never lost.
         exchange = self._get_or_create(params.request_id)
-        self._route_chunk(exchange, params)
+        # A frame for a finished request has nothing left to deliver to.
+        if exchange is not None:
+            self._route_chunk(exchange, params)
         return LlmInferenceHTTPRequestChunkResult()
 
 

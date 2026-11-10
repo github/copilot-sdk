@@ -8,6 +8,7 @@
 package com.github.copilot.generated.rpc;
 
 import com.github.copilot.CopilotExperimental;
+import java.util.Objects;
 import java.util.concurrent.CompletableFuture;
 import javax.annotation.processing.Generated;
 
@@ -118,6 +119,21 @@ public final class SessionMetadataApi {
     @CopilotExperimental
     public CompletableFuture<SessionMetadataContextInfoResult> contextInfo(SessionMetadataContextInfoParams params) {
         com.fasterxml.jackson.databind.node.ObjectNode _p = MAPPER.valueToTree(params);
+        _p.put("sessionId", this.sessionId);
+        return caller.invoke("session.metadata.contextInfo", _p, SessionMetadataContextInfoResult.class);
+    }
+
+    /**
+     * Returns the token breakdown for the session's current context window for a given model.
+     * <p>
+     * Accepts the extensible request, including inputs added after the params record.
+     *
+     * @apiNote This method is experimental and may change in a future version.
+     * @since 1.0.0
+     */
+    @CopilotExperimental
+    public CompletableFuture<SessionMetadataContextInfoResult> contextInfo(SessionMetadataContextInfoRequest request) {
+        com.fasterxml.jackson.databind.node.ObjectNode _p = MAPPER.valueToTree(Objects.requireNonNull(request, "request"));
         _p.put("sessionId", this.sessionId);
         return caller.invoke("session.metadata.contextInfo", _p, SessionMetadataContextInfoResult.class);
     }

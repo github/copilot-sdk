@@ -145,6 +145,8 @@ pub(crate) struct SessionCreateWire {
     pub request_elicitation: bool,
     pub request_mcp_apps: bool,
     #[serde(skip_serializing_if = "Option::is_none")]
+    pub request_shell_authentication: Option<bool>,
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub github_mcp_tool_config: Option<GitHubMcpToolConfig>,
     pub hooks: bool,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -341,6 +343,8 @@ pub(crate) struct SessionResumeWire {
     pub request_auto_mode_recovery: Option<bool>,
     pub request_elicitation: bool,
     pub request_mcp_apps: bool,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub request_shell_authentication: Option<bool>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub github_mcp_tool_config: Option<GitHubMcpToolConfig>,
     pub hooks: bool,

@@ -882,7 +882,7 @@ compatibility.
 
 ### Handler Traits
 
-The SDK exposes five focused handler traits, one per CLI callback type. Implement only the traits you need and install each with the matching `SessionConfig` setter. Each trait has an `async fn handle(...)` method:
+The SDK exposes six focused handler traits, one per CLI callback type. Implement only the traits you need and install each with the matching `SessionConfig` setter. Each trait has an `async fn handle(...)` method:
 
 | Trait                   | Setter                            | Purpose                                       |
 | ----------------------- | --------------------------------- | --------------------------------------------- |
@@ -891,8 +891,9 @@ The SDK exposes five focused handler traits, one per CLI callback type. Implemen
 | `UserInputHandler`      | `with_user_input_handler(...)`    | Answer free-form / choice user-input prompts  |
 | `ExitPlanModeHandler`   | `with_exit_plan_mode_handler(...)`| Respond when the agent exits plan mode        |
 | `AutoModeSwitchHandler` | `with_auto_mode_switch_handler(...)`| Respond to automatic mode-switch proposals, and Auto recovery offers |
+| `ShellAuthenticationHandler`    | `with_shell_authentication_handler(...)`  | Answer password prompts from shell commands   |
 
-The CLI's `requestPermission` / `requestElicitation` / `requestUserInput` / etc. wire flags are derived automatically from which traits you've installed — clients that don't install a handler are silently skipped, letting another connected client handle the request.
+The CLI's `requestPermission` / `requestElicitation` / `requestUserInput` / `requestShellAuthentication` / etc. wire flags are derived automatically from which traits you've installed — clients that don't install a handler are silently skipped, letting another connected client handle the request.
 
 `Session::subscribe()` exposes permission events through an observation-only stream, and `PermissionHandler` receives the same `PermissionRequestData`. Call `data.prompt_request()` for optional derived prompt context. The raw `managed_approval_required` field remains managed-policy provenance and enforces one-shot restrictions. Only derived `Commands`, `Read`, `Write`, `Url`, and `Workflow` prompts can clear the human requirement after Assisted approval; for missing or other prompt kinds, keep the raw marker authoritative.
 
@@ -1506,6 +1507,48 @@ Return `None` to signal "no answer available" (the CLI falls back to its own pro
 
 **Migration (breaking change):** `UserInputHandler::handle` and `ExitPlanModeHandler::handle` now take `request_id: Option<RequestId>` immediately after `session_id`. Add that parameter to existing implementations; handlers that don't need the ID can ignore it.
 
+### Shell Password Prompts
+
+When a shell command the agent runs asks for a password or another answer (for example `sudo -A`, `ssh`, or `git` over HTTPS), install a `ShellAuthenticationHandler` to ask the user. The answer goes only to the program that asked; it is not shown to the model or recorded in session events. Without a handler, those commands fail as they would without a terminal. See [Shell password prompts](../docs/features/shell-password-prompts.md) for when the runtime asks.
+
+```rust,no_run
+use std::sync::Arc;
+use async_trait::async_trait;
+use github_copilot_sdk::handler::{ShellAuthenticationHandler, ShellAuthenticationRequest, ShellAuthenticationResponse};
+use github_copilot_sdk::types::{SessionConfig, SessionId};
+use tokio_util::sync::CancellationToken;
+# async fn ask_user(_request: &ShellAuthenticationRequest) -> Option<String> {
+#     None
+# }
+
+struct MyPasswordPrompt;
+
+#[async_trait]
+impl ShellAuthenticationHandler for MyPasswordPrompt {
+    async fn handle(
+        &self,
+        _sid: SessionId,
+        request: ShellAuthenticationRequest,
+        cancellation: CancellationToken,
+    ) -> ShellAuthenticationResponse {
+        // `ask_user` is your app's UI: show `request.prompt`, masked when
+        // `input_kind` is `Secret`, and close it when `cancellation` fires.
+        tokio::select! {
+            _ = cancellation.cancelled() => ShellAuthenticationResponse::Cancel,
+            answer = ask_user(&request) => match answer {
+                Some(answer) => ShellAuthenticationResponse::Accept(answer),
+                None => ShellAuthenticationResponse::Cancel,
+            },
+        }
+    }
+}
+
+let config = SessionConfig::default()
+    .with_shell_authentication_handler(Arc::new(MyPasswordPrompt));
+```
+
+For a `Confirm` request, accept with `"yes"` or cancel to decline.
+
 ### Slash Commands
 
 Register named commands so users can invoke them as `/name args` from the TUI:
@@ -1992,7 +2035,7 @@ none of them are scheduled for removal.
 | `extension_launch_provider.rs` | Connection-global `ExtensionLaunchProvider` trait and launch profile DTOs                                      |
 | `session.rs`      | `Session` struct, `PreparedSession`, event loop, `send`/`send_and_wait`, `Client::create_session`/`resume_session`/`prepare_session`/`prepare_resume_session` |
 | `subscription.rs` | `EventSubscription` / `LifecycleSubscription` (`Stream`-able observer handles for `subscribe()` / `subscribe_lifecycle()`) |
-| `handler.rs`      | `PermissionHandler`, `ElicitationHandler`, `UserInputHandler`, `ExitPlanModeHandler`, `AutoModeSwitchHandler` traits; `ApproveAllHandler`, `DenyAllHandler`           |
+| `handler.rs`      | `PermissionHandler`, `ElicitationHandler`, `UserInputHandler`, `ExitPlanModeHandler`, `AutoModeSwitchHandler`, `ShellAuthenticationHandler` traits; `ApproveAllHandler`, `DenyAllHandler` |
 | `hooks.rs`        | `SessionHooks` trait, `HookEvent`/`HookOutput` enums, typed hook inputs/outputs                                            |
 | `transforms.rs`   | `SystemMessageTransform` trait, section-level system message customization                                                 |
 | `tool.rs`         | `ToolHandler` trait, `define_tool`, `schema_for::<T>()` (with `derive` feature)                                            |

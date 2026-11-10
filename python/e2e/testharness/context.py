@@ -16,6 +16,7 @@ from pathlib import Path
 from typing import Any
 
 from copilot import CopilotClient, CopilotSession, RuntimeConnection
+from copilot._ffi_runtime_host import resolve_library_path
 from copilot.client import _InternalTestOptions
 
 from .proxy import CapiProxy
@@ -71,9 +72,20 @@ def is_inprocess_transport() -> bool:
 
 
 class _TestClient(CopilotClient):
-    def __init__(self, work_dir: str | None, **options: Any):
+    def __init__(self, work_dir: str | None, *, cli_path: str, **options: Any):
+        self._test_cli_path = cli_path
         super().__init__(**options)
         self._test_work_dir = work_dir
+
+    def _resolve_inprocess_runtime(self) -> str:
+        runtime_path = resolve_library_path(self._test_cli_path)
+        if runtime_path is None:
+            raise RuntimeError(
+                f"In-process runtime library not found next to '{self._test_cli_path}'."
+            )
+        self._cli_path_source = "explicit"
+        self._inprocess_cli_entrypoint = self._test_cli_path
+        return runtime_path
 
     @wraps(CopilotClient.create_session)
     async def create_session(self, **options: Any) -> CopilotSession:
@@ -140,6 +152,7 @@ class E2ETestContext:
         if self._client_inprocess:
             self._client = _TestClient(
                 self.work_dir,
+                cli_path=self.cli_path,
                 connection=RuntimeConnection.for_inprocess(),
                 github_token=DEFAULT_GITHUB_TOKEN,
                 _test_options=test_options,
@@ -148,6 +161,7 @@ class E2ETestContext:
         else:
             self._client = _TestClient(
                 None,
+                cli_path=self.cli_path,
                 connection=RuntimeConnection.for_stdio(
                     path=self.cli_path,
                     args=tuple(cli_args or []),
@@ -158,6 +172,15 @@ class E2ETestContext:
                 _test_options=test_options,
                 github_token=DEFAULT_GITHUB_TOKEN,
             )
+
+    def create_inprocess_client(self, **options: Any) -> CopilotClient:
+        """Create an independent client using this fixture's prepared runtime."""
+        return _TestClient(
+            None,
+            cli_path=self.cli_path,
+            connection=RuntimeConnection.for_inprocess(),
+            **options,
+        )
 
     def add_runtime_env(self, key: str, value: str) -> None:
         """Set a child runtime's environment before starting the client."""

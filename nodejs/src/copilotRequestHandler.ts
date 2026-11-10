@@ -346,6 +346,13 @@ export class CopilotRequestHandler {
 }
 
 /**
+ * How many finished request IDs an adapter remembers. A frame the runtime sent
+ * before it saw a request finish arrives within about one round trip, so a
+ * small window covers it while a long-lived client stays at a fixed size.
+ */
+const MAX_FINISHED_REQUEST_IDS = 256;
+
+/**
  * Adapt a {@link CopilotRequestHandler} into the generated
  * {@link LlmInferenceHandler} shape consumed by the SDK's RPC dispatcher.
  *
@@ -362,8 +369,27 @@ export function createCopilotRequestAdapter(
     getServerRpc: () => ServerRpc | undefined
 ): LlmInferenceHandler & { cancelPending(): void } {
     const pending = new Map<string, CopilotRequestExchange>();
+    // The most recently finished request IDs, oldest first.
+    const finished = new Set<string>();
 
-    function getOrCreate(requestId: string): CopilotRequestExchange {
+    function rememberFinished(requestId: string): void {
+        if (finished.has(requestId)) {
+            return;
+        }
+        finished.add(requestId);
+        if (finished.size > MAX_FINISHED_REQUEST_IDS) {
+            finished.delete(finished.values().next().value as string);
+        }
+    }
+
+    /**
+     * Returns `undefined` when the request already finished. A frame can still
+     * arrive then, because the runtime may send one before it sees the finish:
+     * it cancels a response it rejects, such as one over its size limit, while
+     * the handler's end is in flight. An exchange created for that frame would
+     * never be removed.
+     */
+    function getOrCreate(requestId: string): CopilotRequestExchange | undefined {
         // The runtime dispatches httpRequestStart and httpRequestChunk frames
         // independently. get-or-create keeps the adapter correct regardless of
         // arrival order: a body chunk (including the terminal end frame) that
@@ -371,6 +397,9 @@ export function createCopilotRequestAdapter(
         // rather than dropped, which would otherwise hang the body drain.
         let exchange = pending.get(requestId);
         if (!exchange) {
+            if (finished.has(requestId)) {
+                return undefined;
+            }
             exchange = new CopilotRequestExchange(requestId, getServerRpc);
             pending.set(requestId, exchange);
         }
@@ -400,6 +429,7 @@ export function createCopilotRequestAdapter(
             if (pending.get(exchange.requestId) === exchange) {
                 pending.delete(exchange.requestId);
             }
+            rememberFinished(exchange.requestId);
         }
     }
 
@@ -410,6 +440,11 @@ export function createCopilotRequestAdapter(
             // Adopt any exchange a racing chunk already created — with its
             // buffered body — rather than dropping those frames.
             const exchange = getOrCreate(params.requestId);
+            if (!exchange) {
+                throw new Error(
+                    `llmInference.httpRequestStart for request "${params.requestId}", which already finished`
+                );
+            }
             exchange.setContext(params);
             void run(exchange);
             return {};
@@ -419,7 +454,11 @@ export function createCopilotRequestAdapter(
         ): Promise<LlmInferenceHttpRequestChunkResult> {
             // May arrive before the matching start frame; get-or-create so the
             // body is buffered, never lost.
-            routeChunk(getOrCreate(params.requestId), params);
+            const exchange = getOrCreate(params.requestId);
+            // A frame for a finished request has nothing left to deliver to.
+            if (exchange) {
+                routeChunk(exchange, params);
+            }
             return {};
         },
         cancelPending(): void {

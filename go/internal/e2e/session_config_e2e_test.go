@@ -53,22 +53,19 @@ func sendAndGetNextExchange(t *testing.T, ctx *testharness.TestContext, session 
 	return exchanges[len(existing)]
 }
 
-func assertSessionLimitsStatus(t *testing.T, exchange testharness.ParsedHttpExchange, expectedRemaining string) {
+func assertSessionLimitsApplied(t *testing.T, session *copilot.Session, maxAiCredits float64) {
 	t.Helper()
 
-	for _, message := range exchange.Request.Messages {
-		if message.Role != "user" || !strings.Contains(message.Content, "<session_limits_status>") {
-			continue
-		}
-		if !strings.Contains(message.Content, "Remaining session limits: "+expectedRemaining+".") {
-			t.Fatalf("Expected session limits status to include remaining %q, got %q", expectedRemaining, message.Content)
-		}
-		if !strings.Contains(message.Content, "Be frugal; avoid optional exploration and unnecessary tool calls.") {
-			t.Fatalf("Expected frugality instruction in session limits status, got %q", message.Content)
-		}
-		return
+	snapshot, err := session.RPC.Metadata.Snapshot(t.Context())
+	if err != nil {
+		t.Fatalf("Metadata.Snapshot failed: %v", err)
 	}
-	t.Fatal("Expected session limits status message")
+	if snapshot.SessionLimits == nil || snapshot.SessionLimits.MaxAiCredits == nil {
+		t.Fatalf("Expected active session limits, got %+v", snapshot.SessionLimits)
+	}
+	if got := *snapshot.SessionLimits.MaxAiCredits; got != maxAiCredits {
+		t.Fatalf("Expected max AI credits %v, got %v", maxAiCredits, got)
+	}
 }
 
 func getTaskAgentTypes(t *testing.T, exchange testharness.ParsedHttpExchange) []string {
@@ -313,8 +310,8 @@ func TestSessionConfigNewOptionsE2E(t *testing.T) {
 		}
 		defer session.Disconnect()
 
-		exchange := sendAndGetNextExchange(t, ctx, session, "Acknowledge the current session limits.")
-		assertSessionLimitsStatus(t, exchange, "30 AI credits")
+		sendAndGetNextExchange(t, ctx, session, "Acknowledge the current session limits.")
+		assertSessionLimitsApplied(t, session, 30)
 	})
 
 	t.Run("should apply session limits on resume", func(t *testing.T) {
@@ -337,8 +334,8 @@ func TestSessionConfigNewOptionsE2E(t *testing.T) {
 		}
 		defer session2.Disconnect()
 
-		exchange := sendAndGetNextExchange(t, ctx, session2, "Acknowledge the current session limits.")
-		assertSessionLimitsStatus(t, exchange, "30 AI credits")
+		sendAndGetNextExchange(t, ctx, session2, "Acknowledge the current session limits.")
+		assertSessionLimitsApplied(t, session2, 30)
 	})
 
 	t.Run("should apply excluded built in agents on create", func(t *testing.T) {

@@ -111,7 +111,7 @@ pub use crate::generated::session_events::{ContextTier, SessionLimitsConfig};
 use crate::github_token::GitHubTokenProvider;
 use crate::handler::{
     AutoModeSwitchHandler, ElicitationHandler, ExitPlanModeHandler, McpAuthHandler,
-    PermissionHandler, UserInputHandler,
+    PermissionHandler, ShellAuthenticationHandler, UserInputHandler,
 };
 use crate::hooks::SessionHooks;
 use crate::memory_store::MemoryStore;
@@ -2749,6 +2749,10 @@ pub struct SessionConfig {
     /// Optional auto-mode-switch handler. When `None`,
     /// `requestAutoModeSwitch: false` goes on the wire.
     pub auto_mode_switch_handler: Option<Arc<dyn AutoModeSwitchHandler>>,
+    /// Optional handler for passwords and other answers that shell commands
+    /// run by the agent ask for. When `None`, `requestShellAuthentication` is left
+    /// off the wire, so the runtime never asks this client.
+    pub shell_authentication_handler: Option<Arc<dyn ShellAuthenticationHandler>>,
     /// Opt in to runtime-owned recovery of an eligible active request using Auto.
     /// Requires an auto-mode-switch handler and positive runtime acknowledgment.
     /// Defaults to false; re-supply on resume. The handler must not resend or rewind.
@@ -2968,6 +2972,10 @@ impl std::fmt::Debug for SessionConfig {
             )
             .field("auto_mode_recovery", &self.auto_mode_recovery)
             .field(
+                "shell_authentication_handler",
+                &self.shell_authentication_handler.as_ref().map(|_| "<set>"),
+            )
+            .field(
                 "hooks_handler",
                 &self.hooks_handler.as_ref().map(|_| "<set>"),
             )
@@ -3084,6 +3092,7 @@ impl Default for SessionConfig {
             user_input_handler: None,
             exit_plan_mode_handler: None,
             auto_mode_switch_handler: None,
+            shell_authentication_handler: None,
             auto_mode_recovery: false,
             hooks_handler: None,
             permission_policy: None,
@@ -3111,6 +3120,7 @@ pub(crate) struct SessionConfigRuntime {
     pub user_input_handler: Option<Arc<dyn UserInputHandler>>,
     pub exit_plan_mode_handler: Option<Arc<dyn ExitPlanModeHandler>>,
     pub auto_mode_switch_handler: Option<Arc<dyn AutoModeSwitchHandler>>,
+    pub shell_authentication_handler: Option<Arc<dyn ShellAuthenticationHandler>>,
     pub hooks_handler: Option<Arc<dyn SessionHooks>>,
     pub system_message_transform: Option<Arc<dyn SystemMessageTransform>>,
     pub tool_handlers: ToolHandlerMap,
@@ -3161,6 +3171,7 @@ impl SessionConfig {
         let request_user_input = self.user_input_handler.is_some();
         let request_exit_plan_mode = self.exit_plan_mode_handler.is_some();
         let request_auto_mode_switch = self.auto_mode_switch_handler.is_some();
+        let request_shell_authentication = self.shell_authentication_handler.is_some();
         let request_elicitation = self.elicitation_handler.is_some();
         let hooks_flag = self.hooks_handler.is_some();
         let has_skill_provider = self.skill_provider.is_some();
@@ -3231,6 +3242,7 @@ impl SessionConfig {
             request_auto_mode_recovery: self.auto_mode_recovery.then_some(true),
             request_elicitation,
             request_mcp_apps: self.enable_mcp_apps.unwrap_or(false),
+            request_shell_authentication: request_shell_authentication.then_some(true),
             github_mcp_tool_config: self.github_mcp_tool_config,
             hooks: hooks_flag,
             skill_directories: self.skill_directories,
@@ -3289,6 +3301,7 @@ impl SessionConfig {
             user_input_handler: self.user_input_handler,
             exit_plan_mode_handler: self.exit_plan_mode_handler,
             auto_mode_switch_handler: self.auto_mode_switch_handler,
+            shell_authentication_handler: self.shell_authentication_handler,
             hooks_handler: self.hooks_handler,
             system_message_transform: self.system_message_transform,
             tool_handlers,
@@ -3350,6 +3363,17 @@ impl SessionConfig {
         handler: Arc<dyn AutoModeSwitchHandler>,
     ) -> Self {
         self.auto_mode_switch_handler = Some(handler);
+        self
+    }
+
+    /// Install a [`ShellAuthenticationHandler`] for passwords and other answers that
+    /// shell commands run by the agent ask for, such as `sudo -A`, `ssh`, or
+    /// `git` over HTTPS.
+    pub fn with_shell_authentication_handler(
+        mut self,
+        handler: Arc<dyn ShellAuthenticationHandler>,
+    ) -> Self {
+        self.shell_authentication_handler = Some(handler);
         self
     }
 
@@ -4477,6 +4501,9 @@ pub struct ResumeSessionConfig {
     /// Optional auto-mode-switch handler. See
     /// [`SessionConfig::auto_mode_switch_handler`].
     pub auto_mode_switch_handler: Option<Arc<dyn AutoModeSwitchHandler>>,
+    /// Optional shell-authentication handler. See
+    /// [`SessionConfig::shell_authentication_handler`].
+    pub shell_authentication_handler: Option<Arc<dyn ShellAuthenticationHandler>>,
     /// Re-enroll in retained-request recovery. See [`SessionConfig::auto_mode_recovery`].
     pub auto_mode_recovery: bool,
     /// Session hook handler. See [`SessionConfig::hooks_handler`].
@@ -4653,6 +4680,10 @@ impl std::fmt::Debug for ResumeSessionConfig {
             )
             .field("auto_mode_recovery", &self.auto_mode_recovery)
             .field(
+                "shell_authentication_handler",
+                &self.shell_authentication_handler.as_ref().map(|_| "<set>"),
+            )
+            .field(
                 "hooks_handler",
                 &self.hooks_handler.as_ref().map(|_| "<set>"),
             )
@@ -4706,6 +4737,7 @@ impl ResumeSessionConfig {
         let request_user_input = self.user_input_handler.is_some();
         let request_exit_plan_mode = self.exit_plan_mode_handler.is_some();
         let request_auto_mode_switch = self.auto_mode_switch_handler.is_some();
+        let request_shell_authentication = self.shell_authentication_handler.is_some();
         let request_elicitation = self.elicitation_handler.is_some();
         let hooks_flag = self.hooks_handler.is_some();
         let has_skill_provider = self.skill_provider.is_some();
@@ -4774,6 +4806,7 @@ impl ResumeSessionConfig {
             request_auto_mode_recovery: self.auto_mode_recovery.then_some(true),
             request_elicitation,
             request_mcp_apps: self.enable_mcp_apps.unwrap_or(false),
+            request_shell_authentication: request_shell_authentication.then_some(true),
             github_mcp_tool_config: self.github_mcp_tool_config,
             hooks: hooks_flag,
             skill_directories: self.skill_directories,
@@ -4834,6 +4867,7 @@ impl ResumeSessionConfig {
             user_input_handler: self.user_input_handler,
             exit_plan_mode_handler: self.exit_plan_mode_handler,
             auto_mode_switch_handler: self.auto_mode_switch_handler,
+            shell_authentication_handler: self.shell_authentication_handler,
             hooks_handler: self.hooks_handler,
             system_message_transform: self.system_message_transform,
             tool_handlers,
@@ -4951,6 +4985,7 @@ impl ResumeSessionConfig {
             user_input_handler: None,
             exit_plan_mode_handler: None,
             auto_mode_switch_handler: None,
+            shell_authentication_handler: None,
             auto_mode_recovery: false,
             hooks_handler: None,
             permission_policy: None,
@@ -5006,6 +5041,15 @@ impl ResumeSessionConfig {
         handler: Arc<dyn AutoModeSwitchHandler>,
     ) -> Self {
         self.auto_mode_switch_handler = Some(handler);
+        self
+    }
+
+    /// Install a [`ShellAuthenticationHandler`] for the resumed session.
+    pub fn with_shell_authentication_handler(
+        mut self,
+        handler: Arc<dyn ShellAuthenticationHandler>,
+    ) -> Self {
+        self.shell_authentication_handler = Some(handler);
         self
     }
 

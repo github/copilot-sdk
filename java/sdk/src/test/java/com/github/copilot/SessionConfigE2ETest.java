@@ -177,10 +177,9 @@ public class SessionConfigE2ETest {
                     .get();
 
             try {
-                Map<String, Object> exchange = sendAndGetNextExchange(session,
-                        "Acknowledge the current session limits.");
+                sendAndGetNextExchange(session, "Acknowledge the current session limits.");
 
-                assertSessionLimitsStatus(exchange, "30 AI credits");
+                assertSessionLimitsApplied(session, 30.0);
             } finally {
                 session.close();
             }
@@ -200,10 +199,9 @@ public class SessionConfigE2ETest {
                     .get();
 
             try {
-                Map<String, Object> exchange = sendAndGetNextExchange(session2,
-                        "Acknowledge the current session limits.");
+                sendAndGetNextExchange(session2, "Acknowledge the current session limits.");
 
-                assertSessionLimitsStatus(exchange, "30 AI credits");
+                assertSessionLimitsApplied(session2, 30.0);
             } finally {
                 session2.close();
                 session1.close();
@@ -328,21 +326,10 @@ public class SessionConfigE2ETest {
         return exchanges.get(existingCount);
     }
 
-    private static void assertSessionLimitsStatus(Map<String, Object> exchange, String expectedRemaining) {
-        String content = null;
-        for (Object message : getRequestMessages(exchange)) {
-            if (message instanceof Map<?, ?> messageMap && "user".equals(messageMap.get("role"))) {
-                Object messageContent = messageMap.get("content");
-                if (messageContent instanceof String text && text.contains("<session_limits_status>")) {
-                    content = text;
-                    break;
-                }
-            }
-        }
-
-        assertNotNull(content, "Expected session limits status user message");
-        assertTrue(content.contains("Remaining session limits: " + expectedRemaining + "."));
-        assertTrue(content.contains("Be frugal; avoid optional exploration and unnecessary tool calls."));
+    private static void assertSessionLimitsApplied(CopilotSession session, double maxAiCredits) throws Exception {
+        SessionLimitsConfig limits = session.getRpc().metadata.snapshot().get(30, TimeUnit.SECONDS).sessionLimits();
+        assertNotNull(limits, "Expected active session limits");
+        assertEquals(maxAiCredits, limits.maxAiCredits());
     }
 
     private static List<String> getTaskAgentTypes(Map<String, Object> exchange) {
@@ -369,12 +356,6 @@ public class SessionConfigE2ETest {
             }
         });
         return values;
-    }
-
-    private static List<?> getRequestMessages(Map<String, Object> exchange) {
-        Object messages = getRequest(exchange).get("messages");
-        assertInstanceOf(List.class, messages, "Expected request messages");
-        return (List<?>) messages;
     }
 
     private static Map<?, ?> getRequest(Map<String, Object> exchange) {

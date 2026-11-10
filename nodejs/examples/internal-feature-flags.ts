@@ -21,14 +21,10 @@ async function showFeatureFlags(
 ) {
     await rpc.connect({});
     const { flags } = await rpc.featureFlags.listMetadata();
-    assert.equal(
-        flags.DYNAMIC_INSTRUCTIONS_RETRIEVAL_MCP.name,
-        "DYNAMIC_INSTRUCTIONS_RETRIEVAL_MCP"
-    );
-    assert.equal(
-        flags.DYNAMIC_INSTRUCTIONS_RETRIEVAL_MCP.expFlagEnvVar,
-        "COPILOT_EXP_COPILOT_CLI_DYNAMIC_INSTRUCTIONS_RETRIEVAL_MCP"
-    );
+    const flag = flags.DYNAMIC_INSTRUCTIONS_RETRIEVAL_MCP;
+    assert(flag, "DYNAMIC_INSTRUCTIONS_RETRIEVAL_MCP is missing from the catalog");
+    assert.equal(flag.name, "DYNAMIC_INSTRUCTIONS_RETRIEVAL_MCP");
+    assert.equal(flag.expFlagEnvVar, "COPILOT_EXP_COPILOT_CLI_DYNAMIC_INSTRUCTIONS_RETRIEVAL_MCP");
 
     const population = { isStaff: false, isExperimental: false, isTeam: false };
     const experimentOnly = await rpc.featureFlags.resolve({

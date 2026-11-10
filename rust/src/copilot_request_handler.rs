@@ -23,7 +23,7 @@
 //! in-flight request (for example because the agent turn was aborted). Forward
 //! it to the upstream call so it is torn down too, and stop writing the response.
 
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet, VecDeque};
 use std::panic::AssertUnwindSafe;
 use std::pin::Pin;
 #[cfg(feature = "network-forwarding")]
@@ -1241,12 +1241,46 @@ async fn fail_via_response(exchange: &CopilotRequestExchange, status: u16, messa
     let _ = exchange.error_response(message, None).await;
 }
 
+/// How many finished request IDs a dispatcher remembers. A frame the runtime
+/// sent before it saw a request finish arrives within about one round trip, so
+/// a small window covers it while a long-lived client stays at a fixed size.
+const MAX_FINISHED_REQUEST_IDS: usize = 256;
+
+/// The most recently finished request IDs. Once it holds
+/// [`MAX_FINISHED_REQUEST_IDS`], remembering another forgets the oldest.
+#[derive(Default)]
+struct FinishedRequestIds {
+    order: VecDeque<String>,
+    ids: HashSet<String>,
+}
+
+impl FinishedRequestIds {
+    fn add(&mut self, request_id: &str) {
+        if !self.ids.insert(request_id.to_string()) {
+            return;
+        }
+        self.order.push_back(request_id.to_string());
+        if self.order.len() > MAX_FINISHED_REQUEST_IDS
+            && let Some(oldest) = self.order.pop_front()
+        {
+            self.ids.remove(&oldest);
+        }
+    }
+
+    fn contains(&self, request_id: &str) -> bool {
+        self.ids.contains(request_id)
+    }
+}
+
 /// Routes inbound `llmInference.*` requests to the registered handler,
 /// reassembling each request's streaming body and acking every frame.
 pub(crate) struct CopilotRequestDispatcher {
     handler: Arc<dyn CopilotRequestHandler>,
     client: OnceLock<Weak<ClientInner>>,
     pending: Mutex<HashMap<String, Arc<CopilotRequestExchange>>>,
+    /// Locked only while `pending` is held, so a frame cannot recreate an entry
+    /// for a request that is being removed.
+    finished: Mutex<FinishedRequestIds>,
 }
 
 impl CopilotRequestDispatcher {
@@ -1256,6 +1290,7 @@ impl CopilotRequestDispatcher {
             handler,
             client: OnceLock::new(),
             pending: Mutex::new(HashMap::new()),
+            finished: Mutex::new(FinishedRequestIds::default()),
         }
     }
 
@@ -1287,19 +1322,30 @@ impl CopilotRequestDispatcher {
         }
     }
 
-    fn get_or_create_exchange(&self, request_id: String) -> Arc<CopilotRequestExchange> {
+    /// Returns `None` when the request already finished. A frame can still
+    /// arrive then, because the runtime may send one before it sees the finish:
+    /// it cancels a response it rejects, such as one over its size limit, while
+    /// the handler's end is in flight. An exchange created for that frame would
+    /// never be removed.
+    fn get_or_create_exchange(&self, request_id: String) -> Option<Arc<CopilotRequestExchange>> {
         // The runtime dispatches httpRequestStart and httpRequestChunk frames
         // independently. get-or-create keeps the adapter correct regardless of
         // arrival order: a body chunk (including the terminal end frame) that
         // races ahead of its start frame is buffered into the same exchange
         // rather than dropped, which would otherwise hang the body drain.
-        self.pending
-            .lock()
-            .entry(request_id.clone())
-            .or_insert_with(|| {
-                Arc::new(CopilotRequestExchange::new(request_id, self.client_weak()))
-            })
-            .clone()
+        let mut pending = self.pending.lock();
+        if let Some(exchange) = pending.get(&request_id) {
+            return Some(exchange.clone());
+        }
+        if self.finished.lock().contains(&request_id) {
+            return None;
+        }
+        let exchange = Arc::new(CopilotRequestExchange::new(
+            request_id.clone(),
+            self.client_weak(),
+        ));
+        pending.insert(request_id, exchange.clone());
+        Some(exchange)
     }
 
     async fn handle_start(self: &Arc<Self>, request: JsonRpcRequest) {
@@ -1314,7 +1360,16 @@ impl CopilotRequestDispatcher {
         // Adopt any exchange a racing chunk already created — with its buffered
         // body — rather than dropping those frames.
         let request_id = params.request_id.clone().into_inner();
-        let exchange = self.get_or_create_exchange(request_id.clone());
+        let Some(exchange) = self.get_or_create_exchange(request_id.clone()) else {
+            self.send_error(
+                id,
+                &format!(
+                    "llmInference.httpRequestStart for request {request_id:?}, which already finished"
+                ),
+            )
+            .await;
+            return;
+        };
         exchange.set_context(params);
 
         let handler = self.handler.clone();
@@ -1349,14 +1404,18 @@ impl CopilotRequestDispatcher {
 
         // May arrive before the matching start frame; get-or-create so the body
         // is buffered, never lost.
-        let exchange = self.get_or_create_exchange(params.request_id.to_string());
-        apply_chunk(&exchange, params);
+        // A frame for a finished request has nothing left to deliver to.
+        if let Some(exchange) = self.get_or_create_exchange(params.request_id.to_string()) {
+            apply_chunk(&exchange, params);
+        }
 
         self.ack(id).await;
     }
 
     fn remove_pending(&self, request_id: &str) {
-        self.pending.lock().remove(request_id);
+        let mut pending = self.pending.lock();
+        pending.remove(request_id);
+        self.finished.lock().add(request_id);
     }
 
     async fn ack(&self, id: u64) {

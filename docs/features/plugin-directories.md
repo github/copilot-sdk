@@ -467,8 +467,7 @@ Plugins loaded via `--plugin-dir` appear in this list alongside marketplace inst
 | `marketplace` | The marketplace the plugin came from. Empty for a plugin loaded from a plugin directory. |
 | `version` | The plugin version, when the plugin declares one. |
 | `enabled` | Whether the plugin is enabled. |
-
-An entry for a plugin loaded from a plugin directory doesn't report that directory.
+| `rootPath` | The absolute directory holding the plugin's content, when the runtime resolved one. For a plugin loaded from a plugin directory, this is that directory. |
 
 ## Retrying plugins required by managed settings
 
