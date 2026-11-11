@@ -27,6 +27,7 @@ import java.util.logging.Logger;
 
 import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.core.StreamReadConstraints;
 import com.fasterxml.jackson.databind.DeserializationFeature;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -99,6 +100,10 @@ class JsonRpcClient implements AutoCloseable {
 
     static ObjectMapper createObjectMapper() {
         var mapper = new ObjectMapper();
+        // Fetch callers can explicitly request text bodies larger than Jackson's
+        // default.
+        mapper.getFactory()
+                .setStreamReadConstraints(StreamReadConstraints.builder().maxStringLength(Integer.MAX_VALUE).build());
         mapper.registerModule(new JavaTimeModule());
         mapper.configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false);
         mapper.configure(SerializationFeature.WRITE_DATES_AS_TIMESTAMPS, false);
@@ -345,9 +350,9 @@ class JsonRpcClient implements AutoCloseable {
     private static boolean isCredentialField(String name) {
         // Protocol messages use a bare "token" for credentials (for example Negotiate
         // (SPNEGO) and connection tokens); its rare non-secret uses only lose detail in
-        // diagnostics.
+        // diagnostics. "password" covers Basic proxy credentials.
         return name.equals("accessToken") || name.equals("gitHubToken") || name.equals("bearerToken")
-                || name.equals("apiKey") || name.equals("token");
+                || name.equals("apiKey") || name.equals("token") || name.equals("password");
     }
 
     private void startReader() {
@@ -532,6 +537,13 @@ class JsonRpcClient implements AutoCloseable {
             }
         } catch (JsonProcessingException e) {
             LOG.log(Level.SEVERE, "Error parsing JSON-RPC message", e);
+            // A malformed frame cannot reliably identify which response was lost.
+            Map<Long, CompletableFuture<JsonNode>> failed;
+            synchronized (closeHandlerLock) {
+                failed = Map.copyOf(pendingRequests);
+                pendingRequests.clear();
+            }
+            failed.values().forEach(future -> future.completeExceptionally(e));
         }
     }
 

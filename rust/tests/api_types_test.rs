@@ -11,6 +11,71 @@ use github_copilot_sdk::rpc::{
 };
 use github_copilot_sdk::session_events::RecommendedAutoTier;
 
+#[test]
+fn fetch_response_defaults_preserve_each_variant_mode() {
+    use github_copilot_sdk::rpc::{
+        FetchSendResult, FetchSendResultFile, FetchSendResultStream, FetchSendResultText,
+    };
+
+    for (mode, result) in [
+        (
+            "stream",
+            FetchSendResult::Stream(FetchSendResultStream::default()),
+        ),
+        (
+            "text",
+            FetchSendResult::Text(FetchSendResultText::default()),
+        ),
+        (
+            "file",
+            FetchSendResult::File(FetchSendResultFile::default()),
+        ),
+    ] {
+        let wire = serde_json::to_value(result).unwrap();
+        assert_eq!(wire["responseMode"], mode);
+        serde_json::from_value::<FetchSendResult>(wire).unwrap();
+    }
+}
+
+#[test]
+fn fetch_response_modes_match_request_modes_and_round_trip() {
+    use github_copilot_sdk::rpc::{FetchResponseMode, FetchSendResult};
+
+    for (mode, extra) in [
+        (FetchResponseMode::Stream, serde_json::json!({})),
+        (
+            FetchResponseMode::Text,
+            serde_json::json!({"bodyText": "hello", "endedAtUnverifiedEof": false}),
+        ),
+        (
+            FetchResponseMode::File,
+            serde_json::json!({"path": "response.txt", "sizeBytes": 5, "endedAtUnverifiedEof": false}),
+        ),
+    ] {
+        let mut wire = serde_json::json!({
+            "responseMode": mode, "url": "https://example.com",
+            "status": 200, "statusText": "OK", "headers": [],
+        });
+        wire.as_object_mut()
+            .unwrap()
+            .extend(extra.as_object().unwrap().clone());
+        let result: FetchSendResult = serde_json::from_value(wire.clone()).unwrap();
+        match &result {
+            FetchSendResult::Stream(value) => assert_eq!(value.response_mode, mode),
+            FetchSendResult::Text(value) => assert_eq!(value.response_mode, mode),
+            FetchSendResult::File(value) => assert_eq!(value.response_mode, mode),
+        }
+        let mut invalid = result.clone();
+        match &mut invalid {
+            FetchSendResult::Stream(value) => value.response_mode = FetchResponseMode::Text,
+            FetchSendResult::Text(value) => value.response_mode = FetchResponseMode::File,
+            FetchSendResult::File(value) => value.response_mode = FetchResponseMode::Stream,
+        }
+        assert!(serde_json::to_value(invalid).is_err());
+        assert_eq!(serde_json::to_value(result).unwrap(), wire);
+    }
+}
+
 macro_rules! filesystem_callback_result {
     ($name:ident, $result:ty) => {
         #[test]

@@ -139,7 +139,7 @@ rand_core = { version = "0.6", features = ["getrandom"] }
 ahp = { git = "https://github.com/microsoft/agent-host-protocol", tag = "rust/v1.0.0" }
 ahp-types = { git = "https://github.com/microsoft/agent-host-protocol", tag = "rust/v1.0.0" }
 ahp-ws = { git = "https://github.com/microsoft/agent-host-protocol", tag = "rust/v1.0.0", default-features = false }
-rusqlite = { version = "0.41.1", features = ["bundled"] }
+rusqlite = { version = "0.42", features = ["bundled"] }
 schemars = "1"
 serial_test = "4"
 sha2 = "0.11"

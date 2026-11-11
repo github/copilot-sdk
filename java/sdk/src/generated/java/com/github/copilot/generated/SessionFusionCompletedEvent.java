@@ -52,12 +52,15 @@ public final class SessionFusionCompletedEvent extends SessionEvent {
         /** Stable aggregate outcome of the HydraFusion turn. */
         @JsonProperty("outcome") String outcome,
         /** Phase whose output supplied the authoritative final content. */
+        @JsonInclude(JsonInclude.Include.ALWAYS)
         @JsonProperty("finalSourcePhaseId") String finalSourcePhaseId,
         /** Concrete model that supplied the authoritative final content. */
+        @JsonInclude(JsonInclude.Include.ALWAYS)
         @JsonProperty("finalSourceModel") String finalSourceModel,
         /** Concrete model recommended for eligible follow-up turns. */
         @JsonProperty("followUpModel") String followUpModel,
         /** Reason the turn used a degraded route, when applicable. */
+        @JsonInclude(JsonInclude.Include.ALWAYS)
         @JsonProperty("degradedReason") String degradedReason,
         /** Number of concrete phases attempted by the turn. */
         @JsonProperty("phaseCount") Long phaseCount,

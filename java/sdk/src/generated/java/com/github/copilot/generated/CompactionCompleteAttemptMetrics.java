@@ -25,6 +25,8 @@ public record CompactionCompleteAttemptMetrics(
     @JsonProperty("durationMs") Long durationMs,
     /** Time a turn, or a prompt-mode run's prompt, spent blocked waiting for this compaction, in milliseconds. Absent for compactions that block nothing. */
     @JsonProperty("blockingWaitMs") Long blockingWaitMs,
+    /** Time a background compaction's summarizer was held for the turn's in-flight request to start responding before it was sent, in milliseconds. The compaction's deadline starts when the summarizer is sent. Absent when the summarizer was not held. */
+    @JsonProperty("dispatchWaitMs") Long dispatchWaitMs,
     /** Time from the decision of the compaction's outcome to this event, in milliseconds. Absent when no outcome was decided. */
     @JsonProperty("applyDelayMs") Long applyDelayMs,
     /** Estimated time the machine spent suspended or asleep during the compaction, in milliseconds */
@@ -83,6 +85,7 @@ public record CompactionCompleteAttemptMetrics(
         private Builder() {}
         private Long durationMs;
         private Long blockingWaitMs;
+        private Long dispatchWaitMs;
         private Long applyDelayMs;
         private Long suspendedMs;
         private String summarizerReasoningEffort;
@@ -120,6 +123,17 @@ public record CompactionCompleteAttemptMetrics(
          */
         public Builder blockingWaitMs(Long value) {
             this.blockingWaitMs = value;
+            return this;
+        }
+
+        /**
+         * Sets the {@code dispatchWaitMs} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder dispatchWaitMs(Long value) {
+            this.dispatchWaitMs = value;
             return this;
         }
 
@@ -318,7 +332,55 @@ public record CompactionCompleteAttemptMetrics(
          */
         public CompactionCompleteAttemptMetrics build() {
             if (durationMs == null) throw new IllegalStateException("Missing required property: durationMs");
-            return new CompactionCompleteAttemptMetrics(durationMs, blockingWaitMs, applyDelayMs, suspendedMs, summarizerReasoningEffort, requestedReasoningEffort, deadlinePolicy, deadlineLimitMs, deadlineOvershootMs, triggerThreshold, maxOutputTokens, failedRequestCount, failedRequestInputTokensEstimate, cancelledRequestCount, retryWaitMs, lastRetryAfterMs, shrinkRemovedAttachments, shrinkStrippedReasoning, failureOperation);
+            return new CompactionCompleteAttemptMetrics(durationMs, blockingWaitMs, dispatchWaitMs, applyDelayMs, suspendedMs, summarizerReasoningEffort, requestedReasoningEffort, deadlinePolicy, deadlineLimitMs, deadlineOvershootMs, triggerThreshold, maxOutputTokens, failedRequestCount, failedRequestInputTokensEstimate, cancelledRequestCount, retryWaitMs, lastRetryAfterMs, shrinkRemovedAttachments, shrinkStrippedReasoning, failureOperation);
         }
+    }
+
+    /**
+     * Creates a record with the components it had before later optional fields were added.
+     * @deprecated Use named construction via {@link #builder()}.
+     * @param durationMs Time from the start of the compaction to this event, in milliseconds, whatever the outcome
+     * @param blockingWaitMs Time a turn, or a prompt-mode run's prompt, spent blocked waiting for this compaction, in milliseconds. Absent for compactions that block nothing.
+     * @param applyDelayMs Time from the decision of the compaction's outcome to this event, in milliseconds. Absent when no outcome was decided.
+     * @param suspendedMs Estimated time the machine spent suspended or asleep during the compaction, in milliseconds
+     * @param summarizerReasoningEffort Reasoning effort the summarizer requests were sent with
+     * @param requestedReasoningEffort Reasoning effort the summarizer would have used before any compaction-specific reduction
+     * @param deadlinePolicy Deadline policy bounding the summarizer, such as "fixed" or "progress_aware"
+     * @param deadlineLimitMs The deadline limit that ended the compaction, in milliseconds. Absent unless a deadline fired.
+     * @param deadlineOvershootMs How long after its limit the deadline was observed to fire, in milliseconds. Absent unless a deadline fired.
+     * @param triggerThreshold Context utilization threshold, as a fraction of the token limit, whose crossing started this compaction. Absent for compactions not started by a threshold.
+     * @param maxOutputTokens Output token limit of the latest summarizer request. Absent when no request was sent.
+     * @param failedRequestCount Summarizer requests that failed with a provider or transport error. Absent when none failed.
+     * @param failedRequestInputTokensEstimate Sum of the sampled input token estimates of the summarizer requests that failed, whose usage the provider never reported. Absent when none failed.
+     * @param cancelledRequestCount Summarizer requests cancelled while in flight, one per model call cancellation reported for this compaction. Not counted in failedRequestCount. Absent when none was cancelled.
+     * @param retryWaitMs Total time from a failed summarizer request settling to the next one starting, which includes the retry backoff, in milliseconds. Absent when no request was retried.
+     * @param lastRetryAfterMs Retry-After of the latest failed summarizer request, in milliseconds. Absent when that request sent none.
+     * @param shrinkRemovedAttachments Historical attachments removed from the summarizer input when it was shrunk. Absent unless the input was shrunk.
+     * @param shrinkStrippedReasoning Historical reasoning items stripped from the summarizer input when it was shrunk. Absent unless the input was shrunk.
+     * @param failureOperation Step whose failure ended the compaction before or after its summarizer request: "session_read", "auth_hydration", "model_resolution", "context_breakdown", "token_limit", "start_publication", "pre_compact_hook", "output_hydration", "auth_missing", "agent_context_missing", "summarizer_setup", "summary_parse", "plan_read", "history_write" or "background_apply". Absent when the summarizer request itself failed, or nothing failed.
+     */
+    @Deprecated(since = "2.0.0", forRemoval = false)
+    public CompactionCompleteAttemptMetrics(
+        Long durationMs,
+        Long blockingWaitMs,
+        Long applyDelayMs,
+        Long suspendedMs,
+        String summarizerReasoningEffort,
+        String requestedReasoningEffort,
+        String deadlinePolicy,
+        Long deadlineLimitMs,
+        Long deadlineOvershootMs,
+        Double triggerThreshold,
+        Double maxOutputTokens,
+        Long failedRequestCount,
+        Long failedRequestInputTokensEstimate,
+        Long cancelledRequestCount,
+        Long retryWaitMs,
+        Long lastRetryAfterMs,
+        Long shrinkRemovedAttachments,
+        Long shrinkStrippedReasoning,
+        String failureOperation
+    ) {
+        this(durationMs, blockingWaitMs, null, applyDelayMs, suspendedMs, summarizerReasoningEffort, requestedReasoningEffort, deadlinePolicy, deadlineLimitMs, deadlineOvershootMs, triggerThreshold, maxOutputTokens, failedRequestCount, failedRequestInputTokensEstimate, cancelledRequestCount, retryWaitMs, lastRetryAfterMs, shrinkRemovedAttachments, shrinkStrippedReasoning, failureOperation);
     }
 }

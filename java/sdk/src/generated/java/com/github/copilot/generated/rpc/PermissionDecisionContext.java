@@ -13,7 +13,7 @@ import com.fasterxml.jackson.annotation.JsonProperty;
 import javax.annotation.processing.Generated;
 
 /**
- * Optional informational context describing how and where the permission decision was made. This does not affect permission behavior.
+ * Who answered a prompt and how. A label saying a person answered (`source` `human_response`) gives the answer human authority for Assisted Permissions: for permission prompts it becomes `permission.completed.decisionSource`, and with `responseCapability` `interactive` it also covers `ask_user`, user-input and plan-review answers. The runtime accepts that claim only from the session's authenticated owning, non-extension connection, the in-process host, or a Mission Control answer the session owner wrote; any other answer settles without it. Other fields attribute the decision in telemetry.
  *
  * @since 1.0.0
  */

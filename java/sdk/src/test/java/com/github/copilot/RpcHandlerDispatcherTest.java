@@ -44,6 +44,11 @@ import com.github.copilot.rpc.ToolResultObject;
 import com.github.copilot.rpc.UserInputRequest;
 import com.github.copilot.rpc.UserInputResponse;
 import com.github.copilot.generated.rpc.GitHubTokenAcquireReason;
+import com.github.copilot.generated.rpc.PermissionDecisionContext;
+import com.github.copilot.generated.rpc.PermissionDecisionOutcome;
+import com.github.copilot.generated.rpc.PermissionDecisionSource;
+import com.github.copilot.generated.rpc.PermissionDecisionSurface;
+import com.github.copilot.generated.rpc.PermissionResponseCapability;
 import com.github.copilot.rpc.GitHubTokenProviderArgs;
 import com.github.copilot.rpc.GitHubTokenProviderResult;
 
@@ -57,6 +62,8 @@ class RpcHandlerDispatcherTest {
 
     private static final ObjectMapper MAPPER = JsonRpcClient.getObjectMapper();
     private static final int SOCKET_TIMEOUT_MS = 5000;
+    private static final String PERSON_ANSWERED_JSON = "{\"source\":\"human_response\","
+            + "\"responseCapability\":\"interactive\",\"surface\":\"sdk\",\"outcome\":\"prompted_user\"}";
 
     private Socket clientSideSocket;
     private Socket serverSideSocket;
@@ -670,6 +677,40 @@ class RpcHandlerDispatcherTest {
         assertNull(request.getRequestId());
     }
 
+    @Test
+    void userInputReplyCarriesPersonAnsweredLabelAtTopLevel() throws Exception {
+        CopilotSession session = createSession("s1");
+        session.registerUserInputHandler(
+                (request, invocation) -> CompletableFuture.completedFuture(new UserInputResponse()
+                        .setAnswer("Only src/app.ts").setWasFreeform(true).setDecisionContext(personAnswered())));
+
+        ObjectNode params = MAPPER.createObjectNode();
+        params.put("sessionId", "s1");
+        params.put("question", "Which files?");
+
+        invokeHandler("userInput.request", "36", params);
+
+        JsonNode response = readResponse();
+        assertEquals(MAPPER.readTree("{\"answer\":\"Only src/app.ts\",\"wasFreeform\":true,\"decisionContext\":"
+                + PERSON_ANSWERED_JSON + "}"), response.get("result"));
+    }
+
+    @Test
+    void unlabeledUserInputReplyHasNoDecisionContextKey() throws Exception {
+        CopilotSession session = createSession("s1");
+        session.registerUserInputHandler((request, invocation) -> CompletableFuture
+                .completedFuture(new UserInputResponse().setAnswer("Only src/app.ts").setWasFreeform(true)));
+
+        ObjectNode params = MAPPER.createObjectNode();
+        params.put("sessionId", "s1");
+        params.put("question", "Which files?");
+
+        invokeHandler("userInput.request", "37", params);
+
+        JsonNode response = readResponse();
+        assertEquals(MAPPER.readTree("{\"answer\":\"Only src/app.ts\",\"wasFreeform\":true}"), response.get("result"));
+    }
+
     // ===== exitPlanMode.request tests =====
 
     @Test
@@ -737,6 +778,47 @@ class RpcHandlerDispatcherTest {
         JsonNode response = readResponse();
         assertEquals(35, response.path("id").asInt());
         assertEquals(-32603, response.at("/error/code").asInt());
+    }
+
+    @Test
+    void exitPlanModeReplyCarriesPersonAnsweredLabelAtTopLevel() throws Exception {
+        CopilotSession session = createSession("s1");
+        session.registerExitPlanModeHandler(
+                (request, invocation) -> CompletableFuture.completedFuture(new ExitPlanModeResult().setApproved(true)
+                        .setSelectedAction("interactive").setDecisionContext(personAnswered())));
+
+        invokeHandler("exitPlanMode.request", "38", exitPlanModeParams());
+
+        JsonNode response = readResponse();
+        assertEquals(MAPPER.readTree("{\"approved\":true,\"selectedAction\":\"interactive\",\"decisionContext\":"
+                + PERSON_ANSWERED_JSON + "}"), response.get("result"));
+    }
+
+    @Test
+    void unlabeledExitPlanModeReplyHasNoDecisionContextKey() throws Exception {
+        CopilotSession session = createSession("s1");
+        session.registerExitPlanModeHandler((request, invocation) -> CompletableFuture
+                .completedFuture(new ExitPlanModeResult().setApproved(true).setSelectedAction("interactive")));
+
+        invokeHandler("exitPlanMode.request", "39", exitPlanModeParams());
+
+        JsonNode response = readResponse();
+        assertEquals(MAPPER.readTree("{\"approved\":true,\"selectedAction\":\"interactive\"}"), response.get("result"));
+    }
+
+    private static ObjectNode exitPlanModeParams() {
+        ObjectNode params = MAPPER.createObjectNode();
+        params.put("sessionId", "s1");
+        params.put("summary", "Implement the plan");
+        params.putArray("actions").add("interactive").add("autopilot");
+        params.put("recommendedAction", "interactive");
+        return params;
+    }
+
+    private static PermissionDecisionContext personAnswered() {
+        return PermissionDecisionContext.builder().source(PermissionDecisionSource.HUMAN_RESPONSE)
+                .responseCapability(PermissionResponseCapability.INTERACTIVE).surface(PermissionDecisionSurface.SDK)
+                .outcome(PermissionDecisionOutcome.PROMPTED_USER).build();
     }
 
     // ===== autoModeSwitch.request tests =====

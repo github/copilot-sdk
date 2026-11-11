@@ -123,6 +123,10 @@ def to_enum(c: type[EnumT], x: Any) -> str:
 
 
 class SessionEventType(Enum):
+    IDE_CONNECTION_CHANGED = "ide.connection_changed"
+    IDE_SELECTION_CHANGED = "ide.selection_changed"
+    IDE_ADD_FILE_REFERENCE = "ide.add_file_reference"
+    IDE_ELICITATION_COMPLETE = "ide.elicitation_complete"
     SESSION_JOURNAL_LINK = "session.journal_link"
     SESSION_START = "session.start"
     SESSION_RESUME = "session.resume"
@@ -5595,6 +5599,8 @@ class _CompactionCompleteAttemptMetrics:
     # Internal: this field is an internal SDK API and is not part of the public surface.
     _deadline_policy: str | None = None
     # Internal: this field is an internal SDK API and is not part of the public surface.
+    _dispatch_wait: timedelta | None = field(default=None, kw_only=True)
+    # Internal: this field is an internal SDK API and is not part of the public surface.
     _failed_request_count: int | None = None
     # Internal: this field is an internal SDK API and is not part of the public surface.
     _failed_request_input_tokens_estimate: int | None = None
@@ -5629,6 +5635,7 @@ class _CompactionCompleteAttemptMetrics:
         _deadline_limit = from_union([from_none, from_timedelta], obj.get("deadlineLimitMs"))
         _deadline_overshoot = from_union([from_none, from_timedelta], obj.get("deadlineOvershootMs"))
         _deadline_policy = from_union([from_none, from_str], obj.get("deadlinePolicy"))
+        _dispatch_wait = from_union([from_none, from_timedelta], obj.get("dispatchWaitMs"))
         _failed_request_count = from_union([from_none, from_int], obj.get("failedRequestCount"))
         _failed_request_input_tokens_estimate = from_union([from_none, from_int], obj.get("failedRequestInputTokensEstimate"))
         _failure_operation = from_union([from_none, from_str], obj.get("failureOperation"))
@@ -5649,6 +5656,7 @@ class _CompactionCompleteAttemptMetrics:
             _deadline_limit=_deadline_limit,
             _deadline_overshoot=_deadline_overshoot,
             _deadline_policy=_deadline_policy,
+            _dispatch_wait=_dispatch_wait,
             _failed_request_count=_failed_request_count,
             _failed_request_input_tokens_estimate=_failed_request_input_tokens_estimate,
             _failure_operation=_failure_operation,
@@ -5678,6 +5686,8 @@ class _CompactionCompleteAttemptMetrics:
             result["deadlineOvershootMs"] = from_union([from_none, to_timedelta_int], self._deadline_overshoot)
         if self._deadline_policy is not None:
             result["deadlinePolicy"] = from_union([from_none, from_str], self._deadline_policy)
+        if self._dispatch_wait is not None:
+            result["dispatchWaitMs"] = from_union([from_none, to_timedelta_int], self._dispatch_wait)
         if self._failed_request_count is not None:
             result["failedRequestCount"] = from_union([from_none, to_int], self._failed_request_count)
         if self._failed_request_input_tokens_estimate is not None:
@@ -6753,7 +6763,7 @@ class HumanResponseRecordedData:
 
 @dataclass
 class HumanResponseRecordedResponse:
-    "Exact runtime-owned question or reviewed plan paired with the typed response that settled it."
+    "Exact runtime-owned question or reviewed plan paired with the typed response that settled it. A refusal records the question without an answer and never grants authority."
     response_kind: HumanResponseRecordedResponseResponseKind
     actions: list[ExitPlanModeAction] | None = None
     allow_freeform: bool | None = None
@@ -6771,6 +6781,8 @@ class HumanResponseRecordedResponse:
     selected_action: ExitPlanModeAction | None = None
     summary: str | None = None
     was_freeform: bool | None = None
+    action: HumanResponseAskUserAction | None = None
+    dismissed: bool | None = None
 
     @staticmethod
     def from_dict(obj: Any) -> "HumanResponseRecordedResponse":
@@ -6792,6 +6804,8 @@ class HumanResponseRecordedResponse:
         selected_action = from_union([from_none, lambda x: parse_enum(ExitPlanModeAction, x)], obj.get("selectedAction"))
         summary = from_union([from_none, from_str], obj.get("summary"))
         was_freeform = from_union([from_none, from_bool], obj.get("wasFreeform"))
+        action = from_union([from_none, lambda x: parse_enum(HumanResponseAskUserAction, x)], obj.get("action"))
+        dismissed = from_union([from_none, from_bool], obj.get("dismissed"))
         return HumanResponseRecordedResponse(
             response_kind=response_kind,
             actions=actions,
@@ -6810,6 +6824,8 @@ class HumanResponseRecordedResponse:
             selected_action=selected_action,
             summary=summary,
             was_freeform=was_freeform,
+            action=action,
+            dismissed=dismissed,
         )
 
     def to_dict(self) -> dict:
@@ -6847,6 +6863,272 @@ class HumanResponseRecordedResponse:
             result["summary"] = from_union([from_none, from_str], self.summary)
         if self.was_freeform is not None:
             result["wasFreeform"] = from_union([from_none, from_bool], self.was_freeform)
+        if self.action is not None:
+            result["action"] = from_union([from_none, lambda x: to_enum(HumanResponseAskUserAction, x)], self.action)
+        if self.dismissed is not None:
+            result["dismissed"] = from_union([from_none, from_bool], self.dismissed)
+        return result
+
+
+@dataclass
+class IdeAddFileReferenceData:
+    "An IDE request to attach a file or selection to the composer."
+    reference: IdeFileReference
+
+    @staticmethod
+    def from_dict(obj: Any) -> "IdeAddFileReferenceData":
+        assert isinstance(obj, dict)
+        reference = IdeFileReference.from_dict(obj.get("reference"))
+        return IdeAddFileReferenceData(
+            reference=reference,
+        )
+
+    def to_dict(self) -> dict:
+        result: dict = {}
+        result["reference"] = to_class(IdeFileReference, self.reference)
+        return result
+
+
+@dataclass
+class IdeConnectedInfo:
+    "An IDE connection on the runtime host."
+    ide_name: str
+    lock_file_path: str
+    pid: int
+    server_name: str
+    workspace_folder: str
+
+    @staticmethod
+    def from_dict(obj: Any) -> "IdeConnectedInfo":
+        assert isinstance(obj, dict)
+        ide_name = from_str(obj.get("ideName"))
+        lock_file_path = from_str(obj.get("lockFilePath"))
+        pid = from_int(obj.get("pid"))
+        server_name = from_str(obj.get("serverName"))
+        workspace_folder = from_str(obj.get("workspaceFolder"))
+        return IdeConnectedInfo(
+            ide_name=ide_name,
+            lock_file_path=lock_file_path,
+            pid=pid,
+            server_name=server_name,
+            workspace_folder=workspace_folder,
+        )
+
+    def to_dict(self) -> dict:
+        result: dict = {}
+        result["ideName"] = from_str(self.ide_name)
+        result["lockFilePath"] = from_str(self.lock_file_path)
+        result["pid"] = to_int(self.pid)
+        result["serverName"] = from_str(self.server_name)
+        result["workspaceFolder"] = from_str(self.workspace_folder)
+        return result
+
+
+@dataclass
+class IdeConnectionChangedData:
+    "Live IDE state. This state never restores a connection from session history."
+    connected_ide: IdeConnectedInfo | None = None
+    retained_ide: IdeConnectedInfo | None = None
+    selection: IdeSelection | None = None
+
+    @staticmethod
+    def from_dict(obj: Any) -> "IdeConnectionChangedData":
+        assert isinstance(obj, dict)
+        connected_ide = from_union([from_none, IdeConnectedInfo.from_dict], obj.get("connectedIde"))
+        retained_ide = from_union([from_none, IdeConnectedInfo.from_dict], obj.get("retainedIde"))
+        selection = from_union([from_none, IdeSelection.from_dict], obj.get("selection"))
+        return IdeConnectionChangedData(
+            connected_ide=connected_ide,
+            retained_ide=retained_ide,
+            selection=selection,
+        )
+
+    def to_dict(self) -> dict:
+        result: dict = {}
+        if self.connected_ide is not None:
+            result["connectedIde"] = from_union([from_none, lambda x: to_class(IdeConnectedInfo, x)], self.connected_ide)
+        if self.retained_ide is not None:
+            result["retainedIde"] = from_union([from_none, lambda x: to_class(IdeConnectedInfo, x)], self.retained_ide)
+        if self.selection is not None:
+            result["selection"] = from_union([from_none, lambda x: to_class(IdeSelection, x)], self.selection)
+        return result
+
+
+@dataclass
+class IdeElicitationCompleteData:
+    "An IDE elicitation completion notification."
+    elicitation_id: str
+
+    @staticmethod
+    def from_dict(obj: Any) -> "IdeElicitationCompleteData":
+        assert isinstance(obj, dict)
+        elicitation_id = from_str(obj.get("elicitationId"))
+        return IdeElicitationCompleteData(
+            elicitation_id=elicitation_id,
+        )
+
+    def to_dict(self) -> dict:
+        result: dict = {}
+        result["elicitationId"] = from_str(self.elicitation_id)
+        return result
+
+
+@dataclass
+class IdeFileReference:
+    "A validated IDE request to attach a file or selected text."
+    file_path: str
+    file_url: str
+    selected_text: str | None
+    selection: IdeRange | None
+
+    @staticmethod
+    def from_dict(obj: Any) -> "IdeFileReference":
+        assert isinstance(obj, dict)
+        file_path = from_str(obj.get("filePath"))
+        file_url = from_str(obj.get("fileUrl"))
+        selected_text = from_union([from_none, from_str], obj.get("selectedText"))
+        selection = from_union([from_none, IdeRange.from_dict], obj.get("selection"))
+        return IdeFileReference(
+            file_path=file_path,
+            file_url=file_url,
+            selected_text=selected_text,
+            selection=selection,
+        )
+
+    def to_dict(self) -> dict:
+        result: dict = {}
+        result["filePath"] = from_str(self.file_path)
+        result["fileUrl"] = from_str(self.file_url)
+        result["selectedText"] = from_union([from_none, from_str], self.selected_text)
+        result["selection"] = from_union([from_none, lambda x: to_class(IdeRange, x)], self.selection)
+        return result
+
+
+@dataclass
+class IdePosition:
+    "A zero-based location in an IDE document."
+    character: float
+    line: float
+
+    @staticmethod
+    def from_dict(obj: Any) -> "IdePosition":
+        assert isinstance(obj, dict)
+        character = from_float(obj.get("character"))
+        line = from_float(obj.get("line"))
+        return IdePosition(
+            character=character,
+            line=line,
+        )
+
+    def to_dict(self) -> dict:
+        result: dict = {}
+        result["character"] = to_float(self.character)
+        result["line"] = to_float(self.line)
+        return result
+
+
+@dataclass
+class IdeRange:
+    "The endpoints of an IDE file reference."
+    end: IdePosition
+    start: IdePosition
+
+    @staticmethod
+    def from_dict(obj: Any) -> "IdeRange":
+        assert isinstance(obj, dict)
+        end = IdePosition.from_dict(obj.get("end"))
+        start = IdePosition.from_dict(obj.get("start"))
+        return IdeRange(
+            end=end,
+            start=start,
+        )
+
+    def to_dict(self) -> dict:
+        result: dict = {}
+        result["end"] = to_class(IdePosition, self.end)
+        result["start"] = to_class(IdePosition, self.start)
+        return result
+
+
+@dataclass
+class IdeSelection:
+    "A validated live IDE selection."
+    file_path: str
+    file_url: str
+    selection: IdeSelectionRange
+    text: str
+    current: bool | None = None
+
+    @staticmethod
+    def from_dict(obj: Any) -> "IdeSelection":
+        assert isinstance(obj, dict)
+        file_path = from_str(obj.get("filePath"))
+        file_url = from_str(obj.get("fileUrl"))
+        selection = IdeSelectionRange.from_dict(obj.get("selection"))
+        text = from_str(obj.get("text"))
+        current = from_union([from_none, from_bool], obj.get("current"))
+        return IdeSelection(
+            file_path=file_path,
+            file_url=file_url,
+            selection=selection,
+            text=text,
+            current=current,
+        )
+
+    def to_dict(self) -> dict:
+        result: dict = {}
+        result["filePath"] = from_str(self.file_path)
+        result["fileUrl"] = from_str(self.file_url)
+        result["selection"] = to_class(IdeSelectionRange, self.selection)
+        result["text"] = from_str(self.text)
+        if self.current is not None:
+            result["current"] = from_union([from_none, from_bool], self.current)
+        return result
+
+
+@dataclass
+class IdeSelectionChangedData:
+    "A validated selection from the live IDE, or an explicit clear."
+    selection: IdeSelection | None
+
+    @staticmethod
+    def from_dict(obj: Any) -> "IdeSelectionChangedData":
+        assert isinstance(obj, dict)
+        selection = from_union([from_none, IdeSelection.from_dict], obj.get("selection"))
+        return IdeSelectionChangedData(
+            selection=selection,
+        )
+
+    def to_dict(self) -> dict:
+        result: dict = {}
+        result["selection"] = from_union([from_none, lambda x: to_class(IdeSelection, x)], self.selection)
+        return result
+
+
+@dataclass
+class IdeSelectionRange:
+    "The active selection range in an IDE document."
+    end: IdePosition
+    is_empty: bool
+    start: IdePosition
+
+    @staticmethod
+    def from_dict(obj: Any) -> "IdeSelectionRange":
+        assert isinstance(obj, dict)
+        end = IdePosition.from_dict(obj.get("end"))
+        is_empty = from_bool(obj.get("isEmpty"))
+        start = IdePosition.from_dict(obj.get("start"))
+        return IdeSelectionRange(
+            end=end,
+            is_empty=is_empty,
+            start=start,
+        )
+
+    def to_dict(self) -> dict:
+        result: dict = {}
+        result["end"] = to_class(IdePosition, self.end)
+        result["isEmpty"] = from_bool(self.is_empty)
+        result["start"] = to_class(IdePosition, self.start)
         return result
 
 
@@ -15709,6 +15991,7 @@ class UserMessageData:
     transformed_content: str | None = None
     turn_id: str | None = None
     client_turn_id: str | None = None
+    has_submitted_task: bool | None = None
 
     @staticmethod
     def from_dict(obj: Any) -> "UserMessageData":
@@ -15729,6 +16012,7 @@ class UserMessageData:
         transformed_content = from_union([from_none, from_str], obj.get("transformedContent"))
         turn_id = from_union([from_none, from_str], obj.get("turnId"))
         client_turn_id = from_union([from_none, from_str], obj.get("clientTurnId"))
+        has_submitted_task = from_union([from_none, from_bool], obj.get("hasSubmittedTask"))
         return UserMessageData(
             content=content,
             agent_mode=agent_mode,
@@ -15746,6 +16030,7 @@ class UserMessageData:
             transformed_content=transformed_content,
             turn_id=turn_id,
             client_turn_id=client_turn_id,
+            has_submitted_task=has_submitted_task,
         )
 
     def to_dict(self) -> dict:
@@ -15781,6 +16066,8 @@ class UserMessageData:
             result["turnId"] = from_union([from_none, from_str], self.turn_id)
         if self.client_turn_id is not None:
             result["clientTurnId"] = from_union([from_none, from_str], self.client_turn_id)
+        if self.has_submitted_task is not None:
+            result["hasSubmittedTask"] = from_union([from_none, from_bool], self.has_submitted_task)
         return result
 
 
@@ -16561,6 +16848,8 @@ class AssistantUsageApiEndpoint(Enum):
     RESPONSES = "/responses"
     # WebSocket Responses API endpoint.
     WS_RESPONSES = "ws:/responses"
+    # Gemini Interactions API endpoint.
+    INTERACTIONS = "/interactions"
 
 
 class AssistantUsageTransport(Enum):
@@ -16792,8 +17081,16 @@ class HumanResponseActor(Enum):
     UNKNOWN = "unknown"
 
 
+class HumanResponseAskUserAction(Enum):
+    "How the person refused a built-in `ask_user` question instead of answering it."
+    # The person explicitly declined the question.
+    DECLINE = "decline"
+    # The person dismissed the question.
+    CANCEL = "cancel"
+
+
 class HumanResponseRecordedResponseResponseKind(Enum):
-    "Exact runtime-owned question or reviewed plan paired with the typed response that settled it. discriminator"
+    "Exact runtime-owned question or reviewed plan paired with the typed response that settled it. A refusal records the question without an answer and never grants authority. discriminator"
     ASK_USER = "ask_user"
     USER_INPUT = "user_input"
     EXIT_PLAN_MODE = "exit_plan_mode"
@@ -17216,11 +17513,13 @@ class ModelDeselectedReason(Enum):
 
 
 class OmittedBinaryOmittedReason(Enum):
-    "Why the binary data is absent: it exceeded the inline size limit, or its asset was unavailable"
+    "Why the binary data is absent: it exceeded the inline size limit, its asset was unavailable, or its image format was unsupported"
     # Bytes exceeded the session's inline size limit.
     TOO_LARGE = "too_large"
     # The referenced binary asset could not be found (e.g. a truncated log).
     ASSET_UNAVAILABLE = "asset_unavailable"
+    # The image format or MIME label is not accepted by the model.
+    UNSUPPORTED_FORMAT = "unsupported_format"
 
 
 class OmittedBinaryType(Enum):
@@ -18106,7 +18405,7 @@ class WorkspaceFileChangedOperation(Enum):
     UPDATE = "update"
 
 
-SessionEventData = SessionJournalLinkData | SessionStartData | SessionResumeData | SessionRemoteSteerableChangedData | SessionErrorData | SessionIdleData | SessionAutopilotStoppedData | SessionTitleChangedData | SessionScheduleCreatedData | SessionScheduleCancelledData | SessionScheduleRearmedData | SessionAutopilotObjectiveChangedData | SessionInfoData | SessionIndexedSearchData | SessionWarningData | SessionModelChangeData | SessionModelDeselectedData | SessionAutoTierRecommendationData | SessionAutoTierSwitchFailedData | SessionModeChangedData | SessionModeNoticeDeliveredData | SessionSessionLimitsChangedData | SessionPermissionsChangedData | SessionPlanChangedData | SessionTodosChangedData | SessionWorkspaceFileChangedData | SessionHandoffData | SessionTruncationData | SessionSnapshotRewindData | SessionShutdownData | SessionUsageCheckpointData | SessionQuotaObservationData | SessionContextChangedData | SessionUsageInfoData | SessionContextClearedData | SessionCompactionStartData | SessionCompactionSummarizedData | SessionCompactionCompleteData | SessionTaskCompleteData | SessionCompletionReceiptData | SessionFusionRouteStartedData | SessionFusionRouteFailedData | SessionFusionResolvedData | SessionFusionCompletedData | SessionPermissionRecoveryData | UserMessageData | PendingMessagesModifiedData | AssistantTurnStartData | AssistantTurnRetryData | AgentInterruptedData | AssistantIntentData | AssistantFusionPhaseStartedData | AssistantFusionPhaseActivityData | AssistantFusionPhaseCompletedData | AssistantFusionPhaseFailedData | AssistantServerToolProgressData | AssistantReasoningData | AssistantReasoningDeltaData | AssistantToolCallDeltaData | AssistantStreamingDeltaData | AssistantMessageData | AssistantMessageStartData | AssistantMessageDeltaData | AssistantTurnEndData | AssistantIdleData | AssistantUsageData | PromptCacheBreakData | ModelCallFailureData | ModelCallFinalResultData | ModelCallFinishedData | ModelCallStartData | AbortData | ToolUserRequestedData | ToolExecutionStartData | ToolExecutionPartialResultData | ToolShellOutputData | ToolExecutionProgressData | ToolExecutionCompleteData | ToolSearchActivatedData | SkillInvokedData | SkillInvokedRefData | SkillContextDeliveredData | SkillContextDeliveredRefData | SandboxDecisionData | SubagentStartedData | SubagentConfiguredData | SubagentCompletedData | SubagentFailedData | SubagentSelectedData | SubagentDeselectedData | HookStartData | HookEndData | HookProgressData | SessionBinaryAssetData | SystemMessageData | InstructionUpdateData | SystemNotificationData | PermissionRequestedData | PermissionCompletedData | PermissionCarriedForwardData | PermissionMessageAuthorizationData | PermissionMessageAuthorizationReadData | PermissionMessageAuthorizationDegradedData | PermissionAssentDetectedData | PermissionContextualAuthorizationData | UserInputRequestedData | UserInputCompletedData | ElicitationRequestedData | ElicitationCompletedData | SamplingRequestedData | SamplingCompletedData | McpOauthRequiredData | McpOauthCompletedData | McpOauthRecoveryCompletedData | McpHeadersRefreshRequiredData | McpHeadersRefreshCompletedData | SessionCustomNotificationData | UiEphemeralQueryData | ExternalToolRequestedData | ExternalToolCompletedData | CommandQueuedData | CommandExecuteData | CommandCompletedData | AutoModeSwitchRequestedData | AutoModeSwitchCompletedData | AutoModeRecoveryConsentRequestedData | AutoModeRecoveryConsentCompletedData | AutoModeRecoveryOutcomeData | SessionLimitsExhaustedRequestedData | SessionLimitsExhaustedCompletedData | SessionAutoModeResolvedData | SessionManagedPluginProgressData | SessionManagedSettingsResolvedData | SessionManagedSettingsEnforcedData | CommandsChangedData | CapabilitiesChangedData | ExitPlanModeRequestedData | ExitPlanModeCompletedData | HumanResponseRecordedData | SessionToolsUpdatedData | SessionBackgroundTasksChangedData | WorkflowRunUpdatedData | WorkflowRunStartedData | WorkflowRunSettledData | SessionSkillsLoadedData | SessionCustomAgentsUpdatedData | SessionMcpServersLoadedData | SessionMcpServerStatusChangedData | SessionMcpServerToolsLoadedData | SessionMcpServerRemovedData | SessionMcpServerNeedsReconnectData | McpToolsListChangedData | McpResourcesListChangedData | McpPromptsListChangedData | SessionExtensionsLoadedData | SessionCanvasOpenedData | SessionCanvasRegistryChangedData | SessionCanvasClosedData | SessionCanvasUnavailableData | SessionCanvasRecordedData | SessionCanvasRemovedData | SessionExtensionsAttachmentsPushedData | McpAppToolCallCompleteData | RawSessionEventData | Data
+SessionEventData = IdeConnectionChangedData | IdeSelectionChangedData | IdeAddFileReferenceData | IdeElicitationCompleteData | SessionJournalLinkData | SessionStartData | SessionResumeData | SessionRemoteSteerableChangedData | SessionErrorData | SessionIdleData | SessionAutopilotStoppedData | SessionTitleChangedData | SessionScheduleCreatedData | SessionScheduleCancelledData | SessionScheduleRearmedData | SessionAutopilotObjectiveChangedData | SessionInfoData | SessionIndexedSearchData | SessionWarningData | SessionModelChangeData | SessionModelDeselectedData | SessionAutoTierRecommendationData | SessionAutoTierSwitchFailedData | SessionModeChangedData | SessionModeNoticeDeliveredData | SessionSessionLimitsChangedData | SessionPermissionsChangedData | SessionPlanChangedData | SessionTodosChangedData | SessionWorkspaceFileChangedData | SessionHandoffData | SessionTruncationData | SessionSnapshotRewindData | SessionShutdownData | SessionUsageCheckpointData | SessionQuotaObservationData | SessionContextChangedData | SessionUsageInfoData | SessionContextClearedData | SessionCompactionStartData | SessionCompactionSummarizedData | SessionCompactionCompleteData | SessionTaskCompleteData | SessionCompletionReceiptData | SessionFusionRouteStartedData | SessionFusionRouteFailedData | SessionFusionResolvedData | SessionFusionCompletedData | SessionPermissionRecoveryData | UserMessageData | PendingMessagesModifiedData | AssistantTurnStartData | AssistantTurnRetryData | AgentInterruptedData | AssistantIntentData | AssistantFusionPhaseStartedData | AssistantFusionPhaseActivityData | AssistantFusionPhaseCompletedData | AssistantFusionPhaseFailedData | AssistantServerToolProgressData | AssistantReasoningData | AssistantReasoningDeltaData | AssistantToolCallDeltaData | AssistantStreamingDeltaData | AssistantMessageData | AssistantMessageStartData | AssistantMessageDeltaData | AssistantTurnEndData | AssistantIdleData | AssistantUsageData | PromptCacheBreakData | ModelCallFailureData | ModelCallFinalResultData | ModelCallFinishedData | ModelCallStartData | AbortData | ToolUserRequestedData | ToolExecutionStartData | ToolExecutionPartialResultData | ToolShellOutputData | ToolExecutionProgressData | ToolExecutionCompleteData | ToolSearchActivatedData | SkillInvokedData | SkillInvokedRefData | SkillContextDeliveredData | SkillContextDeliveredRefData | SandboxDecisionData | SubagentStartedData | SubagentConfiguredData | SubagentCompletedData | SubagentFailedData | SubagentSelectedData | SubagentDeselectedData | HookStartData | HookEndData | HookProgressData | SessionBinaryAssetData | SystemMessageData | InstructionUpdateData | SystemNotificationData | PermissionRequestedData | PermissionCompletedData | PermissionCarriedForwardData | PermissionMessageAuthorizationData | PermissionMessageAuthorizationReadData | PermissionMessageAuthorizationDegradedData | PermissionAssentDetectedData | PermissionContextualAuthorizationData | UserInputRequestedData | UserInputCompletedData | ElicitationRequestedData | ElicitationCompletedData | SamplingRequestedData | SamplingCompletedData | McpOauthRequiredData | McpOauthCompletedData | McpOauthRecoveryCompletedData | McpHeadersRefreshRequiredData | McpHeadersRefreshCompletedData | SessionCustomNotificationData | UiEphemeralQueryData | ExternalToolRequestedData | ExternalToolCompletedData | CommandQueuedData | CommandExecuteData | CommandCompletedData | AutoModeSwitchRequestedData | AutoModeSwitchCompletedData | AutoModeRecoveryConsentRequestedData | AutoModeRecoveryConsentCompletedData | AutoModeRecoveryOutcomeData | SessionLimitsExhaustedRequestedData | SessionLimitsExhaustedCompletedData | SessionAutoModeResolvedData | SessionManagedPluginProgressData | SessionManagedSettingsResolvedData | SessionManagedSettingsEnforcedData | CommandsChangedData | CapabilitiesChangedData | ExitPlanModeRequestedData | ExitPlanModeCompletedData | HumanResponseRecordedData | SessionToolsUpdatedData | SessionBackgroundTasksChangedData | WorkflowRunUpdatedData | WorkflowRunStartedData | WorkflowRunSettledData | SessionSkillsLoadedData | SessionCustomAgentsUpdatedData | SessionMcpServersLoadedData | SessionMcpServerStatusChangedData | SessionMcpServerToolsLoadedData | SessionMcpServerRemovedData | SessionMcpServerNeedsReconnectData | McpToolsListChangedData | McpResourcesListChangedData | McpPromptsListChangedData | SessionExtensionsLoadedData | SessionCanvasOpenedData | SessionCanvasRegistryChangedData | SessionCanvasClosedData | SessionCanvasUnavailableData | SessionCanvasRecordedData | SessionCanvasRemovedData | SessionExtensionsAttachmentsPushedData | McpAppToolCallCompleteData | RawSessionEventData | Data
 
 
 @dataclass
@@ -18134,6 +18433,10 @@ class SessionEvent:
         timestamp = from_datetime(obj.get("timestamp"))
         data_obj = obj.get("data")
         match event_type:
+            case SessionEventType.IDE_CONNECTION_CHANGED: data = IdeConnectionChangedData.from_dict(data_obj)
+            case SessionEventType.IDE_SELECTION_CHANGED: data = IdeSelectionChangedData.from_dict(data_obj)
+            case SessionEventType.IDE_ADD_FILE_REFERENCE: data = IdeAddFileReferenceData.from_dict(data_obj)
+            case SessionEventType.IDE_ELICITATION_COMPLETE: data = IdeElicitationCompleteData.from_dict(data_obj)
             case SessionEventType.SESSION_JOURNAL_LINK: data = SessionJournalLinkData.from_dict(data_obj)
             case SessionEventType.SESSION_START: data = SessionStartData.from_dict(data_obj)
             case SessionEventType.SESSION_RESUME: data = SessionResumeData.from_dict(data_obj)
@@ -18484,9 +18787,20 @@ __all__ = [
     "HookProgressData",
     "HookStartData",
     "HumanResponseActor",
+    "HumanResponseAskUserAction",
     "HumanResponseRecordedData",
     "HumanResponseRecordedResponse",
     "HumanResponseRecordedResponseResponseKind",
+    "IdeAddFileReferenceData",
+    "IdeConnectedInfo",
+    "IdeConnectionChangedData",
+    "IdeElicitationCompleteData",
+    "IdeFileReference",
+    "IdePosition",
+    "IdeRange",
+    "IdeSelection",
+    "IdeSelectionChangedData",
+    "IdeSelectionRange",
     "IndexedSearchDisabledReason",
     "IndexedSearchErrorType",
     "IndexedSearchIncrementalPhase",

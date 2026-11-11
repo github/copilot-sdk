@@ -13,7 +13,7 @@ import com.fasterxml.jackson.annotation.JsonTypeInfo;
 import javax.annotation.processing.Generated;
 
 /**
- * Exact runtime-owned question or reviewed plan paired with the typed response that settled it.
+ * Exact runtime-owned question or reviewed plan paired with the typed response that settled it. A refusal records the question without an answer and never grants authority.
  *
  * @since 1.0.0
  */

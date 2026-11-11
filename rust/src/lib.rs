@@ -144,7 +144,7 @@ pub use indexmap::IndexMap;
 // JSON-RPC wire types are internal transport details.
 // External callers interact via Client/Session methods, not raw RPC.
 pub(crate) use jsonrpc::{
-    JsonRpcClient, JsonRpcError, JsonRpcNotification, JsonRpcRequest, JsonRpcResponse, error_codes,
+    JsonRpcClient, JsonRpcError, JsonRpcRequest, JsonRpcResponse, error_codes,
 };
 pub use memory_store::{MemoryStore, StoredMemory};
 pub use mode::{BUILTIN_TOOLS_ISOLATED, ClientMode, ToolSet};
@@ -494,12 +494,13 @@ pub struct ClientOptions {
     pub extension_launch_provider:
         Option<Arc<dyn crate::extension_launch_provider::ExtensionLaunchProvider>>,
     /// Network callbacks through which the SDK host decides the runtime's
-    /// proxies and supplies its Kerberos tokens.
+    /// proxies and supplies its Kerberos tokens and Basic proxy credentials.
     ///
     /// When set with at least one callback, the SDK handles the configured
-    /// `network.resolveProxy` and `network.authenticateNegotiate` requests and
-    /// registers with the runtime via `network.setProvider` during
-    /// [`Client::start`], before any session can be created.
+    /// `network.resolveProxy`, `network.authenticateNegotiate` and
+    /// `network.authenticateBasic` requests and registers with the runtime via
+    /// `network.setProvider` during [`Client::start`], before any session can
+    /// be created.
     ///
     /// **Experimental.** May change or be removed in future releases.
     pub network: Option<crate::network::NetworkConfig>,
@@ -1645,7 +1646,6 @@ struct ClientInner {
     rpc: JsonRpcClient,
     cwd: PathBuf,
     request_rx: parking_lot::Mutex<Option<mpsc::UnboundedReceiver<JsonRpcRequest>>>,
-    notification_tx: broadcast::Sender<Arc<JsonRpcNotification>>,
     router: router::SessionRouter,
     github_token_registry: Arc<github_token::GitHubTokenRegistry>,
     negotiated_protocol_version: OnceLock<u32>,
@@ -2810,12 +2810,16 @@ impl Client {
     ) -> Result<Self> {
         let setup_start = Instant::now();
         let (request_tx, request_rx) = mpsc::unbounded_channel::<JsonRpcRequest>();
-        let (notification_broadcast_tx, _) = broadcast::channel::<Arc<JsonRpcNotification>>(1024);
+        let (notification_tx, notification_rx) = mpsc::unbounded_channel();
         let (host_notification_tx, host_notification_rx) = mpsc::unbounded_channel();
+        let router = router::SessionRouter::new();
+        router.connect_dispatcher(&notification_tx);
         let rpc = JsonRpcClient::new_with_host_notifications(
             writer,
             reader,
-            notification_broadcast_tx.clone(),
+            Box::new(move |notification| {
+                let _ = notification_tx.send(router::DispatcherInput::Notification(notification));
+            }),
             request_tx,
             Some(host_notification_tx),
         );
@@ -2851,8 +2855,7 @@ impl Client {
                 rpc,
                 cwd,
                 request_rx: parking_lot::Mutex::new(Some(request_rx)),
-                notification_tx: notification_broadcast_tx,
-                router: router::SessionRouter::new(),
+                router,
                 github_token_registry: github_token_registry.clone(),
                 negotiated_protocol_version: OnceLock::new(),
                 state: parking_lot::Mutex::new(ConnectionState::Connected),
@@ -2883,7 +2886,7 @@ impl Client {
         extension_launch_provider.set_client(Arc::downgrade(&client.inner));
         installation_confirmation.set_client(Arc::downgrade(&client.inner));
         entra_token.set_client(Arc::downgrade(&client.inner));
-        client.spawn_lifecycle_dispatcher();
+        client.spawn_notification_dispatcher(notification_rx);
         client.spawn_ahp_host_dispatcher(host_notification_rx);
         client.register_ahp_session_factory()?;
         if client
@@ -2902,43 +2905,59 @@ impl Client {
         Ok(client)
     }
 
-    /// Spawn the background task that re-broadcasts `session.lifecycle`
-    /// notifications via [`ClientInner::lifecycle_tx`] to subscribers
-    /// returned by [`Self::subscribe_lifecycle`].
-    fn spawn_lifecycle_dispatcher(&self) {
-        let mut notif_rx = self.inner.notification_tx.subscribe();
+    /// Spawn the task that delivers every notification the read loop hands
+    /// over: `session.event` to its session, `session.lifecycle` to
+    /// [`Self::subscribe_lifecycle`] subscribers, and `gitHubTelemetry.event`
+    /// to the registered callback's own task.
+    ///
+    /// The read loop's channel to this task is unbounded and this task never
+    /// waits on a consumer or runs host code, so no notification is lost to
+    /// a backlog and no response waits behind one. Handing session events to
+    /// per-session channels in arrival order keeps each session's events in
+    /// order while a slow session holds up only itself.
+    fn spawn_notification_dispatcher(
+        &self,
+        mut notifications: mpsc::UnboundedReceiver<router::DispatcherInput>,
+    ) {
+        let sessions = self.inner.router.event_sink();
         let lifecycle_tx = self.inner.lifecycle_tx.clone();
+        let telemetry = self
+            .inner
+            .on_github_telemetry
+            .clone()
+            .map(spawn_github_telemetry_dispatcher);
         tokio::spawn(async move {
-            loop {
-                match notif_rx.recv().await {
-                    Ok(notification) => {
-                        if notification.method != "session.lifecycle" {
-                            continue;
+            while let Some(input) = notifications.recv().await {
+                let notification = match input {
+                    router::DispatcherInput::Notification(notification) => notification,
+                    router::DispatcherInput::Claim(session_id, token) => {
+                        sessions.claim(&session_id, token);
+                        continue;
+                    }
+                };
+                let Some(params) = notification.params else {
+                    continue;
+                };
+                match notification.method.as_str() {
+                    "session.event" => sessions.route(params),
+                    "session.lifecycle" => match SessionLifecycleEvent::deserialize(&params) {
+                        // `send` only errors when there are no subscribers.
+                        Ok(event) => {
+                            let _ = lifecycle_tx.send(event);
                         }
-                        let Some(params) = notification.params.as_ref() else {
-                            continue;
-                        };
-                        let event: SessionLifecycleEvent =
-                            match SessionLifecycleEvent::deserialize(params) {
-                                Ok(e) => e,
-                                Err(e) => {
-                                    warn!(
-                                        error = %e,
-                                        "failed to deserialize session.lifecycle notification"
-                                    );
-                                    continue;
-                                }
-                            };
-                        // `send` only errors when there are no subscribers — that's
-                        // the normal case before any consumer calls subscribe_lifecycle.
-                        let _ = lifecycle_tx.send(event);
+                        Err(e) => {
+                            warn!(error = %e, "failed to deserialize session.lifecycle notification");
+                        }
+                    },
+                    "gitHubTelemetry.event" => {
+                        if let Some(telemetry) = &telemetry {
+                            let _ = telemetry.send(params);
+                        }
                     }
-                    Err(tokio::sync::broadcast::error::RecvError::Lagged(n)) => {
-                        warn!(missed = n, "lifecycle dispatcher lagged");
-                    }
-                    Err(tokio::sync::broadcast::error::RecvError::Closed) => break,
+                    _ => {}
                 }
             }
+            sessions.close();
         });
     }
 
@@ -4305,6 +4324,39 @@ impl Client {
     pub fn subscribe_lifecycle(&self) -> LifecycleSubscription {
         LifecycleSubscription::new(self.inner.lifecycle_tx.subscribe())
     }
+}
+
+/// Run the host's telemetry callback on its own task, so a slow callback
+/// delays only later telemetry, never session or lifecycle delivery. Ends
+/// when the notification dispatcher drops the returned sender.
+fn spawn_github_telemetry_dispatcher(
+    callback: crate::github_telemetry::GitHubTelemetryCallback,
+) -> mpsc::UnboundedSender<serde_json::Value> {
+    let (tx, mut rx) = mpsc::unbounded_channel::<serde_json::Value>();
+    tokio::spawn(async move {
+        while let Some(params) = rx.recv().await {
+            // Client-global telemetry carries no routable session.
+            match serde_json::from_value::<crate::github_telemetry::GitHubTelemetryNotification>(
+                params,
+            ) {
+                Ok(telemetry) => {
+                    if std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+                        callback(telemetry)
+                    }))
+                    .is_err()
+                    {
+                        warn!(
+                            "gitHubTelemetry.event callback panicked; continuing telemetry delivery"
+                        );
+                    }
+                }
+                Err(e) => {
+                    warn!(error = %e, "failed to deserialize gitHubTelemetry.event notification");
+                }
+            }
+        }
+    });
+    tx
 }
 
 impl Drop for ClientInner {

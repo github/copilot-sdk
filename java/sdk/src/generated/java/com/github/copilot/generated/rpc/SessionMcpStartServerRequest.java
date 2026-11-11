@@ -32,7 +32,7 @@ public final class SessionMcpStartServerRequest {
     @JsonProperty("serverName")
     private final String serverName;
 
-    /** MCP server configuration (stdio process or remote HTTP/SSE). Omit to start the server with its already-registered configuration (config-free start-by-name). */
+    /** MCP server configuration (stdio, remote HTTP/SSE, or session-only local IDE endpoint). Local IDE endpoints never write persistent configuration. Omit to start with the already-registered configuration. */
     @JsonProperty("config")
     private Object config;
 
@@ -61,7 +61,7 @@ public final class SessionMcpStartServerRequest {
     /**
      * Returns the {@code config} property.
      *
-     * @return MCP server configuration (stdio process or remote HTTP/SSE). Omit to start the server with its already-registered configuration (config-free start-by-name).
+     * @return MCP server configuration (stdio, remote HTTP/SSE, or session-only local IDE endpoint). Local IDE endpoints never write persistent configuration. Omit to start with the already-registered configuration.
      */
     public Object getConfig() {
         return config;
@@ -79,7 +79,7 @@ public final class SessionMcpStartServerRequest {
     /**
      * Sets the {@code config} property.
      *
-     * @param value MCP server configuration (stdio process or remote HTTP/SSE). Omit to start the server with its already-registered configuration (config-free start-by-name).
+     * @param value MCP server configuration (stdio, remote HTTP/SSE, or session-only local IDE endpoint). Local IDE endpoints never write persistent configuration. Omit to start with the already-registered configuration.
      * @return this request
      */
     public SessionMcpStartServerRequest setConfig(Object value) {

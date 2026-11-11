@@ -64,13 +64,37 @@ public sealed class NetworkConfig
     /// </summary>
     /// <remarks>
     /// The runtime then does not look up Kerberos credentials itself, so a missing token or a failing callback fails
-    /// the request. <see cref="NetworkAuthenticateNegotiateRequest.Spn"/> uses the platform-independent
+    /// the request, unless the proxy also offers Basic and <see cref="AuthenticateBasic"/> supplies credentials.
+    /// <see cref="NetworkAuthenticateNegotiateRequest.Spn"/> uses the platform-independent
     /// <c>service/host[@REALM]</c> form; validate it before issuing credentials. Tokens must not be logged or persisted.
     /// The runtime waits at most 30 seconds for the callback (less when the request's own deadline is sooner). The
     /// callback supplies the initial SPNEGO token only; exchanges requiring continuation tokens are not supported.
     /// Proxies chosen by <see cref="ResolveProxy"/> are authenticated the same way.
     /// </remarks>
     public Func<NetworkAuthenticateNegotiateRequest, CancellationToken, Task<string?>>? AuthenticateNegotiate { get; init; }
+
+    /// <summary>
+    /// Gets the callback that returns credentials for a proxy's Basic challenge, or <see langword="null"/> when
+    /// credentials are unavailable, which fails the request with the proxy's challenge.
+    /// </summary>
+    /// <remarks>
+    /// Applies to requests the runtime tunnels through the proxy (<c>https</c> and <c>wss</c>). The runtime remembers
+    /// the answer for that proxy and uses it for later connections, until the proxy rejects it; then it calls again
+    /// with <see cref="NetworkAuthenticateBasicRequest.PreviousRejected"/> set, so answer with different credentials,
+    /// for example by asking the user, or with <see langword="null"/>. A later connection sends the answer without
+    /// waiting for a challenge, unless the runtime may try Negotiate with that proxy first. A connection submits at
+    /// most three sets of credentials. While a call is pending, other requests through that proxy wait for its
+    /// answer. When a proxy offers both Negotiate and Basic, the runtime prefers Negotiate and answers with Basic when
+    /// Negotiate is unavailable or the proxy rejects it.
+    /// <see cref="NetworkAuthenticateBasicRequest.Realm"/> comes from the proxy, so treat it as untrusted text. An empty
+    /// <see cref="NetworkAuthenticateBasicResult.Username"/> also counts as unavailable. The user name must not contain
+    /// a colon, and neither the user name nor the password may contain control characters, otherwise the request
+    /// fails. An omitted
+    /// <see cref="NetworkAuthenticateBasicResult.Password"/> means an empty password. The runtime does not time the
+    /// callback out: a request whose own deadline passes stops waiting, but the answer is still remembered.
+    /// Credentials must not be logged or persisted.
+    /// </remarks>
+    public Func<NetworkAuthenticateBasicRequest, CancellationToken, Task<NetworkAuthenticateBasicResult?>>? AuthenticateBasic { get; init; }
 }
 
 [Experimental(Diagnostics.Experimental)]
@@ -79,20 +103,26 @@ internal sealed class NetworkAdapter : INetworkHandler
     private readonly NetworkScope? _scope;
     private readonly Func<NetworkResolveProxyRequest, CancellationToken, Task<string?>>? _resolveProxy;
     private readonly Func<NetworkAuthenticateNegotiateRequest, CancellationToken, Task<string?>>? _authenticateNegotiate;
+    private readonly Func<NetworkAuthenticateBasicRequest, CancellationToken, Task<NetworkAuthenticateBasicResult?>>? _authenticateBasic;
 
     internal NetworkAdapter(NetworkConfig config)
     {
         _scope = config.Scope;
         _resolveProxy = config.ResolveProxy;
         _authenticateNegotiate = config.AuthenticateNegotiate;
+        _authenticateBasic = config.AuthenticateBasic;
     }
 
     /// <summary>Registers the configured callbacks, and the scope when set, with the runtime.</summary>
     internal Task RegisterAsync(ServerNetworkApi network, CancellationToken cancellationToken) =>
-        network.SetProviderAsync(
-            _scope,
-            _resolveProxy is null ? null : new NetworkResolveProxyOptions(),
-            _authenticateNegotiate is null ? null : new NetworkAuthenticateNegotiateOptions(),
+        network.SetProviderWithOptionsAsync(
+            new NetworkSetProviderRequest
+            {
+                Scope = _scope,
+                ResolveProxy = _resolveProxy is null ? null : new NetworkResolveProxyOptions(),
+                AuthenticateNegotiate = _authenticateNegotiate is null ? null : new NetworkAuthenticateNegotiateOptions(),
+                AuthenticateBasic = _authenticateBasic is null ? null : new NetworkAuthenticateBasicOptions(),
+            },
             cancellationToken);
 
     public async Task<NetworkResolveProxyResult> ResolveProxyAsync(
@@ -123,5 +153,20 @@ internal sealed class NetworkAdapter : INetworkHandler
         var token = await HostCallbacks.RunCancellableAsync(
             callback, request, "Negotiate authentication callback", cancellationToken).ConfigureAwait(false);
         return new NetworkAuthenticateNegotiateResult { Token = token };
+    }
+
+    public async Task<NetworkAuthenticateBasicResult> AuthenticateBasicAsync(
+        NetworkAuthenticateBasicRequest request,
+        CancellationToken cancellationToken = default)
+    {
+        var callback = _authenticateBasic
+            ?? throw new InvalidOperationException("No network.authenticateBasic callback registered");
+        // Leave the JSON-RPC reader for the thread pool, regardless of the current SynchronizationContext or
+        // TaskScheduler, before invoking the callback, so the reader can still deliver the runtime's cancellation of
+        // this request if the callback blocks.
+        await Task.CompletedTask.ConfigureAwait(ConfigureAwaitOptions.ForceYielding);
+        var credentials = await HostCallbacks.RunCancellableAsync(
+            callback, request, "Basic authentication callback", cancellationToken).ConfigureAwait(false);
+        return credentials ?? new NetworkAuthenticateBasicResult();
     }
 }

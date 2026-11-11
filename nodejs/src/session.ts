@@ -2477,6 +2477,9 @@ export class CopilotSession {
                     action: result.action,
                     ...(result.content ? { content: result.content } : {}),
                 },
+                ...(result.decisionContext !== undefined
+                    ? { decisionContext: result.decisionContext }
+                    : {}),
             });
         } catch {
             // Handler failed — attempt to cancel so the request doesn't hang

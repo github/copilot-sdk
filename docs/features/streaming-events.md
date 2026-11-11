@@ -498,7 +498,7 @@ Ephemeral. Token usage and cost information for an individual API call.
 | `initiator` | `string` | | What triggered this call (e.g., `"sub-agent"`); absent for user-initiated |
 | `apiCallId` | `string` | | Completion ID from the provider (e.g., `chatcmpl-abc123`) |
 | `serviceRequestId` | `string` | | Copilot service request ID (`x-copilot-service-request-id`) for CAPI log correlation |
-| `apiEndpoint` | `"/chat/completions" \| "/v1/messages" \| "/responses" \| "ws:/responses"` | | API endpoint used for the model call; useful for observability and cost attribution. `ws:/responses` is the websocket variant of the responses API |
+| `apiEndpoint` | `"/chat/completions" \| "/v1/messages" \| "/responses" \| "ws:/responses" \| "/interactions"` | | API endpoint used for the model call; useful for observability and cost attribution. `ws:/responses` is the websocket variant of the responses API; `/interactions` is the native Gemini Interactions API, served by CAPI or by a BYOK `google` provider |
 | `providerCallId` | `string` | | GitHub request tracing ID (`x-github-request-id`) |
 | `parentToolCallId` | `string` | | Deprecated. Use envelope-level `agentId` for sub-agent attribution |
 | `quotaSnapshots` | `Record<string, QuotaSnapshot>` | | Per-quota resource usage, keyed by quota identifier |

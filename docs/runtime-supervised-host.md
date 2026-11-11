@@ -654,7 +654,7 @@ is not claimed to implement the new host operations. Generated bindings in this
 branch come from the companion runtime's local schema, so release-based code
 generation must use that same companion release when its pin is advanced.
 
-The runtime repository's `.github/workflows/sdk-rust.yml` runs SDK feature checks in active
+The runtime repository's `.github/workflows/ci.yml` runs SDK feature checks in active
 monorepo CI.
 Its runtime-free feature checks do not activate the opt-in AHP E2Es.
 

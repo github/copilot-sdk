@@ -11,6 +11,14 @@ use crate::types::{RequestId, SessionId};
 /// Identifies the kind of session event.
 #[derive(Debug, Clone, Default, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub enum SessionEventType {
+    #[serde(rename = "ide.connection_changed")]
+    IdeConnectionChanged,
+    #[serde(rename = "ide.selection_changed")]
+    IdeSelectionChanged,
+    #[serde(rename = "ide.add_file_reference")]
+    IdeAddFileReference,
+    #[serde(rename = "ide.elicitation_complete")]
+    IdeElicitationComplete,
     #[serde(rename = "session.journal_link")]
     SessionJournalLink,
     #[serde(rename = "session.start")]
@@ -603,6 +611,14 @@ pub enum SessionEventType {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(tag = "type", content = "data")]
 pub enum SessionEventData {
+    #[serde(rename = "ide.connection_changed")]
+    IdeConnectionChanged(IdeConnectionChangedData),
+    #[serde(rename = "ide.selection_changed")]
+    IdeSelectionChanged(IdeSelectionChangedData),
+    #[serde(rename = "ide.add_file_reference")]
+    IdeAddFileReference(IdeAddFileReferenceData),
+    #[serde(rename = "ide.elicitation_complete")]
+    IdeElicitationComplete(IdeElicitationCompleteData),
     #[serde(rename = "session.journal_link")]
     SessionJournalLink(SessionJournalLinkData),
     #[serde(rename = "session.start")]
@@ -1182,6 +1198,124 @@ pub struct TypedSessionEvent {
     /// The typed event payload (discriminated by event type).
     #[serde(flatten)]
     pub payload: SessionEventData,
+}
+
+/// An IDE connection on the runtime host.
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct IdeConnectedInfo {
+    /// IDE display name.
+    pub ide_name: String,
+    /// IDE lock file path on the runtime host.
+    pub lock_file_path: String,
+    /// IDE process identifier on the runtime host.
+    pub pid: i64,
+    /// Registered MCP server name.
+    pub server_name: String,
+    /// Absolute workspace path on the runtime host.
+    pub workspace_folder: String,
+}
+
+/// A zero-based location in an IDE document.
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct IdePosition {
+    /// Zero-based character offset.
+    pub character: f64,
+    /// Zero-based line number.
+    pub line: f64,
+}
+
+/// The active selection range in an IDE document.
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct IdeSelectionRange {
+    /// End position.
+    pub end: IdePosition,
+    /// Whether the selection contains no text.
+    pub is_empty: bool,
+    /// Start position.
+    pub start: IdePosition,
+}
+
+/// A validated live IDE selection.
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct IdeSelection {
+    /// Whether the selection is current.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub current: Option<bool>,
+    /// Document path on the runtime host.
+    pub file_path: String,
+    /// Document URL supplied by the IDE.
+    pub file_url: String,
+    /// Selection endpoints and empty state.
+    pub selection: IdeSelectionRange,
+    /// Selected document text.
+    pub text: String,
+}
+
+/// Session event "ide.connection_changed". Live IDE state. This state never restores a connection from session history.
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct IdeConnectionChangedData {
+    /// Currently available IDE, absent during an outage.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub connected_ide: Option<IdeConnectedInfo>,
+    /// IDE whose tool definitions remain registered, including during an outage.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub retained_ide: Option<IdeConnectedInfo>,
+    /// Latest observed selection, absent after disconnect.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub selection: Option<IdeSelection>,
+}
+
+/// Session event "ide.selection_changed". A validated selection from the live IDE, or an explicit clear.
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct IdeSelectionChangedData {
+    /// Selection path, text, and source range, or null when the selection is cleared.
+    pub selection: Option<IdeSelection>,
+}
+
+/// The endpoints of an IDE file reference.
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct IdeRange {
+    /// End position.
+    pub end: IdePosition,
+    /// Start position.
+    pub start: IdePosition,
+}
+
+/// A validated IDE request to attach a file or selected text.
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct IdeFileReference {
+    /// Document path on the runtime host.
+    pub file_path: String,
+    /// Document URL supplied by the IDE.
+    pub file_url: String,
+    /// Selected text, or null for a whole file.
+    pub selected_text: Option<String>,
+    /// Selected range, or null for a whole file.
+    pub selection: Option<IdeRange>,
+}
+
+/// Session event "ide.add_file_reference". An IDE request to attach a file or selection to the composer.
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct IdeAddFileReferenceData {
+    /// Validated file reference or selected range.
+    pub reference: IdeFileReference,
+}
+
+/// Session event "ide.elicitation_complete". An IDE elicitation completion notification.
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct IdeElicitationCompleteData {
+    /// Elicitation identifier returned by the IDE.
+    pub elicitation_id: String,
 }
 
 /// Session event "session.journal_link". Links a standalone replay head to its complete preceding numbered journal archive.
@@ -2655,6 +2789,10 @@ pub(crate) struct CompactionCompleteAttemptMetrics {
     #[doc(hidden)]
     #[serde(skip_serializing_if = "Option::is_none")]
     pub(crate) deadline_policy: Option<String>,
+    /// Time a background compaction's summarizer was held for the turn's in-flight request to start responding before it was sent, in milliseconds. The compaction's deadline starts when the summarizer is sent. Absent when the summarizer was not held.
+    #[doc(hidden)]
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub(crate) dispatch_wait_ms: Option<i64>,
     /// Time from the start of the compaction to this event, in milliseconds, whatever the outcome
     #[doc(hidden)]
     pub(crate) duration_ms: i64,
@@ -3585,6 +3723,9 @@ pub struct UserMessageData {
     /// How this message was delivered to the agentic loop relative to loop state (idle-start vs. steering/queued while busy). The timing axis; combine with `source` (origin) for the full picture. Used for telemetry attribution.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub delivery: Option<UserMessageDelivery>,
+    /// Whether the submitted prompt or attachments contain a task, before adding generated context such as timestamps; independent of timeline display text. Absent in older events.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub has_submitted_task: Option<bool>,
     /// CAPI interaction ID for correlating this user message with its turn
     #[serde(skip_serializing_if = "Option::is_none")]
     pub interaction_id: Option<String>,
@@ -4627,7 +4768,7 @@ pub struct AssistantUsageData {
     /// GitHub request tracing ID (x-github-request-id header) for server-side log correlation
     #[serde(skip_serializing_if = "Option::is_none")]
     pub provider_call_id: Option<String>,
-    /// Fixed-set configured provider type of the bring-your-own-key model: "openai", "azure", "anthropic", "local_model" (a user-configured local model), "winml" (a Copilot-managed Windows ML model), or "other". Never the caller-supplied provider name. Absent for Copilot-served models.
+    /// Fixed-set configured provider type of the bring-your-own-key model: "openai", "azure", "anthropic", "google", "local_model" (a user-configured local model), "winml" (a Copilot-managed Windows ML model), or "other". Never the caller-supplied provider name. Absent for Copilot-served models.
     #[doc(hidden)]
     #[serde(skip_serializing_if = "Option::is_none")]
     pub(crate) provider_type: Option<String>,
@@ -4941,7 +5082,7 @@ pub struct ModelCallFailureData {
     /// GitHub request tracing ID (x-github-request-id header) for server-side log correlation
     #[serde(skip_serializing_if = "Option::is_none")]
     pub provider_call_id: Option<String>,
-    /// Fixed-set configured provider type of the bring-your-own-key model for the failed call: "openai", "azure", "anthropic", "local_model" (a user-configured local model), "winml" (a Copilot-managed Windows ML model), or "other". Never the caller-supplied provider name. Absent for Copilot-served models.
+    /// Fixed-set configured provider type of the bring-your-own-key model for the failed call: "openai", "azure", "anthropic", "google", "local_model" (a user-configured local model), "winml" (a Copilot-managed Windows ML model), or "other". Never the caller-supplied provider name. Absent for Copilot-served models.
     #[doc(hidden)]
     #[serde(skip_serializing_if = "Option::is_none")]
     pub(crate) provider_type: Option<String>,
@@ -9242,7 +9383,10 @@ pub struct ExitPlanModeCompletedData {
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct HumanResponseRecordedResponseAskUser {
-    /// Exact answer content accepted from the user.
+    /// How the person refused the question; absent for an accepted answer.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub action: Option<HumanResponseAskUserAction>,
+    /// Exact answer content accepted from the user; empty when the person refused the question.
     pub content: HashMap<String, serde_json::Value>,
     /// Exact question displayed to the user.
     pub message: String,
@@ -9258,11 +9402,14 @@ pub struct HumanResponseRecordedResponseUserInput {
     /// Whether the displayed request allowed a free-form answer.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub allow_freeform: Option<bool>,
-    /// Exact selected or free-form answer submitted by the user.
+    /// Exact selected or free-form answer submitted by the user; empty when the person dismissed the question.
     pub answer: String,
     /// Exact choices displayed to the user, when the request offered choices.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub choices: Option<Vec<String>>,
+    /// True when the person dismissed the question instead of answering it.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub dismissed: Option<bool>,
     /// Exact question displayed to the user.
     pub question: String,
     /// Runtime-owned response kind discriminator.
@@ -9290,7 +9437,7 @@ pub struct HumanResponseRecordedResponseExitPlanMode {
     pub recommended_action: ExitPlanModeAction,
     /// Runtime-owned response kind discriminator.
     pub response_kind: HumanResponseRecordedResponseExitPlanModeResponseKind,
-    /// Action selected by the user, when applicable.
+    /// Action the runtime applied for an approved plan: the user's selection, or the default an approval without one applies.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub selected_action: Option<ExitPlanModeAction>,
     /// Exact plan summary displayed to the user.
@@ -11303,6 +11450,9 @@ pub enum AssistantUsageApiEndpoint {
     /// WebSocket Responses API endpoint.
     #[serde(rename = "ws:/responses")]
     WsResponses,
+    /// Gemini Interactions API endpoint.
+    #[serde(rename = "/interactions")]
+    Interactions,
     /// Unknown variant for forward compatibility.
     #[default]
     #[serde(other)]
@@ -11703,7 +11853,7 @@ pub enum PersistedBinaryImageType {
     Unknown,
 }
 
-/// Why the binary data is absent: it exceeded the inline size limit, or its asset was unavailable
+/// Why the binary data is absent: it exceeded the inline size limit, its asset was unavailable, or its image format was unsupported
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
 pub enum OmittedBinaryOmittedReason {
     /// Bytes exceeded the session's inline size limit.
@@ -11712,6 +11862,9 @@ pub enum OmittedBinaryOmittedReason {
     /// The referenced binary asset could not be found (e.g. a truncated log).
     #[serde(rename = "asset_unavailable")]
     AssetUnavailable,
+    /// The image format or MIME label is not accepted by the model.
+    #[serde(rename = "unsupported_format")]
+    UnsupportedFormat,
     /// Unknown variant for forward compatibility.
     #[default]
     #[serde(other)]
@@ -13673,6 +13826,21 @@ pub enum HumanResponseActor {
     Unknown,
 }
 
+/// How the person refused a built-in `ask_user` question instead of answering it.
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub enum HumanResponseAskUserAction {
+    /// The person explicitly declined the question.
+    #[serde(rename = "decline")]
+    Decline,
+    /// The person dismissed the question.
+    #[serde(rename = "cancel")]
+    Cancel,
+    /// Unknown variant for forward compatibility.
+    #[default]
+    #[serde(other)]
+    Unknown,
+}
+
 /// Runtime-owned response kind discriminator.
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
 pub enum HumanResponseRecordedResponseAskUserResponseKind {
@@ -13697,7 +13865,7 @@ pub enum HumanResponseRecordedResponseExitPlanModeResponseKind {
     ExitPlanMode,
 }
 
-/// Exact runtime-owned question or reviewed plan paired with the typed response that settled it.
+/// Exact runtime-owned question or reviewed plan paired with the typed response that settled it. A refusal records the question without an answer and never grants authority.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(untagged)]
 pub enum HumanResponseRecordedResponse {

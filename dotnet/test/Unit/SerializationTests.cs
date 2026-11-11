@@ -19,6 +19,29 @@ namespace GitHub.Copilot.Test.Unit;
 public class SerializationTests
 {
     [Fact]
+    public void FetchErrorData_RoundTrips_WithSdkSerializerOptions()
+    {
+        var options = GetSerializerOptions();
+        const string credentialJson = """{"code":"credential_revoked"}""";
+        var credential = JsonSerializer.Deserialize<CredentialContextErrorData>(credentialJson, options)!;
+        Assert.Equal(CredentialContextErrorCode.CredentialRevoked, credential.Code);
+        Assert.Equal(credentialJson, JsonSerializer.Serialize(credential, options));
+
+        const string transportJson = """{"code":"ETIMEDOUT","kind":"timeout","networkError":true,"permanentRequestFailure":false}""";
+        var transport = JsonSerializer.Deserialize<FetchTransportErrorData>(transportJson, options)!;
+        Assert.Equal(FetchTransportErrorKind.Timeout, transport.Kind);
+        Assert.Equal("ETIMEDOUT", transport.Code);
+        Assert.True(transport.NetworkError);
+        Assert.False(transport.PermanentRequestFailure);
+        Assert.Equal(transportJson, JsonSerializer.Serialize(transport, options));
+
+        transport.Code = null;
+        using var omitted = JsonDocument.Parse(JsonSerializer.Serialize(transport, options));
+        Assert.False(omitted.RootElement.TryGetProperty("code", out _));
+        Assert.Null(JsonSerializer.Deserialize<FetchTransportErrorData>(omitted.RootElement, options)!.Code);
+    }
+
+    [Fact]
     public void ToJsonElementForWire_Serializes_Collection_And_Numeric_Answers()
     {
         var tags = CopilotClient.ToJsonElementForWire(new List<string> { "a", "b" })!.Value;

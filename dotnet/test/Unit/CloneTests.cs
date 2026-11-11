@@ -4,6 +4,7 @@
 
 using Xunit;
 using InstallationDecision = GitHub.Copilot.Rpc.InstallationDecision;
+using NetworkAuthenticateBasicResult = GitHub.Copilot.Rpc.NetworkAuthenticateBasicResult;
 using NetworkScope = GitHub.Copilot.Rpc.NetworkScope;
 using SandboxConfig = GitHub.Copilot.Rpc.SandboxConfig;
 
@@ -23,6 +24,7 @@ public class CloneTests
             Scope = NetworkScope.Runtime,
             ResolveProxy = (_request, _cancellationToken) => Task.FromResult<string?>(null),
             AuthenticateNegotiate = (_request, _cancellationToken) => Task.FromResult<string?>(null),
+            AuthenticateBasic = (_request, _cancellationToken) => Task.FromResult<NetworkAuthenticateBasicResult?>(null),
         };
         var original = new CopilotClientOptions
         {

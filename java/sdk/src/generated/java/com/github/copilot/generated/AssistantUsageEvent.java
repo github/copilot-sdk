@@ -85,7 +85,7 @@ public final class AssistantUsageEvent extends SessionEvent {
         @JsonProperty("byokKind") String byokKind,
         /** Fixed-set provider family serving the bring-your-own-key model (for example "openai", "anthropic", "azure_openai", "ollama", "llama_cpp", or "other"). Never the caller-supplied provider name. Absent for Copilot-served models. */
         @JsonProperty("modelProvider") String modelProvider,
-        /** Fixed-set configured provider type of the bring-your-own-key model: "openai", "azure", "anthropic", "local_model" (a user-configured local model), "winml" (a Copilot-managed Windows ML model), or "other". Never the caller-supplied provider name. Absent for Copilot-served models. */
+        /** Fixed-set configured provider type of the bring-your-own-key model: "openai", "azure", "anthropic", "google", "local_model" (a user-configured local model), "winml" (a Copilot-managed Windows ML model), or "other". Never the caller-supplied provider name. Absent for Copilot-served models. */
         @JsonProperty("providerType") String providerType,
         /** Whether Auto mode was selected for this model call */
         @JsonProperty("isAuto") Boolean isAuto,
@@ -215,7 +215,7 @@ public final class AssistantUsageEvent extends SessionEvent {
          * @param isByok Whether this model call used a bring-your-own-key provider
          * @param byokKind Where the bring-your-own-key model runs and who manages it: "local_managed" (on the device, managed by Copilot), "local_user" (on the device, managed by the user), or "remote_user" (off the device, managed by the user). Absent for Copilot-served models.
          * @param modelProvider Fixed-set provider family serving the bring-your-own-key model (for example "openai", "anthropic", "azure_openai", "ollama", "llama_cpp", or "other"). Never the caller-supplied provider name. Absent for Copilot-served models.
-         * @param providerType Fixed-set configured provider type of the bring-your-own-key model: "openai", "azure", "anthropic", "local_model" (a user-configured local model), "winml" (a Copilot-managed Windows ML model), or "other". Never the caller-supplied provider name. Absent for Copilot-served models.
+         * @param providerType Fixed-set configured provider type of the bring-your-own-key model: "openai", "azure", "anthropic", "google", "local_model" (a user-configured local model), "winml" (a Copilot-managed Windows ML model), or "other". Never the caller-supplied provider name. Absent for Copilot-served models.
          * @param isAuto Whether Auto mode was selected for this model call
          * @param maxPromptTokens Effective maximum prompt-token limit used for this model call
          * @param maxOutputTokens Requested maximum output tokens used for this model call
@@ -363,7 +363,7 @@ public final class AssistantUsageEvent extends SessionEvent {
          * @param isByok Whether this model call used a bring-your-own-key provider
          * @param byokKind Where the bring-your-own-key model runs and who manages it: "local_managed" (on the device, managed by Copilot), "local_user" (on the device, managed by the user), or "remote_user" (off the device, managed by the user). Absent for Copilot-served models.
          * @param modelProvider Fixed-set provider family serving the bring-your-own-key model (for example "openai", "anthropic", "azure_openai", "ollama", "llama_cpp", or "other"). Never the caller-supplied provider name. Absent for Copilot-served models.
-         * @param providerType Fixed-set configured provider type of the bring-your-own-key model: "openai", "azure", "anthropic", "local_model" (a user-configured local model), "winml" (a Copilot-managed Windows ML model), or "other". Never the caller-supplied provider name. Absent for Copilot-served models.
+         * @param providerType Fixed-set configured provider type of the bring-your-own-key model: "openai", "azure", "anthropic", "google", "local_model" (a user-configured local model), "winml" (a Copilot-managed Windows ML model), or "other". Never the caller-supplied provider name. Absent for Copilot-served models.
          * @param isAuto Whether Auto mode was selected for this model call
          * @param maxPromptTokens Effective maximum prompt-token limit used for this model call
          * @param maxOutputTokens Requested maximum output tokens used for this model call

@@ -108,6 +108,7 @@ async fn check_aborted_nested_dispatches(nested_first: bool) {
             &handlers,
             &Arc::new(Default::default()),
             notification,
+            false,
             &Arc::new(parking_lot::Mutex::new(Default::default())),
             &Arc::new(Default::default()),
             &Arc::new(parking_lot::RwLock::new(Default::default())),

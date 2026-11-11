@@ -8,6 +8,7 @@
 package com.github.copilot.generated.rpc;
 
 import com.github.copilot.CopilotExperimental;
+import java.util.Objects;
 import java.util.concurrent.CompletableFuture;
 import javax.annotation.processing.Generated;
 
@@ -79,7 +80,22 @@ public final class SessionUiApi {
     }
 
     /**
-     * Resolves a pending elicitation request after direct interaction in the trusted in-process client or authenticated owning host. Only an accepted response to the built-in ask_user tool can become trusted human evidence.
+     * Provides the user response for a pending elicitation request.
+     * <p>
+     * Accepts the extensible request, including inputs added after the params record.
+     *
+     * @apiNote This method is experimental and may change in a future version.
+     * @since 1.0.0
+     */
+    @CopilotExperimental
+    public CompletableFuture<SessionUiHandlePendingElicitationResult> handlePendingElicitation(SessionUiHandlePendingElicitationRequest request) {
+        com.fasterxml.jackson.databind.node.ObjectNode _p = MAPPER.valueToTree(Objects.requireNonNull(request, "request"));
+        _p.put("sessionId", this.sessionId);
+        return caller.invoke("session.ui.handlePendingElicitation", _p, SessionUiHandlePendingElicitationResult.class);
+    }
+
+    /**
+     * Resolves a pending elicitation request after direct interaction in the trusted in-process client or authenticated owning host. Only a response to the built-in ask_user tool becomes trusted human evidence; a decline or dismissal records the person's refusal, which grants nothing.
      * <p>
      * Note: the {@code sessionId} field in the params record is overridden
      * by the session-scoped wrapper; any value provided is ignored.
@@ -90,6 +106,21 @@ public final class SessionUiApi {
     @CopilotExperimental
     CompletableFuture<UIElicitationResult> handleHumanAskUser(SessionUiHandleHumanAskUserParams params) {
         com.fasterxml.jackson.databind.node.ObjectNode _p = MAPPER.valueToTree(params);
+        _p.put("sessionId", this.sessionId);
+        return caller.invoke("session.ui.handleHumanAskUser", _p, UIElicitationResult.class);
+    }
+
+    /**
+     * Resolves a pending elicitation request after direct interaction in the trusted in-process client or authenticated owning host. Only a response to the built-in ask_user tool becomes trusted human evidence; a decline or dismissal records the person's refusal, which grants nothing.
+     * <p>
+     * Accepts the extensible request, including inputs added after the params record.
+     *
+     * @apiNote This method is experimental and may change in a future version.
+     * @since 1.0.0
+     */
+    @CopilotExperimental
+    CompletableFuture<UIElicitationResult> handleHumanAskUser(SessionUiHandleHumanAskUserRequest request) {
+        com.fasterxml.jackson.databind.node.ObjectNode _p = MAPPER.valueToTree(Objects.requireNonNull(request, "request"));
         _p.put("sessionId", this.sessionId);
         return caller.invoke("session.ui.handleHumanAskUser", _p, UIElicitationResult.class);
     }
@@ -111,6 +142,21 @@ public final class SessionUiApi {
     }
 
     /**
+     * Resolves a pending `user_input.requested` event with the user's response.
+     * <p>
+     * Accepts the extensible request, including inputs added after the params record.
+     *
+     * @apiNote This method is experimental and may change in a future version.
+     * @since 1.0.0
+     */
+    @CopilotExperimental
+    public CompletableFuture<SessionUiHandlePendingUserInputResult> handlePendingUserInput(SessionUiHandlePendingUserInputRequest request) {
+        com.fasterxml.jackson.databind.node.ObjectNode _p = MAPPER.valueToTree(Objects.requireNonNull(request, "request"));
+        _p.put("sessionId", this.sessionId);
+        return caller.invoke("session.ui.handlePendingUserInput", _p, SessionUiHandlePendingUserInputResult.class);
+    }
+
+    /**
      * Resolves a pending `user_input.requested` event after direct interaction in the trusted in-process client or authenticated owning host.
      * <p>
      * Note: the {@code sessionId} field in the params record is overridden
@@ -122,6 +168,21 @@ public final class SessionUiApi {
     @CopilotExperimental
     CompletableFuture<UIHandlePendingResult> handleHumanUserInput(SessionUiHandleHumanUserInputParams params) {
         com.fasterxml.jackson.databind.node.ObjectNode _p = MAPPER.valueToTree(params);
+        _p.put("sessionId", this.sessionId);
+        return caller.invoke("session.ui.handleHumanUserInput", _p, UIHandlePendingResult.class);
+    }
+
+    /**
+     * Resolves a pending `user_input.requested` event after direct interaction in the trusted in-process client or authenticated owning host.
+     * <p>
+     * Accepts the extensible request, including inputs added after the params record.
+     *
+     * @apiNote This method is experimental and may change in a future version.
+     * @since 1.0.0
+     */
+    @CopilotExperimental
+    CompletableFuture<UIHandlePendingResult> handleHumanUserInput(SessionUiHandleHumanUserInputRequest request) {
+        com.fasterxml.jackson.databind.node.ObjectNode _p = MAPPER.valueToTree(Objects.requireNonNull(request, "request"));
         _p.put("sessionId", this.sessionId);
         return caller.invoke("session.ui.handleHumanUserInput", _p, UIHandlePendingResult.class);
     }
@@ -191,6 +252,21 @@ public final class SessionUiApi {
     }
 
     /**
+     * Resolves a pending `exit_plan_mode.requested` event with the user's response.
+     * <p>
+     * Accepts the extensible request, including inputs added after the params record.
+     *
+     * @apiNote This method is experimental and may change in a future version.
+     * @since 1.0.0
+     */
+    @CopilotExperimental
+    public CompletableFuture<SessionUiHandlePendingExitPlanModeResult> handlePendingExitPlanMode(SessionUiHandlePendingExitPlanModeRequest request) {
+        com.fasterxml.jackson.databind.node.ObjectNode _p = MAPPER.valueToTree(Objects.requireNonNull(request, "request"));
+        _p.put("sessionId", this.sessionId);
+        return caller.invoke("session.ui.handlePendingExitPlanMode", _p, SessionUiHandlePendingExitPlanModeResult.class);
+    }
+
+    /**
      * Resolves a pending `exit_plan_mode.requested` event after direct interaction in the trusted in-process client or authenticated owning host.
      * <p>
      * Note: the {@code sessionId} field in the params record is overridden
@@ -202,6 +278,21 @@ public final class SessionUiApi {
     @CopilotExperimental
     CompletableFuture<UIHandlePendingResult> handleHumanExitPlanMode(SessionUiHandleHumanExitPlanModeParams params) {
         com.fasterxml.jackson.databind.node.ObjectNode _p = MAPPER.valueToTree(params);
+        _p.put("sessionId", this.sessionId);
+        return caller.invoke("session.ui.handleHumanExitPlanMode", _p, UIHandlePendingResult.class);
+    }
+
+    /**
+     * Resolves a pending `exit_plan_mode.requested` event after direct interaction in the trusted in-process client or authenticated owning host.
+     * <p>
+     * Accepts the extensible request, including inputs added after the params record.
+     *
+     * @apiNote This method is experimental and may change in a future version.
+     * @since 1.0.0
+     */
+    @CopilotExperimental
+    CompletableFuture<UIHandlePendingResult> handleHumanExitPlanMode(SessionUiHandleHumanExitPlanModeRequest request) {
+        com.fasterxml.jackson.databind.node.ObjectNode _p = MAPPER.valueToTree(Objects.requireNonNull(request, "request"));
         _p.put("sessionId", this.sessionId);
         return caller.invoke("session.ui.handleHumanExitPlanMode", _p, UIHandlePendingResult.class);
     }

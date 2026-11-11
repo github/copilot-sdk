@@ -130,6 +130,20 @@ public final class GeneratedConstructorMigrationGuard {
                     new Construction(
                             "src/test/java/com/github/copilot/ClientTurnIdCompatibilityTest.java",
                             "com.github.copilot.ClientTurnIdCompatibilityTest"
+                                    + "#userMessageConstructorWithClientTurnIdKeepsArgumentMeaning()V",
+                            "com.github.copilot.generated.UserMessageEvent$UserMessageEventData",
+                            "(Ljava/util/List;Ljava/lang/String;Lcom/github/copilot/generated/ResponsesReasoning;"
+                                    + "Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/util/List;"
+                                    + "Ljava/util/List;Ljava/util/List;Ljava/lang/String;"
+                                    + "Lcom/github/copilot/generated/UserMessageDelivery;"
+                                    + "Lcom/github/copilot/generated/UserMessageAgentMode;Ljava/lang/Boolean;"
+                                    + "Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;)V",
+                            "new"),
+                    "Protects the client-turn user-message argument meanings and omission of the submitted-task marker."),
+            new CompatibilityConstruction(
+                    new Construction(
+                            "src/test/java/com/github/copilot/ClientTurnIdCompatibilityTest.java",
+                            "com.github.copilot.ClientTurnIdCompatibilityTest"
                                     + "#releasedSendParamsKeepTheirShapeAndRequestsCarryClientTurnId()V",
                             "com.github.copilot.generated.rpc.SessionSendParams",
                             "(Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/util/List;"

@@ -2384,12 +2384,18 @@ public sealed partial class CopilotSession : IAsyncDisposable
                 SessionId,
                 requestId);
             var responseRpcTimestamp = Stopwatch.GetTimestamp();
-            await Rpc.Ui.HandlePendingElicitationAsync(requestId, new UIElicitationResponse
+            // The label is a sibling of the answer, never part of it.
+            await Rpc.Ui.HandlePendingElicitationAsync(new UIHandlePendingElicitationRequest
             {
-                Action = result.Action,
-                Content = result.Content?.ToDictionary(
-                    kvp => kvp.Key,
-                    kvp => SerializeElicitationValue(kvp.Value))
+                RequestId = requestId,
+                Result = new UIElicitationResponse
+                {
+                    Action = result.Action,
+                    Content = result.Content?.ToDictionary(
+                        kvp => kvp.Key,
+                        kvp => SerializeElicitationValue(kvp.Value))
+                },
+                DecisionContext = result.DecisionContext
             });
             LoggingHelpers.LogTiming(_logger, LogLevel.Debug, null,
                 "CopilotSession.HandleElicitationRequestAsync response sent successfully. Elapsed={Elapsed}, SessionId={SessionId}, RequestId={RequestId}",

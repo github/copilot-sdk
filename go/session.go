@@ -83,12 +83,12 @@ type Session struct {
 	mcpAuthHandler                     MCPAuthHandler
 	mcpAuthRefreshHandler              MCPAuthRuntimeRefreshHandler
 	mcpAuthMu                          sync.RWMutex
-	userInputHandler                   UserInputHandler
+	userInputHandler                   AttributedUserInputHandler
 	userInputMux                       sync.RWMutex
 	shellAuthenticationHandler         ShellAuthenticationHandler
 	pendingShellAuthenticationRequests map[string]context.CancelFunc
 	shellAuthenticationMux             sync.RWMutex
-	exitPlanModeHandler                ExitPlanModeRequestHandler
+	exitPlanModeHandler                AttributedExitPlanModeRequestHandler
 	exitPlanModeMu                     sync.RWMutex
 	autoModeSwitchHandler              AutoModeSwitchRequestHandler
 	autoModeSwitchRecoveryHandler      AutoModeSwitchRequestHandlerWithAutoModeRecovery
@@ -99,7 +99,7 @@ type Session struct {
 	transformMu                        sync.Mutex
 	commandHandlers                    map[string]CommandHandler
 	commandHandlersMu                  sync.RWMutex
-	elicitationHandler                 ElicitationHandler
+	elicitationHandler                 AttributedElicitationHandler
 	elicitationMu                      sync.RWMutex
 	canvasHandler                      CanvasHandler
 	canvasMu                           sync.RWMutex
@@ -1179,13 +1179,31 @@ func (s *Session) getPermissionHandler() permissionHandlerFunc {
 //
 // This method is internal and typically called when creating a session.
 func (s *Session) registerUserInputHandler(handler UserInputHandler) {
+	s.registerAttributedUserInputHandler(userInputHandlerFor(handler, nil))
+}
+
+// registerAttributedUserInputHandler registers a user input handler whose
+// answers can say who answered.
+func (s *Session) registerAttributedUserInputHandler(handler AttributedUserInputHandler) {
 	s.userInputMux.Lock()
 	defer s.userInputMux.Unlock()
 	s.userInputHandler = handler
 }
 
+// userInputHandlerFor returns the handler a config selects: the attributed
+// handler when set, otherwise the plain handler, whose answers carry no label.
+func userInputHandlerFor(plain UserInputHandler, attributed AttributedUserInputHandler) AttributedUserInputHandler {
+	if attributed != nil || plain == nil {
+		return attributed
+	}
+	return func(request UserInputRequest, invocation UserInputInvocation) (AttributedUserInputResponse, error) {
+		response, err := plain(request, invocation)
+		return AttributedUserInputResponse{UserInputResponse: response}, err
+	}
+}
+
 // getUserInputHandler returns the currently registered user input handler, or nil.
-func (s *Session) getUserInputHandler() UserInputHandler {
+func (s *Session) getUserInputHandler() AttributedUserInputHandler {
 	s.userInputMux.RLock()
 	defer s.userInputMux.RUnlock()
 	return s.userInputHandler
@@ -1193,11 +1211,11 @@ func (s *Session) getUserInputHandler() UserInputHandler {
 
 // handleUserInputRequest handles a user input request from the Copilot CLI.
 // This is an internal method called by the SDK when the CLI requests user input.
-func (s *Session) handleUserInputRequest(request UserInputRequest) (UserInputResponse, error) {
+func (s *Session) handleUserInputRequest(request UserInputRequest) (AttributedUserInputResponse, error) {
 	handler := s.getUserInputHandler()
 
 	if handler == nil {
-		return UserInputResponse{}, fmt.Errorf("no user input handler registered")
+		return AttributedUserInputResponse{}, fmt.Errorf("no user input handler registered")
 	}
 
 	invocation := UserInputInvocation{
@@ -1297,23 +1315,39 @@ func (s *Session) cancelPendingShellAuthenticationRequests() {
 }
 
 func (s *Session) registerExitPlanModeHandler(handler ExitPlanModeRequestHandler) {
+	s.registerAttributedExitPlanModeHandler(exitPlanModeHandlerFor(handler, nil))
+}
+
+func (s *Session) registerAttributedExitPlanModeHandler(handler AttributedExitPlanModeRequestHandler) {
 	s.exitPlanModeMu.Lock()
 	defer s.exitPlanModeMu.Unlock()
 	s.exitPlanModeHandler = handler
 }
 
-func (s *Session) handleExitPlanModeRequest(request ExitPlanModeRequest) (ExitPlanModeResult, error) {
+// exitPlanModeHandlerFor returns the handler a config selects: the attributed
+// handler when set, otherwise the plain handler, whose results carry no label.
+func exitPlanModeHandlerFor(plain ExitPlanModeRequestHandler, attributed AttributedExitPlanModeRequestHandler) AttributedExitPlanModeRequestHandler {
+	if attributed != nil || plain == nil {
+		return attributed
+	}
+	return func(request ExitPlanModeRequest, invocation ExitPlanModeInvocation) (AttributedExitPlanModeResult, error) {
+		result, err := plain(request, invocation)
+		return AttributedExitPlanModeResult{ExitPlanModeResult: result}, err
+	}
+}
+
+func (s *Session) handleExitPlanModeRequest(request ExitPlanModeRequest) (AttributedExitPlanModeResult, error) {
 	s.exitPlanModeMu.RLock()
 	select {
 	case <-s.eventDone:
 		s.exitPlanModeMu.RUnlock()
-		return ExitPlanModeResult{}, errors.New("session closed before exit-plan-mode request")
+		return AttributedExitPlanModeResult{}, errors.New("session closed before exit-plan-mode request")
 	default:
 	}
 	handler := s.exitPlanModeHandler
 	s.exitPlanModeMu.RUnlock()
 	if handler == nil {
-		return ExitPlanModeResult{Approved: true}, nil
+		return AttributedExitPlanModeResult{ExitPlanModeResult: ExitPlanModeResult{Approved: true}}, nil
 	}
 
 	return handler(request, ExitPlanModeInvocation{SessionID: s.SessionID})
@@ -1639,13 +1673,31 @@ func callCommandHandler(handler CommandHandler, cmdCtx CommandContext) (err erro
 
 // registerElicitationHandler registers an elicitation handler for this session.
 func (s *Session) registerElicitationHandler(handler ElicitationHandler) {
+	s.registerAttributedElicitationHandler(elicitationHandlerFor(handler, nil))
+}
+
+// registerAttributedElicitationHandler registers an elicitation handler whose
+// results can say who answered.
+func (s *Session) registerAttributedElicitationHandler(handler AttributedElicitationHandler) {
 	s.elicitationMu.Lock()
 	defer s.elicitationMu.Unlock()
 	s.elicitationHandler = handler
 }
 
+// elicitationHandlerFor returns the handler a config selects: the attributed
+// handler when set, otherwise the plain handler, whose results carry no label.
+func elicitationHandlerFor(plain ElicitationHandler, attributed AttributedElicitationHandler) AttributedElicitationHandler {
+	if attributed != nil || plain == nil {
+		return attributed
+	}
+	return func(ctx ElicitationContext) (AttributedElicitationResult, error) {
+		result, err := plain(ctx)
+		return AttributedElicitationResult{ElicitationResult: result}, err
+	}
+}
+
 // getElicitationHandler returns the currently registered elicitation handler, or nil.
-func (s *Session) getElicitationHandler() ElicitationHandler {
+func (s *Session) getElicitationHandler() AttributedElicitationHandler {
 	s.elicitationMu.RLock()
 	defer s.elicitationMu.RUnlock()
 	return s.elicitationHandler
@@ -1759,18 +1811,19 @@ func (s *Session) handleElicitationRequest(elicitCtx ElicitationContext, request
 		}
 	}
 
-	s.RPC.UI.HandlePendingElicitation(ctx, &rpc.UIHandlePendingElicitationRequest{
+	s.RPC.UI.HandlePendingElicitationWithOptions(ctx, &rpc.UIHandlePendingElicitationOptions{
 		RequestID: requestID,
 		Result: rpc.UIElicitationResponse{
 			Action:  result.Action,
 			Content: rpcContent,
 		},
+		DecisionContext: result.DecisionContext,
 	})
 }
 
 // callElicitationHandler runs an elicitation handler and returns a panic as an
 // error, so the request is cancelled instead of the panic ending the process.
-func callElicitationHandler(handler ElicitationHandler, elicitCtx ElicitationContext) (result ElicitationResult, err error) {
+func callElicitationHandler(handler AttributedElicitationHandler, elicitCtx ElicitationContext) (result AttributedElicitationResult, err error) {
 	defer func() {
 		if r := recover(); r != nil {
 			err = fmt.Errorf("elicitation handler panic: %v", r)

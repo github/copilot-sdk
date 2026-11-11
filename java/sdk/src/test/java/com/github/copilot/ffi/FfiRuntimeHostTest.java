@@ -6,9 +6,17 @@ package com.github.copilot.ffi;
 
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertInstanceOf;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyInt;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoMoreInteractions;
+import static org.mockito.Mockito.when;
 
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
@@ -19,6 +27,7 @@ import java.util.Map;
 import java.util.TreeMap;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
@@ -28,6 +37,7 @@ import java.util.concurrent.atomic.AtomicReference;
 
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.CsvSource;
 import org.junit.jupiter.params.provider.ValueSource;
 
 import com.fasterxml.jackson.core.type.TypeReference;
@@ -336,6 +346,72 @@ class FfiRuntimeHostTest {
             assertDoesNotThrow(() -> nextHost.start("/tmp/entrypoint", new CopilotClientOptions()));
         }
         assertEquals(2, shutdowns.get(), "the sequential host must also shut down cleanly");
+    }
+
+    @ParameterizedTest
+    @CsvSource({"true, 11", "true, 0", "false, 11"})
+    void abandonedStartupReleasesLateHost(boolean interrupt, int hostHandle) throws Exception {
+        var nativeStarted = new CompletableFuture<Thread>();
+        var nativeResult = new CompletableFuture<Integer>();
+        AtomicBoolean interrupted = new AtomicBoolean();
+        AtomicInteger shutdowns = new AtomicInteger();
+        NativeBinding binding = mock(NativeBinding.class);
+        when(binding.hostStart(any(), anyInt(), any(), anyInt())).thenAnswer(invocation -> {
+            nativeStarted.complete(Thread.currentThread());
+            // Native startup cannot be cancelled by interrupting its Java worker.
+            return nativeResult.join();
+        });
+        when(binding.hostShutdown(anyInt())).thenAnswer(invocation -> {
+            shutdowns.incrementAndGet();
+            return true;
+        });
+
+        ExecutorService executor = Executors.newSingleThreadExecutor();
+        FfiRuntimeHost host = new FfiRuntimeHost(binding, "test-lib");
+        try {
+            var starting = executor.submit(() -> {
+                try {
+                    host.start(null, new CopilotClientOptions());
+                } finally {
+                    interrupted.set(Thread.currentThread().isInterrupted());
+                }
+            });
+            Thread nativeWorker = nativeStarted.get(5, TimeUnit.SECONDS);
+            if (interrupt) {
+                executor.shutdownNow();
+                var failure = assertThrows(ExecutionException.class, () -> starting.get(5, TimeUnit.SECONDS));
+                assertInstanceOf(IllegalStateException.class, failure.getCause());
+                assertInstanceOf(InterruptedException.class, failure.getCause().getCause());
+                assertTrue(interrupted.get(), "startup must preserve the caller's interrupt status");
+            } else {
+                host.close();
+            }
+
+            nativeResult.complete(hostHandle);
+            if (!interrupt) {
+                var failure = assertThrows(ExecutionException.class, () -> starting.get(5, TimeUnit.SECONDS));
+                assertEquals("FfiRuntimeHost was closed during startup.", failure.getCause().getMessage());
+            }
+            nativeWorker.join(5000);
+            assertFalse(nativeWorker.isAlive(), "native startup and its cleanup must finish");
+            assertEquals(hostHandle == 0 ? 0 : 1, shutdowns.get(), "abandoned startup must release its late host");
+        } finally {
+            nativeResult.complete(hostHandle);
+            host.close();
+            executor.shutdownNow();
+            assertTrue(executor.awaitTermination(5, TimeUnit.SECONDS), "startup caller must terminate");
+            Thread nativeWorker = nativeStarted.getNow(null);
+            if (nativeWorker != null) {
+                nativeWorker.join(5000);
+                assertFalse(nativeWorker.isAlive(), "native startup worker must terminate");
+            }
+        }
+
+        verify(binding).hostStart(any(), anyInt(), any(), anyInt());
+        if (hostHandle != 0) {
+            verify(binding).hostShutdown(hostHandle);
+        }
+        verifyNoMoreInteractions(binding);
     }
 
     @Test

@@ -279,6 +279,30 @@ func (e *SessionEvent) UnmarshalJSON(data []byte) error {
 			return err
 		}
 		e.Data = &d
+	case SessionEventTypeIdeAddFileReference:
+		var d IdeAddFileReferenceData
+		if err := json.Unmarshal(raw.Data, &d); err != nil {
+			return err
+		}
+		e.Data = &d
+	case SessionEventTypeIdeConnectionChanged:
+		var d IdeConnectionChangedData
+		if err := json.Unmarshal(raw.Data, &d); err != nil {
+			return err
+		}
+		e.Data = &d
+	case SessionEventTypeIdeElicitationComplete:
+		var d IdeElicitationCompleteData
+		if err := json.Unmarshal(raw.Data, &d); err != nil {
+			return err
+		}
+		e.Data = &d
+	case SessionEventTypeIdeSelectionChanged:
+		var d IdeSelectionChangedData
+		if err := json.Unmarshal(raw.Data, &d); err != nil {
+			return err
+		}
+		e.Data = &d
 	case SessionEventTypeInstructionUpdate:
 		var d InstructionUpdateData
 		if err := json.Unmarshal(raw.Data, &d); err != nil {
@@ -1088,6 +1112,7 @@ func (r *UserMessageData) UnmarshalJSON(data []byte) error {
 		ClientTurnID                     *string               `json:"clientTurnId,omitempty"`
 		Content                          string                `json:"content"`
 		Delivery                         *UserMessageDelivery  `json:"delivery,omitempty"`
+		HasSubmittedTask                 *bool                 `json:"hasSubmittedTask,omitempty"`
 		InteractionID                    *string               `json:"interactionId,omitempty"`
 		IsAutopilotContinuation          *bool                 `json:"isAutopilotContinuation,omitempty"`
 		MessageID                        *string               `json:"messageId,omitempty"`
@@ -1118,6 +1143,7 @@ func (r *UserMessageData) UnmarshalJSON(data []byte) error {
 	r.ClientTurnID = raw.ClientTurnID
 	r.Content = raw.Content
 	r.Delivery = raw.Delivery
+	r.HasSubmittedTask = raw.HasSubmittedTask
 	r.InteractionID = raw.InteractionID
 	r.IsAutopilotContinuation = raw.IsAutopilotContinuation
 	r.MessageID = raw.MessageID

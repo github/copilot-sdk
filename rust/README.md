@@ -160,7 +160,7 @@ leaves only direct-child cleanup, without crash-safe SDK-host-exit ownership.
 | `extra_args`        | `Vec<String>`               | Extra CLI flags                                                   |
 | `transport`         | `Transport`                 | `Default`, `Stdio`, `InProcess`, `Tcp`, or `External`             |
 | `extension_launch_provider` | `Option<Arc<dyn ExtensionLaunchProvider>>` | Connection-global extension launch resolver |
-| `network` | `Option<NetworkConfig>` | Experimental host-supplied proxy resolution and Negotiate authentication; see [Network callbacks](#network-callbacks-experimental) |
+| `network` | `Option<NetworkConfig>` | Experimental host-supplied proxy resolution and Negotiate and Basic proxy authentication; see [Network callbacks](#network-callbacks-experimental) |
 | `installation_confirmation_handler` | `Option<Arc<dyn InstallationConfirmationHandler>>` | Experimental connection-global human installation review |
 
 Set `ClientOptions::disable_client_telemetry` with
@@ -452,9 +452,10 @@ selected.
 
 Use `ClientOptions::with_network(config)` when the SDK host should take over
 parts of the runtime's networking, for example when the runtime runs in WSL or
-a container and should use VS Code's proxy settings and the host's Kerberos
-tickets. A `network::NetworkConfig` holds an optional scope and two optional
-callbacks; async functions and closures implement both provider traits.
+a container and should use VS Code's proxy settings, the host's Kerberos
+tickets or its proxy credentials. A `network::NetworkConfig` holds an optional
+scope and three optional callbacks; async functions and closures implement each
+provider trait.
 `Client::start` registers the configured callbacks before returning, so they
 precede every session; a failed registration fails startup. Without this
 option, or for a callback you leave out, the runtime handles that part itself.
@@ -482,12 +483,37 @@ option, or for a callback you leave out, the runtime handles that part itself.
   principal in the platform-independent `service/host[@REALM]` form; validate
   it before issuing credentials. It returns a fresh base64 SPNEGO token without
   the `Negotiate ` prefix, or `None` when credentials are unavailable, which
-  fails the request. The runtime waits at most 30 seconds for the provider
+  fails the request unless the proxy also offers Basic and the Basic provider
+  supplies credentials. The runtime waits at most 30 seconds for the provider
   (less when the request's own deadline is sooner). Tokens are not cached and
   must not be logged or persisted. The provider supplies the initial SPNEGO
   token only; exchanges requiring continuation tokens are not supported.
   Proxies chosen by the proxy resolution callback are authenticated the same
   way.
+- `NetworkConfig::with_authenticate_basic(provider)` supplies the credentials
+  for a proxy's Basic challenge on requests the runtime tunnels through the
+  proxy (`https` and `wss`). The `network::AuthenticateBasicProvider` receives
+  the generated `NetworkAuthenticateBasicRequest` with the challenging `proxy`
+  (`http://host:port` or `https://host:port`), the optional `realm`, which
+  comes from the proxy and is untrusted text, and `previous_rejected`, which is
+  true when the proxy rejected the credentials the connection sent last. It
+  returns a `NetworkAuthenticateBasicResult`, or `None` (or an empty user name)
+  when credentials are unavailable, which fails the request with the proxy's
+  challenge. The user name must not contain a colon, and neither the user name
+  nor the password may contain control characters; an omitted password is
+  empty. The runtime remembers the answer for that proxy and uses it for later
+  connections, until the proxy rejects it; then it asks again with
+  `previous_rejected` set, so return different credentials, for example by
+  asking the user, or `None`. A later connection sends the answer without
+  waiting for a challenge, unless the runtime may try Negotiate with that proxy
+  first. A connection submits at most three sets of credentials. While a call is
+  pending, other requests through that proxy wait for its answer. When a proxy
+  offers both Negotiate and Basic, the runtime prefers Negotiate and answers
+  with Basic when Negotiate is unavailable or the proxy rejects it. The runtime
+  does not time the provider out: a request whose own deadline passes stops
+  waiting, but the answer is still remembered.
+  Credentials must not be logged or persisted. Proxies chosen by the proxy
+  resolution callback are authenticated the same way.
 
 A provider error is returned to the runtime as a JSON-RPC error. When the
 runtime stops waiting (it cancels the request, for example after its timeout,
@@ -506,6 +532,7 @@ after `verify_protocol_version`.
 
 ```rust,no_run
 use github_copilot_sdk::network::{
+    NetworkAuthenticateBasicRequest, NetworkAuthenticateBasicResult,
     NetworkAuthenticateNegotiateRequest, NetworkConfig, NetworkResolveProxyRequest, NetworkScope,
 };
 use github_copilot_sdk::{Client, ClientOptions, Result};
@@ -523,12 +550,20 @@ async fn authenticate_negotiate(
     todo!()
 }
 
+async fn authenticate_basic(
+    request: NetworkAuthenticateBasicRequest,
+) -> Result<Option<NetworkAuthenticateBasicResult>> {
+    // Return the user name and password for `request.proxy`; never log them.
+    todo!()
+}
+
 let client = Client::start(
     ClientOptions::new().with_network(
         NetworkConfig::new()
             .with_scope(NetworkScope::Runtime)
             .with_resolve_proxy(resolve_proxy)
-            .with_authenticate_negotiate(authenticate_negotiate),
+            .with_authenticate_negotiate(authenticate_negotiate)
+            .with_authenticate_basic(authenticate_basic),
     ),
 ).await?;
 # Ok(())
@@ -1509,6 +1544,64 @@ Return `None` to signal "no answer available" (the CLI falls back to its own pro
 
 **Migration (breaking change):** `UserInputHandler::handle` and `ExitPlanModeHandler::handle` now take `request_id: Option<RequestId>` immediately after `session_id`. Add that parameter to existing implementations; handlers that don't need the ID can ignore it.
 
+#### Reporting a person's answers
+
+When a person answers in your UI, override `handle_attributed` and return an `AttributedResult` so Assisted Permissions can treat the answer as the person's own authority. `UserInputHandler`, `ExitPlanModeHandler`, and `ElicitationHandler` all have it; the SDK calls it, and its default returns `handle`'s answer unlabeled:
+
+```rust,no_run
+use async_trait::async_trait;
+use github_copilot_sdk::handler::{AttributedResult, UserInputHandler, UserInputResponse};
+use github_copilot_sdk::types::{RequestId, SessionId};
+use github_copilot_sdk::{
+    PermissionDecisionContext, PermissionDecisionOutcome, PermissionDecisionSource,
+    PermissionDecisionSurface, PermissionResponseCapability,
+};
+
+struct PersonAnswers;
+
+#[async_trait]
+impl UserInputHandler for PersonAnswers {
+    async fn handle(
+        &self,
+        sid: SessionId,
+        request_id: Option<RequestId>,
+        question: String,
+        choices: Option<Vec<String>>,
+        allow_freeform: Option<bool>,
+    ) -> Option<UserInputResponse> {
+        self.handle_attributed(sid, request_id, question, choices, allow_freeform)
+            .await
+            .map(|answer| answer.result)
+    }
+
+    async fn handle_attributed(
+        &self,
+        _sid: SessionId,
+        _request_id: Option<RequestId>,
+        _question: String,
+        _choices: Option<Vec<String>>,
+        _allow_freeform: Option<bool>,
+    ) -> Option<AttributedResult<UserInputResponse>> {
+        let answer = UserInputResponse {
+            answer: "Only src/app.rs".to_string(),
+            was_freeform: true,
+        };
+        Some(AttributedResult::new(
+            answer,
+            PermissionDecisionContext {
+                outcome: PermissionDecisionOutcome::PromptedUser,
+                response_capability: Some(PermissionResponseCapability::Interactive),
+                source: PermissionDecisionSource::HumanResponse,
+                surface: PermissionDecisionSurface::Sdk,
+                user_feedback: None,
+            },
+        ))
+    }
+}
+```
+
+Label a person's declines too; the runtime decides which answers carry authority. It accepts the label only from the connection that owns the session, so other connections' answers still settle, without it. Leave automated answers unlabeled. For permission decisions, use `PermissionResult::with_context`.
+
 ### Shell Password Prompts
 
 When a shell command the agent runs asks for a password or another answer (for example `sudo -A`, `ssh`, or `git` over HTTPS), install a `ShellAuthenticationHandler` to ask the user. The answer goes only to the program that asked; it is not shown to the model or recorded in session events. Without a handler, those commands fail as they would without a terminal. See [Shell password prompts](../docs/features/shell-password-prompts.md) for when the runtime asks.
@@ -1617,7 +1710,7 @@ When the event loop retires, it also releases registered tool-handler captures, 
 
 On resume with no active prepared subscriber, the SDK instead retains all routed startup events, durable and ephemeral, in an ordered bootstrap queue. The first `session.subscribe()` call claims that queue synchronously, even before the subscription is polled. It receives the complete prefix and any events dispatched while catching up, then atomically switches to bounded live delivery. Later subscribers receive newly dispatched live events immediately, even while the owner is draining.
 
-**The resume bootstrap is unbounded until its owner catches up.** Subscribe and drain promptly: a caller that never subscribes or cannot catch up can retain arbitrarily many events. Dropping the owner discards its unread backlog without transferring it to another subscriber. Stopping the session event loop releases an unclaimed backlog; a claimed backlog can still drain after ordinary shutdown without keeping the sender alive. Client force-stop discards the backlog even after it has been claimed. This guarantee covers events routed to the session, not overflow in the bounded client-global notification router.
+**The resume bootstrap is unbounded until its owner catches up.** Subscribe and drain promptly: a caller that never subscribes or cannot catch up can retain arbitrarily many events. Dropping the owner discards its unread backlog without transferring it to another subscriber. Stopping the session event loop releases an unclaimed backlog; a claimed backlog can still drain after ordinary shutdown without keeping the sender alive. Client force-stop discards the backlog even after it has been claimed. The client routes every session event it reads to its session without a bound, so a busy connection does not drop events before they reach the session.
 
 For create and resume calls with a client-known session ID, the SDK starts its event loop before sending the RPC so it can answer session-scoped requests issued during startup. Cloud creates with a server-assigned ID register the loop after the response identifies the session.
 
@@ -1712,7 +1805,7 @@ config.provider = Some(provider);
 # }
 ```
 
-Provider types include `"openai"`, `"azure"`, and `"anthropic"`. Set `wire_api` to `"completions"` or `"responses"` (OpenAI/Azure only). Custom headers go in `provider.headers`. The SDK forwards the configuration to the CLI verbatim — the CLI handles the upstream call, including authentication.
+Provider types include `"openai"`, `"azure"`, `"anthropic"`, and `"google"` (experimental; Google's native Gemini Interactions API). Set `wire_api` to `"completions"` or `"responses"` (OpenAI/Azure only). Custom headers go in `provider.headers`. The SDK forwards the configuration to the CLI verbatim — the CLI handles the upstream call, including authentication.
 
 ### Telemetry
 

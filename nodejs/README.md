@@ -36,10 +36,11 @@ the model source, not the agent harness, an account, or a new routing/selection 
 
 ## Network callbacks (experimental)
 
-Provide `network` in `CopilotClientOptions` when the SDK host should take over parts of the runtime's networking, for example when the runtime runs in WSL or a container and should use VS Code's proxy settings and the host's Kerberos tickets. Registration happens during `start()`, before sessions can be created. Without this option, or for a callback you leave out, the runtime handles that part itself.
+Provide `network` in `CopilotClientOptions` when the SDK host should take over parts of the runtime's networking, for example when the runtime runs in WSL or a container and should use VS Code's proxy settings, proxy credentials and the host's Kerberos tickets. Registration happens during `start()`, before sessions can be created. Without this option, or for a callback you leave out, the runtime handles that part itself.
 
 - `resolveProxy({ url }, signal)` decides the proxies for every request the runtime would otherwise route by ambient proxy settings: proxy environment variables, `NO_PROXY` and operating-system proxy settings are not consulted unless it returns `undefined`. `url` is the request target as a PAC script sees it: without credentials or fragment, and for `https` and `wss` also without path and query. Return a PAC-style list such as `PROXY proxy.example:8080; HTTPS proxy.example:443; DIRECT` (the format of Electron's `session.resolveProxy`); return `DIRECT` for a direct connection, or `undefined` to let the runtime resolve the proxy itself, as if no callback were registered. Entry types the runtime doesn't support, such as SOCKS and QUIC, are skipped. If the callback fails, the request fails rather than connecting directly. Requests to loopback targets, and requests with an explicitly configured proxy, never consult it. The runtime caches answers, including `undefined`, for 5 seconds and waits at most 10 seconds for the callback.
-- `authenticateNegotiate({ spn }, signal)` supplies the Kerberos token for a proxy's Negotiate challenge instead of the runtime's native credential lookup. `spn` is a service principal in the platform-independent `service/host[@REALM]` form; validate it before issuing credentials. Return a fresh base64 SPNEGO token without the `Negotiate ` prefix, or `undefined` when credentials are unavailable, which fails the request. The runtime waits at most 30 seconds for the callback (less when the request's own deadline is sooner). Tokens are not cached and must not be logged or persisted. The callback supplies the initial SPNEGO token only; exchanges requiring continuation tokens are not supported. Proxies chosen by `resolveProxy` are authenticated the same way.
+- `authenticateNegotiate({ spn }, signal)` supplies the Kerberos token for a proxy's Negotiate challenge instead of the runtime's native credential lookup. `spn` is a service principal in the platform-independent `service/host[@REALM]` form; validate it before issuing credentials. Return a fresh base64 SPNEGO token without the `Negotiate ` prefix, or `undefined` when credentials are unavailable, which fails the request unless the proxy also offers Basic and `authenticateBasic` supplies credentials. The runtime waits at most 30 seconds for the callback (less when the request's own deadline is sooner). Tokens are not cached and must not be logged or persisted. The callback supplies the initial SPNEGO token only; exchanges requiring continuation tokens are not supported. Proxies chosen by `resolveProxy` are authenticated the same way.
+- `authenticateBasic({ proxy, realm, previousRejected }, signal)` supplies the credentials for a proxy's Basic challenge on requests the runtime tunnels through the proxy (`https` and `wss`). `proxy` is the proxy as `http://host:port` or `https://host:port`; `realm` comes from the proxy, so treat it as untrusted text. Return `{ username, password }`, or `undefined` when credentials are unavailable, which fails the request with the proxy's challenge; an empty user name counts as unavailable, the user name must not contain a colon, neither the user name nor the password may contain control characters, and an omitted password means an empty one. The runtime remembers the answer for that proxy and uses it for later connections, until the proxy rejects it; then it calls again with `previousRejected` set, so return different credentials, for example by asking the user, or `undefined`. A later connection sends the answer without waiting for a challenge, unless the runtime may try Negotiate with that proxy first. A connection submits at most three sets of credentials. While a call is pending, other requests through that proxy wait for its answer. When a proxy offers both Negotiate and Basic, the runtime prefers Negotiate and answers with Basic when Negotiate is unavailable or the proxy rejects it. The runtime does not time the callback out: a request whose own deadline passes stops waiting, but the answer is still remembered. Credentials must not be logged or persisted.
 
 Each callback's `signal` aborts when the runtime stops waiting (it cancels the request, for example after its timeout, or the connection closes); the SDK then stops awaiting the callback and ignores any later result.
 
@@ -51,6 +52,8 @@ const client = new CopilotClient({
         scope: "runtime",
         resolveProxy: async ({ url }) => session.resolveProxy(url),
         authenticateNegotiate: async ({ spn }, signal) => acquireToken(spn, signal),
+        authenticateBasic: async ({ proxy, realm }, signal) =>
+            promptForCredentials(proxy, realm, signal),
     },
 });
 ```
@@ -259,6 +262,26 @@ the raw `mcp:<server-key>-<tool-name>` form. For `customAgents[].tools` and
 `defaultAgent.excludedTools`, use `<server-key>-<tool-name>` directly.
 
 ## API Reference
+
+### HTTP requests (experimental)
+
+Use `client.rpc.fetch.create()` to allocate a handle. Call `fetch.send()` with a required `responseMode`:
+
+- `"text"` returns HTTP metadata and complete UTF-8 text, with a default 1 MiB decoded body limit.
+- `"stream"` returns headers immediately. Call `fetch.read()` for base64 chunks until `done`, or `fetch.cancel()` for headers only.
+- `"file"` writes to `destinationPath` on the runtime host. It returns metadata, path, and size; an existing destination fails.
+
+Streaming chunks cross JSON-RPC. Prefer file mode for large bodies. Stream and file modes have no default limit; `bodyLimitBytes` accepts zero.
+
+All four methods are public to SDK clients, including extension connections. They do not require CLI admission.
+
+Only the connection that creates a handle can use it. Use `fetch.cancel()` to cancel a pending request or abandon a stream.
+Completed files survive cancellation and disconnect; the caller deletes them. Failures remove only incomplete request-created files. Remote clients cannot read host paths locally.
+Optional credential contexts retain their original connection and credential authority. Public fetch access does not grant access to another caller's credentials.
+
+The [runnable fetch example](examples/fetch.mjs) demonstrates all modes, file survival after disconnect, and caller cleanup against a local fixture.
+
+Import `FetchSendParams`, `FetchSendResult`, `FetchTransportErrorData`, `FetchFileErrorData`, and `CredentialContextErrorData` from `@github/copilot-sdk`.
 
 ### CopilotClient
 
@@ -1802,7 +1825,7 @@ The SDK supports custom OpenAI-compatible API providers (BYOK - Bring Your Own K
 
 **ProviderConfig:**
 
-- `type?: "openai" | "azure" | "anthropic"` - Provider type (default: "openai")
+- `type?: "openai" | "azure" | "anthropic" | "google"` - Provider type (default: "openai"). `"google"` (experimental) uses Google's native Gemini Interactions API.
 - `baseUrl: string` - API endpoint URL (required)
 - `apiKey?: string` - API key (optional for local providers like Ollama)
 - `bearerToken?: string` - Bearer token for authentication (takes precedence over apiKey)
@@ -2142,6 +2165,33 @@ const session = await client.createSession({
     },
 });
 ```
+
+### Reporting a person's answers
+
+When a person answers a prompt in your UI, label the result with `createAttributedResult` so Assisted Permissions can treat the answer as the person's own authority. The same label works for permission, user-input, plan-review, and elicitation handlers:
+
+<!-- docs-validate: strict -->
+
+```typescript
+import { createAttributedResult, type PermissionDecisionContext } from "@github/copilot-sdk";
+
+const personAnswered: PermissionDecisionContext = {
+    source: "human_response",
+    responseCapability: "interactive",
+    surface: "sdk",
+    outcome: "prompted_user",
+};
+
+const session = await client.createSession({
+    model: "gpt-5",
+    onUserInputRequest: async (request) =>
+        createAttributedResult({ answer: "Only src/app.ts", wasFreeform: true }, personAnswered),
+    onExitPlanModeRequest: async () =>
+        createAttributedResult({ approved: true, selectedAction: "interactive" }, personAnswered),
+});
+```
+
+Label a person's declines and dismissals too; the runtime decides which answers carry authority. It accepts the label only from the connection that owns the session, so other connections' answers still settle, without it. Leave automated answers unlabeled.
 
 ## Elicitation Requests
 

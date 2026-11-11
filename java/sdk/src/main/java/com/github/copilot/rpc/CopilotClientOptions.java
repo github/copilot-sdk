@@ -257,11 +257,11 @@ public class CopilotClientOptions {
 
     /**
      * Sets the network callbacks through which the SDK host decides the runtime's
-     * proxies and supplies its Kerberos tokens.
+     * proxies and supplies its Kerberos tokens and proxy credentials.
      * <p>
      * When the configuration has at least one callback, the client handles the
-     * runtime's {@code network.resolveProxy} and
-     * {@code network.authenticateNegotiate} requests for the configured callbacks
+     * runtime's {@code network.resolveProxy}, {@code network.authenticateNegotiate}
+     * and {@code network.authenticateBasic} requests for the configured callbacks
      * and registers them during startup, before any session can be created. Startup
      * fails if registration fails. The callbacks and scope are read when the client
      * starts.
@@ -612,9 +612,7 @@ public class CopilotClientOptions {
      * <p>
      * When set to {@link CopilotClientMode#EMPTY}, the SDK validates that the app
      * has supplied the required configuration (e.g.
-     * {@link #setCopilotHome(String)}) and translates session creation requests
-     * into runtime options that flip tool filter precedence to
-     * {@code excluded}-wins so exclusions are expressible.
+     * {@link #setCopilotHome(String)}).
      *
      * @param mode
      *            the client mode

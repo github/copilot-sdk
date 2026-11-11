@@ -40,6 +40,7 @@ public final class SubagentSelectedEvent extends SessionEvent {
         /** Human-readable display name of the selected custom agent */
         @JsonProperty("agentDisplayName") String agentDisplayName,
         /** List of tool names available to this agent, or null for all tools */
+        @JsonInclude(JsonInclude.Include.ALWAYS)
         @JsonProperty("tools") List<String> tools
     ) {
 

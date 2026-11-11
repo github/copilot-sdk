@@ -476,10 +476,7 @@ public sealed class CopilotClientOptions
     /// When set to <see cref="CopilotClientMode.Empty"/>, the SDK validates that
     /// the app has supplied the required configuration
     /// (<see cref="BaseDirectory"/> or <see cref="SessionFs"/>, plus
-    /// <see cref="SessionConfigBase.AvailableTools"/> on each session) and
-    /// translates session creation requests into runtime options that flip
-    /// tool filter precedence to <c>excluded</c>-wins so exclusions are
-    /// expressible.
+    /// <see cref="SessionConfigBase.AvailableTools"/> on each session).
     /// </remarks>
     public CopilotClientMode Mode { get; set; } = CopilotClientMode.CopilotCli;
 
@@ -588,7 +585,7 @@ public sealed class CopilotClientOptions
 
     /// <summary>
     /// Network callbacks through which the SDK host decides the runtime's proxies
-    /// and supplies its Kerberos tokens. When at least one callback is set, the SDK
+    /// and supplies its proxy credentials. When at least one callback is set, the SDK
     /// registers the callbacks during <c>StartAsync()</c> before any session can be created.
     /// </summary>
     [Experimental(global::GitHub.Copilot.Diagnostics.Experimental)]
@@ -1135,9 +1132,9 @@ public sealed class UserInputRequest
     /// Runtime request ID of the pending <c>user_input.requested</c> request.
     /// </summary>
     /// <remarks>
-    /// Pass it as <c>requestId</c> to the session's
-    /// <see cref="UiApi.HandlePendingUserInputAsync"/> (or the trusted
-    /// <c>session.ui.handleHumanUserInput</c> path) to correlate an out-of-band answer
+    /// Pass it as <c>RequestId</c> to the session's
+    /// <see cref="UiApi.HandlePendingUserInputAsync(UIHandlePendingUserInputRequest, System.Threading.CancellationToken)"/>,
+    /// with a <c>DecisionContext</c> when a person answered, to correlate an out-of-band answer
     /// with this request. <see langword="null"/> when the runtime predates this field.
     /// </remarks>
     [JsonPropertyName("requestId")]
@@ -1160,6 +1157,21 @@ public sealed class UserInputResponse
     /// </summary>
     [JsonPropertyName("wasFreeform")]
     public bool WasFreeform { get; set; }
+
+    /// <summary>
+    /// Who answered and how. Leave <see langword="null"/> for automated answers.
+    /// </summary>
+    /// <remarks>
+    /// When a person answered in your UI, set a context with
+    /// <see cref="PermissionDecisionSource.HumanResponse"/> and
+    /// <see cref="PermissionResponseCapability.Interactive"/>. The runtime then counts the
+    /// answer as the person's own authority for Assisted Permissions, but only from the
+    /// session's owning connection; an answer from any other connection settles without it.
+    /// </remarks>
+    [Experimental(global::GitHub.Copilot.Diagnostics.Experimental)]
+    [JsonPropertyName("decisionContext")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public PermissionDecisionContext? DecisionContext { get; set; }
 }
 
 /// <summary>
@@ -1405,9 +1417,9 @@ public sealed class ExitPlanModeRequest
     /// Runtime request ID of the pending <c>exit_plan_mode.requested</c> request.
     /// </summary>
     /// <remarks>
-    /// Pass it as <c>requestId</c> to the session's
-    /// <see cref="UiApi.HandlePendingExitPlanModeAsync"/> (or the trusted
-    /// <c>session.ui.handleHumanExitPlanMode</c> path) to correlate an out-of-band
+    /// Pass it as <c>RequestId</c> to the session's
+    /// <see cref="UiApi.HandlePendingExitPlanModeAsync(UIHandlePendingExitPlanModeRequest, System.Threading.CancellationToken)"/>,
+    /// with a <c>DecisionContext</c> when a person decided, to correlate an out-of-band
     /// decision with this request. <see langword="null"/> when the runtime predates this field.
     /// </remarks>
     [JsonPropertyName("requestId")]
@@ -1436,6 +1448,21 @@ public sealed class ExitPlanModeResult
     /// </summary>
     [JsonPropertyName("feedback")]
     public string? Feedback { get; set; }
+
+    /// <summary>
+    /// Who reviewed the plan and how. Leave <see langword="null"/> for automated reviews.
+    /// </summary>
+    /// <remarks>
+    /// When a person reviewed the plan in your UI, set a context with
+    /// <see cref="PermissionDecisionSource.HumanResponse"/> and
+    /// <see cref="PermissionResponseCapability.Interactive"/>. The runtime then counts the
+    /// review as the person's own for Assisted Permissions, but only from the session's
+    /// owning connection; a review from any other connection settles without it.
+    /// </remarks>
+    [Experimental(global::GitHub.Copilot.Diagnostics.Experimental)]
+    [JsonPropertyName("decisionContext")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public PermissionDecisionContext? DecisionContext { get; set; }
 }
 
 /// <summary>
@@ -1617,6 +1644,22 @@ public sealed class ElicitationResult
     /// Form values submitted by the user (present when <see cref="Action"/> is <c>Accept</c>).
     /// </summary>
     public IDictionary<string, object>? Content { get; set; }
+
+    /// <summary>
+    /// Who answered and how, when this result is returned from an
+    /// <see cref="SessionConfigBase.OnElicitationRequest"/> handler. Leave
+    /// <see langword="null"/> for automated answers.
+    /// </summary>
+    /// <remarks>
+    /// When a person answered in your UI, including when they declined or dismissed the
+    /// dialog, set a context with <see cref="PermissionDecisionSource.HumanResponse"/> and
+    /// <see cref="PermissionResponseCapability.Interactive"/>. The SDK sends it beside the
+    /// answer, and the runtime counts the answer as the person's own authority for Assisted
+    /// Permissions, but only from the session's owning connection. Results returned by
+    /// <see cref="ISessionUiApi.ElicitAsync"/> never carry a context.
+    /// </remarks>
+    [Experimental(global::GitHub.Copilot.Diagnostics.Experimental)]
+    public PermissionDecisionContext? DecisionContext { get; set; }
 }
 
 /// <summary>
@@ -1915,30 +1958,35 @@ public sealed class PreToolUseHookOutput
     /// </list>
     /// </summary>
     [JsonPropertyName("permissionDecision")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public string? PermissionDecision { get; set; }
 
     /// <summary>
     /// Human-readable reason for the permission decision.
     /// </summary>
     [JsonPropertyName("permissionDecisionReason")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public string? PermissionDecisionReason { get; set; }
 
     /// <summary>
     /// Modified arguments to pass to the tool instead of the original ones.
     /// </summary>
     [JsonPropertyName("modifiedArgs")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public object? ModifiedArgs { get; set; }
 
     /// <summary>
     /// Additional context to inject into the conversation for the language model.
     /// </summary>
     [JsonPropertyName("additionalContext")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public string? AdditionalContext { get; set; }
 
     /// <summary>
     /// Whether to suppress the tool's output from the conversation.
     /// </summary>
     [JsonPropertyName("suppressOutput")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public bool? SuppressOutput { get; set; }
 }
 
@@ -2099,18 +2147,21 @@ public sealed class PostToolUseHookOutput
     /// Modified result to replace the original tool result.
     /// </summary>
     [JsonPropertyName("modifiedResult")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public object? ModifiedResult { get; set; }
 
     /// <summary>
     /// Additional context to inject into the conversation for the language model.
     /// </summary>
     [JsonPropertyName("additionalContext")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public string? AdditionalContext { get; set; }
 
     /// <summary>
     /// Whether to suppress the tool's output from the conversation.
     /// </summary>
     [JsonPropertyName("suppressOutput")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public bool? SuppressOutput { get; set; }
 }
 

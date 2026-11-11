@@ -25,6 +25,43 @@ public sealed partial class ClientSessionLifetimeTests
 {
     private sealed record RpcRequestRecord(string Method, JsonElement Params);
 
+    [Theory]
+    [InlineData("stop")]
+    [InlineData("force")]
+    [InlineData("dispose")]
+    public async Task Shutdown_Cancels_Pending_Startup(string shutdown)
+    {
+        await using var server = await FakeCopilotServer.StartAsync();
+        var entered = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var release = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        server.BeforeResponseAsync = async (request, token) =>
+        {
+            if (request.Method != "connect") return;
+            entered.TrySetResult();
+            await release.Task.WaitAsync(token);
+        };
+        await using var client = new CopilotClient(new CopilotClientOptions { Connection = RuntimeConnection.ForUri(server.Url) });
+        var starting = client.StartAsync();
+        Task? stopping = null;
+        try
+        {
+            await entered.Task.WaitAsync(TimeSpan.FromSeconds(5));
+            stopping = shutdown switch
+            {
+                "stop" => client.StopAsync(),
+                "force" => client.ForceStopAsync(),
+                _ => client.DisposeAsync().AsTask()
+            };
+            await stopping.WaitAsync(TimeSpan.FromSeconds(5));
+            await Assert.ThrowsAnyAsync<OperationCanceledException>(() => starting);
+        }
+        finally
+        {
+            release.TrySetResult();
+            if (stopping is not null) await stopping.WaitAsync(TimeSpan.FromSeconds(5));
+        }
+    }
+
     [Fact]
     public async Task RawHistory_PreservesKnownEventJson_InAnalyticsRequests()
     {

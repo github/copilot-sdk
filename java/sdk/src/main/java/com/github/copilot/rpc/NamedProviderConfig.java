@@ -124,7 +124,7 @@ public class NamedProviderConfig {
     /**
      * Gets the provider type.
      *
-     * @return the provider type (e.g., "openai", "azure", "anthropic")
+     * @return the provider type (e.g., "openai", "azure", "anthropic", "google")
      */
     public String getType() {
         return type;
@@ -138,6 +138,7 @@ public class NamedProviderConfig {
      * <li>"openai" - OpenAI API</li>
      * <li>"azure" - Azure OpenAI Service</li>
      * <li>"anthropic" - Anthropic API</li>
+     * <li>"google" - Google Gemini Interactions API (experimental)</li>
      * </ul>
      *
      * @param type

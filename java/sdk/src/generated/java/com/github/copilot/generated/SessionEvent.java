@@ -25,6 +25,10 @@ import javax.annotation.processing.Generated;
 @JsonInclude(JsonInclude.Include.NON_NULL)
 @JsonTypeInfo(use = JsonTypeInfo.Id.NAME, include = JsonTypeInfo.As.EXISTING_PROPERTY, property = "type", visible = true, defaultImpl = UnknownSessionEvent.class)
 @JsonSubTypes({
+    @JsonSubTypes.Type(value = IdeConnectionChangedEvent.class, name = "ide.connection_changed"),
+    @JsonSubTypes.Type(value = IdeSelectionChangedEvent.class, name = "ide.selection_changed"),
+    @JsonSubTypes.Type(value = IdeAddFileReferenceEvent.class, name = "ide.add_file_reference"),
+    @JsonSubTypes.Type(value = IdeElicitationCompleteEvent.class, name = "ide.elicitation_complete"),
     @JsonSubTypes.Type(value = SessionJournalLinkEvent.class, name = "session.journal_link"),
     @JsonSubTypes.Type(value = SessionStartEvent.class, name = "session.start"),
     @JsonSubTypes.Type(value = SessionResumeEvent.class, name = "session.resume"),
@@ -191,6 +195,10 @@ import javax.annotation.processing.Generated;
 })
 @javax.annotation.processing.Generated("copilot-sdk-codegen")
 public abstract sealed class SessionEvent permits
+        IdeConnectionChangedEvent,
+        IdeSelectionChangedEvent,
+        IdeAddFileReferenceEvent,
+        IdeElicitationCompleteEvent,
         SessionJournalLinkEvent,
         SessionStartEvent,
         SessionResumeEvent,

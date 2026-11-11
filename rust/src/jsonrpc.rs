@@ -10,7 +10,7 @@ use parking_lot::{Mutex, RwLock};
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use tokio::io::{AsyncBufReadExt, AsyncRead, AsyncReadExt, AsyncWrite, AsyncWriteExt, BufReader};
-use tokio::sync::{broadcast, mpsc, oneshot};
+use tokio::sync::{mpsc, oneshot};
 use tokio::task::JoinHandle;
 use tokio_util::sync::CancellationToken;
 use tracing::{Instrument, debug, error, warn};
@@ -140,6 +140,10 @@ pub mod error_codes {
     /// Request cancelled by the peer's `$/cancelRequest` (-32800).
     pub const REQUEST_CANCELLED: i32 = -32800;
 }
+
+/// Receives each notification the read loop reads, in wire order. Must not
+/// block: the read loop calls it inline.
+pub(crate) type NotificationSink = Box<dyn Fn(JsonRpcNotification) + Send + Sync>;
 
 /// A JSON-RPC 2.0 notification (no `id`, no response expected).
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -631,6 +635,7 @@ impl CancellableRequests {
                 | crate::entra::ACQUIRE_METHOD
                 | crate::network::RESOLVE_PROXY_METHOD
                 | crate::network::AUTHENTICATE_NEGOTIATE_METHOD
+                | crate::network::AUTHENTICATE_BASIC_METHOD
                 | rpc_methods::SKILLPROVIDER_LIST
                 | rpc_methods::SKILLPROVIDER_READ
                 | rpc_methods::MEMORYSTORE_STORE
@@ -709,7 +714,6 @@ pub struct JsonRpcClient {
     write_tx: FrameSender,
     pending_requests: Arc<RwLock<HashMap<u64, PendingRequest>>>,
     raw_requests: Arc<AtomicUsize>,
-    notification_tx: broadcast::Sender<Arc<JsonRpcNotification>>,
     request_tx: mpsc::UnboundedSender<JsonRpcRequest>,
     request_handlers: RequestHandlers,
     connection_closed: CancellationToken,
@@ -722,20 +726,22 @@ impl JsonRpcClient {
     /// Create a new client from async read/write streams.
     ///
     /// Spawns two background tasks: a reader that dispatches incoming
-    /// messages to pending request channels, the notification broadcast,
+    /// messages to pending request channels, the notification channel,
     /// or the request-forwarding channel; and a writer actor that owns the
     /// underlying `AsyncWrite` and serializes frames atomically.
     #[cfg(any(test, feature = "test-support"))]
     pub fn new(
         writer: impl AsyncWrite + Unpin + Send + 'static,
         reader: impl AsyncRead + Unpin + Send + 'static,
-        notification_tx: broadcast::Sender<Arc<JsonRpcNotification>>,
+        notification_tx: mpsc::UnboundedSender<JsonRpcNotification>,
         request_tx: mpsc::UnboundedSender<JsonRpcRequest>,
     ) -> Self {
         Self::new_with_host_notifications(
             MessageWriter::stream(writer),
             reader,
-            notification_tx,
+            Box::new(move |notification| {
+                let _ = notification_tx.send(notification);
+            }),
             request_tx,
             None,
         )
@@ -744,7 +750,7 @@ impl JsonRpcClient {
     pub(crate) fn new_with_host_notifications(
         writer: MessageWriter,
         reader: impl AsyncRead + Unpin + Send + 'static,
-        notification_tx: broadcast::Sender<Arc<JsonRpcNotification>>,
+        notification_tx: NotificationSink,
         request_tx: mpsc::UnboundedSender<JsonRpcRequest>,
         host_notifications: Option<mpsc::UnboundedSender<JsonRpcNotification>>,
     ) -> Self {
@@ -774,7 +780,6 @@ impl JsonRpcClient {
             write_tx,
             pending_requests: Arc::new(RwLock::new(HashMap::new())),
             raw_requests: Arc::new(AtomicUsize::new(0)),
-            notification_tx,
             request_tx,
             request_handlers: Arc::new(RwLock::new(HashMap::new())),
             connection_closed,
@@ -785,7 +790,6 @@ impl JsonRpcClient {
 
         let pending_requests = client.pending_requests.clone();
         let raw_requests = client.raw_requests.clone();
-        let notification_tx_clone = client.notification_tx.clone();
         let request_tx_clone = client.request_tx.clone();
         let connection_closed = client.connection_closed.clone();
         let cancellable_requests = client.cancellable_requests.clone();
@@ -798,7 +802,7 @@ impl JsonRpcClient {
                 Self::read_loop(
                     reader,
                     pending_requests,
-                    (notification_tx_clone, host_notifications),
+                    (notification_tx, host_notifications),
                     request_tx_clone,
                     request_handlers,
                     write_tx,
@@ -917,7 +921,7 @@ impl JsonRpcClient {
         reader: impl AsyncRead + Unpin + Send,
         pending_requests: Arc<RwLock<HashMap<u64, PendingRequest>>>,
         notifications: (
-            broadcast::Sender<Arc<JsonRpcNotification>>,
+            NotificationSink,
             Option<mpsc::UnboundedSender<JsonRpcNotification>>,
         ),
         request_tx: mpsc::UnboundedSender<JsonRpcRequest>,
@@ -1023,8 +1027,10 @@ impl JsonRpcClient {
                         {
                             let _ = hosts.send(notification.clone());
                         }
-                        // Every receiver gets the same parsed notification, not its own copy.
-                        let _ = notifications.0.send(Arc::new(notification));
+                        // The sink never waits on, or drops for, a slow consumer:
+                        // responses behind this frame keep flowing, and every
+                        // notification reaches the client's dispatcher.
+                        (notifications.0)(notification);
                     }
                     JsonRpcMessage::Request(request) => {
                         let cancellable = CancellableRequests::honors_cancellation(&request.method);

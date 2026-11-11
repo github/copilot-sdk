@@ -12,14 +12,14 @@ pub(crate) use lifecycle_diagnostics::LifecycleDiagnosticEvent;
 use serde::{Deserialize, Serialize};
 pub use session_events::{
     AbortReason, AgentModelPolicy, AssistedApprovalAssessment, AutoTier, BlockedPermissionAction,
-    ContextTier, IndexedSearchState, ManagedPermissionsContext, ManagedSettingsResolvedSource,
-    McpOauthHttpResponse, McpOauthWWWAuthenticateParams, McpServerMetadata, McpServerSource,
-    McpServerStatus, McpSkillOrigin, ModelChangeSource, ModelProviderKind, ModelProviderRef,
-    OmittedBinaryOmittedReason, PermissionDecisionSource, PermissionMode, PermissionPromptRequest,
-    PermissionRule, PolicyHelperCapabilities, PolicyHelperFailure, ProviderQuotaState,
-    ReasoningSummary, RemediationAction, SessionLimitsConfig, SessionMode, ShutdownType,
-    SkillSource, TaskBlocker, TaskCompletionOutcome, UsageGetMetricsResult,
-    UserToolSessionApproval, Verbosity,
+    ContextTier, IdeConnectedInfo, IdeSelection, IndexedSearchState, ManagedPermissionsContext,
+    ManagedSettingsResolvedSource, McpOauthHttpResponse, McpOauthWWWAuthenticateParams,
+    McpServerMetadata, McpServerSource, McpServerStatus, McpSkillOrigin, ModelChangeSource,
+    ModelProviderKind, ModelProviderRef, OmittedBinaryOmittedReason, PermissionDecisionSource,
+    PermissionMode, PermissionPromptRequest, PermissionRule, PolicyHelperCapabilities,
+    PolicyHelperFailure, ProviderQuotaState, ReasoningSummary, RemediationAction,
+    SessionLimitsConfig, SessionMode, ShutdownType, SkillSource, TaskBlocker,
+    TaskCompletionOutcome, UsageGetMetricsResult, UserToolSessionApproval, Verbosity,
 };
 
 use super::sdk_api_shared::*;
@@ -67,7 +67,7 @@ pub struct SandboxCredentialSuggestionsResult {
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct SandboxDisableForSessionRequest {
-    /// Optional attribution for the permission decision.
+    /// Optional attribution for the permission decision. A claim that a person decided (`source` `human_response`) counts only from the session's authenticated owning connection or the in-process host.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub decision_context: Option<PermissionDecisionContext>,
     /// Identifier of the exact pending sandbox-bypass permission request that authorized the session opt-out.
@@ -278,7 +278,7 @@ pub struct SandboxGetRemoteMcpEgressResult {
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct SandboxGrantPathForRequestRequest {
-    /// Optional attribution for the permission decision.
+    /// Optional attribution for the permission decision. A claim that a person decided (`source` `human_response`) counts only from the session's authenticated owning connection or the in-process host.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub decision_context: Option<PermissionDecisionContext>,
     /// Identifier of the exact pending sandbox escalation permission request whose sandboxPathGrant to accept.

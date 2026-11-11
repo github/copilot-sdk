@@ -38,7 +38,7 @@ impl Peer {
             reply,
         });
         let sender = sink.clone();
-        let (notification_tx, _) = broadcast::channel(16);
+        let (notification_tx, _) = mpsc::unbounded_channel();
         let (request_tx, _) = mpsc::unbounded_channel();
         let rpc = JsonRpcClient::new_with_host_notifications(
             MessageWriter::Synchronous(Arc::new(move |frame| {
@@ -83,7 +83,9 @@ impl Peer {
                 Ok(())
             })),
             reader,
-            notification_tx,
+            Box::new(move |notification| {
+                let _ = notification_tx.send(notification);
+            }),
             request_tx,
             None,
         );
@@ -385,7 +387,7 @@ async fn close_cancels_completion_and_rejects_new_submission() {
 async fn stream_initiation_enqueues_without_polling_completion() {
     let (writer, reader) = tokio::io::duplex(8192);
     let (_peer_writer, client_reader) = tokio::io::duplex(8192);
-    let (notification_tx, _) = broadcast::channel(16);
+    let (notification_tx, _) = mpsc::unbounded_channel();
     let (request_tx, _) = mpsc::unbounded_channel();
     let rpc = JsonRpcClient::new(writer, client_reader, notification_tx, request_tx);
     let pending = rpc

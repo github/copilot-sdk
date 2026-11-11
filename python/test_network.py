@@ -16,6 +16,8 @@ import pytest
 from copilot import (
     CopilotClient,
     CopilotRequestHandler,
+    NetworkAuthenticateBasicRequest,
+    NetworkAuthenticateBasicResult,
     NetworkAuthenticateNegotiateRequest,
     NetworkConfig,
     NetworkResolveProxyRequest,
@@ -97,12 +99,17 @@ SESSION_FS_REGISTRATION = (
 )
 
 # Wire method -> (callback option, request params, error label).
-METHODS: dict[str, tuple[str, dict[str, str], str]] = {
+METHODS: dict[str, tuple[str, dict[str, Any], str]] = {
     "network.resolveProxy": ("resolve_proxy", {"url": "https://api.example/"}, "Proxy resolution"),
     "network.authenticateNegotiate": (
         "authenticate_negotiate",
         {"spn": "HTTP/proxy.example"},
         "Negotiate authentication",
+    ),
+    "network.authenticateBasic": (
+        "authenticate_basic",
+        {"proxy": "http://proxy.example:8080", "realm": "Example", "previousRejected": False},
+        "Basic authentication",
     ),
 }
 
@@ -122,9 +129,10 @@ METHODS: dict[str, tuple[str, dict[str, str], str]] = {
             {"scope": NetworkScope.CONNECTION, "resolve_proxy": _none},
             [{"scope": "connection", "resolveProxy": {}}],
         ),
+        ({"authenticate_basic": _none}, [{"authenticateBasic": {}}]),
         (
-            {"resolve_proxy": _none, "authenticate_negotiate": _none},
-            [{"resolveProxy": {}, "authenticateNegotiate": {}}],
+            {"resolve_proxy": _none, "authenticate_negotiate": _none, "authenticate_basic": _none},
+            [{"resolveProxy": {}, "authenticateNegotiate": {}, "authenticateBasic": {}}],
         ),
     ],
 )
@@ -311,8 +319,22 @@ async def test_answers_concurrent_lookups_missing_values_and_failures(monkeypatc
             return None
         return base64.b64encode(request.spn.encode()).decode()
 
-    def adapt(callback: Callable[[Any], str | None]) -> Callable[[Any], Any]:
-        async def run_async(request: Any) -> str | None:
+    def authenticate_basic(
+        request: NetworkAuthenticateBasicRequest,
+    ) -> NetworkAuthenticateBasicResult | None:
+        calls.append(request)
+        if request.proxy == "http://failing.example:8080":
+            raise RuntimeError("credentials failed")
+        if request.proxy == "http://unavailable.example:8080":
+            return None
+        if request.realm is None:
+            return NetworkAuthenticateBasicResult(
+                username="replacement" if request.previous_rejected else "user"
+            )
+        return NetworkAuthenticateBasicResult(username="user", password="secret")
+
+    def adapt(callback: Callable[[Any], object]) -> Callable[[Any], Any]:
+        async def run_async(request: Any) -> object:
             await asyncio.sleep(0)
             return callback(request)
 
@@ -336,6 +358,7 @@ async def test_answers_concurrent_lookups_missing_values_and_failures(monkeypatc
         network={
             "resolve_proxy": adapt(resolve_proxy),
             "authenticate_negotiate": adapt(authenticate_negotiate),
+            "authenticate_basic": adapt(authenticate_basic),
         },
     )
     client._client = rpc
@@ -348,6 +371,22 @@ async def test_answers_concurrent_lookups_missing_values_and_failures(monkeypatc
         ("network.authenticateNegotiate", {"spn": "ldap/directory.example@EXAMPLE.COM"}),
         ("network.authenticateNegotiate", {"spn": "HTTP/unavailable.example"}),
         ("network.authenticateNegotiate", {"spn": "HTTP/failing.example"}),
+        (
+            "network.authenticateBasic",
+            {"proxy": "http://proxy.example:8080", "realm": "Example", "previousRejected": False},
+        ),
+        (
+            "network.authenticateBasic",
+            {"proxy": "https://proxy.example:443", "previousRejected": True},
+        ),
+        (
+            "network.authenticateBasic",
+            {"proxy": "http://unavailable.example:8080", "previousRejected": False},
+        ),
+        (
+            "network.authenticateBasic",
+            {"proxy": "http://failing.example:8080", "previousRejected": False},
+        ),
     ]
 
     await asyncio.gather(
@@ -367,7 +406,15 @@ async def test_answers_concurrent_lookups_missing_values_and_failures(monkeypatc
     assert (sorted(calls, key=repr), sorted(sent, key=lambda message: message["id"])) == (
         sorted(
             [NetworkResolveProxyRequest(params["url"]) for _, params in requests[:3]]
-            + [NetworkAuthenticateNegotiateRequest(params["spn"]) for _, params in requests[3:]],
+            + [NetworkAuthenticateNegotiateRequest(params["spn"]) for _, params in requests[3:7]]
+            + [
+                NetworkAuthenticateBasicRequest(
+                    previous_rejected=params["previousRejected"],
+                    proxy=params["proxy"],
+                    realm=params.get("realm"),
+                )
+                for _, params in requests[7:]
+            ],
             key=repr,
         ),
         [
@@ -386,6 +433,10 @@ async def test_answers_concurrent_lookups_missing_values_and_failures(monkeypatc
             },
             {"jsonrpc": "2.0", "id": 5, "result": {}},
             {"jsonrpc": "2.0", "id": 6, "error": error("token failed")},
+            {"jsonrpc": "2.0", "id": 7, "result": {"username": "user", "password": "secret"}},
+            {"jsonrpc": "2.0", "id": 8, "result": {"username": "replacement"}},
+            {"jsonrpc": "2.0", "id": 9, "result": {}},
+            {"jsonrpc": "2.0", "id": 10, "error": error("credentials failed")},
         ],
     )
 
@@ -698,7 +749,7 @@ async def test_connection_close_retires_callbacks_that_suppress_cancellation(
         release.set()
 
 
-async def test_connection_lost_cancels_both_callbacks(monkeypatch) -> None:
+async def test_connection_lost_cancels_all_callbacks(monkeypatch) -> None:
     entered = {method: asyncio.Event() for method in METHODS}
     cancelled = {method: asyncio.Event() for method in METHODS}
     network = cast(
@@ -777,6 +828,7 @@ async def test_stale_connection_close_keeps_replacement_adapter_open(monkeypatch
             {"authenticate_negotiate": "not callable"},
             "network.authenticate_negotiate must be callable",
         ),
+        ({"authenticate_basic": "not callable"}, "network.authenticate_basic must be callable"),
     ],
 )
 def test_rejects_invalid_config(config, message) -> None:

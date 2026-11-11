@@ -1138,6 +1138,9 @@ pub enum SavedProviderConfigurationType {
     /// Anthropic API endpoint.
     #[serde(rename = "anthropic")]
     Anthropic,
+    /// Experimental: Google Gemini API endpoint, served over the native Gemini Interactions API.
+    #[serde(rename = "google")]
+    Google,
     /// Runtime-managed local model server.
     #[serde(rename = "local_model")]
     LocalModel,

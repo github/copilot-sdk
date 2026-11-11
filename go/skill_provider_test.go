@@ -476,7 +476,7 @@ func TestSkillProviderTeardown(t *testing.T) {
 	t.Run("connection loss clears provider", func(t *testing.T) {
 		client, server, provider, session := newSkillProviderOpenSession(t, "closed-session")
 
-		client.handleConnectionClose()
+		client.handleConnectionClose(client.client)
 		rpcErr := requestSkillProviderError(t, server, "skillProvider.list", map[string]any{"sessionId": session.SessionID})
 		assertSkillProviderError(t, rpcErr, "No skill provider for session: closed-session")
 		if got := provider.snapshotCalls(); len(got) != 0 {

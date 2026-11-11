@@ -5980,6 +5980,15 @@ type CopilotUserResponseQuotaSnapshotsPremiumInteractions struct {
 	Unlimited *bool `json:"unlimited,omitempty"`
 }
 
+// JSON-RPC error.data for application code -32004. Carries no credentials or provider error
+// details.
+// Experimental: CredentialContextErrorData is part of an experimental API and may change or
+// be removed.
+type CredentialContextErrorData struct {
+	// Stable discriminator. Consumers use this value instead of the error message.
+	Code CredentialContextErrorCode `json:"code"`
+}
+
 // The session's authoritative model snapshot. Auto preference fields are configuration for
 // the virtual `auto` model and do not change the selected model identifier. The context
 // tier reflects `Session.getContextTier()`, restored from the session journal on resume.
@@ -7886,6 +7895,226 @@ func (FeatureFlagNumberValue) featureFlagValue() {}
 type FeatureFlagStringValue string
 
 func (FeatureFlagStringValue) featureFlagValue() {}
+
+// Result of disposing a fetch handle.
+// Experimental: FetchCancelResult is part of an experimental API and may change or be
+// removed.
+type FetchCancelResult struct {
+	// True if this connection owned a live handle. False for unknown, disposed, or foreign
+	// handles.
+	Canceled bool `json:"canceled"`
+}
+
+// The connection-owned HTTP request handle allocated by fetch.create.
+// Experimental: FetchCreateResult is part of an experimental API and may change or be
+// removed.
+type FetchCreateResult struct {
+	// Opaque handle. Other connections cannot start, read, or cancel it.
+	RequestID string `json:"requestId"`
+}
+
+// JSON-RPC error.data for file creation, writes, completion, or incomplete-file cleanup
+// failures (-32603).
+// Experimental: FetchFileErrorData is part of an experimental API and may change or be
+// removed.
+type FetchFileErrorData struct {
+	// Always fileSystem; these errors do not describe an HTTP transport failure.
+	Kind FetchFileErrorKind `json:"kind"`
+	// The failed filesystem operation.
+	Operation FetchFileOperation `json:"operation"`
+	// Platform error number, when supplied by the operating system.
+	OsErrorCode *int64 `json:"osErrorCode,omitempty"`
+}
+
+// One HTTP header entry. Repeated names retain their value order.
+// Experimental: FetchHeader is part of an experimental API and may change or be removed.
+type FetchHeader struct {
+	// HTTP header name.
+	Name string `json:"name"`
+	// HTTP header value.
+	Value string `json:"value"`
+}
+
+// Per-request proxy environment. An empty object disables ambient proxies.
+// Experimental: FetchProxyEnv is part of an experimental API and may change or be removed.
+type FetchProxyEnv struct {
+	// Proxy for HTTP targets.
+	HTTPProxy *string `json:"httpProxy,omitempty"`
+	// Proxy for HTTPS targets.
+	HTTPSProxy *string `json:"httpsProxy,omitempty"`
+	// Comma-separated proxy bypass patterns.
+	NoProxy *string `json:"noProxy,omitempty"`
+}
+
+// A response byte range, or EOF. EOF and transport failures dispose the handle.
+// Experimental: FetchReadResult is part of an experimental API and may change or be removed.
+type FetchReadResult struct {
+	// Response bytes encoded as standard base64. Empty at EOF.
+	Body string `json:"body"`
+	// True at EOF. Do not read the handle again after EOF.
+	Done bool `json:"done"`
+	// At EOF, whether TLS did not attest to the end of a close-delimited event stream.
+	EndedAtUnverifiedEof bool `json:"endedAtUnverifiedEof"`
+}
+
+// A fetch handle owned by the SDK connection that created it.
+// Experimental: FetchRequestID is part of an experimental API and may change or be removed.
+type FetchRequestID struct {
+	// Opaque handle. Other connections cannot start, read, or cancel it.
+	RequestID string `json:"requestId"`
+}
+
+// An HTTP request through the shared network transport.
+// Experimental: FetchSendParams is part of an experimental API and may change or be removed.
+type FetchSendParams struct {
+	// Permit loopback DNS pins. Defaults to false. This is not a general URL admission policy.
+	AllowLocalhost *bool `json:"allowLocalhost,omitempty"`
+	// Request bytes encoded as standard base64. Omission sends no body.
+	Body *string `json:"body,omitempty"`
+	// Maximum decoded response bytes. Only text mode defaults to 1048576; file and stream modes
+	// have no default limit.
+	// Explicit zero permits only an empty body. Exceeding the limit fails without truncation.
+	BodyLimitBytes *int64 `json:"bodyLimitBytes,omitempty"`
+	// An existing connection-owned credential capability. Each same-origin hop resolves fresh
+	// credentials.
+	// Conflicting headers fail. Cross-origin redirects drop credentials but retain the original
+	// authority.
+	// HTTPS downgrades fail. Omission adds no service credentials.
+	CredentialContextID *string `json:"credentialContextId,omitempty"`
+	// Destination on the runtime host, required only for file mode. Must not already exist.
+	// The caller owns completed files. Failed or canceled requests remove their incomplete
+	// files.
+	DestinationPath *string `json:"destinationPath,omitempty"`
+	// Disable idle connection reuse. Defaults to false.
+	DisableConnectionReuse *bool `json:"disableConnectionReuse,omitempty"`
+	// Header entries in input order. Repeated names are not combined.
+	Headers []FetchHeader `json:"headers,omitzero"`
+	// HTTP method. Defaults to GET.
+	Method *string `json:"method,omitempty"`
+	// DNS address pins. Internal pins bypass proxies; public pins yield to configured proxies.
+	PinnedAddresses []string `json:"pinnedAddresses,omitzero"`
+	// Proxy overrides. Omission reads the process proxy environment per request.
+	ProxyEnv *FetchProxyEnv `json:"proxyEnv,omitempty"`
+	// Force proxy Negotiate authentication when supported. Defaults to false; automatic proxy
+	// negotiation remains enabled.
+	ProxyNegotiateAuth *bool `json:"proxyNegotiateAuth,omitempty"`
+	// Optional proxy Kerberos service principal override.
+	ProxyNegotiateSpn *string `json:"proxyNegotiateSpn,omitempty"`
+	// Read timeout in milliseconds. Defaults to 700000. Explicit zero is preserved.
+	ReadTimeoutMs *int64 `json:"readTimeoutMs,omitempty"`
+	// Redirect policy. Defaults to follow.
+	Redirect *FetchRedirect `json:"redirect,omitempty"`
+	// Connection-owned handle returned by fetch.create. Each handle can start only once.
+	RequestID string `json:"requestId"`
+	// Response consumption mode. Stream returns headers immediately; text and file consume the
+	// complete body.
+	ResponseMode FetchResponseMode `json:"responseMode"`
+	// Total request timeout in milliseconds, including body consumption. Omission sets no total
+	// deadline.
+	TimeoutMs *int64 `json:"timeoutMs,omitempty"`
+	// Absolute target URL.
+	URL string `json:"url"`
+}
+
+// HTTP response metadata and the selected body representation. HTTP error statuses remain
+// successful transport outcomes.
+// Experimental: FetchSendResult is part of an experimental API and may change or be removed.
+type FetchSendResult interface {
+	fetchSendResult()
+	ResponseMode() FetchResponseMode
+}
+
+type RawFetchSendResultData struct {
+	Discriminator FetchResponseMode
+	Raw           json.RawMessage
+}
+
+func (RawFetchSendResultData) fetchSendResult() {}
+func (r RawFetchSendResultData) ResponseMode() FetchResponseMode {
+	return r.Discriminator
+}
+
+// Completed caller-owned file. Cancellation and disconnect do not remove it.
+type FetchSendResultFile struct {
+	// Whether TLS did not attest to the end of a close-delimited event stream.
+	EndedAtUnverifiedEof bool `json:"endedAtUnverifiedEof"`
+	// Headers including repeated names in value order. Distinct-name order is
+	// transport-dependent.
+	Headers []FetchHeader `json:"headers"`
+	// Caller-specified path on the runtime host. Remote clients do not receive the file bytes.
+	Path string `json:"path"`
+	// Number of decoded response bytes written.
+	SizeBytes int64 `json:"sizeBytes"`
+	// HTTP status code, including non-success statuses.
+	Status int32 `json:"status"`
+	// HTTP reason phrase.
+	StatusText string `json:"statusText"`
+	// Final URL after redirects.
+	URL string `json:"url"`
+}
+
+func (FetchSendResultFile) fetchSendResult() {}
+func (FetchSendResultFile) ResponseMode() FetchResponseMode {
+	return FetchResponseModeFile
+}
+
+// Headers are available; fetch.read consumes the body and fetch.cancel discards it.
+type FetchSendResultStream struct {
+	// Headers including repeated names in value order. Distinct-name order is
+	// transport-dependent.
+	Headers []FetchHeader `json:"headers"`
+	// HTTP status code, including non-success statuses.
+	Status int32 `json:"status"`
+	// HTTP reason phrase.
+	StatusText string `json:"statusText"`
+	// Final URL after redirects.
+	URL string `json:"url"`
+}
+
+func (FetchSendResultStream) fetchSendResult() {}
+func (FetchSendResultStream) ResponseMode() FetchResponseMode {
+	return FetchResponseModeStream
+}
+
+// Complete response text with replacement for malformed UTF-8 and the initial UTF-8 BOM
+// omitted.
+type FetchSendResultText struct {
+	// Complete text decoded as WHATWG Response.text(), independent of the Content-Type charset.
+	BodyText string `json:"bodyText"`
+	// Whether TLS did not attest to the end of a close-delimited event stream.
+	EndedAtUnverifiedEof bool `json:"endedAtUnverifiedEof"`
+	// Headers including repeated names in value order. Distinct-name order is
+	// transport-dependent.
+	Headers []FetchHeader `json:"headers"`
+	// HTTP status code, including non-success statuses.
+	Status int32 `json:"status"`
+	// HTTP reason phrase.
+	StatusText string `json:"statusText"`
+	// Final URL after redirects.
+	URL string `json:"url"`
+}
+
+func (FetchSendResultText) fetchSendResult() {}
+func (FetchSendResultText) ResponseMode() FetchResponseMode {
+	return FetchResponseModeText
+}
+
+// JSON-RPC error.data for fetch.send/read transport failures (-32603). The transport-code
+// token remains unchanged.
+// Experimental: FetchTransportErrorData is part of an experimental API and may change or be
+// removed.
+type FetchTransportErrorData struct {
+	// The engine transport code, when available. An unclassified HTTP client failure uses
+	// "unknown".
+	Code *string `json:"code,omitempty"`
+	// The shared engine's failure category.
+	Kind FetchTransportErrorKind `json:"kind"`
+	// The engine's network-error classification. This does not select a retry policy.
+	NetworkError bool `json:"networkError"`
+	// The engine's permanent-request-failure classification. This does not select a retry
+	// policy.
+	PermanentRequestFailure bool `json:"permanentRequestFailure"`
+}
 
 // Content filtering mode to apply to all tools, or a map of tool name to content filtering
 // mode.
@@ -10118,6 +10347,70 @@ type HostValidateAuthenticationRequest struct {
 	RequestID string `json:"requestId"`
 	// Decrypted admission token.
 	Token string `json:"token"`
+}
+
+// An IDE connection on the runtime host.
+// Experimental: IdeConnectedInfo is part of an experimental API and may change or be
+// removed.
+type IdeConnectedInfo struct {
+	// IDE display name.
+	IdeName string `json:"ideName"`
+	// IDE lock file path on the runtime host.
+	LockFilePath string `json:"lockFilePath"`
+	// IDE process identifier on the runtime host.
+	Pid int64 `json:"pid"`
+	// Registered MCP server name.
+	ServerName string `json:"serverName"`
+	// Absolute workspace path on the runtime host.
+	WorkspaceFolder string `json:"workspaceFolder"`
+}
+
+// Live IDE state. This state never restores a connection from session history.
+// Experimental: IdeConnectionState is part of an experimental API and may change or be
+// removed.
+type IdeConnectionState struct {
+	// Currently available IDE, absent during an outage.
+	ConnectedIde *IdeConnectedInfo `json:"connectedIde,omitempty"`
+	// IDE whose tool definitions remain registered, including during an outage.
+	RetainedIde *IdeConnectedInfo `json:"retainedIde,omitempty"`
+	// Latest observed selection, absent after disconnect.
+	Selection *IdeSelection `json:"selection,omitempty"`
+}
+
+// A zero-based location in an IDE document.
+// Experimental: IdePosition is part of an experimental API and may change or be removed.
+type IdePosition struct {
+	// Zero-based character offset.
+	Character float64 `json:"character"`
+	// Zero-based line number.
+	Line float64 `json:"line"`
+}
+
+// A validated live IDE selection.
+// Experimental: IdeSelection is part of an experimental API and may change or be removed.
+type IdeSelection struct {
+	// Whether the selection is current.
+	Current *bool `json:"current,omitempty"`
+	// Document path on the runtime host.
+	FilePath string `json:"filePath"`
+	// Document URL supplied by the IDE.
+	FileURL string `json:"fileUrl"`
+	// Selection endpoints and empty state.
+	Selection IdeSelectionRange `json:"selection"`
+	// Selected document text.
+	Text string `json:"text"`
+}
+
+// The active selection range in an IDE document.
+// Experimental: IdeSelectionRange is part of an experimental API and may change or be
+// removed.
+type IdeSelectionRange struct {
+	// End position.
+	End IdePosition `json:"end"`
+	// Whether the selection contains no text.
+	IsEmpty bool `json:"isEmpty"`
+	// Start position.
+	Start IdePosition `json:"start"`
 }
 
 // The runtime-selected image model and its account availability. Availability is
@@ -12977,6 +13270,23 @@ type MCPAppsSetHostContextRequest struct {
 	Context MCPAppsSetHostContextDetails `json:"context"`
 }
 
+// Invokes a tool on a session MCP server through the server's permission policy.
+// Experimental: MCPCallToolRequest is part of an experimental API and may change or be
+// removed.
+type MCPCallToolRequest struct {
+	// MCP tool arguments.
+	Arguments any `json:"arguments"`
+	// Registered MCP server name.
+	ServerName string `json:"serverName"`
+	// Unprefixed MCP tool name.
+	ToolName string `json:"toolName"`
+}
+
+// A standard MCP tool result, or null when the IDE is disconnected.
+// Experimental: MCPCallToolResult is part of an experimental API and may change or be
+// removed.
+type MCPCallToolResult = *MCPToolResult
+
 // The requestId previously passed to executeSampling that should be cancelled.
 // Experimental: MCPCancelSamplingExecutionParams is part of an experimental API and may
 // change or be removed.
@@ -13363,6 +13673,25 @@ type MCPHostState struct {
 	NeedsAuthServers map[string]MCPServerNeedsAuthInfo `json:"needsAuthServers"`
 	// Names of servers with in-flight connection attempts.
 	PendingConnections []string `json:"pendingConnections"`
+}
+
+// IDE metadata for an existing local MCP endpoint on the runtime host.
+// Experimental: MCPIdeConfig is part of an experimental API and may change or be removed.
+type MCPIdeConfig struct {
+	// Client process identifier sent to the IDE.
+	ClientPid int64 `json:"clientPid"`
+	// Client package version used by the MCP initialize request.
+	ClientVersion string `json:"clientVersion"`
+	// IDE display name.
+	IdeName string `json:"ideName"`
+	// Lock file whose removal ends the live connection.
+	LockFilePath string `json:"lockFilePath"`
+	// Client parent process identifier sent to the IDE.
+	ParentPid int64 `json:"parentPid"`
+	// IDE process identifier.
+	Pid int64 `json:"pid"`
+	// Absolute workspace path on the runtime host.
+	WorkspaceFolder string `json:"workspaceFolder"`
 }
 
 // One Registry string-valued configuration entry for the selected transport.
@@ -15655,6 +15984,7 @@ type MCPSamplingExecutionResult struct {
 // or be removed.
 type MCPSerializableServerConfig interface {
 	mcpSerializableServerConfig()
+	mcpStartServerConfig()
 }
 
 type RawMCPSerializableServerConfigData struct {
@@ -15662,6 +15992,7 @@ type RawMCPSerializableServerConfigData struct {
 }
 
 func (RawMCPSerializableServerConfigData) mcpSerializableServerConfig() {}
+func (RawMCPSerializableServerConfigData) mcpStartServerConfig()        {}
 
 // Remote MCP server configuration accessed over HTTP or SSE.
 // Experimental: MCPServerConfigHTTP is part of an experimental API and may change or be
@@ -16140,14 +16471,47 @@ type MCPSourceRef struct {
 	Plugin *MCPSourcePlugin `json:"plugin,omitempty"`
 }
 
+// Server configuration accepted by session.mcp.startServer only.
+// Experimental: MCPStartServerConfig is part of an experimental API and may change or be
+// removed.
+type MCPStartServerConfig interface {
+	mcpStartServerConfig()
+}
+
+type RawMCPStartServerConfigData struct {
+	Raw json.RawMessage
+}
+
+func (RawMCPStartServerConfigData) mcpStartServerConfig() {}
+func (MCPServerConfigHTTP) mcpStartServerConfig()         {}
+
+// A session-only local IDE endpoint. Starting it never writes persistent configuration.
+// Experimental: MCPServerConfigLocal is part of an experimental API and may change or be
+// removed.
+type MCPServerConfigLocal struct {
+	// Endpoint headers from IDE discovery.
+	Headers map[string]string `json:"headers,omitzero"`
+	// IDE identity and initialize metadata. The server name must be `ide`.
+	Ide MCPIdeConfig `json:"ide"`
+	// Existing Unix socket or Windows named pipe on the runtime host.
+	SocketPath string `json:"socketPath"`
+	// Local transport discriminator.
+	Type MCPServerConfigLocalType `json:"type"`
+}
+
+func (MCPServerConfigLocal) mcpStartServerConfig() {}
+
+func (MCPServerConfigStdio) mcpStartServerConfig() {}
+
 // Server name and optional configuration for an individual MCP server start. Omit `config`
 // for a config-free start-by-name of an already-configured server.
 // Experimental: MCPStartServerRequest is part of an experimental API and may change or be
 // removed.
 type MCPStartServerRequest struct {
-	// MCP server configuration (stdio process or remote HTTP/SSE). Omit to start the server
-	// with its already-registered configuration (config-free start-by-name).
-	Config MCPSerializableServerConfig `json:"config,omitempty"`
+	// MCP server configuration (stdio, remote HTTP/SSE, or session-only local IDE endpoint).
+	// Local IDE endpoints never write persistent configuration. Omit to start with the
+	// already-registered configuration.
+	Config MCPStartServerConfig `json:"config,omitempty"`
 	// Exact receipt identity for explicit owned activation in this session.
 	ExpectedInstallationID *string `json:"expectedInstallationId,omitempty"`
 	// Name of the MCP server to start
@@ -16166,7 +16530,8 @@ type MCPStartServersResult struct {
 	FilteredServers []MCPFilteredServer `json:"filteredServers"`
 }
 
-// Server name for an individual MCP server stop.
+// Server name and optional transport selector for an individual MCP server stop. Omit
+// transport to stop the server by name.
 // Experimental: MCPStopServerRequest is part of an experimental API and may change or be
 // removed.
 type MCPStopServerRequest struct {
@@ -16174,6 +16539,11 @@ type MCPStopServerRequest struct {
 	ExpectedInstallationID *string `json:"expectedInstallationId,omitempty"`
 	// Name of the MCP server to stop
 	ServerName string `json:"serverName"`
+	// Optional transport selector. The only supported value, local-http, requires serverName
+	// ide and cannot accompany expectedInstallationId. It cancels pending IDE initialization
+	// and removes local IDE state without stopping an ordinary server with the same name. Omit
+	// this field for a generic stop by name.
+	Transport *MCPServerConfigLocalType `json:"transport,omitempty"`
 }
 
 // Metadata controlling an MCP task's lifetime.
@@ -16182,6 +16552,10 @@ type MCPTaskMetadata struct {
 	// Task time-to-live.
 	Ttl *int64 `json:"ttl,omitempty"`
 }
+
+// A standard MCP tool result.
+// Experimental: MCPToolResult is part of an experimental API and may change or be removed.
+type MCPToolResult map[string]any
 
 // MCP tool metadata with tool name, optional description, and normalized MCP Apps discovery
 // metadata.
@@ -17742,6 +18116,41 @@ type NameSetRequest struct {
 	Name string `json:"name"`
 }
 
+// Registers the Basic authentication callback, which then supplies the credentials for
+// proxies that challenge with Basic authentication.
+// Experimental: NetworkAuthenticateBasicOptions is part of an experimental API and may
+// change or be removed.
+type NetworkAuthenticateBasicOptions struct {
+}
+
+// Requests credentials for a proxy's Basic authentication challenge.
+// Experimental: NetworkAuthenticateBasicRequest is part of an experimental API and may
+// change or be removed.
+type NetworkAuthenticateBasicRequest struct {
+	// True when the proxy rejected the credentials the connection sent last, including ones the
+	// runtime remembered from an earlier answer: answer with different credentials, for example
+	// by asking the user, or with none. False when the connection has not sent credentials yet.
+	PreviousRejected bool `json:"previousRejected"`
+	// Proxy that challenged, as `http://host:port` or `https://host:port`.
+	Proxy string `json:"proxy"`
+	// Realm the proxy named in its challenge, if any. The proxy supplies it, so treat it as
+	// untrusted text.
+	Realm *string `json:"realm,omitempty"`
+}
+
+// Credentials for a proxy's Basic authentication challenge.
+// Experimental: NetworkAuthenticateBasicResult is part of an experimental API and may
+// change or be removed.
+type NetworkAuthenticateBasicResult struct {
+	// Password; omitted for an empty password. Must not contain control characters. Never log
+	// or persist it.
+	Password *string `json:"password,omitempty"`
+	// User name; omitted or empty when no credentials are available, which fails the request
+	// with the proxy's challenge. Must not contain a colon or control characters. Never log or
+	// persist it with the password.
+	Username *string `json:"username,omitempty"`
+}
+
 // Registers the Negotiate authentication callback, which then supplies the Kerberos tokens
 // instead of native credential lookup.
 // Experimental: NetworkAuthenticateNegotiateOptions is part of an experimental API and may
@@ -17802,6 +18211,8 @@ type NetworkResolveProxyResult struct {
 // Experimental: NetworkSetProviderRequest is part of an experimental API and may change or
 // be removed.
 type NetworkSetProviderRequest struct {
+	// Present when the client answers `network.authenticateBasic`.
+	AuthenticateBasic *NetworkAuthenticateBasicOptions `json:"authenticateBasic,omitempty"`
 	// Present when the client answers `network.authenticateNegotiate`.
 	AuthenticateNegotiate *NetworkAuthenticateNegotiateOptions `json:"authenticateNegotiate,omitempty"`
 	// Present when the client answers `network.resolveProxy`.
@@ -18542,8 +18953,14 @@ func (PermissionDecisionApproveForSessionApprovalWrite) Kind() PermissionDecisio
 	return PermissionDecisionApproveForSessionApprovalKindWrite
 }
 
-// Optional informational context describing how and where the permission decision was made.
-// This does not affect permission behavior.
+// Who answered a prompt and how. A label saying a person answered (`source`
+// `human_response`) gives the answer human authority for Assisted Permissions: for
+// permission prompts it becomes `permission.completed.decisionSource`, and with
+// `responseCapability` `interactive` it also covers `ask_user`, user-input and plan-review
+// answers. The runtime accepts that claim only from the session's authenticated owning,
+// non-extension connection, the in-process host, or a Mission Control answer the session
+// owner wrote; any other answer settles without it. Other fields attribute the decision in
+// telemetry.
 // Experimental: PermissionDecisionContext is part of an experimental API and may change or
 // be removed.
 type PermissionDecisionContext struct {
@@ -18567,8 +18984,11 @@ type PermissionDecisionContext struct {
 // Experimental: PermissionDecisionRequest is part of an experimental API and may change or
 // be removed.
 type PermissionDecisionRequest struct {
-	// Optional informational context describing how and where this response was made. Omit it
-	// to preserve legacy behavior without attributing an origin.
+	// Who decided and how. When it says a person decided (`source` `human_response`), the
+	// runtime records the decision as the person's (`permission.completed.decisionSource`), but
+	// only from the session's authenticated owning connection or the in-process host; a
+	// decision from any other caller applies without that authority. Omit it for an
+	// unattributed decision.
 	DecisionContext *PermissionDecisionContext `json:"decisionContext,omitempty"`
 	// Request ID of the pending permission request
 	RequestID string `json:"requestId"`
@@ -22244,7 +22664,9 @@ type SandboxCredentialSuggestionsResult struct {
 // Experimental: SandboxDisableForSessionRequest is part of an experimental API and may
 // change or be removed.
 type SandboxDisableForSessionRequest struct {
-	// Optional attribution for the permission decision.
+	// Optional attribution for the permission decision. A claim that a person decided (`source`
+	// `human_response`) counts only from the session's authenticated owning connection or the
+	// in-process host.
 	DecisionContext *PermissionDecisionContext `json:"decisionContext,omitempty"`
 	// Identifier of the exact pending sandbox-bypass permission request that authorized the
 	// session opt-out.
@@ -22381,7 +22803,9 @@ type SandboxGetUnsupportedSettingDisabledNoticeResult string
 // Experimental: SandboxGrantPathForRequestRequest is part of an experimental API and may
 // change or be removed.
 type SandboxGrantPathForRequestRequest struct {
-	// Optional attribution for the permission decision.
+	// Optional attribution for the permission decision. A claim that a person decided (`source`
+	// `human_response`) counts only from the session's authenticated owning connection or the
+	// in-process host.
 	DecisionContext *PermissionDecisionContext `json:"decisionContext,omitempty"`
 	// Identifier of the exact pending sandbox escalation permission request whose
 	// sandboxPathGrant to accept.
@@ -24766,6 +25190,18 @@ type SessionMCPAppsCallToolResult map[string]any
 type SessionMCPAppsSetHostContextResult struct {
 }
 
+// Invokes a tool on a session MCP server through the server's permission policy.
+// Experimental: SessionMCPCallToolRequest is part of an experimental API and may change or
+// be removed.
+type SessionMCPCallToolRequest struct {
+	// MCP tool arguments.
+	Arguments any `json:"arguments"`
+	// Registered MCP server name.
+	ServerName string `json:"serverName"`
+	// Unprefixed MCP tool name.
+	ToolName string `json:"toolName"`
+}
+
 // Experimental: SessionMCPDisableResult is part of an experimental API and may change or be
 // removed.
 type SessionMCPDisableResult struct {
@@ -24774,6 +25210,18 @@ type SessionMCPDisableResult struct {
 // Experimental: SessionMCPEnableResult is part of an experimental API and may change or be
 // removed.
 type SessionMCPEnableResult struct {
+}
+
+// Live IDE state. This state never restores a connection from session history.
+// Experimental: SessionMCPIdeStateResult is part of an experimental API and may change or
+// be removed.
+type SessionMCPIdeStateResult struct {
+	// Currently available IDE, absent during an outage.
+	ConnectedIde *IdeConnectedInfo `json:"connectedIde,omitempty"`
+	// IDE whose tool definitions remain registered, including during an outage.
+	RetainedIde *IdeConnectedInfo `json:"retainedIde,omitempty"`
+	// Latest observed selection, absent after disconnect.
+	Selection *IdeSelection `json:"selection,omitempty"`
 }
 
 // Full host-driven authentication for an arbitrary, possibly unsaved, MCP URL.
@@ -30345,6 +30793,24 @@ type UIHandlePendingAutoModeSwitchRequest struct {
 
 // Pending elicitation request ID and the user's response (accept/decline/cancel + form
 // values).
+// Experimental: UIHandlePendingElicitationOptions is part of an experimental API and may
+// change or be removed.
+type UIHandlePendingElicitationOptions struct {
+	// Who answered and how. When it says a person answered interactively (`source`
+	// `human_response` with `responseCapability` `interactive`), the runtime records the answer
+	// as the person's own authority for Assisted Permissions, but only from the session's
+	// authenticated owning connection or the in-process host; an answer from any other caller
+	// settles without it. The runtime decides which answers carry authority. Omit for automated
+	// answers.
+	DecisionContext *PermissionDecisionContext `json:"decisionContext,omitempty"`
+	// The unique request ID from the elicitation.requested event
+	RequestID string `json:"requestId"`
+	// The elicitation response (accept with form values, decline, or cancel)
+	Result UIElicitationResponse `json:"result"`
+}
+
+// Pending elicitation request ID and the user's response (accept/decline/cancel + form
+// values).
 // Experimental: UIHandlePendingElicitationRequest is part of an experimental API and may
 // change or be removed.
 type UIHandlePendingElicitationRequest struct {
@@ -30352,6 +30818,24 @@ type UIHandlePendingElicitationRequest struct {
 	RequestID string `json:"requestId"`
 	// The elicitation response (accept with form values, decline, or cancel)
 	Result UIElicitationResponse `json:"result"`
+}
+
+// Request ID of a pending `exit_plan_mode.requested` event and the user's response.
+// Experimental: UIHandlePendingExitPlanModeOptions is part of an experimental API and may
+// change or be removed.
+type UIHandlePendingExitPlanModeOptions struct {
+	// Who answered and how. When it says a person answered interactively (`source`
+	// `human_response` with `responseCapability` `interactive`), the runtime records the answer
+	// as the person's own authority for Assisted Permissions, but only from the session's
+	// authenticated owning connection or the in-process host; an answer from any other caller
+	// settles without it. The runtime decides which answers carry authority. Omit for automated
+	// answers.
+	DecisionContext *PermissionDecisionContext `json:"decisionContext,omitempty"`
+	// The unique request ID from the exit_plan_mode.requested event
+	RequestID string `json:"requestId"`
+	// User response for a pending exit-plan-mode request, with approval state, selected action,
+	// auto-approve flag, and feedback.
+	Response UIExitPlanModeResponse `json:"response"`
 }
 
 // Request ID of a pending `exit_plan_mode.requested` event and the user's response.
@@ -30403,6 +30887,24 @@ type UIHandlePendingSessionLimitsExhaustedRequest struct {
 	RequestID string `json:"requestId"`
 	// The selected session-limit action.
 	Response UISessionLimitsExhaustedResponse `json:"response"`
+}
+
+// Request ID of a pending `user_input.requested` event and the user's response.
+// Experimental: UIHandlePendingUserInputOptions is part of an experimental API and may
+// change or be removed.
+type UIHandlePendingUserInputOptions struct {
+	// Who answered and how. When it says a person answered interactively (`source`
+	// `human_response` with `responseCapability` `interactive`), the runtime records the answer
+	// as the person's own authority for Assisted Permissions, but only from the session's
+	// authenticated owning connection or the in-process host; an answer from any other caller
+	// settles without it. The runtime decides which answers carry authority. Omit for automated
+	// answers.
+	DecisionContext *PermissionDecisionContext `json:"decisionContext,omitempty"`
+	// The unique request ID from the user_input.requested event
+	RequestID string `json:"requestId"`
+	// User response for a pending user-input request, with answer text and whether it was typed
+	// freeform.
+	Response UIUserInputResponse `json:"response"`
 }
 
 // Request ID of a pending `user_input.requested` event and the user's response.
@@ -34492,6 +34994,22 @@ const (
 	CopilotAPITokenAuthInfoHostHTTPSGitHubCom CopilotAPITokenAuthInfoHost = "https://github.com"
 )
 
+// Stable credential-context failure categories, independent of the credential provider.
+// Experimental: CredentialContextErrorCode is part of an experimental API and may change or
+// be removed.
+type CredentialContextErrorCode string
+
+const (
+	// The caller, destination, or requested credential use is not authorized.
+	CredentialContextErrorCodeCredentialDenied CredentialContextErrorCode = "credential_denied"
+	// The original owner failed to resolve a credential. This is not credential absence.
+	CredentialContextErrorCodeCredentialResolutionFailed CredentialContextErrorCode = "credential_resolution_failed"
+	// The context, owner, or lease is no longer current.
+	CredentialContextErrorCodeCredentialRevoked CredentialContextErrorCode = "credential_revoked"
+	// The current owner has no usable credential.
+	CredentialContextErrorCodeCredentialUnavailable CredentialContextErrorCode = "credential_unavailable"
+)
+
 // Result of reloading a customization component.
 // Experimental: CustomizationReloadStatus is part of an experimental API and may change or
 // be removed.
@@ -34978,6 +35496,87 @@ const (
 	FeatureFlagAvailabilityStaffOrExperimental FeatureFlagAvailability = "staff-or-experimental"
 	// Enabled only for accounts on the owning team.
 	FeatureFlagAvailabilityTeam FeatureFlagAvailability = "team"
+)
+
+// Identifies a local filesystem failure, not a network failure or retry decision.
+// Experimental: FetchFileErrorKind is part of an experimental API and may change or be
+// removed.
+type FetchFileErrorKind string
+
+const (
+	FetchFileErrorKindFileSystem FetchFileErrorKind = "fileSystem"
+)
+
+// The filesystem operation that failed while producing or cleaning up a response file.
+// Experimental: FetchFileOperation is part of an experimental API and may change or be
+// removed.
+type FetchFileOperation string
+
+const (
+	// Create the destination file without overwriting an existing path.
+	FetchFileOperationCreate FetchFileOperation = "create"
+	// Flush, synchronize, and close the completed file.
+	FetchFileOperationFlush FetchFileOperation = "flush"
+	// Remove the incomplete response file.
+	FetchFileOperationRemove FetchFileOperation = "remove"
+	// Write decoded response bytes.
+	FetchFileOperationWrite FetchFileOperation = "write"
+)
+
+// HTTP redirect policy.
+// Experimental: FetchRedirect is part of an experimental API and may change or be removed.
+type FetchRedirect string
+
+const (
+	// Reject redirect responses.
+	FetchRedirectError FetchRedirect = "error"
+	// Follow redirects, up to the transport's limit of 20.
+	FetchRedirectFollow FetchRedirect = "follow"
+	// Return the redirect response without following it.
+	FetchRedirectManual FetchRedirect = "manual"
+	// Follow only redirects within the original origin.
+	FetchRedirectSameOrigin FetchRedirect = "sameOrigin"
+)
+
+// How fetch.send delivers the HTTP response.
+// Experimental: FetchResponseMode is part of an experimental API and may change or be
+// removed.
+type FetchResponseMode string
+
+const (
+	// Write the response directly to a new caller-owned file on the runtime host.
+	FetchResponseModeFile FetchResponseMode = "file"
+	// Return headers immediately. Read body chunks with fetch.read or cancel without reading.
+	FetchResponseModeStream FetchResponseMode = "stream"
+	// Return the complete UTF-8 response text.
+	FetchResponseModeText FetchResponseMode = "text"
+)
+
+// Shared HTTP engine failure categories. HTTP response statuses are not errors in this
+// enumeration.
+// Experimental: FetchTransportErrorKind is part of an experimental API and may change or be
+// removed.
+type FetchTransportErrorKind string
+
+const (
+	// The request was canceled.
+	FetchTransportErrorKindCanceled FetchTransportErrorKind = "canceled"
+	// Proxy authentication failed.
+	FetchTransportErrorKindProxyAuthentication FetchTransportErrorKind = "proxy_authentication"
+	// The redirect policy or transport rejected a redirect.
+	FetchTransportErrorKindRedirect FetchTransportErrorKind = "redirect"
+	// An HTTP client request or response-body failure.
+	FetchTransportErrorKindRequest FetchTransportErrorKind = "request"
+	// A request or transport configuration is invalid.
+	FetchTransportErrorKindRequestConfiguration FetchTransportErrorKind = "request_configuration"
+	// The response exceeded the caller's body limit.
+	FetchTransportErrorKindResponseBodyLimit FetchTransportErrorKind = "response_body_limit"
+	// The response stream is closed.
+	FetchTransportErrorKindStreamClosed FetchTransportErrorKind = "stream_closed"
+	// The request deadline expired.
+	FetchTransportErrorKindTimeout FetchTransportErrorKind = "timeout"
+	// A proxy tunnel failed.
+	FetchTransportErrorKindTunnel FetchTransportErrorKind = "tunnel"
 )
 
 // Copilot Fusion tier, matching the CLI's `--fusion-tier`. The runtime resolves each tier
@@ -36618,6 +37217,16 @@ const (
 	MCPServerConfigHTTPTypeSSE MCPServerConfigHTTPType = "sse"
 )
 
+// Local transport for a session-owned IDE endpoint.
+// Experimental: MCPServerConfigLocalType is part of an experimental API and may change or
+// be removed.
+type MCPServerConfigLocalType string
+
+const (
+	// Existing Unix socket or Windows named pipe.
+	MCPServerConfigLocalTypeLocalHTTP MCPServerConfigLocalType = "local-http"
+)
+
 // In-process MCP transport type.
 // Experimental: MCPServerConfigMemoryType is part of an experimental API and may change or
 // be removed.
@@ -36954,8 +37563,8 @@ const (
 	NetworkScopeRuntime NetworkScope = "runtime"
 )
 
-// Why the binary data is absent: it exceeded the inline size limit, or its asset was
-// unavailable
+// Why the binary data is absent: it exceeded the inline size limit, its asset was
+// unavailable, or its image format was unsupported
 // Experimental: OmittedBinaryOmittedReason is part of an experimental API and may change or
 // be removed.
 type OmittedBinaryOmittedReason string
@@ -36965,6 +37574,8 @@ const (
 	OmittedBinaryOmittedReasonAssetUnavailable OmittedBinaryOmittedReason = "asset_unavailable"
 	// Bytes exceeded the session's inline size limit.
 	OmittedBinaryOmittedReasonTooLarge OmittedBinaryOmittedReason = "too_large"
+	// The image format or MIME label is not accepted by the model.
+	OmittedBinaryOmittedReasonUnsupportedFormat OmittedBinaryOmittedReason = "unsupported_format"
 )
 
 // Allowed values for the `OptionsUpdateAdditionalContentExclusionPolicyScope` enumeration.
@@ -37630,6 +38241,8 @@ const (
 	ProviderConfigTypeAnthropic ProviderConfigType = "anthropic"
 	// Azure OpenAI Service endpoint.
 	ProviderConfigTypeAzure ProviderConfigType = "azure"
+	// Experimental: Google Gemini API endpoint, served over the native Gemini Interactions API.
+	ProviderConfigTypeGoogle ProviderConfigType = "google"
 	// Generic OpenAI-compatible API.
 	ProviderConfigTypeOpenai ProviderConfigType = "openai"
 	// On-device Windows ML model with a local GGUF path.
@@ -37670,6 +38283,8 @@ const (
 	ProviderEndpointTypeAnthropic ProviderEndpointType = "anthropic"
 	// Azure OpenAI endpoint (use the OpenAI client library with the Azure base URL).
 	ProviderEndpointTypeAzure ProviderEndpointType = "azure"
+	// Experimental: Google Gemini API endpoint (use the Gemini Interactions API).
+	ProviderEndpointTypeGoogle ProviderEndpointType = "google"
 	// OpenAI-compatible endpoint (use the OpenAI client library).
 	ProviderEndpointTypeOpenai ProviderEndpointType = "openai"
 )
@@ -38054,6 +38669,8 @@ const (
 	SavedProviderConfigurationTypeAnthropic SavedProviderConfigurationType = "anthropic"
 	// Azure OpenAI Service endpoint.
 	SavedProviderConfigurationTypeAzure SavedProviderConfigurationType = "azure"
+	// Experimental: Google Gemini API endpoint, served over the native Gemini Interactions API.
+	SavedProviderConfigurationTypeGoogle SavedProviderConfigurationType = "google"
 	// Runtime-managed local model server.
 	SavedProviderConfigurationTypeLocalModel SavedProviderConfigurationType = "local_model"
 	// Generic OpenAI-compatible API.
@@ -40474,6 +41091,109 @@ func (a *ServerExtensionsAPI) Enable(ctx context.Context, params *DiscoveredExte
 	return &result, nil
 }
 
+// Experimental: ServerFetchAPI contains experimental APIs that may change or be removed.
+type ServerFetchAPI serverAPI
+
+// Cancel disposes an owned handle and cancels any pending send or read. Safe before send
+// and after disposal. Unknown and foreign handles are unchanged. Closes an unread stream
+// without draining its body. Incomplete files are removed after pending file I/O settles;
+// completed caller-owned files remain.
+//
+// RPC method: fetch.cancel.
+//
+// Parameters: A fetch handle owned by the SDK connection that created it.
+//
+// Returns: Result of disposing a fetch handle.
+func (a *ServerFetchAPI) Cancel(ctx context.Context, params *FetchRequestID) (*FetchCancelResult, error) {
+	raw, err := a.client.Request(ctx, "fetch.cancel", params)
+	if err != nil {
+		return nil, err
+	}
+	var result FetchCancelResult
+	if err := json.Unmarshal(raw, &result); err != nil {
+		return nil, err
+	}
+	return &result, nil
+}
+
+// Create allocates a connection-owned HTTP request handle without network work. SDK clients
+// and extensions can use this API without CLI admission. Cancel abandoned handles;
+// disconnect disposes all handles.
+//
+// RPC method: fetch.create.
+//
+// Returns: The connection-owned HTTP request handle allocated by fetch.create.
+func (a *ServerFetchAPI) Create(ctx context.Context) (*FetchCreateResult, error) {
+	raw, err := a.client.Request(ctx, "fetch.create", nil)
+	if err != nil {
+		return nil, err
+	}
+	var result FetchCreateResult
+	if err := json.Unmarshal(raw, &result); err != nil {
+		return nil, err
+	}
+	return &result, nil
+}
+
+// Reads one connection-owned response byte range or EOF. Response chunks cross JSON-RPC as
+// base64; prefer fetch.send with file mode for large bodies. Call only after fetch.send
+// returns in stream mode, with at most one read outstanding. The runtime reads the next
+// chunk on demand. EOF, failure, cancellation, and disconnect dispose the handle. Active
+// credential failures use JSON-RPC code -32004 and CredentialContextErrorData in
+// error.data. Body transport failures preserve code -32603 and the legacy message, with
+// FetchTransportErrorData containing unchanged engine classifications. Already disposed
+// handles remain closed-handle errors, never credential_unavailable.
+//
+// RPC method: fetch.read.
+//
+// Parameters: A fetch handle owned by the SDK connection that created it.
+//
+// Returns: A response byte range, or EOF. EOF and transport failures dispose the handle.
+func (a *ServerFetchAPI) Read(ctx context.Context, params *FetchRequestID) (*FetchReadResult, error) {
+	raw, err := a.client.Request(ctx, "fetch.read", params)
+	if err != nil {
+		return nil, err
+	}
+	var result FetchReadResult
+	if err := json.Unmarshal(raw, &result); err != nil {
+		return nil, err
+	}
+	return &result, nil
+}
+
+// Sends a connection-owned handle once, with a required responseMode. Available to all SDK
+// clients and extensions. Stream returns headers immediately; fetch.read returns body
+// chunks over JSON-RPC, or fetch.cancel closes the body without reading it. Text consumes
+// the complete body as WHATWG UTF-8 text with a default decoded limit of 1048576 bytes.
+// File writes directly to a required destinationPath on the runtime host, with atomic
+// no-overwrite creation; incomplete files are removed on failure or cancellation, and
+// completed files belong to the caller and survive disconnect. Stream and file have no
+// default body limit. Explicit bodyLimitBytes, including zero, fails without truncation.
+// HTTP error statuses remain responses. Cancel can interrupt header waits and body
+// consumption. Optional credential contexts resolve fresh credentials; omission adds no
+// service authentication. Revocation applies through redirects under the original
+// authority. Credential failures use -32004; transport failures preserve -32603 and
+// FetchTransportErrorData; filesystem failures use -32603 and FetchFileErrorData. No shared
+// circuit breaker is selected. Retries remain caller-owned.
+//
+// RPC method: fetch.send.
+//
+// Parameters: An HTTP request through the shared network transport.
+//
+// Returns: HTTP response metadata and the selected body representation. HTTP error statuses
+// remain successful transport outcomes.
+func (a *ServerFetchAPI) Send(ctx context.Context, params *FetchSendParams) (FetchSendResult, error) {
+	raw, err := a.client.Request(ctx, "fetch.send", params)
+	if err != nil {
+		return nil, err
+	}
+	result, err := unmarshalFetchSendResult(raw)
+	if err != nil {
+		return nil, err
+	}
+	return result, nil
+}
+
 // Experimental: ServerHooksAPI contains experimental APIs that may change or be removed.
 type ServerHooksAPI serverAPI
 
@@ -41604,10 +42324,12 @@ type ServerNetworkAPI serverAPI
 // `NO_PROXY` and operating-system settings), or leaves a request to that routing; requests
 // with an explicitly configured proxy and loopback targets never consult it. With
 // `authenticateNegotiate`, the client supplies the Kerberos tokens for Negotiate proxy
-// challenges instead of native credential lookup. The callbacks serve requests made for the
-// client's sessions and, with `runtime` scope, the runtime's shared traffic, which includes
-// background requests and remote MCP server connections; only one connection may hold
-// `runtime` scope. The registration ends when the connection closes.
+// challenges instead of native credential lookup. With `authenticateBasic`, the client
+// supplies the credentials for Basic proxy challenges; the runtime prefers Negotiate when a
+// proxy offers both. The callbacks serve requests made for the client's sessions and, with
+// `runtime` scope, the runtime's shared traffic, which includes background requests and
+// remote MCP server connections; only one connection may hold `runtime` scope. The
+// registration ends when the connection closes.
 //
 // RPC method: network.setProvider.
 //
@@ -43240,6 +43962,7 @@ type ServerRPC struct {
 	Decisions        *ServerDecisionsAPI
 	Environments     *ServerEnvironmentsAPI
 	Extensions       *ServerExtensionsAPI
+	Fetch            *ServerFetchAPI
 	Hooks            *ServerHooksAPI
 	Host             *ServerHostAPI
 	Instructions     *ServerInstructionsAPI
@@ -43317,6 +44040,7 @@ func NewServerRPC(client *jsonrpc2.Client) *ServerRPC {
 	r.Decisions = (*ServerDecisionsAPI)(&r.common)
 	r.Environments = (*ServerEnvironmentsAPI)(&r.common)
 	r.Extensions = (*ServerExtensionsAPI)(&r.common)
+	r.Fetch = (*ServerFetchAPI)(&r.common)
 	r.Hooks = (*ServerHooksAPI)(&r.common)
 	r.Host = (*ServerHostAPI)(&r.common)
 	r.Instructions = (*ServerInstructionsAPI)(&r.common)
@@ -49968,6 +50692,34 @@ func (a *ManagementAPI) Message(ctx context.Context, params *SessionManagementMe
 // Experimental: MCPAPI contains experimental APIs that may change or be removed.
 type MCPAPI sessionAPI
 
+// CallTool calls a session MCP tool with the existing server admission and tool permission
+// checks. IDE calls require local host authority, including programmatic tools not exposed
+// to the model. Returns null only when the IDE is disconnected. IDE open_diff waits for
+// user action; other IDE calls use a 60-second timeout.
+//
+// RPC method: session.mcp.callTool.
+//
+// Parameters: Invokes a tool on a session MCP server through the server's permission policy.
+//
+// Returns: A standard MCP tool result, or null when the IDE is disconnected.
+func (a *MCPAPI) CallTool(ctx context.Context, params *SessionMCPCallToolRequest) (*MCPToolResult, error) {
+	req := map[string]any{"sessionId": a.sessionID}
+	if params != nil {
+		req["arguments"] = params.Arguments
+		req["serverName"] = params.ServerName
+		req["toolName"] = params.ToolName
+	}
+	raw, err := a.client.Request(ctx, "session.mcp.callTool", req)
+	if err != nil {
+		return nil, err
+	}
+	var result *MCPToolResult
+	if err := json.Unmarshal(raw, &result); err != nil {
+		return nil, err
+	}
+	return result, nil
+}
+
 // CancelSamplingExecution cancels an in-flight MCP sampling execution by request ID.
 //
 // RPC method: session.mcp.cancelSamplingExecution.
@@ -50299,7 +51051,9 @@ func (a *MCPAPI) SetEnvValueMode(ctx context.Context, params *MCPSetEnvValueMode
 // running set only and is reaped when the session ends. Does NOT modify persistent user
 // configuration (`mcp.config.*`), so it does not affect future sessions. The server
 // surfaces through `session.mcp.list` and the `session.mcp_servers_loaded` /
-// `session.mcp_server_status_changed` events like any other server.
+// `session.mcp_server_status_changed` events like any other server. A local configuration
+// connects the existing IDE endpoint under serverName `ide`. Runtime host admission
+// controls the CLI policy exemption; request fields cannot grant it.
 //
 // RPC method: session.mcp.startServer.
 //
@@ -50327,11 +51081,15 @@ func (a *MCPAPI) StartServer(ctx context.Context, params *MCPStartServerRequest)
 	return &result, nil
 }
 
-// StopServer stops an individual MCP server on the session's host.
+// StopServer stops one MCP server on the session's host. Omit transport for a generic stop
+// by name. Set transport to local-http with serverName ide for endpoint-only cleanup. This
+// cancels pending IDE initialization and removes the local IDE session, retained tools,
+// identity, and selection. It preserves any ordinary server named ide.
 //
 // RPC method: session.mcp.stopServer.
 //
-// Parameters: Server name for an individual MCP server stop.
+// Parameters: Server name and optional transport selector for an individual MCP server
+// stop. Omit transport to stop the server by name.
 func (a *MCPAPI) StopServer(ctx context.Context, params *MCPStopServerRequest) (*SessionMCPStopServerResult, error) {
 	req := map[string]any{"sessionId": a.sessionID}
 	if params != nil {
@@ -50339,6 +51097,9 @@ func (a *MCPAPI) StopServer(ctx context.Context, params *MCPStopServerRequest) (
 			req["expectedInstallationId"] = *params.ExpectedInstallationID
 		}
 		req["serverName"] = params.ServerName
+		if params.Transport != nil {
+			req["transport"] = *params.Transport
+		}
 	}
 	raw, err := a.client.Request(ctx, "session.mcp.stopServer", req)
 	if err != nil {
@@ -50540,6 +51301,33 @@ func (a *MCPHeadersAPI) HandlePendingHeadersRefreshRequest(ctx context.Context, 
 // Experimental: Headers returns experimental APIs that may change or be removed.
 func (s *MCPAPI) Headers() *MCPHeadersAPI {
 	return (*MCPHeadersAPI)(s)
+}
+
+// Experimental: MCPIdeAPI contains experimental APIs that may change or be removed.
+type MCPIdeAPI sessionAPI
+
+// State returns the session-owned live IDE state, retained identity, and latest observed
+// selection. It does not scan for IDEs or start a connection.
+//
+// RPC method: session.mcp.ide.state.
+//
+// Returns: Live IDE state. This state never restores a connection from session history.
+func (a *MCPIdeAPI) State(ctx context.Context) (*SessionMCPIdeStateResult, error) {
+	req := map[string]any{"sessionId": a.sessionID}
+	raw, err := a.client.Request(ctx, "session.mcp.ide.state", req)
+	if err != nil {
+		return nil, err
+	}
+	var result SessionMCPIdeStateResult
+	if err := json.Unmarshal(raw, &result); err != nil {
+		return nil, err
+	}
+	return &result, nil
+}
+
+// Experimental: Ide returns experimental APIs that may change or be removed.
+func (s *MCPAPI) Ide() *MCPIdeAPI {
+	return (*MCPIdeAPI)(s)
 }
 
 // Experimental: MCPOauthAPI contains experimental APIs that may change or be removed.
@@ -55160,9 +55948,33 @@ func (a *UIAPI) HandlePendingAutoModeSwitch(ctx context.Context, params *UIHandl
 //
 // Returns: Indicates whether the elicitation response was accepted; false if it was already
 // resolved by another client.
+// Use HandlePendingElicitationWithOptions to set additional optional inputs.
 func (a *UIAPI) HandlePendingElicitation(ctx context.Context, params *UIHandlePendingElicitationRequest) (*UIElicitationResult, error) {
+	var options *UIHandlePendingElicitationOptions
+	if params != nil {
+		options = &UIHandlePendingElicitationOptions{}
+		options.RequestID = params.RequestID
+		options.Result = params.Result
+	}
+	return a.HandlePendingElicitationWithOptions(ctx, options)
+}
+
+// HandlePendingElicitationWithOptions provides the user response for a pending elicitation
+// request.
+//
+// RPC method: session.ui.handlePendingElicitation.
+//
+// Parameters: Pending elicitation request ID and the user's response (accept/decline/cancel
+// + form values).
+//
+// Returns: Indicates whether the elicitation response was accepted; false if it was already
+// resolved by another client.
+func (a *UIAPI) HandlePendingElicitationWithOptions(ctx context.Context, params *UIHandlePendingElicitationOptions) (*UIElicitationResult, error) {
 	req := map[string]any{"sessionId": a.sessionID}
 	if params != nil {
+		if params.DecisionContext != nil {
+			req["decisionContext"] = *params.DecisionContext
+		}
 		req["requestId"] = params.RequestID
 		req["result"] = params.Result
 	}
@@ -55186,9 +55998,32 @@ func (a *UIAPI) HandlePendingElicitation(ctx context.Context, params *UIHandlePe
 // response.
 //
 // Returns: Indicates whether the pending UI request was resolved by this call.
+// Use HandlePendingExitPlanModeWithOptions to set additional optional inputs.
 func (a *UIAPI) HandlePendingExitPlanMode(ctx context.Context, params *UIHandlePendingExitPlanModeRequest) (*UIHandlePendingResult, error) {
+	var options *UIHandlePendingExitPlanModeOptions
+	if params != nil {
+		options = &UIHandlePendingExitPlanModeOptions{}
+		options.RequestID = params.RequestID
+		options.Response = params.Response
+	}
+	return a.HandlePendingExitPlanModeWithOptions(ctx, options)
+}
+
+// HandlePendingExitPlanModeWithOptions resolves a pending `exit_plan_mode.requested` event
+// with the user's response.
+//
+// RPC method: session.ui.handlePendingExitPlanMode.
+//
+// Parameters: Request ID of a pending `exit_plan_mode.requested` event and the user's
+// response.
+//
+// Returns: Indicates whether the pending UI request was resolved by this call.
+func (a *UIAPI) HandlePendingExitPlanModeWithOptions(ctx context.Context, params *UIHandlePendingExitPlanModeOptions) (*UIHandlePendingResult, error) {
 	req := map[string]any{"sessionId": a.sessionID}
 	if params != nil {
+		if params.DecisionContext != nil {
+			req["decisionContext"] = *params.DecisionContext
+		}
 		req["requestId"] = params.RequestID
 		req["response"] = params.Response
 	}
@@ -55265,9 +56100,31 @@ func (a *UIAPI) HandlePendingSessionLimitsExhausted(ctx context.Context, params 
 // Parameters: Request ID of a pending `user_input.requested` event and the user's response.
 //
 // Returns: Indicates whether the pending UI request was resolved by this call.
+// Use HandlePendingUserInputWithOptions to set additional optional inputs.
 func (a *UIAPI) HandlePendingUserInput(ctx context.Context, params *UIHandlePendingUserInputRequest) (*UIHandlePendingResult, error) {
+	var options *UIHandlePendingUserInputOptions
+	if params != nil {
+		options = &UIHandlePendingUserInputOptions{}
+		options.RequestID = params.RequestID
+		options.Response = params.Response
+	}
+	return a.HandlePendingUserInputWithOptions(ctx, options)
+}
+
+// HandlePendingUserInputWithOptions resolves a pending `user_input.requested` event with
+// the user's response.
+//
+// RPC method: session.ui.handlePendingUserInput.
+//
+// Parameters: Request ID of a pending `user_input.requested` event and the user's response.
+//
+// Returns: Indicates whether the pending UI request was resolved by this call.
+func (a *UIAPI) HandlePendingUserInputWithOptions(ctx context.Context, params *UIHandlePendingUserInputOptions) (*UIHandlePendingResult, error) {
 	req := map[string]any{"sessionId": a.sessionID}
 	if params != nil {
+		if params.DecisionContext != nil {
+			req["decisionContext"] = *params.DecisionContext
+		}
 		req["requestId"] = params.RequestID
 		req["response"] = params.Response
 	}
@@ -58171,8 +59028,9 @@ func (a *InternalSettingsAPI) Snapshot(ctx context.Context) (*SessionSettingsSna
 type InternalUIAPI internalSessionAPI
 
 // HandleHumanAskUser resolves a pending elicitation request after direct interaction in the
-// trusted in-process client or authenticated owning host. Only an accepted response to the
-// built-in ask_user tool can become trusted human evidence.
+// trusted in-process client or authenticated owning host. Only a response to the built-in
+// ask_user tool becomes trusted human evidence; a decline or dismissal records the person's
+// refusal, which grants nothing.
 //
 // RPC method: session.ui.handleHumanAskUser.
 //
@@ -58183,9 +59041,37 @@ type InternalUIAPI internalSessionAPI
 // resolved by another client.
 // Internal: HandleHumanAskUser is part of the SDK's internal handshake/plumbing; external
 // callers should not use it.
+// Use HandleHumanAskUserWithOptions to set additional optional inputs.
 func (a *InternalUIAPI) HandleHumanAskUser(ctx context.Context, params *UIHandlePendingElicitationRequest) (*UIElicitationResult, error) {
+	var options *UIHandlePendingElicitationOptions
+	if params != nil {
+		options = &UIHandlePendingElicitationOptions{}
+		options.RequestID = params.RequestID
+		options.Result = params.Result
+	}
+	return a.HandleHumanAskUserWithOptions(ctx, options)
+}
+
+// HandleHumanAskUserWithOptions resolves a pending elicitation request after direct
+// interaction in the trusted in-process client or authenticated owning host. Only a
+// response to the built-in ask_user tool becomes trusted human evidence; a decline or
+// dismissal records the person's refusal, which grants nothing.
+//
+// RPC method: session.ui.handleHumanAskUser.
+//
+// Parameters: Pending elicitation request ID and the user's response (accept/decline/cancel
+// + form values).
+//
+// Returns: Indicates whether the elicitation response was accepted; false if it was already
+// resolved by another client.
+// Internal: HandleHumanAskUserWithOptions is part of the SDK's internal handshake/plumbing;
+// external callers should not use it.
+func (a *InternalUIAPI) HandleHumanAskUserWithOptions(ctx context.Context, params *UIHandlePendingElicitationOptions) (*UIElicitationResult, error) {
 	req := map[string]any{"sessionId": a.sessionID}
 	if params != nil {
+		if params.DecisionContext != nil {
+			req["decisionContext"] = *params.DecisionContext
+		}
 		req["requestId"] = params.RequestID
 		req["result"] = params.Result
 	}
@@ -58211,9 +59097,34 @@ func (a *InternalUIAPI) HandleHumanAskUser(ctx context.Context, params *UIHandle
 // Returns: Indicates whether the pending UI request was resolved by this call.
 // Internal: HandleHumanExitPlanMode is part of the SDK's internal handshake/plumbing;
 // external callers should not use it.
+// Use HandleHumanExitPlanModeWithOptions to set additional optional inputs.
 func (a *InternalUIAPI) HandleHumanExitPlanMode(ctx context.Context, params *UIHandlePendingExitPlanModeRequest) (*UIHandlePendingResult, error) {
+	var options *UIHandlePendingExitPlanModeOptions
+	if params != nil {
+		options = &UIHandlePendingExitPlanModeOptions{}
+		options.RequestID = params.RequestID
+		options.Response = params.Response
+	}
+	return a.HandleHumanExitPlanModeWithOptions(ctx, options)
+}
+
+// HandleHumanExitPlanModeWithOptions resolves a pending `exit_plan_mode.requested` event
+// after direct interaction in the trusted in-process client or authenticated owning host.
+//
+// RPC method: session.ui.handleHumanExitPlanMode.
+//
+// Parameters: Request ID of a pending `exit_plan_mode.requested` event and the user's
+// response.
+//
+// Returns: Indicates whether the pending UI request was resolved by this call.
+// Internal: HandleHumanExitPlanModeWithOptions is part of the SDK's internal
+// handshake/plumbing; external callers should not use it.
+func (a *InternalUIAPI) HandleHumanExitPlanModeWithOptions(ctx context.Context, params *UIHandlePendingExitPlanModeOptions) (*UIHandlePendingResult, error) {
 	req := map[string]any{"sessionId": a.sessionID}
 	if params != nil {
+		if params.DecisionContext != nil {
+			req["decisionContext"] = *params.DecisionContext
+		}
 		req["requestId"] = params.RequestID
 		req["response"] = params.Response
 	}
@@ -58238,9 +59149,33 @@ func (a *InternalUIAPI) HandleHumanExitPlanMode(ctx context.Context, params *UIH
 // Returns: Indicates whether the pending UI request was resolved by this call.
 // Internal: HandleHumanUserInput is part of the SDK's internal handshake/plumbing; external
 // callers should not use it.
+// Use HandleHumanUserInputWithOptions to set additional optional inputs.
 func (a *InternalUIAPI) HandleHumanUserInput(ctx context.Context, params *UIHandlePendingUserInputRequest) (*UIHandlePendingResult, error) {
+	var options *UIHandlePendingUserInputOptions
+	if params != nil {
+		options = &UIHandlePendingUserInputOptions{}
+		options.RequestID = params.RequestID
+		options.Response = params.Response
+	}
+	return a.HandleHumanUserInputWithOptions(ctx, options)
+}
+
+// HandleHumanUserInputWithOptions resolves a pending `user_input.requested` event after
+// direct interaction in the trusted in-process client or authenticated owning host.
+//
+// RPC method: session.ui.handleHumanUserInput.
+//
+// Parameters: Request ID of a pending `user_input.requested` event and the user's response.
+//
+// Returns: Indicates whether the pending UI request was resolved by this call.
+// Internal: HandleHumanUserInputWithOptions is part of the SDK's internal
+// handshake/plumbing; external callers should not use it.
+func (a *InternalUIAPI) HandleHumanUserInputWithOptions(ctx context.Context, params *UIHandlePendingUserInputOptions) (*UIHandlePendingResult, error) {
 	req := map[string]any{"sessionId": a.sessionID}
 	if params != nil {
+		if params.DecisionContext != nil {
+			req["decisionContext"] = *params.DecisionContext
+		}
 		req["requestId"] = params.RequestID
 		req["response"] = params.Response
 	}
@@ -59423,6 +60358,21 @@ type LlmInferenceHandler interface {
 
 // Experimental: NetworkHandler contains experimental APIs that may change or be removed.
 type NetworkHandler interface {
+	// AuthenticateBasic requests credentials for a proxy's Basic authentication challenge on a
+	// tunneled connection. The runtime remembers the answer for that proxy and uses it for
+	// later connections, until the proxy rejects it; then it calls again with
+	// `previousRejected` set. A later connection sends the answer without waiting for a
+	// challenge, unless the runtime may try Negotiate with that proxy first. A connection
+	// submits at most three sets of credentials. The runtime does not time this request out: a
+	// request whose own deadline passes stops waiting, but the answer is still remembered.
+	// Credentials must not be logged or persisted.
+	//
+	// RPC method: network.authenticateBasic.
+	//
+	// Parameters: Requests credentials for a proxy's Basic authentication challenge.
+	//
+	// Returns: Credentials for a proxy's Basic authentication challenge.
+	AuthenticateBasic(request *NetworkAuthenticateBasicRequest) (*NetworkAuthenticateBasicResult, error)
 	// AuthenticateNegotiate requests a fresh base64 initial SPNEGO token for a Kerberos service
 	// principal; the runtime uses it to answer Negotiate proxy challenges. Tokens must not be
 	// logged, persisted or reused across connections. Continuation challenges are not supported
@@ -59752,6 +60702,24 @@ func RegisterClientGlobalAPIHandlers(client *jsonrpc2.Client, handlers *ClientGl
 			return nil, &jsonrpc2.Error{Code: -32603, Message: "No llmInference client-global handler registered"}
 		}
 		result, err := handlers.LlmInference.HttpRequestStart(&request)
+		if err != nil {
+			return nil, clientGlobalHandlerError(err)
+		}
+		raw, err := json.Marshal(result)
+		if err != nil {
+			return nil, &jsonrpc2.Error{Code: -32603, Message: fmt.Sprintf("Failed to marshal response: %v", err)}
+		}
+		return raw, nil
+	})
+	client.SetRequestHandler("network.authenticateBasic", func(params json.RawMessage) (json.RawMessage, *jsonrpc2.Error) {
+		var request NetworkAuthenticateBasicRequest
+		if err := json.Unmarshal(params, &request); err != nil {
+			return nil, &jsonrpc2.Error{Code: -32602, Message: fmt.Sprintf("Invalid params: %v", err)}
+		}
+		if handlers == nil || handlers.Network == nil {
+			return nil, &jsonrpc2.Error{Code: -32603, Message: "No network client-global handler registered"}
+		}
+		result, err := handlers.Network.AuthenticateBasic(&request)
 		if err != nil {
 			return nil, clientGlobalHandlerError(err)
 		}

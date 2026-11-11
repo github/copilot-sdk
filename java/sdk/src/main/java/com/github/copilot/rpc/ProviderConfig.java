@@ -99,6 +99,8 @@ public class ProviderConfig {
      * <ul>
      * <li>"openai" - OpenAI API</li>
      * <li>"azure" - Azure OpenAI Service</li>
+     * <li>"anthropic" - Anthropic API</li>
+     * <li>"google" - Google Gemini Interactions API (experimental)</li>
      * </ul>
      *
      * @param type

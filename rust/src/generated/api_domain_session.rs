@@ -12,14 +12,14 @@ pub(crate) use lifecycle_diagnostics::LifecycleDiagnosticEvent;
 use serde::{Deserialize, Serialize};
 pub use session_events::{
     AbortReason, AgentModelPolicy, AssistedApprovalAssessment, AutoTier, BlockedPermissionAction,
-    ContextTier, IndexedSearchState, ManagedPermissionsContext, ManagedSettingsResolvedSource,
-    McpOauthHttpResponse, McpOauthWWWAuthenticateParams, McpServerMetadata, McpServerSource,
-    McpServerStatus, McpSkillOrigin, ModelChangeSource, ModelProviderKind, ModelProviderRef,
-    OmittedBinaryOmittedReason, PermissionDecisionSource, PermissionMode, PermissionPromptRequest,
-    PermissionRule, PolicyHelperCapabilities, PolicyHelperFailure, ProviderQuotaState,
-    ReasoningSummary, RemediationAction, SessionLimitsConfig, SessionMode, ShutdownType,
-    SkillSource, TaskBlocker, TaskCompletionOutcome, UsageGetMetricsResult,
-    UserToolSessionApproval, Verbosity,
+    ContextTier, IdeConnectedInfo, IdeSelection, IndexedSearchState, ManagedPermissionsContext,
+    ManagedSettingsResolvedSource, McpOauthHttpResponse, McpOauthWWWAuthenticateParams,
+    McpServerMetadata, McpServerSource, McpServerStatus, McpSkillOrigin, ModelChangeSource,
+    ModelProviderKind, ModelProviderRef, OmittedBinaryOmittedReason, PermissionDecisionSource,
+    PermissionMode, PermissionPromptRequest, PermissionRule, PolicyHelperCapabilities,
+    PolicyHelperFailure, ProviderQuotaState, ReasoningSummary, RemediationAction,
+    SessionLimitsConfig, SessionMode, ShutdownType, SkillSource, TaskBlocker,
+    TaskCompletionOutcome, UsageGetMetricsResult, UserToolSessionApproval, Verbosity,
 };
 
 use super::sdk_api_shared::*;
@@ -1199,7 +1199,7 @@ pub struct PermissionDecisionDeniedByPermissionRequestHook {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct PermissionDecisionRequest {
-    /// Optional informational context describing how and where this response was made. Omit it to preserve legacy behavior without attributing an origin.
+    /// Who decided and how. When it says a person decided (`source` `human_response`), the runtime records the decision as the person's (`permission.completed.decisionSource`), but only from the session's authenticated owning connection or the in-process host; a decision from any other caller applies without that authority. Omit it for an unattributed decision.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub decision_context: Option<PermissionDecisionContext>,
     /// Request ID of the pending permission request
@@ -12356,6 +12356,62 @@ pub struct SessionSkillsEnsureLoadedParams {
 /// </div>
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
+pub struct SessionMcpIdeStateParams {
+    /// Target session identifier
+    pub session_id: SessionId,
+}
+
+/// Live IDE state. This state never restores a connection from session history.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SessionMcpIdeStateResult {
+    /// Currently available IDE, absent during an outage.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub connected_ide: Option<IdeConnectedInfo>,
+    /// IDE whose tool definitions remain registered, including during an outage.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub retained_ide: Option<IdeConnectedInfo>,
+    /// Latest observed selection, absent after disconnect.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub selection: Option<IdeSelection>,
+}
+
+/// Invokes a tool on a session MCP server through the server's permission policy.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SessionMcpCallToolParams {
+    /// Registered MCP server name.
+    pub server_name: String,
+    /// Unprefixed MCP tool name.
+    pub tool_name: String,
+    /// MCP tool arguments.
+    pub arguments: serde_json::Value,
+}
+
+/// Identifies the target session.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct SessionMcpListParams {
     /// Target session identifier
     pub session_id: SessionId,
@@ -17195,6 +17251,16 @@ pub type SessionGitHubAuthLogoutUserResult = bool;
 ///
 /// </div>
 pub type SessionGitHubAuthLastAuthErrorsResult = Vec<AuthValidationError>;
+
+/// A standard MCP tool result, or null when the IDE is disconnected.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+pub type SessionMcpCallToolResult = Option<McpToolResult>;
 
 /// Whether the credential operation succeeded.
 ///

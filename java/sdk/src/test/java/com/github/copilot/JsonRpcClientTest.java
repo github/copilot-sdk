@@ -30,6 +30,7 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ValueSource;
 
+import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ObjectNode;
@@ -44,6 +45,8 @@ import com.github.copilot.generated.rpc.SessionFeatureFlagsConfigureParams;
 import com.github.copilot.generated.rpc.SessionFeatureFlagsReadParams;
 import com.github.copilot.generated.rpc.SessionFeatureFlagsUpdateParams;
 import com.github.copilot.generated.rpc.SessionRpc;
+import com.github.copilot.generated.rpc.SessionMcpCallToolParams;
+import com.github.copilot.generated.rpc.SessionMcpStartServerParams;
 
 class JsonRpcClientTest {
 
@@ -187,6 +190,42 @@ class JsonRpcClientTest {
     }
 
     // ---- notify() ----
+
+    private record NullableToolArguments(String value, List<NullableToolArguments> nested) {
+    }
+
+    @Test
+    @AllowCopilotExperimental
+    void testOpaquePojoArgumentsPreserveNullsWithoutAddingOptionalProtocolFields() throws Exception {
+        try (var pair = createSocketPair()) {
+            var session = new SessionRpc(pair.client::invoke, "tool-session");
+            var arguments = new NullableToolArguments(null, List.of(new NullableToolArguments(null, null)));
+            var result = session.mcp.callTool(SessionMcpCallToolParams.builder().serverName("fixture")
+                    .toolName("inspect").arguments(arguments).build());
+            var request = MAPPER.readTree(readRpcMessage(pair.serverSide.getInputStream()));
+            writeRpcMessage(pair.serverSide.getOutputStream(),
+                    "{\"jsonrpc\":\"2.0\",\"id\":" + request.get("id") + ",\"result\":{}}");
+            result.get(5, TimeUnit.SECONDS);
+            assertEquals(MAPPER.readTree("""
+                    {"sessionId":"tool-session","serverName":"fixture","toolName":"inspect",
+                     "arguments":{"value":null,"nested":[{"value":null,"nested":null}]}}
+                    """), request.get("params"));
+
+            var start = session.mcp.startServer(SessionMcpStartServerParams.builder().serverName("fixture").build());
+            request = MAPPER.readTree(readRpcMessage(pair.serverSide.getInputStream()));
+            writeRpcMessage(pair.serverSide.getOutputStream(),
+                    "{\"jsonrpc\":\"2.0\",\"id\":" + request.get("id") + ",\"result\":{}}");
+            start.get(5, TimeUnit.SECONDS);
+            assertEquals(MAPPER.readTree("""
+                    {"sessionId":"tool-session","serverName":"fixture"}
+                    """), request.get("params"));
+
+            pair.client.notify("fixture.notification", null);
+            request = MAPPER.readTree(readRpcMessage(pair.serverSide.getInputStream()));
+            assertFalse(request.has("id"));
+            assertFalse(request.has("params"));
+        }
+    }
 
     @Test
     @AllowCopilotExperimental
@@ -347,7 +386,8 @@ class JsonRpcClientTest {
     void testCredentialValuesAreRedactedOnlyFromDiagnosticRendering() throws Exception {
         String json = """
                 {"jsonrpc":"2.0","result":{"accessToken":"secret","nested":{"gitHubToken":"static"},
-                "negotiate":{"token":"spnego"}},"metadata":{"tokenType":"Bearer"}}
+                "negotiate":{"token":"spnego"},"basic":{"username":"user","password":"hunter2"}},
+                "metadata":{"tokenType":"Bearer"}}
                 """;
 
         String rendered = JsonRpcClient.redactCredentialsForLogging(json);
@@ -355,9 +395,11 @@ class JsonRpcClientTest {
         assertFalse(rendered.contains("secret"));
         assertFalse(rendered.contains("static"));
         assertFalse(rendered.contains("spnego"));
+        assertFalse(rendered.contains("hunter2"));
         assertEquals("<redacted>", MAPPER.readTree(rendered).at("/result/accessToken").asText());
         assertEquals("<redacted>", MAPPER.readTree(rendered).at("/result/nested/gitHubToken").asText());
         assertEquals("<redacted>", MAPPER.readTree(rendered).at("/result/negotiate/token").asText());
+        assertEquals("<redacted>", MAPPER.readTree(rendered).at("/result/basic/password").asText());
         assertEquals("Bearer", MAPPER.readTree(rendered).at("/metadata/tokenType").asText());
     }
 
@@ -516,6 +558,20 @@ class JsonRpcClientTest {
     }
 
     // ---- invoke() edge cases ----
+
+    @Test
+    void testTextResponseBeyondDefaultJacksonLimit() throws Exception {
+        try (var pair = createSocketPair()) {
+            var future = pair.client.invoke("fetch.send", Map.of(), JsonNode.class);
+            var request = MAPPER.readTree(readRpcMessage(pair.serverSide.getInputStream()));
+            var text = "x".repeat(20_000_001);
+            writeRpcMessage(pair.serverSide.getOutputStream(), "{\"jsonrpc\":\"2.0\",\"id\":" + request.get("id")
+                    + ",\"result\":{\"responseMode\":\"text\",\"bodyText\":\"" + text + "\"}}");
+
+            assertEquals(text, future.get(5, TimeUnit.SECONDS).path("bodyText").asText());
+            assertReaderResponsive(pair);
+        }
+    }
 
     @ParameterizedTest
     @ValueSource(booleans = {false, true})
@@ -737,8 +793,17 @@ class JsonRpcClientTest {
     @Test
     void testInvalidJson() throws Exception {
         try (var pair = createSocketPair()) {
+            var first = pair.client.invoke("fetch.send", Map.of(), JsonNode.class);
+            readRpcMessage(pair.serverSide.getInputStream());
+            var second = pair.client.invoke("fetch.create", Map.of(), JsonNode.class);
+            readRpcMessage(pair.serverSide.getInputStream());
+
             writeRpcMessage(pair.serverSide.getOutputStream(), "not valid json {{{");
 
+            for (var pending : List.of(first, second)) {
+                var failure = assertThrows(ExecutionException.class, () -> pending.get(5, TimeUnit.SECONDS));
+                assertInstanceOf(JsonProcessingException.class, failure.getCause());
+            }
             assertReaderResponsive(pair);
         }
     }

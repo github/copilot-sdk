@@ -43,6 +43,8 @@ import type {
     ProviderConfigType,
     ProtocolExternalToolNamespace,
     CurrentToolMetadata,
+    NetworkAuthenticateBasicRequest,
+    NetworkAuthenticateBasicResult,
     NetworkAuthenticateNegotiateRequest,
     NetworkResolveProxyRequest,
     NetworkScope,
@@ -52,6 +54,8 @@ import type {
 } from "./generated/rpc.js";
 import type { ToolSet } from "./toolSet.js";
 export type {
+    NetworkAuthenticateBasicRequest,
+    NetworkAuthenticateBasicResult,
     NetworkAuthenticateNegotiateRequest,
     NetworkResolveProxyRequest,
     NetworkScope,
@@ -509,9 +513,7 @@ export interface CopilotClientOptions {
      * When set to `"empty"`, the SDK validates that the app has supplied the
      * required configuration ({@link CopilotClientOptions.baseDirectory} or
      * {@link CopilotClientOptions.sessionFs}, plus
-     * {@link SessionConfigBase.availableTools} on each session) and translates
-     * session creation requests into runtime options that flip tool filter
-     * precedence to deny-wins so exclusions are expressible.
+     * {@link SessionConfigBase.availableTools} on each session).
      *
      * @default "copilot-cli"
      */
@@ -706,9 +708,10 @@ export type ExtensionLaunchProvider = GeneratedExtensionLaunchProvider;
 
 /**
  * Network callbacks through which the SDK host takes over parts of the runtime's networking, for
- * example when the runtime runs in WSL or a container and should use VS Code's proxy settings and
- * the host's Kerberos tickets. Each registered callback replaces the runtime's own handling for the
- * traffic in {@link NetworkConfig.scope}; without it, the runtime handles that part itself.
+ * example when the runtime runs in WSL or a container and should use VS Code's proxy settings, proxy
+ * credentials and the host's Kerberos tickets. Each registered callback replaces the runtime's own
+ * handling for the traffic in {@link NetworkConfig.scope}; without it, the runtime handles that part
+ * itself.
  *
  * Each callback receives a `signal` that aborts when the runtime stops waiting: it cancels the
  * request (for example when its wait times out) or the connection closes. The SDK then stops
@@ -745,7 +748,8 @@ export interface NetworkConfig {
     /**
      * Returns a fresh, single-use base64 SPNEGO token without the `Negotiate ` prefix for a proxy's Negotiate
      * challenge, or `undefined` when unavailable. The runtime then does not look up Kerberos credentials
-     * itself, so a missing token or a failing callback fails the request.
+     * itself, so a missing token or a failing callback fails the request, unless the proxy also offers
+     * Basic and {@link NetworkConfig.authenticateBasic} supplies credentials.
      * The SPN uses the platform-independent `service/host[@REALM]` form; validate it before issuing
      * credentials. Never log or persist tokens.
      */
@@ -753,6 +757,27 @@ export interface NetworkConfig {
         request: NetworkAuthenticateNegotiateRequest,
         signal: AbortSignal
     ) => Promise<string | undefined>;
+    /**
+     * Returns credentials for a proxy's Basic challenge, or `undefined` when unavailable, which fails the
+     * request with the proxy's challenge. Applies to requests the runtime tunnels through the proxy
+     * (`https` and `wss`). The runtime remembers the answer for that proxy and uses it for later
+     * connections, until the proxy rejects it; then it calls again with `request.previousRejected` set,
+     * so answer with different credentials, for example by asking the user, or with `undefined`. A later
+     * connection sends the answer without waiting for a challenge, unless the runtime may try Negotiate
+     * with that proxy first. A connection submits at most three sets of credentials. While a call is
+     * pending, other requests through that proxy wait for its answer.
+     * When a proxy offers both Negotiate and Basic, the runtime prefers Negotiate and answers with Basic
+     * when Negotiate is unavailable or the proxy rejects it.
+     * `request.realm` comes from the proxy, so treat it as untrusted text. An empty user name also counts
+     * as unavailable; the user name must not contain a colon, neither the user name nor the password may
+     * contain control characters, and an omitted password means an empty one. The runtime does not time
+     * the callback out: a request whose own deadline passes stops waiting, but the answer is still
+     * remembered. Never log or persist credentials.
+     */
+    authenticateBasic?: (
+        request: NetworkAuthenticateBasicRequest,
+        signal: AbortSignal
+    ) => Promise<NetworkAuthenticateBasicResult | undefined>;
 }
 /**
  * Configuration for creating a session
@@ -1281,6 +1306,20 @@ export interface ElicitationResult {
 }
 
 /**
+ * Result an {@link ElicitationHandler} returns: the {@link ElicitationResult},
+ * optionally labeled with who answered (see {@link createAttributedResult}).
+ */
+export interface ElicitationHandlerResult extends ElicitationResult {
+    /**
+     * Who answered and how. When it says a person answered interactively
+     * (`source: "human_response"`, `responseCapability: "interactive"`), the
+     * runtime counts the answer as the person's own authority for Assisted
+     * Permissions, but only from the session's owning connection.
+     */
+    decisionContext?: PermissionDecisionContext;
+}
+
+/**
  * Parameters for a raw elicitation request.
  */
 export interface ElicitationParams {
@@ -1311,11 +1350,11 @@ export interface ElicitationContext {
 
 /**
  * Handler invoked when the server dispatches an elicitation request to this client.
- * Return an {@link ElicitationResult} with the user's response.
+ * Return an {@link ElicitationHandlerResult} with the user's response.
  */
 export type ElicitationHandler = (
     context: ElicitationContext
-) => Promise<ElicitationResult> | ElicitationResult;
+) => Promise<ElicitationHandlerResult> | ElicitationHandlerResult;
 
 /**
  * Options for the `input()` convenience method.
@@ -1564,10 +1603,11 @@ export type PermissionRequestResult = PermissionDecisionRequest["result"] | { ki
 
 /**
  * A {@link PermissionRequestResult} annotated with the
- * {@link PermissionDecisionContext} describing how and where the decision was
- * reached. The context is informational only — it never changes permission
- * behavior. Supplying it lets the runtime attribute auto-approval telemetry to
- * the responding surface.
+ * {@link PermissionDecisionContext} describing who decided and how. When the
+ * context says a person decided, the runtime records the decision as the
+ * person's (`permission.completed.decisionSource = "human_response"`), but only
+ * from the session's owning connection; an answer from any other connection
+ * settles without that authority.
  */
 export interface AttributedPermissionResult {
     kind: "attributed";
@@ -1585,12 +1625,11 @@ export function isAttributedPermissionResult(
 }
 
 /**
- * Pair a permission decision with the context describing how and where it was
- * made, so the runtime can attribute auto-approval telemetry.
+ * Pair a permission decision with the context describing who decided and how.
+ * Equivalent to {@link createAttributedResult} for permission decisions.
  *
  * Passing an already-attributed result replaces the previous context rather
- * than nesting it. The context is informational only and never changes
- * permission behavior.
+ * than nesting it.
  */
 export function createAttributedPermissionResult(
     result: PermissionRequestResult | AttributedPermissionResult,
@@ -1598,6 +1637,59 @@ export function createAttributedPermissionResult(
 ): AttributedPermissionResult {
     const inner = isAttributedPermissionResult(result) ? result.result : result;
     return { kind: "attributed", result: inner, decisionContext };
+}
+
+/**
+ * Label any prompt handler's result with who answered and how: a permission
+ * decision, a user-input answer, a plan review, or an elicitation answer.
+ *
+ * Label a person's answer with `source: "human_response"` and
+ * `responseCapability: "interactive"`, including when they decline or dismiss
+ * the prompt, so the runtime can count it as their own authority for Assisted
+ * Permissions. The runtime decides which answers carry authority, and accepts
+ * the label only from the session's owning connection; any other answer still
+ * settles, without it. Leave automated answers unlabeled or label them with a
+ * non-human `source`.
+ *
+ * Passing an already-labeled result replaces the previous label.
+ *
+ * @example
+ * ```typescript
+ * onUserInputRequest: async (request) =>
+ *     createAttributedResult(
+ *         { answer: await askPerson(request.question), wasFreeform: true },
+ *         { source: "human_response", responseCapability: "interactive", surface: "sdk", outcome: "prompted_user" }
+ *     ),
+ * ```
+ */
+export function createAttributedResult(
+    result: PermissionRequestResult | AttributedPermissionResult,
+    decisionContext: PermissionDecisionContext
+): AttributedPermissionResult;
+export function createAttributedResult<
+    T extends UserInputResponse | ExitPlanModeResult | ElicitationHandlerResult,
+>(result: T, decisionContext: PermissionDecisionContext): T & PromptDecisionLabel;
+export function createAttributedResult(
+    result:
+        | PermissionRequestResult
+        | AttributedPermissionResult
+        | UserInputResponse
+        | ExitPlanModeResult
+        | ElicitationHandlerResult,
+    decisionContext: PermissionDecisionContext
+): AttributedPermissionResult | (object & PromptDecisionLabel) {
+    if ("kind" in result && typeof result.kind === "string") {
+        return createAttributedPermissionResult(
+            result as PermissionRequestResult | AttributedPermissionResult,
+            decisionContext
+        );
+    }
+    return { ...result, decisionContext };
+}
+
+/** The label {@link createAttributedResult} adds to a non-permission prompt answer. */
+export interface PromptDecisionLabel {
+    decisionContext: PermissionDecisionContext;
 }
 
 /**
@@ -1706,6 +1798,14 @@ export interface UserInputResponse {
      * Whether the answer was freeform (not from choices)
      */
     wasFreeform: boolean;
+
+    /**
+     * Who answered and how (see {@link createAttributedResult}). When it says a
+     * person answered interactively, the runtime counts the answer as the
+     * person's own authority for Assisted Permissions, but only from the
+     * session's owning connection.
+     */
+    decisionContext?: PermissionDecisionContext;
 }
 
 /**
@@ -1789,6 +1889,13 @@ export interface ExitPlanModeResult {
     selectedAction?: string;
     /** Optional feedback provided by the user. */
     feedback?: string;
+    /**
+     * Who answered and how (see {@link createAttributedResult}). When it says a
+     * person answered interactively, the runtime counts the review as the
+     * person's own for Assisted Permissions, but only from the session's
+     * owning connection.
+     */
+    decisionContext?: PermissionDecisionContext;
 }
 
 /**

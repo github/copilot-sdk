@@ -22,6 +22,8 @@ public enum ProviderConfigType {
     AZURE("azure"),
     /** The {@code anthropic} variant. */
     ANTHROPIC("anthropic"),
+    /** The {@code google} variant. */
+    GOOGLE("google"),
     /** The {@code winml} variant. */
     WINML("winml");
 

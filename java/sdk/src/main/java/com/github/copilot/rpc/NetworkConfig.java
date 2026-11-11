@@ -8,6 +8,8 @@ import java.util.concurrent.CompletableFuture;
 import java.util.function.Function;
 
 import com.github.copilot.CopilotExperimental;
+import com.github.copilot.generated.rpc.NetworkAuthenticateBasicRequest;
+import com.github.copilot.generated.rpc.NetworkAuthenticateBasicResult;
 import com.github.copilot.generated.rpc.NetworkAuthenticateNegotiateRequest;
 import com.github.copilot.generated.rpc.NetworkResolveProxyRequest;
 import com.github.copilot.generated.rpc.NetworkScope;
@@ -15,7 +17,8 @@ import com.github.copilot.generated.rpc.NetworkScope;
 /**
  * Network callbacks through which the SDK host takes over parts of the
  * runtime's networking, for example when the runtime runs in WSL or a container
- * and should use VS Code's proxy settings and the host's Kerberos tickets.
+ * and should use VS Code's proxy settings, the host's Kerberos tickets and the
+ * host's proxy credentials.
  * <p>
  * Each configured callback replaces the runtime's own handling for the traffic
  * in {@link #getScope() scope}; for a callback left unset, the runtime handles
@@ -38,7 +41,8 @@ import com.github.copilot.generated.rpc.NetworkScope;
  * <pre>{@code
  * var options = new CopilotClientOptions().setNetwork(
  * 		new NetworkConfig().setScope(NetworkScope.RUNTIME).setResolveProxy(request -> resolveProxyFor(request.url()))
- * 				.setAuthenticateNegotiate(request -> acquireSpnegoToken(request.spn())));
+ * 				.setAuthenticateNegotiate(request -> acquireSpnegoToken(request.spn()))
+ * 				.setAuthenticateBasic(request -> lookUpProxyCredentials(request.proxy())));
  * }</pre>
  *
  * @see CopilotClientOptions#setNetwork(NetworkConfig)
@@ -50,6 +54,7 @@ public final class NetworkConfig {
     private NetworkScope scope;
     private Function<NetworkResolveProxyRequest, CompletableFuture<String>> resolveProxy;
     private Function<NetworkAuthenticateNegotiateRequest, CompletableFuture<String>> authenticateNegotiate;
+    private Function<NetworkAuthenticateBasicRequest, CompletableFuture<NetworkAuthenticateBasicResult>> authenticateBasic;
 
     /**
      * Gets the traffic the callbacks serve.
@@ -139,11 +144,13 @@ public final class NetworkConfig {
      * issuing credentials. The returned future supplies a fresh, single-use base64
      * SPNEGO token without the {@code Negotiate } prefix, or {@code null} when
      * credentials are unavailable; a missing token or a failing callback fails the
-     * request. The runtime waits at most 30 seconds for the callback (less when the
-     * request's own deadline is sooner). Tokens are not cached and must not be
-     * logged or persisted. The callback supplies the initial SPNEGO token only;
-     * exchanges requiring continuation tokens are not supported. Proxies chosen by
-     * the proxy resolution callback are authenticated the same way.
+     * request, unless the proxy also offers Basic and the
+     * {@link #setAuthenticateBasic Basic callback} supplies credentials. The
+     * runtime waits at most 30 seconds for the callback (less when the request's
+     * own deadline is sooner). Tokens are not cached and must not be logged or
+     * persisted. The callback supplies the initial SPNEGO token only; exchanges
+     * requiring continuation tokens are not supported. Proxies chosen by the proxy
+     * resolution callback are authenticated the same way.
      *
      * @param authenticateNegotiate
      *            the callback, or {@code null} to let the runtime look up Kerberos
@@ -153,6 +160,50 @@ public final class NetworkConfig {
     public NetworkConfig setAuthenticateNegotiate(
             Function<NetworkAuthenticateNegotiateRequest, CompletableFuture<String>> authenticateNegotiate) {
         this.authenticateNegotiate = authenticateNegotiate;
+        return this;
+    }
+
+    /**
+     * Gets the Basic authentication callback.
+     *
+     * @return the callback, or {@code null} if unset
+     */
+    public Function<NetworkAuthenticateBasicRequest, CompletableFuture<NetworkAuthenticateBasicResult>> getAuthenticateBasic() {
+        return authenticateBasic;
+    }
+
+    /**
+     * Sets the callback that supplies credentials for a proxy's Basic challenge.
+     * <p>
+     * Applies to requests the runtime tunnels through the proxy ({@code https} and
+     * {@code wss}). The request's {@code proxy()} is the proxy that challenged, as
+     * {@code http://host:port} or {@code https://host:port}; its {@code realm()},
+     * if any, comes from the proxy, so treat it as untrusted text. The returned
+     * future supplies the user name and password, or {@code null} (or an empty user
+     * name) when credentials are unavailable, which fails the request with the
+     * proxy's challenge; a failing callback fails the request. The user name must
+     * not contain a colon, neither the user name nor the password may contain
+     * control characters, and a {@code null} password means an empty one. The
+     * runtime remembers the answer for that proxy and uses it for later
+     * connections, until the proxy rejects it; then it calls again with
+     * {@code previousRejected()} set, so answer with different credentials, for
+     * example by asking the user, or with {@code null}. A later connection sends
+     * the answer without waiting for a challenge, unless the runtime may try
+     * Negotiate with that proxy first. A connection submits at most three sets of
+     * credentials. While a call is pending, other requests through that proxy wait
+     * for its answer. When a proxy offers both Negotiate and Basic, the runtime
+     * prefers Negotiate and answers with Basic when Negotiate is unavailable or the
+     * proxy rejects it. The runtime does not time the callback out: a request whose
+     * own deadline passes stops waiting, but the answer is still remembered. Never
+     * log or persist credentials.
+     *
+     * @param authenticateBasic
+     *            the callback, or {@code null} to unset it
+     * @return this configuration for method chaining
+     */
+    public NetworkConfig setAuthenticateBasic(
+            Function<NetworkAuthenticateBasicRequest, CompletableFuture<NetworkAuthenticateBasicResult>> authenticateBasic) {
+        this.authenticateBasic = authenticateBasic;
         return this;
     }
 }

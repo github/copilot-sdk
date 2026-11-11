@@ -12,14 +12,14 @@ pub(crate) use lifecycle_diagnostics::LifecycleDiagnosticEvent;
 use serde::{Deserialize, Serialize};
 pub use session_events::{
     AbortReason, AgentModelPolicy, AssistedApprovalAssessment, AutoTier, BlockedPermissionAction,
-    ContextTier, IndexedSearchState, ManagedPermissionsContext, ManagedSettingsResolvedSource,
-    McpOauthHttpResponse, McpOauthWWWAuthenticateParams, McpServerMetadata, McpServerSource,
-    McpServerStatus, McpSkillOrigin, ModelChangeSource, ModelProviderKind, ModelProviderRef,
-    OmittedBinaryOmittedReason, PermissionDecisionSource, PermissionMode, PermissionPromptRequest,
-    PermissionRule, PolicyHelperCapabilities, PolicyHelperFailure, ProviderQuotaState,
-    ReasoningSummary, RemediationAction, SessionLimitsConfig, SessionMode, ShutdownType,
-    SkillSource, TaskBlocker, TaskCompletionOutcome, UsageGetMetricsResult,
-    UserToolSessionApproval, Verbosity,
+    ContextTier, IdeConnectedInfo, IdeSelection, IndexedSearchState, ManagedPermissionsContext,
+    ManagedSettingsResolvedSource, McpOauthHttpResponse, McpOauthWWWAuthenticateParams,
+    McpServerMetadata, McpServerSource, McpServerStatus, McpSkillOrigin, ModelChangeSource,
+    ModelProviderKind, ModelProviderRef, OmittedBinaryOmittedReason, PermissionDecisionSource,
+    PermissionMode, PermissionPromptRequest, PermissionRule, PolicyHelperCapabilities,
+    PolicyHelperFailure, ProviderQuotaState, ReasoningSummary, RemediationAction,
+    SessionLimitsConfig, SessionMode, ShutdownType, SkillSource, TaskBlocker,
+    TaskCompletionOutcome, UsageGetMetricsResult, UserToolSessionApproval, Verbosity,
 };
 
 use super::sdk_api_shared::*;
@@ -1461,6 +1461,25 @@ pub struct McpAppsSetHostContextRequest {
     pub context: McpAppsSetHostContextDetails,
 }
 
+/// Invokes a tool on a session MCP server through the server's permission policy.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct McpCallToolRequest {
+    /// MCP tool arguments.
+    pub arguments: serde_json::Value,
+    /// Registered MCP server name.
+    pub server_name: String,
+    /// Unprefixed MCP tool name.
+    pub tool_name: String,
+}
+
 /// The requestId previously passed to executeSampling that should be cancelled.
 ///
 /// <div class="warning">
@@ -1865,6 +1884,33 @@ pub struct McpHeadersHandlePendingHeadersRefreshRequestRequest {
 pub struct McpHeadersHandlePendingHeadersRefreshRequestResult {
     /// Whether the response was accepted. False if the request was unknown, timed out, or already resolved.
     pub success: bool,
+}
+
+/// IDE metadata for an existing local MCP endpoint on the runtime host.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct McpIdeConfig {
+    /// Client process identifier sent to the IDE.
+    pub client_pid: i64,
+    /// Client package version used by the MCP initialize request.
+    pub client_version: String,
+    /// IDE display name.
+    pub ide_name: String,
+    /// Lock file whose removal ends the live connection.
+    pub lock_file_path: String,
+    /// Client parent process identifier sent to the IDE.
+    pub parent_pid: i64,
+    /// IDE process identifier.
+    pub pid: i64,
+    /// Absolute workspace path on the runtime host.
+    pub workspace_folder: String,
 }
 
 /// Already-confirmed durable work must be reconciled before new mutations or inventory.
@@ -4072,6 +4118,28 @@ pub struct McpServerConfigHttp {
     pub url: String,
 }
 
+/// A session-only local IDE endpoint. Starting it never writes persistent configuration.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct McpServerConfigLocal {
+    /// Endpoint headers from IDE discovery.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub headers: Option<HashMap<String, String>>,
+    /// IDE identity and initialize metadata. The server name must be `ide`.
+    pub ide: McpIdeConfig,
+    /// Existing Unix socket or Windows named pipe on the runtime host.
+    pub socket_path: String,
+    /// Local transport discriminator.
+    pub r#type: McpServerConfigLocalType,
+}
+
 /// In-process MCP server configuration used by embedded SDK clients.
 ///
 /// <div class="warning">
@@ -4336,7 +4404,7 @@ pub(crate) struct McpShouldExcludeGitHubToolsResult {
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct McpStartServerRequest {
-    /// MCP server configuration (stdio process or remote HTTP/SSE). Omit to start the server with its already-registered configuration (config-free start-by-name).
+    /// MCP server configuration (stdio, remote HTTP/SSE, or session-only local IDE endpoint). Local IDE endpoints never write persistent configuration. Omit to start with the already-registered configuration.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub config: Option<serde_json::Value>,
     /// Name of the MCP server to start
@@ -4375,7 +4443,7 @@ impl McpStartServerOptions {
         }
     }
 
-    /// MCP server configuration (stdio process or remote HTTP/SSE). Omit to start the server with its already-registered configuration (config-free start-by-name).
+    /// MCP server configuration (stdio, remote HTTP/SSE, or session-only local IDE endpoint). Local IDE endpoints never write persistent configuration. Omit to start with the already-registered configuration.
     pub fn config(mut self, value: serde_json::Value) -> Self {
         self.legacy.config = Some(value);
         self
@@ -4409,7 +4477,7 @@ pub struct McpStartServersResult {
     pub filtered_servers: Vec<McpFilteredServer>,
 }
 
-/// Server name for an individual MCP server stop.
+/// Server name and optional transport selector for an individual MCP server stop. Omit transport to stop the server by name.
 ///
 /// <div class="warning">
 ///
@@ -4442,6 +4510,8 @@ pub struct McpStopServerOptions {
     legacy: McpStopServerRequest,
     #[serde(skip_serializing_if = "Option::is_none")]
     expected_installation_id: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    transport: Option<McpServerConfigLocalType>,
 }
 
 impl McpStopServerOptions {
@@ -4452,12 +4522,19 @@ impl McpStopServerOptions {
                 server_name: server_name.into(),
             },
             expected_installation_id: None,
+            transport: None,
         }
     }
 
     /// Exact owned receipt identity. Stop also forgets this session's durable activation.
     pub fn expected_installation_id(mut self, value: impl Into<String>) -> Self {
         self.expected_installation_id = Some(value.into());
+        self
+    }
+
+    /// Optional transport selector. The only supported value, local-http, requires serverName ide and cannot accompany expectedInstallationId. It cancels pending IDE initialization and removes local IDE state without stopping an ordinary server with the same name. Omit this field for a generic stop by name.
+    pub fn transport(mut self, value: McpServerConfigLocalType) -> Self {
+        self.transport = Some(value);
         self
     }
 }
@@ -6043,6 +6120,16 @@ pub struct CanvasOpenResult {
     pub url: Option<String>,
 }
 
+/// A standard MCP tool result, or null when the IDE is disconnected.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+pub type McpCallToolResult = Option<McpToolResult>;
+
 /// A runtime-assigned secret placeholder. The identifier is carried once, inside the placeholder, so it cannot contradict a separate secret-id field.
 ///
 /// <div class="warning">
@@ -7514,6 +7601,25 @@ pub enum McpServerConfigHttpType {
     /// Server-Sent Events transport.
     #[serde(rename = "sse")]
     Sse,
+    /// Unknown variant for forward compatibility.
+    #[default]
+    #[serde(other)]
+    Unknown,
+}
+
+/// Local transport for a session-owned IDE endpoint.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub enum McpServerConfigLocalType {
+    /// Existing Unix socket or Windows named pipe.
+    #[serde(rename = "local-http")]
+    LocalHttp,
     /// Unknown variant for forward compatibility.
     #[default]
     #[serde(other)]

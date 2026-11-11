@@ -10,11 +10,11 @@
 //! client created with [`Client::from_streams`](crate::Client::from_streams), with
 //! [`Client::register_network`](crate::Client::register_network), for
 //! example when the runtime runs in WSL or a container and should use VS Code's
-//! proxy settings and the host's Kerberos tickets. Each registered callback
-//! replaces the runtime's own handling for the traffic selected by
-//! [`NetworkConfig::scope`](crate::network::NetworkConfig::scope); without it,
-//! the runtime handles that part itself. The registration ends when the
-//! connection closes.
+//! proxy settings, the host's Kerberos tickets or its proxy credentials. Each
+//! registered callback replaces the runtime's own handling for the traffic
+//! selected by [`NetworkConfig::scope`](crate::network::NetworkConfig::scope);
+//! without it, the runtime handles that part itself. The registration ends when
+//! the connection closes.
 
 use std::future::Future;
 use std::sync::Arc;
@@ -23,11 +23,13 @@ use async_trait::async_trait;
 
 use crate::Result;
 pub use crate::rpc::{
+    NetworkAuthenticateBasicRequest, NetworkAuthenticateBasicResult,
     NetworkAuthenticateNegotiateRequest, NetworkResolveProxyRequest, NetworkScope,
 };
 
 pub(crate) const RESOLVE_PROXY_METHOD: &str = "network.resolveProxy";
 pub(crate) const AUTHENTICATE_NEGOTIATE_METHOD: &str = "network.authenticateNegotiate";
+pub(crate) const AUTHENTICATE_BASIC_METHOD: &str = "network.authenticateBasic";
 
 /// Decides the proxies for the runtime's requests from the SDK host, for example from
 /// VS Code's proxy settings when the runtime runs in WSL or a container.
@@ -84,11 +86,12 @@ pub trait AuthenticateNegotiateProvider: Send + Sync + 'static {
     /// `None` when credentials are unavailable.
     ///
     /// The runtime then does not look up Kerberos credentials itself, so `None` or an
-    /// error fails the request; an error is returned to the runtime as a JSON-RPC
-    /// error. The request's `spn` uses the platform-independent `service/host[@REALM]`
-    /// form; validate it before issuing credentials. Never log or persist the token.
-    /// Only the initial token is requested; exchanges requiring continuation tokens are
-    /// not supported.
+    /// error fails the request, unless the proxy also offers Basic and an
+    /// [`AuthenticateBasicProvider`] supplies credentials; an error is returned to the
+    /// runtime as a JSON-RPC error. The request's `spn` uses the platform-independent
+    /// `service/host[@REALM]` form; validate it before issuing credentials. Never log or
+    /// persist the token. Only the initial token is requested; exchanges requiring
+    /// continuation tokens are not supported.
     ///
     /// When the runtime stops waiting for this request (it cancels the request, for
     /// example after waiting 30 seconds, or the connection closes), the SDK drops the
@@ -109,6 +112,61 @@ where
         &self,
         request: NetworkAuthenticateNegotiateRequest,
     ) -> Result<Option<String>> {
+        (self)(request).await
+    }
+}
+
+/// Supplies the credentials for proxies' Basic challenges from the SDK host, for
+/// example credentials the host's user entered.
+///
+/// Configure an implementation with [`NetworkConfig::with_authenticate_basic`].
+/// Async functions and closures taking a [`NetworkAuthenticateBasicRequest`]
+/// implement this trait.
+///
+/// **Experimental.** May change or be removed in future releases.
+#[async_trait]
+pub trait AuthenticateBasicProvider: Send + Sync + 'static {
+    /// Return credentials for a proxy's Basic challenge, or `None` when unavailable,
+    /// which fails the request with the proxy's challenge.
+    ///
+    /// Applies to requests the runtime tunnels through the proxy (`https` and `wss`).
+    /// The runtime remembers the answer for that proxy and uses it for later
+    /// connections, until the proxy rejects it; then it calls again with
+    /// [`previous_rejected`](NetworkAuthenticateBasicRequest::previous_rejected) set, so
+    /// answer with different credentials, for example by asking the user, or with `None`.
+    /// A later connection sends the answer without waiting for a challenge, unless the
+    /// runtime may try Negotiate with that proxy first.
+    /// A connection submits at most three sets of credentials. While a call is pending, other requests through
+    /// that proxy wait for its answer. When a proxy offers both Negotiate and Basic, the
+    /// runtime prefers Negotiate and answers with Basic when Negotiate is unavailable or
+    /// the proxy rejects it. The request's
+    /// [`realm`](NetworkAuthenticateBasicRequest::realm) comes from the proxy, so treat
+    /// it as untrusted text. An empty user name also fails the request, the user name
+    /// must not contain a colon, and neither the user name nor the password may contain
+    /// control characters; an omitted password is empty. An error is returned to the
+    /// runtime as a JSON-RPC error and fails the request. Never log or persist
+    /// credentials.
+    ///
+    /// The runtime does not time this request out: a request whose own deadline passes
+    /// stops waiting, but the answer is still remembered for later requests. When the
+    /// connection closes, the SDK drops the returned future, so any separately spawned
+    /// work must stop on its own.
+    async fn authenticate_basic(
+        &self,
+        request: NetworkAuthenticateBasicRequest,
+    ) -> Result<Option<NetworkAuthenticateBasicResult>>;
+}
+
+#[async_trait]
+impl<F, Fut> AuthenticateBasicProvider for F
+where
+    F: Fn(NetworkAuthenticateBasicRequest) -> Fut + Send + Sync + 'static,
+    Fut: Future<Output = Result<Option<NetworkAuthenticateBasicResult>>> + Send,
+{
+    async fn authenticate_basic(
+        &self,
+        request: NetworkAuthenticateBasicRequest,
+    ) -> Result<Option<NetworkAuthenticateBasicResult>> {
         (self)(request).await
     }
 }
@@ -145,6 +203,12 @@ pub struct NetworkConfig {
     /// Proxies chosen by [`NetworkConfig::resolve_proxy`] are authenticated the
     /// same way.
     pub authenticate_negotiate: Option<Arc<dyn AuthenticateNegotiateProvider>>,
+    /// Answers `network.authenticateBasic` requests; see
+    /// [`AuthenticateBasicProvider`].
+    ///
+    /// Proxies chosen by [`NetworkConfig::resolve_proxy`] are authenticated the
+    /// same way.
+    pub authenticate_basic: Option<Arc<dyn AuthenticateBasicProvider>>,
 }
 
 impl NetworkConfig {
@@ -177,6 +241,16 @@ impl NetworkConfig {
         self.authenticate_negotiate = Some(Arc::new(provider));
         self
     }
+
+    /// Supply Basic authentication credentials with `provider`; see
+    /// [`AuthenticateBasicProvider`].
+    pub fn with_authenticate_basic<P>(mut self, provider: P) -> Self
+    where
+        P: AuthenticateBasicProvider,
+    {
+        self.authenticate_basic = Some(Arc::new(provider));
+        self
+    }
 }
 
 impl std::fmt::Debug for NetworkConfig {
@@ -190,6 +264,10 @@ impl std::fmt::Debug for NetworkConfig {
             .field(
                 "authenticate_negotiate",
                 &self.authenticate_negotiate.as_ref().map(|_| "<set>"),
+            )
+            .field(
+                "authenticate_basic",
+                &self.authenticate_basic.as_ref().map(|_| "<set>"),
             )
             .finish()
     }
@@ -208,20 +286,30 @@ pub(crate) async fn register(client: &crate::Client, config: NetworkConfig) -> R
         scope,
         resolve_proxy,
         authenticate_negotiate,
+        authenticate_basic,
     } = config;
-    if resolve_proxy.is_none() && authenticate_negotiate.is_none() {
+    if resolve_proxy.is_none() && authenticate_negotiate.is_none() && authenticate_basic.is_none() {
         return Ok(());
     }
-    let request = crate::rpc::NetworkSetProviderRequest {
-        scope,
-        resolve_proxy: resolve_proxy.is_some().then(Default::default),
-        authenticate_negotiate: authenticate_negotiate.is_some().then(Default::default),
-    };
+    let mut request = crate::rpc::NetworkSetProviderOptions::new();
+    if let Some(scope) = scope {
+        request = request.scope(scope);
+    }
+    if resolve_proxy.is_some() {
+        request = request.resolve_proxy(Default::default());
+    }
+    if authenticate_negotiate.is_some() {
+        request = request.authenticate_negotiate(Default::default());
+    }
+    if authenticate_basic.is_some() {
+        request = request.authenticate_basic(Default::default());
+    }
     let mut installed = Vec::new();
     let submitted = install(
         client,
         resolve_proxy,
         authenticate_negotiate,
+        authenticate_basic,
         &mut installed,
     )
     .and_then(|()| {
@@ -263,6 +351,7 @@ fn install(
     client: &crate::Client,
     resolve_proxy: Option<Arc<dyn ResolveProxyProvider>>,
     authenticate_negotiate: Option<Arc<dyn AuthenticateNegotiateProvider>>,
+    authenticate_basic: Option<Arc<dyn AuthenticateBasicProvider>>,
     installed: &mut Vec<&'static str>,
 ) -> Result<()> {
     if let Some(provider) = resolve_proxy {
@@ -295,6 +384,18 @@ fn install(
             },
         )?;
         installed.push(AUTHENTICATE_NEGOTIATE_METHOD);
+    }
+    if let Some(provider) = authenticate_basic {
+        client.register_request_handler(AUTHENTICATE_BASIC_METHOD, move |params, _client| {
+            let provider = provider.clone();
+            async move {
+                let credentials = provider
+                    .authenticate_basic(serde_json::from_value(params)?)
+                    .await?;
+                Ok(serde_json::to_value(credentials.unwrap_or_default())?)
+            }
+        })?;
+        installed.push(AUTHENTICATE_BASIC_METHOD);
     }
     Ok(())
 }

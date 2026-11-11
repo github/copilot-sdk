@@ -71,4 +71,9 @@ public record NetworkAuthenticateNegotiateResult(
             return new NetworkAuthenticateNegotiateResult(token);
         }
     }
+
+    @Override
+    public String toString() {
+        return "NetworkAuthenticateNegotiateResult[token=" + (token == null ? null : "<redacted>") + "]";
+    }
 }

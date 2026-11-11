@@ -48,6 +48,7 @@ import org.junit.jupiter.params.provider.MethodSource;
 import org.junit.jupiter.params.provider.ValueSource;
 
 import com.fasterxml.jackson.databind.JsonNode;
+import com.github.copilot.generated.rpc.NetworkAuthenticateBasicResult;
 import com.github.copilot.generated.rpc.NetworkScope;
 import com.github.copilot.rpc.CopilotClientOptions;
 import com.github.copilot.rpc.NetworkConfig;
@@ -60,43 +61,52 @@ class NetworkTest {
     private static final int METHOD_NOT_FOUND = -32601;
     private static final String PROXY = "PROXY proxy.example:8080; HTTPS proxy.example:443; DIRECT";
 
-    /** The network callbacks, with the request parameter each one receives. */
+    /**
+     * The network callbacks, with the request parameter each one receives and the
+     * result field its answer fills.
+     */
     private enum Callback {
-        RESOLVE_PROXY("network.resolveProxy", "url", "Proxy resolution",
-                "https://api.example.com/"), AUTHENTICATE_NEGOTIATE("network.authenticateNegotiate", "spn",
-                        "Negotiate authentication", "HTTP/proxy.example");
+        RESOLVE_PROXY("network.resolveProxy", "url", "Proxy resolution", "https://api.example.com/",
+                "proxy"), AUTHENTICATE_NEGOTIATE("network.authenticateNegotiate", "spn", "Negotiate authentication",
+                        "HTTP/proxy.example", "token"), AUTHENTICATE_BASIC("network.authenticateBasic", "proxy",
+                                "Basic authentication", "http://proxy.example:8080", "username");
 
         final String method;
         final String parameter;
         final String label;
         final String sample;
+        final String resultField;
 
-        Callback(String method, String parameter, String label, String sample) {
+        Callback(String method, String parameter, String label, String sample, String resultField) {
             this.method = method;
             this.parameter = parameter;
             this.label = label;
             this.sample = sample;
+            this.resultField = resultField;
         }
 
         /**
          * Sets this callback on the configuration, passing it the request parameter.
+         * The Basic callback answers with the value as the user name.
          */
         NetworkConfig configure(NetworkConfig config, Function<String, CompletableFuture<String>> callback) {
             return switch (this) {
                 case RESOLVE_PROXY -> config.setResolveProxy(request -> callback.apply(request.url()));
                 case AUTHENTICATE_NEGOTIATE ->
                     config.setAuthenticateNegotiate(request -> callback.apply(request.spn()));
+                case AUTHENTICATE_BASIC ->
+                    config.setAuthenticateBasic(request -> asCredentials(callback.apply(request.proxy())));
             };
         }
     }
 
     @Test
-    void registersBothCallbacksAndAnswersConcurrentLookups() throws Exception {
+    void registersAllCallbacksAndAnswersConcurrentLookups() throws Exception {
         var calls = new ConcurrentLinkedQueue<String>();
         var allReceived = new CompletableFuture<Void>();
         Function<String, CompletableFuture<String>> record = value -> {
             calls.add(value);
-            if (calls.size() == 3) {
+            if (calls.size() == 4) {
                 allReceived.complete(null);
             }
             // Complete only once every lookup is pending, proving they are not serialized.
@@ -104,43 +114,56 @@ class NetworkTest {
         };
         var config = new NetworkConfig().setResolveProxy(
                 request -> record.apply(request.url()).thenApply(url -> url.startsWith("https:") ? PROXY : null))
-                .setAuthenticateNegotiate(request -> record.apply(request.spn()).thenApply(NetworkTest::encode));
+                .setAuthenticateNegotiate(request -> record.apply(request.spn()).thenApply(NetworkTest::encode))
+                .setAuthenticateBasic(request -> record
+                        .apply(request.proxy() + " " + request.realm() + " " + request.previousRejected())
+                        .thenApply(ignored -> NetworkAuthenticateBasicResult.builder().username("alice")
+                                .password("s3cret").build()));
 
         try (var server = new FakeRuntimeServer(null, false); var client = server.createClient(config)) {
             client.start().get(TIMEOUT_SECONDS, TimeUnit.SECONDS);
             var responses = List.of(server.request(Callback.RESOLVE_PROXY, "https://api.example.com/"),
                     server.request(Callback.RESOLVE_PROXY, "http://example.com/path"),
-                    server.request(Callback.AUTHENTICATE_NEGOTIATE, "HTTP/proxy.example"));
+                    server.request(Callback.AUTHENTICATE_NEGOTIATE, "HTTP/proxy.example"),
+                    server.request(Callback.AUTHENTICATE_BASIC.method,
+                            Map.of("proxy", "https://proxy.example:8443", "realm", "Corp", "previousRejected", true)));
             var results = new ArrayList<String>();
             for (var response : responses) {
                 results.add(response.get(TIMEOUT_SECONDS, TimeUnit.SECONDS).toString());
             }
 
             assertEquals(
-                    List.of(List.of("{\"resolveProxy\":{},\"authenticateNegotiate\":{}}"),
-                            Set.of("https://api.example.com/", "http://example.com/path", "HTTP/proxy.example"),
+                    List.of(List.of("{\"resolveProxy\":{},\"authenticateNegotiate\":{},\"authenticateBasic\":{}}"),
+                            Set.of("https://api.example.com/", "http://example.com/path", "HTTP/proxy.example",
+                                    "https://proxy.example:8443 Corp true"),
                             List.of("{\"proxy\":\"" + PROXY + "\"}", "{}",
-                                    "{\"token\":\"" + encode("HTTP/proxy.example") + "\"}")),
+                                    "{\"token\":\"" + encode("HTTP/proxy.example") + "\"}",
+                                    "{\"username\":\"alice\",\"password\":\"s3cret\"}")),
                     List.of(server.registrations(), Set.copyOf(calls), results));
         }
     }
 
     static Stream<Arguments> configurations() {
         Function<String, CompletableFuture<String>> none = value -> CompletableFuture.completedFuture(null);
-        return Stream.of(Arguments.of("unset", null, List.of(), List.of(METHOD_NOT_FOUND, METHOD_NOT_FOUND)),
-                Arguments.of("empty", new NetworkConfig(), List.of(), List.of(METHOD_NOT_FOUND, METHOD_NOT_FOUND)),
+        return Stream.of(
+                Arguments.of("unset", null, List.of(), List.of(METHOD_NOT_FOUND, METHOD_NOT_FOUND, METHOD_NOT_FOUND)),
+                Arguments.of("empty", new NetworkConfig(), List.of(),
+                        List.of(METHOD_NOT_FOUND, METHOD_NOT_FOUND, METHOD_NOT_FOUND)),
                 Arguments.of("scope only", new NetworkConfig().setScope(NetworkScope.RUNTIME), List.of(),
-                        List.of(METHOD_NOT_FOUND, METHOD_NOT_FOUND)),
+                        List.of(METHOD_NOT_FOUND, METHOD_NOT_FOUND, METHOD_NOT_FOUND)),
                 Arguments.of("resolveProxy", Callback.RESOLVE_PROXY.configure(new NetworkConfig(), none),
-                        List.of("{\"resolveProxy\":{}}"), List.of("{}", METHOD_NOT_FOUND)),
+                        List.of("{\"resolveProxy\":{}}"), List.of("{}", METHOD_NOT_FOUND, METHOD_NOT_FOUND)),
                 Arguments.of("runtime authenticateNegotiate",
                         Callback.AUTHENTICATE_NEGOTIATE.configure(new NetworkConfig().setScope(NetworkScope.RUNTIME),
                                 none),
                         List.of("{\"scope\":\"runtime\",\"authenticateNegotiate\":{}}"),
-                        List.of(METHOD_NOT_FOUND, "{}")),
+                        List.of(METHOD_NOT_FOUND, "{}", METHOD_NOT_FOUND)),
                 Arguments.of("connection resolveProxy",
                         Callback.RESOLVE_PROXY.configure(new NetworkConfig().setScope(NetworkScope.CONNECTION), none),
-                        List.of("{\"scope\":\"connection\",\"resolveProxy\":{}}"), List.of("{}", METHOD_NOT_FOUND)));
+                        List.of("{\"scope\":\"connection\",\"resolveProxy\":{}}"),
+                        List.of("{}", METHOD_NOT_FOUND, METHOD_NOT_FOUND)),
+                Arguments.of("authenticateBasic", Callback.AUTHENTICATE_BASIC.configure(new NetworkConfig(), none),
+                        List.of("{\"authenticateBasic\":{}}"), List.of(METHOD_NOT_FOUND, METHOD_NOT_FOUND, "{}")));
     }
 
     @ParameterizedTest(name = "{0}")
@@ -394,7 +417,7 @@ class NetworkTest {
 
             assertEquals(
                     List.of(-32603, callback.label + " callback could not be scheduled: saturated", 0,
-                            "{\"" + (callback == Callback.RESOLVE_PROXY ? "proxy" : "token") + "\":\"answer\"}"),
+                            "{\"" + callback.resultField + "\":\"answer\"}"),
                     List.of(error.getCode(), error.getMessage(), callsAfterRejection, answer.toString()));
         }
     }
@@ -562,6 +585,24 @@ class NetworkTest {
         return Base64.getEncoder().encodeToString(value.getBytes(StandardCharsets.UTF_8));
     }
 
+    /**
+     * Answers with the user name, if any; cancelling the answer cancels the user
+     * name's future, as the SDK cancels a callback's own future.
+     */
+    private static CompletableFuture<NetworkAuthenticateBasicResult> asCredentials(CompletableFuture<String> username) {
+        if (username == null) {
+            return null;
+        }
+        var credentials = username.thenApply(
+                value -> value != null ? NetworkAuthenticateBasicResult.builder().username(value).build() : null);
+        credentials.whenComplete((value, error) -> {
+            if (credentials.isCancelled()) {
+                username.cancel(false);
+            }
+        });
+        return credentials;
+    }
+
     private static JsonRpcException assertRpcError(CompletableFuture<?> future) {
         var error = assertThrows(ExecutionException.class, () -> future.get(TIMEOUT_SECONDS, TimeUnit.SECONDS));
         return assertInstanceOf(JsonRpcException.class, unwrap(error));
@@ -648,7 +689,11 @@ class NetworkTest {
         }
 
         CompletableFuture<JsonNode> request(Callback callback, String value) {
-            return ready.join().invoke(callback.method, Map.of(callback.parameter, value), JsonNode.class);
+            return request(callback.method, Map.of(callback.parameter, value));
+        }
+
+        CompletableFuture<JsonNode> request(String method, Map<String, ?> params) {
+            return ready.join().invoke(method, params, JsonNode.class);
         }
 
         void cancel(long id) throws IOException {

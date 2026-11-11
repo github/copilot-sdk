@@ -284,14 +284,14 @@ alias(
 )
 
 alias(
-    name = "rusqlite-0.41.1",
-    actual = "@sdk_vendor__rusqlite-0.41.1//:rusqlite",
+    name = "rusqlite-0.42.0",
+    actual = "@sdk_vendor__rusqlite-0.42.0//:rusqlite",
     tags = ["manual"],
 )
 
 alias(
     name = "rusqlite",
-    actual = "@sdk_vendor__rusqlite-0.41.1//:rusqlite",
+    actual = "@sdk_vendor__rusqlite-0.42.0//:rusqlite",
     tags = ["manual"],
 )
 

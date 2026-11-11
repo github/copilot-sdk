@@ -181,6 +181,44 @@ impl Default for ExitPlanModeResult {
     }
 }
 
+/// A prompt answer paired with who answered and how.
+///
+/// When `decision_context` says a person answered interactively
+/// (`source: HumanResponse`, `response_capability: Some(Interactive)`), the
+/// runtime counts the answer as the person's own authority for Assisted
+/// Permissions, but only from the session's owning connection; an answer from
+/// any other connection still settles, without that authority. The runtime
+/// decides which answers carry authority, so label a person's refusals too.
+/// Leave automated answers unlabeled.
+///
+/// Return one from a handler's `handle_attributed` method, such as
+/// [`UserInputHandler::handle_attributed`].
+#[derive(Debug, Clone)]
+pub struct AttributedResult<T> {
+    /// The answer.
+    pub result: T,
+    /// Who answered and how, if known.
+    pub decision_context: Option<PermissionDecisionContext>,
+}
+
+impl<T> AttributedResult<T> {
+    /// Label `result` with who answered and how.
+    pub fn new(result: T, decision_context: PermissionDecisionContext) -> Self {
+        Self {
+            result,
+            decision_context: Some(decision_context),
+        }
+    }
+
+    /// An answer without a label.
+    pub fn unattributed(result: T) -> Self {
+        Self {
+            result,
+            decision_context: None,
+        }
+    }
+}
+
 /// Response to an auto-mode-switch request.
 #[non_exhaustive]
 #[derive(Debug, Clone, Copy, Eq, PartialEq, Serialize, Deserialize)]
@@ -227,6 +265,18 @@ pub trait ElicitationHandler: Send + Sync + 'static {
         request_id: RequestId,
         request: ElicitationRequest,
     ) -> ElicitationResult;
+
+    /// Respond and say who answered. Override it to label a person's answer
+    /// (see [`AttributedResult`]); the SDK calls this method, and the default
+    /// returns [`handle`](Self::handle)'s answer without a label.
+    async fn handle_attributed(
+        &self,
+        session_id: SessionId,
+        request_id: RequestId,
+        request: ElicitationRequest,
+    ) -> AttributedResult<ElicitationResult> {
+        AttributedResult::unattributed(self.handle(session_id, request_id, request).await)
+    }
 }
 
 /// MCP OAuth request that the SDK host can satisfy with a host-acquired token.
@@ -365,6 +415,22 @@ pub trait UserInputHandler: Send + Sync + 'static {
         choices: Option<Vec<String>>,
         allow_freeform: Option<bool>,
     ) -> Option<UserInputResponse>;
+
+    /// Answer and say who answered. Override it to label a person's answer
+    /// (see [`AttributedResult`]); the SDK calls this method, and the default
+    /// returns [`handle`](Self::handle)'s answer without a label.
+    async fn handle_attributed(
+        &self,
+        session_id: SessionId,
+        request_id: Option<RequestId>,
+        question: String,
+        choices: Option<Vec<String>>,
+        allow_freeform: Option<bool>,
+    ) -> Option<AttributedResult<UserInputResponse>> {
+        self.handle(session_id, request_id, question, choices, allow_freeform)
+            .await
+            .map(AttributedResult::unattributed)
+    }
 }
 
 /// Handler for `exit_plan_mode.requested` events. When unset,
@@ -382,6 +448,18 @@ pub trait ExitPlanModeHandler: Send + Sync + 'static {
         request_id: Option<RequestId>,
         data: ExitPlanModeData,
     ) -> ExitPlanModeResult;
+
+    /// Decide and say who decided. Override it to label a person's review
+    /// (see [`AttributedResult`]); the SDK calls this method, and the default
+    /// returns [`handle`](Self::handle)'s result without a label.
+    async fn handle_attributed(
+        &self,
+        session_id: SessionId,
+        request_id: Option<RequestId>,
+        data: ExitPlanModeData,
+    ) -> AttributedResult<ExitPlanModeResult> {
+        AttributedResult::unattributed(self.handle(session_id, request_id, data).await)
+    }
 }
 
 /// Handler for `autoModeSwitch.request` callbacks. When unset,

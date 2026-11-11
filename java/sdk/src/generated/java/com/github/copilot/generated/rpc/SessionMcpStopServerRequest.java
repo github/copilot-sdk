@@ -14,7 +14,7 @@ import java.util.Objects;
 import javax.annotation.processing.Generated;
 
 /**
- * Server name for an individual MCP server stop.
+ * Server name and optional transport selector for an individual MCP server stop. Omit transport to stop the server by name.
  * <p>
  * Required inputs are constructor arguments. Optional inputs have fluent setters.
  *
@@ -33,6 +33,10 @@ public final class SessionMcpStopServerRequest {
     /** Exact owned receipt identity. Stop also forgets this session's durable activation. */
     @JsonProperty("expectedInstallationId")
     private String expectedInstallationId;
+
+    /** Optional transport selector. The only supported value, local-http, requires serverName ide and cannot accompany expectedInstallationId. It cancels pending IDE initialization and removes local IDE state without stopping an ordinary server with the same name. Omit this field for a generic stop by name. */
+    @JsonProperty("transport")
+    private McpServerConfigLocalType transport;
 
     /**
      * Creates a request with its required inputs.
@@ -62,6 +66,15 @@ public final class SessionMcpStopServerRequest {
     }
 
     /**
+     * Returns the {@code transport} property.
+     *
+     * @return Optional transport selector. The only supported value, local-http, requires serverName ide and cannot accompany expectedInstallationId. It cancels pending IDE initialization and removes local IDE state without stopping an ordinary server with the same name. Omit this field for a generic stop by name.
+     */
+    public McpServerConfigLocalType getTransport() {
+        return transport;
+    }
+
+    /**
      * Sets the {@code expectedInstallationId} property.
      *
      * @param value Exact owned receipt identity. Stop also forgets this session's durable activation.
@@ -69,6 +82,17 @@ public final class SessionMcpStopServerRequest {
      */
     public SessionMcpStopServerRequest setExpectedInstallationId(String value) {
         this.expectedInstallationId = value;
+        return this;
+    }
+
+    /**
+     * Sets the {@code transport} property.
+     *
+     * @param value Optional transport selector. The only supported value, local-http, requires serverName ide and cannot accompany expectedInstallationId. It cancels pending IDE initialization and removes local IDE state without stopping an ordinary server with the same name. Omit this field for a generic stop by name.
+     * @return this request
+     */
+    public SessionMcpStopServerRequest setTransport(McpServerConfigLocalType value) {
+        this.transport = value;
         return this;
     }
 }

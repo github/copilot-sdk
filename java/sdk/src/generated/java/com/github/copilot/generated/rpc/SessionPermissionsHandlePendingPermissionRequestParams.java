@@ -30,7 +30,7 @@ public record SessionPermissionsHandlePendingPermissionRequestParams(
     @JsonProperty("requestId") String requestId,
     /** The client's response to the pending permission prompt */
     @JsonProperty("result") Object result,
-    /** Optional informational context describing how and where this response was made. Omit it to preserve legacy behavior without attributing an origin. */
+    /** Who decided and how. When it says a person decided (`source` `human_response`), the runtime records the decision as the person's (`permission.completed.decisionSource`), but only from the session's authenticated owning connection or the in-process host; a decision from any other caller applies without that authority. Omit it for an unattributed decision. */
     @JsonProperty("decisionContext") PermissionDecisionContext decisionContext
 ) {
 

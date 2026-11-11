@@ -1523,7 +1523,7 @@ pub struct McpHttpServerConfig {
 #[serde(rename_all = "camelCase")]
 #[non_exhaustive]
 pub struct ProviderConfig {
-    /// Provider type: `"openai"`, `"azure"`, or `"anthropic"`. Defaults to
+    /// Provider type: `"openai"`, `"azure"`, `"anthropic"`, or `"google"`. Defaults to
     /// `"openai"` on the CLI.
     #[serde(default, skip_serializing_if = "Option::is_none", rename = "type")]
     pub provider_type: Option<String>,
@@ -1633,7 +1633,7 @@ impl ProviderConfig {
         }
     }
 
-    /// Set the provider type (`"openai"`, `"azure"`, or `"anthropic"`).
+    /// Set the provider type (`"openai"`, `"azure"`, `"anthropic"`, or `"google"`).
     pub fn with_provider_type(mut self, provider_type: impl Into<String>) -> Self {
         self.provider_type = Some(provider_type.into());
         self
@@ -1846,7 +1846,7 @@ pub struct NamedProviderConfig {
     /// Unique name used by [`ProviderModelConfig::provider`] to reference
     /// this connection.
     pub name: String,
-    /// Provider type: `"openai"`, `"azure"`, or `"anthropic"`. Defaults to
+    /// Provider type: `"openai"`, `"azure"`, `"anthropic"`, or `"google"`. Defaults to
     /// `"openai"` on the CLI.
     #[serde(default, skip_serializing_if = "Option::is_none", rename = "type")]
     pub provider_type: Option<String>,
@@ -1921,7 +1921,7 @@ impl NamedProviderConfig {
         }
     }
 
-    /// Set the provider type (`"openai"`, `"azure"`, or `"anthropic"`).
+    /// Set the provider type (`"openai"`, `"azure"`, `"anthropic"`, or `"google"`).
     pub fn with_provider_type(mut self, provider_type: impl Into<String>) -> Self {
         self.provider_type = Some(provider_type.into());
         self

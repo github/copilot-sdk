@@ -10,6 +10,7 @@ fn saved_provider_conversion_preserves_settings_without_credentials() {
         Some("openai"),
         Some("azure"),
         Some("anthropic"),
+        Some("google"),
         Some("winml"),
         None,
     ] {

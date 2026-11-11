@@ -230,7 +230,7 @@ async fn stalled_rejection_preserves_live_routing_and_eventual_error_delivery() 
             timeout(DEADLINE, peer.gate.entered.cancelled())
                 .await
                 .unwrap();
-            peer.send(&crate::JsonRpcNotification {
+            peer.send(&crate::jsonrpc::JsonRpcNotification {
                 jsonrpc: "2.0".into(),
                 method: "$/cancelRequest".into(),
                 params: Some(json!({"id": 101})),
@@ -428,7 +428,7 @@ async fn late_rejection_delivery_does_not_retire_a_reused_request_id() {
         .expect("new request lost cancellation");
     peer.gate.release();
     assert_error(peer.read().await, 101, Unroutable::UnknownSession);
-    peer.send(&crate::JsonRpcNotification {
+    peer.send(&crate::jsonrpc::JsonRpcNotification {
         jsonrpc: "2.0".into(),
         method: "$/cancelRequest".into(),
         params: Some(json!({"id": 101})),
@@ -518,10 +518,9 @@ fn session_id() -> SessionId {
     SessionId::new("router-ownership")
 }
 
-/// The router takes each `session.event` notification out of the broadcast it
-/// shares with the lifecycle dispatcher. Whether or not another receiver still
-/// holds that notification, every session event reaches its session whole and
-/// in order, and every lifecycle event its subscriber.
+/// Session and lifecycle notifications share the client's one dispatcher.
+/// Every session event reaches its session whole and in order, and every
+/// lifecycle event its subscriber.
 #[tokio::test]
 async fn shared_notifications_reach_sessions_and_lifecycle_subscribers_whole() {
     let data = |n: u64| {
@@ -530,10 +529,8 @@ async fn shared_notifications_reach_sessions_and_lifecycle_subscribers_whole() {
             "nested": {"index": n, "items": [n, {"deep": [true, null, "x"]}]},
         })
     };
-    for held_elsewhere in [false, true] {
+    {
         let mut peer = Peer::new(BlockAt::Write);
-        // A receiver that never reads keeps every notification shared.
-        let _holder = held_elsewhere.then(|| peer.client.inner.notification_tx.subscribe());
         let mut lifecycle = peer.client.subscribe_lifecycle();
         let mut events = peer
             .client
@@ -541,7 +538,7 @@ async fn shared_notifications_reach_sessions_and_lifecycle_subscribers_whole() {
             .channels
             .notifications;
         for n in 0..3 {
-            peer.send(&crate::JsonRpcNotification {
+            peer.send(&crate::jsonrpc::JsonRpcNotification {
                 jsonrpc: "2.0".into(),
                 method: "session.event".into(),
                 params: Some(json!({
@@ -555,7 +552,7 @@ async fn shared_notifications_reach_sessions_and_lifecycle_subscribers_whole() {
                 })),
             })
             .await;
-            peer.send(&crate::JsonRpcNotification {
+            peer.send(&crate::jsonrpc::JsonRpcNotification {
                 jsonrpc: "2.0".into(),
                 method: "session.lifecycle".into(),
                 params: Some(json!({"type": "session.updated", "sessionId": format!("s{n}")})),
@@ -565,20 +562,159 @@ async fn shared_notifications_reach_sessions_and_lifecycle_subscribers_whole() {
         for n in 0..3 {
             let routed = timeout(DEADLINE, events.recv())
                 .await
-                .unwrap_or_else(|_| panic!("session event {n} stalled (held: {held_elsewhere})"))
-                .expect("session channel closed");
+                .unwrap_or_else(|_| panic!("session event {n} stalled"))
+                .expect("session channel closed")
+                .notification;
             assert_eq!(routed.session_id, SessionId::new("live"));
             assert_eq!(routed.event.id, format!("e{n}"));
             assert_eq!(routed.event.event_type, "assistant.message_delta");
-            assert_eq!(routed.event.data, data(n), "held: {held_elsewhere}");
+            assert_eq!(routed.event.data, data(n));
             let changed = timeout(DEADLINE, lifecycle.recv())
                 .await
-                .unwrap_or_else(|_| panic!("lifecycle event {n} stalled (held: {held_elsewhere})"))
+                .unwrap_or_else(|_| panic!("lifecycle event {n} stalled"))
                 .expect("lifecycle channel closed");
             assert_eq!(changed.session_id, SessionId::new(format!("s{n}")));
         }
         peer.stop().await;
     }
+}
+
+fn typed_event(session_id: &str, id: &str, event_type: &str, request_id: &str) -> Value {
+    json!({
+        "sessionId": session_id,
+        "event": {
+            "id": id,
+            "timestamp": "2025-01-01T00:00:00Z",
+            "type": event_type,
+            "data": {"requestId": request_id},
+        },
+    })
+}
+
+fn session_event(session_id: &str, id: &str) -> Value {
+    typed_event(session_id, id, "external_tool.requested", id)
+}
+
+/// Delivered event IDs, with settled ones marked.
+fn drain(receiver: &mut mpsc::UnboundedReceiver<RoutedEvent>) -> Vec<String> {
+    std::iter::from_fn(|| receiver.try_recv().ok())
+        .map(|routed| {
+            let id = routed.notification.event.id;
+            if routed.settled {
+                format!("{id} (settled)")
+            } else {
+                id
+            }
+        })
+        .collect()
+}
+
+/// A held request whose completion was also held reaches the session for
+/// observers only; one still open is dispatched as usual.
+#[test]
+fn held_requests_answered_before_registration_are_delivered_settled() {
+    let router = SessionRouter::new();
+    let sink = router.event_sink();
+    for (id, event_type, request_id) in [
+        ("p", "permission.requested", "r1"),
+        ("t", "external_tool.requested", "r2"),
+        ("e", "elicitation.requested", "r3"),
+        ("p-done", "permission.completed", "r1"),
+        ("t-other", "external_tool.completed", "other"),
+        ("e-mismatch", "permission.completed", "r3"),
+    ] {
+        sink.route(typed_event("held", id, event_type, request_id));
+    }
+
+    let mut registration = router.register(&SessionId::new("held"));
+    assert_eq!(
+        drain(&mut registration.channels.notifications),
+        ["p (settled)", "t", "e", "p-done", "t-other", "e-mismatch"]
+    );
+}
+
+/// An event that arrives before its session registers is held, then
+/// delivered ahead of the events that follow registration.
+#[test]
+fn events_for_an_unregistered_session_wait_for_its_registration() {
+    let router = SessionRouter::new();
+    let sink = router.event_sink();
+    sink.route(session_event("early", "e0"));
+    sink.route(session_event("early", "e1"));
+
+    let mut registration = router.register(&SessionId::new("early"));
+    sink.route(session_event("early", "e2"));
+    assert_eq!(
+        drain(&mut registration.channels.notifications),
+        ["e0", "e1", "e2"]
+    );
+}
+
+/// Past the bound on held events, the IDs seen first are dropped so a
+/// session that registers later still gets its early events.
+#[test]
+fn held_events_past_the_bound_drop_the_oldest_unregistered_ids() {
+    let router = SessionRouter::new();
+    let sink = router.event_sink();
+    for n in 0..MAX_UNCLAIMED_EVENTS {
+        sink.route(session_event("never", &format!("n{n}")));
+    }
+    sink.route(session_event("late", "l0"));
+
+    let mut never = router.register(&SessionId::new("never"));
+    let mut late = router.register(&SessionId::new("late"));
+    assert!(drain(&mut never.channels.notifications).is_empty());
+    assert_eq!(drain(&mut late.channels.notifications), ["l0"]);
+}
+
+/// Events trailing a registration that ended are dropped, not held for a
+/// later registration of the same ID.
+#[test]
+fn events_after_unregistration_are_not_replayed_to_a_new_registration() {
+    let router = SessionRouter::new();
+    let sink = router.event_sink();
+    let first = router.register(&session_id());
+    assert!(router.unregister_owned(&session_id(), first.token));
+    sink.route(session_event(session_id().as_str(), "stale"));
+
+    let mut second = router.register(&session_id());
+    sink.route(session_event(session_id().as_str(), "live"));
+    assert_eq!(drain(&mut second.channels.notifications), ["live"]);
+}
+
+/// A claim queued by a registration that has since ended must not release a
+/// later registration of the same ID before that registration's own claim.
+#[test]
+fn a_superseded_claim_does_not_release_a_later_registration() {
+    let router = SessionRouter::new();
+    let (dispatcher, mut claims) = mpsc::unbounded_channel();
+    router.connect_dispatcher(&dispatcher);
+    let sink = router.event_sink();
+    let mut next_claim = || match claims.try_recv() {
+        Ok(DispatcherInput::Claim(session_id, token)) => (session_id, token),
+        _ => panic!("registration queued no claim"),
+    };
+
+    let first = router.register(&session_id());
+    let stale = next_claim();
+    assert!(router.unregister_owned(&session_id(), first.token));
+    let mut second = router.register(&session_id());
+    let current = next_claim();
+
+    sink.claim(&stale.0, stale.1);
+    for (id, event_type) in [
+        ("p", "permission.requested"),
+        ("p-done", "permission.completed"),
+    ] {
+        sink.route(typed_event(session_id().as_str(), id, event_type, "r1"));
+    }
+    assert!(drain(&mut second.channels.notifications).is_empty());
+
+    sink.claim(&current.0, current.1);
+    assert_eq!(
+        drain(&mut second.channels.notifications),
+        ["p (settled)", "p-done"]
+    );
 }
 
 #[test]

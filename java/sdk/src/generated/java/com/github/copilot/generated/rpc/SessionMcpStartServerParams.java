@@ -29,7 +29,7 @@ public record SessionMcpStartServerParams(
     @JsonProperty("sessionId") String sessionId,
     /** Name of the MCP server to start */
     @JsonProperty("serverName") String serverName,
-    /** MCP server configuration (stdio process or remote HTTP/SSE). Omit to start the server with its already-registered configuration (config-free start-by-name). */
+    /** MCP server configuration (stdio, remote HTTP/SSE, or session-only local IDE endpoint). Local IDE endpoints never write persistent configuration. Omit to start with the already-registered configuration. */
     @JsonProperty("config") Object config,
     @com.fasterxml.jackson.annotation.JsonIgnore java.util.Set<String> $explicitNulls
 ) {

@@ -15,11 +15,11 @@ use github_copilot_sdk::github_token::{
     GitHubToken, GitHubTokenProviderArgs, GitHubTokenProviderResult, GitHubTokenRequestReason,
 };
 use github_copilot_sdk::handler::{
-    ApproveAllHandler, AutoModeSwitchHandler, AutoModeSwitchResponse, ElicitationHandler,
-    ExitPlanModeHandler, ExitPlanModeResult, McpAuthHandler, McpAuthRequest, McpAuthResponse,
-    McpAuthResult, PermissionHandler, PermissionResult, ShellAuthenticationHandler,
-    ShellAuthenticationInputKind, ShellAuthenticationRequest, ShellAuthenticationResponse,
-    UserInputHandler, UserInputResponse,
+    ApproveAllHandler, AttributedResult, AutoModeSwitchHandler, AutoModeSwitchResponse,
+    ElicitationHandler, ExitPlanModeHandler, ExitPlanModeResult, McpAuthHandler, McpAuthRequest,
+    McpAuthResponse, McpAuthResult, PermissionHandler, PermissionResult,
+    ShellAuthenticationHandler, ShellAuthenticationInputKind, ShellAuthenticationRequest,
+    ShellAuthenticationResponse, UserInputHandler, UserInputResponse,
 };
 use github_copilot_sdk::rpc::{
     CanvasProviderInvokeActionRequest, CanvasProviderOpenRequest, CanvasProviderOpenResult,
@@ -29,8 +29,9 @@ use github_copilot_sdk::types::{
     CanvasProviderIdentity, CloudSessionOptions, CloudSessionRepository, CommandContext,
     CommandDefinition, CommandHandler, DeliveryMode, ElicitationRequest, ElicitationResult,
     ExitPlanModeData, ExtensionInfo, MessageOptions, PermissionDecisionContext,
-    PermissionDecisionOutcome, PermissionDecisionSource, PermissionDecisionSurface, RequestId,
-    SessionConfig, SessionId, Tool, ToolInvocation, ToolResult,
+    PermissionDecisionOutcome, PermissionDecisionSource, PermissionDecisionSurface,
+    PermissionResponseCapability, RequestId, SessionConfig, SessionId, Tool, ToolInvocation,
+    ToolResult,
 };
 use github_copilot_sdk::{Client, ErrorKind, MessageSource, ProtocolErrorKind, tool};
 use serde_json::Value;
@@ -3234,6 +3235,161 @@ async fn exit_plan_mode_request_dispatches_to_handler() {
     assert_eq!(response["result"]["feedback"], "Looks good");
 }
 
+fn person_answered() -> PermissionDecisionContext {
+    PermissionDecisionContext {
+        outcome: PermissionDecisionOutcome::PromptedUser,
+        response_capability: Some(PermissionResponseCapability::Interactive),
+        source: PermissionDecisionSource::HumanResponse,
+        surface: PermissionDecisionSurface::Sdk,
+        user_feedback: None,
+    }
+}
+
+/// A handler that labels its answer through `handle_attributed` reaches the
+/// runtime with the label where the runtime reads it: inside the callback
+/// reply for user input and plan review, and beside `result` (never inside it)
+/// on `handlePendingElicitation`.
+#[tokio::test]
+async fn attributed_prompt_answers_carry_the_label_on_the_wire() {
+    struct PersonAnswers;
+    #[async_trait]
+    impl UserInputHandler for PersonAnswers {
+        async fn handle(
+            &self,
+            _session_id: SessionId,
+            _request_id: Option<RequestId>,
+            _question: String,
+            _choices: Option<Vec<String>>,
+            _allow_freeform: Option<bool>,
+        ) -> Option<UserInputResponse> {
+            unreachable!("the SDK calls handle_attributed")
+        }
+
+        async fn handle_attributed(
+            &self,
+            _session_id: SessionId,
+            _request_id: Option<RequestId>,
+            _question: String,
+            _choices: Option<Vec<String>>,
+            _allow_freeform: Option<bool>,
+        ) -> Option<AttributedResult<UserInputResponse>> {
+            Some(AttributedResult::new(
+                UserInputResponse {
+                    answer: "Only src/app.rs".to_string(),
+                    was_freeform: true,
+                },
+                person_answered(),
+            ))
+        }
+    }
+    #[async_trait]
+    impl ExitPlanModeHandler for PersonAnswers {
+        async fn handle(
+            &self,
+            _session_id: SessionId,
+            _request_id: Option<RequestId>,
+            _data: ExitPlanModeData,
+        ) -> ExitPlanModeResult {
+            unreachable!("the SDK calls handle_attributed")
+        }
+
+        async fn handle_attributed(
+            &self,
+            _session_id: SessionId,
+            _request_id: Option<RequestId>,
+            _data: ExitPlanModeData,
+        ) -> AttributedResult<ExitPlanModeResult> {
+            AttributedResult::new(
+                ExitPlanModeResult {
+                    approved: true,
+                    selected_action: Some("interactive".to_string()),
+                    feedback: None,
+                },
+                person_answered(),
+            )
+        }
+    }
+    #[async_trait]
+    impl ElicitationHandler for PersonAnswers {
+        async fn handle(
+            &self,
+            _session_id: SessionId,
+            _request_id: RequestId,
+            _request: ElicitationRequest,
+        ) -> ElicitationResult {
+            unreachable!("the SDK calls handle_attributed")
+        }
+
+        async fn handle_attributed(
+            &self,
+            _session_id: SessionId,
+            _request_id: RequestId,
+            _request: ElicitationRequest,
+        ) -> AttributedResult<ElicitationResult> {
+            AttributedResult::new(
+                ElicitationResult {
+                    action: "accept".to_string(),
+                    content: Some(serde_json::json!({ "target": "staging" })),
+                },
+                person_answered(),
+            )
+        }
+    }
+
+    let (_session, mut server) = create_session_pair_with_config(|cfg| {
+        cfg.with_user_input_handler(Arc::new(PersonAnswers))
+            .with_exit_plan_mode_handler(Arc::new(PersonAnswers))
+            .with_elicitation_handler(Arc::new(PersonAnswers))
+    })
+    .await;
+    let label = serde_json::to_value(person_answered()).unwrap();
+
+    server
+        .send_request(
+            330,
+            "userInput.request",
+            serde_json::json!({ "sessionId": server.session_id, "question": "Which files?" }),
+        )
+        .await;
+    let response = timeout(TIMEOUT, server.read_response()).await.unwrap();
+    assert_eq!(response["result"]["answer"], "Only src/app.rs");
+    assert_eq!(response["result"]["decisionContext"], label);
+
+    server
+        .send_request(
+            331,
+            "exitPlanMode.request",
+            serde_json::json!({ "sessionId": server.session_id, "summary": "Ready" }),
+        )
+        .await;
+    let response = timeout(TIMEOUT, server.read_response()).await.unwrap();
+    assert_eq!(response["result"]["approved"], true);
+    assert_eq!(response["result"]["decisionContext"], label);
+
+    server
+        .send_event(
+            "elicitation.requested",
+            serde_json::json!({
+                "requestId": "elicit-labeled",
+                "message": "Which environment?",
+                "requestedSchema": {
+                    "type": "object",
+                    "properties": { "target": { "type": "string" } },
+                },
+                "mode": "form",
+            }),
+        )
+        .await;
+    let rpc_call = timeout(TIMEOUT, server.read_request()).await.unwrap();
+    assert_eq!(rpc_call["method"], "session.ui.handlePendingElicitation");
+    assert_eq!(rpc_call["params"]["decisionContext"], label);
+    assert_eq!(rpc_call["params"]["result"]["content"]["target"], "staging");
+    assert!(
+        rpc_call["params"]["result"]
+            .get("decisionContext")
+            .is_none()
+    );
+}
 #[tokio::test]
 async fn legacy_callbacks_forward_runtime_request_ids() {
     type Recorded = Arc<std::sync::Mutex<Vec<Option<RequestId>>>>;
@@ -3291,6 +3447,10 @@ async fn legacy_callbacks_forward_runtime_request_ids() {
         let response = timeout(TIMEOUT, server.read_response()).await.unwrap();
         assert_eq!(response["id"], id);
         assert_eq!(response["result"]["answer"], "yes");
+        assert!(
+            response["result"].get("decisionContext").is_none(),
+            "an answer from `handle` alone carries no label"
+        );
     }
     for (id, request_id) in [(322, Some("plan-1")), (323, None)] {
         let mut params = serde_json::json!({
@@ -6761,6 +6921,208 @@ async fn external_tool_requested_dispatches_to_handler_and_responds() {
     assert_eq!(rpc_call["params"]["result"], "all tests passed");
 }
 
+/// A pooled connection carries every session's notifications through one
+/// client-wide hop. A telemetry callback that blocks while thousands of
+/// events arrive must not lose any of them: a lost `external_tool.requested`
+/// leaves the runtime waiting forever for the result. A handler that never
+/// returns must not hold up the other sessions either.
+#[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+async fn backed_up_notifications_still_deliver_every_external_tool_request() {
+    const SESSIONS: usize = 41;
+    const FILLER_PER_SESSION: usize = 50;
+
+    struct RecordingTool {
+        invoked: tokio::sync::mpsc::UnboundedSender<String>,
+    }
+    #[async_trait]
+    impl tool::ToolHandler for RecordingTool {
+        async fn call(
+            &self,
+            invocation: ToolInvocation,
+        ) -> Result<ToolResult, github_copilot_sdk::Error> {
+            let stuck = invocation.tool_call_id == "tc-0";
+            let _ = self.invoked.send(invocation.tool_call_id);
+            if stuck {
+                std::future::pending::<()>().await;
+            }
+            Ok(ToolResult::Text("done".to_string()))
+        }
+    }
+
+    // The client once ran this callback on the hop that routes session events,
+    // which then overflowed and dropped them while it blocked.
+    let (gate_tx, gate_rx) = std::sync::mpsc::channel::<()>();
+    let gate_rx = Arc::new(std::sync::Mutex::new(gate_rx));
+    let (entered_tx, mut entered_rx) = tokio::sync::mpsc::unbounded_channel();
+    let callback: github_copilot_sdk::github_telemetry::GitHubTelemetryCallback =
+        Arc::new(move |_| {
+            let _ = entered_tx.send(());
+            let _ = gate_rx.lock().unwrap().recv();
+        });
+    let (client, mut server_read, mut server_write) = make_client_with_telemetry(callback);
+    let (invoked_tx, mut invoked_rx) = tokio::sync::mpsc::unbounded_channel();
+
+    let mut sessions = Vec::new();
+    let mut session_ids = Vec::new();
+    for _ in 0..SESSIONS {
+        let create = tokio::spawn({
+            let client = client.clone();
+            let invoked = invoked_tx.clone();
+            async move {
+                client
+                    .create_session(SessionConfig::default().with_tools(vec![
+                        Tool::new("record").with_handler(Arc::new(RecordingTool { invoked })),
+                    ]))
+                    .await
+                    .unwrap()
+            }
+        });
+        let request = timeout(TIMEOUT, read_framed(&mut server_read))
+            .await
+            .unwrap();
+        assert_eq!(request["method"], "session.create");
+        let session_id = requested_session_id(&request).to_string();
+        let response = serde_json::json!({
+            "jsonrpc": "2.0",
+            "id": request["id"],
+            "result": { "sessionId": session_id, "workspacePath": "/tmp/workspace" },
+        });
+        write_framed(&mut server_write, &serde_json::to_vec(&response).unwrap()).await;
+        sessions.push(timeout(TIMEOUT, create).await.unwrap().unwrap());
+        session_ids.push(session_id);
+    }
+
+    let notification = |method: &str, params: Value| {
+        serde_json::to_vec(&serde_json::json!({
+            "jsonrpc": "2.0",
+            "method": method,
+            "params": params,
+        }))
+        .unwrap()
+    };
+    let event = |session_id: &str, event_type: &str, data: Value| {
+        notification(
+            "session.event",
+            serde_json::json!({
+                "sessionId": session_id,
+                "event": {
+                    "id": format!("evt-{}", rand_id()),
+                    "timestamp": "2025-01-01T00:00:00Z",
+                    "type": event_type,
+                    "data": data,
+                },
+            }),
+        )
+    };
+
+    write_framed(
+        &mut server_write,
+        &notification(
+            "gitHubTelemetry.event",
+            serde_json::json!({
+                "restricted": false,
+                "event": {
+                    "kind": "gate",
+                    "properties": {},
+                    "metrics": {},
+                    "created_at": "2025-01-01T00:00:00Z",
+                },
+            }),
+        ),
+    )
+    .await;
+    timeout(TIMEOUT, entered_rx.recv()).await.unwrap().unwrap();
+
+    for (index, session_id) in session_ids.iter().enumerate() {
+        write_framed(
+            &mut server_write,
+            &event(
+                session_id,
+                "external_tool.requested",
+                serde_json::json!({
+                    "requestId": format!("req-{index}"),
+                    "sessionId": session_id,
+                    "toolCallId": format!("tc-{index}"),
+                    "toolName": "record",
+                    "arguments": {},
+                }),
+            ),
+        )
+        .await;
+    }
+    for n in 0..FILLER_PER_SESSION {
+        for session_id in &session_ids {
+            write_framed(
+                &mut server_write,
+                &event(
+                    session_id,
+                    "assistant.message_delta",
+                    serde_json::json!({ "messageId": "m", "deltaContent": format!("{n}") }),
+                ),
+            )
+            .await;
+        }
+    }
+
+    // Every session but the stuck one answers its request, possibly before
+    // the sync below.
+    async fn answer(
+        server_write: &mut tokio::io::DuplexStream,
+        request: Value,
+        answered: &mut std::collections::HashSet<String>,
+    ) {
+        assert_eq!(request["method"], "session.tools.handlePendingToolCall");
+        assert_ne!(request["params"]["requestId"], "req-0");
+        assert!(answered.insert(request["params"]["requestId"].as_str().unwrap().to_string()));
+        let response = serde_json::json!({ "jsonrpc": "2.0", "id": request["id"], "result": {} });
+        write_framed(server_write, &serde_json::to_vec(&response).unwrap()).await;
+    }
+    let mut answered = std::collections::HashSet::new();
+
+    // The read loop handles frames in order, so once this response resolves
+    // the call, every notification above has been read off the connection.
+    let synced = tokio::spawn({
+        let client = client.clone();
+        async move { client.call("test.sync", None).await }
+    });
+    let sync = loop {
+        let request = timeout(TIMEOUT, read_framed(&mut server_read))
+            .await
+            .unwrap();
+        if request["method"] == "test.sync" {
+            break request;
+        }
+        answer(&mut server_write, request, &mut answered).await;
+    };
+    let response = serde_json::json!({ "jsonrpc": "2.0", "id": sync["id"], "result": {} });
+    write_framed(&mut server_write, &serde_json::to_vec(&response).unwrap()).await;
+    timeout(TIMEOUT, synced).await.unwrap().unwrap().unwrap();
+
+    gate_tx.send(()).unwrap();
+
+    let mut invoked = std::collections::HashSet::new();
+    while invoked.len() < SESSIONS {
+        let tool_call_id = timeout(Duration::from_secs(10), invoked_rx.recv())
+            .await
+            .unwrap_or_else(|_| {
+                panic!(
+                    "only {} of {SESSIONS} external tool requests reached a handler",
+                    invoked.len()
+                )
+            })
+            .unwrap();
+        assert!(invoked.insert(tool_call_id));
+    }
+
+    while answered.len() < SESSIONS - 1 {
+        let request = timeout(Duration::from_secs(10), read_framed(&mut server_read))
+            .await
+            .unwrap();
+        answer(&mut server_write, request, &mut answered).await;
+    }
+    drop(sessions);
+}
+
 #[tokio::test]
 async fn external_tool_result_that_fails_to_send_is_answered_with_the_error() {
     let (_session, mut server) = create_session_pair_with_config(|cfg| {
@@ -7997,6 +8359,248 @@ async fn permission_broadcast_with_resolved_by_hook_is_not_responded_to() {
         "expected no RPC when resolvedByHook=true, got: {:?}",
         res.ok()
     );
+}
+
+/// A connection can receive a session's events before this client registers
+/// it, for example after a raw `sessions.connect`. A request another client
+/// answered in that window reaches observers when the session registers, but
+/// never this client's handler: answering it would raise an obsolete prompt.
+#[tokio::test]
+async fn request_answered_before_its_session_registers_is_observed_not_handled() {
+    struct RecordingHandler(tokio::sync::mpsc::UnboundedSender<String>);
+    #[async_trait]
+    impl PermissionHandler for RecordingHandler {
+        async fn handle(
+            &self,
+            _session_id: SessionId,
+            request_id: RequestId,
+            _data: github_copilot_sdk::PermissionRequestData,
+        ) -> PermissionResult {
+            let _ = self.0.send(request_id.to_string());
+            PermissionResult::approve_once()
+        }
+    }
+
+    let (client, server_read, server_write) = make_client();
+    let mut server = FakeServer {
+        read: server_read,
+        write: server_write,
+        session_id: "joined".to_string(),
+    };
+    let mut lifecycle = client.subscribe_lifecycle();
+    let requested = |request_id: &str| serde_json::json!({ "requestId": request_id, "permissionRequest": { "kind": "shell" } });
+    server
+        .send_event("permission.requested", requested("settled-elsewhere"))
+        .await;
+    server
+        .send_event(
+            "permission.completed",
+            serde_json::json!({ "requestId": "settled-elsewhere", "result": { "kind": "approved" } }),
+        )
+        .await;
+    // The client delivers notifications in order, so once this arrives both
+    // events above are held for the unregistered session.
+    server
+        .send_notification(
+            "session.lifecycle",
+            serde_json::json!({ "type": "session.updated", "sessionId": "fence" }),
+        )
+        .await;
+    let fence = timeout(TIMEOUT, lifecycle.recv()).await.unwrap().unwrap();
+    assert_eq!(fence.session_id, SessionId::new("fence"));
+
+    let (handled_tx, mut handled) = tokio::sync::mpsc::unbounded_channel();
+    let prepared = client
+        .prepare_session(
+            SessionConfig::default()
+                .with_session_id("joined")
+                .with_permission_handler(Arc::new(RecordingHandler(handled_tx))),
+        )
+        .unwrap();
+    let mut events = prepared.subscribe();
+    let start = tokio::spawn(prepared.start());
+    let create = timeout(TIMEOUT, server.read_request()).await.unwrap();
+    assert_eq!(create["method"], "session.create");
+    server
+        .respond(
+            &create,
+            serde_json::json!({ "sessionId": "joined", "workspacePath": "/tmp/workspace" }),
+        )
+        .await;
+    let _session = timeout(TIMEOUT, start).await.unwrap().unwrap().unwrap();
+
+    server
+        .send_event("permission.requested", requested("live"))
+        .await;
+    let answer = timeout(TIMEOUT, server.read_request()).await.unwrap();
+    assert_eq!(
+        answer["method"],
+        "session.permissions.handlePendingPermissionRequest"
+    );
+    assert_eq!(answer["params"]["requestId"], "live");
+    server.respond(&answer, serde_json::json!({})).await;
+    assert_eq!(handled.try_recv().as_deref(), Ok("live"));
+    assert!(handled.try_recv().is_err());
+
+    let mut observed = Vec::new();
+    while observed.len() < 3 {
+        let event = timeout(TIMEOUT, events.recv()).await.unwrap().unwrap();
+        observed.push((
+            event.event_type,
+            event.data["requestId"].as_str().unwrap().to_string(),
+        ));
+    }
+    assert_eq!(
+        observed,
+        [
+            ("permission.requested".into(), "settled-elsewhere".into()),
+            ("permission.completed".into(), "settled-elsewhere".into()),
+            ("permission.requested".into(), "live".into()),
+        ]
+    );
+}
+
+/// The read loop can read a request, its completion and the response that
+/// registers their session before the dispatcher routes any of them. The
+/// request must still be treated as answered elsewhere.
+#[tokio::test]
+async fn request_answered_before_registration_but_not_yet_routed_is_not_handled() {
+    struct RecordingHandler(tokio::sync::mpsc::UnboundedSender<String>);
+    #[async_trait]
+    impl PermissionHandler for RecordingHandler {
+        async fn handle(
+            &self,
+            _session_id: SessionId,
+            request_id: RequestId,
+            _data: github_copilot_sdk::PermissionRequestData,
+        ) -> PermissionResult {
+            let _ = self.0.send(request_id.to_string());
+            PermissionResult::approve_once()
+        }
+    }
+
+    let (client, server_read, server_write) = make_client();
+    let mut server = FakeServer {
+        read: server_read,
+        write: server_write,
+        session_id: "cloud-assigned".to_string(),
+    };
+    let (handled_tx, mut handled) = tokio::sync::mpsc::unbounded_channel();
+    let create = tokio::spawn({
+        let client = client.clone();
+        async move {
+            client
+                .create_session(
+                    SessionConfig::default()
+                        .with_permission_handler(Arc::new(RecordingHandler(handled_tx)))
+                        .with_cloud(CloudSessionOptions::with_repository(
+                            CloudSessionRepository::new("github", "copilot-sdk"),
+                        )),
+                )
+                .await
+                .unwrap()
+        }
+    });
+    let request = timeout(TIMEOUT, server.read_request()).await.unwrap();
+    assert_eq!(request["method"], "session.create");
+
+    // One write, so the read loop finds all three frames at once and this
+    // single-threaded runtime cannot run the dispatcher between them.
+    let event = |event_type: &str, data: Value| {
+        serde_json::json!({
+            "jsonrpc": "2.0",
+            "method": "session.event",
+            "params": {
+                "sessionId": "cloud-assigned",
+                "event": {
+                    "id": format!("evt-{}", rand_id()),
+                    "timestamp": "2025-01-01T00:00:00Z",
+                    "type": event_type,
+                    "data": data,
+                },
+            },
+        })
+    };
+    let mut frames = Vec::new();
+    for message in [
+        event(
+            "permission.requested",
+            serde_json::json!({ "requestId": "settled-elsewhere", "permissionRequest": { "kind": "shell" } }),
+        ),
+        event(
+            "permission.completed",
+            serde_json::json!({ "requestId": "settled-elsewhere", "result": { "kind": "approved" } }),
+        ),
+        serde_json::json!({
+            "jsonrpc": "2.0",
+            "id": request["id"],
+            "result": { "sessionId": "cloud-assigned", "workspacePath": "/tmp/workspace" },
+        }),
+    ] {
+        let body = serde_json::to_vec(&message).unwrap();
+        frames.extend_from_slice(format!("Content-Length: {}\r\n\r\n", body.len()).as_bytes());
+        frames.extend_from_slice(&body);
+    }
+    server.write.write_all(&frames).await.unwrap();
+    let _session = timeout(TIMEOUT, create).await.unwrap().unwrap();
+
+    server
+        .send_event(
+            "permission.requested",
+            serde_json::json!({ "requestId": "live", "permissionRequest": { "kind": "shell" } }),
+        )
+        .await;
+    let answer = timeout(TIMEOUT, server.read_request()).await.unwrap();
+    assert_eq!(
+        answer["method"],
+        "session.permissions.handlePendingPermissionRequest"
+    );
+    assert_eq!(answer["params"]["requestId"], "live");
+    server.respond(&answer, serde_json::json!({})).await;
+    assert_eq!(handled.try_recv().as_deref(), Ok("live"));
+    assert!(handled.try_recv().is_err());
+}
+
+/// Events read just before the connection closes still reach subscribers:
+/// the session's event loop drains what the dispatcher routes after the
+/// close instead of exiting at the close.
+#[tokio::test]
+async fn events_read_before_the_connection_closes_reach_subscribers() {
+    const EVENTS: usize = 20;
+    let (session, mut server) = create_session_pair().await;
+    let mut events = session.subscribe();
+
+    // One write followed by EOF: the read loop reads every frame and closes
+    // the connection before this single-threaded runtime routes any of them.
+    let mut frames = Vec::new();
+    for n in 0..EVENTS {
+        let body = serde_json::to_vec(&serde_json::json!({
+            "jsonrpc": "2.0",
+            "method": "session.event",
+            "params": {
+                "sessionId": server.session_id,
+                "event": {
+                    "id": format!("final-{n}"),
+                    "timestamp": "2025-01-01T00:00:00Z",
+                    "type": "assistant.message_delta",
+                    "data": { "messageId": "m", "deltaContent": "x" },
+                },
+            },
+        }))
+        .unwrap();
+        frames.extend_from_slice(format!("Content-Length: {}\r\n\r\n", body.len()).as_bytes());
+        frames.extend_from_slice(&body);
+    }
+    server.write.write_all(&frames).await.unwrap();
+    server.write.shutdown().await.unwrap();
+
+    for n in 0..EVENTS {
+        let event = timeout(TIMEOUT, events.recv())
+            .await
+            .unwrap_or_else(|_| panic!("event {n} read before the close was lost"))
+            .unwrap_or_else(|error| panic!("event {n} read before the close was lost: {error}"));
+        assert_eq!(event.id, format!("final-{n}"));
+    }
 }
 
 #[tokio::test(start_paused = true)]

@@ -89,6 +89,7 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
     private readonly List<LifecycleSubscription> _lifecycleHandlers = [];
 
     private Task<Connection>? _connectionTask;
+    private CancellationTokenSource? _startupCancellation;
     private FfiRuntimeHost? _ffiHost;
     private bool _disposed;
     private int? _actualPort;
@@ -389,7 +390,9 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
             if (_connectionTask is null || _connectionTask.IsFaulted || _connectionTask.IsCanceled)
             {
                 _sessionAdmissionClosed = false;
-                _connectionTask = StartCoreAsync(cancellationToken);
+                _startupCancellation?.Dispose();
+                _startupCancellation = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+                _connectionTask = StartCoreAsync(_startupCancellation.Token);
             }
             return _connectionTask;
         }
@@ -673,15 +676,32 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
     private async Task CleanupConnectionAsync(List<Exception>? errors, bool gracefulRuntimeShutdown)
     {
         Task<Connection>? connectionTask;
+        CancellationTokenSource? startupCancellation;
         lock (_sessionAdmissionLock)
         {
             connectionTask = _connectionTask;
             _connectionTask = null;
+            startupCancellation = _startupCancellation;
+            _startupCancellation = null;
             _modelsCache = new();
         }
+        using var startupLifetime = startupCancellation;
         if (connectionTask is null)
         {
             return;
+        }
+
+        if (!connectionTask.IsCompleted && startupLifetime is not null)
+        {
+            try
+            {
+#if NET8_0_OR_GREATER
+                await startupLifetime.CancelAsync().ConfigureAwait(false);
+#else
+                await Task.Run(() => startupLifetime.Cancel()).ConfigureAwait(false);
+#endif
+            }
+            catch (Exception ex) { AddCleanupError(errors, ex, _logger); }
         }
 
         Connection ctx;
@@ -2383,7 +2403,7 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
         return new ClientGlobalApiHandlers
         {
             ExtensionLaunchProvider = _options.ExtensionLaunchProvider,
-            Network = network is { ResolveProxy: not null } or { AuthenticateNegotiate: not null }
+            Network = network is { ResolveProxy: not null } or { AuthenticateNegotiate: not null } or { AuthenticateBasic: not null }
                 ? new NetworkAdapter(network)
                 : null,
             LlmInference = handler is null ? null : new LlmInferenceAdapter(handler, () => _serverRpc),
@@ -3414,7 +3434,11 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
     [UnconditionalSuppressMessage("Trimming", "IL2026", Justification = "The reflection resolver is only added when JsonSerializer.IsReflectionEnabledByDefault is enabled.")]
     private static JsonSerializerOptions CreateCallerPayloadSerializerOptions()
     {
-        var options = new JsonSerializerOptions(SerializerOptionsForMessageFormatter);
+        var options = new JsonSerializerOptions(SerializerOptionsForMessageFormatter)
+        {
+            // Opaque caller payloads distinguish explicit nulls from omitted protocol fields.
+            DefaultIgnoreCondition = JsonIgnoreCondition.Never
+        };
         if (JsonSerializer.IsReflectionEnabledByDefault)
         {
             options.TypeInfoResolverChain.Add(new System.Text.Json.Serialization.Metadata.DefaultJsonTypeInfoResolver());
@@ -3704,7 +3728,7 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
             };
 
             var result = await session.HandleUserInputRequestAsync(request);
-            return new UserInputRequestResponse(result.Answer, result.WasFreeform);
+            return new UserInputRequestResponse(result.Answer, result.WasFreeform, result.DecisionContext);
         }
 
         public async ValueTask<ShellAuthenticationResponse> OnShellAuthenticationRequest(ShellAuthenticationRequestParams request, CancellationToken cancellationToken) =>
@@ -4214,7 +4238,8 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
 
     internal record UserInputRequestResponse(
         string Answer,
-        bool WasFreeform);
+        bool WasFreeform,
+        [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] PermissionDecisionContext? DecisionContext = null);
 
     internal record ShellAuthenticationRequestParams(
         string? SessionId,

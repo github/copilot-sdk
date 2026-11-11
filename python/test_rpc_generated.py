@@ -13,6 +13,8 @@ from copilot.generated.rpc import (
     CustomizationReloadOutcome,
     CustomizationReloadStatus,
     CustomizationReloadSubsystem,
+    FetchResponseMode,
+    FetchSendResult,
     UsageGetMetricsResult,
     UserSettingsWriteKeyRequest,
     _InternalServerRpc,
@@ -37,7 +39,10 @@ from copilot.rpc import (
     LocalSessionMetadataValue,
     LogResult,
     MCPGrantType,
+    MCPSerializableServerConfig,
     MCPServerConfigHTTP,
+    MCPServerConfigLocal,
+    MCPStartServerRequest,
     PendingPermissionRequest,
     Plugin,
     ProtocolExternalToolDefinition,
@@ -62,6 +67,24 @@ from copilot.rpc import (
     UIElicitationSchemaType,
     UpdateSubagentSettingsRequest,
 )
+
+
+@pytest.mark.parametrize("mode", list(FetchResponseMode))
+def test_fetch_response_mode_matches_request_mode_and_round_trips(mode):
+    wire = {
+        "responseMode": mode.value,
+        "url": "https://example.com",
+        "status": 200,
+        "statusText": "OK",
+        "headers": [],
+    }
+    if mode == FetchResponseMode.TEXT:
+        wire.update(bodyText="hello", endedAtUnverifiedEof=False)
+    elif mode == FetchResponseMode.FILE:
+        wire.update(path="response.txt", sizeBytes=5, endedAtUnverifiedEof=False)
+    result = FetchSendResult.from_dict(wire)
+    assert result.response_mode == mode
+    assert result.to_dict() == wire
 
 
 @pytest.mark.parametrize("value", ["anthropic", "azure", "openai"])
@@ -632,6 +655,79 @@ def test_mcp_oauth_scopes_preserve_existing_positional_parameters():
     )
     assert config.oauth_scopes == ["tools:read", "resources:read"]
     assert config.oidc is True
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    "model,payload",
+    [
+        (
+            MCPSerializableServerConfig,
+            {"type": "stdio", "command": "example", "args": []},
+        ),
+        (
+            MCPServerConfigLocal,
+            {
+                "type": "local-http",
+                "socketPath": "/runtime/ide.sock",
+                "headers": {},
+                "ide": {
+                    "ideName": "Test IDE",
+                    "workspaceFolder": "/workspace",
+                    "pid": 123,
+                    "lockFilePath": "/runtime/ide.lock",
+                    "clientVersion": "1.0.0",
+                    "clientPid": 456,
+                    "parentPid": 1,
+                },
+            },
+        ),
+    ],
+)
+async def test_mcp_start_accepts_existing_and_local_config_models(model, payload):
+    client = Mock()
+    client.request = AsyncMock(return_value=None)
+    config = model.from_dict(payload)
+
+    await SessionRpc(client, "ide-session").mcp.start_server(
+        MCPStartServerRequest(server_name="ide", config=config)
+    )
+
+    client.request.assert_awaited_once_with(
+        "session.mcp.startServer",
+        {"sessionId": "ide-session", "serverName": "ide", "config": payload},
+    )
+    assert config.to_dict() == payload
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    "config",
+    [
+        {
+            "type": "http",
+            "url": "https://example.test/mcp",
+            "headers": {"Authorization": "Bearer test-token", "X-Workspace": "test"},
+        },
+        {
+            "type": "local-http",
+            "socketPath": "/runtime/ide.sock",
+            "headers": {"Authorization": "Bearer test-token"},
+        },
+    ],
+)
+async def test_mcp_start_request_preserves_header_values(config):
+    client = Mock()
+    client.request = AsyncMock(return_value=None)
+    payload = {"serverName": "ide", "config": config}
+    request = MCPStartServerRequest.from_dict(payload)
+
+    await SessionRpc(client, "ide-session").mcp.start_server(request)
+
+    assert request.to_dict() == payload
+    client.request.assert_awaited_once_with(
+        "session.mcp.startServer", {"sessionId": "ide-session", **payload}
+    )
 
 
 def test_auth_read_value_preserves_existing_positional_parameters():

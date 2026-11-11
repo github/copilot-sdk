@@ -21,6 +21,11 @@ import org.junit.jupiter.api.Test;
 
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.github.copilot.generated.SessionEvent;
+import com.github.copilot.generated.rpc.PermissionDecisionContext;
+import com.github.copilot.generated.rpc.PermissionDecisionOutcome;
+import com.github.copilot.generated.rpc.PermissionDecisionSource;
+import com.github.copilot.generated.rpc.PermissionDecisionSurface;
+import com.github.copilot.generated.rpc.PermissionResponseCapability;
 import com.github.copilot.rpc.ElicitationHandler;
 import com.github.copilot.rpc.ElicitationResult;
 import com.github.copilot.rpc.ElicitationResultAction;
@@ -28,7 +33,8 @@ import com.github.copilot.rpc.ElicitationResultAction;
 /**
  * Verifies that an elicitation request routed to this client's handler is
  * always answered: with the handler's result when it can be sent, and with
- * {@code cancel} when it cannot.
+ * {@code cancel} when it cannot. A handler's decision context travels beside,
+ * never inside, the result.
  */
 class ElicitationReplyTest {
 
@@ -55,6 +61,24 @@ class ElicitationReplyTest {
 
         assertEquals("accept", reply.path("result").path("action").asText());
         assertEquals("Ada", reply.path("result").path("content").path("name").asText());
+        assertFalse(reply.has("decisionContext"), "an unlabeled answer must not send decisionContext: " + reply);
+    }
+
+    @Test
+    void personAnsweredLabelIsSentBesideResult() throws Exception {
+        var personAnswered = PermissionDecisionContext.builder().source(PermissionDecisionSource.HUMAN_RESPONSE)
+                .responseCapability(PermissionResponseCapability.INTERACTIVE).surface(PermissionDecisionSurface.SDK)
+                .outcome(PermissionDecisionOutcome.PROMPTED_USER).build();
+
+        ObjectNode reply = reply("labeled",
+                context -> CompletableFuture
+                        .completedFuture(new ElicitationResult().setAction(ElicitationResultAction.ACCEPT)
+                                .setContent(Map.of("name", "Ada")).setDecisionContext(personAnswered)));
+
+        var mapper = JsonRpcClient.getObjectMapper();
+        assertEquals(mapper.readTree("{\"action\":\"accept\",\"content\":{\"name\":\"Ada\"}}"), reply.get("result"));
+        assertEquals(mapper.readTree("{\"source\":\"human_response\",\"responseCapability\":\"interactive\","
+                + "\"surface\":\"sdk\",\"outcome\":\"prompted_user\"}"), reply.get("decisionContext"));
     }
 
     @Test

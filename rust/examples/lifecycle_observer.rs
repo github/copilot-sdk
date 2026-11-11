@@ -119,9 +119,10 @@ async fn main() -> Result<(), github_copilot_sdk::Error> {
     // For graceful shutdown in normal flow, prefer `client.stop().await`.
     client.force_stop();
     println!("[client] force-stopped");
+    drop(session);
+    drop(client);
 
-    // Stopping the client closes the broadcast senders, so the consumer
-    // tasks observe `RecvError::Closed` and exit cleanly.
+    // Drop every client owner so the lifecycle broadcast sender closes.
     let _ = lifecycle_task.await;
     let _ = session_task.await;
 

@@ -7,11 +7,15 @@ import (
 )
 
 // AttributedPermissionResult pairs a permission decision with the context
-// describing how it was reached, so the runtime can attribute auto-approval
-// telemetry to the responding surface.
+// saying who decided and how.
 //
-// The embedded [rpc.PermissionDecision] carries the actual decision, while
-// DecisionContext is informational only and never changes permission behavior.
+// The embedded [rpc.PermissionDecision] carries the actual decision. A
+// DecisionContext whose Source is [PermissionDecisionSourceHumanResponse] makes
+// the runtime record the decision as the person's: it sets
+// permission.completed.decisionSource and gives the decision Assisted
+// Permissions authority. The runtime accepts that only from the session's
+// owning connection; from any other connection the decision applies without
+// that authority. Other fields attribute the decision in telemetry.
 // It satisfies [rpc.PermissionDecision] itself, so a [PermissionHandlerFunc]
 // can return it wherever a plain decision is expected. Prefer constructing it
 // through [NewAttributedPermissionResult] rather than by hand.
@@ -26,8 +30,8 @@ type AttributedPermissionResult struct {
 }
 
 // NewAttributedPermissionResult pairs a permission decision with the context
-// describing how it was reached, so the runtime can attribute auto-approval
-// telemetry to the responding surface.
+// saying who decided and how; see [AttributedPermissionResult] for what the
+// runtime does with it.
 //
 // The returned value satisfies [rpc.PermissionDecision], so a
 // [PermissionHandlerFunc] can return it directly. Passing an already-attributed

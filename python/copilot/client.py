@@ -89,6 +89,9 @@ from .generated.rpc import (
     ModelBillingTokenPrices,
     ModelBillingTokenPricesLongContext,  # noqa: F401
     ModelProviderRef,
+    NetworkAuthenticateBasicOptions,
+    NetworkAuthenticateBasicRequest,
+    NetworkAuthenticateBasicResult,
     NetworkAuthenticateNegotiateOptions,
     NetworkAuthenticateNegotiateRequest,
     NetworkAuthenticateNegotiateResult,
@@ -746,10 +749,36 @@ class NetworkConfig(TypedDict):
     ]
     """Returns a fresh, single-use base64 SPNEGO token without the ``Negotiate `` prefix for a
     proxy's Negotiate challenge, or ``None`` when unavailable. The runtime then does not look up
-    Kerberos credentials itself, so a missing token or a failing callback fails the request.
+    Kerberos credentials itself, so a missing token or a failing callback fails the request, unless
+    the proxy also offers Basic and ``authenticate_basic`` supplies credentials.
 
     The SPN uses the platform-independent ``service/host[@REALM]`` form; validate it before
     issuing credentials. Never log or persist tokens.
+    """
+    authenticate_basic: NotRequired[
+        Callable[
+            [NetworkAuthenticateBasicRequest],
+            NetworkAuthenticateBasicResult
+            | None
+            | Awaitable[NetworkAuthenticateBasicResult | None],
+        ]
+    ]
+    """Returns credentials for a proxy's Basic challenge, or ``None`` when unavailable, which
+    fails the request with the proxy's challenge, as does an empty user name. Applies to requests
+    the runtime tunnels through the proxy (``https`` and ``wss``). The runtime remembers the answer
+    for that proxy and uses it for later connections, until the proxy rejects it; then it calls
+    again with ``previous_rejected`` set, so answer with different credentials, for example by
+    asking the user, or with ``None``. A later connection sends the answer without waiting for a
+    challenge, unless the runtime may try Negotiate with that proxy first. A connection submits at
+    most three sets of credentials. While a call is pending, other requests through that proxy wait
+    for its answer. When a proxy offers both Negotiate and Basic, the runtime prefers Negotiate and
+    answers with Basic when Negotiate is unavailable or the proxy rejects it.
+
+    ``realm`` comes from the proxy, so treat it as untrusted text. The user name must not contain
+    a colon, and neither the user name nor the password may contain control characters; an
+    omitted password means an empty password. The runtime does not time the callback out: a
+    request whose own deadline passes stops waiting, but the answer is still remembered. Never log
+    or persist credentials.
     """
 
 
@@ -766,13 +795,19 @@ def _network_registration(config: NetworkConfig) -> NetworkSetProviderRequest | 
     authenticate_negotiate = config.get("authenticate_negotiate")
     if authenticate_negotiate is not None and not callable(authenticate_negotiate):
         raise ValueError("network.authenticate_negotiate must be callable")
-    if resolve_proxy is None and authenticate_negotiate is None:
+    authenticate_basic = config.get("authenticate_basic")
+    if authenticate_basic is not None and not callable(authenticate_basic):
+        raise ValueError("network.authenticate_basic must be callable")
+    if resolve_proxy is None and authenticate_negotiate is None and authenticate_basic is None:
         return None
     return NetworkSetProviderRequest(
         scope=scope,
         resolve_proxy=None if resolve_proxy is None else NetworkResolveProxyOptions(),
         authenticate_negotiate=(
             None if authenticate_negotiate is None else NetworkAuthenticateNegotiateOptions()
+        ),
+        authenticate_basic=(
+            None if authenticate_basic is None else NetworkAuthenticateBasicOptions()
         ),
     )
 
@@ -1081,6 +1116,7 @@ class _NetworkAdapter(_CancellableCallbackAdapter):
         super().__init__()
         self._resolve_proxy = config.get("resolve_proxy")
         self._authenticate_negotiate = config.get("authenticate_negotiate")
+        self._authenticate_basic = config.get("authenticate_basic")
 
     async def resolve_proxy(self, params: NetworkResolveProxyRequest) -> NetworkResolveProxyResult:
         callback = self._resolve_proxy
@@ -1098,6 +1134,17 @@ class _NetworkAdapter(_CancellableCallbackAdapter):
         token = await self._run_callback("Negotiate authentication", lambda: callback(params))
         return NetworkAuthenticateNegotiateResult(token=cast(str | None, token))
 
+    async def authenticate_basic(
+        self, params: NetworkAuthenticateBasicRequest
+    ) -> NetworkAuthenticateBasicResult:
+        callback = self._authenticate_basic
+        if callback is None:
+            raise RuntimeError("No network authenticate_basic callback registered")
+        credentials = await self._run_callback("Basic authentication", lambda: callback(params))
+        if credentials is None:
+            return NetworkAuthenticateBasicResult()
+        return cast(NetworkAuthenticateBasicResult, credentials)
+
     async def handle_resolve_proxy(self, params: dict) -> dict:
         """Wire-level ``network.resolveProxy`` handler, registered as cancellable."""
         result = await self.resolve_proxy(NetworkResolveProxyRequest.from_dict(params))
@@ -1108,6 +1155,11 @@ class _NetworkAdapter(_CancellableCallbackAdapter):
         result = await self.authenticate_negotiate(
             NetworkAuthenticateNegotiateRequest.from_dict(params)
         )
+        return result.to_dict()
+
+    async def handle_authenticate_basic(self, params: dict) -> dict:
+        """Wire-level ``network.authenticateBasic`` handler, registered as cancellable."""
+        result = await self.authenticate_basic(NetworkAuthenticateBasicRequest.from_dict(params))
         return result.to_dict()
 
 
@@ -2120,8 +2172,9 @@ class CopilotClient:
                 enable installation capabilities.
             network: **Experimental.** Network callbacks through which the SDK
                 host decides the runtime's proxies and supplies its Kerberos
-                tokens. The client installs the ``network.resolveProxy`` and
-                ``network.authenticateNegotiate`` handlers and registers the
+                tokens and proxy credentials. The client installs the
+                ``network.resolveProxy``, ``network.authenticateNegotiate`` and
+                ``network.authenticateBasic`` handlers and registers the
                 configured callbacks and ``scope`` during startup before
                 sessions can be created. May change or be removed.
             use_logged_in_user: Use the logged-in user for authentication.
@@ -2302,6 +2355,7 @@ class CopilotClient:
         self._auto_mode_recovery_cleanups: dict[JsonRpcClient, dict[str, asyncio.Future[None]]] = {}
         self._auto_mode_recovery_cleanup_tasks: set[asyncio.Task[None]] = set()
         self._session_admission_closed = False
+        self._connection_lost = False
         self._ahp_hosts = _AhpHostManager(
             self._get_session, self.create_session, self.resume_session
         )
@@ -2508,8 +2562,13 @@ class CopilotClient:
             await self._start()
 
     async def _start(self) -> None:
-        if self._state == "connected":
-            return
+        with self._sessions_lock:
+            if self._state == "connected":
+                return
+            connection_lost = self._connection_lost
+
+        if connection_lost:
+            await self.force_stop()
 
         start_time = time.perf_counter()
         self._state = "connecting"
@@ -2544,7 +2603,8 @@ class CopilotClient:
 
             with self._sessions_lock:
                 self._session_admission_closed = False
-            self._state = "connected"
+                self._connection_lost = False
+                self._state = "connected"
             log_timing(
                 logger,
                 logging.DEBUG,
@@ -2810,6 +2870,9 @@ class CopilotClient:
         if errors:
             raise ExceptionGroup("errors during CopilotClient.stop()", errors)
 
+        with self._sessions_lock:
+            self._connection_lost = False
+
     async def force_stop(self) -> None:
         """
         Forcefully stop the CLI server without graceful cleanup.
@@ -2949,6 +3012,9 @@ class CopilotClient:
 
         if process_error is not None:
             raise process_error
+
+        with self._sessions_lock:
+            self._connection_lost = False
 
     async def create_session(
         self,
@@ -6347,6 +6413,11 @@ class CopilotClient:
                 network_adapter.handle_authenticate_negotiate,
                 cancellable=True,
             )
+            self._client.set_request_handler(
+                "network.authenticateBasic",
+                network_adapter.handle_authenticate_basic,
+                cancellable=True,
+            )
         if self._ffi_host is not None:
             self._ffi_host.configure_ui_thread(
                 isinstance(self._connection, InProcessRuntimeConnection)
@@ -6410,8 +6481,10 @@ class CopilotClient:
         return registration_id
 
     def _handle_connection_close(self) -> None:
-        self._state = "disconnected"
         with self._sessions_lock:
+            self._state = "disconnected"
+            if not self._session_admission_closed:
+                self._connection_lost = True
             self._session_admission_closed = True
             if self._client is not None:
                 self._auto_mode_recovery_cleanups.pop(self._client, None)
@@ -6858,7 +6931,11 @@ class CopilotClient:
             raise ValueError(f"unknown session {session_id}")
 
         result = await session._handle_user_input_request(params)
-        return {"answer": result["answer"], "wasFreeform": result["wasFreeform"]}
+        reply: dict[str, Any] = {"answer": result["answer"], "wasFreeform": result["wasFreeform"]}
+        decision_context = result.get("decisionContext")
+        if decision_context is not None:
+            reply["decisionContext"] = decision_context.to_dict()
+        return reply
 
     async def _handle_shell_authentication_request(self, params: dict) -> dict:
         """Handle a ``shellAuthentication.request`` from the runtime: a shell command
@@ -6945,7 +7022,11 @@ class CopilotClient:
         if not session:
             raise ValueError(f"unknown session {session_id}")
 
-        return dict(await session._handle_exit_plan_mode_request(params))
+        reply: dict[str, Any] = dict(await session._handle_exit_plan_mode_request(params))
+        decision_context = reply.pop("decisionContext", None)
+        if decision_context is not None:
+            reply["decisionContext"] = decision_context.to_dict()
+        return reply
 
     async def _handle_auto_mode_switch_request(self, params: dict) -> dict:
         """Handle an autoModeSwitch.request callback from the CLI server."""

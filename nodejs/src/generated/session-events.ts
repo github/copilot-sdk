@@ -10,6 +10,10 @@ export type JsonValue = null | boolean | number | string | JsonValue[] | { [key:
  * Union of all session event variants emitted by the Copilot CLI runtime.
  */
 export type SessionEvent =
+  | IdeConnectionChangedEvent
+  | IdeSelectionChangedEvent
+  | IdeAddFileReferenceEvent
+  | IdeElicitationCompleteEvent
   | JournalLinkEvent
   | StartEvent
   | ResumeEvent
@@ -916,13 +920,15 @@ export type Attachment =
   | AttachmentExtensionContext
   | AttachmentSessionReference;
 /**
- * Why the binary data is absent: it exceeded the inline size limit, or its asset was unavailable
+ * Why the binary data is absent: it exceeded the inline size limit, its asset was unavailable, or its image format was unsupported
  */
 export type OmittedBinaryOmittedReason =
   /** Bytes exceeded the session's inline size limit. */
   | "too_large"
   /** The referenced binary asset could not be found (e.g. a truncated log). */
-  | "asset_unavailable";
+  | "asset_unavailable"
+  /** The image format or MIME label is not accepted by the model. */
+  | "unsupported_format";
 /**
  * Type of GitHub reference
  */
@@ -1016,7 +1022,9 @@ export type AssistantUsageApiEndpoint =
   /** Responses API endpoint. */
   | "/responses"
   /** WebSocket Responses API endpoint. */
-  | "ws:/responses";
+  | "ws:/responses"
+  /** Gemini Interactions API endpoint. */
+  | "/interactions";
 /**
  * How the runtime fell back to an uncompressed request body after a compressed body was rejected
  */
@@ -1844,12 +1852,16 @@ export type HumanResponseActor =
   /** The response came through a legacy or otherwise unattributed ingress. */
   | "unknown";
 /**
- * Exact runtime-owned question or reviewed plan paired with the typed response that settled it.
+ * Exact runtime-owned question or reviewed plan paired with the typed response that settled it. A refusal records the question without an answer and never grants authority.
  */
 export type HumanResponseRecordedResponse =
   | {
       /**
-       * Exact answer content accepted from the user.
+       * How the person refused the question; absent for an accepted answer.
+       */
+      action?: HumanResponseAskUserAction;
+      /**
+       * Exact answer content accepted from the user; empty when the person refused the question.
        */
       content: {
         [k: string]: ElicitationCompletedContent | undefined;
@@ -1873,13 +1885,17 @@ export type HumanResponseRecordedResponse =
        */
       allowFreeform?: boolean;
       /**
-       * Exact selected or free-form answer submitted by the user.
+       * Exact selected or free-form answer submitted by the user; empty when the person dismissed the question.
        */
       answer: string;
       /**
        * Exact choices displayed to the user, when the request offered choices.
        */
       choices?: string[];
+      /**
+       * True when the person dismissed the question instead of answering it.
+       */
+      dismissed?: boolean;
       /**
        * Exact question displayed to the user.
        */
@@ -1923,7 +1939,7 @@ export type HumanResponseRecordedResponse =
        */
       responseKind: "exit_plan_mode";
       /**
-       * Action selected by the user, when applicable.
+       * Action the runtime applied for an approved plan: the user's selection, or the default an approval without one applies.
        */
       selectedAction?: ExitPlanModeAction;
       /**
@@ -1931,6 +1947,14 @@ export type HumanResponseRecordedResponse =
        */
       summary: string;
     };
+/**
+ * How the person refused a built-in `ask_user` question instead of answering it.
+ */
+export type HumanResponseAskUserAction =
+  /** The person explicitly declined the question. */
+  | "decline"
+  /** The person dismissed the question. */
+  | "cancel";
 /**
  * Terminal status a workflow run committed. A settled run is never `pending` or `running`, so those two members of the run-status domain are deliberately absent.
  */
@@ -2020,6 +2044,312 @@ export type ExtensionsLoadedExtensionStatus =
   /** The extension process is starting. */
   | "starting";
 
+/**
+ * Session event "ide.connection_changed". Live IDE state. This state never restores a connection from session history.
+ */
+export interface IdeConnectionChangedEvent {
+  /**
+   * Sub-agent instance identifier. Absent for events from the root/main agent and session-level events.
+   */
+  agentId?: string;
+  /**
+   * Whether this physical journal record belongs to a replay checkpoint rather than original session history.
+   */
+  checkpoint?: boolean;
+  /**
+   * Live IDE state. This state never restores a connection from session history.
+   */
+  data: IdeConnectionState;
+  /**
+   * Always true for events that are transient and not persisted to the session event log on disk.
+   */
+  ephemeral: true;
+  /**
+   * Unique event identifier (UUID v4), generated when the event is emitted
+   */
+  id: string;
+  /**
+   * ID of the chronologically preceding event in the session, forming a linked chain. Null for the first event.
+   */
+  parentId: string | null;
+  /**
+   * ISO 8601 timestamp when the event was created
+   */
+  timestamp: string;
+  /**
+   * Type discriminator. Always "ide.connection_changed".
+   */
+  type: "ide.connection_changed";
+}
+/**
+ * Live IDE state. This state never restores a connection from session history.
+ */
+export interface IdeConnectionState {
+  /**
+   * Currently available IDE, absent during an outage.
+   */
+  connectedIde?: IdeConnectedInfo;
+  /**
+   * IDE whose tool definitions remain registered, including during an outage.
+   */
+  retainedIde?: IdeConnectedInfo;
+  /**
+   * Latest observed selection, absent after disconnect.
+   */
+  selection?: IdeSelection;
+}
+/**
+ * An IDE connection on the runtime host.
+ */
+export interface IdeConnectedInfo {
+  /**
+   * IDE display name.
+   */
+  ideName: string;
+  /**
+   * IDE lock file path on the runtime host.
+   */
+  lockFilePath: string;
+  /**
+   * IDE process identifier on the runtime host.
+   */
+  pid: number;
+  /**
+   * Registered MCP server name.
+   */
+  serverName: string;
+  /**
+   * Absolute workspace path on the runtime host.
+   */
+  workspaceFolder: string;
+}
+/**
+ * A validated live IDE selection.
+ */
+export interface IdeSelection {
+  /**
+   * Whether the selection is current.
+   */
+  current?: boolean;
+  /**
+   * Document path on the runtime host.
+   */
+  filePath: string;
+  /**
+   * Document URL supplied by the IDE.
+   */
+  fileUrl: string;
+  /**
+   * Selection endpoints and empty state.
+   */
+  selection: IdeSelectionRange;
+  /**
+   * Selected document text.
+   */
+  text: string;
+}
+/**
+ * The active selection range in an IDE document.
+ */
+export interface IdeSelectionRange {
+  /**
+   * End position.
+   */
+  end: IdePosition;
+  /**
+   * Whether the selection contains no text.
+   */
+  isEmpty: boolean;
+  /**
+   * Start position.
+   */
+  start: IdePosition;
+}
+/**
+ * A zero-based location in an IDE document.
+ */
+export interface IdePosition {
+  /**
+   * Zero-based character offset.
+   */
+  character: number;
+  /**
+   * Zero-based line number.
+   */
+  line: number;
+}
+/**
+ * Session event "ide.selection_changed". A validated selection from the live IDE, or an explicit clear.
+ */
+export interface IdeSelectionChangedEvent {
+  /**
+   * Sub-agent instance identifier. Absent for events from the root/main agent and session-level events.
+   */
+  agentId?: string;
+  /**
+   * Whether this physical journal record belongs to a replay checkpoint rather than original session history.
+   */
+  checkpoint?: boolean;
+  /**
+   * A validated selection from the live IDE, or an explicit clear.
+   */
+  data: IdeSelectionChangedData;
+  /**
+   * Always true for events that are transient and not persisted to the session event log on disk.
+   */
+  ephemeral: true;
+  /**
+   * Unique event identifier (UUID v4), generated when the event is emitted
+   */
+  id: string;
+  /**
+   * ID of the chronologically preceding event in the session, forming a linked chain. Null for the first event.
+   */
+  parentId: string | null;
+  /**
+   * ISO 8601 timestamp when the event was created
+   */
+  timestamp: string;
+  /**
+   * Type discriminator. Always "ide.selection_changed".
+   */
+  type: "ide.selection_changed";
+}
+/**
+ * A validated selection from the live IDE, or an explicit clear.
+ */
+export interface IdeSelectionChangedData {
+  /**
+   * Selection path, text, and source range, or null when the selection is cleared.
+   */
+  selection: IdeSelection | null;
+}
+/**
+ * Session event "ide.add_file_reference". An IDE request to attach a file or selection to the composer.
+ */
+export interface IdeAddFileReferenceEvent {
+  /**
+   * Sub-agent instance identifier. Absent for events from the root/main agent and session-level events.
+   */
+  agentId?: string;
+  /**
+   * Whether this physical journal record belongs to a replay checkpoint rather than original session history.
+   */
+  checkpoint?: boolean;
+  /**
+   * An IDE request to attach a file or selection to the composer.
+   */
+  data: IdeAddFileReferenceData;
+  /**
+   * Always true for events that are transient and not persisted to the session event log on disk.
+   */
+  ephemeral: true;
+  /**
+   * Unique event identifier (UUID v4), generated when the event is emitted
+   */
+  id: string;
+  /**
+   * ID of the chronologically preceding event in the session, forming a linked chain. Null for the first event.
+   */
+  parentId: string | null;
+  /**
+   * ISO 8601 timestamp when the event was created
+   */
+  timestamp: string;
+  /**
+   * Type discriminator. Always "ide.add_file_reference".
+   */
+  type: "ide.add_file_reference";
+}
+/**
+ * An IDE request to attach a file or selection to the composer.
+ */
+export interface IdeAddFileReferenceData {
+  /**
+   * Validated file reference or selected range.
+   */
+  reference: IdeFileReference;
+}
+/**
+ * A validated IDE request to attach a file or selected text.
+ */
+export interface IdeFileReference {
+  /**
+   * Document path on the runtime host.
+   */
+  filePath: string;
+  /**
+   * Document URL supplied by the IDE.
+   */
+  fileUrl: string;
+  /**
+   * Selected text, or null for a whole file.
+   */
+  selectedText: string | null;
+  /**
+   * Selected range, or null for a whole file.
+   */
+  selection: IdeRange | null;
+}
+/**
+ * The endpoints of an IDE file reference.
+ */
+export interface IdeRange {
+  /**
+   * End position.
+   */
+  end: IdePosition;
+  /**
+   * Start position.
+   */
+  start: IdePosition;
+}
+/**
+ * Session event "ide.elicitation_complete". An IDE elicitation completion notification.
+ */
+export interface IdeElicitationCompleteEvent {
+  /**
+   * Sub-agent instance identifier. Absent for events from the root/main agent and session-level events.
+   */
+  agentId?: string;
+  /**
+   * Whether this physical journal record belongs to a replay checkpoint rather than original session history.
+   */
+  checkpoint?: boolean;
+  /**
+   * An IDE elicitation completion notification.
+   */
+  data: IdeElicitationCompleteData;
+  /**
+   * Always true for events that are transient and not persisted to the session event log on disk.
+   */
+  ephemeral: true;
+  /**
+   * Unique event identifier (UUID v4), generated when the event is emitted
+   */
+  id: string;
+  /**
+   * ID of the chronologically preceding event in the session, forming a linked chain. Null for the first event.
+   */
+  parentId: string | null;
+  /**
+   * ISO 8601 timestamp when the event was created
+   */
+  timestamp: string;
+  /**
+   * Type discriminator. Always "ide.elicitation_complete".
+   */
+  type: "ide.elicitation_complete";
+}
+/**
+ * An IDE elicitation completion notification.
+ */
+export interface IdeElicitationCompleteData {
+  /**
+   * Elicitation identifier returned by the IDE.
+   */
+  elicitationId: string;
+}
 /**
  * Session event "session.journal_link". Links a standalone replay head to its complete preceding numbered journal archive.
  */
@@ -5342,6 +5672,12 @@ export interface CompactionCompleteAttemptMetrics {
    */
   deadlinePolicy?: string;
   /**
+   * Time a background compaction's summarizer was held for the turn's in-flight request to start responding before it was sent, in milliseconds. The compaction's deadline starts when the summarizer is sent. Absent when the summarizer was not held.
+   *
+   * @internal
+   */
+  dispatchWaitMs?: number;
+  /**
    * Time from the start of the compaction to this event, in milliseconds, whatever the outcome
    *
    * @internal
@@ -6582,6 +6918,10 @@ export interface UserMessageData {
    * How this message was delivered to the agentic loop relative to loop state (idle-start vs. steering/queued while busy). The timing axis; combine with `source` (origin) for the full picture. Used for telemetry attribution.
    */
   delivery?: UserMessageDelivery;
+  /**
+   * Whether the submitted prompt or attachments contain a task, before adding generated context such as timestamps; independent of timeline display text. Absent in older events.
+   */
+  hasSubmittedTask?: boolean;
   /**
    * CAPI interaction ID for correlating this user message with its turn
    */
@@ -8881,7 +9221,7 @@ export interface AssistantUsageData {
    */
   providerCallId?: string;
   /**
-   * Fixed-set configured provider type of the bring-your-own-key model: "openai", "azure", "anthropic", "local_model" (a user-configured local model), "winml" (a Copilot-managed Windows ML model), or "other". Never the caller-supplied provider name. Absent for Copilot-served models.
+   * Fixed-set configured provider type of the bring-your-own-key model: "openai", "azure", "anthropic", "google", "local_model" (a user-configured local model), "winml" (a Copilot-managed Windows ML model), or "other". Never the caller-supplied provider name. Absent for Copilot-served models.
    *
    * @internal
    */
@@ -9298,7 +9638,7 @@ export interface ModelCallFailureData {
    */
   providerCallId?: string;
   /**
-   * Fixed-set configured provider type of the bring-your-own-key model for the failed call: "openai", "azure", "anthropic", "local_model" (a user-configured local model), "winml" (a Copilot-managed Windows ML model), or "other". Never the caller-supplied provider name. Absent for Copilot-served models.
+   * Fixed-set configured provider type of the bring-your-own-key model for the failed call: "openai", "azure", "anthropic", "google", "local_model" (a user-configured local model), "winml" (a Copilot-managed Windows ML model), or "other". Never the caller-supplied provider name. Absent for Copilot-served models.
    *
    * @internal
    */

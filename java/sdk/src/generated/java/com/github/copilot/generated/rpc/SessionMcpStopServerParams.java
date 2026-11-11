@@ -14,7 +14,7 @@ import com.github.copilot.CopilotExperimental;
 import javax.annotation.processing.Generated;
 
 /**
- * Server name for an individual MCP server stop.
+ * Server name and optional transport selector for an individual MCP server stop. Omit transport to stop the server by name.
  *
  * @apiNote This method is experimental and may change in a future version.
  * @since 1.0.0

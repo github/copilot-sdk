@@ -32,6 +32,7 @@ from typing import (
     TypedDict,
     TypeVar,
     cast,
+    overload,
     runtime_checkable,
 )
 
@@ -614,10 +615,14 @@ class AttributedPermissionResult:
     its permission reply. Wrapping a :data:`PermissionRequestResult` with this class
     forwards that context to the runtime as a sibling of the decision on the wire.
 
-    The context is informational only — it never changes permission behavior. Build
-    instances via :func:`create_attributed_permission_result` rather than constructing
-    directly, so re-attributing an already-wrapped result replaces the context instead
-    of nesting.
+    When the context says a person decided (``source`` ``human_response``), the
+    runtime records the decision as the person's own (``permission.completed``
+    ``decisionSource``, and authority for Assisted Permissions), but only from the
+    session's authenticated owning connection; from any other caller the decision
+    applies without that authority. Do not label automated decisions as a person's.
+    Build instances via :func:`create_attributed_permission_result` rather than
+    constructing directly, so re-attributing an already-wrapped result replaces the
+    context instead of nesting.
     """
 
     result: PermissionRequestResult
@@ -641,6 +646,56 @@ def create_attributed_permission_result(
     if isinstance(result, AttributedPermissionResult):
         result = result.result
     return AttributedPermissionResult(result=result, decision_context=decision_context)
+
+
+@overload
+def create_attributed_result(
+    result: PermissionRequestResult | AttributedPermissionResult,
+    decision_context: PermissionDecisionContext,
+) -> AttributedPermissionResult: ...
+@overload
+def create_attributed_result(
+    result: UserInputResponse, decision_context: PermissionDecisionContext
+) -> UserInputResponse: ...
+@overload
+def create_attributed_result(
+    result: ExitPlanModeResult, decision_context: PermissionDecisionContext
+) -> ExitPlanModeResult: ...
+@overload
+def create_attributed_result(
+    result: ElicitationResult, decision_context: PermissionDecisionContext
+) -> ElicitationHandlerResult: ...
+def create_attributed_result(
+    result: PermissionRequestResult
+    | AttributedPermissionResult
+    | UserInputResponse
+    | ExitPlanModeResult
+    | ElicitationResult,
+    decision_context: PermissionDecisionContext,
+) -> AttributedPermissionResult | UserInputResponse | ExitPlanModeResult | ElicitationHandlerResult:
+    """Label any prompt handler's result with who answered and how.
+
+    Works for a permission decision (same as
+    :func:`create_attributed_permission_result`), a user-input answer, a plan
+    review, or an elicitation answer. For the latter three it returns a copy of
+    ``result`` with ``decisionContext`` set, replacing any previous label.
+
+    Label a person's answer with ``source=PermissionDecisionSource.HUMAN_RESPONSE``
+    and ``response_capability=PermissionResponseCapability.INTERACTIVE``, including
+    when they decline or dismiss the prompt, so the runtime can count it as their
+    own authority for Assisted Permissions. The runtime decides which answers carry
+    authority, and accepts the label only from the session's owning connection;
+    any other answer still settles, without it. Leave automated answers unlabeled
+    or label them with a non-human ``source``.
+    """
+    if isinstance(result, dict):
+        return cast(
+            "UserInputResponse | ExitPlanModeResult | ElicitationHandlerResult",
+            {**result, "decisionContext": decision_context},
+        )
+    return create_attributed_permission_result(
+        cast("PermissionRequestResult | AttributedPermissionResult", result), decision_context
+    )
 
 
 class PermissionInvocation(TypedDict, total=False):
@@ -771,6 +826,13 @@ class UserInputResponse(TypedDict):
 
     answer: str
     wasFreeform: bool
+    decisionContext: NotRequired[PermissionDecisionContext]
+    """Who answered and how (see :func:`create_attributed_result`).
+
+    When it says a person answered interactively, the runtime counts the answer
+    as the person's own authority for Assisted Permissions, but only from the
+    session's owning connection. Omit for automated answers.
+    """
 
 
 UserInputHandler = Callable[
@@ -854,6 +916,13 @@ class ExitPlanModeResult(TypedDict, total=False):
     approved: Required[bool]
     selectedAction: NotRequired[str]
     feedback: NotRequired[str]
+    decisionContext: NotRequired[PermissionDecisionContext]
+    """Who answered and how (see :func:`create_attributed_result`).
+
+    When it says a person answered interactively, the runtime counts the review
+    as the person's own for Assisted Permissions, but only from the session's
+    owning connection. Omit for automated answers.
+    """
 
 
 ExitPlanModeHandler = Callable[
@@ -978,6 +1047,18 @@ class ElicitationResult(TypedDict, total=False):
     """Form values submitted by the user (present when action is ``"accept"``)."""
 
 
+class ElicitationHandlerResult(ElicitationResult, total=False):
+    """Result an :data:`ElicitationHandler` returns: the :class:`ElicitationResult`,
+    optionally labeled with who answered (see :func:`create_attributed_result`)."""
+
+    decisionContext: PermissionDecisionContext
+    """Who answered and how. When it says a person answered interactively
+    (``source`` ``human_response``, ``response_capability`` ``interactive``), the
+    runtime counts the answer as the person's own authority for Assisted
+    Permissions, but only from the session's owning connection. Omit for
+    automated answers."""
+
+
 class ElicitationParams(TypedDict):
     """Parameters for a raw elicitation request."""
 
@@ -1029,9 +1110,14 @@ class ElicitationContext(TypedDict, total=False):
 
 ElicitationHandler = Callable[
     [ElicitationContext],
-    ElicitationResult | Awaitable[ElicitationResult],
+    ElicitationResult
+    | ElicitationHandlerResult
+    | Awaitable[ElicitationResult | ElicitationHandlerResult],
 ]
-"""Handler invoked when the server dispatches an elicitation request to this client."""
+"""Handler invoked when the server dispatches an elicitation request to this client.
+
+Return an :class:`ElicitationHandlerResult` (or a plain :class:`ElicitationResult`)
+with the user's response."""
 
 CreateSessionFsHandler = Callable[["CopilotSession"], "SessionFsProvider"]
 
@@ -1938,7 +2024,7 @@ ProviderConfigModelProvider = Literal[
 class ProviderConfig(TypedDict, total=False):
     """Configuration for a custom API provider"""
 
-    type: Literal["openai", "azure", "anthropic"]
+    type: Literal["openai", "azure", "anthropic", "google"]
     wire_api: Literal["completions", "responses"]
     # Transport for OpenAI Responses requests. Defaults to "http". Set
     # "websockets" to deliver Responses API requests over a persistent WebSocket
@@ -2005,7 +2091,7 @@ class NamedProviderConfig(TypedDict, total=False):
 
     # Stable identifier referenced by ProviderModelConfig.provider. Must not contain "/".
     name: str
-    type: Literal["openai", "azure", "anthropic"]
+    type: Literal["openai", "azure", "anthropic", "google"]
     wire_api: Literal["completions", "responses"]
     # Product serving this provider's models, such as "ollama" or "lm_studio",
     # reported in telemetry as model_provider. Only affects telemetry.
@@ -3722,7 +3808,7 @@ class CopilotSession:
 
         try:
             handler_start = time.perf_counter()
-            result = cast(ElicitationResult, await _run_handler(handler, context))
+            result = cast(ElicitationHandlerResult, await _run_handler(handler, context))
             log_timing(
                 logger,
                 logging.DEBUG,
@@ -3741,6 +3827,7 @@ class CopilotSession:
                 UIHandlePendingElicitationRequest(
                     request_id=request_id,
                     result=rpc_result,
+                    decision_context=result.get("decisionContext"),
                 )
             )
             log_timing(

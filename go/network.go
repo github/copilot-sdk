@@ -39,6 +39,20 @@ type NetworkResolveProxyRequest = rpc.NetworkResolveProxyRequest
 // API and may change or be removed.
 type NetworkAuthenticateNegotiateRequest = rpc.NetworkAuthenticateNegotiateRequest
 
+// NetworkAuthenticateBasicRequest identifies the proxy whose Basic challenge
+// needs credentials.
+//
+// Experimental: NetworkAuthenticateBasicRequest is part of an experimental API
+// and may change or be removed.
+type NetworkAuthenticateBasicRequest = rpc.NetworkAuthenticateBasicRequest
+
+// NetworkAuthenticateBasicResult holds the credentials for a proxy's Basic
+// challenge.
+//
+// Experimental: NetworkAuthenticateBasicResult is part of an experimental API
+// and may change or be removed.
+type NetworkAuthenticateBasicResult = rpc.NetworkAuthenticateBasicResult
+
 // NetworkConfig holds the callbacks through which the SDK host takes over parts
 // of the runtime's networking, for example when the runtime runs in WSL or a
 // container and should use VS Code's proxy settings and the host's Kerberos
@@ -80,16 +94,37 @@ type NetworkConfig struct {
 	// AuthenticateNegotiate returns a fresh, single-use base64 SPNEGO token
 	// without the "Negotiate " prefix for a proxy's Negotiate challenge, or ""
 	// when unavailable. The runtime then does not look up Kerberos credentials
-	// itself, so a missing token or a failing callback fails the request.
+	// itself, so a missing token or a failing callback fails the request, unless
+	// the proxy also offers Basic and AuthenticateBasic supplies credentials.
 	// request.Spn uses the platform-independent service/host[@REALM] form;
 	// validate it before issuing credentials. Never log or persist tokens.
 	AuthenticateNegotiate func(ctx context.Context, request NetworkAuthenticateNegotiateRequest) (string, error)
+	// AuthenticateBasic returns credentials for a proxy's Basic challenge, or
+	// nil when unavailable, which fails the request with the proxy's challenge,
+	// as does an empty Username. It applies to requests the runtime tunnels
+	// through the proxy (https and wss). The runtime remembers the answer for
+	// that proxy and uses it for later connections, until the proxy rejects it;
+	// then it calls again with request.PreviousRejected set, so answer with
+	// different credentials, for example by asking the user, or with nil. A later
+	// connection sends the answer without waiting for a challenge, unless the
+	// runtime may try Negotiate with that proxy first. A connection submits at
+	// most three sets of credentials. While a call is pending, other requests
+	// through that proxy wait for its answer. When a proxy offers both Negotiate
+	// and Basic, the runtime prefers Negotiate and answers with Basic when
+	// Negotiate is unavailable or the proxy rejects it. request.Realm comes from
+	// the proxy, so treat it as untrusted text. The user name must not contain a
+	// colon, and neither the user name nor the password may contain control
+	// characters; the runtime fails the request otherwise. A nil Password means
+	// an empty password. The runtime does not time the callback out: a request
+	// whose own deadline passes stops waiting, but the answer is still
+	// remembered. Never log or persist credentials.
+	AuthenticateBasic func(ctx context.Context, request NetworkAuthenticateBasicRequest) (*NetworkAuthenticateBasicResult, error)
 }
 
 // networkSetProviderRequest returns the network.setProvider registration for
 // config, or nil when config configures no callback.
 func networkSetProviderRequest(config *NetworkConfig) *rpc.NetworkSetProviderRequest {
-	if config == nil || config.ResolveProxy == nil && config.AuthenticateNegotiate == nil {
+	if config == nil || config.ResolveProxy == nil && config.AuthenticateNegotiate == nil && config.AuthenticateBasic == nil {
 		return nil
 	}
 	request := &rpc.NetworkSetProviderRequest{}
@@ -102,12 +137,15 @@ func networkSetProviderRequest(config *NetworkConfig) *rpc.NetworkSetProviderReq
 	if config.AuthenticateNegotiate != nil {
 		request.AuthenticateNegotiate = &rpc.NetworkAuthenticateNegotiateOptions{}
 	}
+	if config.AuthenticateBasic != nil {
+		request.AuthenticateBasic = &rpc.NetworkAuthenticateBasicOptions{}
+	}
 	return request
 }
 
-// networkAdapter handles network.resolveProxy and network.authenticateNegotiate
-// directly rather than through the generated client-global handler, which does
-// not pass the request context.
+// networkAdapter handles network.resolveProxy, network.authenticateNegotiate
+// and network.authenticateBasic directly rather than through the generated
+// client-global handler, which does not pass the request context.
 type networkAdapter struct {
 	config           NetworkConfig
 	connectionClosed <-chan struct{}
@@ -122,6 +160,9 @@ func (a *networkAdapter) register(client *jsonrpc2.Client) {
 	}
 	if a.config.AuthenticateNegotiate != nil {
 		client.SetRequestContextHandler("network.authenticateNegotiate", a.authenticateNegotiate)
+	}
+	if a.config.AuthenticateBasic != nil {
+		client.SetRequestContextHandler("network.authenticateBasic", a.authenticateBasic)
 	}
 }
 
@@ -148,5 +189,18 @@ func (a *networkAdapter) authenticateNegotiate(ctx context.Context, params json.
 				return rpc.NetworkAuthenticateNegotiateResult{}, err
 			}
 			return rpc.NetworkAuthenticateNegotiateResult{Token: &token}, nil
+		})
+}
+
+// authenticateBasic answers network.authenticateBasic; see
+// handleCancellableRequest for cancellation.
+func (a *networkAdapter) authenticateBasic(ctx context.Context, params json.RawMessage) (json.RawMessage, *jsonrpc2.Error) {
+	return handleCancellableRequest(ctx, params, "Basic authentication", a.connectionClosed, a.testHookCallbackGoroutine,
+		func(ctx context.Context, request NetworkAuthenticateBasicRequest) (rpc.NetworkAuthenticateBasicResult, error) {
+			credentials, err := a.config.AuthenticateBasic(ctx, request)
+			if err != nil || credentials == nil {
+				return rpc.NetworkAuthenticateBasicResult{}, err
+			}
+			return *credentials, nil
 		})
 }

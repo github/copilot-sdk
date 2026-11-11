@@ -23,7 +23,9 @@ public enum AssistantUsageApiEndpoint {
     /** The {@code /responses} variant. */
     RESPONSES("/responses"),
     /** The {@code ws:/responses} variant. */
-    WS_RESPONSES("ws:/responses");
+    WS_RESPONSES("ws:/responses"),
+    /** The {@code /interactions} variant. */
+    INTERACTIONS("/interactions");
 
     private final String value;
     AssistantUsageApiEndpoint(String value) { this.value = value; }

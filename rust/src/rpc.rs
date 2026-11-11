@@ -23,6 +23,7 @@ pub fn to_saved_provider_configuration(
         Some(ProviderConfigType::Openai) => Some(SavedProviderConfigurationType::Openai),
         Some(ProviderConfigType::Azure) => Some(SavedProviderConfigurationType::Azure),
         Some(ProviderConfigType::Anthropic) => Some(SavedProviderConfigurationType::Anthropic),
+        Some(ProviderConfigType::Google) => Some(SavedProviderConfigurationType::Google),
         Some(ProviderConfigType::Winml) => Some(SavedProviderConfigurationType::Winml),
         Some(ProviderConfigType::Unknown) => {
             return Err(crate::Error::with_message(

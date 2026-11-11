@@ -9,7 +9,7 @@
 package(default_visibility = ["//visibility:public"])
 
 alias(
-    name = "rusqlite-0.41.1",
-    actual = "@sdk_vendor__rusqlite-0.41.1//:rusqlite",
+    name = "rusqlite-0.42.0",
+    actual = "@sdk_vendor__rusqlite-0.42.0//:rusqlite",
     tags = ["manual"],
 )

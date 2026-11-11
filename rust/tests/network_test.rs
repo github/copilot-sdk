@@ -10,6 +10,7 @@ use std::time::Duration;
 
 use fake_runtime::{DropSignal, FakeRuntime, WAIT, read_frame, start, write_frame};
 use github_copilot_sdk::network::{
+    NetworkAuthenticateBasicRequest, NetworkAuthenticateBasicResult,
     NetworkAuthenticateNegotiateRequest, NetworkConfig, NetworkResolveProxyRequest, NetworkScope,
 };
 use github_copilot_sdk::{
@@ -51,11 +52,33 @@ async fn authenticate_negotiate(
     }
 }
 
-fn both_callbacks() -> ClientOptions {
+async fn authenticate_basic(
+    request: NetworkAuthenticateBasicRequest,
+) -> Result<Option<NetworkAuthenticateBasicResult>> {
+    match request.proxy.as_str() {
+        "http://unavailable.example:8080" => Ok(None),
+        "http://failing.example:8080" => Err(Error::with_message(ErrorKind::Io, "lookup failed")),
+        "http://panicking.example:8080" => panic!("lookup panicked"),
+        proxy => Ok(Some(NetworkAuthenticateBasicResult {
+            username: Some(format!("user for {proxy}")),
+            password: request.realm.map(|realm| {
+                let kind = if request.previous_rejected {
+                    "replacement"
+                } else {
+                    "password"
+                };
+                format!("{kind} for {realm}")
+            }),
+        })),
+    }
+}
+
+fn all_callbacks() -> ClientOptions {
     ClientOptions::new().with_network(
         NetworkConfig::new()
             .with_resolve_proxy(resolve_proxy)
-            .with_authenticate_negotiate(authenticate_negotiate),
+            .with_authenticate_negotiate(authenticate_negotiate)
+            .with_authenticate_basic(authenticate_basic),
     )
 }
 
@@ -77,6 +100,13 @@ async fn send_requests(runtime: &mut FakeRuntime, requests: &[(&str, Value)]) ->
     responses.into_values().collect()
 }
 
+/// Reports `"started"`, then never completes; reports `"dropped"` when dropped.
+async fn stall<T>(events: mpsc::UnboundedSender<&'static str>) -> T {
+    let _dropped = DropSignal(events.clone());
+    events.send("started").unwrap();
+    std::future::pending().await
+}
+
 /// Starts a client whose callbacks never answer, sends it `method` as request
 /// `id`, and waits until the callback is running.
 ///
@@ -87,40 +117,40 @@ async fn start_stalled_request(
     id: u64,
 ) -> (Client, FakeRuntime, mpsc::UnboundedReceiver<&'static str>) {
     let (events_tx, mut events) = mpsc::unbounded_channel();
-    let stalled = move || {
-        let events = events_tx.clone();
-        async move {
-            let _dropped = DropSignal(events.clone());
-            events.send("started").unwrap();
-            std::future::pending::<Result<Option<String>>>().await
-        }
-    };
-    let stalled_proxy = stalled.clone();
+    let (proxy_events, negotiate_events) = (events_tx.clone(), events_tx.clone());
     let (client, mut runtime) = start(
         ClientOptions::new().with_network(
             NetworkConfig::new()
                 .with_resolve_proxy(move |request: NetworkResolveProxyRequest| {
-                    let stalled = stalled_proxy.clone();
+                    let events = proxy_events.clone();
                     async move {
                         if request.url == "https://stalled.example/" {
-                            stalled().await
+                            stall(events).await
                         } else {
                             resolve_proxy(request).await
                         }
                     }
                 })
-                .with_authenticate_negotiate(
-                    move |request: NetworkAuthenticateNegotiateRequest| {
-                        let stalled = stalled.clone();
-                        async move {
-                            if request.spn == "HTTP/stalled" {
-                                stalled().await
-                            } else {
-                                authenticate_negotiate(request).await
-                            }
+                .with_authenticate_negotiate(move |request: NetworkAuthenticateNegotiateRequest| {
+                    let events = negotiate_events.clone();
+                    async move {
+                        if request.spn == "HTTP/stalled" {
+                            stall(events).await
+                        } else {
+                            authenticate_negotiate(request).await
                         }
-                    },
-                ),
+                    }
+                })
+                .with_authenticate_basic(move |request: NetworkAuthenticateBasicRequest| {
+                    let events = events_tx.clone();
+                    async move {
+                        if request.proxy == "http://stalled.example:8080" {
+                            stall(events).await
+                        } else {
+                            authenticate_basic(request).await
+                        }
+                    }
+                }),
         ),
         vec![json!({ "result": null })],
     )
@@ -135,8 +165,8 @@ async fn start_stalled_request(
 }
 
 #[tokio::test]
-async fn registers_both_callbacks_and_answers_concurrent_lookups() {
-    let (client, mut runtime) = start(both_callbacks(), vec![json!({ "result": null })]).await;
+async fn registers_all_callbacks_and_answers_concurrent_lookups() {
+    let (client, mut runtime) = start(all_callbacks(), vec![json!({ "result": null })]).await;
     let client = client.unwrap();
     let responses = send_requests(
         &mut runtime,
@@ -157,6 +187,14 @@ async fn registers_both_callbacks_and_answers_concurrent_lookups() {
                 "network.authenticateNegotiate",
                 json!({ "spn": "ldap/directory.example@EXAMPLE.COM" }),
             ),
+            (
+                "network.authenticateBasic",
+                json!({ "proxy": "http://proxy.example:8080", "realm": "Corp", "previousRejected": true }),
+            ),
+            (
+                "network.authenticateBasic",
+                json!({ "proxy": "https://proxy.example:443", "previousRejected": false }),
+            ),
         ],
     )
     .await;
@@ -166,7 +204,9 @@ async fn registers_both_callbacks_and_answers_concurrent_lookups() {
         (
             vec![json!({
                 "method": "network.setProvider",
-                "params": { "resolveProxy": {}, "authenticateNegotiate": {} }
+                "params": {
+                    "resolveProxy": {}, "authenticateNegotiate": {}, "authenticateBasic": {}
+                }
             })],
             vec![
                 json!({
@@ -184,6 +224,17 @@ async fn registers_both_callbacks_and_answers_concurrent_lookups() {
                 json!({
                     "jsonrpc": "2.0", "id": 1003,
                     "result": { "token": "token for ldap/directory.example@EXAMPLE.COM" }
+                }),
+                json!({
+                    "jsonrpc": "2.0", "id": 1004,
+                    "result": {
+                        "username": "user for http://proxy.example:8080",
+                        "password": "replacement for Corp"
+                    }
+                }),
+                json!({
+                    "jsonrpc": "2.0", "id": 1005,
+                    "result": { "username": "user for https://proxy.example:443" }
                 }),
             ],
         )
@@ -217,6 +268,11 @@ async fn registers_only_configured_callbacks_and_scope() {
                 "method": "network.setProvider",
                 "params": { "scope": "runtime", "authenticateNegotiate": {} }
             })],
+        ),
+        (
+            ClientOptions::new()
+                .with_network(NetworkConfig::new().with_authenticate_basic(authenticate_basic)),
+            vec![json!({ "method": "network.setProvider", "params": { "authenticateBasic": {} } })],
         ),
         (
             ClientOptions::new().with_network(
@@ -508,7 +564,7 @@ async fn cancelled_start_closes_the_connection_during_registration() {
 
 #[tokio::test]
 async fn answers_missing_values_and_returns_callback_failures_and_panics() {
-    let (client, mut runtime) = start(both_callbacks(), vec![json!({ "result": null })]).await;
+    let (client, mut runtime) = start(all_callbacks(), vec![json!({ "result": null })]).await;
     let client = client.unwrap();
     let responses = send_requests(
         &mut runtime,
@@ -522,6 +578,10 @@ async fn answers_missing_values_and_returns_callback_failures_and_panics() {
                 json!({ "spn": "HTTP/unavailable" }),
             ),
             (
+                "network.authenticateBasic",
+                json!({ "proxy": "http://unavailable.example:8080", "previousRejected": false }),
+            ),
+            (
                 "network.resolveProxy",
                 json!({ "url": "https://failing.example/" }),
             ),
@@ -530,12 +590,20 @@ async fn answers_missing_values_and_returns_callback_failures_and_panics() {
                 json!({ "spn": "HTTP/failing" }),
             ),
             (
+                "network.authenticateBasic",
+                json!({ "proxy": "http://failing.example:8080", "previousRejected": false }),
+            ),
+            (
                 "network.resolveProxy",
                 json!({ "url": "https://panicking.example/" }),
             ),
             (
                 "network.authenticateNegotiate",
                 json!({ "spn": "HTTP/panicking" }),
+            ),
+            (
+                "network.authenticateBasic",
+                json!({ "proxy": "http://panicking.example:8080", "previousRejected": false }),
             ),
         ],
     )
@@ -546,20 +614,29 @@ async fn answers_missing_values_and_returns_callback_failures_and_panics() {
         vec![
             json!({ "jsonrpc": "2.0", "id": 1000, "result": {} }),
             json!({ "jsonrpc": "2.0", "id": 1001, "result": {} }),
-            json!({
-                "jsonrpc": "2.0", "id": 1002,
-                "error": { "code": -32603, "message": "lookup failed" }
-            }),
+            json!({ "jsonrpc": "2.0", "id": 1002, "result": {} }),
             json!({
                 "jsonrpc": "2.0", "id": 1003,
                 "error": { "code": -32603, "message": "lookup failed" }
             }),
             json!({
                 "jsonrpc": "2.0", "id": 1004,
-                "error": { "code": -32603, "message": "request handler panicked" }
+                "error": { "code": -32603, "message": "lookup failed" }
             }),
             json!({
                 "jsonrpc": "2.0", "id": 1005,
+                "error": { "code": -32603, "message": "lookup failed" }
+            }),
+            json!({
+                "jsonrpc": "2.0", "id": 1006,
+                "error": { "code": -32603, "message": "request handler panicked" }
+            }),
+            json!({
+                "jsonrpc": "2.0", "id": 1007,
+                "error": { "code": -32603, "message": "request handler panicked" }
+            }),
+            json!({
+                "jsonrpc": "2.0", "id": 1008,
                 "error": { "code": -32603, "message": "request handler panicked" }
             }),
         ]
@@ -579,6 +656,11 @@ async fn cancelled_requests_drop_the_callback_future() {
             "network.authenticateNegotiate",
             json!({ "spn": "HTTP/stalled" }),
             json!({ "spn": "HTTP/proxy.example" }),
+        ),
+        (
+            "network.authenticateBasic",
+            json!({ "proxy": "http://stalled.example:8080", "previousRejected": false }),
+            json!({ "proxy": "http://proxy.example:8080", "previousRejected": false }),
         ),
     ] {
         let (client, mut runtime, mut events) = start_stalled_request(method, stalled, 1000).await;
@@ -618,10 +700,19 @@ async fn cancelled_requests_drop_the_callback_future() {
             (
                 "network.authenticateNegotiate",
                 Some("dropped"),
-                cancelled,
+                cancelled.clone(),
                 json!({
                     "jsonrpc": "2.0", "id": 1001,
                     "result": { "token": "token for HTTP/proxy.example" }
+                }),
+            ),
+            (
+                "network.authenticateBasic",
+                Some("dropped"),
+                cancelled,
+                json!({
+                    "jsonrpc": "2.0", "id": 1001,
+                    "result": { "username": "user for http://proxy.example:8080" }
                 }),
             ),
         ]
@@ -640,6 +731,10 @@ async fn closed_connection_drops_pending_callback_futures() {
             "network.authenticateNegotiate",
             json!({ "spn": "HTTP/stalled" }),
         ),
+        (
+            "network.authenticateBasic",
+            json!({ "proxy": "http://stalled.example:8080", "previousRejected": false }),
+        ),
     ] {
         let (client, runtime, mut events) = start_stalled_request(method, params, 1000).await;
         drop(runtime);
@@ -651,6 +746,7 @@ async fn closed_connection_drops_pending_callback_futures() {
         [
             ("network.resolveProxy", Some("dropped")),
             ("network.authenticateNegotiate", Some("dropped")),
+            ("network.authenticateBasic", Some("dropped")),
         ]
     );
 }

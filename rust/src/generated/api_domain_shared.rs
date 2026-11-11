@@ -12,14 +12,14 @@ pub(crate) use lifecycle_diagnostics::LifecycleDiagnosticEvent;
 use serde::{Deserialize, Serialize};
 pub use session_events::{
     AbortReason, AgentModelPolicy, AssistedApprovalAssessment, AutoTier, BlockedPermissionAction,
-    ContextTier, IndexedSearchState, ManagedPermissionsContext, ManagedSettingsResolvedSource,
-    McpOauthHttpResponse, McpOauthWWWAuthenticateParams, McpServerMetadata, McpServerSource,
-    McpServerStatus, McpSkillOrigin, ModelChangeSource, ModelProviderKind, ModelProviderRef,
-    OmittedBinaryOmittedReason, PermissionDecisionSource, PermissionMode, PermissionPromptRequest,
-    PermissionRule, PolicyHelperCapabilities, PolicyHelperFailure, ProviderQuotaState,
-    ReasoningSummary, RemediationAction, SessionLimitsConfig, SessionMode, ShutdownType,
-    SkillSource, TaskBlocker, TaskCompletionOutcome, UsageGetMetricsResult,
-    UserToolSessionApproval, Verbosity,
+    ContextTier, IdeConnectedInfo, IdeSelection, IndexedSearchState, ManagedPermissionsContext,
+    ManagedSettingsResolvedSource, McpOauthHttpResponse, McpOauthWWWAuthenticateParams,
+    McpServerMetadata, McpServerSource, McpServerStatus, McpSkillOrigin, ModelChangeSource,
+    ModelProviderKind, ModelProviderRef, OmittedBinaryOmittedReason, PermissionDecisionSource,
+    PermissionMode, PermissionPromptRequest, PermissionRule, PolicyHelperCapabilities,
+    PolicyHelperFailure, ProviderQuotaState, ReasoningSummary, RemediationAction,
+    SessionLimitsConfig, SessionMode, ShutdownType, SkillSource, TaskBlocker,
+    TaskCompletionOutcome, UsageGetMetricsResult, UserToolSessionApproval, Verbosity,
 };
 
 use crate::generated::{lifecycle_diagnostics, session_events};
@@ -4715,7 +4715,7 @@ pub struct PendingPermissionRequest {
     pub request_id: RequestId,
 }
 
-/// Optional informational context describing how and where the permission decision was made. This does not affect permission behavior.
+/// Who answered a prompt and how. A label saying a person answered (`source` `human_response`) gives the answer human authority for Assisted Permissions: for permission prompts it becomes `permission.completed.decisionSource`, and with `responseCapability` `interactive` it also covers `ask_user`, user-input and plan-review answers. The runtime accepts that claim only from the session's authenticated owning, non-extension connection, the in-process host, or a Mission Control answer the session owner wrote; any other answer settles without it. Other fields attribute the decision in telemetry.
 ///
 /// <div class="warning">
 ///
@@ -6001,6 +6001,16 @@ pub struct WorkspacesCheckpoints {
 /// </div>
 pub type McpExecuteSamplingResult = HashMap<String, serde_json::Value>;
 
+/// A standard MCP tool result.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+pub type McpToolResult = HashMap<String, serde_json::Value>;
+
 /// Authentication host. HMAC auth always targets the public GitHub host.
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
 pub enum HMACAuthInfoHost {
@@ -6526,6 +6536,9 @@ pub enum ProviderConfigType {
     /// Anthropic API endpoint.
     #[serde(rename = "anthropic")]
     Anthropic,
+    /// Experimental: Google Gemini API endpoint, served over the native Gemini Interactions API.
+    #[serde(rename = "google")]
+    Google,
     /// On-device Windows ML model with a local GGUF path.
     #[serde(rename = "winml")]
     Winml,
@@ -8568,6 +8581,9 @@ pub enum ProviderEndpointType {
     /// Anthropic endpoint (use the Anthropic client library).
     #[serde(rename = "anthropic")]
     Anthropic,
+    /// Experimental: Google Gemini API endpoint (use the Gemini Interactions API).
+    #[serde(rename = "google")]
+    Google,
     /// Unknown variant for forward compatibility.
     #[default]
     #[serde(other)]

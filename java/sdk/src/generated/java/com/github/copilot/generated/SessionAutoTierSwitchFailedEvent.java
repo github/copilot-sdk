@@ -37,6 +37,7 @@ public final class SessionAutoTierSwitchFailedEvent extends SessionEvent {
         /** Auto preference that remains effective after the failed request. */
         @JsonProperty("effectiveAutoTier") AutoTier effectiveAutoTier,
         /** Auto preference that failed to activate, or null when returning to provider-default routing failed. */
+        @JsonInclude(JsonInclude.Include.ALWAYS)
         @JsonProperty("requestedAutoTier") AutoTier requestedAutoTier,
         /** Low-cardinality failure outcome reported by Auto resolution. */
         @JsonProperty("reason") AutoTierSwitchFailureReason reason

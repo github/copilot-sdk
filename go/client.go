@@ -540,8 +540,24 @@ func (c *Client) Start(ctx context.Context) (err error) {
 	c.startStopMux.Lock()
 	defer c.startStopMux.Unlock()
 
-	if c.state == stateConnected {
-		return nil
+	if c.state == stateConnected && c.client != nil {
+		select {
+		case <-c.client.ConnectionClosed():
+			// The close callback may still be waiting to publish disconnected state.
+		default:
+			return nil
+		}
+	}
+
+	if c.client != nil {
+		if err := c.killProcessAndWait(); err != nil {
+			return fmt.Errorf("failed to retire previous runtime: %w", err)
+		}
+		c.client.Stop()
+		// Sessions are bound to the lost connection, so the new one cannot
+		// serve them; retire them as ForceStop does so their waiters fail now.
+		c.disconnectAhpHosts()
+		c.retireSessionsLocally()
 	}
 
 	// Publish startup before creating the transport and while holding
@@ -862,24 +878,7 @@ func (c *Client) ForceStop() {
 	}
 
 	// Clear sessions immediately without trying to destroy them
-	c.sessionsMux.Lock()
-	c.sessionsGeneration++
-	sessions := make([]*Session, 0, len(c.sessions))
-	for _, session := range c.sessions {
-		sessions = append(sessions, session)
-	}
-	c.sessions = make(map[string]*Session)
-	c.sessionsMux.Unlock()
-	c.cancelPendingShellAuthenticationRequests()
-	for _, session := range sessions {
-		session.clearSkillProvider()
-		session.clearMemoryStore()
-		session.cancelPendingExternalTools()
-		session.stopEventProcessing()
-	}
-	c.clearGitHubTokenProviders()
-	c.closeCopilotRequestAdapter()
-	c.closeInstallationConfirmationAdapter()
+	c.retireSessionsLocally()
 
 	c.startStopMux.Lock()
 	defer c.startStopMux.Unlock()
@@ -921,6 +920,31 @@ func (c *Client) ForceStop() {
 	}
 }
 
+// retireSessionsLocally removes every session and retires it without
+// contacting the runtime: pending waits fail, and registered callbacks and
+// connection-scoped handlers are released. It does not wait for event
+// callbacks already being dispatched, which may themselves stop the client.
+func (c *Client) retireSessionsLocally() {
+	c.sessionsMux.Lock()
+	c.sessionsGeneration++
+	sessions := make([]*Session, 0, len(c.sessions))
+	for _, session := range c.sessions {
+		sessions = append(sessions, session)
+	}
+	c.sessions = make(map[string]*Session)
+	c.sessionsMux.Unlock()
+	c.cancelPendingShellAuthenticationRequests()
+	for _, session := range sessions {
+		session.clearSkillProvider()
+		session.clearMemoryStore()
+		session.cancelPendingExternalTools()
+		session.stopEventProcessing()
+	}
+	c.clearGitHubTokenProviders()
+	c.closeCopilotRequestAdapter()
+	c.closeInstallationConfirmationAdapter()
+}
+
 // startupAttempt publishes the outcome of an in-progress Start to the
 // operations waiting for it in ensureConnected.
 type startupAttempt struct {
@@ -960,6 +984,13 @@ func (c *Client) ensureConnected(ctx context.Context) (*jsonrpc2.Client, error) 
 			transport = c.client
 		}
 		c.transportMux.Unlock()
+		if transport != nil {
+			select {
+			case <-transport.ConnectionClosed():
+				transport = nil
+			default:
+			}
+		}
 		if startup != nil {
 			// Start creates the transport before its registrations complete, and
 			// sessions must not be created before them.
@@ -1252,10 +1283,10 @@ func (c *Client) createSession(ctx context.Context, config *SessionConfig, runti
 		}
 		req.Commands = cmds
 	}
-	if config.OnElicitationRequest != nil {
+	if config.OnElicitationRequest != nil || config.OnAttributedElicitationRequest != nil {
 		req.RequestElicitation = Bool(true)
 	}
-	if config.OnExitPlanModeRequest != nil {
+	if config.OnExitPlanModeRequest != nil || config.OnAttributedExitPlanModeRequest != nil {
 		req.RequestExitPlanMode = Bool(true)
 	}
 	if config.OnAutoModeSwitchRequest != nil || recovery != nil {
@@ -1280,7 +1311,7 @@ func (c *Client) createSession(ctx context.Context, config *SessionConfig, runti
 	if c.options.OnGitHubTelemetry != nil {
 		req.EnableGitHubTelemetryForwarding = Bool(true)
 	}
-	if config.OnUserInputRequest != nil {
+	if config.OnUserInputRequest != nil || config.OnAttributedUserInputRequest != nil {
 		req.RequestUserInput = Bool(true)
 	}
 	if config.OnShellAuthenticationRequest != nil {
@@ -1370,8 +1401,8 @@ func (c *Client) createSession(ctx context.Context, config *SessionConfig, runti
 		s.registerPermissionHandlerWithPrompt(config.OnPermissionRequestWithPrompt)
 		s.registerPermissionHandlerWithEnvelope(permissionEnvelopeHandler)
 		s.registerMCPAuthHandlers(config.OnMCPAuthRequest, runtimeRefreshHandler)
-		if config.OnUserInputRequest != nil {
-			s.registerUserInputHandler(config.OnUserInputRequest)
+		if handler := userInputHandlerFor(config.OnUserInputRequest, config.OnAttributedUserInputRequest); handler != nil {
+			s.registerAttributedUserInputHandler(handler)
 		}
 		if config.OnShellAuthenticationRequest != nil {
 			s.registerShellAuthenticationHandler(config.OnShellAuthenticationRequest)
@@ -1394,11 +1425,11 @@ func (c *Client) createSession(ctx context.Context, config *SessionConfig, runti
 		if len(config.Commands) > 0 {
 			s.registerCommands(config.Commands)
 		}
-		if config.OnElicitationRequest != nil {
-			s.registerElicitationHandler(config.OnElicitationRequest)
+		if handler := elicitationHandlerFor(config.OnElicitationRequest, config.OnAttributedElicitationRequest); handler != nil {
+			s.registerAttributedElicitationHandler(handler)
 		}
-		if config.OnExitPlanModeRequest != nil {
-			s.registerExitPlanModeHandler(config.OnExitPlanModeRequest)
+		if handler := exitPlanModeHandlerFor(config.OnExitPlanModeRequest, config.OnAttributedExitPlanModeRequest); handler != nil {
+			s.registerAttributedExitPlanModeHandler(handler)
 		}
 		if config.OnAutoModeSwitchRequest != nil {
 			s.registerAutoModeSwitchHandler(config.OnAutoModeSwitchRequest)
@@ -1820,7 +1851,7 @@ func (c *Client) resumeSession(ctx context.Context, sessionID string, config *Re
 	if c.options.OnGitHubTelemetry != nil {
 		req.EnableGitHubTelemetryForwarding = Bool(true)
 	}
-	if config.OnUserInputRequest != nil {
+	if config.OnUserInputRequest != nil || config.OnAttributedUserInputRequest != nil {
 		req.RequestUserInput = Bool(true)
 	}
 	if config.OnShellAuthenticationRequest != nil {
@@ -1919,10 +1950,10 @@ func (c *Client) resumeSession(ctx context.Context, sessionID string, config *Re
 		}
 		req.Commands = cmds
 	}
-	if config.OnElicitationRequest != nil {
+	if config.OnElicitationRequest != nil || config.OnAttributedElicitationRequest != nil {
 		req.RequestElicitation = Bool(true)
 	}
-	if config.OnExitPlanModeRequest != nil {
+	if config.OnExitPlanModeRequest != nil || config.OnAttributedExitPlanModeRequest != nil {
 		req.RequestExitPlanMode = Bool(true)
 	}
 	if config.OnAutoModeSwitchRequest != nil || recovery != nil {
@@ -1954,8 +1985,8 @@ func (c *Client) resumeSession(ctx context.Context, sessionID string, config *Re
 	session.registerPermissionHandlerWithPrompt(config.OnPermissionRequestWithPrompt)
 	session.registerPermissionHandlerWithEnvelope(permissionEnvelopeHandler)
 	session.registerMCPAuthHandlers(config.OnMCPAuthRequest, runtimeRefreshHandler)
-	if config.OnUserInputRequest != nil {
-		session.registerUserInputHandler(config.OnUserInputRequest)
+	if handler := userInputHandlerFor(config.OnUserInputRequest, config.OnAttributedUserInputRequest); handler != nil {
+		session.registerAttributedUserInputHandler(handler)
 	}
 	if config.OnShellAuthenticationRequest != nil {
 		session.registerShellAuthenticationHandler(config.OnShellAuthenticationRequest)
@@ -1978,11 +2009,11 @@ func (c *Client) resumeSession(ctx context.Context, sessionID string, config *Re
 	if len(config.Commands) > 0 {
 		session.registerCommands(config.Commands)
 	}
-	if config.OnElicitationRequest != nil {
-		session.registerElicitationHandler(config.OnElicitationRequest)
+	if handler := elicitationHandlerFor(config.OnElicitationRequest, config.OnAttributedElicitationRequest); handler != nil {
+		session.registerAttributedElicitationHandler(handler)
 	}
-	if config.OnExitPlanModeRequest != nil {
-		session.registerExitPlanModeHandler(config.OnExitPlanModeRequest)
+	if handler := exitPlanModeHandlerFor(config.OnExitPlanModeRequest, config.OnAttributedExitPlanModeRequest); handler != nil {
+		session.registerAttributedExitPlanModeHandler(handler)
 	}
 	if config.OnAutoModeSwitchRequest != nil {
 		session.registerAutoModeSwitchHandler(config.OnAutoModeSwitchRequest)
@@ -2905,7 +2936,6 @@ func (c *Client) startCLIServer(ctx context.Context) error {
 		// Create JSON-RPC client immediately
 		c.client = jsonrpc2.NewClient(stdin, stdout)
 		c.client.SetProcessDone(c.processDone, c.processErrorPtr)
-		c.client.SetOnClose(c.handleConnectionClose)
 		c.RPC = rpc.NewServerRPC(c.client)
 		c.internalRPC = rpc.NewInternalServerRPC(c.client)
 		c.setupNotificationHandler()
@@ -3026,7 +3056,6 @@ func (c *Client) startInProcess(ctx context.Context) error {
 	}
 
 	c.client = jsonrpc2.NewClient(host.Writer(), host.Reader())
-	c.client.SetOnClose(c.handleConnectionClose)
 	c.RPC = rpc.NewServerRPC(c.client)
 	c.internalRPC = rpc.NewInternalServerRPC(c.client)
 	c.setupNotificationHandler()
@@ -3111,17 +3140,20 @@ func (c *Client) killProcess() error {
 		c.ffiHost.Dispose()
 		c.ffiHost = nil
 	}
-	if p := c.osProcess.Swap(nil); p != nil {
-		if err := p.Kill(); err != nil {
-			return fmt.Errorf("failed to kill CLI process: %w", err)
+	var killErr error
+	if p := c.osProcess.Load(); p != nil {
+		if err := p.Kill(); err != nil && !errors.Is(err, os.ErrProcessDone) {
+			killErr = fmt.Errorf("failed to kill CLI process: %w", err)
 		}
 	}
 	if c.processStdin != nil {
 		_ = c.processStdin.Close()
 		c.processStdin = nil
 	}
-	c.process = nil
-	return nil
+	if killErr == nil {
+		c.process = nil
+	}
+	return killErr
 }
 
 func (c *Client) killProcessAndWait() error {
@@ -3133,7 +3165,10 @@ func (c *Client) killProcessAndWait() error {
 
 	select {
 	case <-done:
-		return killErr
+		// Reaping confirms exit even when Windows reports a released handle.
+		c.osProcess.Store(nil)
+		c.process = nil
+		return nil
 	case <-time.After(processExitTimeout):
 		return errors.Join(killErr, fmt.Errorf("timed out waiting for CLI process to exit after kill"))
 	}
@@ -3209,7 +3244,6 @@ func (c *Client) connectViaTCP(ctx context.Context) error {
 	if c.processDone != nil {
 		c.client.SetProcessDone(c.processDone, c.processErrorPtr)
 	}
-	c.client.SetOnClose(c.handleConnectionClose)
 	c.RPC = rpc.NewServerRPC(c.client)
 	c.internalRPC = rpc.NewInternalServerRPC(c.client)
 	c.setupNotificationHandler()
@@ -3220,6 +3254,8 @@ func (c *Client) connectViaTCP(ctx context.Context) error {
 
 // setupNotificationHandler configures handlers for session events and RPC requests.
 func (c *Client) setupNotificationHandler() {
+	transport := c.client
+	transport.SetOnClose(func() { c.handleConnectionClose(transport) })
 	c.client.SetRequestScope(func(params json.RawMessage) func() {
 		var request struct {
 			SessionID string `json:"sessionId"`
@@ -3341,7 +3377,13 @@ func (c *Client) clearGitHubTokenProviders() {
 	c.gitHubTokenProvidersMux.Unlock()
 }
 
-func (c *Client) handleConnectionClose() {
+func (c *Client) handleConnectionClose(transport *jsonrpc2.Client) {
+	c.transportMux.Lock()
+	current := c.client == transport
+	c.transportMux.Unlock()
+	if !current {
+		return
+	}
 	c.disconnectAhpHosts()
 	c.closeCopilotRequestAdapter()
 	c.closeInstallationConfirmationAdapter()
@@ -3363,7 +3405,9 @@ func (c *Client) handleConnectionClose() {
 	go func() {
 		c.startStopMux.Lock()
 		defer c.startStopMux.Unlock()
-		c.state = stateDisconnected
+		if c.client == transport {
+			c.state = stateDisconnected
+		}
 	}()
 }
 
@@ -3944,7 +3988,11 @@ func (c *Client) handleUserInputRequest(req userInputRequest) (*userInputRespons
 		return nil, &jsonrpc2.Error{Code: -32603, Message: err.Error()}
 	}
 
-	return &userInputResponse{Answer: response.Answer, WasFreeform: response.WasFreeform}, nil
+	return &userInputResponse{
+		Answer:          response.Answer,
+		WasFreeform:     response.WasFreeform,
+		DecisionContext: response.DecisionContext,
+	}, nil
 }
 
 // shellAuthenticationKey identifies an open secret prompt in Client.pendingShellAuthenticationRequests,
@@ -4094,7 +4142,8 @@ func (c *Client) cancelPendingShellAuthenticationRequests() {
 }
 
 // handleExitPlanModeRequest handles an exitPlanMode.request callback from the CLI server.
-func (c *Client) handleExitPlanModeRequest(req exitPlanModeRequest) (*ExitPlanModeResult, *jsonrpc2.Error) {
+// The reply is the handler's result with decisionContext beside its fields when set.
+func (c *Client) handleExitPlanModeRequest(req exitPlanModeRequest) (*AttributedExitPlanModeResult, *jsonrpc2.Error) {
 	if req.SessionID == "" {
 		return nil, &jsonrpc2.Error{Code: -32602, Message: "invalid exit plan mode request payload"}
 	}

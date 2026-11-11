@@ -189,10 +189,11 @@ type ClientOptions struct {
 	// before any sessions can be created.
 	ExtensionLaunchProvider ExtensionLaunchProvider
 	// Network lets the SDK host resolve the runtime's proxies and answer
-	// Negotiate (Kerberos) proxy challenges. When it configures a callback,
-	// Start installs the `network.resolveProxy` and
-	// `network.authenticateNegotiate` handlers for the configured callbacks and
-	// registers them before any sessions can be created. See [NetworkConfig].
+	// Negotiate (Kerberos) and Basic proxy challenges. When it configures a
+	// callback, Start installs the `network.resolveProxy`,
+	// `network.authenticateNegotiate` and `network.authenticateBasic` handlers
+	// for the configured callbacks and registers them before any sessions can be
+	// created. See [NetworkConfig].
 	//
 	// Experimental: Network is part of an experimental API and may change or be
 	// removed.
@@ -559,10 +560,18 @@ type PermissionHandlerInvocation struct {
 	PromptRequest rpc.PermissionPromptRequest
 }
 
-// PermissionDecisionContext describes how and where a permission decision was
-// reached. Attach it to a decision with [NewAttributedPermissionResult] so the runtime
-// can attribute auto-approval telemetry to the responding surface. It is
-// informational only and never changes permission behavior.
+// PermissionDecisionContext says who made a decision and how. Attach it to a
+// permission decision with [NewAttributedPermissionResult], or to a prompt
+// answer with [AttributedUserInputResponse], [AttributedExitPlanModeResult] or
+// [AttributedElicitationResult].
+//
+// A Source of [PermissionDecisionSourceHumanResponse] from the session's owning
+// connection makes the runtime record the decision as the person's: for a
+// permission it sets permission.completed.decisionSource, and it gives the
+// decision Assisted Permissions authority (for a prompt answer, with
+// ResponseCapability [PermissionResponseCapabilityInteractive]). From any
+// other connection the decision applies without that authority. The other
+// fields attribute the decision in telemetry.
 //
 // Experimental: PermissionDecisionContext is part of an experimental API and
 // may change or be removed.
@@ -713,6 +722,29 @@ type UserInputResponse struct {
 // The handler should return a UserInputResponse. Returning an error fails the request.
 type UserInputHandler func(request UserInputRequest, invocation UserInputInvocation) (UserInputResponse, error)
 
+// AttributedUserInputResponse is a [UserInputResponse] that can say who
+// answered. Return it from an [AttributedUserInputHandler].
+//
+// Experimental: AttributedUserInputResponse is part of an experimental API and
+// may change or be removed.
+type AttributedUserInputResponse struct {
+	UserInputResponse
+	// DecisionContext says who answered and how. When a person answered, set
+	// Source [PermissionDecisionSourceHumanResponse], ResponseCapability
+	// [PermissionResponseCapabilityInteractive] and Outcome
+	// [PermissionDecisionOutcomePromptedUser] so Assisted Permissions can
+	// count the answer as the person's own authority. Leave it nil for
+	// automated answers; nil sends no decisionContext.
+	DecisionContext *PermissionDecisionContext
+}
+
+// AttributedUserInputHandler is a [UserInputHandler] whose answers can say
+// who answered. Register it with SessionConfig.OnAttributedUserInputRequest.
+//
+// Experimental: AttributedUserInputHandler is part of an experimental API and
+// may change or be removed.
+type AttributedUserInputHandler func(request UserInputRequest, invocation UserInputInvocation) (AttributedUserInputResponse, error)
+
 // UserInputInvocation provides context about a user input request
 type UserInputInvocation struct {
 	SessionID string
@@ -825,6 +857,30 @@ type ExitPlanModeInvocation struct {
 
 // ExitPlanModeRequestHandler handles exit-plan-mode requests from the agent.
 type ExitPlanModeRequestHandler func(request ExitPlanModeRequest, invocation ExitPlanModeInvocation) (ExitPlanModeResult, error)
+
+// AttributedExitPlanModeResult is an [ExitPlanModeResult] that can say who
+// reviewed the plan. Return it from an [AttributedExitPlanModeRequestHandler].
+//
+// Experimental: AttributedExitPlanModeResult is part of an experimental API
+// and may change or be removed.
+type AttributedExitPlanModeResult struct {
+	ExitPlanModeResult
+	// DecisionContext says who answered and how. When a person answered, set
+	// Source [PermissionDecisionSourceHumanResponse], ResponseCapability
+	// [PermissionResponseCapabilityInteractive] and Outcome
+	// [PermissionDecisionOutcomePromptedUser] so Assisted Permissions can
+	// count the review as the person's own. Leave it nil for automated
+	// answers; nil sends no decisionContext.
+	DecisionContext *PermissionDecisionContext `json:"decisionContext,omitempty"`
+}
+
+// AttributedExitPlanModeRequestHandler is an [ExitPlanModeRequestHandler]
+// whose results can say who reviewed the plan. Register it with
+// SessionConfig.OnAttributedExitPlanModeRequest.
+//
+// Experimental: AttributedExitPlanModeRequestHandler is part of an
+// experimental API and may change or be removed.
+type AttributedExitPlanModeRequestHandler func(request ExitPlanModeRequest, invocation ExitPlanModeInvocation) (AttributedExitPlanModeResult, error)
 
 // AutoModeRecoveryContext identifies an offer to recover the active request using Auto.
 type AutoModeRecoveryContext struct {
@@ -2011,6 +2067,13 @@ type SessionConfig struct {
 	// OnUserInputRequest handles legacy question-and-answer requests from the agent
 	// and enables the legacy ask_user tool.
 	OnUserInputRequest UserInputHandler
+	// OnAttributedUserInputRequest is OnUserInputRequest for a host that reports
+	// who answered; see [AttributedUserInputResponse]. When both are set, this
+	// handler takes precedence and OnUserInputRequest is not called.
+	//
+	// Experimental: OnAttributedUserInputRequest is part of an experimental API
+	// and may change or be removed.
+	OnAttributedUserInputRequest AttributedUserInputHandler
 	// OnShellAuthenticationRequest handles passwords and other answers that shell
 	// commands run by the agent ask for. When provided, `sudo -A`, `ssh`, and
 	// `git` prompts reach this handler instead of failing for lack of a
@@ -2018,7 +2081,8 @@ type SessionConfig struct {
 	OnShellAuthenticationRequest ShellAuthenticationHandler
 	// AskUserVariant selects the model-facing shape of the ask_user tool.
 	// The zero value preserves legacy behavior. AskUserVariantElicitation also
-	// requires OnElicitationRequest so the host can answer structured forms.
+	// requires OnElicitationRequest or OnAttributedElicitationRequest so the host
+	// can answer structured forms.
 	AskUserVariant AskUserVariant
 	// Hooks configures hook handlers for session lifecycle events
 	Hooks *SessionHooks
@@ -2221,9 +2285,24 @@ type SessionConfig struct {
 	// When provided, the server may call back to this client for form-based UI dialogs
 	// (e.g. from MCP tools). Also enables the elicitation capability on the session.
 	OnElicitationRequest ElicitationHandler
+	// OnAttributedElicitationRequest is OnElicitationRequest for a host that
+	// reports who answered; see [AttributedElicitationResult]. When both are
+	// set, this handler takes precedence and OnElicitationRequest is not called.
+	//
+	// Experimental: OnAttributedElicitationRequest is part of an experimental
+	// API and may change or be removed.
+	OnAttributedElicitationRequest AttributedElicitationHandler
 	// OnExitPlanModeRequest is a handler for exit-plan-mode requests from the server.
 	// When provided, enables exitPlanMode.request callbacks for the session.
 	OnExitPlanModeRequest ExitPlanModeRequestHandler
+	// OnAttributedExitPlanModeRequest is OnExitPlanModeRequest for a host that
+	// reports who reviewed the plan; see [AttributedExitPlanModeResult]. When
+	// both are set, this handler takes precedence and OnExitPlanModeRequest is
+	// not called.
+	//
+	// Experimental: OnAttributedExitPlanModeRequest is part of an experimental
+	// API and may change or be removed.
+	OnAttributedExitPlanModeRequest AttributedExitPlanModeRequestHandler
 	// OnAutoModeSwitchRequest is a handler for auto-mode-switch requests from the server.
 	// When provided, enables autoModeSwitch.request callbacks for the session.
 	OnAutoModeSwitchRequest AutoModeSwitchRequestHandler
@@ -2620,6 +2699,31 @@ type ElicitationContext struct {
 // If the handler returns an error the SDK auto-cancels the request.
 type ElicitationHandler func(ctx ElicitationContext) (ElicitationResult, error)
 
+// AttributedElicitationResult is an [ElicitationResult] that can say who
+// answered. Return it from an [AttributedElicitationHandler].
+//
+// Experimental: AttributedElicitationResult is part of an experimental API and
+// may change or be removed.
+type AttributedElicitationResult struct {
+	ElicitationResult
+	// DecisionContext says who answered and how. When a person answered, set
+	// Source [PermissionDecisionSourceHumanResponse], ResponseCapability
+	// [PermissionResponseCapabilityInteractive] and Outcome
+	// [PermissionDecisionOutcomePromptedUser] so Assisted Permissions can
+	// count the answer as the person's own authority. Leave it nil for
+	// automated answers; nil sends no decisionContext. The SDK sends it
+	// beside the elicitation result, not inside it.
+	DecisionContext *PermissionDecisionContext `json:"decisionContext,omitempty"`
+}
+
+// AttributedElicitationHandler is an [ElicitationHandler] whose results can
+// say who answered. Register it with SessionConfig.OnAttributedElicitationRequest.
+// If it returns an error, the SDK cancels the request without a label.
+//
+// Experimental: AttributedElicitationHandler is part of an experimental API
+// and may change or be removed.
+type AttributedElicitationHandler func(ctx ElicitationContext) (AttributedElicitationResult, error)
+
 // UIInputOptions configures a text input field for the Input convenience method.
 type UIInputOptions struct {
 	// Title label for the input field.
@@ -2770,6 +2874,12 @@ type ResumeSessionConfig struct {
 	// OnUserInputRequest handles legacy question-and-answer requests from the agent
 	// and enables the legacy ask_user tool.
 	OnUserInputRequest UserInputHandler
+	// OnAttributedUserInputRequest is OnUserInputRequest for a host that reports
+	// who answered. See SessionConfig.OnAttributedUserInputRequest.
+	//
+	// Experimental: OnAttributedUserInputRequest is part of an experimental API
+	// and may change or be removed.
+	OnAttributedUserInputRequest AttributedUserInputHandler
 	// OnShellAuthenticationRequest handles passwords and other answers that shell
 	// commands run by the agent ask for. When provided, `sudo -A`, `ssh`, and
 	// `git` prompts reach this handler instead of failing for lack of a
@@ -2777,7 +2887,8 @@ type ResumeSessionConfig struct {
 	OnShellAuthenticationRequest ShellAuthenticationHandler
 	// AskUserVariant selects the model-facing shape of the ask_user tool.
 	// The zero value preserves legacy behavior. AskUserVariantElicitation also
-	// requires OnElicitationRequest so the host can answer structured forms.
+	// requires OnElicitationRequest or OnAttributedElicitationRequest so the host
+	// can answer structured forms.
 	AskUserVariant AskUserVariant
 	// Hooks configures hook handlers for session lifecycle events
 	Hooks *SessionHooks
@@ -2966,9 +3077,21 @@ type ResumeSessionConfig struct {
 	// OnElicitationRequest is a handler for elicitation requests from the server.
 	// See SessionConfig.OnElicitationRequest.
 	OnElicitationRequest ElicitationHandler
+	// OnAttributedElicitationRequest is OnElicitationRequest for a host that
+	// reports who answered. See SessionConfig.OnAttributedElicitationRequest.
+	//
+	// Experimental: OnAttributedElicitationRequest is part of an experimental
+	// API and may change or be removed.
+	OnAttributedElicitationRequest AttributedElicitationHandler
 	// OnExitPlanModeRequest is a handler for exit-plan-mode requests from the server.
 	// See SessionConfig.OnExitPlanModeRequest.
 	OnExitPlanModeRequest ExitPlanModeRequestHandler
+	// OnAttributedExitPlanModeRequest is OnExitPlanModeRequest for a host that
+	// reports who reviewed the plan. See SessionConfig.OnAttributedExitPlanModeRequest.
+	//
+	// Experimental: OnAttributedExitPlanModeRequest is part of an experimental
+	// API and may change or be removed.
+	OnAttributedExitPlanModeRequest AttributedExitPlanModeRequestHandler
 	// OnAutoModeSwitchRequest is a handler for auto-mode-switch requests from the server.
 	// See SessionConfig.OnAutoModeSwitchRequest.
 	OnAutoModeSwitchRequest AutoModeSwitchRequestHandler
@@ -3078,7 +3201,7 @@ type ProviderTokenArgs struct {
 type BearerTokenProvider func(args ProviderTokenArgs) (string, error)
 
 type ProviderConfig struct {
-	// Type is the provider type: "openai", "azure", or "anthropic". Defaults to "openai".
+	// Type is the provider type: "openai", "azure", "anthropic", or "google". Defaults to "openai".
 	Type string `json:"type,omitempty"`
 	// WireAPI is the API format (openai/azure only): "completions" or "responses". Defaults to "completions".
 	WireAPI string `json:"wireApi,omitempty"`
@@ -3251,7 +3374,7 @@ type NamedProviderConfig struct {
 	// Name is the stable identifier referenced by ProviderModelConfig.Provider.
 	// Must not contain "/".
 	Name string `json:"name"`
-	// Type is the provider type: "openai", "azure", or "anthropic". Defaults to "openai".
+	// Type is the provider type: "openai", "azure", "anthropic", or "google". Defaults to "openai".
 	Type string `json:"type,omitempty"`
 	// LocalModel contains forward-compatible runtime options for a local model.
 	LocalModel json.RawMessage `json:"localModel,omitempty"`
@@ -3967,8 +4090,9 @@ type userInputRequest struct {
 
 // userInputResponse represents the user's response to an input request
 type userInputResponse struct {
-	Answer      string `json:"answer"`
-	WasFreeform bool   `json:"wasFreeform"`
+	Answer          string                     `json:"answer"`
+	WasFreeform     bool                       `json:"wasFreeform"`
+	DecisionContext *PermissionDecisionContext `json:"decisionContext,omitempty"`
 }
 
 // shellAuthenticationRequest is the shellAuthentication.request payload: a shell command the

@@ -7,7 +7,7 @@ import type { MessageConnection } from "../jsonrpcTypes.js";
 
 import { sendCancellableRequest } from "../rpcCancellation.js";
 import { sendRequestWithSignal } from "../jsonrpcTypes.js";
-import type { AbortReason, AgentModelPolicy, AssistedApprovalAssessment, Attachment, AutoTier, ContextTier, EmbeddedBlobResourceContents, EmbeddedTextResourceContents, IndexedSearchState, ManagedPermissionsContext, ManagedSettingsResolvedData, McpOauthHttpResponse, McpOauthWWWAuthenticateParams, McpServerMetadata, McpServerSource, McpServerStatus, McpSkillOrigin, ModelChangeSource, ModelProviderKind, ModelProviderRef, PermissionDecisionSource, PermissionMode, PermissionPromptRequest, PermissionRule, PolicyHelperFailure, ProviderQuotaState, ReasoningSummary, RemediationAction, SessionEvent, SessionLimitsConfig, SessionMode, ShutdownType, SkillSource, TaskCompleteData, TaskCompletionOutcome, UsageGetMetricsResult, UserToolSessionApproval, Verbosity } from "./session-events.js";
+import type { AbortReason, AgentModelPolicy, AssistedApprovalAssessment, Attachment, AutoTier, ContextTier, EmbeddedBlobResourceContents, EmbeddedTextResourceContents, IdeConnectionState, IndexedSearchState, ManagedPermissionsContext, ManagedSettingsResolvedData, McpOauthHttpResponse, McpOauthWWWAuthenticateParams, McpServerMetadata, McpServerSource, McpServerStatus, McpSkillOrigin, ModelChangeSource, ModelProviderKind, ModelProviderRef, PermissionDecisionSource, PermissionMode, PermissionPromptRequest, PermissionRule, PolicyHelperFailure, ProviderQuotaState, ReasoningSummary, RemediationAction, SessionEvent, SessionLimitsConfig, SessionMode, ShutdownType, SkillSource, TaskCompleteData, TaskCompletionOutcome, UsageGetMetricsResult, UserToolSessionApproval, Verbosity } from "./session-events.js";
 import type { LifecycleDiagnosticEvent } from "./lifecycle-diagnostics.js";
 
 import type { PermissionRequest } from "./session-events.js";
@@ -460,6 +460,8 @@ export type SavedProviderConfigurationType =
   | "azure"
   /** Anthropic API endpoint. */
   | "anthropic"
+  /** Experimental: Google Gemini API endpoint, served over the native Gemini Interactions API. */
+  | "google"
   /** Runtime-managed local model server. */
   | "local_model"
   /** Windows ML local model provider. */
@@ -870,6 +872,8 @@ export type ProviderConfigType =
   | "azure"
   /** Anthropic API endpoint. */
   | "anthropic"
+  /** Experimental: Google Gemini API endpoint, served over the native Gemini Interactions API. */
+  | "google"
   /** On-device Windows ML model with a local GGUF path. */
   | "winml";
 /**
@@ -2477,6 +2481,22 @@ export type ContentFilterMode =
   /** Remove characters that can hide directives. */
   | "hidden_characters";
 /**
+ * Stable credential-context failure categories, independent of the credential provider.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "CredentialContextErrorCode".
+ */
+/** @experimental */
+export type CredentialContextErrorCode =
+  /** The current owner has no usable credential. */
+  | "credential_unavailable"
+  /** The context, owner, or lease is no longer current. */
+  | "credential_revoked"
+  /** The caller, destination, or requested credential use is not authorized. */
+  | "credential_denied"
+  /** The original owner failed to resolve a credential. This is not credential absence. */
+  | "credential_resolution_failed";
+/**
  * Component of session customization discovery.
  *
  * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
@@ -3415,6 +3435,180 @@ export type FeatureFlagAvailability =
  */
 /** @experimental */
 export type FeatureFlagValue = string | number | boolean | null;
+/**
+ * Identifies a local filesystem failure, not a network failure or retry decision.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "FetchFileErrorKind".
+ */
+/** @experimental */
+export type FetchFileErrorKind = "fileSystem";
+/**
+ * The filesystem operation that failed while producing or cleaning up a response file.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "FetchFileOperation".
+ */
+/** @experimental */
+export type FetchFileOperation =
+  /** Create the destination file without overwriting an existing path. */
+  | "create"
+  /** Write decoded response bytes. */
+  | "write"
+  /** Flush, synchronize, and close the completed file. */
+  | "flush"
+  /** Remove the incomplete response file. */
+  | "remove";
+/**
+ * HTTP redirect policy.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "FetchRedirect".
+ */
+/** @experimental */
+export type FetchRedirect =
+  /** Follow redirects, up to the transport's limit of 20. */
+  | "follow"
+  /** Follow only redirects within the original origin. */
+  | "sameOrigin"
+  /** Return the redirect response without following it. */
+  | "manual"
+  /** Reject redirect responses. */
+  | "error";
+/**
+ * How fetch.send delivers the HTTP response.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "FetchResponseMode".
+ */
+/** @experimental */
+export type FetchResponseMode =
+  /** Return headers immediately. Read body chunks with fetch.read or cancel without reading. */
+  | "stream"
+  /** Return the complete UTF-8 response text. */
+  | "text"
+  /** Write the response directly to a new caller-owned file on the runtime host. */
+  | "file";
+/**
+ * HTTP response metadata and the selected body representation. HTTP error statuses remain successful transport outcomes.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "FetchSendResult".
+ */
+/** @experimental */
+export type FetchSendResult =
+  | {
+      /**
+       * Selected HTTP response representation.
+       */
+      responseMode: "stream";
+      /**
+       * Final URL after redirects.
+       */
+      url: string;
+      /**
+       * HTTP status code, including non-success statuses.
+       */
+      status: number;
+      /**
+       * HTTP reason phrase.
+       */
+      statusText: string;
+      /**
+       * Headers including repeated names in value order. Distinct-name order is transport-dependent.
+       */
+      headers: FetchHeader[];
+    }
+  | {
+      /**
+       * Selected HTTP response representation.
+       */
+      responseMode: "text";
+      /**
+       * Final URL after redirects.
+       */
+      url: string;
+      /**
+       * HTTP status code, including non-success statuses.
+       */
+      status: number;
+      /**
+       * HTTP reason phrase.
+       */
+      statusText: string;
+      /**
+       * Headers including repeated names in value order. Distinct-name order is transport-dependent.
+       */
+      headers: FetchHeader[];
+      /**
+       * Complete text decoded as WHATWG Response.text(), independent of the Content-Type charset.
+       */
+      bodyText: string;
+      /**
+       * Whether TLS did not attest to the end of a close-delimited event stream.
+       */
+      endedAtUnverifiedEof: boolean;
+    }
+  | {
+      /**
+       * Selected HTTP response representation.
+       */
+      responseMode: "file";
+      /**
+       * Final URL after redirects.
+       */
+      url: string;
+      /**
+       * HTTP status code, including non-success statuses.
+       */
+      status: number;
+      /**
+       * HTTP reason phrase.
+       */
+      statusText: string;
+      /**
+       * Headers including repeated names in value order. Distinct-name order is transport-dependent.
+       */
+      headers: FetchHeader[];
+      /**
+       * Caller-specified path on the runtime host. Remote clients do not receive the file bytes.
+       */
+      path: string;
+      /**
+       * Number of decoded response bytes written.
+       */
+      sizeBytes: number;
+      /**
+       * Whether TLS did not attest to the end of a close-delimited event stream.
+       */
+      endedAtUnverifiedEof: boolean;
+    };
+/**
+ * Shared HTTP engine failure categories. HTTP response statuses are not errors in this enumeration.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "FetchTransportErrorKind".
+ */
+/** @experimental */
+export type FetchTransportErrorKind =
+  /** An HTTP client request or response-body failure. */
+  | "request"
+  /** The request deadline expired. */
+  | "timeout"
+  /** A proxy tunnel failed. */
+  | "tunnel"
+  /** Proxy authentication failed. */
+  | "proxy_authentication"
+  /** A request or transport configuration is invalid. */
+  | "request_configuration"
+  /** The response exceeded the caller's body limit. */
+  | "response_body_limit"
+  /** The redirect policy or transport rejected a redirect. */
+  | "redirect"
+  /** The request was canceled. */
+  | "canceled"
+  /** The response stream is closed. */
+  | "stream_closed";
 /**
  * Content filtering mode to apply to all tools, or a map of tool name to content filtering mode.
  *
@@ -4884,6 +5078,14 @@ export type McpAppsSetHostContextDetailsPlatform =
   /** Host runs on a mobile device */
   | "mobile";
 /**
+ * A standard MCP tool result, or null when the IDE is disconnected.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "McpCallToolResult".
+ */
+/** @experimental */
+export type McpCallToolResult = McpToolResult | null;
+/**
  * Serializable MCP server configuration (stdio process or remote HTTP/SSE)
  *
  * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
@@ -5749,6 +5951,14 @@ export type McpSamplingExecutionAction =
   /** The sampling inference was cancelled before completion. */
   | "cancelled";
 /**
+ * Local transport for a session-owned IDE endpoint.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "McpServerConfigLocalType".
+ */
+/** @experimental */
+export type McpServerConfigLocalType = /** Existing Unix socket or Windows named pipe. */ "local-http";
+/**
  * In-process MCP transport type.
  *
  * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
@@ -5781,6 +5991,14 @@ export type OptionsUpdateToolFilterPrecedence =
   | "available"
   /** A tool is enabled if and only if it matches the allowlist (or the allowlist is unset) AND it does not match the denylist. Default for new sessions. */
   | "excluded";
+/**
+ * Server configuration accepted by session.mcp.startServer only.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "McpStartServerConfig".
+ */
+/** @experimental */
+export type McpStartServerConfig = McpSerializableServerConfig | McpServerConfigLocal;
 /**
  * Memory injection mode. Defaults to system-prompt.
  *
@@ -6116,7 +6334,9 @@ export type ProviderEndpointType =
   /** Azure OpenAI endpoint (use the OpenAI client library with the Azure base URL). */
   | "azure"
   /** Anthropic endpoint (use the Anthropic client library). */
-  | "anthropic";
+  | "anthropic"
+  /** Experimental: Google Gemini API endpoint (use the Gemini Interactions API). */
+  | "google";
 /**
  * Wire API to be used, when required for the provider type.
  *
@@ -16712,6 +16932,19 @@ export interface ContextHeaviestMessage {
   tokens: number;
 }
 /**
+ * JSON-RPC error.data for application code -32004. Carries no credentials or provider error details.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "CredentialContextErrorData".
+ */
+/** @experimental */
+export interface CredentialContextErrorData {
+  /**
+   * Stable discriminator. Consumers use this value instead of the error message.
+   */
+  code: CredentialContextErrorCode;
+}
+/**
  * The session's authoritative model snapshot. Auto preference fields are configuration for the virtual `auto` model and do not change the selected model identifier. The context tier reflects `Session.getContextTier()`, restored from the session journal on resume.
  *
  * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
@@ -19193,6 +19426,235 @@ export interface FeatureFlagsResolveStartupGatesRequest {
    * Include isTeamRepository beside the requested gates. One launch can then share its fresh audience with static resolution. An empty flags list reads no authentication or experiment assignments.
    */
   includeTeamMembership?: boolean;
+}
+/**
+ * Result of disposing a fetch handle.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "FetchCancelResult".
+ */
+/** @experimental */
+export interface FetchCancelResult {
+  /**
+   * True if this connection owned a live handle. False for unknown, disposed, or foreign handles.
+   */
+  canceled: boolean;
+}
+/**
+ * The connection-owned HTTP request handle allocated by fetch.create.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "FetchCreateResult".
+ */
+/** @experimental */
+export interface FetchCreateResult {
+  /**
+   * Opaque handle. Other connections cannot start, read, or cancel it.
+   */
+  requestId: string;
+}
+/**
+ * JSON-RPC error.data for file creation, writes, completion, or incomplete-file cleanup failures (-32603).
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "FetchFileErrorData".
+ */
+/** @experimental */
+export interface FetchFileErrorData {
+  /**
+   * Always fileSystem; these errors do not describe an HTTP transport failure.
+   */
+  kind: FetchFileErrorKind;
+  /**
+   * The failed filesystem operation.
+   */
+  operation: FetchFileOperation;
+  /**
+   * Platform error number, when supplied by the operating system.
+   */
+  osErrorCode?: number;
+}
+/**
+ * One HTTP header entry. Repeated names retain their value order.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "FetchHeader".
+ */
+/** @experimental */
+export interface FetchHeader {
+  /**
+   * HTTP header name.
+   */
+  name: string;
+  /**
+   * HTTP header value.
+   */
+  value: string;
+}
+/**
+ * Per-request proxy environment. An empty object disables ambient proxies.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "FetchProxyEnv".
+ */
+/** @experimental */
+export interface FetchProxyEnv {
+  /**
+   * Proxy for HTTP targets.
+   */
+  httpProxy?: string;
+  /**
+   * Proxy for HTTPS targets.
+   */
+  httpsProxy?: string;
+  /**
+   * Comma-separated proxy bypass patterns.
+   */
+  noProxy?: string;
+}
+/**
+ * A response byte range, or EOF. EOF and transport failures dispose the handle.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "FetchReadResult".
+ */
+/** @experimental */
+export interface FetchReadResult {
+  /**
+   * True at EOF. Do not read the handle again after EOF.
+   */
+  done: boolean;
+  /**
+   * Response bytes encoded as standard base64. Empty at EOF.
+   */
+  body: string;
+  /**
+   * At EOF, whether TLS did not attest to the end of a close-delimited event stream.
+   */
+  endedAtUnverifiedEof: boolean;
+}
+/**
+ * A fetch handle owned by the SDK connection that created it.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "FetchRequestId".
+ */
+/** @experimental */
+export interface FetchRequestId {
+  /**
+   * Opaque handle. Other connections cannot start, read, or cancel it.
+   */
+  requestId: string;
+}
+/**
+ * An HTTP request through the shared network transport.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "FetchSendParams".
+ */
+/** @experimental */
+export interface FetchSendParams {
+  /**
+   * Connection-owned handle returned by fetch.create. Each handle can start only once.
+   */
+  requestId: string;
+  /**
+   * Absolute target URL.
+   */
+  url: string;
+  /**
+   * Response consumption mode. Stream returns headers immediately; text and file consume the complete body.
+   */
+  responseMode: FetchResponseMode;
+  /**
+   * Destination on the runtime host, required only for file mode. Must not already exist.
+   * The caller owns completed files. Failed or canceled requests remove their incomplete files.
+   */
+  destinationPath?: string;
+  /**
+   * An existing connection-owned credential capability. Each same-origin hop resolves fresh credentials.
+   * Conflicting headers fail. Cross-origin redirects drop credentials but retain the original authority.
+   * HTTPS downgrades fail. Omission adds no service credentials.
+   */
+  credentialContextId?: string;
+  /**
+   * HTTP method. Defaults to GET.
+   */
+  method?: string;
+  /**
+   * Header entries in input order. Repeated names are not combined.
+   */
+  headers?: FetchHeader[];
+  /**
+   * Request bytes encoded as standard base64. Omission sends no body.
+   */
+  body?: string;
+  /**
+   * Redirect policy. Defaults to follow.
+   */
+  redirect?: FetchRedirect;
+  /**
+   * Total request timeout in milliseconds, including body consumption. Omission sets no total deadline.
+   */
+  timeoutMs?: number;
+  /**
+   * Read timeout in milliseconds. Defaults to 700000. Explicit zero is preserved.
+   */
+  readTimeoutMs?: number;
+  /**
+   * Maximum decoded response bytes. Only text mode defaults to 1048576; file and stream modes have no default limit.
+   * Explicit zero permits only an empty body. Exceeding the limit fails without truncation.
+   */
+  bodyLimitBytes?: number;
+  /**
+   * Disable idle connection reuse. Defaults to false.
+   */
+  disableConnectionReuse?: boolean;
+  /**
+   * Proxy overrides. Omission reads the process proxy environment per request.
+   */
+  proxyEnv?: FetchProxyEnv;
+  /**
+   * DNS address pins. Internal pins bypass proxies; public pins yield to configured proxies.
+   */
+  pinnedAddresses?: string[];
+  /**
+   * Permit loopback DNS pins. Defaults to false. This is not a general URL admission policy.
+   */
+  allowLocalhost?: boolean;
+  /**
+   * Force proxy Negotiate authentication when supported. Defaults to false; automatic proxy negotiation remains enabled.
+   */
+  proxyNegotiateAuth?: boolean;
+  /**
+   * Optional proxy Kerberos service principal override.
+   */
+  proxyNegotiateSpn?: string;
+}
+/**
+ * JSON-RPC error.data for fetch.send/read transport failures (-32603). The transport-code token remains unchanged.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "FetchTransportErrorData".
+ */
+/** @experimental */
+export interface FetchTransportErrorData {
+  /**
+   * The shared engine's failure category.
+   */
+  kind: FetchTransportErrorKind;
+  /**
+   * The engine transport code, when available. An unclassified HTTP client failure uses "unknown".
+   */
+  code?: string;
+  /**
+   * The engine's permanent-request-failure classification. This does not select a retry policy.
+   */
+  permanentRequestFailure: boolean;
+  /**
+   * The engine's network-error classification. This does not select a retry policy.
+   */
+  networkError: boolean;
 }
 /**
  * Parameters for starting fleet orchestration: an optional user prompt combined with the fleet instructions, plus the send options forwarded to the resulting turn.
@@ -25627,6 +26089,37 @@ export interface McpAppsSetHostContextRequest {
   context: McpAppsSetHostContextDetails;
 }
 /**
+ * Invokes a tool on a session MCP server through the server's permission policy.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "McpCallToolRequest".
+ */
+/** @experimental */
+export interface McpCallToolRequest {
+  /**
+   * Registered MCP server name.
+   */
+  serverName: string;
+  /**
+   * Unprefixed MCP tool name.
+   */
+  toolName: string;
+  /**
+   * MCP tool arguments.
+   */
+  arguments: JsonValue;
+}
+/**
+ * A standard MCP tool result.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "McpToolResult".
+ */
+/** @experimental */
+export interface McpToolResult {
+  [k: string]: JsonValue | undefined;
+}
+/**
  * The requestId previously passed to executeSampling that should be cancelled.
  *
  * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
@@ -26372,6 +26865,43 @@ export interface McpServerNeedsAuthInfo {
    * epoch-ms timestamp at which the server signalled it needs authentication.
    */
   timestamp: number;
+}
+/**
+ * IDE metadata for an existing local MCP endpoint on the runtime host.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "McpIdeConfig".
+ */
+/** @experimental */
+export interface McpIdeConfig {
+  /**
+   * IDE display name.
+   */
+  ideName: string;
+  /**
+   * Absolute workspace path on the runtime host.
+   */
+  workspaceFolder: string;
+  /**
+   * IDE process identifier.
+   */
+  pid: number;
+  /**
+   * Lock file whose removal ends the live connection.
+   */
+  lockFilePath: string;
+  /**
+   * Client package version used by the MCP initialize request.
+   */
+  clientVersion: string;
+  /**
+   * Client process identifier sent to the IDE.
+   */
+  clientPid: number;
+  /**
+   * Client parent process identifier sent to the IDE.
+   */
+  parentPid: number;
 }
 /**
  * Inert, runtime-owned admission. The operation ID is known before confirmation or effects.
@@ -28384,6 +28914,33 @@ export interface McpServerOwnership {
   installationId: string;
 }
 /**
+ * A session-only local IDE endpoint. Starting it never writes persistent configuration.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "McpServerConfigLocal".
+ */
+/** @experimental */
+export interface McpServerConfigLocal {
+  /**
+   * Local transport discriminator.
+   */
+  type: McpServerConfigLocalType;
+  /**
+   * Existing Unix socket or Windows named pipe on the runtime host.
+   */
+  socketPath: string;
+  /**
+   * Endpoint headers from IDE discovery.
+   */
+  headers?: {
+    [k: string]: string | undefined;
+  };
+  /**
+   * IDE identity and initialize metadata. The server name must be `ide`.
+   */
+  ide: McpIdeConfig;
+}
+/**
  * In-process MCP server configuration used by embedded SDK clients.
  *
  * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
@@ -28618,9 +29175,9 @@ export interface McpStartServerRequest {
    */
   serverName: string;
   /**
-   * MCP server configuration (stdio process or remote HTTP/SSE). Omit to start the server with its already-registered configuration (config-free start-by-name).
+   * MCP server configuration (stdio, remote HTTP/SSE, or session-only local IDE endpoint). Local IDE endpoints never write persistent configuration. Omit to start with the already-registered configuration.
    */
-  config?: McpSerializableServerConfig;
+  config?: McpStartServerConfig;
   /**
    * Exact receipt identity for explicit owned activation in this session.
    */
@@ -28648,7 +29205,7 @@ export interface McpStartServersResult {
   failedServers?: McpFailedServer[];
 }
 /**
- * Server name for an individual MCP server stop.
+ * Server name and optional transport selector for an individual MCP server stop. Omit transport to stop the server by name.
  *
  * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
  * via the `definition` "McpStopServerRequest".
@@ -28663,6 +29220,10 @@ export interface McpStopServerRequest {
    * Name of the MCP server to stop
    */
   serverName: string;
+  /**
+   * Optional transport selector. The only supported value, local-http, requires serverName ide and cannot accompany expectedInstallationId. It cancels pending IDE initialization and removes local IDE state without stopping an ordinary server with the same name. Omit this field for a generic stop by name.
+   */
+  transport?: McpServerConfigLocalType;
 }
 /**
  * Metadata controlling an MCP task's lifetime.
@@ -30479,6 +31040,52 @@ export interface NameSetRequest {
   name: string;
 }
 /**
+ * Registers the Basic authentication callback, which then supplies the credentials for proxies that challenge with Basic authentication.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "NetworkAuthenticateBasicOptions".
+ */
+/** @experimental */
+export interface NetworkAuthenticateBasicOptions {}
+/**
+ * Requests credentials for a proxy's Basic authentication challenge.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "NetworkAuthenticateBasicRequest".
+ */
+/** @experimental */
+export interface NetworkAuthenticateBasicRequest {
+  /**
+   * Proxy that challenged, as `http://host:port` or `https://host:port`.
+   */
+  proxy: string;
+  /**
+   * Realm the proxy named in its challenge, if any. The proxy supplies it, so treat it as untrusted text.
+   */
+  realm?: string;
+  /**
+   * True when the proxy rejected the credentials the connection sent last, including ones the runtime remembered from an earlier answer: answer with different credentials, for example by asking the user, or with none. False when the connection has not sent credentials yet.
+   */
+  previousRejected: boolean;
+}
+/**
+ * Credentials for a proxy's Basic authentication challenge.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "NetworkAuthenticateBasicResult".
+ */
+/** @experimental */
+export interface NetworkAuthenticateBasicResult {
+  /**
+   * User name; omitted or empty when no credentials are available, which fails the request with the proxy's challenge. Must not contain a colon or control characters. Never log or persist it with the password.
+   */
+  username?: string;
+  /**
+   * Password; omitted for an empty password. Must not contain control characters. Never log or persist it.
+   */
+  password?: string;
+}
+/**
  * Registers the Negotiate authentication callback, which then supplies the Kerberos tokens instead of native credential lookup.
  *
  * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
@@ -30566,6 +31173,10 @@ export interface NetworkSetProviderRequest {
    * Present when the client answers `network.authenticateNegotiate`.
    */
   authenticateNegotiate?: NetworkAuthenticateNegotiateOptions;
+  /**
+   * Present when the client answers `network.authenticateBasic`.
+   */
+  authenticateBasic?: NetworkAuthenticateBasicOptions;
 }
 /**
  * Content-exclusion policy supplied to `session.options.update`, with rules, last-updated data, and scope.
@@ -31373,7 +31984,7 @@ export interface PermissionDecisionDeniedByPermissionRequestHook {
   interrupt?: boolean;
 }
 /**
- * Optional informational context describing how and where the permission decision was made. This does not affect permission behavior.
+ * Who answered a prompt and how. A label saying a person answered (`source` `human_response`) gives the answer human authority for Assisted Permissions: for permission prompts it becomes `permission.completed.decisionSource`, and with `responseCapability` `interactive` it also covers `ask_user`, user-input and plan-review answers. The runtime accepts that claim only from the session's authenticated owning, non-extension connection, the in-process host, or a Mission Control answer the session owner wrote; any other answer settles without it. Other fields attribute the decision in telemetry.
  *
  * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
  * via the `definition` "PermissionDecisionContext".
@@ -31418,7 +32029,7 @@ export interface PermissionDecisionRequest {
    */
   result: PermissionDecision;
   /**
-   * Optional informational context describing how and where this response was made. Omit it to preserve legacy behavior without attributing an origin.
+   * Who decided and how. When it says a person decided (`source` `human_response`), the runtime records the decision as the person's (`permission.completed.decisionSource`), but only from the session's authenticated owning connection or the in-process host; a decision from any other caller applies without that authority. Omit it for an unattributed decision.
    */
   decisionContext?: PermissionDecisionContext;
 }
@@ -35417,7 +36028,7 @@ export interface SandboxDisableForSessionRequest {
    */
   requestId: string;
   /**
-   * Optional attribution for the permission decision.
+   * Optional attribution for the permission decision. A claim that a person decided (`source` `human_response`) counts only from the session's authenticated owning connection or the in-process host.
    */
   decisionContext?: PermissionDecisionContext;
 }
@@ -35623,7 +36234,7 @@ export interface SandboxGrantPathForRequestRequest {
    */
   requestId: string;
   /**
-   * Optional attribution for the permission decision.
+   * Optional attribution for the permission decision. A claim that a person decided (`source` `human_response`) counts only from the session's authenticated owning connection or the in-process host.
    */
   decisionContext?: PermissionDecisionContext;
 }
@@ -43587,6 +44198,10 @@ export interface UIHandlePendingElicitationRequest {
    * The elicitation response (accept with form values, decline, or cancel)
    */
   result: UIElicitationResponse;
+  /**
+   * Who answered and how. When it says a person answered interactively (`source` `human_response` with `responseCapability` `interactive`), the runtime records the answer as the person's own authority for Assisted Permissions, but only from the session's authenticated owning connection or the in-process host; an answer from any other caller settles without it. The runtime decides which answers carry authority. Omit for automated answers.
+   */
+  decisionContext?: PermissionDecisionContext;
 }
 /**
  * Request ID of a pending `exit_plan_mode.requested` event and the user's response.
@@ -43604,6 +44219,10 @@ export interface UIHandlePendingExitPlanModeRequest {
    * User response for a pending exit-plan-mode request, with approval state, selected action, auto-approve flag, and feedback.
    */
   response: UIExitPlanModeResponse;
+  /**
+   * Who answered and how. When it says a person answered interactively (`source` `human_response` with `responseCapability` `interactive`), the runtime records the answer as the person's own authority for Assisted Permissions, but only from the session's authenticated owning connection or the in-process host; an answer from any other caller settles without it. The runtime decides which answers carry authority. Omit for automated answers.
+   */
+  decisionContext?: PermissionDecisionContext;
 }
 /**
  * Indicates whether the pending UI request was resolved by this call.
@@ -43699,6 +44318,10 @@ export interface UIHandlePendingUserInputRequest {
    * User response for a pending user-input request, with answer text and whether it was typed freeform.
    */
   response: UIUserInputResponse;
+  /**
+   * Who answered and how. When it says a person answered interactively (`source` `human_response` with `responseCapability` `interactive`), the runtime records the answer as the person's own authority for Assisted Permissions, but only from the session's authenticated owning connection or the in-process host; an answer from any other caller settles without it. The runtime decides which answers carry authority. Omit for automated answers.
+   */
+  decisionContext?: PermissionDecisionContext;
 }
 /**
  * User response for a pending user-input request, with answer text and whether it was typed freeform.
@@ -47252,6 +47875,117 @@ export interface ProvidersSourceAddModelRequest {
   configuration: SavedProviderConfigurationAddModelRequest;
 }
 /**
+ * An HTTP request through the shared network transport.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "FetchSendRequest".
+ */
+/** @experimental */
+export interface FetchSendRequest {
+  /**
+   * Connection-owned handle returned by fetch.create. Each handle can start only once.
+   */
+  requestId: string;
+  /**
+   * Absolute target URL.
+   */
+  url: string;
+  /**
+   * Response consumption mode. Stream returns headers immediately; text and file consume the complete body.
+   */
+  responseMode: FetchResponseMode;
+  /**
+   * Destination on the runtime host, required only for file mode. Must not already exist.
+   * The caller owns completed files. Failed or canceled requests remove their incomplete files.
+   */
+  destinationPath?: string;
+  /**
+   * An existing connection-owned credential capability. Each same-origin hop resolves fresh credentials.
+   * Conflicting headers fail. Cross-origin redirects drop credentials but retain the original authority.
+   * HTTPS downgrades fail. Omission adds no service credentials.
+   */
+  credentialContextId?: string;
+  /**
+   * HTTP method. Defaults to GET.
+   */
+  method?: string;
+  /**
+   * Header entries in input order. Repeated names are not combined.
+   */
+  headers?: FetchHeader[];
+  /**
+   * Request bytes encoded as standard base64. Omission sends no body.
+   */
+  body?: string;
+  /**
+   * Redirect policy. Defaults to follow.
+   */
+  redirect?: FetchRedirect;
+  /**
+   * Total request timeout in milliseconds, including body consumption. Omission sets no total deadline.
+   */
+  timeoutMs?: number;
+  /**
+   * Read timeout in milliseconds. Defaults to 700000. Explicit zero is preserved.
+   */
+  readTimeoutMs?: number;
+  /**
+   * Maximum decoded response bytes. Only text mode defaults to 1048576; file and stream modes have no default limit.
+   * Explicit zero permits only an empty body. Exceeding the limit fails without truncation.
+   */
+  bodyLimitBytes?: number;
+  /**
+   * Disable idle connection reuse. Defaults to false.
+   */
+  disableConnectionReuse?: boolean;
+  /**
+   * Proxy overrides. Omission reads the process proxy environment per request.
+   */
+  proxyEnv?: FetchProxyEnv;
+  /**
+   * DNS address pins. Internal pins bypass proxies; public pins yield to configured proxies.
+   */
+  pinnedAddresses?: string[];
+  /**
+   * Permit loopback DNS pins. Defaults to false. This is not a general URL admission policy.
+   */
+  allowLocalhost?: boolean;
+  /**
+   * Force proxy Negotiate authentication when supported. Defaults to false; automatic proxy negotiation remains enabled.
+   */
+  proxyNegotiateAuth?: boolean;
+  /**
+   * Optional proxy Kerberos service principal override.
+   */
+  proxyNegotiateSpn?: string;
+}
+/**
+ * A fetch handle owned by the SDK connection that created it.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "FetchReadRequest".
+ */
+/** @experimental */
+export interface FetchReadRequest {
+  /**
+   * Opaque handle. Other connections cannot start, read, or cancel it.
+   */
+  requestId: string;
+}
+/**
+ * A fetch handle owned by the SDK connection that created it.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "FetchCancelRequest".
+ */
+/** @experimental */
+export interface FetchCancelRequest {
+  /**
+   * Opaque handle. Other connections cannot start, read, or cancel it.
+   */
+  requestId: string;
+}
+/**
  * The location of a local agent registry.
  *
  * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
@@ -47754,6 +48488,27 @@ export interface SessionAgentListRequest {
    * When true, request authored base prompt text on each AgentInfo. Prompt text may be omitted when unavailable, such as for agents projected through a relay session.
    */
   includePrompt?: boolean;
+}
+/**
+ * Invokes a tool on a session MCP server through the server's permission policy.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "SessionMcpCallToolRequest".
+ */
+/** @experimental */
+export interface SessionMcpCallToolRequest {
+  /**
+   * Registered MCP server name.
+   */
+  serverName: string;
+  /**
+   * Unprefixed MCP tool name.
+   */
+  toolName: string;
+  /**
+   * MCP tool arguments.
+   */
+  arguments: JsonValue;
 }
 /**
  * An inert runtime-issued login handle. Preparation alone performs no activation or OAuth work.
@@ -50017,9 +50772,46 @@ export function createServerRpc(connection: MessageConnection) {
                 connection.sendRequest("llmInference.httpResponseChunk", params),
         },
         /** @experimental */
+        fetch: {
+            /**
+             * Allocates a connection-owned HTTP request handle without network work. SDK clients and extensions can use this API without CLI admission. Cancel abandoned handles; disconnect disposes all handles.
+             *
+             * @returns The connection-owned HTTP request handle allocated by fetch.create.
+             */
+            create: async (): Promise<FetchCreateResult> =>
+                connection.sendRequest("fetch.create", {}),
+            /**
+             * Sends a connection-owned handle once, with a required responseMode. Available to all SDK clients and extensions. Stream returns headers immediately; fetch.read returns body chunks over JSON-RPC, or fetch.cancel closes the body without reading it. Text consumes the complete body as WHATWG UTF-8 text with a default decoded limit of 1048576 bytes. File writes directly to a required destinationPath on the runtime host, with atomic no-overwrite creation; incomplete files are removed on failure or cancellation, and completed files belong to the caller and survive disconnect. Stream and file have no default body limit. Explicit bodyLimitBytes, including zero, fails without truncation. HTTP error statuses remain responses. Cancel can interrupt header waits and body consumption. Optional credential contexts resolve fresh credentials; omission adds no service authentication. Revocation applies through redirects under the original authority. Credential failures use -32004; transport failures preserve -32603 and FetchTransportErrorData; filesystem failures use -32603 and FetchFileErrorData. No shared circuit breaker is selected. Retries remain caller-owned.
+             *
+             * @param params An HTTP request through the shared network transport.
+             *
+             * @returns HTTP response metadata and the selected body representation. HTTP error statuses remain successful transport outcomes.
+             */
+            send: async (params: FetchSendRequest): Promise<FetchSendResult> =>
+                connection.sendRequest("fetch.send", params),
+            /**
+             * Reads one connection-owned response byte range or EOF. Response chunks cross JSON-RPC as base64; prefer fetch.send with file mode for large bodies. Call only after fetch.send returns in stream mode, with at most one read outstanding. The runtime reads the next chunk on demand. EOF, failure, cancellation, and disconnect dispose the handle. Active credential failures use JSON-RPC code -32004 and CredentialContextErrorData in error.data. Body transport failures preserve code -32603 and the legacy message, with FetchTransportErrorData containing unchanged engine classifications. Already disposed handles remain closed-handle errors, never credential_unavailable.
+             *
+             * @param params A fetch handle owned by the SDK connection that created it.
+             *
+             * @returns A response byte range, or EOF. EOF and transport failures dispose the handle.
+             */
+            read: async (params: FetchReadRequest): Promise<FetchReadResult> =>
+                connection.sendRequest("fetch.read", params),
+            /**
+             * Disposes an owned handle and cancels any pending send or read. Safe before send and after disposal. Unknown and foreign handles are unchanged. Closes an unread stream without draining its body. Incomplete files are removed after pending file I/O settles; completed caller-owned files remain.
+             *
+             * @param params A fetch handle owned by the SDK connection that created it.
+             *
+             * @returns Result of disposing a fetch handle.
+             */
+            cancel: async (params: FetchCancelRequest): Promise<FetchCancelResult> =>
+                connection.sendRequest("fetch.cancel", params),
+        },
+        /** @experimental */
         network: {
             /**
-             * Registers the calling SDK client's network callbacks, replacing any previous registration. With `resolveProxy`, the client decides the proxies for every request the runtime would otherwise route by ambient proxy settings (proxy environment variables, `NO_PROXY` and operating-system settings), or leaves a request to that routing; requests with an explicitly configured proxy and loopback targets never consult it. With `authenticateNegotiate`, the client supplies the Kerberos tokens for Negotiate proxy challenges instead of native credential lookup. The callbacks serve requests made for the client's sessions and, with `runtime` scope, the runtime's shared traffic, which includes background requests and remote MCP server connections; only one connection may hold `runtime` scope. The registration ends when the connection closes.
+             * Registers the calling SDK client's network callbacks, replacing any previous registration. With `resolveProxy`, the client decides the proxies for every request the runtime would otherwise route by ambient proxy settings (proxy environment variables, `NO_PROXY` and operating-system settings), or leaves a request to that routing; requests with an explicitly configured proxy and loopback targets never consult it. With `authenticateNegotiate`, the client supplies the Kerberos tokens for Negotiate proxy challenges instead of native credential lookup. With `authenticateBasic`, the client supplies the credentials for Basic proxy challenges; the runtime prefers Negotiate when a proxy offers both. The callbacks serve requests made for the client's sessions and, with `runtime` scope, the runtime's shared traffic, which includes background requests and remote MCP server connections; only one connection may hold `runtime` scope. The registration ends when the connection closes.
              *
              * @param params Registers the calling SDK connection's network callbacks, replacing any previous registration.
              */
@@ -52823,6 +53615,25 @@ export function createSessionRpc(connection: MessageConnection, sessionId: strin
         },
         /** @experimental */
         mcp: {
+            /** @experimental */
+            ide: {
+                /**
+                 * Returns the session-owned live IDE state, retained identity, and latest observed selection. It does not scan for IDEs or start a connection.
+                 *
+                 * @returns Live IDE state. This state never restores a connection from session history.
+                 */
+                state: async (): Promise<IdeConnectionState> =>
+                    connection.sendRequest("session.mcp.ide.state", { sessionId }),
+            },
+            /**
+             * Calls a session MCP tool with the existing server admission and tool permission checks. IDE calls require local host authority, including programmatic tools not exposed to the model. Returns null only when the IDE is disconnected. IDE open_diff waits for user action; other IDE calls use a 60-second timeout.
+             *
+             * @param params Invokes a tool on a session MCP server through the server's permission policy.
+             *
+             * @returns A standard MCP tool result, or null when the IDE is disconnected.
+             */
+            callTool: async (params: SessionMcpCallToolRequest): Promise<McpCallToolResult> =>
+                connection.sendRequest("session.mcp.callTool", { ...params, sessionId }),
             /**
              * Lists materialized MCP servers and their connection status. Cache misses may start and wait for MCP servers.
              *
@@ -52907,7 +53718,7 @@ export function createSessionRpc(connection: MessageConnection, sessionId: strin
             removeGitHub: async (): Promise<McpRemoveGitHubResult> =>
                 connection.sendRequest("session.mcp.removeGitHub", { sessionId }),
             /**
-             * Starts an individual MCP server on the live session. Omit `config` for a config-free start-by-name of an already-configured server (reuses the server's already-registered configuration); supply `config` to start from a caller-supplied configuration. Session-scoped and ephemeral: the server is added to this session's running set only and is reaped when the session ends. Does NOT modify persistent user configuration (`mcp.config.*`), so it does not affect future sessions. The server surfaces through `session.mcp.list` and the `session.mcp_servers_loaded` / `session.mcp_server_status_changed` events like any other server.
+             * Starts an individual MCP server on the live session. Omit `config` for a config-free start-by-name of an already-configured server (reuses the server's already-registered configuration); supply `config` to start from a caller-supplied configuration. Session-scoped and ephemeral: the server is added to this session's running set only and is reaped when the session ends. Does NOT modify persistent user configuration (`mcp.config.*`), so it does not affect future sessions. The server surfaces through `session.mcp.list` and the `session.mcp_servers_loaded` / `session.mcp_server_status_changed` events like any other server. A local configuration connects the existing IDE endpoint under serverName `ide`. Runtime host admission controls the CLI policy exemption; request fields cannot grant it.
              *
              * @param params Server name and optional configuration for an individual MCP server start. Omit `config` for a config-free start-by-name of an already-configured server.
              */
@@ -52921,9 +53732,9 @@ export function createSessionRpc(connection: MessageConnection, sessionId: strin
             restartServer: async (params: McpRestartServerRequest): Promise<void> =>
                 connection.sendRequest("session.mcp.restartServer", { ...params, sessionId }),
             /**
-             * Stops an individual MCP server on the session's host.
+             * Stops one MCP server on the session's host. Omit transport for a generic stop by name. Set transport to local-http with serverName ide for endpoint-only cleanup. This cancels pending IDE initialization and removes the local IDE session, retained tools, identity, and selection. It preserves any ordinary server named ide.
              *
-             * @param params Server name for an individual MCP server stop.
+             * @param params Server name and optional transport selector for an individual MCP server stop. Omit transport to stop the server by name.
              */
             stopServer: async (params: McpStopServerRequest): Promise<void> =>
                 connection.sendRequest("session.mcp.stopServer", { ...params, sessionId }),
@@ -54900,7 +55711,7 @@ export function createInternalSessionRpc(connection: MessageConnection, sessionI
         /** @experimental */
         ui: {
             /**
-             * Resolves a pending elicitation request after direct interaction in the trusted in-process client or authenticated owning host. Only an accepted response to the built-in ask_user tool can become trusted human evidence.
+             * Resolves a pending elicitation request after direct interaction in the trusted in-process client or authenticated owning host. Only a response to the built-in ask_user tool becomes trusted human evidence; a decline or dismissal records the person's refusal, which grants nothing.
              *
              * @param params Pending elicitation request ID and the user's response (accept/decline/cancel + form values).
              *
@@ -55482,6 +56293,14 @@ export interface NetworkHandler {
      * @returns Client credentials for a single Negotiate authentication exchange.
      */
     authenticateNegotiate(params: NetworkAuthenticateNegotiateRequest): Promise<NetworkAuthenticateNegotiateResult>;
+    /**
+     * Requests credentials for a proxy's Basic authentication challenge on a tunneled connection. The runtime remembers the answer for that proxy and uses it for later connections, until the proxy rejects it; then it calls again with `previousRejected` set. A later connection sends the answer without waiting for a challenge, unless the runtime may try Negotiate with that proxy first. A connection submits at most three sets of credentials. The runtime does not time this request out: a request whose own deadline passes stops waiting, but the answer is still remembered. Credentials must not be logged or persisted.
+     *
+     * @param params Requests credentials for a proxy's Basic authentication challenge.
+     *
+     * @returns Credentials for a proxy's Basic authentication challenge.
+     */
+    authenticateBasic(params: NetworkAuthenticateBasicRequest): Promise<NetworkAuthenticateBasicResult>;
 }
 
 /** Handler for `llmInference` client global API methods. */
@@ -55609,6 +56428,11 @@ export function registerClientGlobalApiHandlers(
         const handler = handlers.network;
         if (!handler) throw new Error("No network client-global handler registered");
         return handler.authenticateNegotiate(params);
+    });
+    connection.onRequest("network.authenticateBasic", async (params: NetworkAuthenticateBasicRequest) => {
+        const handler = handlers.network;
+        if (!handler) throw new Error("No network client-global handler registered");
+        return handler.authenticateBasic(params);
     });
     connection.onRequest("llmInference.httpRequestStart", async (params: LlmInferenceHttpRequestStartRequest) => {
         const handler = handlers.llmInference;

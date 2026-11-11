@@ -59,6 +59,7 @@ import com.github.copilot.generated.rpc.SessionToolsSetParams;
 import com.github.copilot.generated.rpc.SessionUiElicitationParams;
 import com.github.copilot.generated.rpc.SessionUiElicitationResult;
 import com.github.copilot.generated.rpc.SessionUiHandlePendingElicitationParams;
+import com.github.copilot.generated.rpc.SessionUiHandlePendingElicitationRequest;
 import com.github.copilot.generated.rpc.UIElicitationResponse;
 import com.github.copilot.generated.rpc.UIElicitationResponseAction;
 import com.github.copilot.generated.rpc.UIElicitationSchema;
@@ -2144,8 +2145,9 @@ public final class CopilotSession implements AutoCloseable {
                     var parsedAction = UIElicitationResponseAction.fromValue(actionStr);
                     var elicitationResult = UIElicitationResponse.builder().action(parsedAction)
                             .content(result.getContent()).build();
-                    return getRpc().ui.handlePendingElicitation(SessionUiHandlePendingElicitationParams.builder()
-                            .sessionId(sessionId).requestId(requestId).result(elicitationResult).build());
+                    return getRpc().ui.handlePendingElicitation(
+                            new SessionUiHandlePendingElicitationRequest(requestId, elicitationResult)
+                                    .setDecisionContext(result.getDecisionContext()));
                 }).exceptionally(ex -> {
                     LOG.log(Level.WARNING,
                             "Error executing elicitation handler or sending result for requestId=" + requestId, ex);

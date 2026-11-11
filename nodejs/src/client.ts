@@ -42,6 +42,8 @@ import type {
     GitHubTokenAcquireRequest,
     GitHubTokenAcquireResult,
     InstallationConfirmationRequest,
+    NetworkAuthenticateBasicRequest,
+    NetworkAuthenticateBasicResult,
     NetworkAuthenticateNegotiateRequest,
     NetworkAuthenticateNegotiateResult,
     NetworkResolveProxyRequest,
@@ -122,6 +124,7 @@ import type {
     TraceContextProvider,
     TranscriptRecovery,
     TypedSessionLifecycleHandler,
+    UserInputResponse,
 } from "./types.js";
 import { defaultJoinSessionPermissionHandler } from "./types.js";
 import type { WorkflowHandle } from "./workflow.js";
@@ -380,7 +383,7 @@ async function runCancellableCallback<T>(
  * inherits are kept, and calls them on the caller's object.
  */
 function snapshotNetworkConfig(network: NetworkConfig): NetworkConfig {
-    const { scope, resolveProxy, authenticateNegotiate } = network;
+    const { scope, resolveProxy, authenticateNegotiate, authenticateBasic } = network;
     return {
         scope,
         resolveProxy:
@@ -388,6 +391,9 @@ function snapshotNetworkConfig(network: NetworkConfig): NetworkConfig {
         authenticateNegotiate:
             authenticateNegotiate &&
             ((request, signal) => authenticateNegotiate.call(network, request, signal)),
+        authenticateBasic:
+            authenticateBasic &&
+            ((request, signal) => authenticateBasic.call(network, request, signal)),
     };
 }
 
@@ -418,6 +424,22 @@ async function authenticateClientNegotiate(
             (signal) => callback(request, signal)
         ),
     };
+}
+
+async function authenticateClientBasic(
+    connection: MessageConnection,
+    callback: NonNullable<NetworkConfig["authenticateBasic"]>,
+    request: NetworkAuthenticateBasicRequest,
+    token: CancellationToken
+): Promise<NetworkAuthenticateBasicResult> {
+    const credentials = await runCancellableCallback(
+        connection,
+        "Basic authentication",
+        token,
+        (signal) => callback(request, signal)
+    );
+    // Send only the credential fields, never other properties of the caller's object.
+    return credentials ? { username: credentials.username, password: credentials.password } : {};
 }
 
 /** Implicit provider name for the singular, whole-session {@link ProviderConfig}. */
@@ -1395,12 +1417,18 @@ export class CopilotClient {
             // Verify protocol version compatibility
             await this.verifyProtocolVersion();
 
-            if (this.network?.resolveProxy || this.network?.authenticateNegotiate) {
-                const { scope, resolveProxy, authenticateNegotiate } = this.network;
+            if (
+                this.network?.resolveProxy ||
+                this.network?.authenticateNegotiate ||
+                this.network?.authenticateBasic
+            ) {
+                const { scope, resolveProxy, authenticateNegotiate, authenticateBasic } =
+                    this.network;
                 await this.rpc.network.setProvider({
                     ...(scope ? { scope } : {}),
                     ...(resolveProxy ? { resolveProxy: {} } : {}),
                     ...(authenticateNegotiate ? { authenticateNegotiate: {} } : {}),
+                    ...(authenticateBasic ? { authenticateBasic: {} } : {}),
                 });
             }
 
@@ -4520,8 +4548,7 @@ export class CopilotClient {
                 choices?: string[];
                 allowFreeform?: boolean;
                 requestId?: string;
-            }): Promise<{ answer: string; wasFreeform: boolean }> =>
-                await this.handleUserInputRequest(params)
+            }): Promise<UserInputResponse> => await this.handleUserInputRequest(params)
         );
 
         this.connection.onRequest(
@@ -4607,6 +4634,15 @@ export class CopilotClient {
                 "network.authenticateNegotiate",
                 (params: NetworkAuthenticateNegotiateRequest, token: CancellationToken) =>
                     authenticateClientNegotiate(connection, authenticateNegotiate, params, token)
+            );
+        }
+        const authenticateBasic = this.network?.authenticateBasic;
+        if (authenticateBasic) {
+            const connection = this.connection;
+            this.connection.onRequest(
+                "network.authenticateBasic",
+                (params: NetworkAuthenticateBasicRequest, token: CancellationToken) =>
+                    authenticateClientBasic(connection, authenticateBasic, params, token)
             );
         }
         this.connection.onRequest("host.materializeSession", (params) =>
@@ -4924,7 +4960,7 @@ export class CopilotClient {
         choices?: string[];
         allowFreeform?: boolean;
         requestId?: string;
-    }): Promise<{ answer: string; wasFreeform: boolean }> {
+    }): Promise<UserInputResponse> {
         if (
             !params ||
             typeof params.sessionId !== "string" ||

@@ -14,9 +14,10 @@ public sealed partial class ClientSessionLifetimeTests
 {
     private const string ResolveProxyMethod = "network.resolveProxy";
     private const string AuthenticateNegotiateMethod = "network.authenticateNegotiate";
+    private const string AuthenticateBasicMethod = "network.authenticateBasic";
 
     [Fact]
-    public async Task Network_Registers_Both_Callbacks_And_Answers_Concurrent_Lookups()
+    public async Task Network_Registers_All_Callbacks_And_Answers_Concurrent_Lookups()
     {
         await using var server = await FakeCopilotServer.StartAsync();
         server.ResponseFactory = NetworkSetProviderResponse;
@@ -44,6 +45,15 @@ public sealed partial class ClientSessionLifetimeTests
                     await Task.Yield();
                     return Convert.ToBase64String(Encoding.UTF8.GetBytes(request.Spn));
                 },
+                AuthenticateBasic = async (request, _) =>
+                {
+                    lock (calls)
+                    {
+                        calls.Add($"{request.Proxy} {request.Realm} {request.PreviousRejected}");
+                    }
+                    await Task.Yield();
+                    return new NetworkAuthenticateBasicResult { Username = "user", Password = "secret" };
+                },
             }
         });
 
@@ -52,34 +62,40 @@ public sealed partial class ClientSessionLifetimeTests
         var responses = await Task.WhenAll(
             server.SendRequestAsync(ResolveProxyMethod, new() { ["url"] = "https://api.example.com/" }).WaitAsync(timeout),
             server.SendRequestAsync(ResolveProxyMethod, new() { ["url"] = "http://example.com/path" }).WaitAsync(timeout),
-            server.SendRequestAsync(AuthenticateNegotiateMethod, new() { ["spn"] = "HTTP/proxy.example" }).WaitAsync(timeout));
+            server.SendRequestAsync(AuthenticateNegotiateMethod, new() { ["spn"] = "HTTP/proxy.example" }).WaitAsync(timeout),
+            server.SendRequestAsync(
+                AuthenticateBasicMethod,
+                new() { ["proxy"] = "http://proxy.example:8080", ["realm"] = "corp", ["previousRejected"] = true }).WaitAsync(timeout));
 
         var registration = Assert.Single(server.Requests, request => request.Method == "network.setProvider");
-        Assert.Equal("""{"authenticateNegotiate":{},"resolveProxy":{}}""", registration.Params.GetRawText());
+        Assert.Equal("""{"authenticateBasic":{},"authenticateNegotiate":{},"resolveProxy":{}}""", registration.Params.GetRawText());
         Assert.Equal(
-            ["HTTP/proxy.example", "http://example.com/path", "https://api.example.com/"],
+            ["HTTP/proxy.example", "http://example.com/path", "http://proxy.example:8080 corp True", "https://api.example.com/"],
             calls.Order(StringComparer.Ordinal));
         Assert.Equal(
             [
                 """{"proxy":"PROXY proxy.example:8080; DIRECT"}""",
                 "{}",
                 $$"""{"token":"{{Convert.ToBase64String(Encoding.UTF8.GetBytes("HTTP/proxy.example"))}}"}""",
+                """{"password":"secret","username":"user"}""",
             ],
             responses.Select(response => response.GetRawText()));
     }
 
     [Theory]
-    [InlineData(false, null, false, false, null)]
-    [InlineData(true, null, false, false, null)]
-    [InlineData(true, "runtime", false, false, null)]
-    [InlineData(true, null, true, false, """{"resolveProxy":{}}""")]
-    [InlineData(true, "runtime", false, true, """{"authenticateNegotiate":{},"scope":"runtime"}""")]
-    [InlineData(true, "connection", true, false, """{"resolveProxy":{},"scope":"connection"}""")]
+    [InlineData(false, null, false, false, false, null)]
+    [InlineData(true, null, false, false, false, null)]
+    [InlineData(true, "runtime", false, false, false, null)]
+    [InlineData(true, null, true, false, false, """{"resolveProxy":{}}""")]
+    [InlineData(true, "runtime", false, true, false, """{"authenticateNegotiate":{},"scope":"runtime"}""")]
+    [InlineData(true, null, false, false, true, """{"authenticateBasic":{}}""")]
+    [InlineData(true, "connection", true, false, false, """{"resolveProxy":{},"scope":"connection"}""")]
     public async Task Network_Registers_Only_Configured_Callbacks_And_Scope(
         bool configured,
         string? scope,
         bool resolveProxy,
         bool authenticateNegotiate,
+        bool authenticateBasic,
         string? expectedRegistration)
     {
         await using var server = await FakeCopilotServer.StartAsync();
@@ -93,6 +109,7 @@ public sealed partial class ClientSessionLifetimeTests
                     Scope = scope is null ? null : new NetworkScope(scope),
                     ResolveProxy = resolveProxy ? (_, _) => Task.FromResult<string?>(null) : null,
                     AuthenticateNegotiate = authenticateNegotiate ? (_, _) => Task.FromResult<string?>(null) : null,
+                    AuthenticateBasic = authenticateBasic ? (_, _) => Task.FromResult<NetworkAuthenticateBasicResult?>(null) : null,
                 }
                 : null
         });
@@ -101,8 +118,9 @@ public sealed partial class ClientSessionLifetimeTests
         var timeout = TimeSpan.FromSeconds(5);
         var proxyLookup = server.SendRequestAsync(ResolveProxyMethod, new() { ["url"] = "https://api.example.com/" }).WaitAsync(timeout);
         var negotiateLookup = server.SendRequestAsync(AuthenticateNegotiateMethod, new() { ["spn"] = "HTTP/proxy" }).WaitAsync(timeout);
+        var basicLookup = server.SendRequestAsync(AuthenticateBasicMethod, NetworkRequestParams(AuthenticateBasicMethod)).WaitAsync(timeout);
         var answered = new List<bool>();
-        foreach (var lookup in new[] { proxyLookup, negotiateLookup })
+        foreach (var lookup in new[] { proxyLookup, negotiateLookup, basicLookup })
         {
             try
             {
@@ -119,7 +137,7 @@ public sealed partial class ClientSessionLifetimeTests
         Assert.Equal(
             expectedRegistrations,
             server.Requests.Where(request => request.Method == "network.setProvider").Select(request => request.Params.GetRawText()));
-        Assert.Equal([resolveProxy, authenticateNegotiate], answered);
+        Assert.Equal([resolveProxy, authenticateNegotiate, authenticateBasic], answered);
     }
 
     [Fact]
@@ -158,6 +176,30 @@ public sealed partial class ClientSessionLifetimeTests
     }
 
     [Fact]
+    public async Task Network_SetProvider_Preserves_Nullable_Positional_Calls()
+    {
+        await using var server = await FakeCopilotServer.StartAsync();
+        server.ResponseFactory = NetworkSetProviderResponse;
+        await using var client = new CopilotClient(new CopilotClientOptions
+        {
+            Connection = RuntimeConnection.ForUri(server.Url)
+        });
+        await client.StartAsync();
+        server.ClearRequests();
+
+        await client.Rpc.Network.SetProviderAsync(null);
+        await client.Rpc.Network.SetProviderAsync(null, cancellationToken: CancellationToken.None);
+        await client.Rpc.Network.SetProviderWithOptionsAsync(new NetworkSetProviderRequest
+        {
+            AuthenticateBasic = new NetworkAuthenticateBasicOptions(),
+        });
+
+        Assert.Equal(
+            ["{}", "{}", """{"authenticateBasic":{}}"""],
+            server.Requests.Where(request => request.Method == "network.setProvider").Select(request => request.Params.GetRawText()));
+    }
+
+    [Fact]
     public async Task Network_Answers_Missing_Values_And_Rejects_Callback_Failures()
     {
         await using var server = await FakeCopilotServer.StartAsync();
@@ -170,6 +212,7 @@ public sealed partial class ClientSessionLifetimeTests
             {
                 ResolveProxy = (_, _) => fail ? throw new InvalidOperationException("lookup failed") : Task.FromResult<string?>(null),
                 AuthenticateNegotiate = (_, _) => fail ? throw new InvalidOperationException("lookup failed") : Task.FromResult<string?>(null),
+                AuthenticateBasic = (_, _) => fail ? throw new InvalidOperationException("lookup failed") : Task.FromResult<NetworkAuthenticateBasicResult?>(null),
             }
         });
         await client.StartAsync();
@@ -177,22 +220,26 @@ public sealed partial class ClientSessionLifetimeTests
 
         var missing = await Task.WhenAll(
             server.SendRequestAsync(ResolveProxyMethod, new() { ["url"] = "https://api.example.com/" }).WaitAsync(timeout),
-            server.SendRequestAsync(AuthenticateNegotiateMethod, new() { ["spn"] = "HTTP/proxy" }).WaitAsync(timeout));
+            server.SendRequestAsync(AuthenticateNegotiateMethod, new() { ["spn"] = "HTTP/proxy" }).WaitAsync(timeout),
+            server.SendRequestAsync(AuthenticateBasicMethod, NetworkRequestParams(AuthenticateBasicMethod)).WaitAsync(timeout));
         fail = true;
         var proxyError = await Assert.ThrowsAsync<InvalidOperationException>(() =>
             server.SendRequestAsync(ResolveProxyMethod, new() { ["url"] = "https://api.example.com/" }).WaitAsync(timeout));
         var negotiateError = await Assert.ThrowsAsync<InvalidOperationException>(() =>
             server.SendRequestAsync(AuthenticateNegotiateMethod, new() { ["spn"] = "HTTP/proxy" }).WaitAsync(timeout));
+        var basicError = await Assert.ThrowsAsync<InvalidOperationException>(() =>
+            server.SendRequestAsync(AuthenticateBasicMethod, NetworkRequestParams(AuthenticateBasicMethod)).WaitAsync(timeout));
 
-        Assert.Equal(["{}", "{}"], missing.Select(response => response.GetRawText()));
+        Assert.Equal(["{}", "{}", "{}"], missing.Select(response => response.GetRawText()));
         Assert.Equal(
-            [("lookup failed", -32603), ("lookup failed", -32603)],
-            new[] { proxyError, negotiateError }.Select(error => (error.Message, ErrorCode(error))));
+            [("lookup failed", -32603), ("lookup failed", -32603), ("lookup failed", -32603)],
+            new[] { proxyError, negotiateError, basicError }.Select(error => (error.Message, ErrorCode(error))));
     }
 
     [Theory]
     [InlineData(ResolveProxyMethod, "Proxy resolution callback was cancelled.")]
     [InlineData(AuthenticateNegotiateMethod, "Negotiate authentication callback was cancelled.")]
+    [InlineData(AuthenticateBasicMethod, "Basic authentication callback was cancelled.")]
     public async Task Network_Rejects_Callback_Local_Cancellation_Promptly(string method, string expectedMessage)
     {
         await using var server = await FakeCopilotServer.StartAsync();
@@ -200,7 +247,7 @@ public sealed partial class ClientSessionLifetimeTests
         await using var client = new CopilotClient(new CopilotClientOptions
         {
             Connection = RuntimeConnection.ForUri(server.Url),
-            Network = BothNetworkCallbacks(async _ =>
+            Network = AllNetworkCallbacks(async _ =>
             {
                 using var callbackTimeout = new CancellationTokenSource(TimeSpan.FromMilliseconds(10));
                 await Task.Delay(Timeout.InfiniteTimeSpan, callbackTimeout.Token);
@@ -218,6 +265,7 @@ public sealed partial class ClientSessionLifetimeTests
     [Theory]
     [InlineData(ResolveProxyMethod)]
     [InlineData(AuthenticateNegotiateMethod)]
+    [InlineData(AuthenticateBasicMethod)]
     public async Task Network_Runtime_Cancellation_Cancels_Blocking_Callback_Without_Blocking_Reader_And_Ignores_Late_Result(string method)
     {
         await using var server = await FakeCopilotServer.StartAsync();
@@ -230,7 +278,7 @@ public sealed partial class ClientSessionLifetimeTests
             Connection = RuntimeConnection.ForUri(server.Url),
             // Simulates a lookup that blocks (for example on a credential prompt) until cancelled before returning
             // a task, then answers anyway.
-            Network = BothNetworkCallbacks(cancellationToken =>
+            Network = AllNetworkCallbacks(cancellationToken =>
             {
                 started.SetResult(cancellationToken.IsCancellationRequested);
                 observedCancellation.SetResult(cancellationToken.WaitHandle.WaitOne(timeout));
@@ -253,6 +301,7 @@ public sealed partial class ClientSessionLifetimeTests
     [Theory]
     [InlineData(ResolveProxyMethod)]
     [InlineData(AuthenticateNegotiateMethod)]
+    [InlineData(AuthenticateBasicMethod)]
     public async Task Network_Connection_Close_Cancels_Callback(string method)
     {
         await using var server = await FakeCopilotServer.StartAsync();
@@ -263,7 +312,7 @@ public sealed partial class ClientSessionLifetimeTests
         await using var client = new CopilotClient(new CopilotClientOptions
         {
             Connection = RuntimeConnection.ForUri(server.Url),
-            Network = BothNetworkCallbacks(async cancellationToken =>
+            Network = AllNetworkCallbacks(async cancellationToken =>
             {
                 started.SetResult(cancellationToken);
                 try
@@ -315,6 +364,11 @@ public sealed partial class ClientSessionLifetimeTests
                 invoked.Add(AuthenticateNegotiateMethod);
                 return Task.FromResult<string?>("token");
             },
+            AuthenticateBasic = (_, _) =>
+            {
+                invoked.Add(AuthenticateBasicMethod);
+                return Task.FromResult<NetworkAuthenticateBasicResult?>(new() { Username = "user" });
+            },
         };
         // The adapter is internal; the client invokes it on the thread pool, where a request
         // cancelled before a worker picks it up cannot be reached deterministically.
@@ -326,6 +380,8 @@ public sealed partial class ClientSessionLifetimeTests
             handler.ResolveProxyAsync(new NetworkResolveProxyRequest { Url = "https://api.example.com/" }, cancellation.Token));
         await Assert.ThrowsAnyAsync<OperationCanceledException>(() =>
             handler.AuthenticateNegotiateAsync(new NetworkAuthenticateNegotiateRequest { Spn = "HTTP/proxy" }, cancellation.Token));
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(() =>
+            handler.AuthenticateBasicAsync(BasicRequest(), cancellation.Token));
 
         Assert.Empty(invoked);
     }
@@ -335,11 +391,11 @@ public sealed partial class ClientSessionLifetimeTests
     {
         var timeout = TimeSpan.FromSeconds(5);
         var outcomes = new List<string>();
-        foreach (var method in new[] { ResolveProxyMethod, AuthenticateNegotiateMethod })
+        foreach (var method in new[] { ResolveProxyMethod, AuthenticateNegotiateMethod, AuthenticateBasicMethod })
         {
             var started = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
             using var release = new ManualResetEventSlim();
-            var handler = CreateNetworkAdapter(BothNetworkCallbacks(_ =>
+            var handler = CreateNetworkAdapter(AllNetworkCallbacks(_ =>
             {
                 started.TrySetResult();
                 // Ignores the request's cancellation, to answer after it. Only the cancellation below (or a failing
@@ -351,9 +407,12 @@ public sealed partial class ClientSessionLifetimeTests
             {
                 // The dispatcher's token is cancelled when the runtime cancels the request or the connection closes.
                 using var closed = new CancellationTokenSource();
-                Task lookup = method == ResolveProxyMethod
-                    ? handler.ResolveProxyAsync(new NetworkResolveProxyRequest { Url = "https://api.example.com/" }, closed.Token)
-                    : handler.AuthenticateNegotiateAsync(new NetworkAuthenticateNegotiateRequest { Spn = "HTTP/proxy" }, closed.Token);
+                Task lookup = method switch
+                {
+                    ResolveProxyMethod => handler.ResolveProxyAsync(new NetworkResolveProxyRequest { Url = "https://api.example.com/" }, closed.Token),
+                    AuthenticateNegotiateMethod => handler.AuthenticateNegotiateAsync(new NetworkAuthenticateNegotiateRequest { Spn = "HTTP/proxy" }, closed.Token),
+                    _ => handler.AuthenticateBasicAsync(BasicRequest(), closed.Token),
+                };
                 await started.Task.WaitAsync(timeout);
                 // Registered after the adapter started waiting, so it runs first when the token is cancelled. It lets
                 // the callback answer and holds back the adapter's own cancellation until the lookup has ended: the
@@ -382,7 +441,9 @@ public sealed partial class ClientSessionLifetimeTests
             }
         }
 
-        Assert.Equal([$"{ResolveProxyMethod} cancelled", $"{AuthenticateNegotiateMethod} cancelled"], outcomes);
+        Assert.Equal(
+            [$"{ResolveProxyMethod} cancelled", $"{AuthenticateNegotiateMethod} cancelled", $"{AuthenticateBasicMethod} cancelled"],
+            outcomes);
     }
 
     [Fact]
@@ -422,7 +483,7 @@ public sealed partial class ClientSessionLifetimeTests
     }
 
     /// <summary>
-    /// Starts both callbacks, which return <paramref name="ignored"/> and ignore cancellation, then cancels them and
+    /// Starts every callback, each returning <paramref name="ignored"/> and ignoring cancellation, then cancels them and
     /// checks that the requests end anyway. Separate so nothing in the test keeps the abandoned callbacks reachable.
     /// </summary>
     [System.Runtime.CompilerServices.MethodImpl(System.Runtime.CompilerServices.MethodImplOptions.NoInlining)]
@@ -430,7 +491,7 @@ public sealed partial class ClientSessionLifetimeTests
     {
         var timeout = TimeSpan.FromSeconds(5);
         var started = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
-        var handler = CreateNetworkAdapter(BothNetworkCallbacks(_ =>
+        var handler = CreateNetworkAdapter(AllNetworkCallbacks(_ =>
         {
             started.TrySetResult();
             return ignored;
@@ -441,6 +502,7 @@ public sealed partial class ClientSessionLifetimeTests
         {
             handler.ResolveProxyAsync(new NetworkResolveProxyRequest { Url = "https://api.example.com/" }, closed.Token),
             handler.AuthenticateNegotiateAsync(new NetworkAuthenticateNegotiateRequest { Spn = "HTTP/proxy" }, closed.Token),
+            handler.AuthenticateBasicAsync(BasicRequest(), closed.Token),
         };
         await started.Task.WaitAsync(timeout);
 
@@ -459,16 +521,26 @@ public sealed partial class ClientSessionLifetimeTests
         args: [config],
         culture: null)!;
 
-    /// <summary>Configures both network callbacks with the same lookup, which receives the request's cancellation token.</summary>
-    private static NetworkConfig BothNetworkCallbacks(Func<CancellationToken, Task<string?>> lookup) => new()
+    /// <summary>
+    /// Configures every network callback with the same lookup, which receives the request's cancellation token; Basic
+    /// authentication answers with the lookup's result as the user name.
+    /// </summary>
+    private static NetworkConfig AllNetworkCallbacks(Func<CancellationToken, Task<string?>> lookup) => new()
     {
         ResolveProxy = (_, cancellationToken) => lookup(cancellationToken),
         AuthenticateNegotiate = (_, cancellationToken) => lookup(cancellationToken),
+        AuthenticateBasic = async (_, cancellationToken) =>
+            await lookup(cancellationToken) is { } username ? new NetworkAuthenticateBasicResult { Username = username } : null,
     };
 
-    private static Dictionary<string, object?> NetworkRequestParams(string method) => method == ResolveProxyMethod
-        ? new() { ["url"] = "https://api.example.com/" }
-        : new() { ["spn"] = "HTTP/proxy" };
+    private static NetworkAuthenticateBasicRequest BasicRequest() => new() { Proxy = "http://proxy:8080", PreviousRejected = false };
+
+    private static Dictionary<string, object?> NetworkRequestParams(string method) => method switch
+    {
+        ResolveProxyMethod => new() { ["url"] = "https://api.example.com/" },
+        AuthenticateNegotiateMethod => new() { ["spn"] = "HTTP/proxy" },
+        _ => new() { ["proxy"] = "http://proxy:8080", ["previousRejected"] = false },
+    };
 
     private static int ErrorCode(Exception error) => ((JsonElement)error.Data["error"]!).GetProperty("code").GetInt32();
 

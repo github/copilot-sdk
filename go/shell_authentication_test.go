@@ -501,7 +501,7 @@ func TestShellAuthenticationConnectionCloseAndRetirementCancelOpenPrompts(t *tes
 	started := handlerAwaitingShellAuthenticationCancel(session)
 	answers := askForShellAuthentication(client, shellAuthenticationTestRequest())
 	receiveWithin(t, started, "the handler")
-	client.handleConnectionClose()
+	client.handleConnectionClose(client.client)
 	if got := receiveWithin(t, answers, "the answer"); got != cancelledShellAuthentication() {
 		t.Fatalf("got %#v after the connection closed", got)
 	}

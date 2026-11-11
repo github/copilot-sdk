@@ -22,6 +22,8 @@ public enum SavedProviderConfigurationType {
     AZURE("azure"),
     /** The {@code anthropic} variant. */
     ANTHROPIC("anthropic"),
+    /** The {@code google} variant. */
+    GOOGLE("google"),
     /** The {@code local_model} variant. */
     LOCAL_MODEL("local_model"),
     /** The {@code winml} variant. */

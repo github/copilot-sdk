@@ -364,7 +364,8 @@ recovery.
 Set `ClientOptions.Network` to a `NetworkConfig` when the SDK host should take over parts of the runtime's networking, for example when the runtime runs in WSL or a container and should use VS Code's proxy settings and the host's Kerberos tickets. Registration happens during `Start` (including the auto-start in `CreateSession` and `ResumeSession`), before sessions can be created. Without this option, or for a callback you leave nil, the runtime handles that part itself.
 
 - `ResolveProxy(ctx, request)` decides the proxies for every request the runtime would otherwise route by ambient proxy settings: proxy environment variables, `NO_PROXY` and operating-system proxy settings are not consulted unless it returns `""`. The `NetworkResolveProxyRequest`'s `URL` is the request target as a PAC script sees it: without credentials or fragment, and for `https` and `wss` also without path and query. Return a PAC-style list such as `PROXY proxy.example:8080; HTTPS proxy.example:443; DIRECT` (the format of Electron's `session.resolveProxy`); return `"DIRECT"` for a direct connection, or `""` to let the runtime resolve the proxy itself, as if no callback were registered. Entry types the runtime doesn't support, such as SOCKS and QUIC, are skipped. If the callback returns an error, the request fails rather than connecting directly. Requests to loopback targets, and requests with an explicitly configured proxy, never consult it. The runtime caches answers, including `""`, for 5 seconds and waits at most 10 seconds for the callback.
-- `AuthenticateNegotiate(ctx, request)` supplies the Kerberos token for a proxy's Negotiate challenge instead of the runtime's native credential lookup. The `NetworkAuthenticateNegotiateRequest`'s `Spn` is a service principal in the platform-independent `service/host[@REALM]` form; validate it before issuing credentials. Return a fresh base64 SPNEGO token without the `Negotiate ` prefix, or `""` when credentials are unavailable, which fails the request. The runtime waits at most 30 seconds for the callback (less when the request's own deadline is sooner). Tokens are not cached and must not be logged or persisted. The callback supplies the initial SPNEGO token only; exchanges requiring continuation tokens are not supported. Proxies chosen by `ResolveProxy` are authenticated the same way.
+- `AuthenticateNegotiate(ctx, request)` supplies the Kerberos token for a proxy's Negotiate challenge instead of the runtime's native credential lookup. The `NetworkAuthenticateNegotiateRequest`'s `Spn` is a service principal in the platform-independent `service/host[@REALM]` form; validate it before issuing credentials. Return a fresh base64 SPNEGO token without the `Negotiate ` prefix, or `""` when credentials are unavailable, which fails the request unless the proxy also offers Basic and `AuthenticateBasic` supplies credentials. The runtime waits at most 30 seconds for the callback (less when the request's own deadline is sooner). Tokens are not cached and must not be logged or persisted. The callback supplies the initial SPNEGO token only; exchanges requiring continuation tokens are not supported. Proxies chosen by `ResolveProxy` are authenticated the same way.
+- `AuthenticateBasic(ctx, request)` supplies credentials for a proxy's Basic challenge on requests the runtime tunnels through the proxy (`https` and `wss` targets). The `NetworkAuthenticateBasicRequest` names the challenging `Proxy` (`http://host:port` or `https://host:port`), the proxy's optional `Realm`, which is untrusted text, and `PreviousRejected`, which is true when the proxy rejected the credentials the connection sent last. Return a `NetworkAuthenticateBasicResult` with `Username` and `Password` (nil means an empty password), or `nil` when credentials are unavailable, which fails the request with the proxy's challenge, as does an empty user name. The user name must not contain a colon, and neither the user name nor the password may contain control characters; the runtime fails the request otherwise. The runtime remembers the answer for that proxy and uses it for later connections, until the proxy rejects it; then it calls again with `PreviousRejected` set, so return different credentials, for example by asking the user, or `nil`. A later connection sends the answer without waiting for a challenge, unless the runtime may try Negotiate with that proxy first. A connection submits at most three sets of credentials. While a call is pending, other requests through that proxy wait for its answer. When a proxy offers both Negotiate and Basic, the runtime prefers Negotiate and answers with Basic when Negotiate is unavailable or the proxy rejects it. The runtime does not time the callback out: a request whose own deadline passes stops waiting, but the answer is still remembered. Credentials must not be logged or persisted.
 
 A returned error, or a panic, is reported to the runtime as a callback failure. Each callback's `ctx` is cancelled when the runtime stops waiting (it cancels the request, for example after its timeout, or the connection closes); the SDK then stops waiting for the callback and ignores any later result, so a lookup that can hang should abandon its work once the context is done. If that happens before the callback starts, the callback is not called at all.
 
@@ -389,6 +390,10 @@ func acquireSPNEGOToken(ctx context.Context, spn string) (string, error) {
 	return "", nil
 }
 
+func lookUpProxyCredentials(ctx context.Context, proxy string, previousRejected bool) (*copilot.NetworkAuthenticateBasicResult, error) {
+	return nil, nil
+}
+
 func main() {
 	client := copilot.NewClient(&copilot.ClientOptions{
 		Network: &copilot.NetworkConfig{
@@ -398,6 +403,9 @@ func main() {
 			},
 			AuthenticateNegotiate: func(ctx context.Context, request copilot.NetworkAuthenticateNegotiateRequest) (string, error) {
 				return acquireSPNEGOToken(ctx, request.Spn) // host-side credential lookup
+			},
+			AuthenticateBasic: func(ctx context.Context, request copilot.NetworkAuthenticateBasicRequest) (*copilot.NetworkAuthenticateBasicResult, error) {
+				return lookUpProxyCredentials(ctx, request.Proxy, request.PreviousRejected) // nil when unavailable
 			},
 		},
 	})
@@ -416,6 +424,9 @@ client := copilot.NewClient(&copilot.ClientOptions{
         },
         AuthenticateNegotiate: func(ctx context.Context, request copilot.NetworkAuthenticateNegotiateRequest) (string, error) {
             return acquireSPNEGOToken(ctx, request.Spn) // host-side credential lookup
+        },
+        AuthenticateBasic: func(ctx context.Context, request copilot.NetworkAuthenticateBasicRequest) (*copilot.NetworkAuthenticateBasicResult, error) {
+            return lookUpProxyCredentials(ctx, request.Proxy, request.PreviousRejected) // nil when unavailable
         },
     },
 })
@@ -542,7 +553,7 @@ Event types: `SessionLifecycleCreated`, `SessionLifecycleDeleted`, `SessionLifec
 - `WorkingDirectory` (string): Working directory for the runtime process (default: current process working directory)
 - `BaseDirectory` (string): Base directory for Copilot data (session state, config, etc.). Sets `COPILOT_HOME` on the spawned runtime. When empty, the runtime defaults to `~/.copilot`. Ignored with `URIConnection`. This does **not** affect where the Go SDK extracts the embedded CLI binary; use `embeddedcli.Config.Dir` for the extraction/cache location.
 - `ExtensionLaunchProvider` (ExtensionLaunchProvider): Experimental connection-level resolver for extension launch profiles. `Start` installs the reverse-RPC handler and registers the provider before sessions can be created.
-- `Network` (\*NetworkConfig): **Experimental.** Network callbacks through which the SDK host resolves the runtime's proxies (`ResolveProxy`) and supplies Kerberos tokens for proxies' Negotiate challenges (`AuthenticateNegotiate`). `Start` installs the `network.resolveProxy` and `network.authenticateNegotiate` handlers for the configured callbacks and registers them with the optional `Scope` (`NetworkScopeConnection` by default, or `NetworkScopeRuntime`) before sessions can be created. See [Network callbacks](#network-callbacks-experimental).
+- `Network` (\*NetworkConfig): **Experimental.** Network callbacks through which the SDK host resolves the runtime's proxies (`ResolveProxy`), supplies Kerberos tokens for proxies' Negotiate challenges (`AuthenticateNegotiate`) and supplies credentials for proxies' Basic challenges (`AuthenticateBasic`). `Start` installs the `network.resolveProxy`, `network.authenticateNegotiate` and `network.authenticateBasic` handlers for the configured callbacks and registers them with the optional `Scope` (`NetworkScopeConnection` by default, or `NetworkScopeRuntime`) before sessions can be created. See [Network callbacks](#network-callbacks-experimental).
 - `InstallationConfirmationHandler` (InstallationConfirmationHandler): Experimental connection-global human review for `installations.confirm`. Receives the typed request, a per-request cancellation context and a separate connection-closed signal, then returns an explicit decision. Does not enable installation capabilities.
 - `LogLevel` (string): Log level. When empty (default), the runtime uses its own default level (the SDK does not pass `--log-level`).
 - `Env` ([]string): Environment variables for a child runtime process (default: inherits from current process). Rejected in-process.
@@ -583,13 +594,15 @@ Event types: `SessionLifecycleCreated`, `SessionLifecycleDeleted`, `SessionLifec
 - `OnPermissionRequest` (PermissionHandlerFunc): Optional handler called before each tool execution to approve or deny it. When nil, permission requests are emitted as events and left pending for manual resolution. `copilot.PermissionHandler.ApproveAll` approves requests when managed settings are disabled and returns an error when `EnableManagedSettings` is true. Custom handlers can inspect `RequiresManagedApproval()` for human-facing confirmation logic. See [Permission Handling](#permission-handling) section.
 - `OnPermissionRequestWithPrompt` (PermissionHandlerWithPromptFunc): Optional compatibility-preserving alternative that also receives the derived user-facing prompt. Takes precedence when both permission handlers are set. See [Permission Handling](#permission-handling) section.
 - `OnUserInputRequest` (UserInputHandler): Handler for legacy question-and-answer requests from the agent. Enables the legacy `ask_user` tool. See [User Input Requests](#user-input-requests) section.
+- `OnAttributedUserInputRequest` (AttributedUserInputHandler): Same as `OnUserInputRequest`, but its result can say a person answered. Takes precedence when both are set. See [Reporting a person's answers](#reporting-a-persons-answers).
 - `OnShellAuthenticationRequest` (ShellAuthenticationHandler): Handler for passwords and other answers that shell commands run by the agent ask for, such as `sudo -A`, `ssh`, and `git` over HTTPS. The answer goes only to the program that asked; the model never sees it. Without a handler, those commands fail as they do without a terminal. See [Shell password prompts](../docs/features/shell-password-prompts.md).
-- `AskUserVariant` (AskUserVariant): Selects the model-facing shape of the `ask_user` tool. The zero value preserves legacy behavior; use `AskUserVariantElicitation` with `OnElicitationRequest`.
+- `AskUserVariant` (AskUserVariant): Selects the model-facing shape of the `ask_user` tool. The zero value preserves legacy behavior; use `AskUserVariantElicitation` with `OnElicitationRequest` or `OnAttributedElicitationRequest`.
 - `InteractiveUser` (\*bool): Declares that a person types this session's messages, as in an editor chat panel. Enables the runtime's user-message analysis telemetry for user-authored messages; automated messages stay excluded. Nil or false keeps the SDK default of off. Ignored for cloud sessions.
 - `PermissionMode` (rpc.PermissionMode): Applies `manual`, `assisted`, or `allow-all` before the session's first turn, before `CreateSession` returns. Uses the same checks as `session.RPC.Permissions.SetMode`; `Session.PermissionModeResult()` reports whether it was applied and the authoritative mode. Not supported for cloud sessions.
 - `Hooks` (\*SessionHooks): Hook handlers for session lifecycle events. See [Session Hooks](#session-hooks) section.
 - `Commands` ([]CommandDefinition): Slash-commands registered for this session. See [Commands](#commands) section.
 - `OnElicitationRequest` (ElicitationHandler): Handler for elicitation requests from the server. See [Elicitation Requests](#elicitation-requests-serverclient) section.
+- `OnAttributedElicitationRequest` (AttributedElicitationHandler) and `OnAttributedExitPlanModeRequest` (AttributedExitPlanModeRequestHandler): Same as `OnElicitationRequest` and `OnExitPlanModeRequest`, but their results can say a person answered. Each takes precedence over its plain handler when both are set. See [Reporting a person's answers](#reporting-a-persons-answers).
 
 **ResumeSessionConfig:**
 
@@ -601,7 +614,8 @@ Event types: `SessionLifecycleCreated`, `SessionLifecycleDeleted`, `SessionLifec
 - `Streaming` (*bool): Enable streaming delta events (nil = runtime default)
 - `Commands` ([]CommandDefinition): Slash-commands. See [Commands](#commands) section.
 - `OnElicitationRequest` (ElicitationHandler): Elicitation handler. See [Elicitation Requests](#elicitation-requests-serverclient) section.
-- `AskUserVariant` (AskUserVariant): Selects the model-facing shape of the `ask_user` tool on cold resume. Re-supply `AskUserVariantElicitation` with `OnElicitationRequest`; the zero value preserves legacy behavior.
+- `OnAttributedUserInputRequest`, `OnAttributedExitPlanModeRequest`, and `OnAttributedElicitationRequest`: Re-supply the attributed prompt handlers on resume. See `SessionConfig`.
+- `AskUserVariant` (AskUserVariant): Selects the model-facing shape of the `ask_user` tool on cold resume. Re-supply `AskUserVariantElicitation` with `OnElicitationRequest` or `OnAttributedElicitationRequest`; the zero value preserves legacy behavior.
 - `InteractiveUser` (\*bool): Re-supplies the interactive-user declaration on cold resume. It is ignored when resuming a session that is already active.
 - `PermissionMode` (rpc.PermissionMode): Applied before resumed pending work continues. If it is refused (for example by managed policy), continued work runs under the mode `session.PermissionModeResult()` reports. See `SessionConfig.PermissionMode`.
 - `GitHubTokenProvider` (GitHubTokenProvider): Replaces the session-scoped token provider when resuming. Cannot be combined with `GitHubToken`.
@@ -1478,7 +1492,7 @@ The SDK supports custom OpenAI-compatible API providers (BYOK - Bring Your Own K
 
 **ProviderConfig:**
 
-- `Type` (string): Provider type - "openai", "azure", or "anthropic" (default: "openai")
+- `Type` (string): Provider type - "openai", "azure", "anthropic", or "google" (default: "openai"). "google" (experimental) uses Google's native Gemini Interactions API.
 - `BaseURL` (string): API endpoint URL (required)
 - `APIKey` (string): API key (optional for local providers like Ollama)
 - `BearerToken` (string): Bearer token for authentication (takes precedence over APIKey)
@@ -1712,6 +1726,44 @@ session, err := client.CreateSession(context.Background(), &copilot.SessionConfi
     },
 })
 ```
+
+### Reporting a person's answers
+
+When a person answers a prompt in your UI, register the attributed handler for that prompt and set `DecisionContext` on its result so Assisted Permissions can treat the answer as the person's own authority. Use `OnAttributedUserInputRequest` (`AttributedUserInputResponse`), `OnAttributedExitPlanModeRequest` (`AttributedExitPlanModeResult`), and `OnAttributedElicitationRequest` (`AttributedElicitationResult`); each result embeds the plain result. For permission handlers, use `copilot.NewAttributedPermissionResult`:
+
+```go
+interactive := copilot.PermissionResponseCapabilityInteractive
+personAnswered := &copilot.PermissionDecisionContext{
+    Source:             copilot.PermissionDecisionSourceHumanResponse,
+    ResponseCapability: &interactive,
+    Surface:            copilot.PermissionDecisionSurfaceSDK,
+    Outcome:            copilot.PermissionDecisionOutcomePromptedUser,
+}
+
+session, err := client.CreateSession(context.Background(), &copilot.SessionConfig{
+    Model: "gpt-5",
+    OnAttributedUserInputRequest: func(request copilot.UserInputRequest, invocation copilot.UserInputInvocation) (copilot.AttributedUserInputResponse, error) {
+        return copilot.AttributedUserInputResponse{
+            UserInputResponse: copilot.UserInputResponse{Answer: "Only src/app.ts", WasFreeform: true},
+            DecisionContext:   personAnswered,
+        }, nil
+    },
+    OnAttributedExitPlanModeRequest: func(request copilot.ExitPlanModeRequest, invocation copilot.ExitPlanModeInvocation) (copilot.AttributedExitPlanModeResult, error) {
+        return copilot.AttributedExitPlanModeResult{
+            ExitPlanModeResult: copilot.ExitPlanModeResult{Approved: true, SelectedAction: "interactive"},
+            DecisionContext:    personAnswered,
+        }, nil
+    },
+    OnAttributedElicitationRequest: func(ctx copilot.ElicitationContext) (copilot.AttributedElicitationResult, error) {
+        return copilot.AttributedElicitationResult{
+            ElicitationResult: copilot.ElicitationResult{Action: copilot.ElicitationActionDecline},
+            DecisionContext:   personAnswered,
+        }, nil
+    },
+})
+```
+
+Label a person's declines and dismissals too; the runtime decides which answers carry authority. It accepts the label only from the connection that owns the session, so other connections' answers still settle, without it. Leave automated answers unlabeled: a nil `DecisionContext` sends no label. Each attributed handler enables its prompt just like the plain one. When a config sets both, the attributed handler answers and the plain one is not called.
 
 ## Session Hooks
 

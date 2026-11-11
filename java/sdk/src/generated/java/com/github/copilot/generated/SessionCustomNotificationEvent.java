@@ -44,6 +44,7 @@ public final class SessionCustomNotificationEvent extends SessionEvent {
         /** Optional source-defined string identifiers describing the payload subject */
         @JsonProperty("subject") Map<String, String> subject,
         /** Source-defined JSON payload for the custom notification */
+        @JsonInclude(JsonInclude.Include.ALWAYS)
         @JsonProperty("payload") Object payload
     ) {
 

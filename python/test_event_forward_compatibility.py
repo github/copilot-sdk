@@ -21,6 +21,12 @@ from copilot.session_events import (
     ElicitationRequestedMode,
     ElicitationRequestedSchema,
     ExternalToolRequestedData,
+    HumanResponseAskUserAction,
+    HumanResponseRecordedResponse,
+    HumanResponseRecordedResponseResponseKind,
+    IdeConnectionChangedData,
+    IdeSelection,
+    IdeSelectionChangedData,
     ManagedSettingsResolvedSource,
     PermissionApprovalEvaluationReasonCode,
     PermissionPromptRequestMemory,
@@ -44,6 +50,63 @@ from copilot.session_events import (
 
 class TestEventForwardCompatibility:
     """Test forward compatibility for unknown event types."""
+
+    def test_human_response_preserves_positional_constructor(self):
+        # Refusal fields were added after this merged dataclass was published.
+        answer = HumanResponseRecordedResponse(
+            HumanResponseRecordedResponseResponseKind.USER_INPUT, None, None, "answer"
+        )
+        assert answer.allow_freeform is None
+        assert answer.to_dict()["answer"] == "answer"
+
+        refusal = HumanResponseRecordedResponse(
+            HumanResponseRecordedResponseResponseKind.ASK_USER,
+            content={},
+            action=HumanResponseAskUserAction.DECLINE,
+        )
+        assert refusal.to_dict()["action"] == "decline"
+
+    @pytest.mark.parametrize(
+        "selection",
+        [
+            {
+                "text": "selected",
+                "filePath": "/workspace/file.rs",
+                "fileUrl": "file:///workspace/file.rs",
+                "selection": {
+                    "start": {"line": 0, "character": 0},
+                    "end": {"line": 0, "character": 8},
+                    "isEmpty": False,
+                },
+            },
+            None,
+        ],
+        ids=["selected", "cleared"],
+    )
+    def test_ide_selection_changed_decodes_selected_and_cleared_state(self, selection):
+        wire = {
+            "id": "11111111-1111-1111-1111-111111111111",
+            "timestamp": "2026-09-18T22:00:00+00:00",
+            "parentId": None,
+            "type": "ide.selection_changed",
+            "data": {"selection": selection},
+        }
+
+        event = session_event_from_dict(wire)
+
+        assert event.type is SessionEventType.IDE_SELECTION_CHANGED
+        assert isinstance(event.data, IdeSelectionChangedData)
+        if selection is None:
+            assert event.data.selection is None
+        else:
+            assert event.data.selection is not None
+            assert event.data.selection.text == selection["text"]
+            state = IdeConnectionChangedData.from_dict({"selection": selection})
+            assert event.data.selection == state.selection
+            assert isinstance(event.data.selection, IdeSelection)
+            state.selection = event.data.selection
+            assert state.to_dict() == {"selection": selection}
+        assert session_event_to_dict(event) == wire
 
     def test_external_tool_request_preserves_positional_provider(self):
         data = ExternalToolRequestedData("request", "session", "call", "tool", {}, "provider")

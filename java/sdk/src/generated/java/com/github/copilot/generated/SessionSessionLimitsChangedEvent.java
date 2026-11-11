@@ -35,6 +35,7 @@ public final class SessionSessionLimitsChangedEvent extends SessionEvent {
     @JsonInclude(JsonInclude.Include.NON_NULL)
     public record SessionSessionLimitsChangedEventData(
         /** Current session limits, or null when no limits are active */
+        @JsonInclude(JsonInclude.Include.ALWAYS)
         @JsonProperty("sessionLimits") SessionLimitsConfig sessionLimits
     ) {
 

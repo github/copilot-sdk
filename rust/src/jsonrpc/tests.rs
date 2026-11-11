@@ -469,7 +469,7 @@ async fn request_after_the_read_loop_ended_leaves_no_pending_entry() {
     for eager in [false, true] {
         let (client_write, _server_read) = tokio::io::duplex(4096);
         let (server_write, client_read) = tokio::io::duplex(4096);
-        let (notification_tx, _) = broadcast::channel(16);
+        let (notification_tx, _) = mpsc::unbounded_channel();
         let (request_tx, _request_rx) = mpsc::unbounded_channel();
         let client = JsonRpcClient::new(client_write, client_read, notification_tx, request_tx);
         let closed = client.connection_closed_token();
@@ -502,46 +502,12 @@ async fn request_after_the_read_loop_ended_leaves_no_pending_entry() {
 }
 
 #[tokio::test]
-async fn notification_receivers_share_one_parsed_notification() {
-    let (client_write, _server_read) = tokio::io::duplex(4096);
-    let (mut server_write, client_read) = tokio::io::duplex(4096);
-    let (notification_tx, mut first) = broadcast::channel(16);
-    let mut second = notification_tx.subscribe();
-    let (request_tx, _request_rx) = mpsc::unbounded_channel();
-    let _client = JsonRpcClient::new(client_write, client_read, notification_tx, request_tx);
-
-    let body = br#"{"jsonrpc":"2.0","method":"session.event","params":{"sessionId":"s1","event":{"data":{"deltaContent":"hi"}}}}"#;
-    server_write
-        .write_all(format!("Content-Length: {}\r\n\r\n", body.len()).as_bytes())
-        .await
-        .unwrap();
-    server_write.write_all(body).await.unwrap();
-
-    let deadline = std::time::Duration::from_secs(5);
-    let first = tokio::time::timeout(deadline, first.recv())
-        .await
-        .expect("first receiver got no notification")
-        .unwrap();
-    let second = tokio::time::timeout(deadline, second.recv())
-        .await
-        .expect("second receiver got no notification")
-        .unwrap();
-    // Each receiver gets the same parsed notification, not a deep copy of it.
-    assert!(Arc::ptr_eq(&first, &second));
-    assert_eq!(first.method, "session.event");
-    assert_eq!(
-        first.params.as_ref().unwrap()["event"]["data"]["deltaContent"],
-        "hi"
-    );
-}
-
-#[tokio::test]
 async fn a_frame_body_is_reserved_as_it_arrives_not_as_declared() {
     let (client_write, _server_read) = tokio::io::duplex(4096);
     // Completing this write requires the read loop to consume body bytes after
     // parsing the header, rather than merely buffering the whole partial frame.
     let (mut server_write, client_read) = tokio::io::duplex(1);
-    let (notification_tx, _) = broadcast::channel(16);
+    let (notification_tx, _) = mpsc::unbounded_channel();
     let (request_tx, _request_rx) = mpsc::unbounded_channel();
     let client = JsonRpcClient::new(client_write, client_read, notification_tx, request_tx);
     let closed = client.connection_closed_token();
@@ -568,7 +534,7 @@ async fn a_frame_body_is_reserved_as_it_arrives_not_as_declared() {
 async fn a_frame_body_larger_than_the_first_reserve_arrives_whole() {
     let (client_write, _server_read) = tokio::io::duplex(4096);
     let (mut server_write, client_read) = tokio::io::duplex(4096);
-    let (notification_tx, mut notifications) = broadcast::channel(16);
+    let (notification_tx, mut notifications) = mpsc::unbounded_channel();
     let (request_tx, _request_rx) = mpsc::unbounded_channel();
     let _client = JsonRpcClient::new(client_write, client_read, notification_tx, request_tx);
 

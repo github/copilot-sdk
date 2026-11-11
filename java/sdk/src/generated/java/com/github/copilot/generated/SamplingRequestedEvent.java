@@ -41,6 +41,7 @@ public final class SamplingRequestedEvent extends SessionEvent {
         /** Display label for a Connector-owned MCP server, from the trusted Connector catalog; absent for other servers. `serverName` stays the identity for request matching. */
         @JsonProperty("serverDisplayName") String serverDisplayName,
         /** The JSON-RPC request ID from the MCP protocol */
+        @JsonInclude(JsonInclude.Include.ALWAYS)
         @JsonProperty("mcpRequestId") Object mcpRequestId
     ) {
 

@@ -60,6 +60,7 @@ public final class AssistantFusionPhaseCompletedEvent extends SessionEvent {
         /** Provider-normalized textual output produced by the phase. */
         @JsonProperty("content") String content,
         /** Structured judge or critic verdict, when the phase produces one. */
+        @JsonInclude(JsonInclude.Include.ALWAYS)
         @JsonProperty("verdict") String verdict,
         /** Elapsed execution time for the phase in milliseconds. */
         @JsonProperty("durationMs") Double durationMs,

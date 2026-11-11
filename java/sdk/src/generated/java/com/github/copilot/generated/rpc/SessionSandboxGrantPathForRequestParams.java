@@ -28,7 +28,7 @@ public record SessionSandboxGrantPathForRequestParams(
     @JsonProperty("sessionId") String sessionId,
     /** Identifier of the exact pending sandbox escalation permission request whose sandboxPathGrant to accept. */
     @JsonProperty("requestId") String requestId,
-    /** Optional attribution for the permission decision. */
+    /** Optional attribution for the permission decision. A claim that a person decided (`source` `human_response`) counts only from the session's authenticated owning connection or the in-process host. */
     @JsonProperty("decisionContext") PermissionDecisionContext decisionContext
 ) {
 

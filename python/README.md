@@ -413,7 +413,7 @@ All options are kw-only parameters:
 - `base_directory` (str | None): Base directory for Copilot data (session state, config, etc.). Sets `COPILOT_HOME` on the spawned CLI process. When `None`, the CLI defaults to `~/.copilot`. Useful in restricted environments where only specific directories are writable. Ignored when using a `UriRuntimeConnection`.
 - `extension_launch_provider` (ExtensionLaunchProviderHandler | None): Experimental connection-level resolver for extension launch profiles. The client installs the reverse-RPC handler and registers the provider during startup before sessions can be created.
 - `installation_confirmation_handler` (InstallationConfirmationHandler | None): Experimental connection-global human review for `installations.confirm`. Receives the typed request and one cancellation signal, and returns an explicit decision. Does not enable installation capabilities.
-- `network` (NetworkConfig | None): Experimental. Network callbacks through which the SDK host decides the runtime's proxies and supplies its Kerberos tokens. The client installs the `network.resolveProxy` and `network.authenticateNegotiate` handlers and registers the configured callbacks and `scope` during startup before sessions can be created. See [Network callbacks](#network-callbacks-experimental).
+- `network` (NetworkConfig | None): Experimental. Network callbacks through which the SDK host decides the runtime's proxies and supplies its Kerberos tokens and proxy credentials. The client installs the `network.resolveProxy`, `network.authenticateNegotiate` and `network.authenticateBasic` handlers and registers the configured callbacks and `scope` during startup before sessions can be created. See [Network callbacks](#network-callbacks-experimental).
 - `use_logged_in_user` (bool | None): Whether to use logged-in user for authentication (default: True, but False when `github_token` is provided).
 - `telemetry` (dict | None): OpenTelemetry configuration for the CLI process. Providing this enables telemetry — no separate flag needed. See [Telemetry](#telemetry) below.
 - `session_fs` (dict | None): Connection-level session filesystem provider configuration. To let `view` read provider-only images, set `capabilities.binary` to `True` and return a provider implementing `SessionFsBinaryProvider` (`read_file_bytes(path)` and `write_file_bytes(path, content, mode=None)`) from `create_session_fs_handler`; image reads do not fall back to local files. Binary reads and writes are limited to 50,330,880 raw bytes (approximately 48 MiB); larger results return a filesystem error before encoding or decoding.
@@ -498,7 +498,8 @@ safety.
 Provide `network` (a `NetworkConfig`) to `CopilotClient` when the SDK host should take over parts of the runtime's networking, for example when the runtime runs in WSL or a container and should use VS Code's proxy settings and the host's Kerberos tickets. Registration happens during `start()`, before sessions can be created; if it fails, `start()` fails. Without this option, or for a callback you leave out, the runtime handles that part itself.
 
 - `resolve_proxy` receives a `NetworkResolveProxyRequest` and decides the proxies for every request the runtime would otherwise route by ambient proxy settings: proxy environment variables, `NO_PROXY` and operating-system proxy settings are not consulted unless it returns `None`. `request.url` is the request target as a PAC script sees it: without credentials or fragment, and for `https` and `wss` also without path and query. Return a PAC-style list such as `PROXY proxy.example:8080; HTTPS proxy.example:443; DIRECT` (the format of Electron's `session.resolveProxy`); return `DIRECT` for a direct connection, or `None` to let the runtime resolve the proxy itself, as if no callback were registered. Entry types the runtime doesn't support, such as SOCKS and QUIC, are skipped. If the callback fails, the request fails rather than connecting directly. Requests to loopback targets, and requests with an explicitly configured proxy, never consult it. The runtime caches answers, including `None`, for 5 seconds and waits at most 10 seconds for the callback.
-- `authenticate_negotiate` receives a `NetworkAuthenticateNegotiateRequest` and supplies the Kerberos token for a proxy's Negotiate challenge instead of the runtime's native credential lookup. `request.spn` is a service principal in the platform-independent `service/host[@REALM]` form; validate it before issuing credentials. Return a fresh base64 SPNEGO token without the `Negotiate ` prefix, or `None` when credentials are unavailable, which fails the request. The runtime waits at most 30 seconds for the callback (less when the request's own deadline is sooner). Tokens are not cached and must not be logged or persisted. The callback supplies the initial SPNEGO token only; exchanges requiring continuation tokens are not supported. Proxies chosen by `resolve_proxy` are authenticated the same way.
+- `authenticate_negotiate` receives a `NetworkAuthenticateNegotiateRequest` and supplies the Kerberos token for a proxy's Negotiate challenge instead of the runtime's native credential lookup. `request.spn` is a service principal in the platform-independent `service/host[@REALM]` form; validate it before issuing credentials. Return a fresh base64 SPNEGO token without the `Negotiate ` prefix, or `None` when credentials are unavailable, which fails the request unless the proxy also offers Basic and `authenticate_basic` supplies credentials. The runtime waits at most 30 seconds for the callback (less when the request's own deadline is sooner). Tokens are not cached and must not be logged or persisted. The callback supplies the initial SPNEGO token only; exchanges requiring continuation tokens are not supported. Proxies chosen by `resolve_proxy` are authenticated the same way.
+- `authenticate_basic` receives a `NetworkAuthenticateBasicRequest` and supplies the credentials for a proxy's Basic challenge on requests the runtime tunnels through the proxy (`https` and `wss`). `request.proxy` is `http://host:port` or `https://host:port`; `request.realm` comes from the proxy, so treat it as untrusted text. Return a `NetworkAuthenticateBasicResult(username=..., password=...)`, or `None` when credentials are unavailable, which fails the request with the proxy's challenge, as does an empty user name. The user name must not contain a colon, and neither the user name nor the password may contain control characters; an omitted password means an empty password. The runtime remembers the answer for that proxy and uses it for later connections, until the proxy rejects it; then it calls again with `request.previous_rejected` set, so return different credentials, for example by asking the user, or `None`. A later connection sends the answer without waiting for a challenge, unless the runtime may try Negotiate with that proxy first. A connection submits at most three sets of credentials. While a call is pending, other requests through that proxy wait for its answer. When a proxy offers both Negotiate and Basic, the runtime prefers Negotiate and answers with Basic when Negotiate is unavailable or the proxy rejects it. The runtime does not time the callback out: a request whose own deadline passes stops waiting, but the answer is still remembered. Credentials must not be logged or persisted.
 
 The callbacks may be sync or async. When the runtime stops waiting (it cancels the request, for example after its timeout, or the connection closes), an awaitable a callback returned is cancelled with `asyncio.CancelledError` and any later result is ignored; if that awaitable is cancelled otherwise, the runtime receives a callback failure. Like other client callbacks, the callbacks run on the client's event loop, so keep a sync callback fast and offload a blocking lookup, for example with `await asyncio.to_thread(lookup, request.url)`.
 
@@ -1314,7 +1315,7 @@ The SDK supports custom OpenAI-compatible API providers (BYOK - Bring Your Own K
 
 **ProviderConfig fields:**
 
-- `type` (str): Provider type - `"openai"`, `"azure"`, or `"anthropic"` (default: `"openai"`)
+- `type` (str): Provider type - `"openai"`, `"azure"`, `"anthropic"`, or `"google"` (default: `"openai"`). `"google"` (experimental) uses Google's native Gemini Interactions API.
 - `base_url` (str): API endpoint URL (required)
 - `api_key` (str): API key (optional for local providers like Ollama)
 - `bearer_token` (str): Bearer token for authentication (takes precedence over `api_key`)
@@ -1655,6 +1656,41 @@ async with await client.create_session(
 ) as session:
     ...
 ```
+
+### Reporting a person's answers
+
+When a person answers a prompt in your UI, label the result with `create_attributed_result` so Assisted Permissions can treat the answer as the person's own authority. The same label works for permission, user-input, plan-review, and elicitation handlers:
+
+```python
+from copilot import create_attributed_result
+from copilot.rpc import (
+    PermissionDecisionContext,
+    PermissionDecisionOutcome,
+    PermissionDecisionSource,
+    PermissionDecisionSurface,
+    PermissionResponseCapability,
+)
+
+person_answered = PermissionDecisionContext(
+    source=PermissionDecisionSource.HUMAN_RESPONSE,
+    response_capability=PermissionResponseCapability.INTERACTIVE,
+    surface=PermissionDecisionSurface.SDK,
+    outcome=PermissionDecisionOutcome.PROMPTED_USER,
+)
+
+session = await client.create_session(
+    on_permission_request=PermissionHandler.approve_all,
+    model="gpt-5",
+    on_user_input_request=lambda request, invocation: create_attributed_result(
+        {"answer": "Only src/app.ts", "wasFreeform": True}, person_answered
+    ),
+    on_exit_plan_mode_request=lambda request, invocation: create_attributed_result(
+        {"approved": True, "selectedAction": "interactive"}, person_answered
+    ),
+)
+```
+
+Label a person's declines and dismissals too; the runtime decides which answers carry authority. It accepts the label only from the connection that owns the session, so other connections' answers still settle, without it. Leave automated answers unlabeled.
 
 ## Session Hooks
 

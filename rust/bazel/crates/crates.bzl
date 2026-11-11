@@ -400,7 +400,7 @@ _NORMAL_DEV_DEPENDENCIES = {
             "libloading": Label("@sdk_vendor//libloading-0.9.0"),
             "rand_chacha": Label("@sdk_vendor//rand_chacha-0.10.0"),
             "rand_core": Label("@sdk_vendor//rand_core-0.6.4"),
-            "rusqlite": Label("@sdk_vendor//rusqlite-0.41.1"),
+            "rusqlite": Label("@sdk_vendor//rusqlite-0.42.0"),
             "schemars": Label("@sdk_vendor//schemars-1.2.3"),
             "serial_test": Label("@sdk_vendor//serial_test-4.0.1"),
             "sha2": Label("@sdk_vendor//sha2-0.11.1"),
@@ -1741,12 +1741,12 @@ def crate_repositories():
 
     maybe(
         http_archive,
-        name = "sdk_vendor__libsqlite3-sys-0.39.1",
-        sha256 = "14a5f01b87b92705d07b433c06f96cbc764637d81a0bffb5734ce17cf0f9a2b3",
+        name = "sdk_vendor__libsqlite3-sys-0.40.0",
+        sha256 = "b06e69070b7e12262b0cd90832f0a7396f142a2b330181255562decf9f0c6215",
         type = "tar.gz",
-        urls = ["https://static.crates.io/crates/libsqlite3-sys/0.39.1/download"],
-        strip_prefix = "libsqlite3-sys-0.39.1",
-        build_file = Label("//src/sdk/rust/bazel/crates:BUILD.libsqlite3-sys-0.39.1.bazel"),
+        urls = ["https://static.crates.io/crates/libsqlite3-sys/0.40.0/download"],
+        strip_prefix = "libsqlite3-sys-0.40.0",
+        build_file = Label("//src/sdk/rust/bazel/crates:BUILD.libsqlite3-sys-0.40.0.bazel"),
     )
 
     maybe(
@@ -2201,12 +2201,12 @@ def crate_repositories():
 
     maybe(
         http_archive,
-        name = "sdk_vendor__rusqlite-0.41.1",
-        sha256 = "da9bba6f3506135e120a6586df05be18b48d18896600646a4bec8f993d91a594",
+        name = "sdk_vendor__rusqlite-0.42.0",
+        sha256 = "a4edff0039f148731aee2fd80f76dbfeb12d204ab3d1c544838d34e02151049b",
         type = "tar.gz",
-        urls = ["https://static.crates.io/crates/rusqlite/0.41.1/download"],
-        strip_prefix = "rusqlite-0.41.1",
-        build_file = Label("//src/sdk/rust/bazel/crates:BUILD.rusqlite-0.41.1.bazel"),
+        urls = ["https://static.crates.io/crates/rusqlite/0.42.0/download"],
+        strip_prefix = "rusqlite-0.42.0",
+        build_file = Label("//src/sdk/rust/bazel/crates:BUILD.rusqlite-0.42.0.bazel"),
     )
 
     maybe(
@@ -2571,12 +2571,12 @@ def crate_repositories():
 
     maybe(
         http_archive,
-        name = "sdk_vendor__sqlite-wasm-rs-0.6.2",
-        sha256 = "36bd8e29bf08189a005b2df1df99823aa0861cabe9044e5f31ed54ca292ee618",
+        name = "sdk_vendor__sqlite-wasm-rs-0.6.3",
+        sha256 = "a6cd504cecbfe7eef649988840f9a6cb768d11085efec138f8e99f160632d867",
         type = "tar.gz",
-        urls = ["https://static.crates.io/crates/sqlite-wasm-rs/0.6.2/download"],
-        strip_prefix = "sqlite-wasm-rs-0.6.2",
-        build_file = Label("//src/sdk/rust/bazel/crates:BUILD.sqlite-wasm-rs-0.6.2.bazel"),
+        urls = ["https://static.crates.io/crates/sqlite-wasm-rs/0.6.3/download"],
+        strip_prefix = "sqlite-wasm-rs-0.6.3",
+        build_file = Label("//src/sdk/rust/bazel/crates:BUILD.sqlite-wasm-rs-0.6.3.bazel"),
     )
 
     maybe(
@@ -3475,7 +3475,7 @@ def crate_repositories():
         struct(repo = "sdk_vendor__openssl-0.10.82", is_dev_dep = True),
         struct(repo = "sdk_vendor__rand_chacha-0.10.0", is_dev_dep = True),
         struct(repo = "sdk_vendor__rand_core-0.6.4", is_dev_dep = True),
-        struct(repo = "sdk_vendor__rusqlite-0.41.1", is_dev_dep = True),
+        struct(repo = "sdk_vendor__rusqlite-0.42.0", is_dev_dep = True),
         struct(repo = "sdk_vendor__rustls-0.23.46", is_dev_dep = True),
         struct(repo = "sdk_vendor__schemars-1.2.3", is_dev_dep = True),
         struct(repo = "sdk_vendor__serial_test-4.0.1", is_dev_dep = True),

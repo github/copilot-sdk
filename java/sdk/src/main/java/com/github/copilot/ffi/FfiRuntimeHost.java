@@ -132,19 +132,13 @@ public final class FfiRuntimeHost implements AutoCloseable {
             throw new IllegalStateException("copilot_runtime_host_start failed (library '" + lib + "').");
         }
 
-        // Hold operationLock while publishing handles to serialize with close().
+        // Hold operationLock while opening the connection to serialize with close().
         // Recheck disposed in case close() ran while hostStart was blocking.
         operationLock.lock();
         try {
             if (disposed.get()) {
-                try {
-                    nativeBinding.hostShutdown(hostHandle);
-                } catch (Throwable ignored) {
-                    // Best effort
-                }
                 throw new IllegalStateException("FfiRuntimeHost was closed during startup.");
             }
-            serverId.set(hostHandle);
 
             OutboundCallback callback = createOutboundCallback();
             callbackRef = callback;
@@ -296,11 +290,25 @@ public final class FfiRuntimeHost implements AutoCloseable {
         ExecutorService executor = Executors
                 .newSingleThreadExecutor(runnable -> readerThreadFactory.create(runnable, "copilot-ffi-host-start"));
         try {
-            Future<Integer> future = executor.submit(() -> nativeBinding.hostStart(argvJson, argvJson.length, envJson,
-                    envJson == null ? 0 : envJson.length));
+            Future<Integer> future = executor.submit(() -> {
+                int hostHandle = nativeBinding.hostStart(argvJson, argvJson.length, envJson,
+                        envJson == null ? 0 : envJson.length);
+                // The worker must own the result even if the waiting caller was interrupted.
+                operationLock.lock();
+                try {
+                    serverId.set(hostHandle);
+                    if (disposed.get()) {
+                        tryFinalizeCleanup();
+                    }
+                } finally {
+                    operationLock.unlock();
+                }
+                return hostHandle;
+            });
             return future.get();
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
+            close();
             throw new IllegalStateException("Interrupted while starting in-process runtime host.", e);
         } catch (ExecutionException e) {
             Throwable cause = e.getCause();

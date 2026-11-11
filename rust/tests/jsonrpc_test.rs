@@ -4,7 +4,7 @@
 use github_copilot_sdk::test_support::{JsonRpcClient, JsonRpcNotification, JsonRpcRequest};
 use github_copilot_sdk::{ErrorKind, ProtocolErrorKind};
 use tokio::io::{AsyncRead, AsyncReadExt, AsyncWrite, AsyncWriteExt, duplex};
-use tokio::sync::{broadcast, mpsc};
+use tokio::sync::mpsc;
 
 /// Write a Content-Length framed JSON-RPC message to a writer.
 async fn write_framed(writer: &mut (impl AsyncWrite + Unpin), body: &[u8]) {
@@ -42,7 +42,7 @@ async fn request_response_round_trip() {
     let (client_write, mut server_read) = duplex(4096);
     let (mut server_write, client_read) = duplex(4096);
 
-    let (notification_tx, _) = broadcast::channel(16);
+    let (notification_tx, _) = mpsc::unbounded_channel();
     let (_request_tx, _request_rx) = mpsc::unbounded_channel();
     let request_tx = _request_tx;
 
@@ -115,7 +115,7 @@ async fn unreadable_error_fails_request_and_keeps_reading() {
     {
         let (client_write, mut server_read) = duplex(4096);
         let (mut server_write, client_read) = duplex(4096);
-        let (notification_tx, _) = broadcast::channel(16);
+        let (notification_tx, _) = mpsc::unbounded_channel();
         let (request_tx, _request_rx) = mpsc::unbounded_channel();
         let client = JsonRpcClient::new(client_write, client_read, notification_tx, request_tx);
 
@@ -161,7 +161,7 @@ async fn notification_broadcasting() {
     let (_client_write, _discard) = duplex(4096);
     let (mut server_write, client_read) = duplex(4096);
 
-    let (notification_tx, mut notification_rx) = broadcast::channel(16);
+    let (notification_tx, mut notification_rx) = mpsc::unbounded_channel();
     let (request_tx, _request_rx) = mpsc::unbounded_channel();
 
     let _client = JsonRpcClient::new(_client_write, client_read, notification_tx, request_tx);
@@ -178,7 +178,7 @@ async fn notification_broadcasting() {
     )
     .await;
 
-    let received: std::sync::Arc<JsonRpcNotification> =
+    let received: JsonRpcNotification =
         tokio::time::timeout(std::time::Duration::from_secs(2), notification_rx.recv())
             .await
             .expect("timed out waiting for notification")
@@ -193,7 +193,7 @@ async fn server_request_forwarding() {
     let (_client_write, _discard) = duplex(4096);
     let (mut server_write, client_read) = duplex(4096);
 
-    let (notification_tx, _) = broadcast::channel(16);
+    let (notification_tx, _) = mpsc::unbounded_channel();
     let (request_tx, mut request_rx) = mpsc::unbounded_channel();
 
     let _client = JsonRpcClient::new(_client_write, client_read, notification_tx, request_tx);
@@ -222,7 +222,7 @@ async fn error_response_round_trip() {
     let (client_write, mut server_read) = duplex(4096);
     let (mut server_write, client_read) = duplex(4096);
 
-    let (notification_tx, _) = broadcast::channel(16);
+    let (notification_tx, _) = mpsc::unbounded_channel();
     let (request_tx, _) = mpsc::unbounded_channel();
 
     let client = JsonRpcClient::new(client_write, client_read, notification_tx, request_tx);
@@ -293,7 +293,7 @@ async fn write_actor_completes_on_caller_cancel() {
     let (client_write, mut server_read) = duplex(8);
     let (_server_write, client_read) = duplex(8);
 
-    let (notification_tx, _) = broadcast::channel(16);
+    let (notification_tx, _) = mpsc::unbounded_channel();
     let (request_tx, _) = mpsc::unbounded_channel();
     let client = JsonRpcClient::new(client_write, client_read, notification_tx, request_tx);
 
@@ -462,7 +462,7 @@ async fn write_failure_stops_writer_and_preserves_pending_response() {
         dropped_tx: Some(dropped_tx),
         writes_after_failure: writes_after_failure.clone(),
     };
-    let (notification_tx, _) = broadcast::channel(16);
+    let (notification_tx, _) = mpsc::unbounded_channel();
     let (request_tx, _request_rx) = mpsc::unbounded_channel();
     let client = JsonRpcClient::new(writer, client_read, notification_tx, request_tx);
 
@@ -555,7 +555,7 @@ async fn send_request_cancellation_does_not_leak_pending() {
     let (client_write, mut server_read) = duplex(4096);
     let (mut server_write, client_read) = duplex(4096);
 
-    let (notification_tx, _) = broadcast::channel(16);
+    let (notification_tx, _) = mpsc::unbounded_channel();
     let (request_tx, _) = mpsc::unbounded_channel();
     let client = JsonRpcClient::new(client_write, client_read, notification_tx, request_tx);
     let client = std::sync::Arc::new(client);
@@ -634,7 +634,7 @@ async fn send_request_cancellation_does_not_leak_pending() {
 async fn lone_surrogate_frame_is_recovered_without_closing_connection() {
     let (client_write, mut server_read) = duplex(4096);
     let (mut server_write, client_read) = duplex(4096);
-    let (notification_tx, _) = broadcast::channel(16);
+    let (notification_tx, _) = mpsc::unbounded_channel();
     let (request_tx, _) = mpsc::unbounded_channel();
     let client = JsonRpcClient::new(client_write, client_read, notification_tx, request_tx);
 
@@ -675,7 +675,7 @@ async fn lone_surrogate_frame_is_recovered_without_closing_connection() {
 async fn unrepairable_frame_remains_fatal() {
     let (client_write, mut server_read) = duplex(4096);
     let (mut server_write, client_read) = duplex(4096);
-    let (notification_tx, _) = broadcast::channel(16);
+    let (notification_tx, _) = mpsc::unbounded_channel();
     let (request_tx, _) = mpsc::unbounded_channel();
     let client = JsonRpcClient::new(client_write, client_read, notification_tx, request_tx);
 
@@ -710,7 +710,7 @@ async fn unrepairable_frame_remains_fatal() {
 async fn null_id_error_fails_the_pending_request_and_keeps_the_connection() {
     let (client_write, mut server_read) = duplex(4096);
     let (mut server_write, client_read) = duplex(4096);
-    let (notification_tx, _) = broadcast::channel(16);
+    let (notification_tx, _) = mpsc::unbounded_channel();
     let (request_tx, _) = mpsc::unbounded_channel();
     let client = JsonRpcClient::new(client_write, client_read, notification_tx, request_tx);
 
@@ -769,7 +769,7 @@ async fn null_id_error_fails_the_pending_request_and_keeps_the_connection() {
 async fn null_id_error_fails_every_pending_request() {
     let (client_write, mut server_read) = duplex(4096);
     let (mut server_write, client_read) = duplex(4096);
-    let (notification_tx, _) = broadcast::channel(16);
+    let (notification_tx, _) = mpsc::unbounded_channel();
     let (request_tx, _) = mpsc::unbounded_channel();
     let client = JsonRpcClient::new(client_write, client_read, notification_tx, request_tx);
 
@@ -831,7 +831,7 @@ async fn null_id_error_fails_every_pending_request() {
 async fn null_id_error_with_nothing_pending_keeps_the_connection() {
     let (client_write, mut server_read) = duplex(4096);
     let (mut server_write, client_read) = duplex(4096);
-    let (notification_tx, mut notifications) = broadcast::channel(16);
+    let (notification_tx, mut notifications) = mpsc::unbounded_channel();
     let (request_tx, _) = mpsc::unbounded_channel();
     let client = JsonRpcClient::new(client_write, client_read, notification_tx, request_tx);
 
@@ -847,7 +847,7 @@ async fn null_id_error_with_nothing_pending_keeps_the_connection() {
         br#"{"jsonrpc":"2.0","method":"session.event","params":{}}"#,
     )
     .await;
-    let notification: std::sync::Arc<JsonRpcNotification> =
+    let notification: JsonRpcNotification =
         tokio::time::timeout(std::time::Duration::from_secs(5), notifications.recv())
             .await
             .expect("the notification after the error arrives")
@@ -882,7 +882,7 @@ async fn null_id_error_with_nothing_pending_keeps_the_connection() {
 async fn valid_pairs_and_escaped_backslashes_are_untouched() {
     let (client_write, mut server_read) = duplex(4096);
     let (mut server_write, client_read) = duplex(4096);
-    let (notification_tx, _) = broadcast::channel(16);
+    let (notification_tx, _) = mpsc::unbounded_channel();
     let (request_tx, _) = mpsc::unbounded_channel();
     let client = JsonRpcClient::new(client_write, client_read, notification_tx, request_tx);
 
@@ -917,7 +917,7 @@ async fn valid_pairs_and_escaped_backslashes_are_untouched() {
 async fn request_after_the_peer_closed_fails_at_once() {
     let (client_write, mut server_read) = duplex(4096);
     let (server_write, client_read) = duplex(4096);
-    let (notification_tx, _) = broadcast::channel(16);
+    let (notification_tx, _) = mpsc::unbounded_channel();
     let (request_tx, _request_rx) = mpsc::unbounded_channel();
     let client = std::sync::Arc::new(JsonRpcClient::new(
         client_write,
@@ -973,7 +973,7 @@ async fn request_after_the_peer_closed_fails_at_once() {
 async fn send_and_wait_after_the_peer_closed_writes_no_cancel_frame() {
     let (client_write, mut server_read) = duplex(4096);
     let (server_write, client_read) = duplex(4096);
-    let (notification_tx, _) = broadcast::channel(16);
+    let (notification_tx, _) = mpsc::unbounded_channel();
     let (request_tx, _request_rx) = mpsc::unbounded_channel();
     let client = std::sync::Arc::new(JsonRpcClient::new(
         client_write,

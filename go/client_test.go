@@ -33,6 +33,290 @@ import (
 
 // This file is for unit tests. Where relevant, prefer to add e2e tests in e2e/*.test.go instead
 
+func TestClientReconnectsAfterTransportLoss(t *testing.T) {
+	for _, action := range []string{"start", "create"} {
+		t.Run(action, func(t *testing.T) {
+			listener, err := net.ListenTCP("tcp", &net.TCPAddr{IP: net.IPv4(127, 0, 0, 1)})
+			if err != nil {
+				t.Fatal(err)
+			}
+			t.Cleanup(func() { listener.Close() })
+			oldSession, _ := newSetToolsTestSession(t)
+			oldSession.client.Stop()
+			client := NewClient(&ClientOptions{Connection: URIConnection{URL: listener.Addr().String()}})
+			client.client = oldSession.client
+			if action == "start" {
+				client.state = stateConnected
+			}
+			t.Cleanup(client.ForceStop)
+			ctx, cancel := context.WithTimeout(t.Context(), 5*time.Second)
+			defer cancel()
+			completed := make(chan error, 1)
+			go func() {
+				if action == "start" {
+					completed <- client.Start(ctx)
+				} else {
+					_, err := client.CreateSession(ctx, &SessionConfig{SessionID: "reconnected"})
+					completed <- err
+				}
+			}()
+			if err := listener.SetDeadline(time.Now().Add(5 * time.Second)); err != nil {
+				t.Fatal(err)
+			}
+			conn, err := listener.Accept()
+			if err != nil {
+				t.Fatal("client did not reconnect:", err)
+			}
+			t.Cleanup(func() { conn.Close() })
+			peer := &installationConfirmationPeer{t: t, conn: conn, reader: bufio.NewReader(conn)}
+			connect := peer.readMessage()
+			if connect.Method != "connect" {
+				t.Fatalf("first request = %q, want connect", connect.Method)
+			}
+			peer.write(map[string]any{"jsonrpc": "2.0", "id": connect.ID, "result": map[string]any{
+				"ok": true, "protocolVersion": SDKProtocolVersion, "version": "test",
+			}})
+			if action == "create" {
+				create := peer.readMessage()
+				if create.Method != "session.create" {
+					t.Fatalf("request = %q, want session.create", create.Method)
+				}
+				peer.write(map[string]any{"jsonrpc": "2.0", "id": create.ID, "result": map[string]any{"sessionId": "reconnected"}})
+			}
+			select {
+			case err := <-completed:
+				if err != nil {
+					t.Fatal("request after reconnect:", err)
+				}
+			case <-ctx.Done():
+				t.Fatal("request did not finish:", ctx.Err())
+			}
+		})
+	}
+}
+
+func TestClientStartAfterTransportLossRetiresLostSessions(t *testing.T) {
+	listener, err := net.ListenTCP("tcp", &net.TCPAddr{IP: net.IPv4(127, 0, 0, 1)})
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { listener.Close() })
+	clientConn, serverConn := net.Pipe()
+	t.Cleanup(func() {
+		clientConn.Close()
+		serverConn.Close()
+	})
+	lostTransport := jsonrpc2.NewClient(clientConn, clientConn)
+	client := NewClient(&ClientOptions{Connection: URIConnection{URL: listener.Addr().String()}})
+	t.Cleanup(client.ForceStop)
+	client.client, client.RPC, client.state = lostTransport, rpc.NewServerRPC(lostTransport), stateConnected
+	client.setupNotificationHandler()
+	lostTransport.Start()
+	lostPeer := &installationConfirmationPeer{t: t, conn: serverConn, reader: bufio.NewReader(serverConn)}
+	session := newSession("lost-session", lostTransport, "", false)
+	client.sessionsMux.Lock()
+	client.sessions[session.SessionID] = session
+	client.sessionsMux.Unlock()
+
+	// A runtime without session.sendAndWait leaves SendAndWait waiting for the
+	// idle event, which the lost connection never delivers.
+	waitDone := make(chan error, 1)
+	go func() {
+		_, err := session.SendAndWait(t.Context(), MessageOptions{Prompt: "hello"})
+		waitDone <- err
+	}()
+	completion := lostPeer.readMessage()
+	if completion.Method != "session.sendAndWait" {
+		t.Fatalf("request = %q, want session.sendAndWait", completion.Method)
+	}
+	lostPeer.write(map[string]any{"jsonrpc": "2.0", "id": completion.ID, "error": map[string]any{
+		"code": jsonrpc2.ErrMethodNotFound.Code, "message": "method not found",
+	}})
+	send := lostPeer.readMessage()
+	if send.Method != "session.send" {
+		t.Fatalf("request = %q, want session.send", send.Method)
+	}
+	lostPeer.write(map[string]any{"jsonrpc": "2.0", "id": send.ID, "result": map[string]any{"messageId": "message-1"}})
+	serverConn.Close()
+	select {
+	case <-lostTransport.ConnectionClosed():
+	case <-time.After(5 * time.Second):
+		t.Fatal("transport did not observe the lost connection")
+	}
+
+	ctx, cancel := context.WithTimeout(t.Context(), 5*time.Second)
+	defer cancel()
+	started := make(chan error, 1)
+	go func() { started <- client.Start(ctx) }()
+	if err := listener.SetDeadline(time.Now().Add(5 * time.Second)); err != nil {
+		t.Fatal(err)
+	}
+	conn, err := listener.Accept()
+	if err != nil {
+		t.Fatal("client did not reconnect:", err)
+	}
+	t.Cleanup(func() { conn.Close() })
+	peer := &installationConfirmationPeer{t: t, conn: conn, reader: bufio.NewReader(conn)}
+	connect := peer.readMessage()
+	if connect.Method != "connect" {
+		t.Fatalf("first request = %q, want connect", connect.Method)
+	}
+	peer.write(map[string]any{"jsonrpc": "2.0", "id": connect.ID, "result": map[string]any{
+		"ok": true, "protocolVersion": SDKProtocolVersion, "version": "test",
+	}})
+	if err := <-started; err != nil {
+		t.Fatal("Start after transport loss:", err)
+	}
+
+	client.sessionsMux.Lock()
+	_, resident := client.sessions[session.SessionID]
+	client.sessionsMux.Unlock()
+	if resident {
+		t.Error("Start kept the lost connection's session")
+	}
+	select {
+	case <-session.eventDone:
+	default:
+		t.Error("Start left the lost connection's session processing events")
+	}
+	select {
+	case err := <-waitDone:
+		if err == nil || !strings.Contains(err.Error(), "session closed before response completed") {
+			t.Fatalf("SendAndWait error = %v, want session closed before response completed", err)
+		}
+	case <-time.After(5 * time.Second):
+		t.Fatal("SendAndWait on the lost session was still waiting after Start reconnected")
+	}
+}
+
+type reconnectOwnerHost struct {
+	inProcessHost
+	disposed bool
+}
+
+func (h *reconnectOwnerHost) Dispose() { h.disposed = true }
+
+func TestClientReconnectOwnerProcess(t *testing.T) {
+	if os.Getenv("GO_WANT_RECONNECT_OWNER") != "1" {
+		return
+	}
+	_, _ = io.Copy(io.Discard, os.Stdin)
+	os.Exit(0)
+}
+
+func TestClientReconnectRetiresPreviousOwnerBeforeStarting(t *testing.T) {
+	for _, owner := range []string{"process", "exited process", "released process", "ffi"} {
+		t.Run(owner, func(t *testing.T) {
+			client := NewClient(&ClientOptions{Connection: StdioConnection{Path: filepath.Join(t.TempDir(), "missing-runtime")}})
+			t.Cleanup(client.ForceStop)
+			oldSession, _ := newSetToolsTestSession(t)
+			oldSession.client.Stop()
+			client.client = oldSession.client
+			client.state = stateConnected
+			var processDone <-chan struct{}
+			host := &reconnectOwnerHost{}
+			if owner == "ffi" {
+				client.ffiHost = host
+			} else {
+				process := exec.Command(os.Args[0], "-test.run=^TestClientReconnectOwnerProcess$")
+				process.Env = append(os.Environ(), "GO_WANT_RECONNECT_OWNER=1")
+				stdin, err := process.StdinPipe()
+				if err != nil {
+					t.Fatal(err)
+				}
+				t.Cleanup(func() { stdin.Close() })
+				if err := process.Start(); err != nil {
+					t.Fatal(err)
+				}
+				client.process = process
+				client.processStdin = stdin
+				client.monitorProcess()
+				processDone = client.processDone
+				t.Cleanup(func() {
+					process.Process.Kill()
+					<-processDone
+				})
+				if owner == "exited process" || owner == "released process" {
+					var released *os.Process
+					if owner == "released process" {
+						released, err = os.FindProcess(process.Process.Pid)
+						if err != nil {
+							t.Fatal(err)
+						}
+					}
+					stdin.Close()
+					<-processDone
+					if released != nil {
+						if err := released.Release(); err != nil {
+							t.Fatal(err)
+						}
+						client.osProcess.Store(released)
+					}
+				}
+			}
+
+			if err := client.Start(t.Context()); err == nil || !strings.Contains(err.Error(), "missing-runtime") {
+				t.Fatalf("Start error = %v, want the replacement executable error", err)
+			}
+			if owner == "ffi" {
+				if !host.disposed || client.ffiHost != nil {
+					t.Fatal("Start did not dispose the previous FFI host")
+				}
+			} else {
+				select {
+				case <-processDone:
+				default:
+					t.Fatal("Start did not reap the previous process")
+				}
+				if client.osProcess.Load() != nil {
+					t.Fatal("Start retained the previous process owner")
+				}
+			}
+		})
+	}
+}
+
+func TestClientReconnectRetainsOwnerAfterKillFailure(t *testing.T) {
+	client := NewClient(nil)
+	t.Cleanup(client.ForceStop)
+	process := exec.Command(os.Args[0], "-test.run=^TestClientReconnectOwnerProcess$")
+	process.Env = append(os.Environ(), "GO_WANT_RECONNECT_OWNER=1")
+	stdin, err := process.StdinPipe()
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { stdin.Close() })
+	if err := process.Start(); err != nil {
+		t.Fatal(err)
+	}
+	client.process = process
+	client.monitorProcess()
+	done := client.processDone
+	t.Cleanup(func() {
+		process.Process.Kill()
+		<-done
+	})
+	released, err := os.FindProcess(process.Process.Pid)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := released.Release(); err != nil {
+		t.Fatal(err)
+	}
+	client.osProcess.Store(released)
+
+	for attempt := 1; attempt <= 2; attempt++ {
+		if err := client.killProcess(); err == nil {
+			t.Fatalf("kill attempt %d reported success with a released handle", attempt)
+		}
+		select {
+		case <-done:
+			t.Fatal("the runtime exited before retirement could be retried")
+		default:
+		}
+	}
+}
+
 func TestGetStatusResponseHostDiagnostics(t *testing.T) {
 	for _, state := range []string{"", "pending", "enabled", "disabled"} {
 		t.Run(state, func(t *testing.T) {
@@ -1278,7 +1562,7 @@ func TestClient_ConnectionCloseCancelsPendingExternalTools(t *testing.T) {
 		isExternalServer: true,
 	}
 
-	client.handleConnectionClose()
+	client.handleConnectionClose(client.client)
 
 	if len(client.sessions) != 1 {
 		t.Fatal("connection close removed sessions before Stop could clean them up")

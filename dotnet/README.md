@@ -140,7 +140,7 @@ new CopilotClient(CopilotClientOptions? options = null)
 - `Telemetry` - OpenTelemetry configuration for the runtime process. Providing this enables telemetry — no separate flag needed. See [Telemetry](#telemetry) below.
 - `SessionFs` - Custom session filesystem provider configuration. To serve provider-only images to the `view` tool, set `Capabilities.Binary` to `true` and return a provider implementing `ISessionFsBinaryProvider` (`ReadFileBytesAsync` and `WriteFileBytesAsync`) from `SessionConfig.CreateSessionFsProvider`. Image reads do not fall back to local files. Binary reads and writes are limited to 50,330,880 raw bytes (approximately 48 MiB); larger results return a filesystem error before encoding or decoding.
 - `InstallationConfirmationHandler` - Experimental connection-global human review for `installations.confirm`. Receives the typed request and one cancellation token that is cancelled when the request is retired or the connection closes, and returns an explicit decision. Does not enable installation capabilities.
-- `Network` - Experimental network callbacks supplied by the SDK host as a `NetworkConfig` with optional `Scope`, `ResolveProxy` and `AuthenticateNegotiate`. Registered during `StartAsync()` before sessions can be created. See "Network callbacks" below.
+- `Network` - Experimental network callbacks supplied by the SDK host as a `NetworkConfig` with optional `Scope`, `ResolveProxy`, `AuthenticateNegotiate` and `AuthenticateBasic`. Registered during `StartAsync()` before sessions can be created. See "Network callbacks" below.
 
 #### RuntimeConnection
 
@@ -204,7 +204,8 @@ transport tests do not establish live OAuth, activation or cross-process recover
 Set `CopilotClientOptions.Network` when the SDK host should take over parts of the runtime's networking, for example when the runtime runs in WSL or a container and should use VS Code's proxy settings and the host's Kerberos tickets. Registration happens during `StartAsync()` (including the automatic start of `CreateSessionAsync` and `ResumeSessionAsync`), before sessions can be created; if registration fails, startup fails. Without this option, or for a callback you leave `null`, the runtime handles that part itself.
 
 - `ResolveProxy` receives the generated `GitHub.Copilot.Rpc.NetworkResolveProxyRequest` and a `CancellationToken`, and decides the proxies for every request the runtime would otherwise route by ambient proxy settings: proxy environment variables, `NO_PROXY` and operating-system proxy settings are not consulted unless it returns `null`. `Url` is the request target as a PAC script sees it: without credentials or fragment, and for `https` and `wss` also without path and query. Return a PAC-style list such as `PROXY proxy.example:8080; HTTPS proxy.example:443; DIRECT` (the format of Electron's `session.resolveProxy`); return `DIRECT` for a direct connection, or `null` to let the runtime resolve the proxy itself, as if no callback were registered. Entry types the runtime doesn't support, such as SOCKS and QUIC, are skipped. If the callback fails, the request fails rather than connecting directly. Requests to loopback targets, and requests with an explicitly configured proxy, never consult it. The runtime caches answers, including `null`, for 5 seconds and waits at most 10 seconds for the callback.
-- `AuthenticateNegotiate` receives the generated `GitHub.Copilot.Rpc.NetworkAuthenticateNegotiateRequest` and a `CancellationToken`, and supplies the Kerberos token for a proxy's Negotiate challenge instead of the runtime's native credential lookup. `Spn` is a service principal in the platform-independent `service/host[@REALM]` form; validate it before issuing credentials. Return a fresh base64 SPNEGO token without the `Negotiate ` prefix, or `null` when credentials are unavailable, which fails the request. The runtime waits at most 30 seconds for the callback (less when the request's own deadline is sooner). Tokens are not cached and must not be logged or persisted. The callback supplies the initial SPNEGO token only; exchanges requiring continuation tokens are not supported. Proxies chosen by `ResolveProxy` are authenticated the same way.
+- `AuthenticateNegotiate` receives the generated `GitHub.Copilot.Rpc.NetworkAuthenticateNegotiateRequest` and a `CancellationToken`, and supplies the Kerberos token for a proxy's Negotiate challenge instead of the runtime's native credential lookup. `Spn` is a service principal in the platform-independent `service/host[@REALM]` form; validate it before issuing credentials. Return a fresh base64 SPNEGO token without the `Negotiate ` prefix, or `null` when credentials are unavailable, which fails the request unless the proxy also offers Basic and `AuthenticateBasic` supplies credentials. The runtime waits at most 30 seconds for the callback (less when the request's own deadline is sooner). Tokens are not cached and must not be logged or persisted. The callback supplies the initial SPNEGO token only; exchanges requiring continuation tokens are not supported. Proxies chosen by `ResolveProxy` are authenticated the same way.
+- `AuthenticateBasic` receives the generated `GitHub.Copilot.Rpc.NetworkAuthenticateBasicRequest` and a `CancellationToken`, and supplies the credentials for a proxy's Basic challenge on requests the runtime tunnels through the proxy (`https` and `wss`). `Proxy` is the challenging proxy as `http://host:port` or `https://host:port`, `PreviousRejected` is true when the proxy rejected the credentials the connection sent last, and `Realm`, when present, comes from the proxy, so treat it as untrusted text. Return a `NetworkAuthenticateBasicResult` with `Username` and `Password` (an omitted password means an empty one), or `null` when credentials are unavailable, which fails the request with the proxy's challenge; an empty user name counts as unavailable, and one containing a colon fails the request, as do control characters in the user name or the password. The runtime remembers the answer for that proxy and uses it for later connections, until the proxy rejects it; then it calls again with `PreviousRejected` set, so return different credentials, for example by asking the user, or `null`. A later connection sends the answer without waiting for a challenge, unless the runtime may try Negotiate with that proxy first. A connection submits at most three sets of credentials. While a call is pending, other requests through that proxy wait for its answer. When a proxy offers both Negotiate and Basic, the runtime prefers Negotiate and answers with Basic when Negotiate is unavailable or the proxy rejects it. The runtime does not time the callback out: a request whose own deadline passes stops waiting, but the answer is still remembered. Credentials must not be logged or persisted.
 
 Exceptions thrown by a callback, including cancellation not requested through the supplied `CancellationToken`, are returned to the runtime as JSON-RPC errors and fail the request. Callbacks are started on a thread-pool thread and may block, for example while prompting for credentials. The supplied `CancellationToken` is cancelled when the runtime stops waiting (it cancels the request, for example after its timeout, or the connection closes), and a callback not yet started by then is not started; the SDK then stops awaiting the callback and ignores any later result.
 
@@ -224,12 +225,17 @@ await using var client = new CopilotClient(new CopilotClientOptions
         Scope = NetworkScope.Runtime,
         ResolveProxy = (request, cancellationToken) => ResolveProxyAsync(request.Url, cancellationToken),
         AuthenticateNegotiate = (request, cancellationToken) => AcquireSpnegoTokenAsync(request.Spn, cancellationToken),
+        AuthenticateBasic = (request, cancellationToken) => GetProxyCredentialsAsync(request, cancellationToken),
     },
 });
 #pragma warning restore GHCP001
 
 static Task<string?> ResolveProxyAsync(string url, CancellationToken cancellationToken) => Task.FromResult<string?>(null);
 static Task<string?> AcquireSpnegoTokenAsync(string spn, CancellationToken cancellationToken) => Task.FromResult<string?>(null);
+#pragma warning disable GHCP001
+static Task<NetworkAuthenticateBasicResult?> GetProxyCredentialsAsync(NetworkAuthenticateBasicRequest request, CancellationToken cancellationToken) =>
+    Task.FromResult<NetworkAuthenticateBasicResult?>(null);
+#pragma warning restore GHCP001
 ```
 -->
 <!-- /docs-validate: hidden -->
@@ -243,6 +249,7 @@ await using var client = new CopilotClient(new CopilotClientOptions
         Scope = NetworkScope.Runtime,
         ResolveProxy = (request, cancellationToken) => ResolveProxyAsync(request.Url, cancellationToken),
         AuthenticateNegotiate = (request, cancellationToken) => AcquireSpnegoTokenAsync(request.Spn, cancellationToken),
+        AuthenticateBasic = (request, cancellationToken) => GetProxyCredentialsAsync(request, cancellationToken),
     },
 });
 #pragma warning restore GHCP001
@@ -1633,6 +1640,41 @@ var session = await client.CreateSessionAsync(new SessionConfig
     }
 });
 ```
+
+### Reporting a person's answers
+
+When a person answers a prompt in your UI, set `DecisionContext` on the handler's result so Assisted Permissions can treat the answer as the person's own authority. The same label works for permission decisions (`PermissionDecision`), user-input answers (`UserInputResponse`), plan reviews (`ExitPlanModeResult`), and elicitation answers (`ElicitationResult`):
+
+```csharp
+#pragma warning disable GHCP001 // Decision contexts are experimental.
+
+var personAnswered = new PermissionDecisionContext
+{
+    Source = PermissionDecisionSource.HumanResponse,
+    ResponseCapability = PermissionResponseCapability.Interactive,
+    Surface = PermissionDecisionSurface.Sdk,
+    Outcome = PermissionDecisionOutcome.PromptedUser,
+};
+
+var session = await client.CreateSessionAsync(new SessionConfig
+{
+    Model = "gpt-5",
+    OnUserInputRequest = (request, invocation) => Task.FromResult(new UserInputResponse
+    {
+        Answer = "Only src/app.ts",
+        WasFreeform = true,
+        DecisionContext = personAnswered,
+    }),
+    OnExitPlanModeRequest = (request, invocation) => Task.FromResult(new ExitPlanModeResult
+    {
+        Approved = true,
+        SelectedAction = "interactive",
+        DecisionContext = personAnswered,
+    }),
+});
+```
+
+Label a person's declines and dismissals too; the runtime decides which answers carry authority. It accepts the label only from the connection that owns the session, so other connections' answers still settle, without it. Leave automated answers unlabeled.
 
 ## Session Hooks
 

@@ -168,8 +168,9 @@ func newNetworkPeer(t *testing.T, network *NetworkConfig) (*Client, *installatio
 	return client, &installationConfirmationPeer{t: t, conn: serverConn, reader: bufio.NewReader(serverConn)}
 }
 
-// networkCallbacks configures both callbacks to answer with lookup, which
-// receives the requested URL or SPN.
+// networkCallbacks configures all callbacks to answer with lookup, which
+// receives the requested URL, SPN or proxy. A Basic answer is the user name,
+// and "" means no credentials.
 func networkCallbacks(lookup func(ctx context.Context, target string) (string, error)) *NetworkConfig {
 	return &NetworkConfig{
 		ResolveProxy: func(ctx context.Context, request NetworkResolveProxyRequest) (string, error) {
@@ -177,6 +178,13 @@ func networkCallbacks(lookup func(ctx context.Context, target string) (string, e
 		},
 		AuthenticateNegotiate: func(ctx context.Context, request NetworkAuthenticateNegotiateRequest) (string, error) {
 			return lookup(ctx, request.Spn)
+		},
+		AuthenticateBasic: func(ctx context.Context, request NetworkAuthenticateBasicRequest) (*NetworkAuthenticateBasicResult, error) {
+			username, err := lookup(ctx, request.Proxy)
+			if username == "" {
+				return nil, err
+			}
+			return &NetworkAuthenticateBasicResult{Username: &username}, err
 		},
 	}
 }
@@ -194,7 +202,7 @@ func blockingLookup(entered, returned chan struct{}) func(context.Context, strin
 
 type networkRequest struct {
 	method string
-	params map[string]string
+	params any
 }
 
 // sendNetworkRequests sends requests concurrently and returns the responses in
@@ -220,17 +228,21 @@ func sendNetworkRequests(t *testing.T, peer *jsonrpc2.Client, requests ...networ
 func TestClient_Network(t *testing.T) {
 	methods := []struct {
 		method string
-		params map[string]string
+		params any
 		label  string
 		handle func(*networkAdapter, context.Context, json.RawMessage) (json.RawMessage, *jsonrpc2.Error)
 	}{
 		{"network.resolveProxy", map[string]string{"url": "https://api.example.com/"}, "Proxy resolution", (*networkAdapter).resolveProxy},
 		{"network.authenticateNegotiate", map[string]string{"spn": "HTTP/proxy"}, "Negotiate authentication", (*networkAdapter).authenticateNegotiate},
+		{"network.authenticateBasic", map[string]any{"proxy": "http://proxy:8080", "previousRejected": false}, "Basic authentication", (*networkAdapter).authenticateBasic},
 	}
 	resolveProxy := func(context.Context, NetworkResolveProxyRequest) (string, error) { return "", nil }
 	authenticateNegotiate := func(context.Context, NetworkAuthenticateNegotiateRequest) (string, error) { return "", nil }
+	authenticateBasic := func(context.Context, NetworkAuthenticateBasicRequest) (*NetworkAuthenticateBasicResult, error) {
+		return nil, nil
+	}
 
-	t.Run("registers both callbacks and answers concurrent lookups", func(t *testing.T) {
+	t.Run("registers all callbacks and answers concurrent lookups", func(t *testing.T) {
 		var mux sync.Mutex
 		var calls []string
 		server, peer := startNetworkClient(t, &NetworkConfig{
@@ -249,12 +261,20 @@ func TestClient_Network(t *testing.T) {
 				mux.Unlock()
 				return base64.StdEncoding.EncodeToString([]byte(request.Spn)), nil
 			},
+			AuthenticateBasic: func(_ context.Context, request NetworkAuthenticateBasicRequest) (*NetworkAuthenticateBasicResult, error) {
+				mux.Lock()
+				calls = append(calls, fmt.Sprintf("authenticateBasic %s realm %q previousRejected %t", request.Proxy, *request.Realm, request.PreviousRejected))
+				mux.Unlock()
+				username, password := "alice", "secret"
+				return &NetworkAuthenticateBasicResult{Username: &username, Password: &password}, nil
+			},
 		})
 
 		responses := sendNetworkRequests(t, peer,
 			networkRequest{"network.resolveProxy", map[string]string{"url": "https://api.example.com/"}},
 			networkRequest{"network.resolveProxy", map[string]string{"url": "http://example.com/path"}},
 			networkRequest{"network.authenticateNegotiate", map[string]string{"spn": "HTTP/proxy.example"}},
+			networkRequest{"network.authenticateBasic", map[string]any{"proxy": "https://proxy.example:443", "realm": "corp", "previousRejected": true}},
 		)
 		type snapshot struct {
 			Requests  []string
@@ -266,8 +286,9 @@ func TestClient_Network(t *testing.T) {
 		got := snapshot{server.recorded(), calls, responses}
 		mux.Unlock()
 		want := snapshot{
-			Requests: []string{`network.setProvider {"authenticateNegotiate":{},"resolveProxy":{}}`},
+			Requests: []string{`network.setProvider {"authenticateBasic":{},"authenticateNegotiate":{},"resolveProxy":{}}`},
 			Calls: []string{
+				`authenticateBasic https://proxy.example:443 realm "corp" previousRejected true`,
 				"authenticateNegotiate HTTP/proxy.example",
 				"resolveProxy http://example.com/path",
 				"resolveProxy https://api.example.com/",
@@ -276,6 +297,7 @@ func TestClient_Network(t *testing.T) {
 				`{"proxy":"PROXY proxy.example:8080; DIRECT"}`,
 				`{}`,
 				`{"token":"` + base64.StdEncoding.EncodeToString([]byte("HTTP/proxy.example")) + `"}`,
+				`{"password":"secret","username":"alice"}`,
 			},
 		}
 		if !reflect.DeepEqual(got, want) {
@@ -298,6 +320,7 @@ func TestClient_Network(t *testing.T) {
 				&NetworkConfig{Scope: NetworkScopeRuntime, AuthenticateNegotiate: authenticateNegotiate},
 				[]string{`network.setProvider {"authenticateNegotiate":{},"scope":"runtime"}`},
 			},
+			{"Basic authentication", &NetworkConfig{AuthenticateBasic: authenticateBasic}, []string{`network.setProvider {"authenticateBasic":{}}`}},
 			{
 				"connection proxy resolution",
 				&NetworkConfig{Scope: NetworkScopeConnection, ResolveProxy: resolveProxy},
@@ -321,8 +344,13 @@ func TestClient_Network(t *testing.T) {
 		got := sendNetworkRequests(t, peer,
 			networkRequest{"network.resolveProxy", map[string]string{"url": "https://api.example.com/"}},
 			networkRequest{"network.authenticateNegotiate", map[string]string{"spn": "HTTP/proxy"}},
+			networkRequest{"network.authenticateBasic", map[string]any{"proxy": "http://proxy:8080", "previousRejected": false}},
 		)
-		want := []string{`{"proxy":"DIRECT"}`, "JSON-RPC Error -32603: No network client-global handler registered"}
+		want := []string{
+			`{"proxy":"DIRECT"}`,
+			"JSON-RPC Error -32603: No network client-global handler registered",
+			"JSON-RPC Error -32603: No network client-global handler registered",
+		}
 		if !reflect.DeepEqual(got, want) {
 			t.Fatalf("responses = %q, want %q", got, want)
 		}
@@ -386,18 +414,24 @@ func TestClient_Network(t *testing.T) {
 		got := sendNetworkRequests(t, peer,
 			networkRequest{"network.resolveProxy", map[string]string{"url": "https://missing.example/"}},
 			networkRequest{"network.authenticateNegotiate", map[string]string{"spn": "HTTP/missing.example"}},
+			networkRequest{"network.authenticateBasic", map[string]any{"proxy": "http://missing.example:8080", "previousRejected": false}},
 			networkRequest{"network.resolveProxy", map[string]string{"url": "https://fail.example/"}},
 			networkRequest{"network.authenticateNegotiate", map[string]string{"spn": "HTTP/fail.example"}},
+			networkRequest{"network.authenticateBasic", map[string]any{"proxy": "http://fail.example:8080", "previousRejected": false}},
 			networkRequest{"network.resolveProxy", map[string]string{"url": "https://panic.example/"}},
 			networkRequest{"network.authenticateNegotiate", map[string]string{"spn": "HTTP/panic.example"}},
+			networkRequest{"network.authenticateBasic", map[string]any{"proxy": "http://panic.example:8080", "previousRejected": false}},
 		)
 		want := []string{
 			`{}`,
 			`{}`,
+			`{}`,
+			"JSON-RPC Error -32603: lookup failed",
 			"JSON-RPC Error -32603: lookup failed",
 			"JSON-RPC Error -32603: lookup failed",
 			"JSON-RPC Error -32603: proxy resolution callback panicked: boom",
 			"JSON-RPC Error -32603: negotiate authentication callback panicked: boom",
+			"JSON-RPC Error -32603: basic authentication callback panicked: boom",
 		}
 		if !reflect.DeepEqual(got, want) {
 			t.Fatalf("responses = %q, want %q", got, want)

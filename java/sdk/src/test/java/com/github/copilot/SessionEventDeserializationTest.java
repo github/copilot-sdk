@@ -19,6 +19,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 
 import com.github.copilot.generated.*;
+import com.github.copilot.generated.rpc.SessionMcpIdeStateResult;
 
 /**
  * Tests for session event deserialization.
@@ -94,6 +95,85 @@ public class SessionEventDeserializationTest {
             }
             assertEquals(wire, MAPPER.valueToTree(event));
         }
+    }
+
+    @ParameterizedTest
+    @ValueSource(booleans = {false, true})
+    void testIdeSelectionRoundTrip(boolean cleared) throws Exception {
+        String selection = cleared ? "null" : """
+                {
+                    "text": "selected",
+                    "filePath": "/workspace/file.rs",
+                    "fileUrl": "file:///workspace/file.rs",
+                    "selection": {
+                        "start": {"line": 0.0, "character": 0.0},
+                        "end": {"line": 0.0, "character": 8.0},
+                        "isEmpty": false
+                    }
+                }
+                """;
+        var wire = MAPPER.readValue(eventEnvelope("ide.selection_changed", "{\"selection\": %s}".formatted(selection)),
+                ObjectNode.class);
+
+        var event = assertInstanceOf(IdeSelectionChangedEvent.class, parseJson(wire.toString()));
+
+        if (cleared) {
+            assertNull(event.getData().selection());
+        } else {
+            assertEquals("selected", event.getData().selection().text());
+        }
+        assertEquals(wire, MAPPER.valueToTree(event));
+    }
+
+    @Test
+    void testIdeRpcStateSharesCanonicalEventModels() throws Exception {
+        String selectionJson = """
+                {
+                    "text": "selected",
+                    "filePath": "/workspace/file.rs",
+                    "fileUrl": "file:///workspace/file.rs",
+                    "selection": {
+                        "start": {"line": 2.0, "character": 3.0},
+                        "end": {"line": 4.0, "character": 5.0},
+                        "isEmpty": false
+                    },
+                    "current": true
+                }
+                """;
+        String connectionJson = """
+                {
+                    "ideName": "VS Code",
+                    "workspaceFolder": "/workspace",
+                    "pid": 42,
+                    "lockFilePath": "/workspace/ide.lock",
+                    "serverName": "ide"
+                }
+                """;
+        String stateJson = """
+                {"connectedIde": %s, "retainedIde": %s, "selection": %s}
+                """.formatted(connectionJson, connectionJson, selectionJson);
+        var state = MAPPER.readValue(stateJson, SessionMcpIdeStateResult.class);
+        var connectionEvent = assertInstanceOf(IdeConnectionChangedEvent.class,
+                parseJson(eventEnvelope("ide.connection_changed", stateJson)));
+        var selectionEvent = assertInstanceOf(IdeSelectionChangedEvent.class,
+                parseJson(eventEnvelope("ide.selection_changed", "{\"selection\": %s}".formatted(selectionJson))));
+
+        IdeSelection selection = state.selection();
+        IdeConnectedInfo connectedIde = state.connectedIde();
+        IdeConnectedInfo retainedIde = state.retainedIde();
+        IdeSelectionRange range = selection.selection();
+        IdePosition start = range.start();
+        IdePosition end = range.end();
+
+        assertEquals("selected", selection.text());
+        assertEquals("VS Code", connectedIde.ideName());
+        assertEquals(selectionEvent.getData().selection(), selection);
+        assertEquals(connectionEvent.getData().selection(), selection);
+        assertEquals(connectionEvent.getData().connectedIde(), connectedIde);
+        assertEquals(connectionEvent.getData().retainedIde(), retainedIde);
+        assertEquals(selectionEvent.getData().selection().selection(), range);
+        assertEquals(IdePosition.builder().line(2.0).character(3.0).build(), start);
+        assertEquals(IdePosition.builder().line(4.0).character(5.0).build(), end);
     }
 
     // =========================================================================

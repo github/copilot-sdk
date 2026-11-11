@@ -324,6 +324,7 @@ def test_user_message_positional_arguments_keep_their_meaning():
         "transformed_content",
         "turn_id",
         "client_turn_id",
+        "has_submitted_task",
     ]
     assert message.to_dict() == {"content": "hi", "delivery": "steering"}
 

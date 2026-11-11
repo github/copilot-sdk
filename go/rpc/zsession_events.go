@@ -109,6 +109,10 @@ const (
 	SessionEventTypeHookProgress                     SessionEventType = "hook.progress"
 	SessionEventTypeHookStart                        SessionEventType = "hook.start"
 	SessionEventTypeHumanResponseRecorded            SessionEventType = "human_response.recorded"
+	SessionEventTypeIdeAddFileReference              SessionEventType = "ide.add_file_reference"
+	SessionEventTypeIdeConnectionChanged             SessionEventType = "ide.connection_changed"
+	SessionEventTypeIdeElicitationComplete           SessionEventType = "ide.elicitation_complete"
+	SessionEventTypeIdeSelectionChanged              SessionEventType = "ide.selection_changed"
 	SessionEventTypeInstructionUpdate                SessionEventType = "instruction.update"
 	SessionEventTypeMCPAppToolCallComplete           SessionEventType = "mcp_app.tool_call_complete"
 	SessionEventTypeMCPHeadersRefreshCompleted       SessionEventType = "mcp.headers_refresh_completed"
@@ -422,6 +426,15 @@ func (*SessionAutoTierSwitchFailedData) Type() SessionEventType {
 	return SessionEventTypeSessionAutoTierSwitchFailed
 }
 
+// A validated selection from the live IDE, or an explicit clear.
+type IdeSelectionChangedData struct {
+	// Selection path, text, and source range, or null when the selection is cleared.
+	Selection *IdeSelection `json:"selection"`
+}
+
+func (*IdeSelectionChangedData) sessionEventData()      {}
+func (*IdeSelectionChangedData) Type() SessionEventType { return SessionEventTypeIdeSelectionChanged }
+
 // Agent intent description for current activity or plan
 type AssistantIntentData struct {
 	// Short description of what the agent is currently doing or planning to do
@@ -441,6 +454,26 @@ type SessionModeChangedData struct {
 
 func (*SessionModeChangedData) sessionEventData()      {}
 func (*SessionModeChangedData) Type() SessionEventType { return SessionEventTypeSessionModeChanged }
+
+// An IDE elicitation completion notification.
+type IdeElicitationCompleteData struct {
+	// Elicitation identifier returned by the IDE.
+	ElicitationID string `json:"elicitationId"`
+}
+
+func (*IdeElicitationCompleteData) sessionEventData() {}
+func (*IdeElicitationCompleteData) Type() SessionEventType {
+	return SessionEventTypeIdeElicitationComplete
+}
+
+// An IDE request to attach a file or selection to the composer.
+type IdeAddFileReferenceData struct {
+	// Validated file reference or selected range.
+	Reference IdeFileReference `json:"reference"`
+}
+
+func (*IdeAddFileReferenceData) sessionEventData()      {}
+func (*IdeAddFileReferenceData) Type() SessionEventType { return SessionEventTypeIdeAddFileReference }
 
 // An authoritative developer-instruction update. Event order defines instruction order. Persistent updates are durable and restore across replay, resume, rewind, fork, and compaction; turn-scoped updates must be emitted with ephemeral=true and are never restored.
 type InstructionUpdateData struct {
@@ -1617,7 +1650,7 @@ type ModelCallFailureData struct {
 	ProductStateError *ModelCallProductStateError `json:"productStateError,omitempty"`
 	// GitHub request tracing ID (x-github-request-id header) for server-side log correlation
 	ProviderCallID *string `json:"providerCallId,omitempty"`
-	// Fixed-set configured provider type of the bring-your-own-key model for the failed call: "openai", "azure", "anthropic", "local_model" (a user-configured local model), "winml" (a Copilot-managed Windows ML model), or "other". Never the caller-supplied provider name. Absent for Copilot-served models.
+	// Fixed-set configured provider type of the bring-your-own-key model for the failed call: "openai", "azure", "anthropic", "google", "local_model" (a user-configured local model), "winml" (a Copilot-managed Windows ML model), or "other". Never the caller-supplied provider name. Absent for Copilot-served models.
 	// Internal: ProviderType is part of the SDK's internal API surface and is not intended for external use.
 	ProviderType *string `json:"providerType,omitempty"`
 	// Per-quota usage snapshots parsed from the failed response's quota headers, keyed by quota identifier. Present when the error response carried quota headers (e.g. a 402 once the additional spend limit is reached) so the UI can refresh the quota display on failure.
@@ -2048,7 +2081,7 @@ type AssistantUsageData struct {
 	Provider *ModelProviderRef `json:"provider,omitempty"`
 	// GitHub request tracing ID (x-github-request-id header) for server-side log correlation
 	ProviderCallID *string `json:"providerCallId,omitempty"`
-	// Fixed-set configured provider type of the bring-your-own-key model: "openai", "azure", "anthropic", "local_model" (a user-configured local model), "winml" (a Copilot-managed Windows ML model), or "other". Never the caller-supplied provider name. Absent for Copilot-served models.
+	// Fixed-set configured provider type of the bring-your-own-key model: "openai", "azure", "anthropic", "google", "local_model" (a user-configured local model), "winml" (a Copilot-managed Windows ML model), or "other". Never the caller-supplied provider name. Absent for Copilot-served models.
 	// Internal: ProviderType is part of the SDK's internal API surface and is not intended for external use.
 	ProviderType *string `json:"providerType,omitempty"`
 	// Per-quota resource usage snapshots, keyed by quota identifier
@@ -2130,6 +2163,19 @@ type SessionJournalLinkData struct {
 
 func (*SessionJournalLinkData) sessionEventData()      {}
 func (*SessionJournalLinkData) Type() SessionEventType { return SessionEventTypeSessionJournalLink }
+
+// Live IDE state. This state never restores a connection from session history.
+type IdeConnectionChangedData struct {
+	// Currently available IDE, absent during an outage.
+	ConnectedIde *IdeConnectedInfo `json:"connectedIde,omitempty"`
+	// IDE whose tool definitions remain registered, including during an outage.
+	RetainedIde *IdeConnectedInfo `json:"retainedIde,omitempty"`
+	// Latest observed selection, absent after disconnect.
+	Selection *IdeSelection `json:"selection,omitempty"`
+}
+
+func (*IdeConnectionChangedData) sessionEventData()      {}
+func (*IdeConnectionChangedData) Type() SessionEventType { return SessionEventTypeIdeConnectionChanged }
 
 // Live progress signal for a provider-hosted server tool (e.g. hosted web search) while it runs, before the finalized serverTools envelope lands on the terminal assistant.message
 type AssistantServerToolProgressData struct {
@@ -2656,6 +2702,8 @@ type UserMessageData struct {
 	Content string `json:"content"`
 	// How this message was delivered to the agentic loop relative to loop state (idle-start vs. steering/queued while busy). The timing axis; combine with `source` (origin) for the full picture. Used for telemetry attribution.
 	Delivery *UserMessageDelivery `json:"delivery,omitempty"`
+	// Whether the submitted prompt or attachments contain a task, before adding generated context such as timestamps; independent of timeline display text. Absent in older events.
+	HasSubmittedTask *bool `json:"hasSubmittedTask,omitempty"`
 	// CAPI interaction ID for correlating this user message with its turn
 	InteractionID *string `json:"interactionId,omitempty"`
 	// True when this user message was auto-injected by autopilot's continuation loop rather than typed by the user; used to distinguish autopilot-driven turns in telemetry.
@@ -4323,6 +4371,9 @@ type CompactionCompleteAttemptMetrics struct {
 	// Deadline policy bounding the summarizer, such as "fixed" or "progress_aware"
 	// Internal: DeadlinePolicy is part of the SDK's internal API surface and is not intended for external use.
 	DeadlinePolicy *string `json:"deadlinePolicy,omitempty"`
+	// Time a background compaction's summarizer was held for the turn's in-flight request to start responding before it was sent, in milliseconds. The compaction's deadline starts when the summarizer is sent. Absent when the summarizer was not held.
+	// Internal: DispatchWaitMs is part of the SDK's internal API surface and is not intended for external use.
+	DispatchWaitMs *int64 `json:"dispatchWaitMs,omitempty"`
 	// Time from the start of the compaction to this event, in milliseconds, whatever the outcome
 	// Internal: DurationMs is part of the SDK's internal API surface and is not intended for external use.
 	DurationMs int64 `json:"durationMs"`
@@ -4707,7 +4758,7 @@ type HookEndError struct {
 	Stack *string `json:"stack,omitempty"`
 }
 
-// Exact runtime-owned question or reviewed plan paired with the typed response that settled it.
+// Exact runtime-owned question or reviewed plan paired with the typed response that settled it. A refusal records the question without an answer and never grants authority.
 type HumanResponseRecordedResponse interface {
 	humanResponseRecordedResponse()
 	ResponseKind() HumanResponseRecordedResponseResponseKind
@@ -4724,7 +4775,9 @@ func (r RawHumanResponseRecordedResponse) ResponseKind() HumanResponseRecordedRe
 }
 
 type HumanResponseRecordedResponseAskUser struct {
-	// Exact answer content accepted from the user.
+	// How the person refused the question; absent for an accepted answer.
+	Action *HumanResponseAskUserAction `json:"action,omitempty"`
+	// Exact answer content accepted from the user; empty when the person refused the question.
 	Content map[string]any `json:"content"`
 	// Exact question displayed to the user.
 	Message string `json:"message"`
@@ -4750,7 +4803,7 @@ type HumanResponseRecordedResponseExitPlanMode struct {
 	PlanContent string `json:"planContent"`
 	// Action the plan review UI recommended.
 	RecommendedAction ExitPlanModeAction `json:"recommendedAction"`
-	// Action selected by the user, when applicable.
+	// Action the runtime applied for an approved plan: the user's selection, or the default an approval without one applies.
 	SelectedAction *ExitPlanModeAction `json:"selectedAction,omitempty"`
 	// Exact plan summary displayed to the user.
 	Summary string `json:"summary"`
@@ -4764,10 +4817,12 @@ func (HumanResponseRecordedResponseExitPlanMode) ResponseKind() HumanResponseRec
 type HumanResponseRecordedResponseUserInput struct {
 	// Whether the displayed request allowed a free-form answer.
 	AllowFreeform *bool `json:"allowFreeform,omitempty"`
-	// Exact selected or free-form answer submitted by the user.
+	// Exact selected or free-form answer submitted by the user; empty when the person dismissed the question.
 	Answer string `json:"answer"`
 	// Exact choices displayed to the user, when the request offered choices.
 	Choices []string `json:"choices,omitzero"`
+	// True when the person dismissed the question instead of answering it.
+	Dismissed *bool `json:"dismissed,omitempty"`
 	// Exact question displayed to the user.
 	Question string `json:"question"`
 	// Whether the answer was typed as free-form text rather than selected from the displayed choices.
@@ -4777,6 +4832,26 @@ type HumanResponseRecordedResponseUserInput struct {
 func (HumanResponseRecordedResponseUserInput) humanResponseRecordedResponse() {}
 func (HumanResponseRecordedResponseUserInput) ResponseKind() HumanResponseRecordedResponseResponseKind {
 	return HumanResponseRecordedResponseResponseKindUserInput
+}
+
+// A validated IDE request to attach a file or selected text.
+type IdeFileReference struct {
+	// Document path on the runtime host.
+	FilePath string `json:"filePath"`
+	// Document URL supplied by the IDE.
+	FileURL string `json:"fileUrl"`
+	// Selected text, or null for a whole file.
+	SelectedText *string `json:"selectedText"`
+	// Selected range, or null for a whole file.
+	Selection *IdeRange `json:"selection"`
+}
+
+// The endpoints of an IDE file reference.
+type IdeRange struct {
+	// End position.
+	End IdePosition `json:"end"`
+	// Start position.
+	Start IdePosition `json:"start"`
 }
 
 // Set when the underlying tools/call threw an error before returning a CallToolResult
@@ -6663,6 +6738,8 @@ type AssistantUsageAPIEndpoint string
 const (
 	// Chat Completions API endpoint.
 	AssistantUsageAPIEndpointChatCompletions AssistantUsageAPIEndpoint = "/chat/completions"
+	// Gemini Interactions API endpoint.
+	AssistantUsageAPIEndpointInteractions AssistantUsageAPIEndpoint = "/interactions"
 	// Responses API endpoint.
 	AssistantUsageAPIEndpointResponses AssistantUsageAPIEndpoint = "/responses"
 	// Anthropic Messages API endpoint.
@@ -7086,6 +7163,16 @@ const (
 	HumanResponseActorHumanResponse HumanResponseActor = "human_response"
 	// The response came through a legacy or otherwise unattributed ingress.
 	HumanResponseActorUnknown HumanResponseActor = "unknown"
+)
+
+// How the person refused a built-in `ask_user` question instead of answering it.
+type HumanResponseAskUserAction string
+
+const (
+	// The person dismissed the question.
+	HumanResponseAskUserActionCancel HumanResponseAskUserAction = "cancel"
+	// The person explicitly declined the question.
+	HumanResponseAskUserActionDecline HumanResponseAskUserAction = "decline"
 )
 
 // ResponseKind discriminator for HumanResponseRecordedResponse.

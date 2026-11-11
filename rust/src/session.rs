@@ -26,9 +26,10 @@ use crate::generated::session_events::{
     SessionCanvasClosedData, SessionErrorData, SessionEventType, SessionIdleData, SessionMode,
 };
 use crate::handler::{
-    AutoModeSwitchHandler, AutoModeSwitchResponse, ElicitationHandler, ExitPlanModeHandler,
-    McpAuthHandler, McpAuthRequest, McpAuthResponse, McpAuthResult, PermissionHandler,
-    PermissionResult, ShellAuthenticationHandler, UserInputHandler, UserInputResponse,
+    AttributedResult, AutoModeSwitchHandler, AutoModeSwitchResponse, ElicitationHandler,
+    ExitPlanModeHandler, McpAuthHandler, McpAuthRequest, McpAuthResponse, McpAuthResult,
+    PermissionHandler, PermissionResult, ShellAuthenticationHandler, UserInputHandler,
+    UserInputResponse,
 };
 use crate::hooks::SessionHooks;
 use crate::memory_store::{MemoryStore, StoredMemory};
@@ -1285,8 +1286,6 @@ impl Session {
     /// its unread backlog; stopping the event loop releases an unclaimed
     /// backlog. A claimed backlog can still be drained after ordinary shutdown,
     /// but client force-stop discards it.
-    /// This guarantee covers events routed to this session, not events lost
-    /// to overflow in the bounded client-global notification router.
     ///
     /// After the atomic bootstrap handoff, each subscriber maintains its own
     /// finite queue. If a consumer cannot keep up, the oldest live events are
@@ -2433,12 +2432,10 @@ impl Client {
     /// installed after the returned `Session` exists.
     ///
     /// Routing requires a known session ID. When the server assigns the ID,
-    /// the SDK cannot register the session on its notification router until
-    /// the `session.create` response arrives, so notifications emitted
-    /// before that point are not routable and stay unobservable. Pin
-    /// [`SessionConfig::session_id`](crate::types::SessionConfig::session_id)
-    /// for complete pre-response coverage — see the "Server-assigned session
-    /// IDs" section on [`PreparedSession`].
+    /// the SDK registers the session when the `session.create` response
+    /// arrives and then delivers, in order, any events the server emitted
+    /// for it before that point — see the "Server-assigned session IDs"
+    /// section on [`PreparedSession`].
     ///
     /// # Inertness
     ///
@@ -3446,13 +3443,14 @@ impl Client {
 ///
 /// For cloud sessions without a caller-supplied session ID, the CLI assigns
 /// the ID and the SDK can only register the session on its notification
-/// router once the `session.create` response arrives. Notifications the
-/// server emits before that point are not routable to any session and are
-/// therefore not observable. The guarantee this type provides is narrower
-/// and precise: **routed** events are never dropped for lack of an
-/// installed receiver. Pin
+/// router once the `session.create` response arrives. The router holds
+/// events for a session ID it has not seen registered yet and delivers them,
+/// in order, ahead of later events when the session registers. A held
+/// request whose completion was held too (another client answered it) reaches
+/// subscribers but not this session's handlers. Routed events are never
+/// dropped for lack of an installed receiver. Pin
 /// [`SessionConfig::session_id`](crate::types::SessionConfig::session_id)
-/// to get registration before the RPC and full pre-response coverage.
+/// to register the session before the RPC is sent.
 #[must_use = "a PreparedSession does nothing until started"]
 pub struct PreparedSession {
     client: Client,
@@ -3744,10 +3742,13 @@ fn spawn_event_loop(
             let mut notifications_open = true;
             let mut requests_open = true;
             loop {
-                if shutdown.is_cancelled()
-                    || connection_closed.is_cancelled()
-                    || (!notifications_open && !requests_open)
-                {
+                // After the connection closes, keep draining: the dispatcher
+                // still routes events read before the close, then closes the
+                // channel. Requests can no longer be answered.
+                if connection_closed.is_cancelled() {
+                    requests_open = false;
+                }
+                if shutdown.is_cancelled() || (!notifications_open && !requests_open) {
                     break;
                 }
                 // `mpsc::UnboundedReceiver::recv` and
@@ -3775,14 +3776,18 @@ fn spawn_event_loop(
                 // background tasks to perform cancel-unsafe operations" pattern.
                 tokio::select! {
                     _ = shutdown.cancelled() => break,
-                    _ = connection_closed.cancelled() => break,
+                    _ = connection_closed.cancelled(), if requests_open => {
+                        requests_open = false;
+                    }
                     notification = notifications.recv(), if notifications_open => {
-                        let Some(notification) = notification else {
+                        let Some(crate::router::RoutedEvent { notification, settled }) = notification else {
                             notifications_open = false;
                             continue;
                         };
+                        // No handler can answer once the connection has closed.
+                        let settled = settled || connection_closed.is_cancelled();
                         handle_notification(
-                            &session_id, &client, &handlers, &command_handlers, notification, &idle_waiter, &completion_observers, &capabilities, &open_canvases, &event_tx, resume_bootstrap.as_ref(), &shutdown, &external_tools_shutdown, &pending_external_tools, startup_tasks.as_ref(),
+                            &session_id, &client, &handlers, &command_handlers, notification, settled, &idle_waiter, &completion_observers, &capabilities, &open_canvases, &event_tx, resume_bootstrap.as_ref(), &shutdown, &external_tools_shutdown, &pending_external_tools, startup_tasks.as_ref(),
                         ).await;
                     }
                     request = requests.recv(), if requests_open => {
@@ -3790,6 +3795,12 @@ fn spawn_event_loop(
                             requests_open = false;
                             continue;
                         };
+                        // The close can land while this select is polled; a
+                        // handler started now could never send its answer.
+                        if connection_closed.is_cancelled() {
+                            requests_open = false;
+                            continue;
+                        }
                         // Clone the Arc-backed dispatch context into the task so
                         // the spawned `handle_request` future is `'static`. All
                         // clones are cheap (Arc refcount bumps / small maps).
@@ -3932,7 +3943,7 @@ fn is_autopilot_continuation_idle(event: &SessionEvent) -> bool {
         .is_some_and(|data| data.mode == Some(SessionMode::Autopilot))
 }
 
-/// Process a notification from the CLI's broadcast channel.
+/// Process a `session.event` notification routed to this session.
 #[allow(clippy::too_many_arguments)]
 async fn handle_notification(
     session_id: &SessionId,
@@ -3940,6 +3951,7 @@ async fn handle_notification(
     handlers: &SessionHandlers,
     command_handlers: &Arc<CommandHandlerMap>,
     notification: SessionEventNotification,
+    settled: bool,
     idle_waiter: &IdleWaiters,
     completion_observers: &CompletionObservers,
     capabilities: &Arc<parking_lot::RwLock<SessionCapabilityState>>,
@@ -4059,6 +4071,11 @@ async fn handle_notification(
         event_type = %notification.event.event_type,
         "Session::handle_notification dispatch"
     );
+
+    // Another client already answered this request; see `RoutedEvent::settled`.
+    if settled {
+        return;
+    }
 
     // Notification-based permission/tool/elicitation requests require a
     // separate RPC callback. Spawn concurrently since the CLI doesn't block.
@@ -4498,7 +4515,7 @@ async fn handle_notification(
                             async move {
                                 let handler_start = Instant::now();
                                 let response = elicitation_handler
-                                    .handle(sid.clone(), request_id.clone(), request)
+                                    .handle_attributed(sid.clone(), request_id.clone(), request)
                                     .await;
                                 tracing::debug!(
                                     elapsed_ms = handler_start.elapsed().as_millis(),
@@ -4520,18 +4537,20 @@ async fn handle_notification(
                         Ok(r) => r,
                         // Startup abort is not a handler failure: no fallback RPC.
                         Err(error) if error.is_cancelled() => return,
-                        Err(_) => cancel.clone(),
+                        Err(_) => AttributedResult::unattributed(cancel.clone()),
                     };
+                    let mut params = serde_json::json!({
+                        "sessionId": sid,
+                        "requestId": request_id,
+                        "result": result.result,
+                    });
+                    if let Some(decision_context) = &result.decision_context {
+                        params["decisionContext"] = serde_json::to_value(decision_context)
+                            .expect("PermissionDecisionContext serialization cannot fail");
+                    }
                     let rpc_start = Instant::now();
                     if let Err(e) = client
-                        .call(
-                            "session.ui.handlePendingElicitation",
-                            Some(serde_json::json!({
-                                "sessionId": sid,
-                                "requestId": request_id,
-                                "result": result,
-                            })),
-                        )
+                        .call("session.ui.handlePendingElicitation", Some(params))
                         .await
                     {
                         // RPC failed — attempt cancel as last resort
@@ -5062,7 +5081,7 @@ async fn handle_request(
             let handler_start = Instant::now();
             let response = if let Some(user_input_handler) = handlers.user_input.as_ref() {
                 user_input_handler
-                    .handle(sid.clone(), request_id, question, choices, allow_freeform)
+                    .handle_attributed(sid.clone(), request_id, question, choices, allow_freeform)
                     .await
             } else {
                 None
@@ -5074,13 +5093,24 @@ async fn handle_request(
             );
 
             let rpc_result = match response {
-                Some(UserInputResponse {
-                    answer,
-                    was_freeform,
-                }) => serde_json::json!({
-                    "answer": answer,
-                    "wasFreeform": was_freeform,
-                }),
+                Some(AttributedResult {
+                    result:
+                        UserInputResponse {
+                            answer,
+                            was_freeform,
+                        },
+                    decision_context,
+                }) => {
+                    let mut reply = serde_json::json!({
+                        "answer": answer,
+                        "wasFreeform": was_freeform,
+                    });
+                    if let Some(decision_context) = decision_context {
+                        reply["decisionContext"] = serde_json::to_value(decision_context)
+                            .expect("PermissionDecisionContext serialization cannot fail");
+                    }
+                    reply
+                }
                 None => serde_json::json!({ "noResponse": true }),
             };
             let rpc_response = JsonRpcResponse {
@@ -5137,8 +5167,16 @@ async fn handle_request(
             };
 
             let rpc_result = if let Some(exit_plan_handler) = handlers.exit_plan_mode.as_ref() {
-                let result = exit_plan_handler.handle(sid, request_id, data).await;
-                serde_json::to_value(result).expect("ExitPlanModeResult serialization cannot fail")
+                let result = exit_plan_handler
+                    .handle_attributed(sid, request_id, data)
+                    .await;
+                let mut reply = serde_json::to_value(result.result)
+                    .expect("ExitPlanModeResult serialization cannot fail");
+                if let Some(decision_context) = result.decision_context {
+                    reply["decisionContext"] = serde_json::to_value(decision_context)
+                        .expect("PermissionDecisionContext serialization cannot fail");
+                }
+                reply
             } else {
                 serde_json::json!({ "approved": true })
             };

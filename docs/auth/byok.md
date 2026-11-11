@@ -9,6 +9,7 @@ BYOK allows you to use the Copilot SDK with your own API keys from model provide
 | OpenAI | `"openai"` | OpenAI API and OpenAI-compatible endpoints |
 | Microsoft Foundry / Azure OpenAI | `"openai"` or `"azure"` | Use `"openai"` for `/openai/v1/`; use `"azure"` for native Azure endpoints |
 | Anthropic | `"anthropic"` | Claude models |
+| Google | `"google"` | Gemini models via Google's native Gemini Interactions API (experimental) |
 | Ollama | `"openai"` | Local models via OpenAI-compatible API |
 | Microsoft Foundry Local | `"openai"` | Run AI models locally on your device via OpenAI-compatible API |
 | Other OpenAI-compatible | `"openai"` | vLLM, LiteLLM, etc. |
@@ -207,13 +208,13 @@ client.stop().get();
 
 | Field | Type | Description |
 |-------|------|-------------|
-| `type` | `"openai"` \| `"azure"` \| `"anthropic"` | Provider type (default: `"openai"`) |
+| `type` | `"openai"` \| `"azure"` \| `"anthropic"` \| `"google"` | Provider type (default: `"openai"`). `"google"` (experimental) uses Google's native Gemini Interactions API. |
 | `baseUrl` / `base_url` | string | **Required.** API endpoint URL |
 | `apiKey` / `api_key` | string | API key (optional for local providers like Ollama) |
 | `apiKeyCommand` / `api_key_command` | string | Command run by the runtime before each provider request to obtain a fresh API key. Also exposed as `ApiKeyCommand` in .NET and `APIKeyCommand` in Go. Credential-command failures fail the turn before sending a model request. |
 | `bearerToken` / `bearer_token` | string | Bearer token auth (takes precedence over apiKey) |
 | `bearerTokenProvider` / `bearer_token_provider` | callback | Returns a bearer token on demand (takes precedence over `apiKey`, `apiKeyCommand`, and `bearerToken`; the command does not run) |
-| `wireApi` / `wire_api` | `"completions"` \| `"responses"` | Select `"completions"` for broad model compatibility (the Chat Completions API); select `"responses"` for multi-turn state management, tool namespacing, and reasoning support (the Responses API). Anthropic models always use the Messages API regardless of this setting. |
+| `wireApi` / `wire_api` | `"completions"` \| `"responses"` | Select `"completions"` for broad model compatibility (the Chat Completions API); select `"responses"` for multi-turn state management, tool namespacing, and reasoning support (the Responses API). Anthropic models always use the Messages API and `"google"` providers always use the Gemini Interactions API, regardless of this setting. |
 | `azure.apiVersion` / `azure.api_version` | string | Azure API version. When set, the runtime uses the versioned deployment route; when omitted, it uses the GA versionless `v1` route. |
 
 ### Wire API format
@@ -239,6 +240,14 @@ Anthropic models always use the Anthropic Messages API regardless of this settin
 **Anthropic (`type: "anthropic"`)**
 * For direct Anthropic API access
 * Uses Claude-specific API format
+
+**Google (`type: "google"`, experimental)**
+* Experimental: behavior and configuration may change in future releases
+* For direct access to Google's Gemini API
+* Always uses Google's native Gemini Interactions API (`{baseUrl}/interactions`); `wireApi` is ignored
+* `baseUrl` should include the API version (e.g., `https://generativelanguage.googleapis.com/v1beta`)
+* `apiKey` is sent in the `x-goog-api-key` header; `bearerToken` is sent as an `Authorization` bearer token and takes precedence, so the API key isn't sent when both are set
+* Requests set `store: false`, so Google keeps no conversation state; each request carries the full history
 
 ## Example configurations
 
@@ -329,6 +338,16 @@ provider: {
     type: "anthropic",
     baseUrl: "https://api.anthropic.com",
     apiKey: process.env.ANTHROPIC_API_KEY,
+}
+```
+
+### Google (Gemini Interactions API, experimental)
+
+```typescript
+provider: {
+    type: "google",
+    baseUrl: "https://generativelanguage.googleapis.com/v1beta",
+    apiKey: process.env.GEMINI_API_KEY,
 }
 ```
 

@@ -322,11 +322,11 @@ operation.
 
 Use `CopilotClientOptions.setNetwork(NetworkConfig)` when the SDK host should
 take over parts of the runtime's networking, for example when the runtime runs
-in WSL or a container and should use VS Code's proxy settings and the host's
-Kerberos tickets. Registration happens during `start()`, before sessions can be
-created, and startup fails if it is rejected. Without this option, or for a
-callback you leave unset, the runtime handles that part itself. Referencing
-`NetworkConfig` requires opting in to
+in WSL or a container and should use VS Code's proxy settings, the host's
+Kerberos tickets and the host's proxy credentials. Registration happens during
+`start()`, before sessions can be created, and startup fails if it is rejected.
+Without this option, or for a callback you leave unset, the runtime handles
+that part itself. Referencing `NetworkConfig` requires opting in to
 [experimental APIs](#using-experimental-apis).
 
 - `setResolveProxy(...)` decides the proxies for every request the runtime would
@@ -352,11 +352,39 @@ callback you leave unset, the runtime handles that part itself. Referencing
   `service/host[@REALM]` form; validate it before issuing credentials. Return a
   `CompletableFuture<String>` with a fresh base64 SPNEGO token without the
   `Negotiate ` prefix, or `null` when credentials are unavailable, which fails
-  the request. The runtime waits at most 30 seconds for the callback (less when
-  the request's own deadline is sooner). Tokens are not cached and must not be
-  logged or persisted. The callback supplies the initial SPNEGO token only;
-  exchanges requiring continuation tokens are not supported. Proxies chosen by
-  `setResolveProxy(...)` are authenticated the same way.
+  the request unless the proxy also offers Basic and `setAuthenticateBasic(...)`
+  supplies credentials. The runtime waits at most 30 seconds for the callback
+  (less when the request's own deadline is sooner). Tokens are not cached and
+  must not be logged or persisted. The callback supplies the initial SPNEGO
+  token only; exchanges requiring continuation tokens are not supported.
+  Proxies chosen by `setResolveProxy(...)` are authenticated the same way.
+- `setAuthenticateBasic(...)` supplies credentials for a proxy's Basic
+  challenge on requests the runtime tunnels through the proxy (`https` and
+  `wss`). The callback receives the generated
+  `NetworkAuthenticateBasicRequest`, whose `proxy()` is `http://host:port` or
+  `https://host:port`, whose `realm()`, if any, comes from the proxy and is
+  untrusted text, and whose `previousRejected()` is true when the proxy rejected
+  the credentials the connection sent last. Return a
+  `CompletableFuture<NetworkAuthenticateBasicResult>` that completes with the
+  user name and password, or with `null` (for example
+  `CompletableFuture.completedFuture(null)`) or an empty user name when
+  credentials are unavailable, which fails the request with the proxy's
+  challenge; returning a `null` future instead is a callback error. The user
+  name must not contain a colon, neither the user name nor the password may
+  contain control characters, and a `null` password means an empty one. The
+  runtime remembers the answer for that proxy and uses it for later
+  connections, until the proxy rejects it; then it calls again with
+  `previousRejected()` set, so complete with different credentials, for example
+  by asking the user, or with `null`. A later
+  connection sends the answer without waiting for a challenge, unless the
+  runtime may try Negotiate with that proxy first. A connection submits at most
+  three sets of credentials. While a call is pending, other requests through
+  that proxy wait for its answer. When a proxy offers both Negotiate and Basic,
+  the runtime prefers Negotiate and answers with Basic when Negotiate is
+  unavailable or the proxy rejects it. The runtime does not time the callback
+  out: a request whose own deadline passes stops waiting, but the answer is
+  still remembered.
+  Never log or persist credentials.
 
 The callbacks run on the client executor; if the executor rejects one, the
 request fails. When the runtime stops waiting (it cancels the request, for
@@ -377,7 +405,8 @@ import com.github.copilot.rpc.NetworkConfig;
 var options = new CopilotClientOptions().setNetwork(new NetworkConfig()
         .setScope(NetworkScope.RUNTIME)
         .setResolveProxy(request -> resolveProxyFor(request.url()))
-        .setAuthenticateNegotiate(request -> acquireSpnegoToken(request.spn())));
+        .setAuthenticateNegotiate(request -> acquireSpnegoToken(request.spn()))
+        .setAuthenticateBasic(request -> lookUpProxyCredentials(request.proxy())));
 ```
 
 `SessionConfig.setAutopilot(AutopilotOptions)` and the corresponding
@@ -656,6 +685,46 @@ PermissionHandler handler = (request, invocation) -> {
     return CompletableFuture.completedFuture(PermissionRequestResult.approveOnce());
 };
 ```
+
+### Reporting a person's answers
+
+When a person answers a prompt in your UI, label the result with a `PermissionDecisionContext` so Assisted Permissions can treat the answer as the person's own authority. Permission, user-input, plan-review, and elicitation results all accept the same label through `setDecisionContext(...)`:
+
+```java
+import java.util.concurrent.CompletableFuture;
+
+import com.github.copilot.generated.rpc.PermissionDecisionContext;
+import com.github.copilot.generated.rpc.PermissionDecisionOutcome;
+import com.github.copilot.generated.rpc.PermissionDecisionSource;
+import com.github.copilot.generated.rpc.PermissionDecisionSurface;
+import com.github.copilot.generated.rpc.PermissionResponseCapability;
+import com.github.copilot.rpc.ElicitationResult;
+import com.github.copilot.rpc.ElicitationResultAction;
+import com.github.copilot.rpc.ExitPlanModeResult;
+import com.github.copilot.rpc.SessionConfig;
+import com.github.copilot.rpc.UserInputResponse;
+
+var personAnswered = PermissionDecisionContext.builder()
+        .source(PermissionDecisionSource.HUMAN_RESPONSE)
+        .responseCapability(PermissionResponseCapability.INTERACTIVE)
+        .surface(PermissionDecisionSurface.SDK)
+        .outcome(PermissionDecisionOutcome.PROMPTED_USER)
+        .build();
+
+var config = new SessionConfig()
+        .setOnPermissionRequest(handler)
+        .setOnUserInputRequest((request, invocation) -> CompletableFuture.completedFuture(
+                new UserInputResponse().setAnswer("Only src/app.ts").setWasFreeform(true)
+                        .setDecisionContext(personAnswered)))
+        .setOnExitPlanMode((request, invocation) -> CompletableFuture.completedFuture(
+                new ExitPlanModeResult().setApproved(true).setSelectedAction("interactive")
+                        .setDecisionContext(personAnswered)))
+        .setOnElicitationRequest(context -> CompletableFuture.completedFuture(
+                new ElicitationResult().setAction(ElicitationResultAction.DECLINE)
+                        .setDecisionContext(personAnswered)));
+```
+
+Label a person's declines and dismissals too; the runtime decides which answers carry authority. It accepts the label only from the connection that owns the session, so other connections' answers still settle, without it. Leave automated answers unlabeled: the SDK then sends no `decisionContext`.
 
 ## Try it with JBang
 

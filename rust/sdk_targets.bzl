@@ -52,6 +52,13 @@ def sdk_targets(name = "platform_dirs_srcs"):
         visibility = ["//visibility:public"],
     )
 
+    # The src/ahp-host inventory test reads the generated wire surface.
+    native.filegroup(
+        name = "generated_srcs",
+        srcs = native.glob(["src/generated/**/*.rs"]),
+        visibility = ["//src/ahp-host:__subpackages__"],
+    )
+
     sdk_features = [
         "bundled-cli",
         "bundled-in-process",
@@ -117,7 +124,11 @@ def sdk_targets(name = "platform_dirs_srcs"):
             "in-process",
             "local-runtime",
             "runtime",
-        ],
+        ] + select({
+            # Test-support client methods for the src/ahp-host crates' tests.
+            "//bazel:dependency_test_features_enabled": ["test-support"],
+            "//conditions:default": [],
+        }),
         crate_name = "github_copilot_sdk",
         crate_root = "src/lib.rs",
         proc_macro_deps = ["@vendor__async-trait-0.1.92//:async_trait"],

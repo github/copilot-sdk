@@ -357,7 +357,7 @@ class GeneratedBuilderEvolutionTest {
 
     @Test
     @Tag("java-compatibility")
-    void eventBuildersValidateRequiredPresenceWithoutChangingJacksonNullBehavior() throws Exception {
+    void eventBuildersValidateRequiredPresenceAndPreserveRequiredNulls() throws Exception {
         JavaCompiler compiler = requireCompiler();
         Path generated = generatedDirectory();
         verifyGeneratedFixtures(generated);
@@ -374,7 +374,8 @@ class GeneratedBuilderEvolutionTest {
         String[] output = run("fixture.BuilderEventValidationCaller", caller, api).strip().split("\\R");
         assertEquals("Missing required property: message", output[0]);
         assertEquals("present", JSON.readTree(output[1]).path("message").asText());
-        assertFalse(JSON.readTree(output[1]).has("requiredNullable"));
+        assertTrue(JSON.readTree(output[1]).has("requiredNullable"));
+        assertTrue(JSON.readTree(output[1]).get("requiredNullable").isNull());
     }
 
     @Test
@@ -480,7 +481,7 @@ class GeneratedBuilderEvolutionTest {
                 .sessionLimits());
         assertNull(JSON.readValue("{\"sessionLimits\":null,\"futureField\":true}",
                 SessionSessionLimitsChangedEvent.SessionSessionLimitsChangedEventData.class).sessionLimits());
-        assertEquals("{}", JSON.readTree(JSON.writeValueAsString(explicitlyNull)).toString());
+        assertEquals(JSON.readTree("{\"sessionLimits\":null}"), JSON.readTree(JSON.writeValueAsString(explicitlyNull)));
     }
 
     @Test

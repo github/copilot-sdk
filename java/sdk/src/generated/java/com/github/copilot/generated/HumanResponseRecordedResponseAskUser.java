@@ -29,7 +29,7 @@ public final class HumanResponseRecordedResponseAskUser extends HumanResponseRec
     @Override
     public String getResponseKind() { return responseKind; }
 
-    /** Exact answer content accepted from the user. */
+    /** Exact answer content accepted from the user; empty when the person refused the question. */
     @JsonProperty("content")
     private Map<String, Object> content;
 
@@ -41,6 +41,10 @@ public final class HumanResponseRecordedResponseAskUser extends HumanResponseRec
     @JsonProperty("requestedSchema")
     private ElicitationRequestedSchema requestedSchema;
 
+    /** How the person refused the question; absent for an accepted answer. */
+    @JsonProperty("action")
+    private HumanResponseAskUserAction action;
+
     public Map<String, Object> getContent() { return content; }
     public void setContent(Map<String, Object> content) { this.content = content; }
 
@@ -49,6 +53,9 @@ public final class HumanResponseRecordedResponseAskUser extends HumanResponseRec
 
     public ElicitationRequestedSchema getRequestedSchema() { return requestedSchema; }
     public void setRequestedSchema(ElicitationRequestedSchema requestedSchema) { this.requestedSchema = requestedSchema; }
+
+    public HumanResponseAskUserAction getAction() { return action; }
+    public void setAction(HumanResponseAskUserAction action) { this.action = action; }
 
 
     /**
@@ -67,6 +74,7 @@ public final class HumanResponseRecordedResponseAskUser extends HumanResponseRec
         private Map<String, Object> content;
         private String message;
         private ElicitationRequestedSchema requestedSchema;
+        private HumanResponseAskUserAction action;
 
         /**
          * Sets the {@code content} property.
@@ -102,6 +110,17 @@ public final class HumanResponseRecordedResponseAskUser extends HumanResponseRec
         }
 
         /**
+         * Sets the {@code action} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder action(HumanResponseAskUserAction value) {
+            this.action = value;
+            return this;
+        }
+
+        /**
          * Builds a variant after checking required property presence.
          * @return a new variant
          * @throws IllegalStateException if a required property is missing
@@ -115,6 +134,7 @@ public final class HumanResponseRecordedResponseAskUser extends HumanResponseRec
             instance.setContent(content);
             instance.setMessage(message);
             instance.setRequestedSchema(requestedSchema);
+            instance.setAction(action);
             return instance;
         }
     }

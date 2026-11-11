@@ -7,6 +7,7 @@ package com.github.copilot;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.concurrent.CancellationException;
 import java.util.concurrent.CompletableFuture;
@@ -692,8 +693,13 @@ final class RpcHandlerDispatcher {
                         String answer = response.getAnswer() != null ? response.getAnswer() : "";
                         LOG.fine("Sending userInput response: answer=" + answer + ", wasFreeform="
                                 + response.isWasFreeform());
-                        rpc.sendResponse(requestIdLong,
-                                Map.of("answer", answer, "wasFreeform", response.isWasFreeform()));
+                        Map<String, Object> reply = new LinkedHashMap<>();
+                        reply.put("answer", answer);
+                        reply.put("wasFreeform", response.isWasFreeform());
+                        if (response.getDecisionContext() != null) {
+                            reply.put("decisionContext", response.getDecisionContext());
+                        }
+                        rpc.sendResponse(requestIdLong, reply);
                     } catch (IOException e) {
                         LOG.log(Level.SEVERE, "Error sending user input response", e);
                     }

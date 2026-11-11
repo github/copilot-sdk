@@ -4653,6 +4653,86 @@ func (r *FeatureFlagServiceSnapshot) UnmarshalJSON(data []byte) error {
 	return nil
 }
 
+func unmarshalFetchSendResult(data []byte) (FetchSendResult, error) {
+	if string(data) == "null" {
+		return nil, nil
+	}
+	type rawUnion struct {
+		ResponseMode FetchResponseMode `json:"responseMode"`
+	}
+	var raw rawUnion
+	if err := json.Unmarshal(data, &raw); err != nil {
+		return nil, err
+	}
+
+	switch raw.ResponseMode {
+	case FetchResponseModeFile:
+		var d FetchSendResultFile
+		if err := json.Unmarshal(data, &d); err != nil {
+			return nil, err
+		}
+		return &d, nil
+	case FetchResponseModeStream:
+		var d FetchSendResultStream
+		if err := json.Unmarshal(data, &d); err != nil {
+			return nil, err
+		}
+		return &d, nil
+	case FetchResponseModeText:
+		var d FetchSendResultText
+		if err := json.Unmarshal(data, &d); err != nil {
+			return nil, err
+		}
+		return &d, nil
+	default:
+		return &RawFetchSendResultData{Discriminator: raw.ResponseMode, Raw: data}, nil
+	}
+}
+
+func (r RawFetchSendResultData) MarshalJSON() ([]byte, error) {
+	if r.Raw != nil {
+		return r.Raw, nil
+	}
+	return json.Marshal(struct {
+		ResponseMode FetchResponseMode `json:"responseMode"`
+	}{
+		ResponseMode: r.Discriminator,
+	})
+}
+
+func (r FetchSendResultFile) MarshalJSON() ([]byte, error) {
+	type alias FetchSendResultFile
+	return json.Marshal(struct {
+		ResponseMode FetchResponseMode `json:"responseMode"`
+		alias
+	}{
+		ResponseMode: r.ResponseMode(),
+		alias:        alias(r),
+	})
+}
+
+func (r FetchSendResultStream) MarshalJSON() ([]byte, error) {
+	type alias FetchSendResultStream
+	return json.Marshal(struct {
+		ResponseMode FetchResponseMode `json:"responseMode"`
+		alias
+	}{
+		ResponseMode: r.ResponseMode(),
+		alias:        alias(r),
+	})
+}
+
+func (r FetchSendResultText) MarshalJSON() ([]byte, error) {
+	type alias FetchSendResultText
+	return json.Marshal(struct {
+		ResponseMode FetchResponseMode `json:"responseMode"`
+		alias
+	}{
+		ResponseMode: r.ResponseMode(),
+		alias:        alias(r),
+	})
+}
+
 func unmarshalFilterMapping(data []byte) (FilterMapping, error) {
 	if string(data) == "null" {
 		return nil, nil
@@ -6055,6 +6135,23 @@ func (r *LocalModelMachineRow) UnmarshalJSON(data []byte) error {
 }
 
 func matchesMCPSerializableServerConfigMCPServerConfigHTTP(data []byte) bool {
+	var rawType struct {
+		Type json.RawMessage `json:"type"`
+	}
+	if err := json.Unmarshal(data, &rawType); err != nil {
+		return false
+	}
+	if rawType.Type != nil {
+		var rawTypeString string
+		if err := json.Unmarshal(rawType.Type, &rawTypeString); err != nil {
+			return false
+		}
+		switch rawTypeString {
+		case "http", "sse":
+		default:
+			return false
+		}
+	}
 	var rawGroup0 struct {
 		Command json.RawMessage `json:"command"`
 		URL     json.RawMessage `json:"url"`
@@ -6069,6 +6166,23 @@ func matchesMCPSerializableServerConfigMCPServerConfigHTTP(data []byte) bool {
 }
 
 func matchesMCPSerializableServerConfigMCPServerConfigStdio(data []byte) bool {
+	var rawType struct {
+		Type json.RawMessage `json:"type"`
+	}
+	if err := json.Unmarshal(data, &rawType); err != nil {
+		return false
+	}
+	if rawType.Type != nil {
+		var rawTypeString string
+		if err := json.Unmarshal(rawType.Type, &rawTypeString); err != nil {
+			return false
+		}
+		switch rawTypeString {
+		case "local", "stdio":
+		default:
+			return false
+		}
+	}
 	var rawGroup0 struct {
 		Command json.RawMessage `json:"command"`
 		URL     json.RawMessage `json:"url"`
@@ -7530,10 +7644,26 @@ func (r *MCPOauthSaveStaticClientSecretRequest) UnmarshalJSON(data []byte) error
 }
 
 func matchesMCPServerConfigHTTP(data []byte) bool {
+	var rawType struct {
+		Type json.RawMessage `json:"type"`
+	}
+	if err := json.Unmarshal(data, &rawType); err != nil {
+		return false
+	}
+	if rawType.Type != nil {
+		var rawTypeString string
+		if err := json.Unmarshal(rawType.Type, &rawTypeString); err != nil {
+			return false
+		}
+		switch rawTypeString {
+		case "http", "sse":
+		default:
+			return false
+		}
+	}
 	var rawGroup0 struct {
 		Command        json.RawMessage `json:"command"`
 		ServerInstance json.RawMessage `json:"serverInstance"`
-		Type           json.RawMessage `json:"type"`
 		URL            json.RawMessage `json:"url"`
 	}
 	if err := json.Unmarshal(data, &rawGroup0); err != nil {
@@ -7545,10 +7675,7 @@ func matchesMCPServerConfigHTTP(data []byte) bool {
 	if rawGroup0.Command != nil {
 		return false
 	}
-	if rawGroup0.ServerInstance != nil {
-		return false
-	}
-	return rawGroup0.Type == nil
+	return rawGroup0.ServerInstance == nil
 }
 
 func matchesMCPServerConfigMemory(data []byte) bool {
@@ -7583,10 +7710,26 @@ func matchesMCPServerConfigMemory(data []byte) bool {
 }
 
 func matchesMCPServerConfigStdio(data []byte) bool {
+	var rawType struct {
+		Type json.RawMessage `json:"type"`
+	}
+	if err := json.Unmarshal(data, &rawType); err != nil {
+		return false
+	}
+	if rawType.Type != nil {
+		var rawTypeString string
+		if err := json.Unmarshal(rawType.Type, &rawTypeString); err != nil {
+			return false
+		}
+		switch rawTypeString {
+		case "local", "stdio":
+		default:
+			return false
+		}
+	}
 	var rawGroup0 struct {
 		Command        json.RawMessage `json:"command"`
 		ServerInstance json.RawMessage `json:"serverInstance"`
-		Type           json.RawMessage `json:"type"`
 		URL            json.RawMessage `json:"url"`
 	}
 	if err := json.Unmarshal(data, &rawGroup0); err != nil {
@@ -7596,9 +7739,6 @@ func matchesMCPServerConfigStdio(data []byte) bool {
 		return false
 	}
 	if rawGroup0.ServerInstance != nil {
-		return false
-	}
-	if rawGroup0.Type != nil {
 		return false
 	}
 	return rawGroup0.URL == nil
@@ -8279,6 +8419,285 @@ func (r *MCPRestartServerRequest) UnmarshalJSON(data []byte) error {
 	return nil
 }
 
+func matchesMCPStartServerConfigMCPServerConfigHTTP(data []byte) bool {
+	var rawType struct {
+		Type json.RawMessage `json:"type"`
+	}
+	if err := json.Unmarshal(data, &rawType); err != nil {
+		return false
+	}
+	if rawType.Type != nil {
+		var rawTypeString string
+		if err := json.Unmarshal(rawType.Type, &rawTypeString); err != nil {
+			return false
+		}
+		switch rawTypeString {
+		case "http", "sse":
+		default:
+			return false
+		}
+	}
+	var rawGroup0 struct {
+		Command    json.RawMessage `json:"command"`
+		Ide        json.RawMessage `json:"ide"`
+		SocketPath json.RawMessage `json:"socketPath"`
+		URL        json.RawMessage `json:"url"`
+	}
+	if err := json.Unmarshal(data, &rawGroup0); err != nil {
+		return false
+	}
+	if rawGroup0.URL == nil {
+		return false
+	}
+	if rawGroup0.Command != nil {
+		return false
+	}
+	if rawGroup0.Ide != nil {
+		return false
+	}
+	if rawGroup0.SocketPath != nil {
+		return false
+	}
+	var rawGroup1 struct {
+		Ide json.RawMessage `json:"ide"`
+	}
+	if err := json.Unmarshal(data, &rawGroup1); err != nil {
+		return false
+	}
+	if rawGroup1.Ide != nil {
+		var rawGroup1Ide struct {
+			ClientPid       json.RawMessage `json:"clientPid"`
+			ClientVersion   json.RawMessage `json:"clientVersion"`
+			IdeName         json.RawMessage `json:"ideName"`
+			LockFilePath    json.RawMessage `json:"lockFilePath"`
+			ParentPid       json.RawMessage `json:"parentPid"`
+			Pid             json.RawMessage `json:"pid"`
+			WorkspaceFolder json.RawMessage `json:"workspaceFolder"`
+		}
+		if err := json.Unmarshal(rawGroup1.Ide, &rawGroup1Ide); err == nil {
+			if rawGroup1Ide.ClientPid != nil {
+				return false
+			}
+			if rawGroup1Ide.ClientVersion != nil {
+				return false
+			}
+			if rawGroup1Ide.IdeName != nil {
+				return false
+			}
+			if rawGroup1Ide.LockFilePath != nil {
+				return false
+			}
+			if rawGroup1Ide.ParentPid != nil {
+				return false
+			}
+			if rawGroup1Ide.Pid != nil {
+				return false
+			}
+			if rawGroup1Ide.WorkspaceFolder != nil {
+				return false
+			}
+		}
+	}
+	return true
+}
+
+func matchesMCPStartServerConfigMCPServerConfigLocal(data []byte) bool {
+	var rawGroup0 struct {
+		Command    json.RawMessage `json:"command"`
+		Ide        json.RawMessage `json:"ide"`
+		SocketPath json.RawMessage `json:"socketPath"`
+		Type       json.RawMessage `json:"type"`
+		URL        json.RawMessage `json:"url"`
+	}
+	if err := json.Unmarshal(data, &rawGroup0); err != nil {
+		return false
+	}
+	if rawGroup0.Ide == nil {
+		return false
+	}
+	if rawGroup0.SocketPath == nil {
+		return false
+	}
+	if rawGroup0.Type == nil {
+		return false
+	}
+	var rawGroup0Term2String string
+	if err := json.Unmarshal(rawGroup0.Type, &rawGroup0Term2String); err != nil {
+		return false
+	}
+	switch rawGroup0Term2String {
+	case "local-http":
+	default:
+		return false
+	}
+	if rawGroup0.Command != nil {
+		return false
+	}
+	if rawGroup0.URL != nil {
+		return false
+	}
+	var rawGroup1 struct {
+		Ide json.RawMessage `json:"ide"`
+	}
+	if err := json.Unmarshal(data, &rawGroup1); err != nil {
+		return false
+	}
+	if rawGroup1.Ide == nil {
+		return false
+	}
+	var rawGroup1Ide struct {
+		ClientPid       json.RawMessage `json:"clientPid"`
+		ClientVersion   json.RawMessage `json:"clientVersion"`
+		IdeName         json.RawMessage `json:"ideName"`
+		LockFilePath    json.RawMessage `json:"lockFilePath"`
+		ParentPid       json.RawMessage `json:"parentPid"`
+		Pid             json.RawMessage `json:"pid"`
+		WorkspaceFolder json.RawMessage `json:"workspaceFolder"`
+	}
+	if err := json.Unmarshal(rawGroup1.Ide, &rawGroup1Ide); err != nil {
+		return false
+	}
+	if rawGroup1Ide.ClientPid == nil {
+		return false
+	}
+	if rawGroup1Ide.ClientVersion == nil {
+		return false
+	}
+	if rawGroup1Ide.IdeName == nil {
+		return false
+	}
+	if rawGroup1Ide.LockFilePath == nil {
+		return false
+	}
+	if rawGroup1Ide.ParentPid == nil {
+		return false
+	}
+	if rawGroup1Ide.Pid == nil {
+		return false
+	}
+	if rawGroup1Ide.WorkspaceFolder == nil {
+		return false
+	}
+	return true
+}
+
+func matchesMCPStartServerConfigMCPServerConfigStdio(data []byte) bool {
+	var rawType struct {
+		Type json.RawMessage `json:"type"`
+	}
+	if err := json.Unmarshal(data, &rawType); err != nil {
+		return false
+	}
+	if rawType.Type != nil {
+		var rawTypeString string
+		if err := json.Unmarshal(rawType.Type, &rawTypeString); err != nil {
+			return false
+		}
+		switch rawTypeString {
+		case "local", "stdio":
+		default:
+			return false
+		}
+	}
+	var rawGroup0 struct {
+		Command    json.RawMessage `json:"command"`
+		Ide        json.RawMessage `json:"ide"`
+		SocketPath json.RawMessage `json:"socketPath"`
+		URL        json.RawMessage `json:"url"`
+	}
+	if err := json.Unmarshal(data, &rawGroup0); err != nil {
+		return false
+	}
+	if rawGroup0.Command == nil {
+		return false
+	}
+	if rawGroup0.Ide != nil {
+		return false
+	}
+	if rawGroup0.SocketPath != nil {
+		return false
+	}
+	if rawGroup0.URL != nil {
+		return false
+	}
+	var rawGroup1 struct {
+		Ide json.RawMessage `json:"ide"`
+	}
+	if err := json.Unmarshal(data, &rawGroup1); err != nil {
+		return false
+	}
+	if rawGroup1.Ide != nil {
+		var rawGroup1Ide struct {
+			ClientPid       json.RawMessage `json:"clientPid"`
+			ClientVersion   json.RawMessage `json:"clientVersion"`
+			IdeName         json.RawMessage `json:"ideName"`
+			LockFilePath    json.RawMessage `json:"lockFilePath"`
+			ParentPid       json.RawMessage `json:"parentPid"`
+			Pid             json.RawMessage `json:"pid"`
+			WorkspaceFolder json.RawMessage `json:"workspaceFolder"`
+		}
+		if err := json.Unmarshal(rawGroup1.Ide, &rawGroup1Ide); err == nil {
+			if rawGroup1Ide.ClientPid != nil {
+				return false
+			}
+			if rawGroup1Ide.ClientVersion != nil {
+				return false
+			}
+			if rawGroup1Ide.IdeName != nil {
+				return false
+			}
+			if rawGroup1Ide.LockFilePath != nil {
+				return false
+			}
+			if rawGroup1Ide.ParentPid != nil {
+				return false
+			}
+			if rawGroup1Ide.Pid != nil {
+				return false
+			}
+			if rawGroup1Ide.WorkspaceFolder != nil {
+				return false
+			}
+		}
+	}
+	return true
+}
+
+func unmarshalMCPStartServerConfig(data []byte) (MCPStartServerConfig, error) {
+	if string(data) == "null" {
+		return nil, nil
+	}
+	if matchesMCPStartServerConfigMCPServerConfigHTTP(data) {
+		var d MCPServerConfigHTTP
+		if err := json.Unmarshal(data, &d); err != nil {
+			return nil, err
+		}
+		return &d, nil
+	}
+	if matchesMCPStartServerConfigMCPServerConfigLocal(data) {
+		var d MCPServerConfigLocal
+		if err := json.Unmarshal(data, &d); err != nil {
+			return nil, err
+		}
+		return &d, nil
+	}
+	if matchesMCPStartServerConfigMCPServerConfigStdio(data) {
+		var d MCPServerConfigStdio
+		if err := json.Unmarshal(data, &d); err != nil {
+			return nil, err
+		}
+		return &d, nil
+	}
+	return &RawMCPStartServerConfigData{Raw: data}, nil
+}
+
+func (r RawMCPStartServerConfigData) MarshalJSON() ([]byte, error) {
+	if r.Raw != nil {
+		return r.Raw, nil
+	}
+	return []byte("null"), nil
+}
+
 func (r *MCPStartServerRequest) UnmarshalJSON(data []byte) error {
 	type rawMCPStartServerRequest struct {
 		Config                 json.RawMessage `json:"config,omitempty"`
@@ -8290,7 +8709,7 @@ func (r *MCPStartServerRequest) UnmarshalJSON(data []byte) error {
 		return err
 	}
 	if raw.Config != nil {
-		value, err := unmarshalMCPSerializableServerConfig(raw.Config)
+		value, err := unmarshalMCPStartServerConfig(raw.Config)
 		if err != nil {
 			return err
 		}
@@ -8299,6 +8718,13 @@ func (r *MCPStartServerRequest) UnmarshalJSON(data []byte) error {
 	r.ExpectedInstallationID = raw.ExpectedInstallationID
 	r.ServerName = raw.ServerName
 	return nil
+}
+
+func (r *MCPToolResult) UnmarshalJSON(data []byte) error {
+	type wire MCPToolResult
+	decoder := json.NewDecoder(bytes.NewReader(data))
+	decoder.UseNumber()
+	return decoder.Decode((*wire)(r))
 }
 
 func (r *PendingPermissionRequest) UnmarshalJSON(data []byte) error {

@@ -41,13 +41,17 @@ public final class HumanResponseRecordedResponseUserInput extends HumanResponseR
     @JsonProperty("allowFreeform")
     private Boolean allowFreeform;
 
-    /** Exact selected or free-form answer submitted by the user. */
+    /** Exact selected or free-form answer submitted by the user; empty when the person dismissed the question. */
     @JsonProperty("answer")
     private String answer;
 
     /** Whether the answer was typed as free-form text rather than selected from the displayed choices. */
     @JsonProperty("wasFreeform")
     private Boolean wasFreeform;
+
+    /** True when the person dismissed the question instead of answering it. */
+    @JsonProperty("dismissed")
+    private Boolean dismissed;
 
     public String getQuestion() { return question; }
     public void setQuestion(String question) { this.question = question; }
@@ -63,6 +67,9 @@ public final class HumanResponseRecordedResponseUserInput extends HumanResponseR
 
     public Boolean getWasFreeform() { return wasFreeform; }
     public void setWasFreeform(Boolean wasFreeform) { this.wasFreeform = wasFreeform; }
+
+    public Boolean getDismissed() { return dismissed; }
+    public void setDismissed(Boolean dismissed) { this.dismissed = dismissed; }
 
 
     /**
@@ -83,6 +90,7 @@ public final class HumanResponseRecordedResponseUserInput extends HumanResponseR
         private Boolean allowFreeform;
         private String answer;
         private Boolean wasFreeform;
+        private Boolean dismissed;
 
         /**
          * Sets the {@code question} property.
@@ -140,6 +148,17 @@ public final class HumanResponseRecordedResponseUserInput extends HumanResponseR
         }
 
         /**
+         * Sets the {@code dismissed} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder dismissed(Boolean value) {
+            this.dismissed = value;
+            return this;
+        }
+
+        /**
          * Builds a variant after checking required property presence.
          * @return a new variant
          * @throws IllegalStateException if a required property is missing
@@ -155,6 +174,7 @@ public final class HumanResponseRecordedResponseUserInput extends HumanResponseR
             instance.setAllowFreeform(allowFreeform);
             instance.setAnswer(answer);
             instance.setWasFreeform(wasFreeform);
+            instance.setDismissed(dismissed);
             return instance;
         }
     }

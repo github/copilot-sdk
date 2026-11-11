@@ -49,7 +49,7 @@ public final class HumanResponseRecordedResponseExitPlanMode extends HumanRespon
     @JsonProperty("approved")
     private Boolean approved;
 
-    /** Action selected by the user, when applicable. */
+    /** Action the runtime applied for an approved plan: the user's selection, or the default an approval without one applies. */
     @JsonProperty("selectedAction")
     private ExitPlanModeAction selectedAction;
 

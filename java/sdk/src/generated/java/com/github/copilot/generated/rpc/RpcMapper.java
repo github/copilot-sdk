@@ -15,9 +15,9 @@ import javax.annotation.processing.Generated;
  * <p>
  * {@link com.fasterxml.jackson.databind.ObjectMapper} is thread-safe and expensive to
  * instantiate, so a single shared instance is used across all generated API classes.
- * The configuration mirrors {@code JsonRpcClient}'s mapper (JavaTimeModule, lenient
- * unknown-property handling, ISO date format, null properties omitted and null map
- * entries kept).
+ * Uses JavaTimeModule, lenient unknown-property handling, ISO date format, and
+ * preserves nulls in opaque caller payloads before merging session parameters.
+ * Protocol DTO annotations control omission of optional null properties.
  *
  * @since 1.0.0
  */
@@ -32,7 +32,7 @@ final class RpcMapper {
         mapper.configure(com.fasterxml.jackson.databind.DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false);
         mapper.configure(com.fasterxml.jackson.databind.SerializationFeature.WRITE_DATES_AS_TIMESTAMPS, false);
         mapper.setDefaultPropertyInclusion(com.fasterxml.jackson.annotation.JsonInclude.Value.construct(
-                com.fasterxml.jackson.annotation.JsonInclude.Include.NON_NULL,
+                com.fasterxml.jackson.annotation.JsonInclude.Include.ALWAYS,
                 com.fasterxml.jackson.annotation.JsonInclude.Include.ALWAYS));
         return mapper;
     }

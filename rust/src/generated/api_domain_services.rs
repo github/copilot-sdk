@@ -12,14 +12,14 @@ pub(crate) use lifecycle_diagnostics::LifecycleDiagnosticEvent;
 use serde::{Deserialize, Serialize};
 pub use session_events::{
     AbortReason, AgentModelPolicy, AssistedApprovalAssessment, AutoTier, BlockedPermissionAction,
-    ContextTier, IndexedSearchState, ManagedPermissionsContext, ManagedSettingsResolvedSource,
-    McpOauthHttpResponse, McpOauthWWWAuthenticateParams, McpServerMetadata, McpServerSource,
-    McpServerStatus, McpSkillOrigin, ModelChangeSource, ModelProviderKind, ModelProviderRef,
-    OmittedBinaryOmittedReason, PermissionDecisionSource, PermissionMode, PermissionPromptRequest,
-    PermissionRule, PolicyHelperCapabilities, PolicyHelperFailure, ProviderQuotaState,
-    ReasoningSummary, RemediationAction, SessionLimitsConfig, SessionMode, ShutdownType,
-    SkillSource, TaskBlocker, TaskCompletionOutcome, UsageGetMetricsResult,
-    UserToolSessionApproval, Verbosity,
+    ContextTier, IdeConnectedInfo, IdeSelection, IndexedSearchState, ManagedPermissionsContext,
+    ManagedSettingsResolvedSource, McpOauthHttpResponse, McpOauthWWWAuthenticateParams,
+    McpServerMetadata, McpServerSource, McpServerStatus, McpSkillOrigin, ModelChangeSource,
+    ModelProviderKind, ModelProviderRef, OmittedBinaryOmittedReason, PermissionDecisionSource,
+    PermissionMode, PermissionPromptRequest, PermissionRule, PolicyHelperCapabilities,
+    PolicyHelperFailure, ProviderQuotaState, ReasoningSummary, RemediationAction,
+    SessionLimitsConfig, SessionMode, ShutdownType, SkillSource, TaskBlocker,
+    TaskCompletionOutcome, UsageGetMetricsResult, UserToolSessionApproval, Verbosity,
 };
 
 use super::sdk_api_shared::*;
@@ -4923,6 +4923,21 @@ pub struct ContentExclusionValidatePoliciesResult {
     pub policies: Vec<serde_json::Value>,
 }
 
+/// JSON-RPC error.data for application code -32004. Carries no credentials or provider error details.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct CredentialContextErrorData {
+    /// Stable discriminator. Consumers use this value instead of the error message.
+    pub code: CredentialContextErrorCode,
+}
+
 /// Result of one customization reload component.
 ///
 /// <div class="warning">
@@ -6257,6 +6272,420 @@ pub struct ExternalToolTextResultForLlmContentText {
     pub text: String,
     /// Content block type discriminator
     pub r#type: ExternalToolTextResultForLlmContentTextType,
+}
+
+/// Result of disposing a fetch handle.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct FetchCancelResult {
+    /// True if this connection owned a live handle. False for unknown, disposed, or foreign handles.
+    pub canceled: bool,
+}
+
+/// The connection-owned HTTP request handle allocated by fetch.create.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct FetchCreateResult {
+    /// Opaque handle. Other connections cannot start, read, or cancel it.
+    pub request_id: RequestId,
+}
+
+/// JSON-RPC error.data for file creation, writes, completion, or incomplete-file cleanup failures (-32603).
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct FetchFileErrorData {
+    /// Always fileSystem; these errors do not describe an HTTP transport failure.
+    pub kind: FetchFileErrorKind,
+    /// The failed filesystem operation.
+    pub operation: FetchFileOperation,
+    /// Platform error number, when supplied by the operating system.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub os_error_code: Option<i64>,
+}
+
+/// One HTTP header entry. Repeated names retain their value order.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct FetchHeader {
+    /// HTTP header name.
+    pub name: String,
+    /// HTTP header value.
+    pub value: String,
+}
+
+/// Per-request proxy environment. An empty object disables ambient proxies.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct FetchProxyEnv {
+    /// Proxy for HTTP targets.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub http_proxy: Option<String>,
+    /// Proxy for HTTPS targets.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub https_proxy: Option<String>,
+    /// Comma-separated proxy bypass patterns.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub no_proxy: Option<String>,
+}
+
+/// A response byte range, or EOF. EOF and transport failures dispose the handle.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct FetchReadResult {
+    /// Response bytes encoded as standard base64. Empty at EOF.
+    pub body: String,
+    /// True at EOF. Do not read the handle again after EOF.
+    pub done: bool,
+    /// At EOF, whether TLS did not attest to the end of a close-delimited event stream.
+    pub ended_at_unverified_eof: bool,
+}
+
+/// A fetch handle owned by the SDK connection that created it.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct FetchRequestId {
+    /// Opaque handle. Other connections cannot start, read, or cancel it.
+    pub request_id: RequestId,
+}
+
+/// An HTTP request through the shared network transport.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct FetchSendParams {
+    /// Permit loopback DNS pins. Defaults to false. This is not a general URL admission policy.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub allow_localhost: Option<bool>,
+    /// Request bytes encoded as standard base64. Omission sends no body.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub body: Option<String>,
+    /// Maximum decoded response bytes. Only text mode defaults to 1048576; file and stream modes have no default limit.
+    /// Explicit zero permits only an empty body. Exceeding the limit fails without truncation.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub body_limit_bytes: Option<i64>,
+    /// An existing connection-owned credential capability. Each same-origin hop resolves fresh credentials.
+    /// Conflicting headers fail. Cross-origin redirects drop credentials but retain the original authority.
+    /// HTTPS downgrades fail. Omission adds no service credentials.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub credential_context_id: Option<String>,
+    /// Destination on the runtime host, required only for file mode. Must not already exist.
+    /// The caller owns completed files. Failed or canceled requests remove their incomplete files.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub destination_path: Option<String>,
+    /// Disable idle connection reuse. Defaults to false.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub disable_connection_reuse: Option<bool>,
+    /// Header entries in input order. Repeated names are not combined.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub headers: Option<Vec<FetchHeader>>,
+    /// HTTP method. Defaults to GET.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub method: Option<String>,
+    /// DNS address pins. Internal pins bypass proxies; public pins yield to configured proxies.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub pinned_addresses: Option<Vec<String>>,
+    /// Proxy overrides. Omission reads the process proxy environment per request.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub proxy_env: Option<FetchProxyEnv>,
+    /// Force proxy Negotiate authentication when supported. Defaults to false; automatic proxy negotiation remains enabled.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub proxy_negotiate_auth: Option<bool>,
+    /// Optional proxy Kerberos service principal override.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub proxy_negotiate_spn: Option<String>,
+    /// Read timeout in milliseconds. Defaults to 700000. Explicit zero is preserved.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub read_timeout_ms: Option<i64>,
+    /// Redirect policy. Defaults to follow.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub redirect: Option<FetchRedirect>,
+    /// Connection-owned handle returned by fetch.create. Each handle can start only once.
+    pub request_id: RequestId,
+    /// Response consumption mode. Stream returns headers immediately; text and file consume the complete body.
+    pub response_mode: FetchResponseMode,
+    /// Total request timeout in milliseconds, including body consumption. Omission sets no total deadline.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub timeout_ms: Option<i64>,
+    /// Absolute target URL.
+    pub url: String,
+}
+
+/// Headers are available; fetch.read consumes the body and fetch.cancel discards it.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct FetchSendResultStream {
+    /// Headers including repeated names in value order. Distinct-name order is transport-dependent.
+    pub headers: Vec<FetchHeader>,
+    /// Selected HTTP response representation.
+    #[serde(
+        deserialize_with = "FetchSendResultStream::deserialize_response_mode",
+        serialize_with = "FetchSendResultStream::serialize_response_mode"
+    )]
+    pub response_mode: FetchResponseMode,
+    /// HTTP status code, including non-success statuses.
+    pub status: i32,
+    /// HTTP reason phrase.
+    pub status_text: String,
+    /// Final URL after redirects.
+    pub url: String,
+}
+
+impl Default for FetchSendResultStream {
+    fn default() -> Self {
+        Self {
+            headers: Default::default(),
+            response_mode: FetchResponseMode::Stream,
+            status: Default::default(),
+            status_text: Default::default(),
+            url: Default::default(),
+        }
+    }
+}
+
+impl FetchSendResultStream {
+    fn deserialize_response_mode<'de, D>(deserializer: D) -> Result<FetchResponseMode, D::Error>
+    where
+        D: serde::Deserializer<'de>,
+    {
+        let value = String::deserialize(deserializer)?;
+        if value != "stream" {
+            return Err(serde::de::Error::unknown_variant(&value, &["stream"]));
+        }
+        <FetchResponseMode>::deserialize(serde::de::value::StringDeserializer::<D::Error>::new(
+            value,
+        ))
+    }
+
+    fn serialize_response_mode<S>(
+        value: &FetchResponseMode,
+        serializer: S,
+    ) -> Result<S::Ok, S::Error>
+    where
+        S: serde::Serializer,
+    {
+        if *value != FetchResponseMode::Stream {
+            return Err(serde::ser::Error::custom(
+                "invalid responseMode for FetchSendResultStream",
+            ));
+        }
+        serializer.serialize_str("stream")
+    }
+}
+
+/// Complete response text with replacement for malformed UTF-8 and the initial UTF-8 BOM omitted.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct FetchSendResultText {
+    /// Complete text decoded as WHATWG Response.text(), independent of the Content-Type charset.
+    pub body_text: String,
+    /// Whether TLS did not attest to the end of a close-delimited event stream.
+    pub ended_at_unverified_eof: bool,
+    /// Headers including repeated names in value order. Distinct-name order is transport-dependent.
+    pub headers: Vec<FetchHeader>,
+    /// Selected HTTP response representation.
+    #[serde(
+        deserialize_with = "FetchSendResultText::deserialize_response_mode",
+        serialize_with = "FetchSendResultText::serialize_response_mode"
+    )]
+    pub response_mode: FetchResponseMode,
+    /// HTTP status code, including non-success statuses.
+    pub status: i32,
+    /// HTTP reason phrase.
+    pub status_text: String,
+    /// Final URL after redirects.
+    pub url: String,
+}
+
+impl Default for FetchSendResultText {
+    fn default() -> Self {
+        Self {
+            body_text: Default::default(),
+            ended_at_unverified_eof: Default::default(),
+            headers: Default::default(),
+            response_mode: FetchResponseMode::Text,
+            status: Default::default(),
+            status_text: Default::default(),
+            url: Default::default(),
+        }
+    }
+}
+
+impl FetchSendResultText {
+    fn deserialize_response_mode<'de, D>(deserializer: D) -> Result<FetchResponseMode, D::Error>
+    where
+        D: serde::Deserializer<'de>,
+    {
+        let value = String::deserialize(deserializer)?;
+        if value != "text" {
+            return Err(serde::de::Error::unknown_variant(&value, &["text"]));
+        }
+        <FetchResponseMode>::deserialize(serde::de::value::StringDeserializer::<D::Error>::new(
+            value,
+        ))
+    }
+
+    fn serialize_response_mode<S>(
+        value: &FetchResponseMode,
+        serializer: S,
+    ) -> Result<S::Ok, S::Error>
+    where
+        S: serde::Serializer,
+    {
+        if *value != FetchResponseMode::Text {
+            return Err(serde::ser::Error::custom(
+                "invalid responseMode for FetchSendResultText",
+            ));
+        }
+        serializer.serialize_str("text")
+    }
+}
+
+/// Completed caller-owned file. Cancellation and disconnect do not remove it.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct FetchSendResultFile {
+    /// Whether TLS did not attest to the end of a close-delimited event stream.
+    pub ended_at_unverified_eof: bool,
+    /// Headers including repeated names in value order. Distinct-name order is transport-dependent.
+    pub headers: Vec<FetchHeader>,
+    /// Caller-specified path on the runtime host. Remote clients do not receive the file bytes.
+    pub path: String,
+    /// Selected HTTP response representation.
+    #[serde(
+        deserialize_with = "FetchSendResultFile::deserialize_response_mode",
+        serialize_with = "FetchSendResultFile::serialize_response_mode"
+    )]
+    pub response_mode: FetchResponseMode,
+    /// Number of decoded response bytes written.
+    pub size_bytes: i64,
+    /// HTTP status code, including non-success statuses.
+    pub status: i32,
+    /// HTTP reason phrase.
+    pub status_text: String,
+    /// Final URL after redirects.
+    pub url: String,
+}
+
+impl Default for FetchSendResultFile {
+    fn default() -> Self {
+        Self {
+            ended_at_unverified_eof: Default::default(),
+            headers: Default::default(),
+            path: Default::default(),
+            response_mode: FetchResponseMode::File,
+            size_bytes: Default::default(),
+            status: Default::default(),
+            status_text: Default::default(),
+            url: Default::default(),
+        }
+    }
+}
+
+impl FetchSendResultFile {
+    fn deserialize_response_mode<'de, D>(deserializer: D) -> Result<FetchResponseMode, D::Error>
+    where
+        D: serde::Deserializer<'de>,
+    {
+        let value = String::deserialize(deserializer)?;
+        if value != "file" {
+            return Err(serde::de::Error::unknown_variant(&value, &["file"]));
+        }
+        <FetchResponseMode>::deserialize(serde::de::value::StringDeserializer::<D::Error>::new(
+            value,
+        ))
+    }
+
+    fn serialize_response_mode<S>(
+        value: &FetchResponseMode,
+        serializer: S,
+    ) -> Result<S::Ok, S::Error>
+    where
+        S: serde::Serializer,
+    {
+        if *value != FetchResponseMode::File {
+            return Err(serde::ser::Error::custom(
+                "invalid responseMode for FetchSendResultFile",
+            ));
+        }
+        serializer.serialize_str("file")
+    }
+}
+
+/// JSON-RPC error.data for fetch.send/read transport failures (-32603). The transport-code token remains unchanged.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct FetchTransportErrorData {
+    /// The engine transport code, when available. An unclassified HTTP client failure uses "unknown".
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub code: Option<String>,
+    /// The shared engine's failure category.
+    pub kind: FetchTransportErrorKind,
+    /// The engine's network-error classification. This does not select a retry policy.
+    pub network_error: bool,
+    /// The engine's permanent-request-failure classification. This does not select a retry policy.
+    pub permanent_request_failure: bool,
 }
 
 /// Folder path to add to trusted folders.
@@ -7611,6 +8040,28 @@ pub struct HostValidateAuthenticationRequest {
     pub request_id: RequestId,
     /// Decrypted admission token.
     pub token: String,
+}
+
+/// Live IDE state. This state never restores a connection from session history.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct IdeConnectionState {
+    /// Currently available IDE, absent during an outage.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub connected_ide: Option<IdeConnectedInfo>,
+    /// IDE whose tool definitions remain registered, including during an outage.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub retained_ide: Option<IdeConnectedInfo>,
+    /// Latest observed selection, absent after disconnect.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub selection: Option<IdeSelection>,
 }
 
 /// Source descriptor for a direct GitHub plugin install, with `owner/repo`, optional ref or full commit SHA, and optional subpath.
@@ -9711,6 +10162,52 @@ pub struct NameSetRequest {
     pub name: String,
 }
 
+/// Registers the Basic authentication callback, which then supplies the credentials for proxies that challenge with Basic authentication.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct NetworkAuthenticateBasicOptions {}
+
+/// Requests credentials for a proxy's Basic authentication challenge.
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct NetworkAuthenticateBasicRequest {
+    /// True when the proxy rejected the credentials the connection sent last, including ones the runtime remembered from an earlier answer: answer with different credentials, for example by asking the user, or with none. False when the connection has not sent credentials yet.
+    pub previous_rejected: bool,
+    /// Proxy that challenged, as `http://host:port` or `https://host:port`.
+    pub proxy: String,
+    /// Realm the proxy named in its challenge, if any. The proxy supplies it, so treat it as untrusted text.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub realm: Option<String>,
+}
+
+/// Credentials for a proxy's Basic authentication challenge.
+#[derive(Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct NetworkAuthenticateBasicResult {
+    /// Password; omitted for an empty password. Must not contain control characters. Never log or persist it.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub password: Option<String>,
+    /// User name; omitted or empty when no credentials are available, which fails the request with the proxy's challenge. Must not contain a colon or control characters. Never log or persist it with the password.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub username: Option<String>,
+}
+
+impl std::fmt::Debug for NetworkAuthenticateBasicResult {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("NetworkAuthenticateBasicResult")
+            .field("password", &self.password.as_ref().map(|_| "<redacted>"))
+            .field("username", &self.username)
+            .finish()
+    }
+}
+
 /// Registers the Negotiate authentication callback, which then supplies the Kerberos tokens instead of native credential lookup.
 ///
 /// <div class="warning">
@@ -9732,12 +10229,20 @@ pub struct NetworkAuthenticateNegotiateRequest {
 }
 
 /// Client credentials for a single Negotiate authentication exchange.
-#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[derive(Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct NetworkAuthenticateNegotiateResult {
     /// Base64 initial SPNEGO token without the Negotiate prefix; omitted when unavailable. Never log or persist it.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub token: Option<String>,
+}
+
+impl std::fmt::Debug for NetworkAuthenticateNegotiateResult {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("NetworkAuthenticateNegotiateResult")
+            .field("token", &self.token.as_ref().map(|_| "<redacted>"))
+            .finish()
+    }
 }
 
 /// Registers the proxy resolution callback, which then decides the proxies for every request the runtime would otherwise route by ambient proxy settings, or leaves a request to that routing.
@@ -9789,6 +10294,70 @@ pub struct NetworkSetProviderRequest {
     /// Traffic the callbacks serve; defaults to `connection`.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub scope: Option<NetworkScope>,
+}
+
+/// Extensible [`NetworkSetProviderRequest`], including inputs added after it was published.
+///
+/// Required inputs are [`NetworkSetProviderOptions::new`] arguments; optional inputs have fluent setters.
+/// Input-only: it serialises to the flat wire request and is not deserialisable.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct NetworkSetProviderOptions {
+    #[serde(flatten)]
+    legacy: NetworkSetProviderRequest,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    authenticate_basic: Option<NetworkAuthenticateBasicOptions>,
+}
+
+impl NetworkSetProviderOptions {
+    /// Creates options with the required inputs.
+    pub fn new() -> Self {
+        Self {
+            legacy: NetworkSetProviderRequest {
+                scope: None,
+                resolve_proxy: None,
+                authenticate_negotiate: None,
+            },
+            authenticate_basic: None,
+        }
+    }
+
+    /// Traffic the callbacks serve; defaults to `connection`.
+    pub fn scope(mut self, value: NetworkScope) -> Self {
+        self.legacy.scope = Some(value);
+        self
+    }
+
+    /// Present when the client answers `network.resolveProxy`.
+    pub fn resolve_proxy(mut self, value: NetworkResolveProxyOptions) -> Self {
+        self.legacy.resolve_proxy = Some(value);
+        self
+    }
+
+    /// Present when the client answers `network.authenticateNegotiate`.
+    pub fn authenticate_negotiate(mut self, value: NetworkAuthenticateNegotiateOptions) -> Self {
+        self.legacy.authenticate_negotiate = Some(value);
+        self
+    }
+
+    /// Present when the client answers `network.authenticateBasic`.
+    pub fn authenticate_basic(mut self, value: NetworkAuthenticateBasicOptions) -> Self {
+        self.authenticate_basic = Some(value);
+        self
+    }
+}
+
+impl Default for NetworkSetProviderOptions {
+    fn default() -> Self {
+        Self::new()
+    }
 }
 
 /// External tool calls still waiting for a result.
@@ -12865,6 +13434,42 @@ pub struct UIHandlePendingElicitationRequest {
     pub result: UIElicitationResponse,
 }
 
+/// Extensible [`UIHandlePendingElicitationRequest`], including inputs added after it was published.
+///
+/// Required inputs are [`UIHandlePendingElicitationOptions::new`] arguments; optional inputs have fluent setters.
+/// Input-only: it serialises to the flat wire request and is not deserialisable.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct UIHandlePendingElicitationOptions {
+    #[serde(flatten)]
+    legacy: UIHandlePendingElicitationRequest,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    decision_context: Option<PermissionDecisionContext>,
+}
+
+impl UIHandlePendingElicitationOptions {
+    /// Creates options with the required inputs.
+    pub fn new(request_id: RequestId, result: UIElicitationResponse) -> Self {
+        Self {
+            legacy: UIHandlePendingElicitationRequest { request_id, result },
+            decision_context: None,
+        }
+    }
+
+    /// Who answered and how. When it says a person answered interactively (`source` `human_response` with `responseCapability` `interactive`), the runtime records the answer as the person's own authority for Assisted Permissions, but only from the session's authenticated owning connection or the in-process host; an answer from any other caller settles without it. The runtime decides which answers carry authority. Omit for automated answers.
+    pub fn decision_context(mut self, value: PermissionDecisionContext) -> Self {
+        self.decision_context = Some(value);
+        self
+    }
+}
+
 /// Request ID of a pending `exit_plan_mode.requested` event and the user's response.
 ///
 /// <div class="warning">
@@ -12880,6 +13485,45 @@ pub struct UIHandlePendingExitPlanModeRequest {
     pub request_id: RequestId,
     /// User response for a pending exit-plan-mode request, with approval state, selected action, auto-approve flag, and feedback.
     pub response: UIExitPlanModeResponse,
+}
+
+/// Extensible [`UIHandlePendingExitPlanModeRequest`], including inputs added after it was published.
+///
+/// Required inputs are [`UIHandlePendingExitPlanModeOptions::new`] arguments; optional inputs have fluent setters.
+/// Input-only: it serialises to the flat wire request and is not deserialisable.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct UIHandlePendingExitPlanModeOptions {
+    #[serde(flatten)]
+    legacy: UIHandlePendingExitPlanModeRequest,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    decision_context: Option<PermissionDecisionContext>,
+}
+
+impl UIHandlePendingExitPlanModeOptions {
+    /// Creates options with the required inputs.
+    pub fn new(request_id: RequestId, response: UIExitPlanModeResponse) -> Self {
+        Self {
+            legacy: UIHandlePendingExitPlanModeRequest {
+                request_id,
+                response,
+            },
+            decision_context: None,
+        }
+    }
+
+    /// Who answered and how. When it says a person answered interactively (`source` `human_response` with `responseCapability` `interactive`), the runtime records the answer as the person's own authority for Assisted Permissions, but only from the session's authenticated owning connection or the in-process host; an answer from any other caller settles without it. The runtime decides which answers carry authority. Omit for automated answers.
+    pub fn decision_context(mut self, value: PermissionDecisionContext) -> Self {
+        self.decision_context = Some(value);
+        self
+    }
 }
 
 /// Indicates whether the pending UI request was resolved by this call.
@@ -12997,6 +13641,45 @@ pub struct UIHandlePendingUserInputRequest {
     pub request_id: RequestId,
     /// User response for a pending user-input request, with answer text and whether it was typed freeform.
     pub response: UIUserInputResponse,
+}
+
+/// Extensible [`UIHandlePendingUserInputRequest`], including inputs added after it was published.
+///
+/// Required inputs are [`UIHandlePendingUserInputOptions::new`] arguments; optional inputs have fluent setters.
+/// Input-only: it serialises to the flat wire request and is not deserialisable.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct UIHandlePendingUserInputOptions {
+    #[serde(flatten)]
+    legacy: UIHandlePendingUserInputRequest,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    decision_context: Option<PermissionDecisionContext>,
+}
+
+impl UIHandlePendingUserInputOptions {
+    /// Creates options with the required inputs.
+    pub fn new(request_id: RequestId, response: UIUserInputResponse) -> Self {
+        Self {
+            legacy: UIHandlePendingUserInputRequest {
+                request_id,
+                response,
+            },
+            decision_context: None,
+        }
+    }
+
+    /// Who answered and how. When it says a person answered interactively (`source` `human_response` with `responseCapability` `interactive`), the runtime records the answer as the person's own authority for Assisted Permissions, but only from the session's authenticated owning connection or the in-process host; an answer from any other caller settles without it. The runtime decides which answers carry authority. Omit for automated answers.
+    pub fn decision_context(mut self, value: PermissionDecisionContext) -> Self {
+        self.decision_context = Some(value);
+        self
+    }
 }
 
 /// Optional recovery-aware enrollment for an in-process Auto-switch handler.
@@ -14298,6 +14981,9 @@ pub enum SavedProviderConfigurationType {
     /// Anthropic API endpoint.
     #[serde(rename = "anthropic")]
     Anthropic,
+    /// Experimental: Google Gemini API endpoint, served over the native Gemini Interactions API.
+    #[serde(rename = "google")]
+    Google,
     /// Runtime-managed local model server.
     #[serde(rename = "local_model")]
     LocalModel,
@@ -16026,6 +16712,34 @@ pub enum ContentFilterMode {
     Unknown,
 }
 
+/// Stable credential-context failure categories, independent of the credential provider.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub enum CredentialContextErrorCode {
+    /// The current owner has no usable credential.
+    #[serde(rename = "credential_unavailable")]
+    CredentialUnavailable,
+    /// The context, owner, or lease is no longer current.
+    #[serde(rename = "credential_revoked")]
+    CredentialRevoked,
+    /// The caller, destination, or requested credential use is not authorized.
+    #[serde(rename = "credential_denied")]
+    CredentialDenied,
+    /// The original owner failed to resolve a credential. This is not credential absence.
+    #[serde(rename = "credential_resolution_failed")]
+    CredentialResolutionFailed,
+    /// Unknown variant for forward compatibility.
+    #[default]
+    #[serde(other)]
+    Unknown,
+}
+
 /// Result of reloading a customization component.
 ///
 /// <div class="warning">
@@ -16733,6 +17447,164 @@ pub enum ExternalToolTextResultForLlmContentTextType {
     #[serde(rename = "text")]
     #[default]
     Text,
+}
+
+/// Identifies a local filesystem failure, not a network failure or retry decision.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub enum FetchFileErrorKind {
+    #[serde(rename = "fileSystem")]
+    FileSystem,
+    /// Unknown variant for forward compatibility.
+    #[default]
+    #[serde(other)]
+    Unknown,
+}
+
+/// The filesystem operation that failed while producing or cleaning up a response file.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub enum FetchFileOperation {
+    /// Create the destination file without overwriting an existing path.
+    #[serde(rename = "create")]
+    Create,
+    /// Write decoded response bytes.
+    #[serde(rename = "write")]
+    Write,
+    /// Flush, synchronize, and close the completed file.
+    #[serde(rename = "flush")]
+    Flush,
+    /// Remove the incomplete response file.
+    #[serde(rename = "remove")]
+    Remove,
+    /// Unknown variant for forward compatibility.
+    #[default]
+    #[serde(other)]
+    Unknown,
+}
+
+/// HTTP redirect policy.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub enum FetchRedirect {
+    /// Follow redirects, up to the transport's limit of 20.
+    #[serde(rename = "follow")]
+    Follow,
+    /// Follow only redirects within the original origin.
+    #[serde(rename = "sameOrigin")]
+    SameOrigin,
+    /// Return the redirect response without following it.
+    #[serde(rename = "manual")]
+    Manual,
+    /// Reject redirect responses.
+    #[serde(rename = "error")]
+    Error,
+    /// Unknown variant for forward compatibility.
+    #[default]
+    #[serde(other)]
+    Unknown,
+}
+
+/// How fetch.send delivers the HTTP response.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub enum FetchResponseMode {
+    /// Return headers immediately. Read body chunks with fetch.read or cancel without reading.
+    #[serde(rename = "stream")]
+    Stream,
+    /// Return the complete UTF-8 response text.
+    #[serde(rename = "text")]
+    Text,
+    /// Write the response directly to a new caller-owned file on the runtime host.
+    #[serde(rename = "file")]
+    File,
+    /// Unknown variant for forward compatibility.
+    #[default]
+    #[serde(other)]
+    Unknown,
+}
+
+/// HTTP response metadata and the selected body representation. HTTP error statuses remain successful transport outcomes.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(untagged)]
+pub enum FetchSendResult {
+    Stream(FetchSendResultStream),
+    Text(FetchSendResultText),
+    File(FetchSendResultFile),
+}
+
+/// Shared HTTP engine failure categories. HTTP response statuses are not errors in this enumeration.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub enum FetchTransportErrorKind {
+    /// An HTTP client request or response-body failure.
+    #[serde(rename = "request")]
+    Request,
+    /// The request deadline expired.
+    #[serde(rename = "timeout")]
+    Timeout,
+    /// A proxy tunnel failed.
+    #[serde(rename = "tunnel")]
+    Tunnel,
+    /// Proxy authentication failed.
+    #[serde(rename = "proxy_authentication")]
+    ProxyAuthentication,
+    /// A request or transport configuration is invalid.
+    #[serde(rename = "request_configuration")]
+    RequestConfiguration,
+    /// The response exceeded the caller's body limit.
+    #[serde(rename = "response_body_limit")]
+    ResponseBodyLimit,
+    /// The redirect policy or transport rejected a redirect.
+    #[serde(rename = "redirect")]
+    Redirect,
+    /// The request was canceled.
+    #[serde(rename = "canceled")]
+    Canceled,
+    /// The response stream is closed.
+    #[serde(rename = "stream_closed")]
+    StreamClosed,
+    /// Unknown variant for forward compatibility.
+    #[default]
+    #[serde(other)]
+    Unknown,
 }
 
 /// What initiated this compaction request, recorded as the `trigger` on the persisted `session.compaction_start` / `session.compaction_complete` events. When absent, the compaction is persisted without trigger attribution (initiator unknown).

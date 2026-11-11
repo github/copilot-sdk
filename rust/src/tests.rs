@@ -93,7 +93,7 @@ fn entra_transport(
         Some(options),
     )
     .unwrap();
-    let (notifications, _) = tokio::sync::broadcast::channel(1);
+    let (notifications, _) = mpsc::unbounded_channel();
     let (requests, _) = tokio::sync::mpsc::unbounded_channel();
     let server = Arc::new(jsonrpc::JsonRpcClient::new(
         server_write,
@@ -287,7 +287,7 @@ async fn connect_forwards_optional_entra_configuration() {
             false,
         )
         .unwrap();
-        let (notifications, _) = tokio::sync::broadcast::channel(1);
+        let (notifications, _) = mpsc::unbounded_channel();
         let (requests, _) = tokio::sync::mpsc::unbounded_channel();
         let server =
             jsonrpc::JsonRpcClient::new(server_write, server_read, notifications, requests);
@@ -342,7 +342,7 @@ async fn settings_apply_top_key_preserves_value_presence_on_wire() {
         let (server_read, server_write) = tokio::io::split(server_stream);
         let client =
             Client::from_streams(client_read, client_write, temp.path().to_owned()).unwrap();
-        let (notifications, _) = tokio::sync::broadcast::channel(1);
+        let (notifications, _) = mpsc::unbounded_channel();
         let (requests, _) = tokio::sync::mpsc::unbounded_channel();
         let server =
             jsonrpc::JsonRpcClient::new(server_write, server_read, notifications, requests);
@@ -1473,14 +1473,13 @@ fn client_with_list_models_handler(handler: Arc<dyn ListModelsHandler>) -> Clien
             ffi_host: parking_lot::Mutex::new(None),
             rpc: {
                 let (req_tx, _req_rx) = mpsc::unbounded_channel();
-                let (notif_tx, _notif_rx) = broadcast::channel(16);
+                let (notif_tx, _notif_rx) = mpsc::unbounded_channel();
                 let (read_pipe, _write_pipe) = tokio::io::duplex(64);
                 let (_unused_read, write_pipe) = tokio::io::duplex(64);
                 JsonRpcClient::new(write_pipe, read_pipe, notif_tx, req_tx)
             },
             cwd: PathBuf::from("."),
             request_rx: parking_lot::Mutex::new(None),
-            notification_tx: broadcast::channel(16).0,
             router: router::SessionRouter::new(),
             github_token_registry: Arc::new(github_token::GitHubTokenRegistry::new()),
             negotiated_protocol_version: OnceLock::new(),
